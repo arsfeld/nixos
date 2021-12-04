@@ -5,6 +5,9 @@
 { config, pkgs, ... }:
 
 {
+  imports = [
+    ../common/users.nix
+  ];
 
   fileSystems."/" =
     {
@@ -105,22 +108,6 @@
   ];
 
   security.sudo.wheelNeedsPassword = false;
-
-  users.users.arosenfeld = {
-    isNormalUser = true;
-    shell = pkgs.zsh;
-    extraGroups = [ "wheel" "docker" "lxd" ];
-    openssh.authorizedKeys.keys = [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBDeQP9ZHuDegrcgBEAuLpCWEK0v8eIBAgaLMSquCP0w" ];
-    uid = 1000;
-  };
-  users.groups.arosenfeld.gid = 1000;
-
-  users.users.root.openssh.authorizedKeys.keys = [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBDeQP9ZHuDegrcgBEAuLpCWEK0v8eIBAgaLMSquCP0w" ];
-
-  users.users.media.uid = 5000;
-  users.users.media.isSystemUser = true;
-  users.users.media.group = "media";
-  users.groups.media.gid = 5000;
 
   environment.systemPackages = with pkgs; [
     vim
