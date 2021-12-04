@@ -1,4 +1,5 @@
-
+{ config, pkgs, ... }:
+{
   users.users.arosenfeld = {
     isNormalUser = true;
     shell = pkgs.zsh;
@@ -14,3 +15,4 @@
   users.users.media.isSystemUser = true;
   users.users.media.group = "media";
   users.groups.media.gid = 5000;
+}
