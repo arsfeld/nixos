@@ -36,9 +36,20 @@
       modules = [ ./striker/configuration.nix ];
     };
 
+    
+    nixosConfigurations.virgon = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [ ./virgon/configuration.nix ];
+    };
+
     nixosConfigurations.oracle = nixpkgs.lib.nixosSystem {
       system = "aarch64-linux";
       modules = [ ./oracle/configuration.nix ];
+    };
+    
+    nixosConfigurations.libran = nixpkgs.lib.nixosSystem {
+      system = "aarch64-linux";
+      modules = [ ./libran/configuration.nix ];
     };
   };
 }
