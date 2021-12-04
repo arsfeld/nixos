@@ -6,6 +6,8 @@
 
 {
   imports = [
+    ../common/common.nix
+    ../common/services.nix
     ../common/users.nix
   ];
 
@@ -21,24 +23,13 @@
       fsType = "vfat";
     };
 
-  nix = {
-    package = pkgs.nixFlakes;
-    extraOptions = ''
-      experimental-features = nix-command flakes
-    '';
-  };
-
   boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
-
 
   boot.loader.systemd-boot.enable = true;
   networking.hostName = "striker";
 
   boot = {
     kernelModules = [ "kvm-intel" ];
-    kernel.sysctl = {
-      "fs.inotify.max_user_watches" = "1048576";
-    };
     supportedFilesystems = [ "zfs" ];
   };
 
@@ -51,35 +42,6 @@
     };
   };
   networking.hostId = "88ca1599";
-
-  nixpkgs.config.allowUnfree = true;
-
-  zramSwap.enable = true;
-
-  virtualisation.lxd.enable = true;
-
-  virtualisation.docker = {
-    enable = true;
-    liveRestore = false;
-    extraOptions = "--registry-mirror=https://mirror.gcr.io";
-  };
-
-  services.zerotierone = {
-    enable = true;
-    joinNetworks = [ "35c192ce9b7b5113" ];
-  };
-
-  services.glusterfs = {
-    enable = true;
-  };
-
-  programs.zsh = {
-    enable = true;
-    ohMyZsh = {
-      enable = true;
-      theme = "agnoster";
-    };
-  };
 
   services.syncthing = {
     enable = true;
@@ -102,20 +64,10 @@
     };
   };
 
-  nix.trustedUsers = [
-    "root"
-    "@wheel"
-  ];
-
-  security.sudo.wheelNeedsPassword = false;
-
   environment.systemPackages = with pkgs; [
     vim
     wget
   ];
-
-  services.openssh.enable = true;
-  networking.firewall.enable = false;
 
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions
