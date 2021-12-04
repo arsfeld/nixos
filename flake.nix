@@ -33,12 +33,12 @@
 
     nixosConfigurations.striker = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
-      modules = [ ./configuration.nix ];
+      modules = [ ./striker/configuration.nix ];
     };
 
-    nixosConfigurations.striker = nixpkgs.lib.nixosSystem {
+    nixosConfigurations.oracle = nixpkgs.lib.nixosSystem {
       system = "aarch64-linux";
-      modules = [ ./configuration.nix ];
+      modules = [ ./oracle/configuration.nix ];
     };
   };
 }
