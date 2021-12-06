@@ -44,8 +44,10 @@
   };
   networking.hostId = "88ca1599";
 
+  services.netdata.enable = true;
+
   services.syncthing = {
-    enable = true;
+    enable = false;
     overrideDevices = true;
     overrideFolders = true;
     user = "media";

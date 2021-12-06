@@ -13,7 +13,7 @@
   networking.hostName = "libran";
 
   services.syncthing = {
-    enable = true;
+    enable = false;
     overrideDevices = true;
     overrideFolders = true;
     guiAddress = "0.0.0.0:8384";

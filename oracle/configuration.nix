@@ -19,7 +19,7 @@
   networking.hostName = "oracle";
 
   services.syncthing = {
-    enable = true;
+    enable = false;
     overrideDevices = true;
     overrideFolders = true;
     user = "media";
