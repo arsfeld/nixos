@@ -6,11 +6,13 @@
 
 {
   imports = [
+    ./hardware-configuration.nix
     ../common/common.nix
     ../common/services.nix
     ../common/users.nix
   ];
 
+  /*
   fileSystems."/" =
     {
       device = "/dev/disk/by-uuid/1d951ca0-7b97-4e93-95ac-67c16485942a";
@@ -22,6 +24,7 @@
       device = "/dev/disk/by-uuid/3A3A-D4CE";
       fsType = "vfat";
     };
+  */
 
   boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
 
