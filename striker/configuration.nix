@@ -12,19 +12,17 @@
     ../common/users.nix
   ];
 
-  /*
-  fileSystems."/" =
-    {
-      device = "/dev/disk/by-uuid/1d951ca0-7b97-4e93-95ac-67c16485942a";
-      fsType = "xfs";
-    };
+  fileSystems."/data/media" = {
+    device = "192.168.31.10:/mnt/data/media";
+    fsType = "nfs";
+    options = [ "nfsvers=4.2" "nofail" ];
+  };
+  fileSystems."/data/files" = {
+    device = "192.168.31.10:/mnt/data/files";
+    fsType = "nfs";
+    options = [ "nfsvers=4.2" "nofail" ];
+  };
 
-  fileSystems."/boot" =
-    {
-      device = "/dev/disk/by-uuid/3A3A-D4CE";
-      fsType = "vfat";
-    };
-  */
 
   boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
 
