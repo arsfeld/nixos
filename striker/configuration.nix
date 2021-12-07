@@ -23,6 +23,17 @@
     options = [ "nfsvers=4.2" "nofail" ];
   };
 
+  services.borgbackup.jobs =
+    {
+      # for a local backup
+      dataBackup = {
+        paths = "/var/data";
+        repo = "/data/files/Backups/borg";
+        compression = "zstd";
+        encryption.mode = "none";
+        startAt = "daily";
+      };
+    };
 
   boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
 
