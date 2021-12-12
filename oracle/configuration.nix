@@ -18,6 +18,39 @@
 
   networking.hostName = "oracle";
 
+  services.nebula.networks = {
+    home = {
+      isLighthouse = true;
+      settings =
+        {
+          punchy = {
+            punch = true;
+          };
+        };
+      firewall = {
+        outbound =
+          [
+            {
+              host = "any";
+              port = "any";
+              proto = "any";
+            }
+          ];
+        inbound =
+          [
+            {
+              host = "any";
+              port = "any";
+              proto = "any";
+            }
+          ];
+      };
+      ca = "/etc/nebula/ca.crt";
+      cert = "/etc/nebula/lighthouse.crt";
+      key = "/etc/nebula/lighthouse.key";
+    };
+  };
+
   services.syncthing = {
     enable = false;
     overrideDevices = true;

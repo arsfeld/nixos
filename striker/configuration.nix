@@ -55,6 +55,46 @@
   };
   networking.hostId = "88ca1599";
 
+  services.nebula.networks = {
+    home = {
+      lighthouses = [
+        "192.168.100.1"
+      ];
+      settings =
+        {
+          punchy = {
+            punch = true;
+          };
+        };
+      firewall = {
+        outbound =
+          [
+            {
+              host = "any";
+              port = "any";
+              proto = "any";
+            }
+          ];
+        inbound =
+          [
+            {
+              host = "any";
+              port = "any";
+              proto = "any";
+            }
+          ];
+      };
+      ca = "/etc/nebula/ca.crt";
+      cert = "/etc/nebula/striker.crt";
+      key = "/etc/nebula/striker.key";
+      staticHostMap = {
+        "192.168.100.1" = [
+          "155.248.227.144:4242"
+        ];
+      };
+    };
+  };
+
   services.netdata.enable = true;
 
   services.syncthing = {
