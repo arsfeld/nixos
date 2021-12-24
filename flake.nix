@@ -1,7 +1,7 @@
 {
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-21.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
   outputs = { self, nixpkgs }: {
@@ -19,6 +19,15 @@
           targetUser = "root";
         };
         imports = [ ./oracle/configuration.nix ];
+      };
+
+
+      virgon = {
+        deployment = {
+          targetHost = "virgon.arsfeld.net";
+          targetUser = "root";
+        };
+        imports = [ ./virgon/configuration.nix ];
       };
 
       striker = {

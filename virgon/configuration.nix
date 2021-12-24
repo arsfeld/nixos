@@ -31,6 +31,36 @@
   networking.nameservers = ["8.8.8.8"];
   networking.hostName = "virgon";
 
+  networking.firewall.enable = true;
+  networking.firewall.allowedTCPPorts = [ 22 6443 ];
+
+  services.k3s.enable = true;
+  services.k3s.role = "server";
+  services.k3s.extraFlags = toString [
+    # "--kubelet-arg=v=4" # Optionally add additional args to k3s
+  ];
+  environment.systemPackages = [ pkgs.k3s ];
+
+  # services.sabnzbd = {
+  #   enable = true;
+  #   user = "media";
+  #   group = "media";
+  # };
+
+  # services.nzbhydra2 = {
+  #   enable = true;
+  # };
+
+  # services.caddy = {
+  #   enable = true;
+  #   config = ''
+  #     209.209.8.178, virgon.arsfeld.net {
+  #       root * /mnt/data
+  #       file_server browse
+  #     }
+  #   '';
+  # };
+
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions
   # on your system were taken. It‘s perfectly fine and recommended to leave
