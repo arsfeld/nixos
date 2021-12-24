@@ -3,7 +3,7 @@
   users.users.arosenfeld = {
     isNormalUser = true;
     shell = pkgs.zsh;
-    extraGroups = [ "wheel" "docker" "lxd" ];
+    extraGroups = [ "wheel" "docker" "lxd" "media" ];
     openssh.authorizedKeys.keys = [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBDeQP9ZHuDegrcgBEAuLpCWEK0v8eIBAgaLMSquCP0w" ];
     uid = 1000;
   };
