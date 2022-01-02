@@ -30,5 +30,5 @@
   nixpkgs.config.allowUnfree = true;
   time.timeZone = "America/Toronto";
   zramSwap.enable = true;
-  networking.firewall.enable = false;
+  networking.firewall.allowedTCPPorts = [ 22 ];
 }

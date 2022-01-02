@@ -12,6 +12,8 @@
     ../common/users.nix
   ];
 
+  networking.firewall.enable = false;
+
   fileSystems."/data/media" = {
     device = "192.168.31.10:/mnt/data/media";
     fsType = "nfs";
