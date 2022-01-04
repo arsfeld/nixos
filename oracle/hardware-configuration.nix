@@ -15,4 +15,5 @@
   fileSystems."/boot/efi" = { device = "/dev/disk/by-uuid/7275-636E"; fsType = "vfat"; };
   boot.initrd.kernelModules = [ "nvme" ];
   fileSystems."/" = { device = "/dev/mapper/ocivolume-root"; fsType = "xfs"; };
+  boot.supportedFilesystems = [ "zfs" ];
 }

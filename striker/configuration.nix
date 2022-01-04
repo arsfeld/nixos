@@ -13,6 +13,7 @@
   ];
 
   networking.firewall.enable = false;
+  networking.hostId = "bf276279";
 
   fileSystems."/data/media" = {
     device = "192.168.31.10:/mnt/data/media";
