@@ -23,8 +23,13 @@
       ohMyZsh = {
           enable = true;
           theme = "agnoster";
+          plugins = [ "git" "keychain" ];
       };
   };
+
+  environment.systemPackages = with pkgs; [
+      wget vim nano zsh file keychain
+  ];
 
   services.openssh.enable = true;
   nixpkgs.config.allowUnfree = true;
