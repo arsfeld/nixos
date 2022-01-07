@@ -2,15 +2,40 @@
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
 
-{ config, pkgs, ... }:
+{ lib, config, pkgs, nixpkgs, modulesPath, ... }:
+
+with lib;
 
 {
-  imports = [
-    ./hardware-configuration.nix
+  imports = [ 
     ../common/common.nix
     ../common/services.nix
     ../common/users.nix
+    "${toString modulesPath}/profiles/docker-container.nix"
   ];
+
+  # Disable systemd-udev-trigger.service in lxc containers
+  systemd.services.systemd-udev-trigger.enable = false;
+
+  # Add the overrides from lxd distrobuilder
+  systemd.extraConfig = ''
+    [Service]
+    ProtectProc=default
+    ProtectControlGroups=no
+    ProtectKernelTunables=no
+  '';
+
+  system.activationScripts.installInitScript = mkForce ''
+    ln -fs $systemConfig/init /sbin/init
+  '';
+
+  #boot.isContainer = true;
+
+  #systemd.suppressedSystemUnits = [
+  #  "dev-mqueue.mount"
+  #  "sys-kernel-debug.mount"
+  #  "sys-fs-fuse-connections.mount"
+  #];
 
   networking.firewall.enable = false;
   networking.hostId = "bf276279";
@@ -40,23 +65,23 @@
 
   boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
 
-  boot.loader.systemd-boot.enable = true;
+  #boot.loader.systemd-boot.enable = true;
   networking.hostName = "striker";
 
-  boot = {
-    kernelModules = [ "kvm-intel" ];
-    supportedFilesystems = [ "zfs" ];
-  };
+  #boot = {
+  #  kernelModules = [ "kvm-intel" ];
+  #  supportedFilesystems = [ "zfs" ];
+  #};
 
   networking.useDHCP = false;
-  networking.interfaces.enp12s0.useDHCP = true;
-  networking.interfaces.br0.useDHCP = true;
-  networking.bridges = {
-    "br0" = {
-      interfaces = [ "enp12s0" ];
-    };
-  };
-  networking.hostId = "88ca1599";
+  networking.interfaces.eth0.useDHCP = true;
+  #networking.interfaces.br0.useDHCP = true;
+  #networking.bridges = {
+  #  "br0" = {
+  #    interfaces = [ "enp12s0" ];
+  #  };
+  #};
+  #networking.hostId = "88ca1599";
 
   services.nebula.networks = {
     home = {
