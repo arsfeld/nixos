@@ -40,12 +40,12 @@ with lib;
   networking.firewall.enable = false;
   networking.hostId = "bf276279";
 
-  fileSystems."/data/media" = {
+  fileSystems."/mnt/data/media" = {
     device = "192.168.31.10:/mnt/data/media";
     fsType = "nfs";
     options = [ "nfsvers=4.2" "nofail" ];
   };
-  fileSystems."/data/files" = {
+  fileSystems."/mnt/data/files" = {
     device = "192.168.31.10:/mnt/data/files";
     fsType = "nfs";
     options = [ "nfsvers=4.2" "nofail" ];
