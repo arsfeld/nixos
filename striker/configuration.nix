@@ -7,15 +7,25 @@
 with lib;
 
 {
-  imports = [ 
+  imports = [
     ./hardware-configuration.nix
     ../common/common.nix
     ../common/services.nix
     ../common/users.nix
+    ./networking.nix
+    ./services.nix
+    ./backup.nix
   ];
 
-  networking.firewall.enable = false;
-  networking.hostId = "bf276279";
+
+  boot = {
+    loader.systemd-boot.enable = true;
+    loader.efi.canTouchEfiVariables = true;
+    binfmt.emulatedSystems = [ "aarch64-linux" ];
+    kernelModules = [ "kvm-intel" ];
+    supportedFilesystems = [ "zfs" ];
+  };
+
 
   fileSystems."/mnt/data/media" = {
     device = "192.168.31.10:/mnt/data/media";
@@ -26,111 +36,6 @@ with lib;
     device = "192.168.31.10:/mnt/data/files";
     fsType = "nfs";
     options = [ "nfsvers=4.2" "nofail" ];
-  };
-
-  services.caddy = {
-    enable = true;
-    config = ''
-      :80 {
-        reverse_proxy /stash/* localhost:9999
-      }
-    '';
-  };
-
-  services.borgbackup.jobs =
-    {
-      # for a local backup
-      dataBackup = {
-        paths = "/var/data";
-        repo = "/data/files/Backups/borg";
-        compression = "zstd";
-        encryption.mode = "none";
-        startAt = "daily";
-      };
-    };
-
-  boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
-
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-  networking.hostName = "striker";
-
-  boot = {
-    kernelModules = [ "kvm-intel" ];
-    supportedFilesystems = [ "zfs" ];
-  };
-
-  networking.useDHCP = false;
-  #networking.interfaces.enp12s0.useDHCP = true;
-  networking.interfaces.br0.useDHCP = true;
-  networking.bridges = {
-    "br0" = {
-      interfaces = [ "enp12s0" ];
-    };
-  };
-  #networking.hostId = "88ca1599";
-
-  services.nebula.networks = {
-    home = {
-      lighthouses = [
-        "192.168.100.1"
-      ];
-      settings =
-        {
-          punchy = {
-            punch = true;
-          };
-        };
-      firewall = {
-        outbound =
-          [
-            {
-              host = "any";
-              port = "any";
-              proto = "any";
-            }
-          ];
-        inbound =
-          [
-            {
-              host = "any";
-              port = "any";
-              proto = "any";
-            }
-          ];
-      };
-      ca = "/etc/nebula/ca.crt";
-      cert = "/etc/nebula/striker.crt";
-      key = "/etc/nebula/striker.key";
-      staticHostMap = {
-        "192.168.100.1" = [
-          "155.248.227.144:4242"
-        ];
-      };
-    };
-  };
-
-  services.netdata.enable = true;
-
-  services.syncthing = {
-    enable = false;
-    overrideDevices = true;
-    overrideFolders = true;
-    user = "media";
-    group = "media";
-    guiAddress = "0.0.0.0:8384";
-    devices = {
-      # "picon" = { id = "LLHMFJQ-NRACEUQ-5BK7NHF-XORU7H6-7PEBGUJ-AO2C3L6-LVUD4CJ-YFJHDAS"; };
-      "libran" = { id = "BWNS7MB-PWINU5R-BRP4K34-K5RXNAS-KFHEKFQ-AYE4KP2-WXJ6M5A-A4PKHQM"; };
-      "oracle" = { id = "QB77MGX-2D7EVZC-WHGBZ2F-RLTTAQJ-GYAYNOM-Q3RTYF3-PL7F435-WO4UWAN"; };
-    };
-    folders = {
-      "data" = {
-        id = "data";
-        path = "/var/data";
-        devices = [ "libran" "oracle" ];
-      };
-    };
   };
 
   environment.systemPackages = with pkgs; [
