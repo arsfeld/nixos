@@ -12,10 +12,7 @@ with lib;
     ../common/common.nix
     ../common/services.nix
     ../common/users.nix
-    "${toString modulesPath}/profiles/docker-container.nix"
   ];
-
-  boot.kernelPackages = pkgs.linuxPackages_latest;
 
   networking.firewall.enable = false;
   networking.hostId = "bf276279";
@@ -46,6 +43,7 @@ with lib;
   boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
 
   boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
   networking.hostName = "striker";
 
   boot = {
