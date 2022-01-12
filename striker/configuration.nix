@@ -8,34 +8,14 @@ with lib;
 
 {
   imports = [ 
+    ./hardware-configuration.nix
     ../common/common.nix
     ../common/services.nix
     ../common/users.nix
     "${toString modulesPath}/profiles/docker-container.nix"
   ];
 
-  # Disable systemd-udev-trigger.service in lxc containers
-  systemd.services.systemd-udev-trigger.enable = false;
-
-  # Add the overrides from lxd distrobuilder
-  systemd.extraConfig = ''
-    [Service]
-    ProtectProc=default
-    ProtectControlGroups=no
-    ProtectKernelTunables=no
-  '';
-
-  system.activationScripts.installInitScript = mkForce ''
-    ln -fs $systemConfig/init /sbin/init
-  '';
-
-  #boot.isContainer = true;
-
-  #systemd.suppressedSystemUnits = [
-  #  "dev-mqueue.mount"
-  #  "sys-kernel-debug.mount"
-  #  "sys-fs-fuse-connections.mount"
-  #];
+  boot.kernelPackages = pkgs.linuxPackages_latest;
 
   networking.firewall.enable = false;
   networking.hostId = "bf276279";
@@ -65,22 +45,22 @@ with lib;
 
   boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
 
-  #boot.loader.systemd-boot.enable = true;
+  boot.loader.systemd-boot.enable = true;
   networking.hostName = "striker";
 
-  #boot = {
-  #  kernelModules = [ "kvm-intel" ];
-  #  supportedFilesystems = [ "zfs" ];
-  #};
+  boot = {
+    kernelModules = [ "kvm-intel" ];
+    supportedFilesystems = [ "zfs" ];
+  };
 
   networking.useDHCP = false;
-  networking.interfaces.eth0.useDHCP = true;
-  #networking.interfaces.br0.useDHCP = true;
-  #networking.bridges = {
-  #  "br0" = {
-  #    interfaces = [ "enp12s0" ];
-  #  };
-  #};
+  #networking.interfaces.enp12s0.useDHCP = true;
+  networking.interfaces.br0.useDHCP = true;
+  networking.bridges = {
+    "br0" = {
+      interfaces = [ "enp12s0" ];
+    };
+  };
   #networking.hostId = "88ca1599";
 
   services.nebula.networks = {
