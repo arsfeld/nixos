@@ -28,6 +28,15 @@ with lib;
     options = [ "nfsvers=4.2" "nofail" ];
   };
 
+  services.caddy = {
+    enable = true;
+    config = ''
+      :80 {
+        reverse_proxy /stash/* localhost:9999
+      }
+    '';
+  };
+
   services.borgbackup.jobs =
     {
       # for a local backup
