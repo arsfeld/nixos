@@ -33,7 +33,7 @@ in {
         "${dataDir}/media:/data"
       ];
       extraOptions = [ 
-        "--device /dev/dri:/dev/dri"
+        "--device" "/dev/dri:/dev/dri"
         "--network=host" 
       ];
     };
