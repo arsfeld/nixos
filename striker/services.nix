@@ -8,7 +8,8 @@ let
   puid = "5000";
   pgid = "5000";
   tz = "America/Toronto";
-in {
+in
+{
   services.netdata.enable = true;
 
   services.restic.server = {
@@ -32,9 +33,10 @@ in {
         "${configDir}/plex:/config"
         "${dataDir}/media:/data"
       ];
-      extraOptions = [ 
-        "--device" "/dev/dri:/dev/dri"
-        "--network=host" 
+      extraOptions = [
+        "--device"
+        "/dev/dri:/dev/dri"
+        "--network=host"
       ];
     };
 
@@ -53,8 +55,8 @@ in {
         "${configDir}/gluetun:/gluetun"
       ];
       ports = [ "8080:8080/tcp" ];
-      extraOptions = [ 
-        "--cap-add=NET_ADMIN" 
+      extraOptions = [
+        "--cap-add=NET_ADMIN"
       ];
     };
   };
