@@ -37,5 +37,25 @@ in {
         "--network=host" 
       ];
     };
+
+    gluetun = {
+      image = "qmcgaw/gluetun";
+      environment = {
+        # See https://github.com/qdm12/gluetun/wiki
+        DOT = "off";
+        VPNSP = "mullvad";
+        VPN_TYPE = "wireguard";
+      };
+      environmentFiles = [
+        "${configDir}/gluetun/env"
+      ];
+      volumes = [
+        "${configDir}/gluetun:/gluetun"
+      ];
+      ports = [ "8080:8080/tcp" ];
+      extraOptions = [ 
+        "--cap-add=NET_ADMIN" 
+      ];
+    };
   };
 }
