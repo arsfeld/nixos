@@ -59,5 +59,22 @@ in
         "--cap-add=NET_ADMIN"
       ];
     };
+
+    qbittorrent = {
+      image = "ghcr.io/linuxserver/qbittorrent";
+      environment = {
+        PUID = puid;
+        PGID = pgid;
+        TZ = tz;
+      };
+      volumes = [
+        "${configDir}/qbittorrent:/config"
+        "${dataDir}/media:/media"
+        "${dataDir}/files:/files"
+      ];
+      extraOptions = [
+        "--network=container:gluetun"
+      ];
+    };
   };
 }
