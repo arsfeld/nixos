@@ -37,6 +37,11 @@ with lib;
     fsType = "nfs";
     options = [ "nfsvers=4.2" "nofail" ];
   };
+  fileSystems."/mnt/data/homes" = {
+    device = "192.168.31.10:/mnt/data/homes";
+    fsType = "nfs";
+    options = [ "nfsvers=4.2" "nofail" ];
+  };
 
   environment.systemPackages = with pkgs; [
     vim
