@@ -21,6 +21,7 @@
 
   networking.hostName = "oracle";
 
+  /*
   services.nebula.networks = {
     home = {
       isLighthouse = true;
@@ -53,6 +54,7 @@
       key = "/etc/nebula/lighthouse.key";
     };
   };
+  */
 
   services.syncthing = {
     enable = false;
