@@ -19,41 +19,63 @@
     extraPackages = [ pkgs.docker ];
   };
 
+  fileSystems."/var/data" = {
+    device = "//u290458.your-storagebox.de/backup";
+    fsType = "cifs";
+    options =
+      let
+        # this line prevents hanging on network split
+        automount_opts = "x-systemd.automount,noauto,x-systemd.idle-timeout=60,x-systemd.device-timeout=5s,x-systemd.mount-timeout=5s";
+      in
+      [ "${automount_opts},user=u290458,pass=mUzf3l7z1ml7Jgs8" ];
+  };
+
+  # services.borgbackup.jobs = {
+  #   # for a local backup
+  #   dataBackup = {
+  #     paths = "/var/data";
+  #     repo = "/data/files/Backups/borg";
+  #     compression = "zstd";
+  #     encryption.mode = "none";
+  #     startAt = "daily";
+  #   };
+  # };
+
   networking.hostName = "oracle";
 
   /*
-  services.nebula.networks = {
+    services.nebula.networks = {
     home = {
-      isLighthouse = true;
-      settings =
-        {
-          punchy = {
-            punch = true;
-          };
-        };
-      firewall = {
-        outbound =
-          [
-            {
-              host = "any";
-              port = "any";
-              proto = "any";
-            }
-          ];
-        inbound =
-          [
-            {
-              host = "any";
-              port = "any";
-              proto = "any";
-            }
-          ];
-      };
-      ca = "/etc/nebula/ca.crt";
-      cert = "/etc/nebula/lighthouse.crt";
-      key = "/etc/nebula/lighthouse.key";
+    isLighthouse = true;
+    settings =
+    {
+    punchy = {
+    punch = true;
     };
-  };
+    };
+    firewall = {
+    outbound =
+    [
+    {
+    host = "any";
+    port = "any";
+    proto = "any";
+    }
+    ];
+    inbound =
+    [
+    {
+    host = "any";
+    port = "any";
+    proto = "any";
+    }
+    ];
+    };
+    ca = "/etc/nebula/ca.crt";
+    cert = "/etc/nebula/lighthouse.crt";
+    key = "/etc/nebula/lighthouse.key";
+    };
+    };
   */
 
   services.syncthing = {
