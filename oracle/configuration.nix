@@ -19,15 +19,15 @@
     extraPackages = [ pkgs.docker ];
   };
 
-  fileSystems."/var/data" = {
-    device = "//u290458.your-storagebox.de/backup";
+  fileSystems."/mnt/data" = {
+    device = "//209.209.8.178/data";
     fsType = "cifs";
     options =
       let
         # this line prevents hanging on network split
         automount_opts = "x-systemd.automount,noauto,x-systemd.idle-timeout=60,x-systemd.device-timeout=5s,x-systemd.mount-timeout=5s";
       in
-      [ "${automount_opts},user=u290458,pass=mUzf3l7z1ml7Jgs8" ];
+      [ "${automount_opts},user=media,pass=mUzf3l7z1ml7Jgs8,uid=media,gid=media" ];
   };
 
   # services.borgbackup.jobs = {
