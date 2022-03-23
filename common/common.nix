@@ -18,10 +18,14 @@
     "@wheel"
   ];
 
+  programs.starship = {
+    enable = true;
+  };
+
   programs.zsh = {
       enable = true;
       ohMyZsh = {
-          enable = true;
+          enable = false;
           theme = "agnoster";
           plugins = [ "git" "keychain" ];
       };
