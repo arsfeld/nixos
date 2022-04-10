@@ -13,8 +13,8 @@ in
   services.netdata.enable = true;
 
   services.restic.server = {
-    enable = true;
-    dataDir = "/data/files/Backups/restic";
+    enable = false;
+    dataDir = "/mnt/data/files/Backups/restic";
   };
 
   virtualisation.oci-containers.containers = {

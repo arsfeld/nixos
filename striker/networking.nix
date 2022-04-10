@@ -19,6 +19,10 @@ with lib;
     };
   };
 
+  networking.nat.enable = true;
+  networking.nat.internalInterfaces = ["ve-+"];
+  networking.nat.externalInterface = "br0";
+
 
   # services.nebula.networks = {
   #   home = {

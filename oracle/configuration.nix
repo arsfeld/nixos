@@ -5,6 +5,7 @@
     ../common/services.nix
     ../common/users.nix
     ./hardware-configuration.nix
+    ./caddy.nix
   ];
 
   networking.nameservers = [ "8.8.8.8" "1.1.1.1" ];

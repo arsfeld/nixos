@@ -19,13 +19,13 @@
   ];
 
   programs.starship = {
-    enable = true;
+    enable = false;
   };
 
   programs.zsh = {
       enable = true;
       ohMyZsh = {
-          enable = false;
+          enable = true;
           theme = "agnoster";
           plugins = [ "git" "keychain" ];
       };

@@ -15,6 +15,7 @@ with lib;
     ./networking.nix
     ./services.nix
     ./backup.nix
+    ./containers.nix
   ];
 
 
