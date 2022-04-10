@@ -13,6 +13,8 @@
 
   networking.firewall.trustedInterfaces = [ "zt7nnoth4i" ];
 
+  security.sudo.wheelNeedsPassword = false;
+
   services.github-runner = {
     enable = false;
     url = "https://github.com/arsfeld/ztcf";
