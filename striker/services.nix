@@ -8,6 +8,8 @@ let
   puid = "5000";
   pgid = "5000";
   tz = "America/Toronto";
+  email = "arsfeld@gmail.com";
+  domain = "striker.arsfeld.net";
 in
 {
   services.netdata.enable = true;
@@ -15,6 +17,40 @@ in
   services.restic.server = {
     enable = false;
     dataDir = "/mnt/data/files/Backups/restic";
+  };
+
+  security.acme = {
+    acceptTerms = true;
+    certs = {
+      "${domain}" = {
+        #webroot = "/var/lib/acme/acme-challenge/";
+        email = email;
+        dnsProvider = "cloudflare";
+        credentialsFile = "/var/lib/secrets/cloudflare";
+        #extraDomainNames = [ "www.example.com" "foo.example.com" ];
+      };
+    };
+  };
+
+  users.users.caddy.extraGroups = [ "acme" ];
+
+  services.caddy = {
+    enable = true;
+    email = email;
+    virtualHosts = {
+      "${domain}" = {
+        useACMEHost = domain;
+        serverAliases = [ "striker" ];
+        extraConfig = ''
+          root * /mnt/data
+          file_server browse
+
+          handle_path /stash/* {
+            reverse_proxy http://localhost:9999
+          }
+        '';
+      };
+    };
   };
 
   virtualisation.oci-containers.containers = {

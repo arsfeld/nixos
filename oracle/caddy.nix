@@ -9,12 +9,27 @@ let
   email = "arsfeld@gmail.com";
 in
 {
+  security.acme = {
+    acceptTerms = true;
+    certs = {
+      "${domain}" = {
+        email = email;
+        dnsProvider = "cloudflare";
+        credentialsFile = "/var/lib/secrets/cloudflare";
+        extraDomainNames = [ "*.${domain}" ];
+      };
+    };
+  };
+
+  users.users.caddy.extraGroups = [ "acme" ];
+
   services.caddy = {
     enable = true;
     email = email;
-    ca = "https://acme-staging-v02.api.letsencrypt.org/directory";
+    acmeCA = "https://acme-staging-v02.api.letsencrypt.org/directory";
     virtualHosts = {
-      "files.${domain}:8888" = {
+      "files.${domain}" = {
+        useACMEHost = domain;
         extraConfig = "reverse_proxy ${localNode}:8334";
       };
     };
