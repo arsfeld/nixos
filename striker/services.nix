@@ -78,12 +78,6 @@ in
 
     gluetun = {
       image = "qmcgaw/gluetun";
-      environment = {
-        # See https://github.com/qdm12/gluetun/wiki
-        DOT = "off";
-        VPNSP = "mullvad";
-        VPN_TYPE = "wireguard";
-      };
       environmentFiles = [
         "${configDir}/gluetun/env"
       ];
