@@ -20,25 +20,15 @@
         nixpkgs.system = "aarch64-linux";
         deployment = {
           targetHost = "oracle.arsfeld.net";
-          targetUser = "root";
+          buildOnTarget = true;
         };
         imports = [ ./oracle/configuration.nix ];
-      };
-
-
-      virgon = {
-        deployment = {
-          targetHost = "virgon.arsfeld.net";
-          targetUser = "root";
-        };
-        imports = [ ./virgon/configuration.nix ];
       };
 
       striker = {
         deployment = {
           allowLocalDeployment = true;
           targetHost = "striker.arsfeld.net";
-          targetUser = "root";
         };
         imports = [ ./striker/configuration.nix ];
       };
