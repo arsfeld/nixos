@@ -2,9 +2,13 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixos-generators = {
+      url = "github:nix-community/nixos-generators";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs }: {
+  outputs = { self, nixpkgs, nixos-generators }: {
     colmena = {
       meta = {
         nixpkgs = import nixpkgs {
@@ -40,11 +44,23 @@
       };
     };
 
+    packages.x86_64-linux = {
+      proxmox = nixos-generators.nixosGenerate {
+        pkgs = nixpkgs.legacyPackages.x86_64-linux;
+        modules = [
+          # you can include your own nixos configuration here, i.e.
+          # ./configuration.nix
+          ./common/common.nix
+          ./common/users.nix
+        ];
+        format = "proxmox";
+      };
+    };
+
     nixosConfigurations.striker = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       modules = [ ./striker/configuration.nix ];
     };
-
     
     nixosConfigurations.virgon = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
