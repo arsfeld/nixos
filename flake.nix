@@ -1,5 +1,4 @@
 {
-
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixos-generators = {
@@ -8,7 +7,11 @@
     };
   };
 
-  outputs = { self, nixpkgs, nixos-generators }: {
+  outputs = {
+    self,
+    nixpkgs,
+    nixos-generators,
+  }: {
     colmena = {
       meta = {
         nixpkgs = import nixpkgs {
@@ -20,7 +23,7 @@
         deployment = {
           targetHost = "battlestar.arsfeld.org";
         };
-        imports = [ ./battlestar/configuration.nix ];
+        imports = [./battlestar/configuration.nix];
       };
 
       oracle = {
@@ -29,7 +32,7 @@
           targetHost = "oracle.arsfeld.net";
           buildOnTarget = true;
         };
-        imports = [ ./oracle/configuration.nix ];
+        imports = [./oracle/configuration.nix];
       };
 
       striker = {
@@ -37,7 +40,7 @@
           allowLocalDeployment = true;
           targetHost = "striker.arsfeld.net";
         };
-        imports = [ ./striker/configuration.nix ];
+        imports = [./striker/configuration.nix];
       };
     };
 
@@ -56,22 +59,22 @@
 
     nixosConfigurations.striker = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
-      modules = [ ./striker/configuration.nix ];
+      modules = [./striker/configuration.nix];
     };
-    
+
     nixosConfigurations.virgon = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
-      modules = [ ./virgon/configuration.nix ];
+      modules = [./virgon/configuration.nix];
     };
 
     nixosConfigurations.oracle = nixpkgs.lib.nixosSystem {
       system = "aarch64-linux";
-      modules = [ ./oracle/configuration.nix ];
+      modules = [./oracle/configuration.nix];
     };
-    
+
     nixosConfigurations.libran = nixpkgs.lib.nixosSystem {
       system = "aarch64-linux";
-      modules = [ ./libran/configuration.nix ];
+      modules = [./libran/configuration.nix];
     };
   };
 }

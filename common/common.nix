@@ -1,5 +1,8 @@
-{ config, pkgs, ... }:
 {
+  config,
+  pkgs,
+  ...
+}: {
   nix = {
     package = pkgs.nixFlakes;
     extraOptions = ''
@@ -23,24 +26,29 @@
   };
 
   programs.zsh = {
+    enable = true;
+    ohMyZsh = {
       enable = true;
-      ohMyZsh = {
-          enable = true;
-          theme = "agnoster";
-          plugins = [ "git" "keychain" ];
-      };
-      shellInit = ''
-        zstyle :omz:plugins:keychain agents gpg,ssh
-      '';
+      theme = "agnoster";
+      plugins = ["git" "keychain"];
+    };
+    shellInit = ''
+      zstyle :omz:plugins:keychain agents gpg,ssh
+    '';
   };
 
   environment.systemPackages = with pkgs; [
-      wget vim nano zsh file keychain
+    wget
+    vim
+    nano
+    zsh
+    file
+    keychain
   ];
 
   services.openssh.enable = true;
   nixpkgs.config.allowUnfree = true;
   time.timeZone = "America/Toronto";
   zramSwap.enable = true;
-  networking.firewall.allowedTCPPorts = [ 22 ];
+  networking.firewall.allowedTCPPorts = [22];
 }

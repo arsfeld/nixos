@@ -1,12 +1,15 @@
-{ lib, config, pkgs, nixpkgs, modulesPath, ... }:
-
-with lib;
-
-let
+{
+  lib,
+  config,
+  pkgs,
+  nixpkgs,
+  modulesPath,
+  ...
+}:
+with lib; let
   domain = "arsfeld.one";
   email = "arsfeld@gmail.com";
-in
-{
+in {
   services.netdata.enable = true;
 
   security.acme = {
@@ -16,12 +19,12 @@ in
         email = email;
         dnsProvider = "cloudflare";
         credentialsFile = "/var/lib/secrets/cloudflare";
-        extraDomainNames = [ "*.${domain}" ];
+        extraDomainNames = ["*.${domain}"];
       };
     };
   };
 
-  users.users.caddy.extraGroups = [ "acme" ];
+  users.users.caddy.extraGroups = ["acme"];
 
   services.caddy = {
     enable = true;
@@ -30,11 +33,11 @@ in
     virtualHosts = {
       "files.${domain}" = {
         useACMEHost = domain;
-        extraConfig = """
+        extraConfig = "" "
             file_server {
                 root /mnt/data
             }
-        """;
+        " "";
       };
     };
   };

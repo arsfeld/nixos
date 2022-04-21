@@ -1,8 +1,12 @@
-{ lib, config, pkgs, nixpkgs, modulesPath, ... }:
-
-with lib;
-
-let
+{
+  lib,
+  config,
+  pkgs,
+  nixpkgs,
+  modulesPath,
+  ...
+}:
+with lib; let
   configDir = "/var/data";
   dataDir = "/mnt/data";
   puid = "5000";
@@ -10,8 +14,7 @@ let
   tz = "America/Toronto";
   email = "arsfeld@gmail.com";
   domain = "striker.arsfeld.net";
-in
-{
+in {
   services.netdata.enable = true;
 
   services.restic.server = {
@@ -32,7 +35,7 @@ in
     };
   };
 
-  users.users.caddy.extraGroups = [ "acme" ];
+  users.users.caddy.extraGroups = ["acme"];
 
   services.caddy = {
     enable = true;
@@ -40,7 +43,7 @@ in
     virtualHosts = {
       "${domain}" = {
         useACMEHost = domain;
-        serverAliases = [ "striker" ];
+        serverAliases = ["striker"];
         extraConfig = ''
           root * /mnt/data
           file_server browse
@@ -84,7 +87,7 @@ in
       volumes = [
         "${configDir}/gluetun:/gluetun"
       ];
-      ports = [ "8080:8080/tcp" ];
+      ports = ["8080:8080/tcp"];
       extraOptions = [
         "--cap-add=NET_ADMIN"
       ];

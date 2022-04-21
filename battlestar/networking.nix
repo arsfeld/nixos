@@ -1,8 +1,8 @@
-{ lib, ... }: {
+{lib, ...}: {
   # This file was populated at runtime with the networking
   # details gathered from the active system.
   networking = {
-    nameservers = [ "213.186.33.99"];
+    nameservers = ["213.186.33.99"];
     hostId = "5f5e008b";
     defaultGateway = "54.39.49.254";
     defaultGateway6 = "";
@@ -11,15 +11,25 @@
     interfaces = {
       eno3 = {
         ipv4.addresses = [
-          { address="54.39.49.189"; prefixLength=24; }
+          {
+            address = "54.39.49.189";
+            prefixLength = 24;
+          }
         ];
         ipv6.addresses = [
-          { address="fe80::ae1f:6bff:fe64:4fd4"; prefixLength=64; }
+          {
+            address = "fe80::ae1f:6bff:fe64:4fd4";
+            prefixLength = 64;
+          }
         ];
-        ipv4.routes = [ { address = "54.39.49.254"; prefixLength = 32; } ];
+        ipv4.routes = [
+          {
+            address = "54.39.49.254";
+            prefixLength = 32;
+          }
+        ];
         # ipv6.routes = [ { address = ""; prefixLength = 128; } ];
       };
-      
     };
   };
   services.udev.extraRules = ''

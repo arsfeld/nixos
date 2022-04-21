@@ -1,14 +1,17 @@
-{ lib, config, pkgs, nixpkgs, modulesPath, ... }:
-
-with lib;
-
-let
+{
+  lib,
+  config,
+  pkgs,
+  nixpkgs,
+  modulesPath,
+  ...
+}:
+with lib; let
   cloudNode = "localhost";
   localNode = "striker.arsfeld.net";
   domain = "arsfeld.dev";
   email = "arsfeld@gmail.com";
-in
-{
+in {
   security.acme = {
     acceptTerms = true;
     certs = {
@@ -16,12 +19,12 @@ in
         email = email;
         dnsProvider = "cloudflare";
         credentialsFile = "/var/lib/secrets/cloudflare";
-        extraDomainNames = [ "*.${domain}" ];
+        extraDomainNames = ["*.${domain}"];
       };
     };
   };
 
-  users.users.caddy.extraGroups = [ "acme" ];
+  users.users.caddy.extraGroups = ["acme"];
 
   services.caddy = {
     enable = true;

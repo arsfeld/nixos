@@ -1,6 +1,8 @@
-{ config, pkgs, ... }:
-
 {
+  config,
+  pkgs,
+  ...
+}: {
   imports = [
     ../common/common.nix
     ../common/services.nix
@@ -8,7 +10,7 @@
     ./hardware-configuration.nix
   ];
 
-  boot.supportedFilesystems = [ "zfs" ];
+  boot.supportedFilesystems = ["zfs"];
 
   boot.loader.grub.enable = true;
   boot.loader.grub.version = 2;
@@ -19,10 +21,12 @@
   networking.hostId = "ba2059f3";
 
   networking.interfaces.eth0 = {
-    ipv4.addresses = [{
-      address = "209.209.8.178";
-      prefixLength = 24;
-     }];
+    ipv4.addresses = [
+      {
+        address = "209.209.8.178";
+        prefixLength = 24;
+      }
+    ];
   };
 
   services.xe-guest-utilities.enable = true;
@@ -32,14 +36,14 @@
   networking.hostName = "virgon";
 
   networking.firewall.enable = true;
-  networking.firewall.allowedTCPPorts = [ 22 6443 ];
+  networking.firewall.allowedTCPPorts = [22 6443];
 
   services.k3s.enable = true;
   services.k3s.role = "server";
   services.k3s.extraFlags = toString [
     # "--kubelet-arg=v=4" # Optionally add additional args to k3s
   ];
-  environment.systemPackages = [ pkgs.k3s ];
+  environment.systemPackages = [pkgs.k3s];
 
   # services.sabnzbd = {
   #   enable = true;
@@ -68,6 +72,4 @@
   # Before changing this value read the documentation for this option
   # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
   system.stateVersion = "21.05"; # Did you read the comment?
-
 }
-
