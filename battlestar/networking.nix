@@ -2,8 +2,8 @@
   # This file was populated at runtime with the networking
   # details gathered from the active system.
   networking = {
-    nameservers = [ "213.186.33.99"
- ];
+    nameservers = [ "213.186.33.99"];
+    hostId = "5f5e008b";
     defaultGateway = "54.39.49.254";
     defaultGateway6 = "";
     dhcpcd.enable = false;

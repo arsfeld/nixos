@@ -12,6 +12,7 @@
   boot.initrd.kernelModules = [ ];
   boot.kernelModules = [ "kvm-intel" ];
   boot.extraModulePackages = [ ];
+  boot.supportedFilesystems = [ "zfs" ];
   #boot.initrd.mdadmConf = "ARRAY /dev/md/md2  metadata=1.2 UUID=124fee3e:a0556cd6:665bdc85:8630511b name=md2";
 
   fileSystems."/" =

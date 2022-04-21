@@ -5,6 +5,7 @@
     ../common/users.nix
     ./hardware-configuration.nix
     ./networking.nix    
+    ./services.nix
   ];
   boot.cleanTmpDir = true;
 
