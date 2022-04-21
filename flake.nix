@@ -16,6 +16,13 @@
         };
       };
 
+      battlestar = {
+        deployment = {
+          targetHost = "battlestar.arsfeld.org";
+        };
+        imports = [ ./battlestar/configuration.nix ];
+      };
+
       oracle = {
         nixpkgs.system = "aarch64-linux";
         deployment = {
