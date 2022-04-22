@@ -10,6 +10,12 @@ with lib; let
   domain = "arsfeld.one";
   email = "arsfeld@gmail.com";
   dataDir = "/mnt/data";
+  configDir = "/var/lib";
+  puid = "5000";
+  pgid = "5000";
+  user = "media";
+  group = "media";
+  tz = "America/Toronto";
 in {
   services.netdata.enable = true;
 
@@ -22,6 +28,85 @@ in {
         credentialsFile = "/var/lib/secrets/cloudflare";
         extraDomainNames = ["*.${domain}"];
       };
+    };
+  };
+
+  services.radarr = {
+    enable = true;
+    user = user;
+    group = group;
+  };
+  services.sonarr = {
+    enable = true;
+    user = user;
+    group = group;
+  };
+  services.bazarr = {
+    enable = true;
+    user = user;
+    group = group;
+  };
+  services.prowlarr = {
+    enable = true;
+  };
+  services.plex = {
+    enable = true;
+    user = user;
+    group = group;
+    openFirewall = true;
+  };
+  
+  virtualisation.oci-containers.containers = {
+    # plex = {
+    #   image = "lscr.io/linuxserver/plex";
+    #   environment = {
+    #     PUID = puid;
+    #     PGID = pgid;
+    #     TZ = tz;
+    #     VERSION = "latest";
+    #   };
+    #   environmentFiles = [
+    #     "${configDir}/plex/env"
+    #   ];
+    #   volumes = [
+    #     "${configDir}/plex:/config"
+    #     "${dataDir}/media:/data"
+    #   ];
+    #   extraOptions = [
+    #     "--device"
+    #     "/dev/dri:/dev/dri"
+    #     "--network=host"
+    #   ];
+    # };
+
+    gluetun = {
+      image = "qmcgaw/gluetun";
+      environmentFiles = [
+        "${configDir}/gluetun/env"
+      ];
+      volumes = [
+        "${configDir}/gluetun:/gluetun"
+      ];
+      ports = ["8080:8080/tcp"];
+      extraOptions = [
+        "--cap-add=NET_ADMIN"
+      ];
+    };
+
+    qbittorrent = {
+      image = "ghcr.io/linuxserver/qbittorrent";
+      environment = {
+        PUID = puid;
+        PGID = pgid;
+        TZ = tz;
+      };
+      volumes = [
+        "${configDir}/qbittorrent:/config"
+        "${dataDir}:${dataDir}"
+      ];
+      extraOptions = [
+        "--network=container:gluetun"
+      ];
     };
   };
 
@@ -39,6 +124,30 @@ in {
             root * ${dataDir}
             file_server browse
         '';
+      };
+      "radarr.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = ''reverse_proxy localhost:7878 {
+          transport http {
+            compression off
+          }
+        }'';
+      };
+      "sonarr.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy localhost:8989";
+      };
+      "bazarr.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy localhost:6767";
+      };
+      "qbittorrent.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy localhost:8080";
+      };
+      "prowlarr.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy localhost:9696";
       };
     };
   };

@@ -6,6 +6,7 @@
     ./hardware-configuration.nix
     ./networking.nix
     ./services.nix
+    ./overlays.nix
   ];
   boot.cleanTmpDir = true;
 
