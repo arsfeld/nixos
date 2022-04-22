@@ -17,6 +17,11 @@
         nixpkgs = import nixpkgs {
           system = "x86_64-linux";
         };
+        machinesFile = builtins.toFile "machines" ''
+          ssh://striker.arsfeld.net x86_64-linux 4
+          ssh://oracle.arsfeld.net aarch64-linux 4
+          ssh://battlestar.arsfeld.net x86_64-linux 8
+        '';
       };
 
       battlestar = {
@@ -30,7 +35,7 @@
         nixpkgs.system = "aarch64-linux";
         deployment = {
           targetHost = "oracle.arsfeld.net";
-          buildOnTarget = true;
+          #buildOnTarget = true;
         };
         imports = [./oracle/configuration.nix];
       };

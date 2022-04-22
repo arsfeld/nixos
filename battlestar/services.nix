@@ -31,6 +31,18 @@ in {
     };
   };
 
+  services.duplicati = {
+    enable = true;
+    user = "root";
+  };
+  services.vaultwarden = {
+    enable = true;
+    backupDir = "/var/lib/vaultwarden-backup";
+    config = {
+      domain = "https://vault.${domain}";
+      signupsAllowed = false;
+    };
+  };
   services.radarr = {
     enable = true;
     user = user;
@@ -136,13 +148,21 @@ in {
           file_server browse
         '';
       };
+      "duplicati.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy localhost:8200";
+      };
+      "vault.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy localhost:8000";
+      };
       "radarr.${domain}" = {
         useACMEHost = domain;
         extraConfig = ''          reverse_proxy localhost:7878 {
-                    transport http {
-                      compression off
-                    }
-                  }'';
+                              transport http {
+                                compression off
+                              }
+                            }'';
       };
       "sonarr.${domain}" = {
         useACMEHost = domain;

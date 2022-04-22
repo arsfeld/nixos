@@ -25,7 +25,19 @@
   };
 
   fileSystems."/boot" = {
+    device = "/dev/disk/by-uuid/52B7-5238";
+    fsType = "vfat";
+  };
+  fileSystems."/boot-2" = {
     device = "/dev/disk/by-uuid/52DC-9C20";
+    fsType = "vfat";
+  };
+  fileSystems."/boot-3" = {
+    device = "/dev/disk/by-uuid/5302-3514";
+    fsType = "vfat";
+  };
+  fileSystems."/boot-4" = {
+    device = "/dev/disk/by-uuid/5327-75C8";
     fsType = "vfat";
   };
 
