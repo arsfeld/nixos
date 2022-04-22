@@ -15,6 +15,7 @@
     efiInstallAsRemovable = true;
     device = "nodev";
   };
+  services.smartd.enable = true;
   # fileSystems."/boot" = { device = "$esp"; fsType = "vfat"; };
   zramSwap.enable = true;
   networking.hostName = "battlestar";

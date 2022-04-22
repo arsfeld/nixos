@@ -16,5 +16,5 @@
     joinNetworks = ["35c192ce9b7b5113"];
   };
 
-  services.tailscale.enable = true;
+  services.tailscale.enable = false;
 }

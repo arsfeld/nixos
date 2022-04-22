@@ -55,7 +55,7 @@ in {
     group = group;
     openFirewall = true;
   };
-  
+
   virtualisation.oci-containers.containers = {
     # plex = {
     #   image = "lscr.io/linuxserver/plex";
@@ -108,6 +108,17 @@ in {
         "--network=container:gluetun"
       ];
     };
+
+    stash = {
+      image = "stashapp/stash:latest";
+      volumes = [
+        "${configDir}/stash:/root/.stash"
+        "${dataDir}/media:/data"
+      ];
+      ports = [
+        "9999:9999"
+      ];
+    };
   };
 
   users.users.caddy.extraGroups = ["acme"];
@@ -121,17 +132,17 @@ in {
       "files.${domain}" = {
         useACMEHost = domain;
         extraConfig = ''
-            root * ${dataDir}
-            file_server browse
+          root * ${dataDir}
+          file_server browse
         '';
       };
       "radarr.${domain}" = {
         useACMEHost = domain;
-        extraConfig = ''reverse_proxy localhost:7878 {
-          transport http {
-            compression off
-          }
-        }'';
+        extraConfig = ''          reverse_proxy localhost:7878 {
+                    transport http {
+                      compression off
+                    }
+                  }'';
       };
       "sonarr.${domain}" = {
         useACMEHost = domain;
@@ -148,6 +159,14 @@ in {
       "prowlarr.${domain}" = {
         useACMEHost = domain;
         extraConfig = "reverse_proxy localhost:9696";
+      };
+      "stash.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy localhost:9999";
+      };
+      "netdata.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy localhost:19999";
       };
     };
   };
