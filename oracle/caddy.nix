@@ -24,16 +24,21 @@ in {
     };
   };
 
-  users.users.caddy.extraGroups = ["acme"];
+  #users.users.caddy.extraGroups = ["acme"];
+
+  networking.firewall.allowedTCPPorts = [22 80 443];
 
   services.caddy = {
-    enable = true;
+    enable = false;
     email = email;
-    acmeCA = "https://acme-staging-v02.api.letsencrypt.org/directory";
     virtualHosts = {
       "files.${domain}" = {
         useACMEHost = domain;
         extraConfig = "reverse_proxy ${localNode}:8334";
+      };
+      "vault.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy ${localNode}:8888";
       };
     };
   };
