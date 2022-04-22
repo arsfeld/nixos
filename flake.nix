@@ -17,16 +17,17 @@
         nixpkgs = import nixpkgs {
           system = "x86_64-linux";
         };
-        machinesFile = builtins.toFile "machines" ''
-          ssh://striker.arsfeld.net x86_64-linux 4
-          ssh://oracle.arsfeld.net aarch64-linux 4
-          ssh://battlestar.arsfeld.net x86_64-linux 8
-        '';
+        # Doesn't seem to work for now
+        # machinesFile = builtins.toFile "machines" ''
+        #   ssh://striker.arsfeld.net x86_64-linux - 4 1
+        #   ssh://oracle.arsfeld.net aarch64-linux - 4 1 benchmark,big-parallel,gccarch-armv8-a,kvm,nixos-test
+        #   ssh://battlestar.arsfeld.net x86_64-linux - 8 1
+        # '';
       };
 
       battlestar = {
         deployment = {
-          targetHost = "battlestar.arsfeld.org";
+          targetHost = "battlestar.arsfeld.net";
         };
         imports = [./battlestar/configuration.nix];
       };
@@ -35,7 +36,7 @@
         nixpkgs.system = "aarch64-linux";
         deployment = {
           targetHost = "oracle.arsfeld.net";
-          #buildOnTarget = true;
+          buildOnTarget = true;
         };
         imports = [./oracle/configuration.nix];
       };
