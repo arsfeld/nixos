@@ -1,3 +1,15 @@
 tasks:
   - before: |
       sh <(curl -L https://nixos.org/nix/install) --no-daemon
+      source /home/gitpod/.nix-profile/etc/profile.d/nix.sh
+      nix-env -if https://github.com/zhaofengli/colmena/tarball/main
+  - init: |
+        [[ ! -z $GIT_CONFIG  ]] &&
+          echo $GIT_CONFIG | base64 -d > ~/.gitconfig &&
+          chmod 644 ~/.gitconfig
+        [[ ! -z $SSH_PRIVATE_KEY  ]] &&
+          echo $SSH_PRIVATE_KEY | base64 -d > ~/.id_ed25519 &&
+          chmod 644 ~/.id_ed25519
+        [[ ! -z $SSH_PUBLIC_KEY  ]] &&
+          echo $SSH_PUBLIC_KEY | base64 -d > ~/.id_ed25519.pub &&
+          chmod 644 ~/.id_ed25519.pub
