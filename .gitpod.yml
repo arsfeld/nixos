@@ -5,6 +5,8 @@ tasks:
       mkdir -p /home/gitpod/.config/nix
       echo 'sandbox = false' >> /home/gitpod/.config/nix/nix.conf
   - init: |
-      echo $SSH_PRIVATE_KEY | base64 -d > ~/.ssh/id_ed25519
-      echo $SSH_PUBLIC_KEY | base64 -d > ~/.ssh/id_ed25519.pub
-      chmod 644 -R ~/.ssh
+      echo $SSH_PRIVATE_KEY | base64 -d > $HOME/.ssh/id_ed25519
+      echo $SSH_PUBLIC_KEY | base64 -d > $HOME/.ssh/id_ed25519.pub
+      chmod 644 -R $HOME/.ssh
+  - init: |
+      nix-shell
