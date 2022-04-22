@@ -1,6 +1,9 @@
+image:
+  file: .gitpod.Dockerfile
 tasks:
-  - before: |
-      sh <(curl -L https://nixos.org/nix/install) --no-daemon
+  - init: |
+      mkdir -p /home/gitpod/.config/nix
+      echo 'sandbox = false' >> /home/gitpod/.config/nix/nix.conf
   - init: |
         [[ ! -z $SSH_PRIVATE_KEY  ]] &&
           echo $SSH_PRIVATE_KEY | base64 -d > ~/.ssh/id_ed25519 &&
