@@ -67,6 +67,19 @@ in {
     group = group;
     openFirewall = true;
   };
+  services.tautulli.enable = true;
+  services.jellyfin = {
+    enable = true;
+    #openFirewall = true;
+  };
+  services.nzbhydra2 = {
+    enable = true;
+  };
+  services.sabnzbd = {
+    enable = true;
+    user = user;
+    group = group;
+  };
 
   virtualisation.oci-containers.containers = {
     # plex = {
@@ -187,6 +200,22 @@ in {
       "netdata.${domain}" = {
         useACMEHost = domain;
         extraConfig = "reverse_proxy localhost:19999";
+      };
+      "tautulli.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy localhost:8181";
+      };
+      "jellyfin.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy localhost:8096";
+      };
+      "nzbhydra2.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy localhost:5076";
+      };
+      "sabnzbd.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy localhost:8888";
       };
     };
   };
