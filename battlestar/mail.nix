@@ -1,9 +1,13 @@
-{lib, pkgs, ...}:
+{
+  lib,
+  pkgs,
+  ...
+}:
 with lib; let
   hostName = "battlestar";
   email = "arsfeld@gmail.com";
-  
-  sendEmailEvent = { event }: ''
+
+  sendEmailEvent = {event}: ''
     printf "Subject: ${hostName} ${event} ''$(${pkgs.coreutils}/bin/date --iso-8601=seconds)\n\nzpool status:\n\n''$(${pkgs.zfs}/bin/zpool status)" | ${pkgs.msmtp}/bin/msmtp -a default ${email}
   '';
 in {

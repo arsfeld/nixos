@@ -153,12 +153,12 @@ in {
   services.caddy = {
     enable = true;
     email = email;
-    package = (pkgs.callPackage ./caddy.nix {
+    package = pkgs.callPackage ../pkgs/caddy.nix {
       plugins = [
-        "github.com/caddyserver/caddy-security"
+        "github.com/greenpau/caddy-security"
       ];
-      vendorSha256 = "0000000000000000000000000000000000000000000000000000";
-    });
+      vendorSha256 = "sha256-TAENwTcwppwytl/ti6HGKkh6t9OjgJpUx7NwuGf+PCg=";
+    };
     virtualHosts = {
       "files.${domain}" = {
         useACMEHost = domain;
@@ -173,19 +173,23 @@ in {
       };
       "vault.${domain}" = {
         useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:8000";
+        extraConfig = ''
+          reverse_proxy localhost:8000
+        '';
       };
       "radarr.${domain}" = {
         useACMEHost = domain;
-        extraConfig = ''          reverse_proxy localhost:7878 {
-                              transport http {
-                                compression off
-                              }
-                            }'';
+        extraConfig = ''
+          reverse_proxy localhost:7878
+          authorize with admin_policy
+        '';
       };
       "sonarr.${domain}" = {
         useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:8989";
+        extraConfig = ''
+          reverse_proxy localhost:8989
+          authorize with admin_policy
+        '';
       };
       "bazarr.${domain}" = {
         useACMEHost = domain;
@@ -223,6 +227,36 @@ in {
         useACMEHost = domain;
         extraConfig = "reverse_proxy localhost:8888";
       };
+      "auth.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "authenticate with myportal";
+      };
     };
+
+    globalConfig = ''
+      order authenticate before respond
+      order authorize before reverse_proxy
+
+      security {
+        local identity store localdb {
+          realm local
+          path /var/lib/caddy/.config/caddy/users.json
+        }
+        authentication portal myportal {
+          enable identity store localdb
+          cookie domain ${domain}
+          cookie lifetime 86400 # 24 hours in seconds
+          ui
+          transform user {
+            match email ${email}
+            action add role authp/user
+          }
+        }
+        authorization policy admin_policy {
+            set auth url https://auth.${domain}
+            allow roles authp/user
+        }
+      }
+    '';
   };
 }
