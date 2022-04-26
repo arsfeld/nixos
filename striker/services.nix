@@ -57,7 +57,6 @@ in {
     # };
   };
 
-
   services.caddy = {
     enable = true;
     email = email;
