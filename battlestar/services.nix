@@ -153,6 +153,12 @@ in {
   services.caddy = {
     enable = true;
     email = email;
+    package = (pkgs.callPackage ./caddy.nix {
+      plugins = [
+        "github.com/caddyserver/caddy-security"
+      ];
+      vendorSha256 = "0000000000000000000000000000000000000000000000000000";
+    });
     virtualHosts = {
       "files.${domain}" = {
         useACMEHost = domain;
