@@ -37,6 +37,27 @@ in {
 
   users.users.caddy.extraGroups = ["acme"];
 
+  services.home-assistant = {
+    enable = true;
+    config = null;
+    # config = {
+    #   homeassistant = {
+    #     name = "Home";
+    #     latitude = "!secret latitude";
+    #     longitude = "!secret longitude";
+    #     elevation = "!secret elevation";
+    #     unit_system = "metric";
+    #     time_zone = "UTC";
+    #   };
+    #   frontend = {
+    #     themes = "!include_dir_merge_named themes";
+    #   };
+    #   http = { };
+    #   feedreader.urls = [ "https://nixos.org/blogs.xml" ];
+    # };
+  };
+
+
   services.caddy = {
     enable = true;
     email = email;
