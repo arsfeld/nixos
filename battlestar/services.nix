@@ -77,7 +77,6 @@ in {
   };
   services.sabnzbd = {
     enable = true;
-    user = user;
     group = group;
   };
 
@@ -226,6 +225,10 @@ in {
       "sabnzbd.${domain}" = {
         useACMEHost = domain;
         extraConfig = "reverse_proxy localhost:8888";
+      };
+      "hass.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy striker.arsfeld.net:8123";
       };
       "auth.${domain}" = {
         useACMEHost = domain;

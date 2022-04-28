@@ -39,22 +39,14 @@ in {
 
   services.home-assistant = {
     enable = true;
-    config = null;
-    # config = {
-    #   homeassistant = {
-    #     name = "Home";
-    #     latitude = "!secret latitude";
-    #     longitude = "!secret longitude";
-    #     elevation = "!secret elevation";
-    #     unit_system = "metric";
-    #     time_zone = "UTC";
-    #   };
-    #   frontend = {
-    #     themes = "!include_dir_merge_named themes";
-    #   };
-    #   http = { };
-    #   feedreader.urls = [ "https://nixos.org/blogs.xml" ];
-    # };
+    config = {
+      # https://www.home-assistant.io/integrations/default_config/
+      default_config = {};
+      # https://www.home-assistant.io/integrations/esphome/
+      esphome = {};
+      # https://www.home-assistant.io/integrations/met/
+      met = {};
+    };
   };
 
   services.caddy = {
@@ -129,5 +121,14 @@ in {
         "--network=container:gluetun"
       ];
     };
+
+    # homeassistant = {
+    #   volumes = [ "home-assistant:/config" ];
+    #   environment.TZ = "America/Toronto";
+    #   image = "ghcr.io/home-assistant/home-assistant:stable";
+    #   extraOptions = [ 
+    #     "--network=host" 
+    #   ];
+    # };
   };
 }
