@@ -11,6 +11,7 @@ in {
     ./hardware-configuration.nix
     ./networking.nix
     ./services.nix
+    ./web.nix
     ./overlays.nix
     ./mail.nix
   ];

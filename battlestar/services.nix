@@ -75,10 +75,10 @@ in {
   services.nzbhydra2 = {
     enable = true;
   };
-  services.sabnzbd = {
-    enable = true;
-    group = group;
-  };
+  # services.sabnzbd = {
+  #   enable = true;
+  #   group = group;
+  # };
 
   virtualisation.oci-containers.containers = {
     # plex = {
@@ -133,6 +133,20 @@ in {
       ];
     };
 
+    sabnzbd = {
+      image = "ghcr.io/linuxserver/sabnzbd";
+      environment = {
+        PUID = puid;
+        PGID = pgid;
+        TZ = tz;
+      };
+      ports = ["8888:8888/tcp"];
+      volumes = [
+        "${configDir}/sabnzbd:/config"
+        "${dataDir}:${dataDir}"
+      ];
+    };
+
     stash = {
       image = "stashapp/stash:latest";
       volumes = [
@@ -143,123 +157,5 @@ in {
         "9999:9999"
       ];
     };
-  };
-
-  users.users.caddy.extraGroups = ["acme"];
-
-  networking.firewall.allowedTCPPorts = [22 80 443];
-
-  services.caddy = {
-    enable = true;
-    email = email;
-    package = pkgs.callPackage ../pkgs/caddy.nix {
-      plugins = [
-        "github.com/greenpau/caddy-security"
-      ];
-      vendorSha256 = "sha256-TAENwTcwppwytl/ti6HGKkh6t9OjgJpUx7NwuGf+PCg=";
-    };
-    virtualHosts = {
-      "files.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = ''
-          root * ${dataDir}
-          file_server browse
-        '';
-      };
-      "duplicati.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:8200";
-      };
-      "vault.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = ''
-          reverse_proxy localhost:8000
-        '';
-      };
-      "radarr.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = ''
-          reverse_proxy localhost:7878
-          authorize with admin_policy
-        '';
-      };
-      "sonarr.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = ''
-          reverse_proxy localhost:8989
-          authorize with admin_policy
-        '';
-      };
-      "bazarr.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:6767";
-      };
-      "qbittorrent.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:8080";
-      };
-      "prowlarr.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:9696";
-      };
-      "stash.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:9999";
-      };
-      "netdata.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:19999";
-      };
-      "tautulli.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:8181";
-      };
-      "jellyfin.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:8096";
-      };
-      "nzbhydra2.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:5076";
-      };
-      "sabnzbd.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:8888";
-      };
-      "hass.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = "reverse_proxy striker.arsfeld.net:8123";
-      };
-      "auth.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = "authenticate with myportal";
-      };
-    };
-
-    globalConfig = ''
-      order authenticate before respond
-      order authorize before reverse_proxy
-
-      security {
-        local identity store localdb {
-          realm local
-          path /var/lib/caddy/.config/caddy/users.json
-        }
-        authentication portal myportal {
-          enable identity store localdb
-          cookie domain ${domain}
-          cookie lifetime 86400 # 24 hours in seconds
-          ui
-          transform user {
-            match email ${email}
-            action add role authp/user
-          }
-        }
-        authorization policy admin_policy {
-            set auth url https://auth.${domain}
-            allow roles authp/user
-        }
-      }
-    '';
   };
 }
