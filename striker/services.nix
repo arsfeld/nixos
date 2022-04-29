@@ -126,8 +126,8 @@ in {
     #   volumes = [ "home-assistant:/config" ];
     #   environment.TZ = "America/Toronto";
     #   image = "ghcr.io/home-assistant/home-assistant:stable";
-    #   extraOptions = [ 
-    #     "--network=host" 
+    #   extraOptions = [
+    #     "--network=host"
     #   ];
     # };
   };

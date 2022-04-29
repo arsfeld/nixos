@@ -23,6 +23,8 @@
     enable = true;
     joinNetworks = ["35c192ce9b7b5113"];
   };
+  
+  networking.firewall.trustedInterfaces = ["zt7nnoth4i"];
 
   services.tailscale.enable = false;
 }
