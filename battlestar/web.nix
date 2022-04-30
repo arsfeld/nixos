@@ -121,6 +121,10 @@ in {
         useACMEHost = domain;
         extraConfig = "reverse_proxy localhost:4444";
       };
+      "dev.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy striker.arsfeld.net:4444";
+      };
       "auth.${domain}" = {
         useACMEHost = domain;
         extraConfig = "authenticate with myportal";
