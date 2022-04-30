@@ -80,6 +80,13 @@ in {
   #   group = group;
   # };
 
+  services.code-server = {
+    enable = true;
+    user = "arosenfeld";
+    group = "users";
+    host = "0.0.0.0";
+  };
+
   virtualisation.oci-containers.containers = {
     # plex = {
     #   image = "lscr.io/linuxserver/plex";

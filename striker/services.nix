@@ -26,6 +26,7 @@ in {
     enable = true;
     user = "arosenfeld";
     group = "users";
+    host = "0.0.0.0";
   };
 
   security.acme = {

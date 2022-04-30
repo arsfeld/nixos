@@ -43,16 +43,16 @@ in {
         useACMEHost = domain;
         extraConfig = "reverse_proxy ${cloudNode}:8888";
       };
-      "code.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = "reverse_proxy ${cloudNode}:8443";
-      };
       "yarr.${domain}" = {
         useACMEHost = domain;
         extraConfig = "reverse_proxy ${cloudNode}:7070";
       };
 
       # Local
+      "code.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy striker.arsfeld.net:4444";
+      };
       "files.${domain}" = {
         useACMEHost = domain;
         extraConfig = "reverse_proxy ${cloudNode}:8334";
