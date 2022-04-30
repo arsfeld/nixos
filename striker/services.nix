@@ -22,6 +22,12 @@ in {
     dataDir = "/mnt/data/files/Backups/restic";
   };
 
+  services.code-server = {
+    enable = true;
+    user = "arosenfeld";
+    group = "users";
+  };
+
   security.acme = {
     acceptTerms = true;
     certs = {
