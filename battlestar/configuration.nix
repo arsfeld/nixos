@@ -14,6 +14,7 @@ in {
     ./web.nix
     ./overlays.nix
     ./mail.nix
+    ./backup.nix
   ];
 
   boot.loader.grub = {

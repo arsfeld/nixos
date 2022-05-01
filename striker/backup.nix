@@ -12,9 +12,37 @@ in {
     # for a local backup
     dataBackup = {
       paths = "/var/data";
-      repo = "/data/files/Backups/borg";
+      repo = "/mnt/data/files/Backups/borg";
       compression = "zstd";
       encryption.mode = "none";
+      startAt = "daily";
+    };
+
+    "borgbase" = {
+      paths = [
+        "/var/lib"
+        "/var/data"
+        "/srv"
+        "/home"
+        "/root"
+      ];
+      exclude = [
+        # very large paths
+        "/var/lib/docker"
+        "/var/lib/systemd"
+        "/var/lib/libvirt"
+        
+        "'**/.cache'"
+        "'**/.nix-profile'"
+      ];
+      repo = "u2ru7hl3@u2ru7hl3.repo.borgbase.com:repo";
+      encryption = {
+        mode = "repokey-blake2";
+        passCommand = "cat /root/borgbackup/passphrase";
+      };
+      extraCreateArgs = "--progress --verbose --stats";
+      environment.BORG_RSH = "ssh -i /root/borgbackup/ssh_key";
+      compression = "auto,zstd";
       startAt = "daily";
     };
   };

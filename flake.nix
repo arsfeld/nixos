@@ -17,17 +17,12 @@
         nixpkgs = import nixpkgs {
           system = "x86_64-linux";
         };
-        # Doesn't seem to work for now
-        machinesFile = builtins.toFile "machines" ''
-          ssh://striker.arsfeld.net x86_64-linux - 4 1
-          ssh://oracle.arsfeld.net aarch64-linux - 4 1 benchmark,big-parallel,gccarch-armv8-a,kvm,nixos-test
-          ssh://battlestar.arsfeld.net x86_64-linux - 8 1
-        '';
       };
 
       battlestar = {
         deployment = {
           targetHost = "battlestar.arsfeld.net";
+          buildOnTarget = true;
         };
         imports = [./battlestar/configuration.nix];
       };
