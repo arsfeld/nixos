@@ -1,7 +1,4 @@
-{
-  lib,
-  ...
-}: {
+{lib, ...}: {
   services.borgbackup.jobs = {
     "borgbase" = {
       paths = [
@@ -30,5 +27,4 @@
       startAt = "daily";
     };
   };
-
 }

@@ -31,7 +31,7 @@ in {
         "/var/lib/docker"
         "/var/lib/systemd"
         "/var/lib/libvirt"
-        
+
         "'**/.cache'"
         "'**/.nix-profile'"
       ];

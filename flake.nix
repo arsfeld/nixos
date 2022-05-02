@@ -5,77 +5,94 @@
       url = "github:nix-community/nixos-generators";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    utils.url = "github:numtide/flake-utils";
+
+    home-manager.url = "github:nix-community/home-manager";
+    home-manager.inputs.nixpkgs.follows = "nixpkgs";
+
+    colmena.url = "github:zhaofengli/colmena";
+    colmena.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = {
     self,
+    utils,
     nixpkgs,
+    colmena,
     nixos-generators,
-  }: {
-    colmena = {
-      meta = {
-        nixpkgs = import nixpkgs {
-          system = "x86_64-linux";
-        };
+    home-manager,
+  }: let
+    username = "arosenfeld";
+    supportedSystems = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
+  in
+    utils.lib.eachSystem supportedSystems (system: let
+      pkgs = import nixpkgs {
+        inherit system;
+        overlays = [colmena.overlay];
       };
-
-      battlestar = {
-        deployment = {
-          targetHost = "battlestar.arsfeld.net";
-          buildOnTarget = true;
-        };
-        imports = [./battlestar/configuration.nix];
-      };
-
-      oracle = {
-        nixpkgs.system = "aarch64-linux";
-        deployment = {
-          targetHost = "oracle.arsfeld.net";
-          buildOnTarget = true;
-        };
-        imports = [./oracle/configuration.nix];
-      };
-
-      striker = {
-        deployment = {
-          allowLocalDeployment = true;
-          targetHost = "striker.arsfeld.net";
-        };
-        imports = [./striker/configuration.nix];
-      };
-    };
-
-    packages.x86_64-linux = {
-      proxmox = nixos-generators.nixosGenerate {
-        pkgs = nixpkgs.legacyPackages.x86_64-linux;
-        modules = [
-          # you can include your own nixos configuration here, i.e.
-          # ./configuration.nix
-          ./common/common.nix
-          ./common/users.nix
+    in rec {
+      devShell = pkgs.mkShell {
+        buildInputs = with pkgs; [
+          pkgs.home-manager
+          pkgs.colmena
+          pkgs.alejandra
         ];
-        format = "proxmox";
+      };
+    })
+    // {
+      colmena = {
+        meta = {
+          nixpkgs = import nixpkgs {
+            system = "x86_64-linux";
+          };
+        };
+
+        battlestar = {
+          deployment = {
+            targetHost = "battlestar.arsfeld.net";
+            buildOnTarget = true;
+          };
+          imports = [./battlestar/configuration.nix];
+        };
+
+        oracle = {
+          nixpkgs.system = "aarch64-linux";
+          deployment = {
+            targetHost = "oracle.arsfeld.net";
+            buildOnTarget = true;
+          };
+          imports = [./oracle/configuration.nix];
+        };
+
+        striker = {
+          deployment = {
+            allowLocalDeployment = true;
+            targetHost = "striker.arsfeld.net";
+          };
+          imports = [
+            ./striker/configuration.nix
+            home-manager.nixosModules.home-manager
+            {
+              home-manager.useGlobalPkgs = true;
+              home-manager.useUserPackages = true;
+              home-manager.users.arosenfeld = import ./home/home.nix;
+            }
+          ];
+        };
+      };
+
+      packages.x86_64-linux = {
+        proxmox = nixos-generators.nixosGenerate {
+          pkgs = nixpkgs.legacyPackages.x86_64-linux;
+          modules = [
+            # you can include your own nixos configuration here, i.e.
+            # ./configuration.nix
+            ./common/common.nix
+            ./common/users.nix
+          ];
+          format = "proxmox";
+        };
       };
     };
-
-    nixosConfigurations.striker = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [./striker/configuration.nix];
-    };
-
-    nixosConfigurations.virgon = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [./virgon/configuration.nix];
-    };
-
-    nixosConfigurations.oracle = nixpkgs.lib.nixosSystem {
-      system = "aarch64-linux";
-      modules = [./oracle/configuration.nix];
-    };
-
-    nixosConfigurations.libran = nixpkgs.lib.nixosSystem {
-      system = "aarch64-linux";
-      modules = [./libran/configuration.nix];
-    };
-  };
 }
