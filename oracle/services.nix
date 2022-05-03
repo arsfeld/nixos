@@ -13,7 +13,6 @@ with lib; let
   tz = "America/Toronto";
   domain = "arsfeld.dev";
 in {
-
   virtualisation.oci-containers.containers = {
     vaultwarden = {
       image = "vaultwarden/server";
@@ -21,7 +20,7 @@ in {
       environment = {
         TZ = tz;
       };
-      ports = [ "8888:80" ];
+      ports = ["8888:80"];
       volumes = [
         "${configDir}/vaultwarden:/data"
       ];
@@ -33,7 +32,7 @@ in {
       environment = {
         url = "https://blog.${domain}";
       };
-      ports = [ "2368:2368" ];
+      ports = ["2368:2368"];
       volumes = [
         "${configDir}/ghost:/var/lib/ghost/content"
       ];
@@ -42,7 +41,7 @@ in {
     yarr = {
       image = "arsfeld/yarr:latest";
       user = "${puid}:${pgid}";
-      ports = [ "7070:7070" ];
+      ports = ["7070:7070"];
       volumes = [
         "${configDir}/yarr:/data"
       ];

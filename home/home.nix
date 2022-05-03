@@ -1,13 +1,16 @@
-{ config, pkgs, lib, ... }:
-
 {
+  config,
+  pkgs,
+  lib,
+  ...
+}: {
   # Home Manager needs a bit of information about you and the
   # paths it should manage.
   home.username = "arosenfeld";
   home.homeDirectory = "/home/arosenfeld";
 
   # Packages that should be installed to the user profile.
-  home.packages = with pkgs; [                           
+  home.packages = with pkgs; [
     htop
     fortune
     distrobox
@@ -42,7 +45,7 @@
     };
   };
 
-  services.gpg-agent = {                          
+  services.gpg-agent = {
     enable = true;
     defaultCacheTtl = 1800;
     enableSshSupport = true;

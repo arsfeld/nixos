@@ -80,6 +80,22 @@
             }
           ];
         };
+
+        storage = {
+          deployment = {
+            allowLocalDeployment = true;
+            targetHost = "192.168.31.10";
+          };
+          imports = [
+            ./storage/configuration.nix
+            home-manager.nixosModules.home-manager
+            {
+              home-manager.useGlobalPkgs = true;
+              home-manager.useUserPackages = true;
+              home-manager.users.arosenfeld = import ./home/home.nix;
+            }
+          ];
+        };
       };
 
       packages.x86_64-linux = {

@@ -10,13 +10,13 @@
 in {
   services.borgbackup.jobs = {
     # for a local backup
-    dataBackup = {
-      paths = "/var/data";
-      repo = "/mnt/data/files/Backups/borg";
-      compression = "zstd";
-      encryption.mode = "none";
-      startAt = "daily";
-    };
+    # dataBackup = {
+    #   paths = "/var/data";
+    #   repo = "/mnt/data/files/Backups/borg";
+    #   compression = "zstd";
+    #   encryption.mode = "none";
+    #   startAt = "daily";
+    # };
 
     "borgbase" = {
       paths = [

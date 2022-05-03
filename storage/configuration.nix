@@ -15,10 +15,11 @@ with lib; {
     ../common/common.nix
     ../common/services.nix
     ../common/users.nix
-    ./networking.nix
-    ./backup.nix
     ./services.nix
   ];
+
+  networking.hostName = "storage";
+  networking.hostId = "86f58bee";
 
   boot = {
     loader.systemd-boot.enable = true;
@@ -28,21 +29,11 @@ with lib; {
     supportedFilesystems = ["zfs"];
   };
 
-  # fileSystems."/mnt/data/media" = {
-  #   device = "192.168.31.10:/mnt/data/media";
-  #   fsType = "nfs";
-  #   options = ["nfsvers=4.2" "nofail"];
-  # };
-  # fileSystems."/mnt/data/files" = {
-  #   device = "192.168.31.10:/mnt/data/files";
-  #   fsType = "nfs";
-  #   options = ["nfsvers=4.2" "nofail"];
-  # };
-  # fileSystems."/mnt/data/homes" = {
-  #   device = "192.168.31.10:/mnt/data/homes";
-  #   fsType = "nfs";
-  #   options = ["nfsvers=4.2" "nofail"];
-  # };
+  services.zfs.autoScrub.enable = true;
+  services.smartd.enable = true;
+  services.smartd.notifications.mail.enable = true;
+  services.smartd.notifications.test = true;
+  services.sshguard.enable = true;
 
   environment.systemPackages = with pkgs; [
     vim

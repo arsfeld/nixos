@@ -16,7 +16,6 @@
 
   users.users.root.openssh.authorizedKeys.keys = [
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBDeQP9ZHuDegrcgBEAuLpCWEK0v8eIBAgaLMSquCP0w"
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM33PLIMhDtH/tU1hcQWmfDsz9Z/lFGJV/64Epq09net root@racknerd"
   ];
 
   users.users.media.uid = 5000;
