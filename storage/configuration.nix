@@ -20,6 +20,8 @@ with lib; {
 
   networking.hostName = "storage";
   networking.hostId = "86f58bee";
+  networking.firewall.enable = false;
+
 
   boot = {
     loader.systemd-boot.enable = true;
