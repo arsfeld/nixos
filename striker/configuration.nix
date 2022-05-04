@@ -56,9 +56,11 @@ with lib; {
 
   services.xserver.enable = true;
   services.xserver.displayManager.gdm.enable = true;
+  services.xserver.displayManager.gdm.autoSuspend = false;
   services.xserver.desktopManager.gnome.enable = true;
   hardware.bluetooth.enable = true;
 
+  services.blueman.enable = true;
   services.flatpak.enable = true;
 
   fonts.fonts = with pkgs; [
