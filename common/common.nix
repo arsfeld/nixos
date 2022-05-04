@@ -25,17 +25,17 @@
     enable = false;
   };
 
-  programs.zsh = {
-    enable = true;
-    ohMyZsh = {
-      enable = true;
-      theme = "agnoster";
-      plugins = ["git" "keychain"];
-    };
-    shellInit = ''
-      zstyle :omz:plugins:keychain agents gpg,ssh
-    '';
-  };
+  # programs.zsh = {
+  #   enable = true;
+  #   ohMyZsh = {
+  #     enable = true;
+  #     theme = "agnoster";
+  #     plugins = ["git" "keychain"];
+  #   };
+  #   shellInit = ''
+  #     zstyle :omz:plugins:keychain agents gpg,ssh
+  #   '';
+  # };
 
   environment.systemPackages = with pkgs; [
     git
