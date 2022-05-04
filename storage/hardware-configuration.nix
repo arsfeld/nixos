@@ -30,7 +30,7 @@
   fileSystems."/mnt/data" = {
     device = "data";
     fsType = "zfs";
-    options = [ "nofail" ];
+    options = ["nofail"];
   };
 
   # swapDevices =

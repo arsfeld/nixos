@@ -115,7 +115,7 @@ in {
       };
       "hass.${domain}" = {
         useACMEHost = domain;
-        extraConfig = "reverse_proxy striker.arsfeld.net:8123";
+        extraConfig = "reverse_proxy striker:8123";
       };
       "code.${domain}" = {
         useACMEHost = domain;
@@ -123,7 +123,7 @@ in {
       };
       "dev.${domain}" = {
         useACMEHost = domain;
-        extraConfig = "reverse_proxy striker.arsfeld.net:4444";
+        extraConfig = "reverse_proxy striker:4444";
       };
       "auth.${domain}" = {
         useACMEHost = domain;

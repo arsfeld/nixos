@@ -7,8 +7,8 @@
   ...
 }:
 with lib; let
-  cloudNode = "oracle.arsfeld.net";
-  localNode = "storage.arsfeld.net";
+  cloudNode = "oracle";
+  localNode = "storage";
   domain = "arsfeld.dev";
   email = "arsfeld@gmail.com";
 in {

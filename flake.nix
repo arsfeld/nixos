@@ -50,7 +50,7 @@
 
         battlestar = {
           deployment = {
-            targetHost = "battlestar.arsfeld.net";
+            targetHost = "battlestar";
             buildOnTarget = true;
           };
           imports = [
@@ -67,7 +67,7 @@
         oracle = {
           nixpkgs.system = "aarch64-linux";
           deployment = {
-            targetHost = "oracle.arsfeld.net";
+            targetHost = "oracle";
             buildOnTarget = true;
           };
           imports = [./oracle/configuration.nix];
@@ -76,7 +76,7 @@
         striker = {
           deployment = {
             allowLocalDeployment = true;
-            targetHost = "striker.arsfeld.net";
+            targetHost = "striker";
           };
           imports = [
             ./striker/configuration.nix
@@ -92,7 +92,7 @@
         storage = {
           deployment = {
             allowLocalDeployment = true;
-            targetHost = "192.168.31.10";
+            targetHost = "storage";
           };
           imports = [
             ./storage/configuration.nix

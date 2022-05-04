@@ -1,7 +1,7 @@
 # Edit this configuration file to define what should be installed on
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
-{
+args @ {
   lib,
   config,
   pkgs,
@@ -16,25 +16,28 @@ with lib; {
     ../common/services.nix
     ../common/users.nix
     ./networking.nix
-    ./backup.nix
     ./services.nix
+    ./rclone.nix
+    (
+      import ../common/backup.nix (
+        args
+        // {repo = "e0i590z4@e0i590z4.repo.borgbase.com:repo";}
+      )
+    )
   ];
 
   # Console
-  console =
-  {
+  console = {
     font = "ter-132n";
-    packages = with pkgs; [ terminus_font ];
+    packages = with pkgs; [terminus_font];
     keyMap = "us";
   };
 
   # TTY
-  services.kmscon =
-  {
+  services.kmscon = {
     enable = true;
     hwRender = true;
-    extraConfig =
-    ''
+    extraConfig = ''
       font-name=MesloLGS NF
       font-size=14
     '';
@@ -51,7 +54,7 @@ with lib; {
     consoleLogLevel = 0;
     initrd.verbose = false;
     plymouth.enable = true;
-    kernelParams = [ "quiet" "splash" "rd.systemd.show_status=false" "rd.udev.log_level=3" "udev.log_priority=3" "boot.shell_on_fail" ];
+    kernelParams = ["quiet" "splash" "rd.systemd.show_status=false" "rd.udev.log_level=3" "udev.log_priority=3" "boot.shell_on_fail"];
   };
 
   services.xserver.enable = true;
@@ -65,7 +68,7 @@ with lib; {
 
   fonts.fonts = with pkgs; [
     meslo-lgs-nf
-    (nerdfonts.override { fonts = [ "FiraCode" "DroidSansMono" "CascadiaCode" ]; })
+    (nerdfonts.override {fonts = ["FiraCode" "DroidSansMono" "CascadiaCode"];})
   ];
 
   # fileSystems."/mnt/data/media" = {
@@ -83,7 +86,6 @@ with lib; {
   #   fsType = "nfs";
   #   options = ["nfsvers=4.2" "nofail"];
   # };
-
 
   environment.systemPackages = with pkgs; [
     vim

@@ -1,7 +1,7 @@
 # Edit this configuration file to define what should be installed on
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
-{
+args @ {
   lib,
   config,
   pkgs,
@@ -17,12 +17,17 @@ with lib; {
     ../common/users.nix
     ../common/mail.nix
     ./services.nix
+    (
+      import ../common/backup.nix (
+        args
+        // {repo = "u2ru7hl3@u2ru7hl3.repo.borgbase.com:repo";}
+      )
+    )
   ];
 
   networking.hostName = "storage";
   networking.hostId = "86f58bee";
   networking.firewall.enable = false;
-
 
   boot = {
     loader.systemd-boot.enable = true;

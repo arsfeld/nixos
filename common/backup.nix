@@ -1,4 +1,8 @@
-{lib, ...}: {
+{
+  lib,
+  repo,
+  ...
+}: {
   services.borgbackup.jobs = {
     "borgbase" = {
       paths = [
@@ -16,7 +20,7 @@
         "'**/.cache'"
         "'**/.nix-profile'"
       ];
-      repo = "k67n1w1o@k67n1w1o.repo.borgbase.com:repo";
+      repo = repo;
       encryption = {
         mode = "repokey-blake2";
         passCommand = "cat /root/borgbackup/passphrase";

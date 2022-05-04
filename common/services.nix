@@ -19,12 +19,12 @@
     };
   };
 
-  services.zerotierone = {
-    enable = true;
-    joinNetworks = ["35c192ce9b7b5113"];
-  };
+  # services.zerotierone = {
+  #   enable = true;
+  #   joinNetworks = ["35c192ce9b7b5113"];
+  # };
 
-  networking.firewall.trustedInterfaces = ["zt7nnoth4i"];
+  networking.firewall.trustedInterfaces = ["tailscale0"];
 
-  services.tailscale.enable = false;
+  services.tailscale.enable = true;
 }
