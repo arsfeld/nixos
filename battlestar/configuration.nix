@@ -8,12 +8,12 @@ in {
     ../common/common.nix
     ../common/services.nix
     ../common/users.nix
+    ../common/mail.nix
     ./hardware-configuration.nix
     ./networking.nix
     ./services.nix
     ./web.nix
     ./overlays.nix
-    ./mail.nix
     ./backup.nix
   ];
 

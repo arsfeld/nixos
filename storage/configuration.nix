@@ -15,6 +15,7 @@ with lib; {
     ../common/common.nix
     ../common/services.nix
     ../common/users.nix
+    ../common/mail.nix
     ./services.nix
   ];
 
