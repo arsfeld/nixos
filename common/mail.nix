@@ -28,6 +28,7 @@ in {
         tls = true;
         from = email;
         host = "smtp.gmail.com";
+        port = 587;
         user = email;
         passwordeval = "cat /var/lib/secrets/smtp_password";
       };
