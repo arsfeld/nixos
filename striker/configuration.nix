@@ -17,7 +17,6 @@ with lib; {
     ../common/users.nix
     ./networking.nix
     ./services.nix
-    ./rclone.nix
     (
       import ../common/backup.nix (
         args

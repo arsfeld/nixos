@@ -16,6 +16,8 @@ with lib; {
     ../common/services.nix
     ../common/users.nix
     ../common/mail.nix
+    ./kopia.nix
+    ./rclone.nix
     ./services.nix
     (
       import ../common/backup.nix (

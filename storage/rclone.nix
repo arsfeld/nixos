@@ -9,13 +9,11 @@
   homeDir = "/mnt/data/homes/arosenfeld";
 in {
   systemd = {
-    /*
-     timers.rclone-sync = {
-       wantedBy = [ "timers.target" ];
-       partOf = [ "rclone-sync.service" ];
-       timerConfig.OnCalendar = "daily";
-     };
-     */
+    timers.rclone-sync = {
+      wantedBy = ["timers.target"];
+      partOf = ["rclone-sync.service"];
+      timerConfig.OnCalendar = "daily";
+    };
     services.rclone-sync = let
       rcloneOptions = "--fast-list --stats-one-line --verbose";
     in {

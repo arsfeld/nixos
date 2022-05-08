@@ -1,4 +1,4 @@
-args@{...}: let
+args @ {...}: let
   sda = "ata-HGST_HUS724020ALA640_PN2134P5G7K3KX";
   sdb = "ata-HGST_HUS724020ALA640_PN2134P6HWSS0X";
   sdc = "ata-HGST_HUS724020ALA640_PN2134P6H5MAHP";
@@ -17,7 +17,7 @@ in {
     (
       import ../common/backup.nix (
         args
-        // {repo = "k67n1w1o@k67n1w1o.repo.borgbase.com:repo";}
+        // {repo = "lm036010@lm036010.repo.borgbase.com:repo";}
       )
     )
   ];
