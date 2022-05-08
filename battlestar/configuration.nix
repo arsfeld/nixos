@@ -1,4 +1,4 @@
-args @ {...}: let
+args @ {pkgs, ...}: let
   sda = "ata-HGST_HUS724020ALA640_PN2134P5G7K3KX";
   sdb = "ata-HGST_HUS724020ALA640_PN2134P6HWSS0X";
   sdc = "ata-HGST_HUS724020ALA640_PN2134P6H5MAHP";
@@ -50,6 +50,16 @@ in {
       devices = ["/dev/disk/by-id/${sdd}"];
     }
   ];
+
+  users.users.borg = {
+    isSystemUser = true;
+    home = "/mnt/data/backups/borg";
+    group = "borg";
+    createHome = true;
+    useDefaultShell = true;
+    openssh.authorizedKeys.keys = ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHVa2dy7NNkWEAyRYLP8uW3WIOQVrEsfmfPr1YDZ2DTL root@storage"];
+  };
+  users.groups.borg = {};
 
   services.zfs.autoScrub.enable = true;
   services.smartd.enable = true;
