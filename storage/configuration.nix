@@ -20,6 +20,7 @@ with lib; {
     ./rclone.nix
     ./backup-battlestar.nix
     ./users.nix
+    ./samba.nix
     ./services.nix
     (
       import ../common/backup.nix (
