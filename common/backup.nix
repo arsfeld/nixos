@@ -7,6 +7,7 @@
     "borgbase" = {
       paths = [
         "/var/lib"
+        "/var/data"
         "/srv"
         "/home"
         "/root"

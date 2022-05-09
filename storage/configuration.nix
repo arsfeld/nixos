@@ -19,6 +19,7 @@ with lib; {
     ./kopia.nix
     ./rclone.nix
     ./backup-battlestar.nix
+    ./users.nix
     ./services.nix
     (
       import ../common/backup.nix (
