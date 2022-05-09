@@ -45,8 +45,7 @@
     zsh
     file
     keychain
-    # virt-manager
-    # usbutils
+    home-manager
   ];
 
   services.openssh.enable = true;

@@ -6,7 +6,7 @@
   modulesPath,
   ...
 }: let
-  backupDir = "/mnt/data/homes";
+  backupDir = "/home";
 in {
   systemd = {
     timers.kopia-backup = {

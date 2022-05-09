@@ -6,7 +6,7 @@
   modulesPath,
   ...
 }: let
-  homeDir = "/mnt/data/homes/arosenfeld";
+  homeDir = "/home/arosenfeld";
 in {
   systemd = {
     timers.rclone-sync = {

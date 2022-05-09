@@ -33,6 +33,12 @@
     options = ["nofail"];
   };
 
+  fileSystems."/home" = {
+    device = "data/homes";
+    fsType = "zfs";
+    options = ["nofail"];
+  };
+
   # swapDevices =
   #   [ { device = "/dev/disk/by-uuid/6a597d6c-af3a-4644-9dc1-0a84a62e6e23"; }
   #   ];

@@ -6,7 +6,7 @@
   services.borgbackup.jobs = {
     "battlestar" = {
       paths = [
-        "/mnt/data/homes"
+        "/home"
       ];
       exclude = [
         "'**/.cache'"
