@@ -13,7 +13,7 @@
     extraConfig = ''
       browseable = yes
       smb encrypt = required
-      dos charset = cp932 
+      dos charset = cp932
       unix charset = utf-8
       display charset = utf-8
     '';

@@ -14,6 +14,13 @@ with lib; let
   domain = "arsfeld.dev";
 in {
   virtualisation.oci-containers.containers = {
+    watchtower = {
+      image = "containrrr/watchtower";
+      volumes = [
+        "/var/run/docker.sock:/var/run/docker.sock"
+      ];
+    };
+
     vaultwarden = {
       image = "vaultwarden/server";
       user = "${puid}:${pgid}";

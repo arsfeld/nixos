@@ -61,6 +61,10 @@ in {
         useACMEHost = domain;
         extraConfig = "reverse_proxy ${localNode}:8334";
       };
+      "photoprism.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy ${localNode}:2342";
+      };
       "nzbhydra2.${domain}" = {
         useACMEHost = domain;
         extraConfig = "reverse_proxy ${localNode}:5076";

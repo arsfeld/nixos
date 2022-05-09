@@ -30,6 +30,13 @@ in {
   };
 
   virtualisation.oci-containers.containers = {
+    watchtower = {
+      image = "containrrr/watchtower";
+      volumes = [
+        "/var/run/docker.sock:/var/run/docker.sock"
+      ];
+    };
+
     plex = {
       image = "lscr.io/linuxserver/plex";
       environment = {
@@ -105,6 +112,24 @@ in {
         "${dataDir}/files:/data"
         "${dataDir}/files:/files"
         "${dataDir}/media:/media"
+      ];
+    };
+
+    photoprism = {
+      image = "photoprism/photoprism:latest";
+      ports = ["2342:2342"];
+      environment = {
+        PHOTOPRISM_SITE_URL = "https://photoprism.arsfeld.dev/";
+        PHOTOPRISM_UPLOAD_NSFW = "true";
+        PHOTOPRISM_ADMIN_PASSWORD = "password";
+      };
+      volumes = [
+        "${configDir}/photoprism:/photoprism/storage"
+        "/home/arosenfeld/Pictures:/photoprism/originals"
+      ];
+      extraOptions = [
+        "--security-opt" "seccomp=unconfined"
+        "--security-opt" "apparmor=unconfined"
       ];
     };
 
