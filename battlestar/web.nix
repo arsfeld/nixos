@@ -143,7 +143,7 @@ in {
         authentication portal myportal {
           enable identity store localdb
           cookie domain ${domain}
-          cookie lifetime 86400 # 24 hours in seconds
+          cookie lifetime 604800 # 7 days in seconds
           ui
           transform user {
             match email ${email}
