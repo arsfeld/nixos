@@ -113,20 +113,21 @@
           ];
         };
 
-        # r2s = {
-        #   deployment = {
-        #     targetHost = "192.168.31.180";
-        #   };
-        #   imports = [
-        #     ./machines/r2s/configuration.nix
-        #     home-manager.nixosModules.home-manager
-        #     {
-        #       home-manager.useGlobalPkgs = true;
-        #       home-manager.useUserPackages = true;
-        #       home-manager.users.arosenfeld = import ./home/home.nix;
-        #     }
-        #   ];
-        # };
+        r2s = {
+          nixpkgs.system = "aarch64-linux";
+          deployment = {
+            targetHost = "192.168.31.180";
+          };
+          imports = [
+            ./machines/r2s/configuration.nix
+            home-manager.nixosModules.home-manager
+            {
+              home-manager.useGlobalPkgs = true;
+              home-manager.useUserPackages = true;
+              home-manager.users.arosenfeld = import ./home/home.nix;
+            }
+          ];
+        };
       };
 
       packages.x86_64-linux = {

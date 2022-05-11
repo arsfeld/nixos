@@ -10,6 +10,7 @@ $git_status\
 [](fg:#FCA17D bg:#86BBD8)\
 $nodejs\
 $rust\
+$nix_shell\
 [](fg:#86BBD8 bg:#33658A)\
 $time\
 [ ](fg:#33658A)\
@@ -74,8 +75,13 @@ symbol = ""
 style = "bg:#86BBD8"
 format = '[[ $symbol ($version) ](bg:#86BBD8)]($style)'
 
+[nix_shell]
+symbol = "❄️"
+style = "bg:#86BBD8"
+format = '[[ $symbol ($name) ](bg:#86BBD8)]($style)'
+
 [time]
 disabled = false
 time_format = "%R" # Hour:Minute Format
 style = "bg:#33658A"
-format = '[[ ♥ $time ](bg:#33658A)]($style)'
+format = '[[  $time ](bg:#33658A)]($style)'
