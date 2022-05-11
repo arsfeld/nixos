@@ -12,10 +12,10 @@ args @ {
 with lib; {
   imports = [
     ./hardware-configuration.nix
-    ../common/common.nix
-    ../common/services.nix
-    ../common/users.nix
-    ../common/mail.nix
+    ../../common/common.nix
+    ../../common/services.nix
+    ../../common/users.nix
+    ../../common/mail.nix
     ./kopia.nix
     ./rclone.nix
     ./backup-battlestar.nix
@@ -23,7 +23,7 @@ with lib; {
     ./samba.nix
     ./services.nix
     (
-      import ../common/backup.nix (
+      import ../../common/backup.nix (
         args
         // {repo = "u2ru7hl3@u2ru7hl3.repo.borgbase.com:repo";}
       )

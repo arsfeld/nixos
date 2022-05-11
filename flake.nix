@@ -54,7 +54,7 @@
             buildOnTarget = true;
           };
           imports = [
-            ./battlestar/configuration.nix
+            ./machines/battlestar/configuration.nix
             home-manager.nixosModules.home-manager
             {
               home-manager.useGlobalPkgs = true;
@@ -71,7 +71,7 @@
             buildOnTarget = true;
           };
           imports = [
-            ./oracle/configuration.nix
+            ./machines/oracle/configuration.nix
             home-manager.nixosModules.home-manager
             {
               home-manager.useGlobalPkgs = true;
@@ -87,7 +87,7 @@
             targetHost = "striker";
           };
           imports = [
-            ./striker/configuration.nix
+            ./machines/striker/configuration.nix
             home-manager.nixosModules.home-manager
             {
               home-manager.useGlobalPkgs = true;
@@ -103,7 +103,7 @@
             targetHost = "storage";
           };
           imports = [
-            ./storage/configuration.nix
+            ./machines/storage/configuration.nix
             home-manager.nixosModules.home-manager
             {
               home-manager.useGlobalPkgs = true;
@@ -112,6 +112,21 @@
             }
           ];
         };
+
+        # r2s = {
+        #   deployment = {
+        #     targetHost = "192.168.31.180";
+        #   };
+        #   imports = [
+        #     ./machines/r2s/configuration.nix
+        #     home-manager.nixosModules.home-manager
+        #     {
+        #       home-manager.useGlobalPkgs = true;
+        #       home-manager.useUserPackages = true;
+        #       home-manager.users.arosenfeld = import ./home/home.nix;
+        #     }
+        #   ];
+        # };
       };
 
       packages.x86_64-linux = {

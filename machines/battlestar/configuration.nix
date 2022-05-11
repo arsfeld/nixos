@@ -5,17 +5,17 @@ args @ {pkgs, ...}: let
   sdd = "ata-HGST_HUS724020ALA640_PN1186P2G112YH";
 in {
   imports = [
-    ../common/common.nix
-    ../common/services.nix
-    ../common/users.nix
-    ../common/mail.nix
+    ../../common/common.nix
+    ../../common/services.nix
+    ../../common/users.nix
+    ../../common/mail.nix
     ./hardware-configuration.nix
     ./networking.nix
     ./services.nix
     ./web.nix
     ./overlays.nix
     (
-      import ../common/backup.nix (
+      import ../../common/backup.nix (
         args
         // {repo = "lm036010@lm036010.repo.borgbase.com:repo";}
       )

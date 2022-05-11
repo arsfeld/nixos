@@ -4,9 +4,9 @@
   ...
 }: {
   imports = [
-    ../common/common.nix
-    ../common/services.nix
-    ../common/users.nix
+    ../../common/common.nix
+    ../../common/services.nix
+    ../../common/users.nix
     ./hardware-configuration.nix
   ];
 

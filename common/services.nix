@@ -11,19 +11,7 @@
     extraOptions = "--registry-mirror=https://mirror.gcr.io";
   };
 
-  virtualisation = {
-    libvirtd = {
-      enable = false;
-      # qemu.ovmf.enable = true;
-    };
-  };
-
-  # services.zerotierone = {
-  #   enable = true;
-  #   joinNetworks = ["35c192ce9b7b5113"];
-  # };
+  services.tailscale.enable = true;
 
   networking.firewall.trustedInterfaces = ["tailscale0"];
-
-  services.tailscale.enable = true;
 }

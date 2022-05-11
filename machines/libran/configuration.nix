@@ -5,9 +5,9 @@
 }: {
   imports = [
     "${modulesPath}/virtualisation/amazon-image.nix"
-    ../common/common.nix
-    ../common/services.nix
-    ../common/users.nix
+    ../../common/common.nix
+    ../../common/services.nix
+    ../../common/users.nix
   ];
 
   ec2.hvm = true;

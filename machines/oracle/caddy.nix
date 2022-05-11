@@ -31,7 +31,7 @@ in {
   services.caddy = {
     enable = true;
     email = email;
-    package = pkgs.callPackage ../pkgs/caddy.nix {
+    package = pkgs.callPackage ../../pkgs/caddy.nix {
       plugins = [
         "github.com/greenpau/caddy-security"
       ];

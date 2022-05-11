@@ -12,13 +12,13 @@ args @ {
 with lib; {
   imports = [
     ./hardware-configuration.nix
-    ../common/common.nix
-    ../common/services.nix
-    ../common/users.nix
+    ../../common/common.nix
+    ../../common/services.nix
+    ../../common/users.nix
     ./networking.nix
     ./services.nix
     (
-      import ../common/backup.nix (
+      import ../../common/backup.nix (
         args
         // {repo = "e0i590z4@e0i590z4.repo.borgbase.com:repo";}
       )
