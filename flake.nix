@@ -116,7 +116,7 @@
         r2s = {
           nixpkgs.system = "aarch64-linux";
           deployment = {
-            targetHost = "r2s";
+            targetHost = "192.168.31.180";
           };
           imports = [
             ./machines/r2s/configuration.nix
