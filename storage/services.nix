@@ -128,8 +128,10 @@ in {
         "/home/arosenfeld/Pictures:/photoprism/originals"
       ];
       extraOptions = [
-        "--security-opt" "seccomp=unconfined"
-        "--security-opt" "apparmor=unconfined"
+        "--security-opt"
+        "seccomp=unconfined"
+        "--security-opt"
+        "apparmor=unconfined"
       ];
     };
 

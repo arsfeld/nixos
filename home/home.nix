@@ -15,6 +15,7 @@
     fortune
     distrobox
     neofetch
+    direnv
   ];
 
   # This value determines the Home Manager release that your
@@ -30,6 +31,10 @@
   # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
 
+  xdg.configFile."starship.toml" = {
+    source = ./pastel.toml;
+  };
+
   programs.zsh = {
     enable = true;
     plugins = [
@@ -40,14 +45,41 @@
       }
     ];
     prezto = {
-      enable = true;
+      enable = false;
       prompt.theme = "powerlevel10k";
     };
   };
 
+  programs.direnv = {
+    enable = true;
+    nix-direnv.enable = true;
+  };
+
+  programs.starship = {
+    enable = true;
+    enableZshIntegration = true;
+  };
+
+  programs.keychain = {
+    enable = true;
+    enableZshIntegration = true;
+    keys = ["id_ed25519"];
+  };
+
+  programs.fzf = {
+    enable = true;
+    enableZshIntegration = true;
+  };
+
+  programs.bat.enable = true;
+  programs.exa.enable = true;
+  programs.exa.enableAliases = true;
+
+  programs.command-not-found.enable = true;
+
   services.gpg-agent = {
     enable = true;
     defaultCacheTtl = 1800;
-    enableSshSupport = true;
+    enableSshSupport = false;
   };
 }

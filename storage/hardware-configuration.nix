@@ -39,9 +39,11 @@
     options = ["nofail"];
   };
 
-  # swapDevices =
-  #   [ { device = "/dev/disk/by-uuid/6a597d6c-af3a-4644-9dc1-0a84a62e6e23"; }
-  #   ];
+  swapDevices = [
+    {device = "/dev/disk/by-uuid/ecced37a-a038-493b-96e6-936ac9dbdc57";}
+  ];
+
+  zramSwap.enable = lib.mkForce false;
 
   # The global useDHCP flag is deprecated, therefore explicitly set to false here.
   # Per-interface useDHCP will be mandatory in the future, so this generated config
