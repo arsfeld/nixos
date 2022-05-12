@@ -21,6 +21,8 @@
     "@wheel"
   ];
 
+  environment.pathsToLink = ["/share/zsh"];
+
   environment.systemPackages = with pkgs; [
     git
     wget

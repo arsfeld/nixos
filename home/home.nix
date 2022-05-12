@@ -37,6 +37,7 @@
 
   programs.zsh = {
     enable = true;
+    enableSyntaxHighlighting = true;
     plugins = [
       {
         name = "powerlevel10k-config";
