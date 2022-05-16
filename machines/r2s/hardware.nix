@@ -36,12 +36,9 @@
 
   boot = {
     loader = {
-      timeout = 0;
+      timeout = 5;
       grub.enable = false;
-      generic-extlinux-compatible = {
-        enable = true;
-        configurationLimit = 0;
-      };
+      generic-extlinux-compatible.enable = true;
     };
     kernelPackages = pkgs.linuxPackages_latest;
     kernelParams = [

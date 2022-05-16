@@ -6,6 +6,10 @@
     ../../common/services.nix
     ../../common/users.nix
     ./hardware.nix
+    (import ./networking.nix {
+      internalInterface = "eth1"; # or w/e ethernet interface you want to connect your raspberry pi to
+      externalInterface = "eth0"; # or w/e interface you get your internet connection to your pc
+    })
   ];
 
   services.openssh = {
