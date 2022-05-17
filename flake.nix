@@ -52,6 +52,7 @@
           deployment = {
             targetHost = "battlestar";
             buildOnTarget = true;
+            tags = [ "cloud" ];
           };
           imports = [
             ./machines/battlestar/configuration.nix
@@ -69,6 +70,7 @@
           deployment = {
             targetHost = "oracle";
             buildOnTarget = true;
+            tags = [ "cloud" ];
           };
           imports = [
             ./machines/oracle/configuration.nix
