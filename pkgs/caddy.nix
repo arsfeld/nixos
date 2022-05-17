@@ -28,7 +28,7 @@ with lib; let
     owner = "caddyserver";
     repo = "dist";
     rev = "v${version}";
-    sha256 = "sha256-EXs+LNb87RWkmSWvs8nZIVqRJMutn+ntR241gqI7CUg=";
+    sha256 = "sha256-SUHwCGjtTy7nXianpUWDsgcVKpI/3DfRnU8kGFvIhZw=";
   };
 in
   buildGoModule rec {

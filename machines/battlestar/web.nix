@@ -22,7 +22,7 @@ in {
       plugins = [
         "github.com/greenpau/caddy-security"
       ];
-      vendorSha256 = "sha256-TAENwTcwppwytl/ti6HGKkh6t9OjgJpUx7NwuGf+PCg=";
+      vendorSha256 = "sha256-HwWAxMkANzF3eS+h9iGxLI2b1ik0dXubB4v0SzaStX4=";
     };
     virtualHosts = {
       "files.${domain}" = {
