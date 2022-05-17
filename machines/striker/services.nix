@@ -39,7 +39,7 @@ in {
   users.users.caddy.extraGroups = ["acme"];
 
   services.home-assistant = {
-    enable = true;
+    enable = false;
     config = {
       # https://www.home-assistant.io/integrations/default_config/
       default_config = {};

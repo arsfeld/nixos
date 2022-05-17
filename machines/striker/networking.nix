@@ -13,17 +13,8 @@ with lib; {
   networking.hostName = "striker";
 
   networking.useDHCP = false;
-  #networking.interfaces.enp12s0.useDHCP = true;
-  networking.interfaces.br0.useDHCP = true;
-  networking.bridges = {
-    "br0" = {
-      interfaces = ["enp12s0"];
-    };
-  };
+  networking.interfaces.enp12s0.useDHCP = true;
 
-  networking.nat.enable = true;
-  networking.nat.internalInterfaces = ["ve-+"];
-  networking.nat.externalInterface = "br0";
 
   # services.nebula.networks = {
   #   home = {

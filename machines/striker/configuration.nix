@@ -62,8 +62,14 @@ with lib; {
   services.xserver.desktopManager.gnome.enable = true;
   hardware.bluetooth.enable = true;
 
+  services.gnome.chrome-gnome-shell.enable = true;
+
   services.blueman.enable = true;
   services.flatpak.enable = true;
+
+  programs.steam = {
+    enable = true;
+  };
 
   fonts.fonts = with pkgs; [
     meslo-lgs-nf
