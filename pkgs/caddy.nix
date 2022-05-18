@@ -5,7 +5,6 @@ rec {
 
   _caddy_plugins = [
     { name = "github.com/greenpau/caddy-security"; version = "v1.1.7"; }
-    { name = "github.com/lindenlab/caddy-s3-proxy"; version = "v0.5.6"; }
   ];
   _caddy_patch_main = prev.lib.strings.concatMapStringsSep "\n"
     ({ name, version }: ''
@@ -27,10 +26,6 @@ rec {
         '';
         postInstall = "cp go.mod go.sum $out/";
       };
-      postInstall = ''
-        ${args.postInstall}
-        sed -i -E '/Group=caddy/aEnvironmentFile=/etc/default/caddy' $out/lib/systemd/system/caddy.service
-      '';
       postPatch = _caddy_patch_main;
       preBuild = "cp vendor/go.mod vendor/go.sum .";
     });
