@@ -39,4 +39,6 @@
   time.timeZone = "America/Toronto";
   zramSwap.enable = true;
   networking.firewall.allowedTCPPorts = [22];
+
+  system.stateVersion = "22.05";
 }

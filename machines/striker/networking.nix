@@ -15,7 +15,6 @@ with lib; {
   networking.useDHCP = false;
   networking.interfaces.enp12s0.useDHCP = true;
 
-
   # services.nebula.networks = {
   #   home = {
   #     lighthouses = [
