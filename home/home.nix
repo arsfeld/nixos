@@ -37,17 +37,20 @@
 
   programs.zsh = {
     enable = true;
-    enableSyntaxHighlighting = true;
-    plugins = [
-      {
-        name = "powerlevel10k-config";
-        src = lib.cleanSource ./p10k-config;
-        file = "p10k.zsh";
-      }
-    ];
     prezto = {
-      enable = false;
-      prompt.theme = "powerlevel10k";
+      enable = true;
+      pmodules = [
+        "environment" 
+        "terminal" 
+        "editor" 
+        "history" 
+        "directory" 
+        "spectrum" 
+        "utility" 
+        "completion" 
+        "command-not-found" 
+        "syntax-highlighting"
+      ];
     };
   };
 
