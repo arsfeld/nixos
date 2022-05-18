@@ -31,12 +31,7 @@ in {
   services.caddy = {
     enable = true;
     email = email;
-    package = pkgs.callPackage ../../pkgs/caddy.nix {
-      plugins = [
-        "github.com/greenpau/caddy-security"
-      ];
-      vendorSha256 = "sha256-HwWAxMkANzF3eS+h9iGxLI2b1ik0dXubB4v0SzaStX4=";
-    };
+    package = pkgs.xcaddy;
     virtualHosts = {
       # Cloud
       "vault.${domain}" = {
