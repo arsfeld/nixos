@@ -7,7 +7,7 @@
   ...
 }:
 with lib; let
-  configDir = "/var/data";
+  configDir = "/var/lib";
   puid = "5000";
   pgid = "5000";
   tz = "America/Toronto";

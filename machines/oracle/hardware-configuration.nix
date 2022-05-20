@@ -1,5 +1,5 @@
 {modulesPath, ...}: {
-  imports = [(modulesPath + "/profiles/qemu-guest.nix")];
+  imports = [ (modulesPath + "/profiles/qemu-guest.nix") ];
   boot.loader = {
     efi = {
       canTouchEfiVariables = true;
@@ -11,14 +11,8 @@
       device = "nodev";
     };
   };
-  fileSystems."/boot/efi" = {
-    device = "/dev/disk/by-uuid/7275-636E";
-    fsType = "vfat";
-  };
-  boot.initrd.kernelModules = ["nvme"];
-  fileSystems."/" = {
-    device = "/dev/mapper/ocivolume-root";
-    fsType = "xfs";
-  };
-  boot.supportedFilesystems = ["zfs"];
+  fileSystems."/boot/efi" = { device = "/dev/disk/by-uuid/5405-2CB5"; fsType = "vfat"; };
+  boot.initrd.kernelModules = [ "nvme" ];
+  fileSystems."/" = { device = "/dev/mapper/ocivolume-root"; fsType = "xfs"; };
+  #boot.supportedFilesystems = ["zfs"];
 }
