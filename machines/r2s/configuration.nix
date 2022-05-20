@@ -20,6 +20,10 @@
   #networking.useDHCP = true;
   networking.hostName = "r2s";
 
+  services.adguardhome = {
+    enable = true;
+  };
+
   # put your own configuration here, for example ssh keys:
   users.extraUsers.root.openssh.authorizedKeys.keys = [
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBDeQP9ZHuDegrcgBEAuLpCWEK0v8eIBAgaLMSquCP0w"
