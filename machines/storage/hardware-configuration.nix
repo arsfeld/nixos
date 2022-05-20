@@ -33,6 +33,24 @@
     options = ["nofail"];
   };
 
+  fileSystems."/mnt/data/media" = {
+    device = "data/media";
+    fsType = "zfs";
+    options = ["nofail"];
+  };
+
+  fileSystems."/mnt/data/files" = {
+    device = "data/files";
+    fsType = "zfs";
+    options = ["nofail"];
+  };
+
+  fileSystems."/mnt/data/backups" = {
+    device = "data/backups";
+    fsType = "zfs";
+    options = ["nofail"];
+  };
+
   fileSystems."/home" = {
     device = "data/homes";
     fsType = "zfs";
