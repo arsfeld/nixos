@@ -18,7 +18,7 @@ rec {
     _caddy_plugins;
   xcaddy = caddy.override {
     buildGoModule = args: buildGoModule (args // {
-      vendorSha256 = "sha256-WHya9kbPGoImUa/6JnD220eOKKsHZUjEPpuzpQMAzJE=";
+      vendorSha256 = "sha256-fChvAGHl3MxVsBXH+qYiU8KXh0tgFTZo3JRS7X4aL2I=";
       overrideModAttrs = _: {
         preBuild = ''
           ${_caddy_patch_main}
