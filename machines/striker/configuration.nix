@@ -17,6 +17,7 @@ with lib; {
     ../../common/users.nix
     ./networking.nix
     ./services.nix
+    ./samba.nix
     (
       import ../../common/backup.nix (
         args
