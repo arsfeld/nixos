@@ -13,6 +13,11 @@ with lib; let
   tz = "America/Toronto";
   domain = "arsfeld.dev";
 in {
+
+  services.adguardhome = {
+    enable = true;
+  };
+
   virtualisation.oci-containers.containers = {
     watchtower = {
       image = "containrrr/watchtower";
