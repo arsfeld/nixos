@@ -44,7 +44,7 @@ in {
           @api {
             not path /api/*
           }
-          authorize with admin_policy
+          authorize @api with admin_policy
         '';
       };
       "sonarr.${domain}" = {
@@ -114,11 +114,15 @@ in {
       };
       "code.${domain}" = {
         useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:4444";
+        extraConfig = ''
+          reverse_proxy localhost:4444  
+        '';
       };
       "dev.${domain}" = {
         useACMEHost = domain;
-        extraConfig = "reverse_proxy striker:4444";
+        extraConfig = ''
+          reverse_proxy striker:4444
+        '';
       };
       "auth.${domain}" = {
         useACMEHost = domain;
