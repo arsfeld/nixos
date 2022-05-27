@@ -13,6 +13,18 @@ with lib; let
 in {
   users.users.caddy.extraGroups = ["acme"];
 
+  security.acme = {
+    acceptTerms = true;
+    certs = {
+      "${domain}" = {
+        email = email;
+        dnsProvider = "cloudflare";
+        credentialsFile = "/var/lib/secrets/cloudflare";
+        extraDomainNames = ["*.${domain}"];
+      };
+    };
+  };
+
   networking.firewall.allowedTCPPorts = [22 80 443];
 
   services.caddy = {
@@ -115,7 +127,7 @@ in {
       "code.${domain}" = {
         useACMEHost = domain;
         extraConfig = ''
-          reverse_proxy localhost:4444  
+          reverse_proxy localhost:4444
         '';
       };
       "dev.${domain}" = {

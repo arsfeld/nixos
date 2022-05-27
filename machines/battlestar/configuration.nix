@@ -11,9 +11,9 @@ in {
     ../../common/mail.nix
     ./hardware-configuration.nix
     ./networking.nix
-    ./services.nix
     ./web.nix
     ./overlays.nix
+    ./rclone-mount.nix
     (
       import ../../common/backup.nix (
         args
@@ -22,34 +22,38 @@ in {
     )
   ];
 
+  boot.loader.systemd-boot.enable = true;
+
   boot.loader.grub = {
+    enable = false;
     efiSupport = true;
     device = "nodev";
+    efiInstallAsRemovable = true;
   };
 
   fileSystems."/boot".options = ["nofail"];
-  fileSystems."/boot-2".options = ["nofail"];
-  fileSystems."/boot-3".options = ["nofail"];
-  fileSystems."/boot-4".options = ["nofail"];
+  # fileSystems."/boot-2".options = ["nofail"];
+  # fileSystems."/boot-3".options = ["nofail"];
+  # fileSystems."/boot-4".options = ["nofail"];
 
-  boot.loader.grub.mirroredBoots = [
-    {
-      path = "/boot";
-      devices = ["/dev/disk/by-id/${sda}"];
-    }
-    {
-      path = "/boot-2";
-      devices = ["/dev/disk/by-id/${sdb}"];
-    }
-    {
-      path = "/boot-3";
-      devices = ["/dev/disk/by-id/${sdc}"];
-    }
-    {
-      path = "/boot-4";
-      devices = ["/dev/disk/by-id/${sdd}"];
-    }
-  ];
+  # boot.loader.grub.mirroredBoots = [
+  #   {
+  #     path = "/boot";
+  #     devices = ["/dev/disk/by-id/${sda}"];
+  #   }
+  #   {
+  #     path = "/boot-2";
+  #     devices = ["/dev/disk/by-id/${sdb}"];
+  #   }
+  #   {
+  #     path = "/boot-3";
+  #     devices = ["/dev/disk/by-id/${sdc}"];
+  #   }
+  #   {
+  #     path = "/boot-4";
+  #     devices = ["/dev/disk/by-id/${sdd}"];
+  #   }
+  # ];
 
   users.users.borg = {
     isSystemUser = true;

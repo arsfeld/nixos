@@ -19,18 +19,6 @@ with lib; let
 in {
   services.netdata.enable = true;
 
-  security.acme = {
-    acceptTerms = true;
-    certs = {
-      "${domain}" = {
-        email = email;
-        dnsProvider = "cloudflare";
-        credentialsFile = "/var/lib/secrets/cloudflare";
-        extraDomainNames = ["*.${domain}"];
-      };
-    };
-  };
-
   services.duplicati = {
     enable = true;
     user = "root";

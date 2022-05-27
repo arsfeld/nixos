@@ -18,6 +18,8 @@
   boot.extraModulePackages = [];
   boot.supportedFilesystems = ["zfs"];
   #boot.initrd.mdadmConf = "ARRAY /dev/md/md2  metadata=1.2 UUID=124fee3e:a0556cd6:665bdc85:8630511b name=md2";
+  boot.kernelPackages = pkgs.linuxPackages_latest;
+  boot.zfs.extraPools = ["data"];
 
   fileSystems."/" = {
     device = "/dev/disk/by-uuid/0eae046a-b904-4da3-a177-d324f02bd60c";
@@ -25,21 +27,21 @@
   };
 
   fileSystems."/boot" = {
-    device = "/dev/disk/by-uuid/52B7-5238";
+    device = "/dev/disk/by-partuuid/ea903e84-03c1-4d68-a602-2131b2cdeac1";
     fsType = "vfat";
   };
-  fileSystems."/boot-2" = {
-    device = "/dev/disk/by-uuid/52DC-9C20";
-    fsType = "vfat";
-  };
-  fileSystems."/boot-3" = {
-    device = "/dev/disk/by-uuid/5302-3514";
-    fsType = "vfat";
-  };
-  fileSystems."/boot-4" = {
-    device = "/dev/disk/by-uuid/5327-75C8";
-    fsType = "vfat";
-  };
+  # fileSystems."/boot-2" = {
+  #   device = "/dev/disk/by-uuid/52DC-9C20";
+  #   fsType = "vfat";
+  # };
+  # fileSystems."/boot-3" = {
+  #   device = "/dev/disk/by-uuid/5302-3514";
+  #   fsType = "vfat";
+  # };
+  # fileSystems."/boot-4" = {
+  #   device = "/dev/disk/by-uuid/5327-75C8";
+  #   fsType = "vfat";
+  # };
 
   swapDevices = [
     {device = "/dev/disk/by-uuid/6a05db72-4868-44fe-af57-160f3742fb78";}
