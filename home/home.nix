@@ -40,15 +40,15 @@
     prezto = {
       enable = true;
       pmodules = [
-        "environment" 
-        "terminal" 
-        "editor" 
-        "history" 
-        "directory" 
-        "spectrum" 
-        "utility" 
-        "completion" 
-        "command-not-found" 
+        "environment"
+        "terminal"
+        "editor"
+        "history"
+        "directory"
+        "spectrum"
+        "utility"
+        "completion"
+        "command-not-found"
         "syntax-highlighting"
       ];
     };
