@@ -7,8 +7,9 @@
     ../../common/common.nix
     ../../common/services.nix
     ../../common/users.nix
+    ../battlestar/rclone-mount.nix
     ./hardware-configuration.nix
-    ./caddy.nix
+    ./web.nix
     ./services.nix
   ];
 
