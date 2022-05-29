@@ -40,7 +40,6 @@
       grub.enable = false;
       generic-extlinux-compatible.enable = true;
     };
-    kernelPackages = pkgs.linuxPackages_latest;
     kernelParams = [
       "console=ttyS2,1500000"
       "earlycon=uart8250,mmio32,0xff130000"
