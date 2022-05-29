@@ -16,11 +16,13 @@ with lib; {
         access_key_id = H05UB1VCQRY7G19IBA5X
         secret_access_key = wIrPzRsgzoM92Igzd9Aibv9fJ9hbCSdzAegekDXA
         region =
-        endpoint = s3.wasabisys.com
+        endpoint = s3.ca-central-1.wasabisys.com
         location_constraint =
         acl =
         server_side_encryption =
         storage_class =
+        upload_concurrency = 20
+        chunk_size = 50Mi
       '';
       mode = "0644";
     };
@@ -33,8 +35,11 @@ with lib; {
     serviceConfig = {
       ExecStartPre = "/run/current-system/sw/bin/mkdir -p /mnt/media";
       ExecStart = ''
-        ${pkgs.rclone}/bin/rclone mount 'wasabi:arosenfeld-data/' /mnt/media \
+        ${pkgs.rclone}/bin/rclone mount 'wasabi:arosenfeld-media/' /mnt/media \
           --config=/etc/rclone/rclone.conf \
+          --uid 5000 \
+          --gid 5000 \
+          --umask=0022 \
           --allow-other \
           --allow-non-empty \
           --log-level=INFO \
