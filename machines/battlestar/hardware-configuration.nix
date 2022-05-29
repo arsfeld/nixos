@@ -18,8 +18,10 @@
   boot.extraModulePackages = [];
   boot.supportedFilesystems = ["zfs"];
   #boot.initrd.mdadmConf = "ARRAY /dev/md/md2  metadata=1.2 UUID=124fee3e:a0556cd6:665bdc85:8630511b name=md2";
-  boot.kernelPackages = pkgs.linuxPackages_latest;
+  #boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.zfs.extraPools = ["data"];
+
+  networking.wireguard.enable = true;
 
   fileSystems."/" = {
     device = "/dev/disk/by-uuid/0eae046a-b904-4da3-a177-d324f02bd60c";
