@@ -12,6 +12,7 @@ in {
     ./hardware-configuration.nix
     ./networking.nix
     ./web.nix
+    ./services.nix
     ./overlays.nix
     ./rclone-mount.nix
     (
