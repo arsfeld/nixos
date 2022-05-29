@@ -10,6 +10,7 @@ with lib; let
   domain = "arsfeld.dev";
   email = "arsfeld@gmail.com";
   dataDir = "/mnt/media";
+  downloadDir = "/var/downloads";
   configDir = "/var/lib";
   puid = "5000";
   pgid = "5000";
@@ -128,7 +129,8 @@ in {
       };
       volumes = [
         "${configDir}/qbittorrent:/config"
-        "${dataDir}:${dataDir}"
+        "${downloadDir}:${downloadDir}"
+        "/mnt:/mnt"
       ];
       extraOptions = [
         "--network=container:gluetun"
@@ -145,6 +147,7 @@ in {
       ports = ["8888:8888/tcp"];
       volumes = [
         "${configDir}/sabnzbd:/config"
+        "${downloadDir}:${downloadDir}"
         "${dataDir}:${dataDir}"
       ];
     };
@@ -153,7 +156,7 @@ in {
       image = "stashapp/stash:latest";
       volumes = [
         "${configDir}/stash:/root/.stash"
-        "${dataDir}/media:/data"
+        "${dataDir}:/data"
       ];
       ports = [
         "9999:9999"
