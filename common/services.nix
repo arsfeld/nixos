@@ -14,4 +14,7 @@
   services.tailscale.enable = true;
 
   networking.firewall.trustedInterfaces = ["tailscale0"];
+
+  virtualisation.oci-containers.backend = "docker";
+  #virtualisation.podman.dockerCompat = true;
 }

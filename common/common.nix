@@ -31,6 +31,9 @@
     zsh
     file
     keychain
+    psmisc
+    parted
+    gptfdisk
     home-manager
   ];
 
@@ -39,6 +42,7 @@
   time.timeZone = "America/Toronto";
   zramSwap.enable = true;
   networking.firewall.allowedTCPPorts = [22];
+  networking.firewall.checkReversePath = "loose";
 
   system.stateVersion = "22.05";
 }

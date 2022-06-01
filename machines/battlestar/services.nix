@@ -115,7 +115,8 @@ in {
       ];
       ports = ["8080:8080/tcp"];
       extraOptions = [
-        "--cap-add=NET_ADMIN" "--privileged"
+        "--cap-add=NET_ADMIN"
+        "--privileged"
       ];
     };
 
