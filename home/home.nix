@@ -17,6 +17,7 @@
     neofetch
     direnv
     ruby
+    starship
     (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
     (writeScriptBin "running" (builtins.readFile ./scripts/running))
   ];
@@ -40,6 +41,8 @@
     source = ./pastel.toml;
   };
 
+  programs.home-manager.enable = true;
+
   programs.zsh = {
     enable = true;
     prezto = {
@@ -57,6 +60,18 @@
         "syntax-highlighting"
       ];
     };
+
+    initExtraFirst = ''
+      # nix
+      if [[ -s /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh ]]; then
+          source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+      fi
+
+      # home-manager
+      if [[ -s ~/.nix-profile/etc/profile.d/nix.sh ]]; then
+          source ~/.nix-profile/etc/profile.d/nix.sh
+      fi
+    '';
   };
 
   programs.direnv = {
@@ -87,12 +102,6 @@
   programs.command-not-found.enable = true;
 
   services.syncthing = {
-    enable = true;
-  };
-
-  services.gpg-agent = {
-    enable = true;
-    defaultCacheTtl = 1800;
-    enableSshSupport = false;
+    enable = pkgs.stdenv.isLinux;
   };
 }
