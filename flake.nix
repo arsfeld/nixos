@@ -11,17 +11,22 @@
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
+    nixos-vscode-server.url = "github:msteen/nixos-vscode-server";
+    nixos-vscode-server.flake = false;
+
     colmena.url = "github:zhaofengli/colmena/stable";
     colmena.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = {
+  outputs = inputs @ {
     self,
-    utils,
+    home-manager,
     nixpkgs,
+    utils,
     colmena,
     nixos-generators,
-    home-manager,
+    nixos-vscode-server,
+    ...
   }: let
     username = "arosenfeld";
     supportedSystems = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
@@ -41,7 +46,16 @@
       };
     })
     // {
-      colmena = {
+      colmena = let
+        homeFeatures = [
+          home-manager.nixosModules.home-manager
+          {
+            home-manager.useGlobalPkgs = true;
+            home-manager.useUserPackages = true;
+            home-manager.users.arosenfeld = import ./home/home.nix;
+          }
+        ];
+      in {
         meta = {
           nixpkgs = import nixpkgs {
             system = "x86_64-linux";
@@ -57,15 +71,11 @@
             buildOnTarget = true;
             tags = ["cloud"];
           };
-          imports = [
-            ./machines/battlestar/configuration.nix
-            home-manager.nixosModules.home-manager
-            {
-              home-manager.useGlobalPkgs = true;
-              home-manager.useUserPackages = true;
-              home-manager.users.arosenfeld = import ./home/home.nix;
-            }
-          ];
+          imports =
+            [
+              ./machines/battlestar/configuration.nix
+            ]
+            ++ homeFeatures;
         };
 
         oracle = {
@@ -75,15 +85,11 @@
             buildOnTarget = true;
             tags = ["cloud"];
           };
-          imports = [
-            ./machines/oracle/configuration.nix
-            home-manager.nixosModules.home-manager
-            {
-              home-manager.useGlobalPkgs = true;
-              home-manager.useUserPackages = true;
-              home-manager.users.arosenfeld = import ./home/home.nix;
-            }
-          ];
+          imports =
+            [
+              ./machines/oracle/configuration.nix
+            ]
+            ++ homeFeatures;
         };
 
         striker = {
@@ -91,15 +97,11 @@
             allowLocalDeployment = true;
             targetHost = "striker";
           };
-          imports = [
-            ./machines/striker/configuration.nix
-            home-manager.nixosModules.home-manager
-            {
-              home-manager.useGlobalPkgs = true;
-              home-manager.useUserPackages = true;
-              home-manager.users.arosenfeld = import ./home/home.nix;
-            }
-          ];
+          imports =
+            [
+              ./machines/striker/configuration.nix
+            ]
+            ++ homeFeatures;
         };
 
         storage = {
@@ -107,15 +109,11 @@
             allowLocalDeployment = true;
             targetHost = "storage";
           };
-          imports = [
-            ./machines/storage/configuration.nix
-            home-manager.nixosModules.home-manager
-            {
-              home-manager.useGlobalPkgs = true;
-              home-manager.useUserPackages = true;
-              home-manager.users.arosenfeld = import ./home/home.nix;
-            }
-          ];
+          imports =
+            [
+              ./machines/storage/configuration.nix
+            ]
+            ++ homeFeatures;
         };
 
         r2s = {
@@ -123,15 +121,11 @@
           deployment = {
             targetHost = "r2s";
           };
-          imports = [
-            ./machines/r2s/configuration.nix
-            home-manager.nixosModules.home-manager
-            {
-              home-manager.useGlobalPkgs = true;
-              home-manager.useUserPackages = true;
-              home-manager.users.arosenfeld = import ./home/home.nix;
-            }
-          ];
+          imports =
+            [
+              ./machines/r2s/configuration.nix
+            ]
+            ++ homeFeatures;
         };
       };
 

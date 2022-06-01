@@ -96,6 +96,22 @@
         "type": "github"
       }
     },
+    "nixos-vscode-server": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1648830510,
+        "narHash": "sha256-U+UGKbZajc2NqDvBL7hCYshAiaXgiBv5rNFIqLl0X7M=",
+        "owner": "msteen",
+        "repo": "nixos-vscode-server",
+        "rev": "d2343b5eb47b811856085f3eff4d899a32b2c136",
+        "type": "github"
+      },
+      "original": {
+        "owner": "msteen",
+        "repo": "nixos-vscode-server",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1653819559,
@@ -117,6 +133,7 @@
         "colmena": "colmena",
         "home-manager": "home-manager",
         "nixos-generators": "nixos-generators",
+        "nixos-vscode-server": "nixos-vscode-server",
         "nixpkgs": "nixpkgs",
         "utils": "utils_2"
       }
