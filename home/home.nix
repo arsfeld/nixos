@@ -16,6 +16,9 @@
     distrobox
     neofetch
     direnv
+    ruby
+    (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
+    (writeScriptBin "running" (builtins.readFile ./scripts/running))
   ];
 
   #services.vscode-server.enable = true;
