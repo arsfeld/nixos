@@ -8,7 +8,7 @@
 
     utils.url = "github:numtide/flake-utils";
 
-    home-manager.url = "github:nix-community/home-manager";
+    home-manager.url = "github:nix-community/home-manager/release-22.05";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
     nixos-vscode-server.url = "github:msteen/nixos-vscode-server";
