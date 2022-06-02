@@ -4,7 +4,6 @@
   ...
 }: {
   nix = {
-    package = pkgs.nixFlakes;
     extraOptions = ''
       experimental-features = nix-command flakes
     '';
@@ -35,6 +34,10 @@
     parted
     gptfdisk
     home-manager
+    rclone
+    tmux
+    zpaq
+    ncdu_2
   ];
 
   services.openssh.enable = true;
