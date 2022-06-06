@@ -43,6 +43,7 @@ with lib; {
   };
 
   services.zfs.autoScrub.enable = true;
+  services.zfs.autoScrub.interval = "monthly";
   services.smartd.enable = true;
   services.smartd.notifications.mail.enable = true;
   services.smartd.notifications.test = true;
