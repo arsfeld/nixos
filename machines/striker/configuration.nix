@@ -47,7 +47,7 @@ with lib; {
     loader.systemd-boot.enable = true;
     loader.efi.canTouchEfiVariables = true;
     binfmt.emulatedSystems = ["aarch64-linux"];
-    kernelModules = ["kvm-intel"];
+    kernelModules = ["kvm-intel" "vhost_vsock"];
     supportedFilesystems = ["zfs"];
 
     # Plymouth
@@ -62,6 +62,13 @@ with lib; {
   services.xserver.displayManager.gdm.autoSuspend = false;
   services.xserver.desktopManager.gnome.enable = true;
   hardware.bluetooth.enable = true;
+
+  # virtualisation = {
+  #   lxd = {
+  #     enable = true;
+  #     recommendedSysctlSettings = true;
+  #   };
+  # };
 
   services.gnome.chrome-gnome-shell.enable = true;
 

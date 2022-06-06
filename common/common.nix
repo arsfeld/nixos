@@ -9,12 +9,6 @@
     '';
   };
 
-  boot = {
-    kernel.sysctl = {
-      "fs.inotify.max_user_watches" = "1048576";
-    };
-  };
-
   nix.settings.trusted-users = [
     "root"
     "@wheel"
