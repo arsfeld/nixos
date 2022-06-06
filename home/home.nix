@@ -78,6 +78,15 @@
     '';
   };
 
+  programs.git = {
+    enable = true;
+    delta.enable = true;
+    userEmail = "arsfeld@gmail.com";
+    userName = "Alexandre Rosenfeld";
+  };
+
+  programs.gitui.enable = true;
+
   programs.direnv = {
     enable = true;
     nix-direnv.enable = true;
