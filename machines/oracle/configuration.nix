@@ -17,6 +17,7 @@
   networking.hostId = "95760b5e";
 
   security.sudo.wheelNeedsPassword = false;
+  networking.usePredictableInterfaceNames = true;
 
   networking.hostName = "oracle";
 }
