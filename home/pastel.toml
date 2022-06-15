@@ -1,6 +1,5 @@
 format = """
 [](#9A348E)\
-$username\
 $hostname\
 [](bg:#DA627D fg:#9A348E)\
 $directory\
