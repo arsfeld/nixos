@@ -26,7 +26,7 @@ in {
   };
   services.vaultwarden = {
     enable = true;
-    backupDir = "/var/lib/vaultwarden-backup";
+    #backupDir = "/var/lib/vaultwarden-backup";
     config = {
       domain = "https://vault.${domain}";
       signupsAllowed = false;
