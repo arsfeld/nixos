@@ -142,7 +142,6 @@
         };
       };
 
-
       homeConfigurations."${username}-linux" = let
         system = "x86_64-linux";
       in
