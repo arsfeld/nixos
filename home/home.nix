@@ -78,6 +78,8 @@
     '';
   };
 
+  programs.bash.enable = true;
+
   programs.git = {
     enable = true;
     delta.enable = true;
@@ -95,6 +97,7 @@
   programs.starship = {
     enable = true;
     enableZshIntegration = true;
+    enableBashIntegration = true;
   };
 
   programs.keychain = {

@@ -10,6 +10,7 @@ $git_status\
 $nodejs\
 $rust\
 $nix_shell\
+$env_var\
 [](fg:#86BBD8 bg:#33658A)\
 $time\
 [ ](fg:#33658A)\
@@ -31,6 +32,13 @@ symbol = " "
 style_user = "bg:#9A348E"
 style_root = "bg:#9A348E"
 format = '[$user@]($style)'
+
+[env_var]
+variable = "STARSHIP_SHELL"
+symbol = ""
+default = "unknown shell"
+style = "bg:#86BBD8"
+format = '[[ $symbol $env_value ](bg:#86BBD8)]($style)'
 
 [hostname]
 style = "bg:#9A348E"
