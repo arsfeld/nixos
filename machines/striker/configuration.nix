@@ -57,11 +57,11 @@ with lib; {
     kernelParams = ["quiet" "splash" "rd.systemd.show_status=false" "rd.udev.log_level=3" "udev.log_priority=3" "boot.shell_on_fail"];
   };
 
-  services.xserver.enable = true;
-  services.xserver.displayManager.gdm.enable = true;
-  services.xserver.displayManager.gdm.autoSuspend = false;
-  services.xserver.desktopManager.gnome.enable = true;
-  hardware.bluetooth.enable = true;
+  # services.xserver.enable = true;
+  # services.xserver.displayManager.gdm.enable = true;
+  # services.xserver.displayManager.gdm.autoSuspend = false;
+  # services.xserver.desktopManager.gnome.enable = true;
+  # hardware.bluetooth.enable = true;
 
   # virtualisation = {
   #   lxd = {
@@ -70,14 +70,13 @@ with lib; {
   #   };
   # };
 
-  services.gnome.chrome-gnome-shell.enable = true;
+  # services.gnome.chrome-gnome-shell.enable = true;
 
-  services.blueman.enable = true;
-  services.flatpak.enable = true;
+  # services.flatpak.enable = true;
 
-  programs.steam = {
-    enable = true;
-  };
+  # programs.steam = {
+  #   enable = true;
+  # };
 
   fonts.fonts = with pkgs; [
     meslo-lgs-nf
@@ -104,7 +103,7 @@ with lib; {
     vim
     wget
     vscode-fhs
-    gnome.gnome-software
-    gnome.gnome-tweaks
+    # gnome.gnome-software
+    # gnome.gnome-tweaks
   ];
 }
