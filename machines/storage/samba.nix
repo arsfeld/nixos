@@ -30,16 +30,19 @@
       files = {
         path = "/mnt/data/files";
         browseable = "yes";
+        "read only" = "no";
       };
 
       media = {
         path = "/mnt/data/media";
         browseable = "yes";
+        "read only" = "no";
       };
 
       backups = {
         path = "/mnt/data/backups";
         browseable = "yes";
+        "read only" = "no";
       };
     };
   };
