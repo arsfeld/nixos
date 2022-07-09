@@ -43,7 +43,7 @@ in {
           @api {
             not path /api/*
           }
-          authorize @api with admin_policy
+          authorize @api with admin_dev
         '';
       };
       "sonarr.${domain}" = {
@@ -53,14 +53,14 @@ in {
           @api {
             not path /api/*
           }
-          authorize @api with admin_policy
+          authorize @api with admin_dev
         '';
       };
       "bazarr.${domain}" = {
         useACMEHost = domain;
         extraConfig = ''
           reverse_proxy localhost:6767
-          authorize with admin_policy
+          authorize with admin_dev
         '';
       };
       "qbittorrent.${domain}" = {
@@ -75,21 +75,21 @@ in {
         useACMEHost = domain;
         extraConfig = ''
           reverse_proxy localhost:9999
-          authorize with admin_policy
+          authorize with admin_dev
         '';
       };
       "netdata.${domain}" = {
         useACMEHost = domain;
         extraConfig = ''
           reverse_proxy localhost:19999
-          authorize with admin_policy
+          authorize with admin_dev
         '';
       };
       "tautulli.${domain}" = {
         useACMEHost = domain;
         extraConfig = ''
           reverse_proxy localhost:8181
-          authorize with admin_policy
+          authorize with admin_dev
         '';
       };
       "jellyfin.${domain}" = {
@@ -104,7 +104,7 @@ in {
         useACMEHost = domain;
         extraConfig = ''
           reverse_proxy localhost:8888
-          authorize with admin_policy
+          authorize with admin_dev
         '';
       };
       "hass.${domain}" = {

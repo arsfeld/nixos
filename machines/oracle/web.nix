@@ -35,7 +35,6 @@ in {
         }
         authentication portal myportal {
           enable identity store localdb
-          cookie domain ${domain}
           cookie lifetime 604800 # 7 days in seconds
           ui
           transform user {
@@ -43,8 +42,12 @@ in {
             action add role authp/user
           }
         }
-        authorization policy admin_policy {
-            set auth url https://auth.${domain}
+        authorization policy admin_dev {
+            set auth url https://auth.arsfeld.dev
+            allow roles authp/user
+        }
+        authorization policy admin_one {
+            set auth url https://auth.arsfeld.one
             allow roles authp/user
         }
       }
