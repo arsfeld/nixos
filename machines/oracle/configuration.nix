@@ -10,6 +10,8 @@
     ../battlestar/rclone-mount.nix
     ./hardware-configuration.nix
     ./web.nix
+    ./sites/arsfeld.dev.nix
+    ./sites/arsfeld.one.nix
     ./services.nix
   ];
 
