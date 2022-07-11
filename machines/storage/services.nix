@@ -99,6 +99,27 @@ in {
     #   ];
     # };
 
+
+    scrutiny = {
+      image = "ghcr.io/analogj/scrutiny:master-omnibus";
+      ports = ["8888:8080" "8086:8086"];
+      volumes = [
+        "${configDir}/scrutiny/config:/opt/scrutiny/config"
+        "${configDir}/scrutiny/influxdb:/opt/scrutiny/influxdb"
+        "/run/udev:/run/udev:ro"
+      ];
+      extraOptions = [
+        "--cap-add=SYS_RAWIO"
+        "--device=/dev/sda"
+        "--device=/dev/sdb" 
+        "--device=/dev/sdc" 
+        "--device=/dev/sdd" 
+        "--device=/dev/sde" 
+        "--device=/dev/sdf" 
+        "--device=/dev/sdg"
+      ];
+    };
+
     syncthing = {
       image = "ghcr.io/linuxserver/syncthing";
       environment = {
