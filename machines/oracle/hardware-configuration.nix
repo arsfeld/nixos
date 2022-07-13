@@ -5,6 +5,7 @@
     efiInstallAsRemovable = true;
     device = "nodev";
   };
+  boot.supportedFilesystems = ["zfs"];
   fileSystems."/boot" = {
     device = "/dev/disk/by-uuid/63D2-AF76";
     fsType = "vfat";
@@ -14,8 +15,8 @@
     device = "/dev/mapper/ocivolume-root";
     fsType = "xfs";
   };
-  fileSystems."/mnt/data" = {
-    device = "/dev/disk/by-uuid/18b65581-befd-4cc1-afa0-5260ccf1c070";
-    fsType = "xfs";
-  };
+  # fileSystems."/mnt/data" = {
+  #   device = "/dev/disk/by-uuid/18b65581-befd-4cc1-afa0-5260ccf1c070";
+  #   fsType = "xfs";
+  # };
 }

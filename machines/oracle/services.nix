@@ -10,7 +10,7 @@ with lib; let
   domain = "arsfeld.dev";
   email = "arsfeld@gmail.com";
   dataDir = "/mnt/media";
-  downloadDir = "/mnt/data/Downloads";
+  downloadDir = "/var/data/Downloads";
   configDir = "/var/lib";
   puid = "5000";
   pgid = "5000";
