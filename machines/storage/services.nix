@@ -12,13 +12,11 @@ with lib; let
   puid = "5000";
   pgid = "5000";
   tz = "America/Toronto";
-  email = "arsfeld@gmail.com";
-  domain = "storage.arsfeld.net";
 in {
   services.netdata.enable = true;
 
   services.home-assistant = {
-    enable = true;
+    enable = false;
     config = {
       # https://www.home-assistant.io/integrations/default_config/
       default_config = {};
