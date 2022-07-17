@@ -57,34 +57,20 @@ in {
       ];
     };
 
-    gluetun = {
-      image = "qmcgaw/gluetun";
-      environmentFiles = [
-        "${configDir}/gluetun/env"
-      ];
-      volumes = [
-        "${configDir}/gluetun:/gluetun"
-      ];
-      ports = ["8080:8080/tcp"];
-      extraOptions = [
-        "--cap-add=NET_ADMIN"
-      ];
-    };
 
-    qbittorrent = {
-      image = "ghcr.io/linuxserver/qbittorrent";
+    qflood = {
+      image = "cr.hotio.dev/hotio/qflood";
       environment = {
         PUID = puid;
         PGID = pgid;
         TZ = tz;
+        FLOOD_AUTH = "false";
       };
+      ports = ["8080:8080/tcp" "3000:3000"];
       volumes = [
-        "${configDir}/qbittorrent:/config"
+        "${configDir}/qflood:/config"
         "${dataDir}/media:/media"
         "${dataDir}/files:/files"
-      ];
-      extraOptions = [
-        "--network=container:gluetun"
       ];
     };
 
