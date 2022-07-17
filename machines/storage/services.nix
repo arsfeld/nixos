@@ -95,11 +95,11 @@ in {
       extraOptions = [
         "--cap-add=SYS_RAWIO"
         "--device=/dev/sda"
-        "--device=/dev/sdb" 
-        "--device=/dev/sdc" 
-        "--device=/dev/sdd" 
-        "--device=/dev/sde" 
-        "--device=/dev/sdf" 
+        "--device=/dev/sdb"
+        "--device=/dev/sdc"
+        "--device=/dev/sdd"
+        "--device=/dev/sde"
+        "--device=/dev/sdf"
         "--device=/dev/sdg"
       ];
     };
