@@ -7,5 +7,3 @@ RUN curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/focal.gpg | sudo apt-key
      && apt-get update \
      && apt-get install -y tailscale
 RUN update-alternatives --set ip6tables /usr/sbin/ip6tables-nft
-
-RUN sh <(curl -L https://nixos.org/nix/install) --no-daemon
