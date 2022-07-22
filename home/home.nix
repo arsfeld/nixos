@@ -12,6 +12,8 @@
   # Packages that should be installed to the user profile.
   home.packages = with pkgs; [
     htop
+    nix
+    cachix
     fortune
     distrobox
     neofetch
@@ -62,12 +64,12 @@
     };
 
     initExtraFirst = ''
-      # nix
+      # nix daemon
       if [[ -s /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh ]]; then
           source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
       fi
 
-      # home-manager
+      # nix single-user
       if [[ -s ~/.nix-profile/etc/profile.d/nix.sh ]]; then
           source ~/.nix-profile/etc/profile.d/nix.sh
       fi
