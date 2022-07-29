@@ -107,6 +107,7 @@
         storage = {
           deployment = {
             allowLocalDeployment = true;
+            buildOnTarget = true;
             targetHost = "storage";
           };
           imports =
