@@ -15,6 +15,8 @@
     ./services.nix
   ];
 
+  boot.binfmt.emulatedSystems = ["x86_64-linux"];
+
   networking.nameservers = ["8.8.8.8" "1.1.1.1"];
   networking.hostId = "95760b5e";
   networking.firewall.enable = false;
