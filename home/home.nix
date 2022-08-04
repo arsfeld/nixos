@@ -3,7 +3,10 @@
   pkgs,
   lib,
   ...
-}: {
+}: let
+  inherit (pkgs) stdenv;
+  inherit (lib) mkIf;
+in {
   # Home Manager needs a bit of information about you and the
   # paths it should manage.
   home.username = "arosenfeld";
@@ -102,7 +105,7 @@
     enableBashIntegration = true;
   };
 
-  programs.keychain = {
+  programs.keychain = mkIf stdenv.isLinux {
     enable = true;
     enableZshIntegration = true;
     keys = ["id_ed25519"];
