@@ -109,6 +109,8 @@ in {
         "--device=/dev/sde"
         "--device=/dev/sdf"
         "--device=/dev/sdg"
+        "--device=/dev/sdh"
+        "--device=/dev/sdi"
       ];
     };
 
