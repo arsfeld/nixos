@@ -38,7 +38,7 @@ with lib; {
       };
     };
     b2 = {
-      paths = ["/mnt/data/homes" "/var/lib/plex" "/var/nas"];
+      paths = ["/home" "/var/data"];
       repository = "b2:arosenfeld-backup:backups";
       passwordFile = "/etc/secrets/restic";
       s3CredentialsFile = "/etc/secrets/b2.keys";
