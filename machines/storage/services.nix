@@ -57,7 +57,6 @@ in {
       ];
     };
 
-
     qflood = {
       image = "cr.hotio.dev/hotio/qflood";
       environment = {
@@ -65,12 +64,22 @@ in {
         PGID = pgid;
         TZ = tz;
         FLOOD_AUTH = "false";
+        VPN_LAN_NETWORK = "10.0.0.0/24,100.64.0.0/10";
+        VPN_ENABLED = "true";
       };
       ports = ["8080:8080/tcp" "3000:3000"];
       volumes = [
         "${configDir}/qflood:/config"
         "${dataDir}/media:/media"
         "${dataDir}/files:/files"
+      ];
+      extraOptions = [
+        "--cap-add"
+        "NET_ADMIN"
+        "--sysctl"
+        "net.ipv4.conf.all.src_valid_mark=1"
+        "--sysctl"
+        "net.ipv6.conf.all.disable_ipv6=1"
       ];
     };
 
@@ -82,7 +91,6 @@ in {
     #     "--network=host"
     #   ];
     # };
-
 
     scrutiny = {
       image = "ghcr.io/analogj/scrutiny:master-omnibus";
