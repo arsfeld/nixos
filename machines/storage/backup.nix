@@ -43,7 +43,7 @@ with lib; {
       passwordFile = "/etc/secrets/restic";
       s3CredentialsFile = "/etc/secrets/b2.keys";
       extraOptions = [
-        "--verbose"
+        "--verbose=2"
         "--one-file-system"
       ];
       timerConfig = {
