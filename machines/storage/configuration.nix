@@ -18,6 +18,7 @@ with lib; {
     ../../common/mail.nix
     ./kopia.nix
     ./rclone.nix
+    ./wasabi.nix
     ./users.nix
     ./samba.nix
     ./backup.nix
