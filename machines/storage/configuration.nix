@@ -18,9 +18,9 @@ with lib; {
     ../../common/mail.nix
     ./kopia.nix
     ./rclone.nix
-    ./backup-battlestar.nix
     ./users.nix
     ./samba.nix
+    ./backup.nix
     ./services.nix
     (
       import ../../common/backup.nix (

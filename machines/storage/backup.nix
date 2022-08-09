@@ -30,7 +30,7 @@ with lib; {
 
   services.restic.backups = {
     nas = {
-      paths = ["/var/nas"];
+      paths = ["/var/data"];
       repository = "/mnt/data/backups/restic";
       passwordFile = "/etc/secrets/restic";
       timerConfig = {
