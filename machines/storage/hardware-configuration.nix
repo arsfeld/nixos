@@ -12,9 +12,10 @@
     (modulesPath + "/installer/scan/not-detected.nix")
   ];
 
+  boot.kernelParams = ["it87.force_id=0x8628"]; # Makes sensors work
   boot.initrd.availableKernelModules = ["xhci_pci" "ahci" "nvme" "uas" "sd_mod"];
   boot.initrd.kernelModules = [];
-  boot.kernelModules = ["kvm-intel"];
+  boot.kernelModules = ["kvm-intel it87"];
   boot.extraModulePackages = [];
 
   fileSystems."/" = {
