@@ -41,7 +41,7 @@ with lib; {
       paths = ["/home" "/var/data"];
       repository = "b2:arosenfeld-backup:backups";
       passwordFile = "/etc/secrets/restic";
-      s3CredentialsFile = "/etc/secrets/b2.keys";
+      environmentFile = "/etc/secrets/b2.keys";
       extraOptions = [
         "--verbose=2"
         "--one-file-system"
