@@ -23,11 +23,11 @@
     options = ["zfsutil" "X-mount.mkdir"];
   };
 
-  # fileSystems."/home" = {
-  #   device = "nix-pool/nixos/home";
-  #   fsType = "zfs";
-  #   options = ["zfsutil" "X-mount.mkdir"];
-  # };
+  fileSystems."/home" = {
+    device = "nix-pool/nixos/home";
+    fsType = "zfs";
+    options = ["zfsutil" "X-mount.mkdir"];
+  };
 
   fileSystems."/var/lib" = {
     device = "nix-pool/nixos/var/lib";
@@ -82,7 +82,7 @@
     options = ["zfsutil" "X-mount.mkdir"];
   };
 
-  fileSystems."/home" = {
+  fileSystems."/mnt/data/homes" = {
     device = "data/homes";
     fsType = "zfs";
     options = ["zfsutil" "X-mount.mkdir"];
