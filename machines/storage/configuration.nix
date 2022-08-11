@@ -18,7 +18,7 @@ with lib; {
     ../../common/mail.nix
     ./zfs.nix
     ./kopia.nix
-    ./rclone.nix
+    ./cloud-sync.nix
     ./wasabi.nix
     ./users.nix
     ./samba.nix

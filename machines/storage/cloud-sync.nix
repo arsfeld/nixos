@@ -6,15 +6,15 @@
   modulesPath,
   ...
 }: let
-  homeDir = "/home/arosenfeld";
+  homeDir = "/mnt/data/homes/arosenfeld/Cloud";
 in {
   systemd = {
-    timers.rclone-sync = {
+    timers.cloud-sync = {
       wantedBy = ["timers.target"];
-      partOf = ["rclone-sync.service"];
+      partOf = ["cloud-sync.service"];
       timerConfig.OnCalendar = "daily";
     };
-    services.rclone-sync = let
+    services.cloud-sync = let
       rcloneOptions = "--fast-list --stats-one-line --verbose";
     in {
       serviceConfig.Type = "oneshot";
