@@ -20,9 +20,13 @@ in {
       serviceConfig.Type = "oneshot";
       serviceConfig.User = "arosenfeld";
       script = ''
+        echo "Syncing Dropbox"
         ${pkgs.rclone}/bin/rclone sync ${rcloneOptions} dropbox: ${homeDir}/Dropbox
+        echo "Syncing Google Drive"
         ${pkgs.rclone}/bin/rclone sync ${rcloneOptions} gdrive: ${homeDir}/Google\ Drive
+        echo "Syncing One Drive"
         ${pkgs.rclone}/bin/rclone sync ${rcloneOptions} onedrive: ${homeDir}/One\ Drive
+        echo "Syncing Box"
         ${pkgs.rclone}/bin/rclone sync ${rcloneOptions} box: ${homeDir}/Box
       '';
     };
