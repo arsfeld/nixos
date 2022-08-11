@@ -16,6 +16,7 @@ with lib; {
     ../../common/services.nix
     ../../common/users.nix
     ../../common/mail.nix
+    ./zfs.nix
     ./kopia.nix
     ./rclone.nix
     ./wasabi.nix
@@ -32,15 +33,17 @@ with lib; {
   ];
 
   networking.hostName = "storage";
-  networking.hostId = "86f58bee";
+  # networking.hostId = "86f58bee";
   networking.firewall.enable = false;
 
+  virtualisation.docker.storageDriver = "zfs";
+
   boot = {
-    loader.systemd-boot.enable = true;
-    loader.efi.canTouchEfiVariables = true;
+    #loader.systemd-boot.enable = true;
+    #loader.efi.canTouchEfiVariables = true;
     binfmt.emulatedSystems = ["aarch64-linux"];
     kernelModules = ["kvm-intel"];
-    supportedFilesystems = ["zfs"];
+    #supportedFilesystems = ["zfs"];
   };
 
   services.zfs.autoScrub.enable = true;

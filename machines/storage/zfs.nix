@@ -7,10 +7,29 @@
 with lib; {
   boot.supportedFilesystems = ["zfs"];
 
-  boot.zfs = {
-    forceImportAll = false;
-    extraPools = ["data"];
+  networking.hostId = "86f58bee";
+  boot.kernelPackages = config.boot.zfs.package.latestCompatibleLinuxPackages;
+  boot.loader = {
+    efi.efiSysMountPoint = "/boot/efi";
+    efi.canTouchEfiVariables = false;
+    generationsDir.copyKernels = true;
+    grub = {
+      efiInstallAsRemovable = true;
+      enable = true;
+      version = 2;
+      copyKernels = true;
+      efiSupport = true;
+      zfsSupport = true;
+      devices = [
+        "/dev/disk/by-id/nvme-INTEL_SSDPEKNW512G8_BTNH00850VCA512A"
+      ];
+    };
   };
+
+  # boot.zfs = {
+  #   forceImportAll = false;
+  #   extraPools = ["data"];
+  # };
 
   services.zfs = {
     autoScrub.enable = true;

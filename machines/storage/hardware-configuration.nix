@@ -12,63 +12,87 @@
     (modulesPath + "/installer/scan/not-detected.nix")
   ];
 
-  boot.kernelParams = ["it87.force_id=0x8628"]; # Makes sensors work
   boot.initrd.availableKernelModules = ["xhci_pci" "ahci" "nvme" "uas" "sd_mod"];
   boot.initrd.kernelModules = [];
   boot.kernelModules = ["kvm-intel it87"];
   boot.extraModulePackages = [];
 
   fileSystems."/" = {
-    device = "/dev/disk/by-uuid/e354e7b9-0b91-4d17-a3f1-4946222266e3";
-    fsType = "ext4";
+    device = "nix-pool/nixos/root";
+    fsType = "zfs";
+    options = ["zfsutil" "X-mount.mkdir"];
+  };
+
+  # fileSystems."/home" = {
+  #   device = "nix-pool/nixos/home";
+  #   fsType = "zfs";
+  #   options = ["zfsutil" "X-mount.mkdir"];
+  # };
+
+  fileSystems."/var/lib" = {
+    device = "nix-pool/nixos/var/lib";
+    fsType = "zfs";
+    options = ["zfsutil" "X-mount.mkdir"];
+  };
+
+  fileSystems."/var/lib/docker" = {
+    device = "nix-pool/nixos/var/lib/docker";
+    fsType = "zfs";
+    options = ["zfsutil" "X-mount.mkdir"];
+  };
+
+  fileSystems."/var/log" = {
+    device = "nix-pool/nixos/var/log";
+    fsType = "zfs";
+    options = ["zfsutil" "X-mount.mkdir"];
   };
 
   fileSystems."/boot" = {
-    device = "/dev/disk/by-uuid/C649-8B93";
+    device = "bpool/nixos/root";
+    fsType = "zfs";
+    options = ["zfsutil" "X-mount.mkdir"];
+  };
+
+  fileSystems."/boot/efi" = {
+    device = "/dev/disk/by-uuid/6EA2-2234";
     fsType = "vfat";
   };
 
   fileSystems."/mnt/data" = {
     device = "data";
     fsType = "zfs";
-    options = ["nofail"];
+    options = ["zfsutil" "X-mount.mkdir"];
   };
 
   fileSystems."/mnt/data/media" = {
     device = "data/media";
     fsType = "zfs";
-    options = ["nofail"];
+    options = ["zfsutil" "X-mount.mkdir"];
   };
 
   fileSystems."/mnt/data/files" = {
     device = "data/files";
     fsType = "zfs";
-    options = ["nofail"];
+    options = ["zfsutil" "X-mount.mkdir"];
   };
 
   fileSystems."/mnt/data/backups" = {
     device = "data/backups";
     fsType = "zfs";
-    options = ["nofail"];
+    options = ["zfsutil" "X-mount.mkdir"];
   };
 
   fileSystems."/home" = {
     device = "data/homes";
     fsType = "zfs";
-    options = ["nofail"];
+    options = ["zfsutil" "X-mount.mkdir"];
   };
 
   swapDevices = [
     {device = "/dev/disk/by-uuid/ecced37a-a038-493b-96e6-936ac9dbdc57";}
   ];
 
-  zramSwap.enable = lib.mkForce false;
-
-  # The global useDHCP flag is deprecated, therefore explicitly set to false here.
-  # Per-interface useDHCP will be mandatory in the future, so this generated config
-  # replicates the default behaviour.
-  networking.useDHCP = lib.mkDefault false;
-  networking.interfaces.enp13s0.useDHCP = true;
+  networking.useDHCP = lib.mkDefault true;
 
   powerManagement.cpuFreqGovernor = lib.mkDefault "powersave";
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
