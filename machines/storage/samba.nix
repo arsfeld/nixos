@@ -25,6 +25,7 @@
         "guest ok" = "no";
         "follow symlinks" = "yes";
         "wide links" = "yes";
+        path = "/mnt/data/homes/%S";
       };
 
       files = {
