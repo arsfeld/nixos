@@ -30,7 +30,7 @@ with next; rec {
     buildGoModule = args:
       buildGoModule (args
         // {
-          vendorSha256 = "sha256-fChvAGHl3MxVsBXH+qYiU8KXh0tgFTZo3JRS7X4aL2I=";
+          vendorSha256 = "sha256-dTAdQHjd8vKEj5akJEG0Hk/ThxnJPkRJViUU6d3xqmg=";
           overrideModAttrs = _: {
             preBuild = ''
               ${_caddy_patch_main}
