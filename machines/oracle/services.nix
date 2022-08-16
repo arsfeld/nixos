@@ -168,5 +168,22 @@ in {
         "9999:9999"
       ];
     };
+
+    lldap = {
+      image = "nitnelave/lldap:stable";
+      volumes = [
+        "${configDir}/lldap:/data"
+      ];
+      ports = [
+        "3890:3890"
+        "17170:17170"
+      ];
+      environment = {
+        "LLDAP_JWT_SECRET" = "QRiRseQg8jA1bDeuaLWU";
+        "LLDAP_LDAP_USER_PASS" = "Q9gHxDNYj9nBByQEbFM4";
+        "LLDAP_LDAP_BASE_DN" = "dc=arsfeld,dc=one";
+      };
+    };
+
   };
 }
