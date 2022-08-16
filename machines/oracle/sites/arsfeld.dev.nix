@@ -117,10 +117,12 @@ in {
         reverse_proxy localhost:4444
       '';
     };
-    "dev.${domain}" = {
+    "headscale.${domain}" = {
       useACMEHost = domain;
       extraConfig = ''
-        reverse_proxy striker:4444
+        reverse_proxy /web* storage:9899
+        reverse_proxy localhost:9898
+        authorize with admin_dev
       '';
     };
     "auth.${domain}" = {
