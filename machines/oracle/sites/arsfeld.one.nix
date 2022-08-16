@@ -104,13 +104,7 @@ in {
     "code.${domain}" = {
       useACMEHost = domain;
       extraConfig = ''
-        reverse_proxy striker:4444
-      '';
-    };
-    "dev.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = ''
-        reverse_proxy striker:4444
+        reverse_proxy storage:4444
       '';
     };
     "auth.${domain}" = {

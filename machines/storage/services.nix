@@ -273,5 +273,12 @@ in {
         "${dataDir}/media:/media"
       ];
     };
+
+    "headscale-ui" = {
+      image = "ghcr.io/gurucomputing/headscale-ui:latest";
+      ports = [
+        "9899:80"
+      ];
+    };
   };
 }

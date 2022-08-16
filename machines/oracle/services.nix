@@ -75,6 +75,12 @@ in {
     group = "users";
     host = "0.0.0.0";
   };
+  
+  services.headscale = {
+    enable = true;
+    port = 9898;
+    serverUrl = "https://headscale.${domain}";
+  };
 
   virtualisation.oci-containers.containers = {
     # plex = {
