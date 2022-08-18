@@ -15,7 +15,7 @@
   boot.initrd.availableKernelModules = ["xhci_pci" "ahci" "mpt3sas" "nvme" "usbhid" "uas" "sd_mod"];
   boot.initrd.kernelModules = [];
   boot.kernelModules = ["kvm-intel" "it87"];
-  boot.extraModulePackages = with config.boot.zfs.package.latestCompatibleLinuxPackages; [ it87 ];
+  boot.extraModulePackages = with config.boot.zfs.package.latestCompatibleLinuxPackages; [it87];
 
   fileSystems."/" = {
     device = "nix-pool/nixos/root";
