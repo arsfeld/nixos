@@ -107,6 +107,21 @@ in {
         reverse_proxy storage:4444
       '';
     };
+    "filerun.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = ''
+        reverse_proxy storage:6000
+      '';
+    };
+    "nextcloud.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = ''
+        rewrite /.well-known/carddav /remote.php/dav
+        rewrite /.well-known/caldav /remote.php/dav
+        
+        reverse_proxy storage:80
+      '';
+    };
     "auth.${domain}" = {
       useACMEHost = domain;
       extraConfig = "authenticate with myportal";
