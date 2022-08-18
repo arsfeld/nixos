@@ -65,19 +65,6 @@
           };
         };
 
-        battlestar = {
-          deployment = {
-            targetHost = "battlestar";
-            buildOnTarget = true;
-            tags = ["cloud"];
-          };
-          imports =
-            [
-              ./machines/battlestar/configuration.nix
-            ]
-            ++ homeFeatures;
-        };
-
         oracle = {
           nixpkgs.system = "aarch64-linux";
           deployment = {
@@ -88,18 +75,6 @@
           imports =
             [
               ./machines/oracle/configuration.nix
-            ]
-            ++ homeFeatures;
-        };
-
-        striker = {
-          deployment = {
-            allowLocalDeployment = true;
-            targetHost = "striker";
-          };
-          imports =
-            [
-              ./machines/striker/configuration.nix
             ]
             ++ homeFeatures;
         };
@@ -117,17 +92,17 @@
             ++ homeFeatures;
         };
 
-        r2s = {
-          nixpkgs.system = "aarch64-linux";
-          deployment = {
-            targetHost = "r2s";
-          };
-          imports =
-            [
-              ./machines/r2s/configuration.nix
-            ]
-            ++ homeFeatures;
-        };
+        # r2s = {
+        #   nixpkgs.system = "aarch64-linux";
+        #   deployment = {
+        #     targetHost = "r2s";
+        #   };
+        #   imports =
+        #     [
+        #       ./machines/r2s/configuration.nix
+        #     ]
+        #     ++ homeFeatures;
+        # };
       };
 
       packages.x86_64-linux = {
