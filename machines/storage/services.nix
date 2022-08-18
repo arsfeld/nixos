@@ -27,6 +27,55 @@ in {
     };
   };
 
+  services.mysql = {
+    enable = true;
+    package = pkgs.mariadb;
+    ensureUsers = [
+      {
+        name = "filerun";
+        ensurePermissions = {
+          "filerun.*" = "ALL PRIVILEGES";
+        };
+      }
+    ];
+    ensureDatabases = [
+      "filerun"
+    ];
+  };
+
+  services.nextcloud = {
+    enable = true;
+    datadir = "${dataDir}/files/Nextcloud";
+    hostName = "nextcloud.arsfeld.one";
+    config = {
+      dbtype = "pgsql";
+      dbuser = "nextcloud";
+      dbhost = "/run/postgresql"; # nextcloud will add /.s.PGSQL.5432 by itself
+      dbname = "nextcloud";
+      adminpassFile = "/etc/secrets/nextcloud";
+      adminuser = "root";
+      extraTrustedDomains = ["storage"];
+      trustedProxies = ["100.66.83.36"];
+      overwriteProtocol = "https";
+    };
+  };
+
+  services.postgresql = {
+    enable = true;
+    ensureDatabases = ["nextcloud"];
+    ensureUsers = [
+      {
+        name = "nextcloud";
+        ensurePermissions."DATABASE nextcloud" = "ALL PRIVILEGES";
+      }
+    ];
+  };
+
+  systemd.services."nextcloud-setup" = {
+    requires = ["postgresql.service"];
+    after = ["postgresql.service"];
+  };
+
   virtualisation.oci-containers.containers = {
     watchtower = {
       image = "containrrr/watchtower";
@@ -278,6 +327,25 @@ in {
       image = "ghcr.io/gurucomputing/headscale-ui:latest";
       ports = [
         "9899:80"
+      ];
+    };
+
+    "filerun" = {
+      image = "filerun/filerun";
+      environment = {
+        "FR_DB_HOST" = "localhost";
+        "FR_DB_PORT" = "3306";
+        "FR_DB_NAME" = "filerun";
+        "FR_DB_USER" = "filerun";
+      };
+      ports = ["6000:80"];
+      volumes = [
+        "${configDir}/filerun:/var/www/html"
+        "${dataDir}/files/Filerun:/user-files"
+      ];
+      extraOptions = [
+        "--add-host"
+        "host.docker.internal:host-gateway"
       ];
     };
   };
