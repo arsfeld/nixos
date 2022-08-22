@@ -18,14 +18,14 @@ with lib; {
     #   startAt = [ ]; # "daily";
     # };
 
-    #data = {
-    #  paths = [ "/mnt/data/files" "/mnt/data/homes" "/var/nas" "/var/lib/plex" ];
-    #  repo = "/mnt/backup/borg";
-    #  encryption.mode = "none";
-    #  extraArgs = "--progress";
-    #  compression = "auto,zstd";
-    #  startAt = "weekly";
-    #};
+    data = {
+     paths = [ "/mnt/data/homes" "/var/data" "/var/lib" ];
+     repo = "/mnt/backup/borg";
+     encryption.mode = "none";
+     extraArgs = "--progress";
+     compression = "auto,zstd";
+     startAt = "weekly";
+    };
   };
 
   services.restic.backups = {
@@ -38,7 +38,7 @@ with lib; {
       };
     };
     b2 = {
-      paths = ["/home" "/var/data"];
+      paths = ["/mnt/data/homes" "/var/data"];
       repository = "b2:arosenfeld-backup:backups";
       passwordFile = "/etc/secrets/restic";
       environmentFile = "/etc/secrets/b2.keys";

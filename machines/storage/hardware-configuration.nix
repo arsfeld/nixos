@@ -88,6 +88,12 @@
     options = ["zfsutil" "X-mount.mkdir"];
   };
 
+  fileSystems."/mnt/backup" = {
+    device = "backup";
+    fsType = "zfs";
+    options = ["zfsutil" "X-mount.mkdir"];
+  };
+
   swapDevices = [
     {device = "/dev/disk/by-uuid/ecced37a-a038-493b-96e6-936ac9dbdc57";}
   ];
