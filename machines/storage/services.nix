@@ -11,6 +11,8 @@ with lib; let
   dataDir = "/mnt/data";
   puid = "5000";
   pgid = "5000";
+  user = "media";
+  group = "media";
   tz = "America/Toronto";
 in {
   services.netdata.enable = true;
@@ -74,6 +76,12 @@ in {
   systemd.services."nextcloud-setup" = {
     requires = ["postgresql.service"];
     after = ["postgresql.service"];
+  };
+
+  services.bazarr = {
+    enable = true;
+    user = user;
+    group = group;
   };
 
   virtualisation.oci-containers.containers = {

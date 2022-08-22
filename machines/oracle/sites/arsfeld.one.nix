@@ -61,6 +61,12 @@ in {
       useACMEHost = domain;
       extraConfig = "reverse_proxy storage:9696";
     };
+    "bazarr.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = ''
+        reverse_proxy storage:6767
+      '';
+    };
     "stash.${domain}" = {
       useACMEHost = domain;
       extraConfig = ''
