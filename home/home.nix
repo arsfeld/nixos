@@ -99,6 +99,10 @@ in {
     nix-direnv.enable = true;
   };
 
+  programs.zoxide = {
+    enable = true;
+  };
+
   programs.starship = {
     enable = true;
     enableZshIntegration = true;
