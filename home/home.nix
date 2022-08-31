@@ -23,6 +23,7 @@ in {
     direnv
     ruby
     starship
+    rnix-lsp
     (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
     (writeScriptBin "running" (builtins.readFile ./scripts/running))
   ];
