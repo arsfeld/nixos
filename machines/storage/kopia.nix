@@ -43,7 +43,7 @@ in {
 
   systemd = {
     timers.kopia-backup = {
-      enable = false;
+      enable = true;
       wantedBy = ["timers.target"];
       partOf = ["kopia-backup.service"];
       timerConfig.OnCalendar = "daily";
