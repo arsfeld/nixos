@@ -28,7 +28,7 @@ with lib; {
     };
   };
 
-  systemd.services.plex_media = {
+  systemd.services.wasabi_mount = {
     enable = true;
     description = "Mount media dir";
     wantedBy = ["multi-user.target"];
