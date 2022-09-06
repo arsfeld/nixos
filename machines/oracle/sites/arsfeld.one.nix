@@ -118,7 +118,7 @@ in {
       extraConfig = ''
         rewrite /.well-known/carddav /remote.php/dav
         rewrite /.well-known/caldav /remote.php/dav
-        
+
         reverse_proxy storage:80
       '';
     };

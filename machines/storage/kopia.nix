@@ -9,7 +9,6 @@
   backupDir = "/mnt/data/homes";
   credentialsFile = "/etc/secrets/kopia";
 in {
-
   environment.etc = {
     "kopia/repository.config" = {
       text = ''
