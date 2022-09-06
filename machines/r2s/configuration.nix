@@ -1,7 +1,7 @@
 # save as sd-image.nix somewhere
-{...}: {
+{modulesPath, ...}: {
   imports = [
-    <nixpkgs/nixos/modules/installer/sd-card/sd-image-aarch64.nix>
+    (modulesPath + "/installer/sd-card/sd-image-aarch64.nix")
     ../../common/common.nix
     ../../common/services.nix
     ../../common/users.nix
