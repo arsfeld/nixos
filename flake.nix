@@ -92,17 +92,18 @@
             ++ homeFeatures;
         };
 
-        # r2s = {
-        #   nixpkgs.system = "aarch64-linux";
-        #   deployment = {
-        #     targetHost = "r2s";
-        #   };
-        #   imports =
-        #     [
-        #       ./machines/r2s/configuration.nix
-        #     ]
-        #     ++ homeFeatures;
-        # };
+        r2s = {
+          nixpkgs.system = "aarch64-linux";
+          deployment = {
+            targetHost = "r2s";
+            buildOnTarget = true;
+          };
+          imports =
+            [
+              ./machines/r2s/configuration.nix
+            ]
+            ++ homeFeatures;
+        };
       };
 
       packages.x86_64-linux = {
