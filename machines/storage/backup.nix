@@ -19,12 +19,12 @@ with lib; {
     # };
 
     data = {
-     paths = [ "/mnt/data/homes" "/var/data" "/var/lib" ];
-     repo = "/mnt/backup/borg";
-     encryption.mode = "none";
-     extraArgs = "--progress";
-     compression = "auto,zstd";
-     startAt = "weekly";
+      paths = ["/mnt/data/homes" "/var/data" "/var/lib"];
+      repo = "/mnt/backup/borg";
+      encryption.mode = "none";
+      extraArgs = "--progress";
+      compression = "auto,zstd";
+      startAt = "weekly";
     };
   };
 
