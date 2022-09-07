@@ -17,8 +17,8 @@
     permitRootLogin = "yes";
   };
 
-  #networking.useDHCP = true;
   networking.hostName = "r2s";
+  networking.firewall.enable = false;
 
   services.adguardhome = {
     enable = true;
