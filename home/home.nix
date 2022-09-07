@@ -7,6 +7,10 @@
   inherit (pkgs) stdenv;
   inherit (lib) mkIf;
 in {
+  imports = [
+    ./vscode-ssh-fix.nix
+  ];
+  
   # Home Manager needs a bit of information about you and the
   # paths it should manage.
   home.username = "arosenfeld";
@@ -27,6 +31,8 @@ in {
     (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
     (writeScriptBin "running" (builtins.readFile ./scripts/running))
   ];
+
+  services.vscode-ssh-fix.enable = true;
 
   #services.vscode-server.enable = true;
 
