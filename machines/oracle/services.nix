@@ -51,7 +51,7 @@ in {
     enable = true;
   };
   services.plex = {
-    enable = true;
+    enable = false;
     user = user;
     group = group;
     openFirewall = true;
