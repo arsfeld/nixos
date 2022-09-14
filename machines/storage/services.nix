@@ -356,5 +356,19 @@ in {
         "host.docker.internal:host-gateway"
       ];
     };
+
+    jdownloader = {
+      image = "jlesage/jdownloader-2";
+      ports = ["5800:5800"];
+      environment = {
+        USER_ID = puid;
+        GROUP_ID = pgid;
+        TZ = tz;
+      };
+      volumes = [
+        "${configDir}/jdownloader:/config"
+        "${dataDir}/media:/output"
+      ];
+    };
   };
 }
