@@ -79,6 +79,20 @@
             ++ homeFeatures;
         };
 
+        aws-br = {
+          nixpkgs.system = "aarch64-linux";
+          deployment = {
+            targetHost = "15.229.29.57";
+            buildOnTarget = true;
+            tags = ["cloud"];
+          };
+          imports =
+            [
+              ./machines/aws-br/configuration.nix
+            ]
+            ++ homeFeatures;
+        };
+
         storage = {
           deployment = {
             allowLocalDeployment = true;
