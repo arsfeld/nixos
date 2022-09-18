@@ -7,50 +7,48 @@
   inherit (pkgs) stdenv;
   inherit (lib) mkIf;
 in {
-  imports = [
-    ./vscode-ssh-fix.nix
-  ];
 
   # Home Manager needs a bit of information about you and the
   # paths it should manage.
-  home.username = "arosenfeld";
-  home.homeDirectory = "/home/arosenfeld";
+  home = {
+    username = "arosenfeld";
+    homeDirectory = "/home/arosenfeld";
+    stateVersion = "22.05";
+    packages = with pkgs; [
+      htop
+      nix
+      cachix
+      fortune
+      distrobox
+      neofetch
+      direnv
+      ruby
+      starship
+      rnix-lsp
+      topgrade
+      kondo
+      fd
+      ripgrep
+      procs
+      du-dust
+      zellij
+      (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
+      (writeScriptBin "running" (builtins.readFile ./scripts/running))
+    ];
+  };
 
-  # Packages that should be installed to the user profile.
-  home.packages = with pkgs; [
-    htop
-    nix
-    cachix
-    fortune
-    distrobox
-    neofetch
-    direnv
-    ruby
-    starship
-    rnix-lsp
-    (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
-    (writeScriptBin "running" (builtins.readFile ./scripts/running))
-  ];
-
-  services.vscode-ssh-fix.enable = true;
+  # services.vscode-ssh-fix.enable = pkgs.stdenv.isLinux;
 
   #services.vscode-server.enable = true;
-
-  # This value determines the Home Manager release that your
-  # configuration is compatible with. This helps avoid breakage
-  # when a new Home Manager release introduces backwards
-  # incompatible changes.
-  #
-  # You can update Home Manager without changing this value. See
-  # the Home Manager release notes for a list of state version
-  # changes in each release.
-  home.stateVersion = "22.05";
 
   # Let Home Manager install and manage itself.
   # programs.home-manager.enable = true;
 
   xdg.configFile."starship.toml" = {
-    source = ./pastel.toml;
+    source = ./files/pastel.toml;
+  };
+  xdg.configFile."htop/htoprc" = {
+    source = ./files/htoprc;
   };
 
   programs.home-manager.enable = true;
@@ -116,6 +114,8 @@ in {
     enableBashIntegration = true;
   };
 
+  programs.zellij.enable = true;
+
   programs.keychain = mkIf stdenv.isLinux {
     enable = true;
     enableZshIntegration = true;
@@ -136,4 +136,9 @@ in {
   services.syncthing = {
     enable = pkgs.stdenv.isLinux;
   };
+
+  programs.zsh.shellAliases = {
+    cat = "${pkgs.bat}/bin/bat";
+  };
+
 }
