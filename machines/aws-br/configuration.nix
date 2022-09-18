@@ -26,7 +26,7 @@
       TZ = "America/SaoPaulo";
       VERSION = "latest";
     };
-    extraOptions = [ "--network=host" ];
+    extraOptions = ["--network=host"];
     image = "linuxserver/plex";
     volumes = [
       "/var/lib/plex:/config"
