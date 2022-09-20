@@ -7,7 +7,6 @@
     ../../common/common.nix
     ../../common/services.nix
     ../../common/users.nix
-    ../battlestar/rclone-mount.nix
     ./hardware-configuration.nix
     ./web.nix
     ./sites/arsfeld.dev.nix
