@@ -4,7 +4,6 @@
     ../../common/common.nix
     ../../common/services.nix
     ../../common/users.nix
-    ../battlestar/rclone-mount.nix
   ];
   ec2.hvm = true;
 
@@ -21,18 +20,18 @@
 
   networking.firewall.allowedTCPPorts = [22 80 443 32400];
 
-  virtualisation.oci-containers.containers."plex" = {
-    environment = {
-      TZ = "America/SaoPaulo";
-      VERSION = "latest";
-    };
-    extraOptions = ["--network=host"];
-    image = "linuxserver/plex";
-    volumes = [
-      "/var/lib/plex:/config"
-      "/mnt/media:/mnt/media"
-    ];
-  };
+  # virtualisation.oci-containers.containers."plex" = {
+  #   environment = {
+  #     TZ = "America/SaoPaulo";
+  #     VERSION = "latest";
+  #   };
+  #   extraOptions = ["--network=host"];
+  #   image = "linuxserver/plex";
+  #   volumes = [
+  #     "/var/lib/plex:/config"
+  #     "/mnt/media:/mnt/media"
+  #   ];
+  # };
   services.radarr = {
     enable = true;
   };
