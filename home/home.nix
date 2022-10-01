@@ -7,7 +7,6 @@
   inherit (pkgs) stdenv;
   inherit (lib) mkIf;
 in {
-
   # Home Manager needs a bit of information about you and the
   # paths it should manage.
   home = {
@@ -140,5 +139,4 @@ in {
   programs.zsh.shellAliases = {
     cat = "${pkgs.bat}/bin/bat";
   };
-
 }

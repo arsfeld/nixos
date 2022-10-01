@@ -79,6 +79,18 @@
             ++ homeFeatures;
         };
 
+        nixos-micro = {
+          deployment = {
+            targetHost = "nixos-micro";
+            tags = ["cloud"];
+          };
+          imports =
+            [
+              ./machines/nixos-micro/configuration.nix
+            ]
+            ++ homeFeatures;
+        };
+
         aws-br = {
           nixpkgs.system = "aarch64-linux";
           deployment = {
