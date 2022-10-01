@@ -69,7 +69,7 @@
           nixpkgs.system = "aarch64-linux";
           deployment = {
             targetHost = "oracle";
-            buildOnTarget = true;
+            allowLocalDeployment = true;
             tags = ["cloud"];
           };
           imports =
@@ -82,8 +82,7 @@
         aws-br = {
           nixpkgs.system = "aarch64-linux";
           deployment = {
-            targetHost = "15.229.29.57";
-            buildOnTarget = true;
+            targetHost = "aws-br";
             tags = ["cloud"];
           };
           imports =
@@ -95,8 +94,6 @@
 
         storage = {
           deployment = {
-            allowLocalDeployment = true;
-            buildOnTarget = true;
             targetHost = "storage";
           };
           imports =
@@ -110,7 +107,6 @@
           nixpkgs.system = "aarch64-linux";
           deployment = {
             targetHost = "r2s";
-            buildOnTarget = true;
           };
           imports =
             [
