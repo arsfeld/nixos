@@ -125,6 +125,18 @@
           ];
         };
 
+      homeConfigurations."aarch64" = let
+        system = "aarch64-linux";
+        pkgs = nixpkgs.legacyPackages.${system};
+      in
+        home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.${system};
+          modules = [
+            ./home/home.nix
+            ./home/vscode-ssh-fix.nix
+          ];
+        };
+
       homeConfigurations.m1 = let
         system = "aarch64-darwin";
       in
