@@ -79,14 +79,14 @@
             ++ homeFeatures;
         };
 
-        nixos-micro = {
+        micro = {
           deployment = {
-            targetHost = "nixos-micro";
+            targetHost = "micro";
             tags = ["cloud"];
           };
           imports =
             [
-              ./machines/nixos-micro/configuration.nix
+              ./machines/micro/configuration.nix
             ]
             ++ homeFeatures;
         };
