@@ -101,7 +101,7 @@ in {
     "dev.${domain}" = {
       useACMEHost = domain;
       extraConfig = ''
-        reverse_proxy dev:8000
+        reverse_proxy cloud:8000
       '';
     };
     "code.${domain}" = {
