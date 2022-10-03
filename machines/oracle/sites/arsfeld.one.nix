@@ -17,6 +17,8 @@ in {
     extraDomainNames = ["*.${domain}"];
   };
 
+  services.caddy.email = email;
+
   services.caddy.virtualHosts = {
     "duplicati.${domain}" = {
       useACMEHost = domain;
@@ -50,7 +52,6 @@ in {
       useACMEHost = domain;
       extraConfig = ''
         reverse_proxy storage:6767
-        authorize with admin_one
       '';
     };
     "qbittorrent.${domain}" = {
@@ -65,21 +66,18 @@ in {
       useACMEHost = domain;
       extraConfig = ''
         reverse_proxy storage:9999
-        authorize with admin_one
       '';
     };
     "netdata.${domain}" = {
       useACMEHost = domain;
       extraConfig = ''
         reverse_proxy storage:19999
-        authorize with admin_one
       '';
     };
     "tautulli.${domain}" = {
       useACMEHost = domain;
       extraConfig = ''
         reverse_proxy storage:8181
-        authorize with admin_one
       '';
     };
     "jellyfin.${domain}" = {
@@ -94,7 +92,6 @@ in {
       useACMEHost = domain;
       extraConfig = ''
         reverse_proxy storage:8888
-        authorize with admin_one
       '';
     };
     "hass.${domain}" = {
@@ -121,10 +118,6 @@ in {
 
         reverse_proxy storage:80
       '';
-    };
-    "auth.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "authenticate with myportal";
     };
   };
 }
