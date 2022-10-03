@@ -131,7 +131,6 @@
           pkgs = nixpkgs.legacyPackages.${system};
           modules = [
             ./home/home.nix
-            ./home/vscode-ssh-fix.nix
           ];
         };
 
