@@ -3,7 +3,7 @@
     ../../common/common.nix
     ../../common/users.nix
     ./hardware-configuration.nix
-    ../oracle/sites/arsfeld.one.nix
+    ./sites/arsfeld.one.nix
   ];
 
   services.tailscale.enable = true;

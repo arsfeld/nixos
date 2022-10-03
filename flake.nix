@@ -59,29 +59,13 @@
         meta = {
           nixpkgs = import nixpkgs {
             system = "x86_64-linux";
-            overlays = [
-              (import ./pkgs/caddy.nix)
-            ];
           };
-        };
-
-        oracle = {
-          nixpkgs.system = "aarch64-linux";
-          deployment = {
-            targetHost = "oracle";
-            allowLocalDeployment = true;
-            tags = ["cloud"];
-          };
-          imports =
-            [
-              ./machines/oracle/configuration.nix
-            ]
-            ++ homeFeatures;
         };
 
         micro = {
           deployment = {
             targetHost = "micro";
+            buildOnTarget = true;
             tags = ["cloud"];
           };
           imports =
@@ -91,22 +75,10 @@
             ++ homeFeatures;
         };
 
-        aws-br = {
-          nixpkgs.system = "aarch64-linux";
-          deployment = {
-            targetHost = "aws-br";
-            tags = ["cloud"];
-          };
-          imports =
-            [
-              ./machines/aws-br/configuration.nix
-            ]
-            ++ homeFeatures;
-        };
-
         storage = {
           deployment = {
             targetHost = "storage";
+            buildOnTarget = true;
           };
           imports =
             [
