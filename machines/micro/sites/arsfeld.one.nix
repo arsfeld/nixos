@@ -98,6 +98,12 @@ in {
       useACMEHost = domain;
       extraConfig = "reverse_proxy storage:8123";
     };
+    "dev.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = ''
+        reverse_proxy dev:8000
+      '';
+    };
     "code.${domain}" = {
       useACMEHost = domain;
       extraConfig = ''
