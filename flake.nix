@@ -77,6 +77,7 @@
         storage = {
           deployment = {
             targetHost = "storage";
+            buildOnTarget = true;
           };
           imports =
             [
