@@ -19,7 +19,21 @@ with lib; {
     # };
 
     data = {
-      paths = ["/mnt/data/homes" "/var/data" "/var/lib"];
+      paths = [
+        "/mnt/data/homes"
+        "/var/lib"
+        "/var/data"
+        "/root"
+      ];
+      exclude = [
+        # very large paths
+        "/var/lib/docker"
+        "/var/lib/systemd"
+        "/var/lib/libvirt"
+
+        "'**/.cache'"
+        "'**/.nix-profile'"
+      ];
       repo = "/mnt/backup/borg";
       encryption.mode = "none";
       extraArgs = "--progress";
