@@ -92,6 +92,13 @@ in {
       ];
     };
 
+    speedtest = {
+      image = "henrywhitaker3/speedtest-tracker";
+      volumes = ["speedtest:/config"];
+      environment.OOKLA_EULA_GDPR = "true";
+      ports = ["8765:80"];
+    };
+
     plex = {
       image = "lscr.io/linuxserver/plex";
       environment = {
