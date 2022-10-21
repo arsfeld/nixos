@@ -24,13 +24,13 @@ in {
       ruby
       starship
       rnix-lsp
-      topgrade
       kondo
       fd
       ripgrep
       procs
       du-dust
       zellij
+      rustup
       (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
       (writeScriptBin "running" (builtins.readFile ./scripts/running))
     ];
@@ -85,7 +85,9 @@ in {
         eval "$(/opt/homebrew/bin/brew shellenv)"
       fi
 
-      eval "$(zellij setup --generate-auto-start zsh)"
+      if [[ -s $HOME/.cargo/env ]]; then
+        source $HOME/.cargo/env
+      fi
     '';
   };
 
