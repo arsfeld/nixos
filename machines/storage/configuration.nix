@@ -53,10 +53,10 @@ with lib; {
   services.smartd.notifications.test = true;
   services.sshguard.enable = true;
 
-  services.xserver.enable = true;
-  services.xserver.desktopManager.xfce.enable = true;
-  services.xrdp.enable = true;
-  services.xrdp.defaultWindowManager = "${pkgs.xfce4-14.xfce4-session}/bin/xfce4-session";
+  # services.xserver.enable = true;
+  # services.xserver.desktopManager.xfce.enable = true;
+  # services.xrdp.enable = true;
+  # services.xrdp.defaultWindowManager = "${pkgs.xfce4-14.xfce4-session}/bin/xfce4-session";
 
   environment.systemPackages = with pkgs; [
     vim
