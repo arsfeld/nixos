@@ -22,6 +22,12 @@
 
   services.adguardhome = {
     enable = true;
+    settings = {
+      dns = {
+        bind_host = "0.0.0.0";
+        bootstrap_dns = ["9.9.9.10"];
+      };
+    };
   };
 
   virtualisation.oci-containers = {
