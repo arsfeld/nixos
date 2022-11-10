@@ -18,86 +18,104 @@
     colmena.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = inputs @ {
-    self,
-    home-manager,
-    nixpkgs,
-    utils,
-    colmena,
-    nixos-generators,
-    nixos-vscode-server,
-    ...
-  }: let
-    username = "arosenfeld";
-    supportedSystems = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
-  in
-    utils.lib.eachSystem supportedSystems (system: let
-      pkgs = import nixpkgs {
-        inherit system;
-        overlays = [colmena.overlay];
-      };
-    in rec {
-      devShell = pkgs.mkShell {
-        buildInputs = with pkgs; [
-          pkgs.home-manager
-          pkgs.colmena
-          pkgs.alejandra
-        ];
-      };
-    })
+  outputs =
+    inputs @ { self
+    , home-manager
+    , nixpkgs
+    , utils
+    , colmena
+    , nixos-generators
+    , nixos-vscode-server
+    , ...
+    }:
+    let
+      username = "arosenfeld";
+      supportedSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
+    in
+    utils.lib.eachSystem supportedSystems
+      (system:
+      let
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ colmena.overlay ];
+        };
+      in
+      rec {
+        devShell = pkgs.mkShell {
+          buildInputs = with pkgs; [
+            pkgs.home-manager
+            pkgs.colmena
+            pkgs.alejandra
+          ];
+        };
+      })
     // {
-      colmena = let
-        homeFeatures = [
-          home-manager.nixosModules.home-manager
-          {
-            home-manager.useGlobalPkgs = true;
-            home-manager.useUserPackages = true;
-            home-manager.users.arosenfeld = import ./home/home.nix;
-          }
-        ];
-      in {
-        meta = {
-          nixpkgs = import nixpkgs {
-            system = "x86_64-linux";
+      colmena =
+        let
+          homeFeatures = [
+            home-manager.nixosModules.home-manager
+            {
+              home-manager.useGlobalPkgs = true;
+              home-manager.useUserPackages = true;
+              home-manager.users.arosenfeld = import ./home/home.nix;
+            }
+          ];
+        in
+        {
+          meta = {
+            nixpkgs = import nixpkgs {
+              system = "x86_64-linux";
+            };
           };
-        };
 
-        micro = {
-          deployment = {
-            targetHost = "micro";
-            tags = ["cloud"];
+          micro = {
+            deployment = {
+              targetHost = "micro";
+              tags = [ "cloud" ];
+            };
+            imports =
+              [
+                ./machines/micro/configuration.nix
+              ]
+              ++ homeFeatures;
           };
-          imports =
-            [
-              ./machines/micro/configuration.nix
-            ]
-            ++ homeFeatures;
-        };
 
-        storage = {
-          deployment = {
-            targetHost = "storage";
-            buildOnTarget = true;
+          striker = {
+            deployment = {
+              targetHost = "nixos";
+              buildOnTarget = true;
+            };
+            imports =
+              [
+                ./machines/striker/configuration.nix
+              ]
+              ++ homeFeatures;
           };
-          imports =
-            [
-              ./machines/storage/configuration.nix
-            ]
-            ++ homeFeatures;
-        };
 
-        r2s = {
-          nixpkgs.system = "aarch64-linux";
-          deployment = {
-            targetHost = "r2s";
+          storage = {
+            deployment = {
+              targetHost = "storage";
+              buildOnTarget = true;
+            };
+            imports =
+              [
+                ./machines/storage/configuration.nix
+              ]
+              ++ homeFeatures;
           };
-          imports =
-            [
-              ./machines/r2s/configuration.nix
-            ]
-            ++ homeFeatures;
+
+          r2s = {
+            nixpkgs.system = "aarch64-linux";
+            deployment = {
+              targetHost = "r2s";
+            };
+            imports =
+              [
+                ./machines/r2s/configuration.nix
+              ]
+              ++ homeFeatures;
+          };
         };
-      };
 
       packages.x86_64-linux = {
         proxmox = nixos-generators.nixosGenerate {
@@ -112,10 +130,11 @@
         };
       };
 
-      homeConfigurations."linux" = let
-        system = "x86_64-linux";
-        pkgs = nixpkgs.legacyPackages.${system};
-      in
+      homeConfigurations."linux" =
+        let
+          system = "x86_64-linux";
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
         home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.${system};
           modules = [
@@ -124,10 +143,11 @@
           ];
         };
 
-      homeConfigurations."aarch64" = let
-        system = "aarch64-linux";
-        pkgs = nixpkgs.legacyPackages.${system};
-      in
+      homeConfigurations."aarch64" =
+        let
+          system = "aarch64-linux";
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
         home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.${system};
           modules = [
@@ -135,9 +155,10 @@
           ];
         };
 
-      homeConfigurations.m1 = let
-        system = "aarch64-darwin";
-      in
+      homeConfigurations.m1 =
+        let
+          system = "aarch64-darwin";
+        in
         home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.${system};
           modules = [
