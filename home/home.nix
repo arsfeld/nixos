@@ -34,6 +34,7 @@ in {
       (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
       (writeScriptBin "running" (builtins.readFile ./scripts/running))
     ];
+    sessionPath = ["$HOME/.local/bin"];
   };
 
   # services.vscode-ssh-fix.enable = pkgs.stdenv.isLinux;
