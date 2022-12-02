@@ -76,6 +76,10 @@
   users.users.arosenfeld = {
     packages = with pkgs; [
       firefox
+      celluloid
+      torrential
+      gnome-console
+      gnome.adwaita-icon-theme
     ];
   };
 
