@@ -62,6 +62,10 @@ in {
     };
   };
 
+  services.jellyfin = {
+    enable = true;
+  };
+
   services.postgresql = {
     enable = true;
     ensureDatabases = ["nextcloud"];
