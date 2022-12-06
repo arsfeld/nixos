@@ -29,6 +29,27 @@ in {
     };
   };
 
+  services.garage = {
+    enable = true;
+    settings = {
+      replication_mode = 2;
+      data_dir = "/mnt/backup/Garage";
+      rpc_bind_addr = "100.101.207.61:3901";
+      rpc_secret = "85e2259fa8869c880ac065ec99e814b0f964d1c5038434f16cb27323159be74c";
+      s3_api = {
+        s3_region = "garage";
+        api_bind_addr = "0.0.0.0:3900";
+        root_domain = ".s3.garage";
+      };
+
+      s3_web = {
+        bind_addr = "0.0.0.0:3902";
+        root_domain = ".web.garage";
+        index = "index.html";
+      };
+    };
+  };
+
   services.mysql = {
     enable = true;
     package = pkgs.mariadb;
