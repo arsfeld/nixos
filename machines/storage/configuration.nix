@@ -17,12 +17,11 @@ with lib; {
     ../../common/users.nix
     ../../common/mail.nix
     ./zfs.nix
-    ./kopia.nix
     ./cloud-sync.nix
-    ./wasabi.nix
     ./users.nix
     ./samba.nix
     ./backup.nix
+    ./backup-kopia.nix
     ./services.nix
     (
       import ../../common/backup.nix (
