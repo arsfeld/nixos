@@ -17,9 +17,9 @@ in {
             "type": "s3",
             "config": {
               "bucket": "arosenfeld-backup",
-              "endpoint": "s3.ca-central-1.wasabisys.com",
-              "accessKeyID": "H05UB1VCQRY7G19IBA5X",
-              "secretAccessKey": "wIrPzRsgzoM92Igzd9Aibv9fJ9hbCSdzAegekDXA",
+              "endpoint": "backup.penguin-gecko.ts.net",
+              "accessKeyID": "KZsHDbA49ZBLAGJA",
+              "secretAccessKey": "eduODznW5ckv9xEortRa2rgsZJ3XCHZi",
               "sessionToken": ""
             }
           },
@@ -31,7 +31,7 @@ in {
           },
           "hostname": "storage",
           "username": "arosenfeld",
-          "description": "Repository in S3: s3.ca-central-1.wasabisys.com arosenfeld-backup",
+          "description": "Repository in Servarica arosenfeld-backup",
           "enableActions": false,
           "formatBlobCacheDuration": 900000000000
         }

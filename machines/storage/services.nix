@@ -14,6 +14,7 @@ with lib; let
   user = "media";
   group = "media";
   tz = "America/Toronto";
+  domain = "storage.penguin-gecko.ts.net";
 in {
   services.netdata.enable = true;
 
@@ -29,26 +30,20 @@ in {
     };
   };
 
-  services.garage = {
+  services.minio = {
     enable = true;
-    settings = {
-      replication_mode = 2;
-      data_dir = "/mnt/backup/Garage";
-      rpc_bind_addr = "100.101.207.61:3901";
-      rpc_secret = "85e2259fa8869c880ac065ec99e814b0f964d1c5038434f16cb27323159be74c";
-      s3_api = {
-        s3_region = "garage";
-        api_bind_addr = "0.0.0.0:3900";
-        root_domain = ".s3.garage";
-      };
+  };
 
-      s3_web = {
-        bind_addr = "0.0.0.0:3902";
-        root_domain = ".web.garage";
-        index = "index.html";
+  services.caddy = {
+    enable = true;
+    virtualHosts = {
+      "${domain}" = {
+        extraConfig = "reverse_proxy localhost:9001";
       };
     };
   };
+
+  services.tailscale.permitCertUid = "caddy";
 
   services.mysql = {
     enable = true;
@@ -67,7 +62,7 @@ in {
   };
 
   services.nextcloud = {
-    enable = true;
+    enable = false;
     datadir = "${dataDir}/files/Nextcloud";
     hostName = "nextcloud.arsfeld.one";
     config = {
@@ -386,20 +381,6 @@ in {
       extraOptions = [
         "--add-host"
         "host.docker.internal:host-gateway"
-      ];
-    };
-
-    jdownloader = {
-      image = "jlesage/jdownloader-2";
-      ports = ["5800:5800"];
-      environment = {
-        USER_ID = puid;
-        GROUP_ID = pgid;
-        TZ = tz;
-      };
-      volumes = [
-        "${configDir}/jdownloader:/config"
-        "${dataDir}/media:/output"
       ];
     };
   };
