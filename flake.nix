@@ -83,10 +83,11 @@
             ++ homeFeatures;
         };
 
-        g14 = {
+        G14 = {
           deployment = {
             targetHost = "g14";
             buildOnTarget = true;
+            allowLocalDeployment = true;
           };
           imports =
             [
