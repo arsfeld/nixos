@@ -11,9 +11,6 @@
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
-    nixos-vscode-server.url = "github:msteen/nixos-vscode-server";
-    nixos-vscode-server.flake = false;
-
     colmena.url = "github:zhaofengli/colmena/stable";
     colmena.inputs.nixpkgs.follows = "nixpkgs";
   };
@@ -25,7 +22,6 @@
     utils,
     colmena,
     nixos-generators,
-    nixos-vscode-server,
     ...
   }: let
     username = "arosenfeld";
@@ -83,6 +79,18 @@
           imports =
             [
               ./machines/striker/configuration.nix
+            ]
+            ++ homeFeatures;
+        };
+
+        g14 = {
+          deployment = {
+            targetHost = "g14";
+            buildOnTarget = true;
+          };
+          imports =
+            [
+              ./machines/g14/configuration.nix
             ]
             ++ homeFeatures;
         };
