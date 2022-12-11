@@ -1,24 +1,23 @@
 # Edit this configuration file to define what should be installed on
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
-
-{ config, pkgs, ... }:
-
 {
-  imports =
-    [ # Include the results of the hardware scan.
-      ./hardware-configuration.nix
-    ];
+  config,
+  pkgs,
+  ...
+}: {
+  imports = [
+    ./hardware-configuration.nix
+  ];
 
   nixpkgs.config.allowUnfree = true;
-  nix.settings.trusted-users = [ "root" "arosenfeld" ];
+  nix.settings.trusted-users = ["root" "arosenfeld"];
 
-  # Use the systemd-boot EFI boot loader.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  networking.hostName = "G14"; # Define your hostname.
-  networking.networkmanager.enable = true;  # Easiest to use and most distros use this by default.
+  networking.hostName = "G14";
+  networking.networkmanager.enable = true; 
 
   virtualisation.podman.enable = true;
   virtualisation.podman.dockerSocket.enable = true;
@@ -27,7 +26,7 @@
   programs.steam.enable = true;
   hardware.steam-hardware.enable = true;
 
-  services.xserver.videoDrivers = [ "nvidia" ];
+  services.xserver.videoDrivers = ["nvidia"];
   hardware.opengl.enable = true;
 
   hardware.nvidia.prime = {
@@ -36,20 +35,27 @@
     amdgpuBusId = "PCI:4:0:0";
   };
   hardware.nvidia.powerManagement.enable = true;
+  hardware.nvidia.powerManagement.finegrained = true;
   hardware.nvidia.modesetting.enable = true;
   hardware.nvidia.package = config.boot.kernelPackages.nvidiaPackages.stable;
 
-  # Set your time zone.
+  hardware.sane.enable = true;
+  hardware.sane.extraBackends = [ pkgs.sane-airscan ];
+
+  services.printing.enable = true;
+  services.printing.drivers = [pkgs.samsung-unified-linux-driver];
+
+  services.avahi.enable = true;
+  services.avahi.nssmdns = true;
+
   time.timeZone = "America/Toronto";
   i18n.defaultLocale = "en_CA.utf8";
 
-  # Enable the X11 windowing system.
   services.xserver.enable = true;
 
-  # Enable the GNOME Desktop Environment.
   services.xserver.displayManager.gdm.enable = true;
   services.xserver.desktopManager.gnome.enable = true;
-  
+
   services.gnome.gnome-keyring.enable = true;
   programs.seahorse.enable = true;
 
@@ -66,10 +72,9 @@
 
   environment.sessionVariables.NIXOS_OZONE_WL = "1";
 
-  # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.arosenfeld = {
     isNormalUser = true;
-    extraGroups = [ "users" "wheel" "podman" "docker" "networkmanager" ]; # Enable ‘sudo’ for the user.
+    extraGroups = ["users" "wheel" "podman" "docker" "networkmanager" "scanner" "lp"]; # Enable ‘sudo’ for the user.
     shell = pkgs.zsh;
     packages = with pkgs; [
       firefox
@@ -92,7 +97,7 @@
   programs.zsh.enable = true;
 
   fonts.fonts = with pkgs; [
-    (nerdfonts.override { fonts = [ "CascadiaCode" "FiraCode" "DroidSansMono" ]; })
+    (nerdfonts.override {fonts = ["CascadiaCode" "FiraCode" "DroidSansMono"];})
   ];
 
   services.flatpak.enable = true;
@@ -116,6 +121,4 @@
   # Before changing this value read the documentation for this option
   # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
   system.stateVersion = "22.05"; # Did you read the comment?
-
 }
-
