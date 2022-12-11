@@ -52,6 +52,16 @@ with lib; {
   services.smartd.notifications.test = true;
   services.sshguard.enable = true;
 
+  services.printing.enable = true;
+  services.printing.drivers = [pkgs.samsung-unified-linux-driver];
+  services.printing.browsing = true;
+  services.printing.allowFrom = [ "all" ]; # this gives access to anyone on the interface you might want to limit it see the official documentation
+  services.printing.defaultShared = true; # If you want
+
+  services.avahi.enable = true;
+  services.avahi.publish.enable = true;
+  services.avahi.publish.userServices = true;
+  
   # services.xserver.enable = true;
   # services.xserver.desktopManager.xfce.enable = true;
   # services.xrdp.enable = true;
