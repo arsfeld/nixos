@@ -13,6 +13,7 @@
   nixpkgs.config.allowUnfree = true;
   nix.settings.trusted-users = ["root" "arosenfeld"];
 
+  boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
@@ -27,7 +28,17 @@
   hardware.steam-hardware.enable = true;
 
   services.xserver.videoDrivers = ["nvidia"];
-  hardware.opengl.enable = true;
+  services.switcherooControl.enable = true;
+  hardware.opengl = {
+    enable = true;
+    extraPackages = with pkgs; [
+      vaapiVdpau
+      libvdpau-va-gl
+      rocm-opencl-icd
+      rocm-opencl-runtime
+      amdvlk
+    ];
+  };
 
   hardware.nvidia.prime = {
     offload.enable = true;
@@ -77,7 +88,7 @@
     extraGroups = ["users" "wheel" "podman" "docker" "networkmanager" "scanner" "lp"]; # Enable ‘sudo’ for the user.
     shell = pkgs.zsh;
     packages = with pkgs; [
-      firefox
+      firefox-wayland
       gnome.gnome-software
       gnome.gnome-tweaks
       gnomeExtensions.appindicator
@@ -85,6 +96,9 @@
       distrobox
       vim
       vscode-fhs
+      microsoft-edge
+      hypnotix
+      protonup-ng
 
       pantheon.elementary-gtk-theme
       pantheon.elementary-wallpapers
