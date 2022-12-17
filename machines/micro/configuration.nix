@@ -18,9 +18,9 @@
     enable = true;
   };
 
-  services.freshrss = {
-    enable = true;
-  };
+  # services.freshrss = {
+  #   enable = true;
+  # };
 
   networking.firewall.enable = false;
   boot.cleanTmpDir = true;
