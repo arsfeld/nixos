@@ -71,22 +71,9 @@
             ++ homeFeatures;
         };
 
-        striker = {
-          deployment = {
-            targetHost = "nixos";
-            buildOnTarget = true;
-          };
-          imports =
-            [
-              ./machines/striker/configuration.nix
-            ]
-            ++ homeFeatures;
-        };
-
         G14 = {
           deployment = {
             targetHost = null;
-            buildOnTarget = true;
             allowLocalDeployment = true;
             tags = ["local"];
           };
@@ -109,17 +96,17 @@
             ++ homeFeatures;
         };
 
-        r2s = {
-          nixpkgs.system = "aarch64-linux";
-          deployment = {
-            targetHost = "r2s";
-          };
-          imports =
-            [
-              ./machines/r2s/configuration.nix
-            ]
-            ++ homeFeatures;
-        };
+        # r2s = {
+        #   nixpkgs.system = "aarch64-linux";
+        #   deployment = {
+        #     targetHost = "r2s";
+        #   };
+        #   imports =
+        #     [
+        #       ./machines/r2s/configuration.nix
+        #     ]
+        #     ++ homeFeatures;
+        # };
       };
 
       packages.x86_64-linux = {
