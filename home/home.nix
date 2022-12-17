@@ -6,6 +6,13 @@
 }: let
   inherit (pkgs) stdenv;
   inherit (lib) mkIf;
+  nvidia-offload = pkgs.writeShellScriptBin "nvidia-offload" ''
+    export __NV_PRIME_RENDER_OFFLOAD=1
+    export __NV_PRIME_RENDER_OFFLOAD_PROVIDER=NVIDIA-G0
+    export __GLX_VENDOR_LIBRARY_NAME=nvidia
+    export __VK_LAYER_NV_optimus=NVIDIA_only
+    exec "$@"
+  '';
 in {
   # Home Manager needs a bit of information about you and the
   # paths it should manage.
@@ -31,6 +38,7 @@ in {
       du-dust
       zellij
       rustup
+      nvidia-offload
       (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
       (writeScriptBin "running" (builtins.readFile ./scripts/running))
     ];

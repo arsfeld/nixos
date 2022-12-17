@@ -85,9 +85,10 @@
 
         G14 = {
           deployment = {
-            targetHost = "g14";
+            targetHost = null;
             buildOnTarget = true;
             allowLocalDeployment = true;
+            tags = ["local"];
           };
           imports =
             [
@@ -99,7 +100,7 @@
         storage = {
           deployment = {
             targetHost = "storage";
-            buildOnTarget = true;
+            tags = ["local"];
           };
           imports =
             [
