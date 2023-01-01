@@ -66,10 +66,4 @@ with lib; {
   # services.xserver.desktopManager.xfce.enable = true;
   # services.xrdp.enable = true;
   # services.xrdp.defaultWindowManager = "${pkgs.xfce4-14.xfce4-session}/bin/xfce4-session";
-
-  environment.systemPackages = with pkgs; [
-    vim
-    wget
-    nodejs
-  ];
 }
