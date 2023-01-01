@@ -14,7 +14,8 @@ with lib; let
   user = "media";
   group = "media";
   tz = "America/Toronto";
-  domain = "storage.penguin-gecko.ts.net";
+  email = "arsfeld@gmail.com";
+  domain = "arsfeld.dev";
 in {
   services.netdata.enable = true;
 
@@ -39,11 +40,24 @@ in {
     enable = true;
   };
 
+  security.acme.acceptTerms = true;
+  security.acme.certs."${domain}" = {
+    email = email;
+    dnsProvider = "cloudflare";
+    credentialsFile = "/var/lib/secrets/cloudflare";
+    extraDomainNames = ["*.${domain}"];
+  };
+
   services.caddy = {
     enable = true;
+    globalConfig = ''
+      https_port 10000
+      auto_https off
+    '';
     virtualHosts = {
-      "${domain}" = {
-        extraConfig = "reverse_proxy localhost:9001";
+      "qbittorrent.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy localhost:8080";
       };
     };
   };
