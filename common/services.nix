@@ -3,11 +3,9 @@
   pkgs,
   ...
 }: {
-  virtualisation = {
-    lxd = {
-      enable = true;
-      recommendedSysctlSettings = true;
-    };
+  virtualisation.lxd = {
+    enable = false;
+    recommendedSysctlSettings = true;
   };
 
   virtualisation.docker = {
