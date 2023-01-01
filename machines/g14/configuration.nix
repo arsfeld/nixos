@@ -13,12 +13,17 @@
   nixpkgs.config.allowUnfree = true;
   nix.settings.trusted-users = ["root" "arosenfeld"];
 
-  boot.kernelPackages = pkgs.linuxPackages_latest;
+  boot.kernelPackages = pkgs.linuxPackages_xanmod_latest;
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
   networking.hostName = "G14";
-  networking.networkmanager.enable = true; 
+  networking.networkmanager.enable = true;
+
+  services.nextdns = {
+    enable = true;
+    arguments = ["-config" "bbec7d"];
+  };
 
   virtualisation.podman.enable = true;
   virtualisation.podman.dockerSocket.enable = true;
@@ -51,7 +56,7 @@
   hardware.nvidia.package = config.boot.kernelPackages.nvidiaPackages.stable;
 
   hardware.sane.enable = true;
-  hardware.sane.extraBackends = [ pkgs.sane-airscan ];
+  hardware.sane.extraBackends = [pkgs.sane-airscan];
 
   services.printing.enable = true;
   services.printing.drivers = [pkgs.samsung-unified-linux-driver];
@@ -69,6 +74,8 @@
 
   services.gnome.gnome-keyring.enable = true;
   programs.seahorse.enable = true;
+
+  programs.gamemode.enable = true;
 
   # services.xserver.displayManager.lightdm.enable = true;
   # services.xserver.desktopManager.pantheon.enable = true;
@@ -95,10 +102,12 @@
       gnomeExtensions.blur-my-shell
       distrobox
       vim
-      vscode-fhs
+      vscode
       microsoft-edge
       hypnotix
       protonup-ng
+      mangohud
+      steamtinkerlaunch
 
       pantheon.elementary-gtk-theme
       pantheon.elementary-wallpapers
