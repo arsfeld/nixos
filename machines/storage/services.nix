@@ -160,6 +160,48 @@ in {
       ];
     };
 
+    # gluetun = {
+    #   image = "ghcr.io/qdm12/gluetun";
+    #   environment = {
+    #     VPN_SERVICE_PROVIDER = "MULLVAD";
+    #     VPN_TYPE = "openvpn";
+    #     OPENVPN_USER = "4493235546215778";
+    #     OPENVPN_PASSWORD = "m";
+    #   };
+    #   ports = ["8080:8080"];
+    #   volumes = [
+    #     "/dev/net/tun:/dev/net/tun"
+    #     "${configDir}/gluetun:/gluetun"
+    #   ];
+    #   extraOptions = [
+    #     "--cap-add"
+    #     "NET_ADMIN"
+    #     "--dns"
+    #     "8.8.8.8"
+    #     "--dns"
+    #     "8.8.4.4"
+    #   ];
+    # };
+
+    # qbittorrent = {
+    #   image = "lscr.io/linuxserver/qbittorrent:latest";
+    #   environment = {
+    #     PUID = puid;
+    #     PGID = pgid;
+    #     TZ = tz;
+    #     WEBUI_PORT = "8080";
+    #   };
+    #   volumes = [
+    #     "${configDir}/qbittorrent:/config"
+    #     "${dataDir}/media:/media"
+    #     "${dataDir}/files:/files"
+    #   ];
+    #   extraOptions = [
+    #     "--network"
+    #     "container:gluetun"
+    #   ];
+    # };
+
     qflood = {
       image = "cr.hotio.dev/hotio/qflood";
       environment = {
@@ -167,8 +209,9 @@ in {
         PGID = pgid;
         TZ = tz;
         FLOOD_AUTH = "false";
-        VPN_LAN_NETWORK = "10.0.0.0/24,100.64.0.0/10";
+        VPN_LAN_NETWORK = "192.168.31.0/24,100.64.0.0/10";
         VPN_ENABLED = "true";
+        VPN_IP_CHECK_DELAY = "15";
       };
       ports = ["8080:8080/tcp" "3000:3000"];
       volumes = [
