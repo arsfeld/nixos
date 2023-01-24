@@ -29,6 +29,8 @@
   virtualisation.podman.dockerSocket.enable = true;
   virtualisation.podman.dockerCompat = true;
 
+  services.joycond.enable = true;
+
   programs.steam.enable = true;
   hardware.steam-hardware.enable = true;
 
@@ -90,6 +92,8 @@
 
   environment.sessionVariables.NIXOS_OZONE_WL = "1";
 
+  security.pam.services.arosenfeld.fprintAuth = true;
+
   users.users.arosenfeld = {
     isNormalUser = true;
     extraGroups = ["users" "wheel" "podman" "docker" "networkmanager" "scanner" "lp"]; # Enable ‘sudo’ for the user.
@@ -114,6 +118,7 @@
       pantheon.elementary-icon-theme
       moka-icon-theme
       kora-icon-theme
+      fprintd
     ];
   };
 
@@ -124,6 +129,10 @@
   ];
 
   services.flatpak.enable = true;
+
+  services.fprintd.enable = true;
+  services.fprintd.tod.enable = true;
+  services.fprintd.tod.driver = pkgs.libfprint-2-tod1-goodix;
 
   # List services that you want to enable:
 
