@@ -40,6 +40,7 @@
         deployment = {
           targetHost = "micro";
           tags = ["cloud"];
+          buildOnTarget = true;
         };
         imports =
           [
@@ -64,6 +65,7 @@
       storage = {
         deployment = {
           targetHost = "storage";
+          buildOnTarget = true;
           tags = ["local"];
         };
         imports =

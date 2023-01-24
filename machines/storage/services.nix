@@ -31,6 +31,12 @@ in {
     };
   };
 
+  services.code-server = {
+    enable = true;
+    user = "arosenfeld";
+    host = "0.0.0.0";
+  };
+
   services.nextdns = {
     enable = true;
     arguments = ["-config" "bbec7d"];

@@ -18,9 +18,13 @@
     enable = true;
   };
 
-  # services.freshrss = {
-  #   enable = true;
-  # };
+  services.vaultwarden = {
+    enable = true;
+    config = {
+      DOMAIN = "https://bitwarden.arsfeld.one";
+      SIGNUPS_ALLOWED = false;
+    };
+  };
 
   networking.firewall.enable = false;
   boot.cleanTmpDir = true;
