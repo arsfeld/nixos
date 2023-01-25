@@ -20,6 +20,18 @@ in {
   services.caddy.email = email;
 
   services.caddy.virtualHosts = {
+    "speedtest.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = "reverse_proxy storage:8765";
+    };
+    "photos.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = "reverse_proxy storage:15777";
+    };
+    "immich.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = "reverse_proxy storage:15777";
+    };
     "duplicati.${domain}" = {
       useACMEHost = domain;
       extraConfig = "reverse_proxy storage:8200";
