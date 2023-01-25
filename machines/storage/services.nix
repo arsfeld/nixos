@@ -109,18 +109,40 @@ in {
 
   services.postgresql = {
     enable = true;
-    ensureDatabases = ["nextcloud"];
+    ensureDatabases = ["nextcloud" "immich"];
+    enableTCPIP = true;
     ensureUsers = [
       {
         name = "nextcloud";
         ensurePermissions."DATABASE nextcloud" = "ALL PRIVILEGES";
       }
+      {
+        name = "immich";
+        ensurePermissions."DATABASE immich" = "ALL PRIVILEGES";
+      }
     ];
+    authentication = lib.mkForce ''
+      # Generated file; do not edit!
+      # TYPE  DATABASE        USER            ADDRESS                 METHOD
+      local   all             all                                     trust
+      host    all             all             172.17.0.0/16           trust
+      host    all             all             127.0.0.1/32            trust
+      host    all             all             ::1/128                 trust
+    '';
   };
 
   systemd.services."nextcloud-setup" = {
     requires = ["postgresql.service"];
     after = ["postgresql.service"];
+  };
+
+  services.redis.servers.immich = {
+    enable = true;
+    port = 60609;
+    bind = "0.0.0.0";
+    settings = {
+      "protected-mode" = "no";
+    };
   };
 
   services.bazarr = {
@@ -142,6 +164,33 @@ in {
       volumes = ["speedtest:/config"];
       environment.OOKLA_EULA_GDPR = "true";
       ports = ["8765:80"];
+    };
+
+    immich = {
+      image = "ghcr.io/imagegenius/immich:latest";
+      environment = {
+        PUID = puid;
+        PGID = pgid;
+        TZ = tz;
+
+        DB_HOSTNAME = "host.docker.internal";
+        DB_USERNAME = "immich";
+        DB_PASSWORD = "immich";
+        DB_DATABASE_NAME = "immich";
+        REDIS_HOSTNAME = "host.docker.internal";
+        JWT_SECRET = "somelongrandomstring";
+        DB_PORT = "5432";
+        REDIS_PORT = "60609";
+      };
+      ports = ["15777:8080/tcp"];
+      environmentFiles = [
+        "${configDir}/plex/env"
+      ];
+      volumes = [
+        "${configDir}/immich:/config"
+        "${dataDir}/files/Photos:/photos"
+      ];
+      extraOptions = ["--add-host" "host.docker.internal:host-gateway"];
     };
 
     plex = {
