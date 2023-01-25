@@ -15,7 +15,11 @@ with lib; let
   group = "media";
   tz = "America/Toronto";
   email = "arsfeld@gmail.com";
-  domain = "arsfeld.dev";
+  domain = "storage.penguin-gecko.ts.net";
+  ports = {
+    qbittorrent = "8080";
+    immich = "15777";
+  };
 in {
   services.netdata.enable = true;
 
@@ -46,24 +50,27 @@ in {
     enable = true;
   };
 
-  security.acme.acceptTerms = true;
-  security.acme.certs."${domain}" = {
-    email = email;
-    dnsProvider = "cloudflare";
-    credentialsFile = "/var/lib/secrets/cloudflare";
-    extraDomainNames = ["*.${domain}"];
-  };
+  # security.acme.acceptTerms = true;
+  # security.acme.certs."${domain}" = {
+  #   email = email;
+  #   dnsProvider = "cloudflare";
+  #   credentialsFile = "/var/lib/secrets/cloudflare";
+  #   extraDomainNames = ["*.${domain}"];
+  # };
 
   services.caddy = {
     enable = true;
-    globalConfig = ''
-      https_port 10000
-      auto_https off
-    '';
     virtualHosts = {
-      "qbittorrent.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:8080";
+      "${domain}" = {
+        extraConfig = ''
+          respond "Hello, world!"
+          handle_path /qbittorrent/* {
+            reverse_proxy localhost:${ports.qbittorrent}
+          }
+          handle_path /photos/* {
+            reverse_proxy localhost:${ports.immich}
+          }
+        '';
       };
     };
   };
@@ -182,7 +189,7 @@ in {
         DB_PORT = "5432";
         REDIS_PORT = "60609";
       };
-      ports = ["15777:8080/tcp"];
+      ports = ["${ports.immich}:8080/tcp"];
       environmentFiles = [
         "${configDir}/plex/env"
       ];
