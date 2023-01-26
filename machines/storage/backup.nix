@@ -51,18 +51,5 @@ with lib; {
         OnCalendar = "daily";
       };
     };
-    b2 = {
-      paths = ["/mnt/data/homes" "/var/data"];
-      repository = "b2:arosenfeld-backup:backups";
-      passwordFile = "/etc/secrets/restic";
-      environmentFile = "/etc/secrets/b2.keys";
-      extraOptions = [
-        "--verbose=2"
-        "--one-file-system"
-      ];
-      timerConfig = {
-        OnCalendar = "Mon 03:00:00";
-      };
-    };
   };
 }
