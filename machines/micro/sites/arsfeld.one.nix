@@ -108,7 +108,7 @@ in {
     };
     "hass.${domain}" = {
       useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:8123";
+      extraConfig = "reverse_proxy dietpi:8123";
     };
     "dev.${domain}" = {
       useACMEHost = domain;
