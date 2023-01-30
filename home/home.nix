@@ -24,6 +24,8 @@ in {
       else "/Users/arosenfeld";
     stateVersion = "22.05";
     packages = with pkgs; [
+      vim
+      btop
       htop
       nix
       cachix
@@ -41,6 +43,8 @@ in {
       du-dust
       zellij
       rustup
+      dogdns
+      tldr
       nvidia-offload
       (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
       (writeScriptBin "running" (builtins.readFile ./scripts/running))
