@@ -2,11 +2,10 @@
   imports = [
     ../../common/common.nix
     ../../common/users.nix
+    ../../common/services.nix
     ./hardware-configuration.nix
     ./sites/arsfeld.one.nix
   ];
-
-  services.tailscale.enable = true;
 
   users.users.caddy.extraGroups = ["acme"];
 
@@ -22,7 +21,22 @@
     enable = true;
     config = {
       DOMAIN = "https://bitwarden.arsfeld.one";
-      SIGNUPS_ALLOWED = false;
+      SIGNUPS_ALLOWED = true;
+    };
+  };
+
+  virtualisation.oci-containers.containers = {
+    watchtower = {
+      image = "containrrr/watchtower";
+      volumes = [
+        "/var/run/docker.sock:/var/run/docker.sock"
+      ];
+    };
+
+    yarr = {
+      image = "arsfeld/yarr";
+      volumes = ["/var/lib/yarr:/data"];
+      ports = ["7070:7070"];
     };
   };
 

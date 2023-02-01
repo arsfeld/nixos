@@ -20,6 +20,15 @@ in {
   services.caddy.email = email;
 
   services.caddy.virtualHosts = {
+    "vault.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = "reverse_proxy localhost:8000";
+    };
+    "yarr.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = "reverse_proxy localhost:7070";
+    };
+
     "speedtest.${domain}" = {
       useACMEHost = domain;
       extraConfig = "reverse_proxy storage:8765";
@@ -35,12 +44,6 @@ in {
     "duplicati.${domain}" = {
       useACMEHost = domain;
       extraConfig = "reverse_proxy storage:8200";
-    };
-    "vault.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = ''
-        reverse_proxy storage:8000
-      '';
     };
     "radarr.${domain}" = {
       useACMEHost = domain;
