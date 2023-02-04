@@ -10,6 +10,10 @@ with lib; let
   domain = "arsfeld.one";
   email = "arsfeld@gmail.com";
 in {
+  security.acme.defaults = {
+    dnsResolver = "1.1.1.1:53";
+  };
+
   security.acme.certs."${domain}" = {
     email = email;
     dnsProvider = "cloudflare";
@@ -22,11 +26,11 @@ in {
   services.caddy.virtualHosts = {
     "vault.${domain}" = {
       useACMEHost = domain;
-      extraConfig = "reverse_proxy localhost:8000";
+      extraConfig = "reverse_proxy micro:8000";
     };
     "yarr.${domain}" = {
       useACMEHost = domain;
-      extraConfig = "reverse_proxy localhost:7070";
+      extraConfig = "reverse_proxy micro:7070";
     };
 
     "speedtest.${domain}" = {
@@ -68,6 +72,10 @@ in {
       extraConfig = ''
         reverse_proxy storage:6767
       '';
+    };
+    "whisparr.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = "reverse_proxy storage:6969";
     };
     "qbittorrent.${domain}" = {
       useACMEHost = domain;
