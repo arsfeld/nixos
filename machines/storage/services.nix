@@ -50,29 +50,14 @@ in {
     enable = true;
   };
 
-  # security.acme.acceptTerms = true;
-  # security.acme.certs."${domain}" = {
-  #   email = email;
-  #   dnsProvider = "cloudflare";
-  #   credentialsFile = "/var/lib/secrets/cloudflare";
-  #   extraDomainNames = ["*.${domain}"];
-  # };
+  users.users.caddy.extraGroups = ["acme"];
+
+  security.acme = {
+    acceptTerms = true;
+  };
 
   services.caddy = {
     enable = true;
-    virtualHosts = {
-      "${domain}" = {
-        extraConfig = ''
-          respond "Hello, world!"
-          handle_path /qbittorrent/* {
-            reverse_proxy localhost:${ports.qbittorrent}
-          }
-          handle_path /photos/* {
-            reverse_proxy localhost:${ports.immich}
-          }
-        '';
-      };
-    };
   };
 
   services.tailscale.permitCertUid = "caddy";
@@ -463,6 +448,20 @@ in {
       volumes = [
         "${configDir}/radarr:/config"
         "${dataDir}/files:/files"
+        "${dataDir}/media:/media"
+      ];
+    };
+
+    whisparr = {
+      image = "cr.hotio.dev/hotio/whisparr";
+      environment = {
+        PUID = puid;
+        PGID = pgid;
+        TZ = tz;
+      };
+      ports = ["6969:6969"];
+      volumes = [
+        "${configDir}/whisparr:/config"
         "${dataDir}/media:/media"
       ];
     };
