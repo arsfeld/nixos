@@ -32,7 +32,10 @@ in {
       useACMEHost = domain;
       extraConfig = "reverse_proxy micro:7070";
     };
-
+    "minio.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = "reverse_proxy storage:9000";
+    };
     "speedtest.${domain}" = {
       useACMEHost = domain;
       extraConfig = "reverse_proxy storage:8765";

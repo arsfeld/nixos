@@ -40,6 +40,17 @@
     };
   };
 
+  services.restic.backups = {
+    micro = {
+      paths = ["/var/lib"];
+      repository = "rest:http://storage:8000/micro-backup";
+      passwordFile = "/etc/secrets/restic";
+      timerConfig = {
+        OnCalendar = "daily";
+      };
+    };
+  };
+
   networking.firewall.enable = false;
   boot.cleanTmpDir = true;
   zramSwap.enable = true;

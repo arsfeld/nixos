@@ -48,6 +48,13 @@ in {
 
   services.minio = {
     enable = true;
+    dataDir = ["${dataDir}/files/minio"];
+  };
+
+  services.restic.server = {
+    enable = true;
+    appendOnly = true;
+    extraFlags = ["--no-auth"];
   };
 
   users.users.caddy.extraGroups = ["acme"];
