@@ -107,6 +107,10 @@ in {
       useACMEHost = domain;
       extraConfig = "reverse_proxy storage:8096";
     };
+    "jf.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = "reverse_proxy storage:3831";
+    };
     "nzbhydra2.${domain}" = {
       useACMEHost = domain;
       extraConfig = "reverse_proxy storage:5076";
