@@ -15,7 +15,7 @@ with lib; let
   group = "media";
   tz = "America/Toronto";
   email = "arsfeld@gmail.com";
-  domain = "storage.penguin-gecko.ts.net";
+  domain = "arsfeld.one";
   ports = {
     qbittorrent = "8080";
     immich = "15777";
@@ -205,6 +205,14 @@ in {
         "/dev/dri:/dev/dri"
         "--network=host"
       ];
+    };
+
+    jf-vue = {
+      image = "jellyfin/jellyfin-vue:unstable";
+      environment = {
+        DEFAULT_SERVERS = "https://jellyfin.${domain}";
+      };
+      ports = ["3831:80"];
     };
 
     # gluetun = {
