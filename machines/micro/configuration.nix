@@ -22,6 +22,7 @@
     config = {
       DOMAIN = "https://bitwarden.arsfeld.one";
       SIGNUPS_ALLOWED = true;
+      ROCKET_ADDRESS = "0.0.0.0";
     };
   };
 
