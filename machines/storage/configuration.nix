@@ -63,8 +63,33 @@ with lib; {
   services.avahi.publish.enable = true;
   services.avahi.publish.userServices = true;
 
-  # services.xserver.enable = true;
-  # services.xserver.desktopManager.xfce.enable = true;
-  # services.xrdp.enable = true;
-  # services.xrdp.defaultWindowManager = "${pkgs.xfce4-14.xfce4-session}/bin/xfce4-session";
+  services.vector = {
+    enable = true;
+    journaldAccess = true;
+    settings = {
+      "sources" = {
+        "journald" = {
+          type = "journald";
+          current_boot_only = true;
+        };
+      };
+      "sinks" = {
+        # "logtail" = {
+        #   type = "http";
+        #   inputs = ["journald"];
+        #   uri = "https://in.logtail.com/";
+        #   encoding.codec = "json";
+        #   request.headers.Authorization = "Bearer CkDXNhRmcRQ5nVX8qW8jsWfA";
+        # };
+        "axiom" = {
+          "type" = "axiom";
+          "inputs" = [
+            "journald"
+          ];
+          "dataset" = "storage";
+          "token" = "xaat-ca79c6c6-ba0b-4ac0-a201-61f8f9690f90";
+        };
+      };
+    };
+  };
 }
