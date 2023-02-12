@@ -52,6 +52,25 @@
     };
   };
 
+  services.borgbackup.jobs.micro = {
+    paths = [
+      "/var/lib"
+      "/root"
+    ];
+    exclude = [
+      # very large paths
+      "/var/lib/docker"
+      "/var/lib/systemd"
+      "/var/lib/libvirt"
+
+      "'**/.cache'"
+      "'**/.nix-profile'"
+    ];
+    encryption.mode = "none";
+    compression = "auto,zstd";
+    repo = "borg@storage:micro";
+  };
+
   networking.firewall.enable = false;
   boot.cleanTmpDir = true;
   zramSwap.enable = true;
