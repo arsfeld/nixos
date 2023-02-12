@@ -496,6 +496,11 @@ in {
       ];
     };
 
+    flaresolverr = {
+      image = "ghcr.io/flaresolverr/flaresolverr:latest";
+      ports = ["8191:8191"];
+    };
+
     "headscale-ui" = {
       image = "ghcr.io/gurucomputing/headscale-ui:latest";
       ports = [
