@@ -6,6 +6,8 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    agenix.url = "github:ryantm/agenix";
+
     utils.url = "github:numtide/flake-utils";
 
     home-manager.url = "github:nix-community/home-manager";
@@ -17,6 +19,7 @@
     home-manager,
     nixpkgs,
     utils,
+    agenix,
     nixos-generators,
     ...
   }: {
@@ -70,6 +73,7 @@
         };
         imports =
           [
+            agenix.nixosModules.default
             ./machines/storage/configuration.nix
           ]
           ++ homeFeatures;
