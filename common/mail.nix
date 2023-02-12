@@ -1,6 +1,7 @@
 {
   lib,
   pkgs,
+  config,
   ...
 }:
 with lib; let
@@ -20,6 +21,8 @@ in {
     ZED_NOTIFY_VERBOSE = true;
   };
 
+  age.secrets.smtp_password.file = ../secrets/smtp_password.age;
+
   programs.msmtp = {
     enable = true;
     accounts = {
@@ -30,7 +33,7 @@ in {
         host = "smtp.gmail.com";
         port = 587;
         user = email;
-        passwordeval = "cat /var/lib/secrets/smtp_password";
+        passwordeval = "cat ${config.age.secrets.smtp_password.path}";
       };
     };
     defaults = {

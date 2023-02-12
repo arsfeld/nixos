@@ -14,10 +14,16 @@ in {
     dnsResolver = "1.1.1.1:53";
   };
 
+  age.secrets.cloudflare = {
+    file = ../../secrets/cloudflare.age;
+    owner = "acme";
+    group = "acme";
+  };
+
   security.acme.certs."${domain}" = {
     email = email;
     dnsProvider = "cloudflare";
-    credentialsFile = "/var/lib/secrets/cloudflare";
+    credentialsFile = config.age.secrets.cloudflare.path;
     extraDomainNames = ["*.${domain}"];
   };
 
