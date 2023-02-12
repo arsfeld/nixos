@@ -47,6 +47,7 @@
         };
         imports =
           [
+            agenix.nixosModules.default
             ./machines/micro/configuration.nix
           ]
           ++ homeFeatures;

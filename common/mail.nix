@@ -22,6 +22,7 @@ in {
   };
 
   age.secrets.smtp_password.file = ../secrets/smtp_password.age;
+  age.secrets.smtp_password.mode = "444";
 
   programs.msmtp = {
     enable = true;
