@@ -138,7 +138,7 @@ in {
   programs.keychain = mkIf stdenv.isLinux {
     enable = true;
     enableZshIntegration = true;
-    inheritType = "any";
+    inheritType = "any-once";
     keys = ["id_ed25519"];
   };
 
