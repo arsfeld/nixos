@@ -88,6 +88,10 @@ in {
       useACMEHost = domain;
       extraConfig = "reverse_proxy storage:9696";
     };
+    "flaresolverr.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = "reverse_proxy storage:8191";
+    };
     "stash.${domain}" = {
       useACMEHost = domain;
       extraConfig = ''
