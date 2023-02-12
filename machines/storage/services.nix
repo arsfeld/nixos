@@ -23,6 +23,18 @@ with lib; let
 in {
   services.netdata.enable = true;
 
+  users.users.vault.extraGroups = ["acme" "caddy"];
+
+  services.vault = {
+    enable = true;
+    storageBackend = "file";
+    address = "0.0.0.0:8200";
+    extraConfig = "ui = true";
+    package = pkgs.vault-bin;
+    tlsCertFile = "/var/lib/acme/arsfeld.one/cert.pem";
+    tlsKeyFile = "/var/lib/acme/arsfeld.one/key.pem";
+  };
+
   services.home-assistant = {
     enable = false;
     config = {
