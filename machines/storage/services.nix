@@ -116,6 +116,8 @@ in {
 
   services.jellyfin = {
     enable = true;
+    user = user;
+    group = group;
   };
 
   services.postgresql = {
