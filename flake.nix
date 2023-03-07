@@ -80,6 +80,18 @@
           ++ homeFeatures;
       };
 
+      raspi3 = {
+        deployment = {
+          targetHost = "nixos-rasp3";
+          tags = ["local"];
+        };
+        imports =
+          [
+            ./machines/raspi3/configuration.nix
+          ]
+          ++ homeFeatures;
+      };
+
       # r2s = {
       #   nixpkgs.system = "aarch64-linux";
       #   deployment = {
