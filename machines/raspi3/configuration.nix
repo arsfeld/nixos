@@ -13,8 +13,14 @@
 
   # Use the extlinux boot loader. (NixOS wants to enable GRUB by default)
   boot.loader.grub.enable = false;
-  # Enables the generation of /boot/extlinux/extlinux.conf
-  boot.loader.generic-extlinux-compatible.enable = true;
+
+  boot.loader.raspberryPi = {
+    enable = true;
+    version = 3;
+    uboot = {
+      enable = true;
+    };
+  };
 
   networking.hostName = "nixos-raspi3"; # Define your hostname.
   # Pick only one of the below networking options.
