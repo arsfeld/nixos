@@ -138,6 +138,10 @@ in {
       useACMEHost = domain;
       extraConfig = "reverse_proxy dietpi:8123";
     };
+    "grafana.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = "reverse_proxy storage:2345";
+    };
     "dev.${domain}" = {
       useACMEHost = domain;
       extraConfig = ''

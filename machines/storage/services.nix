@@ -47,6 +47,53 @@ in {
     };
   };
 
+  services.grafana = {
+    enable = true;
+    domain = "grafana.${domain}";
+    port = 2345;
+    addr = "0.0.0.0";
+  };
+
+  services.prometheus = {
+    enable = true;
+    port = 8001;
+
+    exporters = {
+      node = {
+        enable = true;
+        enabledCollectors = ["systemd"];
+        port = 8002;
+      };
+    };
+
+    scrapeConfigs = [
+      {
+        job_name = "storage";
+        static_configs = [
+          {
+            targets = ["127.0.0.1:${toString config.services.prometheus.exporters.node.port}"];
+          }
+        ];
+      }
+    ];
+  };
+
+  services.loki = {
+    enable = true;
+    configFile = ./files/loki-local-config.yaml;
+  };
+
+  systemd.services.promtail = {
+    description = "Promtail service for Loki";
+    wantedBy = ["multi-user.target"];
+
+    serviceConfig = {
+      ExecStart = ''
+        ${pkgs.grafana-loki}/bin/promtail --config.file ${./files/promtail.yaml}
+      '';
+    };
+  };
+
   services.code-server = {
     enable = true;
     user = "arosenfeld";
@@ -322,6 +369,9 @@ in {
     scrutiny = {
       image = "ghcr.io/analogj/scrutiny:master-omnibus";
       ports = ["8888:8080" "8086:8086"];
+      environment = {
+        COLLECTOR_CRON_SCHEDULE = "0 0 * * 7";
+      };
       volumes = [
         "${configDir}/scrutiny/config:/opt/scrutiny/config"
         "${configDir}/scrutiny/influxdb:/opt/scrutiny/influxdb"
