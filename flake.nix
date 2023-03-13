@@ -12,6 +12,8 @@
 
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
+
+    vscode-server.url = "github:msteen/nixos-vscode-server";
   };
 
   outputs = inputs @ {
@@ -21,6 +23,7 @@
     utils,
     agenix,
     nixos-generators,
+    vscode-server,
     ...
   }: {
     colmena = let
@@ -74,6 +77,14 @@
         };
         imports =
           [
+            vscode-server.nixosModule
+            ({
+              config,
+              pkgs,
+              ...
+            }: {
+              services.vscode-server.enable = true;
+            })
             agenix.nixosModules.default
             ./machines/storage/configuration.nix
           ]
