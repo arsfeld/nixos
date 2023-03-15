@@ -34,6 +34,8 @@
     ncdu_2
   ];
 
+  programs.nix-ld.enable = true;
+
   services.openssh.enable = true;
   nixpkgs.config.allowUnfree = true;
   time.timeZone = "America/Toronto";
