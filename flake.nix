@@ -78,13 +78,6 @@
         imports =
           [
             vscode-server.nixosModule
-            ({
-              config,
-              pkgs,
-              ...
-            }: {
-              services.vscode-server.enable = true;
-            })
             agenix.nixosModules.default
             ./machines/storage/configuration.nix
           ]
