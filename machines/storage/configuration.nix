@@ -77,8 +77,6 @@ with lib; {
     ];
   };
 
-  programs.nix-ld.enable = true;
-
   services.vector = {
     enable = true;
     journaldAccess = true;
