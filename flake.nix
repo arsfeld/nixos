@@ -91,6 +91,21 @@
           ++ homeFeatures;
       };
 
+      striker = {
+        deployment = {
+          targetHost = "striker";
+          buildOnTarget = true;
+          tags = ["local"];
+        };
+        imports =
+          [
+            vscode-server.nixosModule
+            agenix.nixosModules.default
+            ./machines/striker/configuration.nix
+          ]
+          ++ homeFeatures;
+      };
+
       raspi3 = {
         deployment = {
           targetHost = "nixos-rasp3";
