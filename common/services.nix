@@ -14,6 +14,9 @@
     extraOptions = "--registry-mirror=https://mirror.gcr.io";
   };
 
+  virtualisation.libvirtd.enable = true;
+  security.polkit.enable = true;
+
   services.tailscale.enable = true;
 
   networking.firewall.trustedInterfaces = ["tailscale0"];

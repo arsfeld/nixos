@@ -32,6 +32,7 @@
     tmux
     zpaq
     ncdu_2
+    libvirt
   ];
 
   programs.nix-ld.enable = true;
