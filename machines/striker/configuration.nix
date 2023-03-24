@@ -36,6 +36,32 @@
   boot.consoleLogLevel = 0;
   boot.kernelParams = ["quiet" "udev.log_level=3"];
 
+  users.users.gitea_act = {
+    description = "Gitea Act Runner Service";
+    home = "/var/lib/gitea_act";
+    useDefaultShell = true;
+    group = "gitea_act";
+    isSystemUser = true;
+    extraGroups = ["docker"];
+  };
+
+  users.groups.gitea_act = {};
+
+  systemd.services.act_runner = {
+    enable = true;
+    description = "Gitea act runner";
+    serviceConfig = {
+      ExecStart = "${pkgs.gitea-actions-runner}/bin/act_runner daemon";
+    };
+    wantedBy = ["multi-user.target"];
+    serviceConfig = {
+      Type = "simple";
+      User = "gitea_act";
+      Group = "gitea_act";
+      WorkingDirectory = "/var/lib/gitea_act";
+    };
+  };
+
   # Enable the Pantheon Desktop Environment.
   # services.xserver.displayManager.lightdm.enable = true;
   # services.xserver.desktopManager.pantheon.enable = true;
