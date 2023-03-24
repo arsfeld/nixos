@@ -47,7 +47,7 @@
 
   users.groups.gitea_act = {};
 
-  systemd.services.act_runner = {
+  systemd.services.gitea_act = {
     enable = true;
     description = "Gitea act runner";
     serviceConfig = {
