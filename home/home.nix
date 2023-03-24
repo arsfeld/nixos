@@ -114,6 +114,11 @@ in {
     delta.enable = true;
     userEmail = "arsfeld@gmail.com";
     userName = "Alexandre Rosenfeld";
+    extraConfig = {
+      credential = {
+        helper = "store";
+      };
+    };
   };
 
   programs.gitui.enable = true;

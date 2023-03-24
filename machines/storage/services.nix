@@ -100,6 +100,19 @@ in {
     host = "0.0.0.0";
   };
 
+  services.gitea = {
+    enable = true;
+    appName = "My awesome Gitea server"; # Give the site a name
+    domain = "gitea.${domain}";
+    rootUrl = "https://gitea.${domain}/";
+    httpPort = 3001;
+    settings = {
+      actions = {
+        ENABLED = "true";
+      };
+    };
+  };
+
   services.nextdns = {
     enable = true;
     arguments = ["-config" "bbec7d"];

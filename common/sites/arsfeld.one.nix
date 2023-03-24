@@ -42,6 +42,10 @@ in {
       useACMEHost = domain;
       extraConfig = "reverse_proxy storage:9000";
     };
+    "gitea.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = "reverse_proxy storage:3001";
+    };
     "speedtest.${domain}" = {
       useACMEHost = domain;
       extraConfig = "reverse_proxy storage:8765";
