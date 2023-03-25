@@ -11,4 +11,6 @@
 
   # https://devenv.sh/pre-commit-hooks/
   pre-commit.hooks.alejandra.enable = true;
+
+  devcontainer.enable = true;
 }
