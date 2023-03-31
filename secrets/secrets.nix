@@ -7,5 +7,6 @@ let
   systems = [storage micro];
 in {
   "cloudflare.age".publicKeys = users ++ systems;
+  "keycloak-pass.age".publicKeys = users ++ systems;
   "smtp_password.age".publicKeys = users ++ systems;
 }

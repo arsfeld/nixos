@@ -35,6 +35,30 @@ in {
     tlsKeyFile = "/var/lib/acme/arsfeld.one/key.pem";
   };
 
+  age.secrets.keycloak-pass = {
+    file = ../../secrets/keycloak-pass.age;
+  };
+
+  services.keycloak = {
+    enable = true;
+
+    database = {
+      type = "postgresql";
+      createLocally = true;
+
+      username = "keycloak";
+      passwordFile = config.age.secrets.keycloak-pass.path;
+    };
+
+    settings = {
+      hostname = "cloak.rosenfeld.one";
+      #http-relative-path = "/cloak";
+      http-port = 38080;
+      proxy = "passthrough";
+      http-enabled = true;
+    };
+  };
+
   services.home-assistant = {
     enable = false;
     config = {
