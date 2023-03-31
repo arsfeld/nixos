@@ -40,11 +40,7 @@
       blocking = {
         blackLists = {
           ads = [
-            "https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt"
-            "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
-            "http://sysctl.org/cameleon/hosts"
-            "https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt"
-            "https://raw.githubusercontent.com/AdAway/adaway.github.io/master/hosts.txt"
+            "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt"
           ];
         };
         clientGroupsBlock = {
@@ -115,5 +111,6 @@
   networking.firewall.enable = false;
   boot.cleanTmpDir = true;
   zramSwap.enable = true;
+  networking.nameservers = ["1.1.1.1" "9.9.9.9"];
   networking.hostName = "micro";
 }
