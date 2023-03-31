@@ -5,6 +5,7 @@
     ../../common/services.nix
     ./hardware-configuration.nix
     ../../common/sites/arsfeld.one.nix
+    ../../common/sites/rosenfeld.one.nix
   ];
 
   users.users.caddy.extraGroups = ["acme"];
