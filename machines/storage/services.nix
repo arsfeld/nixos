@@ -137,11 +137,6 @@ in {
     };
   };
 
-  services.nextdns = {
-    enable = true;
-    arguments = ["-config" "bbec7d"];
-  };
-
   services.minio = {
     enable = true;
     dataDir = ["${dataDir}/files/minio"];
