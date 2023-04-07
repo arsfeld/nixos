@@ -3,7 +3,6 @@
     ../../common/common.nix
     ../../common/users.nix
     ../../common/services.nix
-    ../../common/blocky.nix
     ./hardware-configuration.nix
     ../../common/sites/arsfeld.one.nix
     ../../common/sites/rosenfeld.one.nix
@@ -41,6 +40,10 @@
       volumes = ["/var/lib/yarr:/data"];
       ports = ["7070:7070"];
     };
+  };
+
+  services.adguardhome = {
+    enable = true;
   };
 
   services.restic.backups = {
