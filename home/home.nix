@@ -105,9 +105,17 @@ in {
         source $HOME/.cargo/env
       fi
     '';
+    profileExtra = ''
+      . /etc/set-environment
+    '';
   };
 
-  programs.bash.enable = true;
+  programs.bash = {
+    enable = true;
+    profileExtra = ''
+      . /etc/set-environment
+    '';
+  };
 
   programs.git = {
     enable = true;
