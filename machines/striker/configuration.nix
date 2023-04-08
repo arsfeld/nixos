@@ -19,6 +19,11 @@
   boot.loader.efi.canTouchEfiVariables = true;
   boot.loader.efi.efiSysMountPoint = "/boot/efi";
 
+  boot = {
+    binfmt.emulatedSystems = ["aarch64-linux"];
+    kernelModules = ["kvm-intel"];
+  };
+
   networking.hostName = "striker";
 
   # Enable networking

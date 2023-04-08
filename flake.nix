@@ -98,7 +98,7 @@
 
       raspi3 = {
         deployment = {
-          targetHost = "nixos-rasp3";
+          targetHost = "raspi3";
           tags = ["local"];
         };
         imports =
