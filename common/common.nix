@@ -44,5 +44,11 @@
   networking.firewall.allowedTCPPorts = [22];
   networking.firewall.checkReversePath = "loose";
 
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 30d";
+  };
+
   system.stateVersion = "22.05";
 }
