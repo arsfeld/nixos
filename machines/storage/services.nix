@@ -142,6 +142,16 @@ in {
     dataDir = ["${dataDir}/files/minio"];
   };
 
+  services.seafile = {
+    enable = false;
+    adminEmail = "arsfeld@gmail.com";
+    initialAdminPassword = "password";
+    seafileSettings = {
+      fileserver.host = "0.0.0.0";
+    };
+    ccnetSettings.General.SERVICE_URL = "https://seafile.${domain}";
+  };
+
   services.restic.server = {
     enable = true;
     appendOnly = true;
@@ -423,21 +433,21 @@ in {
       ];
     };
 
-    syncthing = {
-      image = "ghcr.io/linuxserver/syncthing";
-      environment = {
-        PUID = puid;
-        PGID = pgid;
-        TZ = tz;
-      };
-      ports = ["8384:8384" "22000:22000" "21027:21027/udp"];
-      volumes = [
-        "${configDir}/syncthing:/config"
-        "${dataDir}/files:/data"
-        "${dataDir}/files:/files"
-        "${dataDir}/media:/media"
-      ];
-    };
+    # syncthing = {
+    #   image = "ghcr.io/linuxserver/syncthing";
+    #   environment = {
+    #     PUID = puid;
+    #     PGID = pgid;
+    #     TZ = tz;
+    #   };
+    #   ports = ["8384:8384" "22000:22000" "21027:21027/udp"];
+    #   volumes = [
+    #     "${configDir}/syncthing:/config"
+    #     "${dataDir}/files:/data"
+    #     "${dataDir}/files:/files"
+    #     "${dataDir}/media:/media"
+    #   ];
+    # };
 
     photoprism = {
       image = "photoprism/photoprism:latest";

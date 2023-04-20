@@ -158,6 +158,12 @@ in {
         reverse_proxy storage:4444
       '';
     };
+    "seafile.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = ''
+        reverse_proxy storage:8082
+      '';
+    };
     "filestash.${domain}" = {
       useACMEHost = domain;
       extraConfig = ''
