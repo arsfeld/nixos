@@ -106,14 +106,18 @@ in {
       fi
     '';
     profileExtra = ''
-      . /etc/set-environment
+      if [[ -s /etc/set-environment ]]; then
+        . /etc/set-environment
+      fi
     '';
   };
 
   programs.bash = {
     enable = true;
     profileExtra = ''
-      . /etc/set-environment
+      if [[ -s /etc/set-environment ]]; then
+        . /etc/set-environment
+      fi
     '';
   };
 
@@ -167,7 +171,7 @@ in {
   programs.command-not-found.enable = true;
 
   services.syncthing = {
-    enable = pkgs.stdenv.isLinux;
+    enable = false; #pkgs.stdenv.isLinux;
   };
 
   programs.zsh.shellAliases = {
