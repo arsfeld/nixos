@@ -158,6 +158,12 @@ in {
         reverse_proxy storage:4444
       '';
     };
+    "filestash.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = ''
+        reverse_proxy storage:8334
+      '';
+    };
     "filerun.${domain}" = {
       useACMEHost = domain;
       extraConfig = ''
