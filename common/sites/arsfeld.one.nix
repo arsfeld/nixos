@@ -182,7 +182,7 @@ in {
         rewrite /.well-known/carddav /remote.php/dav
         rewrite /.well-known/caldav /remote.php/dav
 
-        reverse_proxy storage:80
+        reverse_proxy storage:8099
       '';
     };
   };
