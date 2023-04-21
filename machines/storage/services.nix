@@ -187,9 +187,11 @@ in {
   };
 
   services.nextcloud = {
-    enable = false;
+    enable = true;
     datadir = "${dataDir}/files/Nextcloud";
-    hostName = "nextcloud.arsfeld.one";
+    hostName = "localhost";
+    maxUploadSize = "10G";
+    package = pkgs.nextcloud25;
     config = {
       dbtype = "pgsql";
       dbuser = "nextcloud";
@@ -197,11 +199,17 @@ in {
       dbname = "nextcloud";
       adminpassFile = "/etc/secrets/nextcloud";
       adminuser = "root";
-      extraTrustedDomains = ["storage"];
+      extraTrustedDomains = ["nextcloud.arsfeld.one" "storage"];
       trustedProxies = ["100.66.83.36"];
-      overwriteProtocol = "https";
+      #overwriteProtocol = "https";
+    };
+    extraOptions = {
+      mail_smtpmode = "sendmail";
+      mail_sendmailmode = "pipe";
     };
   };
+
+  services.nginx.defaultHTTPListenPort = 8099;
 
   services.jellyfin = {
     enable = true;

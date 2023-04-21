@@ -33,6 +33,8 @@
     zpaq
     ncdu_2
     libvirt
+    ffmpeg
+    exiftool
   ];
 
   programs.nix-ld.enable = true;
