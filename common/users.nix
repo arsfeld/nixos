@@ -3,6 +3,8 @@
   pkgs,
   ...
 }: {
+  programs.zsh.enable = true;
+
   users.users.arosenfeld = {
     isNormalUser = true;
     shell = pkgs.zsh;
