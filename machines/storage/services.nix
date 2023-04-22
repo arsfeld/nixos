@@ -23,10 +23,10 @@ with lib; let
 in {
   services.netdata.enable = true;
 
-  users.users.vault.extraGroups = ["acme" "caddy"];
+  #users.users.vault.extraGroups = ["acme" "caddy"];
 
   services.vault = {
-    enable = true;
+    enable = false;
     storageBackend = "file";
     address = "0.0.0.0:8200";
     extraConfig = "ui = true";
@@ -35,12 +35,40 @@ in {
     tlsKeyFile = "/var/lib/acme/arsfeld.one/key.pem";
   };
 
+  #users.users.kanidm.extraGroups = ["acme"];
+
+  security.acme.certs."idm.${domain}" = {
+    email = email;
+    group = "kanidm";
+  };
+
+  #security.pki.certificates = [(builtins.readFile ../../common/certs/cert.crt)];
+
+  services.kanidm = {
+    enableServer = true;
+    serverSettings = {
+      origin = "https://idm.${domain}";
+      domain = domain;
+      # tls_chain = "/var/lib/acme/idm.${domain}/cert.pem";
+      # tls_key = "/var/lib/acme/idm.${domain}/key.pem";
+      tls_chain = ../../common/certs/cert.crt;
+      tls_key = ../../common/certs/cert.key;
+      bindaddress = "0.0.0.0:8443";
+    };
+    enableClient = true;
+    clientSettings = {
+      uri = "https://idm.${domain}";
+      verify_ca = true;
+      verify_hostnames = true;
+    };
+  };
+
   age.secrets.keycloak-pass = {
     file = ../../secrets/keycloak-pass.age;
   };
 
   services.keycloak = {
-    enable = true;
+    enable = false;
 
     database = {
       type = "postgresql";
