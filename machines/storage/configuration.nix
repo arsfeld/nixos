@@ -78,7 +78,7 @@ with lib; {
   };
 
   services.vector = {
-    enable = true;
+    enable = false;
     journaldAccess = true;
     settings = {
       "sources" = {

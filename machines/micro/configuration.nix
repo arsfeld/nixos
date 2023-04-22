@@ -10,10 +10,6 @@
 
   users.users.caddy.extraGroups = ["acme"];
 
-  security.acme = {
-    acceptTerms = true;
-  };
-
   services.caddy = {
     enable = true;
   };

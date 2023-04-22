@@ -10,20 +10,7 @@ with lib; let
   domain = "arsfeld.one";
   email = "arsfeld@gmail.com";
 in {
-  security.acme.defaults = {
-    dnsResolver = "1.1.1.1:53";
-  };
-
-  age.secrets.cloudflare = {
-    file = ../../secrets/cloudflare.age;
-    owner = "acme";
-    group = "acme";
-  };
-
   security.acme.certs."${domain}" = {
-    email = email;
-    dnsProvider = "cloudflare";
-    credentialsFile = config.age.secrets.cloudflare.path;
     extraDomainNames = ["*.${domain}"];
   };
 
@@ -174,6 +161,16 @@ in {
       useACMEHost = domain;
       extraConfig = ''
         reverse_proxy storage:6000
+      '';
+    };
+    "idm.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = ''
+        reverse_proxy https://storage:8443 {
+          transport http {
+            tls_insecure_skip_verify
+          }
+        }
       '';
     };
     "nextcloud.${domain}" = {
