@@ -9,4 +9,6 @@ in {
   "cloudflare.age".publicKeys = users ++ systems;
   "keycloak-pass.age".publicKeys = users ++ systems;
   "smtp_password.age".publicKeys = users ++ systems;
+  "rclone-idrive.age".publicKeys = users ++ systems;
+  "restic-password.age".publicKeys = systems;
 }
