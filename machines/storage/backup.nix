@@ -20,6 +20,25 @@
     "!**/.cache"
     "!**/.nix-profile"
   ];
+  opts = {
+    package = rustic;
+    extraBackupArgs = [
+      "--one-file-system"
+      "--glob-file=${pkgs.writeText "glob-file" (lib.concatStringsSep "\n" glob)}"
+      "--progress-interval=1s"
+    ];
+    paths = [
+      "/mnt/data/homes"
+      "/var/lib"
+      "/var/data"
+      "/root"
+    ];
+    rcloneConfigFile = config.age.secrets."rclone-idrive".path;
+    passwordFile = config.age.secrets."restic-password".path;
+    timerConfig = {
+      OnCalendar = "weekly";
+    };
+  };
 in
   with lib; {
     age.secrets."rclone-idrive".file = ../../secrets/rclone-idrive.age;
@@ -38,46 +57,16 @@ in
         };
       };
 
-      idrive = {
-        package = rustic;
-        repository = "rclone:idrive:arosenfeld";
-        extraBackupArgs = [
-          "--one-file-system"
-          "--glob-file=${pkgs.writeText "glob-file" (concatStringsSep "\n" glob)}"
-          "--progress-interval=1s"
-        ];
-        paths = [
-          "/mnt/data/homes"
-          "/var/lib"
-          "/var/data"
-          "/root"
-        ];
-        rcloneConfigFile = config.age.secrets."rclone-idrive".path;
-        passwordFile = config.age.secrets."restic-password".path;
-        timerConfig = {
-          OnCalendar = "weekly";
+      idrive =
+        opts
+        // {
+          repository = "rclone:idrive:arosenfeld";
         };
-      };
 
-      local = {
-        package = rustic;
-        repository = "/mnt/backup/restic";
-        initialize = true;
-        extraBackupArgs = [
-          "--one-file-system"
-          "--glob-file=${pkgs.writeText "glob-file" (concatStringsSep "\n" glob)}"
-          "--progress-interval=1s"
-        ];
-        paths = [
-          "/mnt/data/homes"
-          "/var/lib"
-          "/var/data"
-          "/root"
-        ];
-        passwordFile = config.age.secrets."restic-password".path;
-        timerConfig = {
-          OnCalendar = "daily";
+      local =
+        opts
+        // {
+          repository = "/mnt/backup/restic";
         };
-      };
     };
   }
