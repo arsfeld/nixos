@@ -5,7 +5,7 @@
   ...
 }:
 with lib; let
-  email = "arsfeld@gmail.com";
+  email = "admin@arsfeld.one";
 
   sendEmailEvent = {event}: ''
     printf "Subject: $(${pkgs.nettools}/bin/hostname) ${event} ''$(${pkgs.coreutils}/bin/date --iso-8601=seconds)\n\nzpool status:\n\n''$(${pkgs.zfs}/bin/zpool status)" | ${pkgs.msmtp}/bin/msmtp -a default ${email}
@@ -31,7 +31,7 @@ in {
         auth = true;
         tls = true;
         from = email;
-        host = "smtp.gmail.com";
+        host = "wednesday.mxrouting.net";
         port = 587;
         user = email;
         passwordeval = "cat ${config.age.secrets.smtp_password.path}";
