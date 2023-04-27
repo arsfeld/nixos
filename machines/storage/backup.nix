@@ -4,13 +4,17 @@
   lib,
   ...
 }: let
-  rustic = pkgs.writeShellScriptBin "restic" ''
-    for v in `printenv | grep RESTIC_`
-    do
-        export RUSTIC_''${v#"RESTIC_"}
-    done
-    exec ${pkgs.rustic-rs}/bin/rustic "$@"
-  '';
+  rustic = pkgs.writeShellApplication {
+    name = "restic";
+    runtimeInputs = [pkgs.rclone];
+    text = ''
+      for v in $(printenv | grep RESTIC_)
+      do
+          export "RUSTIC_''${v#RESTIC_}"
+      done
+      exec ${pkgs.rustic-rs}/bin/rustic "$@"
+    '';
+  };
   glob = [
     # very large paths
     "!/var/lib/docker"
