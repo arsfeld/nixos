@@ -6,9 +6,10 @@
 }:
 with lib; let
   email = "admin@arsfeld.one";
+  toEmail = "arsfeld@gmail.com";
 
   sendEmailEvent = {event}: ''
-    printf "Subject: $(${pkgs.nettools}/bin/hostname) ${event} ''$(${pkgs.coreutils}/bin/date --iso-8601=seconds)\n\nzpool status:\n\n''$(${pkgs.zfs}/bin/zpool status)" | ${pkgs.msmtp}/bin/msmtp -a default ${email}
+    printf "Subject: [$(${pkgs.nettools}/bin/hostname)] ${event} ''$(${pkgs.coreutils}/bin/date --iso-8601=seconds)\n\nzpool status:\n\n''$(${pkgs.zfs}/bin/zpool status)" | ${pkgs.msmtp}/bin/msmtp -a default ${toEmail}
   '';
 in {
   nixpkgs.config.packageOverrides = pkgs: {
