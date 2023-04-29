@@ -127,7 +127,7 @@ in {
     };
     "hass.${domain}" = {
       useACMEHost = domain;
-      extraConfig = "reverse_proxy dietpi:8123";
+      extraConfig = "reverse_proxy raspi3:8123";
     };
     "grafana.${domain}" = {
       useACMEHost = domain;
