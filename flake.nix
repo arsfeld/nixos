@@ -96,6 +96,20 @@
           ++ homeFeatures;
       };
 
+      pegasus = {
+        deployment = {
+          targetHost = "pegasus";
+          tags = ["local"];
+        };
+        imports =
+          [
+            vscode-server.nixosModule
+            agenix.nixosModules.default
+            ./machines/pegasus/configuration.nix
+          ]
+          ++ homeFeatures;
+      };
+
       raspi3 = {
         deployment = {
           targetHost = "raspi3";
