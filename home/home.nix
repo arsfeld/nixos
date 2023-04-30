@@ -171,7 +171,7 @@ in {
   programs.command-not-found.enable = true;
 
   services.syncthing = {
-    enable = false; #pkgs.stdenv.isLinux;
+    enable = pkgs.stdenv.isLinux;
   };
 
   programs.zsh.shellAliases = {
