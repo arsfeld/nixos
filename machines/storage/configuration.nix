@@ -14,6 +14,7 @@ with lib; {
     ./hardware-configuration.nix
     ../../common/common.nix
     ../../common/services.nix
+    ../../common/acme.nix
     ../../common/users.nix
     ../../common/mail.nix
     ../../common/sites/arsfeld.one.nix

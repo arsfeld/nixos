@@ -104,7 +104,6 @@
         imports =
           [
             vscode-server.nixosModule
-            agenix.nixosModules.default
             ./machines/pegasus/configuration.nix
           ]
           ++ homeFeatures;
