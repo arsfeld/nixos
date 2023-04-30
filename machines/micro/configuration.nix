@@ -3,6 +3,7 @@
     ../../common/common.nix
     ../../common/users.nix
     ../../common/services.nix
+    ../../common/acme.nix
     ./hardware-configuration.nix
     ../../common/sites/arsfeld.one.nix
     ../../common/sites/rosenfeld.one.nix
