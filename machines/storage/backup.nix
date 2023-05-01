@@ -41,6 +41,7 @@
     passwordFile = config.age.secrets."restic-password".path;
     timerConfig = {
       OnCalendar = "weekly";
+      RandomizedDelaySec = "5h";
     };
   };
 in
@@ -58,6 +59,7 @@ in
         passwordFile = "/etc/secrets/restic";
         timerConfig = {
           OnCalendar = "daily";
+          RandomizedDelaySec = "5h";
         };
       };
 
