@@ -28,7 +28,7 @@
       environment.BORG_RSH = "ssh -i /root/borgbackup/ssh_key";
       extraCreateArgs = "--progress --verbose --stats";
       compression = "auto,zstd";
-      startAt = "daily";
+      startAt = "*-*-* 04:30:00";
     };
   };
 }
