@@ -55,6 +55,10 @@ in {
         reverse_proxy storage:7878
       '';
     };
+    "lidarr.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = "reverse_proxy storage:8686";
+    };
     "jackett.${domain}" = {
       useACMEHost = domain;
       extraConfig = ''
