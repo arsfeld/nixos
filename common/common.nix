@@ -1,6 +1,7 @@
 {
   config,
   pkgs,
+  lib,
   ...
 }: {
   nix = {
@@ -52,5 +53,5 @@
     options = "--delete-older-than 30d";
   };
 
-  system.stateVersion = "22.05";
+  system.stateVersion = lib.mkDefault "22.05";
 }
