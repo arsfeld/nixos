@@ -7,15 +7,7 @@
   ...
 }:
 with lib; let
-  configDir = "/var/data";
-  dataDir = "/mnt/data";
-  puid = "5000";
-  pgid = "5000";
-  user = "media";
-  group = "media";
-  tz = "America/Toronto";
-  email = "arsfeld@gmail.com";
-  domain = "arsfeld.one";
+  vars = config.vars;
   ports = {
     qbittorrent = "8080";
     immich = "15777";
@@ -37,8 +29,8 @@ in {
 
   #users.users.kanidm.extraGroups = ["acme"];
 
-  security.acme.certs."idm.${domain}" = {
-    email = email;
+  security.acme.certs."idm.${vars.domain}" = {
+    email = vars.email;
     group = "kanidm";
   };
 
@@ -47,17 +39,17 @@ in {
   services.kanidm = {
     enableServer = true;
     serverSettings = {
-      origin = "https://idm.${domain}";
-      domain = domain;
-      # tls_chain = "/var/lib/acme/idm.${domain}/cert.pem";
-      # tls_key = "/var/lib/acme/idm.${domain}/key.pem";
+      origin = "https://idm.${vars.domain}";
+      domain = vars.domain;
+      # tls_chain = "/var/lib/acme/idm.${vars.domain}/cert.pem";
+      # tls_key = "/var/lib/acme/idm.${vars.domain}/key.pem";
       tls_chain = ../../common/certs/cert.crt;
       tls_key = ../../common/certs/cert.key;
       bindaddress = "0.0.0.0:8443";
     };
     enableClient = true;
     clientSettings = {
-      uri = "https://idm.${domain}";
+      uri = "https://idm.${vars.domain}";
       verify_ca = true;
       verify_hostnames = true;
     };
@@ -99,53 +91,6 @@ in {
     };
   };
 
-  services.grafana = {
-    enable = true;
-    domain = "grafana.${domain}";
-    port = 2345;
-    addr = "0.0.0.0";
-  };
-
-  services.prometheus = {
-    enable = true;
-    port = 8001;
-
-    exporters = {
-      node = {
-        enable = true;
-        enabledCollectors = ["systemd"];
-        port = 8002;
-      };
-    };
-
-    scrapeConfigs = [
-      {
-        job_name = "storage";
-        static_configs = [
-          {
-            targets = ["127.0.0.1:${toString config.services.prometheus.exporters.node.port}"];
-          }
-        ];
-      }
-    ];
-  };
-
-  services.loki = {
-    enable = true;
-    configFile = ./files/loki-local-config.yaml;
-  };
-
-  systemd.services.promtail = {
-    description = "Promtail service for Loki";
-    wantedBy = ["multi-user.target"];
-
-    serviceConfig = {
-      ExecStart = ''
-        ${pkgs.grafana-loki}/bin/promtail --config.file ${./files/promtail.yaml}
-      '';
-    };
-  };
-
   services.code-server = {
     enable = true;
     user = "arosenfeld";
@@ -155,8 +100,8 @@ in {
   services.gitea = {
     enable = true;
     appName = "My awesome Gitea server"; # Give the site a name
-    domain = "gitea.${domain}";
-    rootUrl = "https://gitea.${domain}/";
+    domain = "gitea.${vars.domain}";
+    rootUrl = "https://gitea.${vars.domain}/";
     httpPort = 3001;
     settings = {
       actions = {
@@ -167,23 +112,17 @@ in {
 
   services.minio = {
     enable = true;
-    dataDir = ["${dataDir}/files/minio"];
+    dataDir = ["${vars.dataDir}/files/minio"];
   };
 
   services.seafile = {
     enable = false;
-    adminEmail = "arsfeld@gmail.com";
+    adminEmail = vars.email;
     initialAdminPassword = "password";
     seafileSettings = {
       fileserver.host = "0.0.0.0";
     };
-    ccnetSettings.General.SERVICE_URL = "https://seafile.${domain}";
-  };
-
-  services.restic.server = {
-    enable = true;
-    appendOnly = true;
-    extraFlags = ["--no-auth"];
+    ccnetSettings.General.SERVICE_URL = "https://seafile.${vars.domain}";
   };
 
   users.users.caddy.extraGroups = ["acme"];
@@ -216,7 +155,7 @@ in {
 
   services.nextcloud = {
     enable = true;
-    datadir = "${dataDir}/files/Nextcloud";
+    datadir = "${vars.dataDir}/files/Nextcloud";
     hostName = "localhost";
     maxUploadSize = "10G";
     package = pkgs.nextcloud26;
@@ -241,8 +180,8 @@ in {
 
   services.jellyfin = {
     enable = true;
-    user = user;
-    group = group;
+    user = vars.user;
+    group = vars.group;
   };
 
   services.postgresql = {
@@ -285,14 +224,14 @@ in {
 
   services.bazarr = {
     enable = true;
-    user = user;
-    group = group;
+    user = vars.user;
+    group = vars.group;
   };
 
   services.lidarr = {
     enable = true;
-    user = user;
-    group = group;
+    user = vars.user;
+    group = vars.group;
   };
 
   services.borgbackup.repos.micro = {
@@ -318,9 +257,9 @@ in {
     immich = {
       image = "ghcr.io/imagegenius/immich:latest";
       environment = {
-        PUID = puid;
-        PGID = pgid;
-        TZ = tz;
+        PUID = vars.puid;
+        PGID = vars.pgid;
+        TZ = vars.tz;
 
         DB_HOSTNAME = "host.docker.internal";
         DB_USERNAME = "immich";
@@ -333,11 +272,11 @@ in {
       };
       ports = ["${ports.immich}:8080/tcp"];
       environmentFiles = [
-        "${configDir}/plex/env"
+        "${vars.configDir}/plex/env"
       ];
       volumes = [
-        "${configDir}/immich:/config"
-        "${dataDir}/files/Photos:/photos"
+        "${vars.configDir}/immich:/config"
+        "${vars.dataDir}/files/Photos:/photos"
       ];
       extraOptions = ["--add-host" "host.docker.internal:host-gateway"];
     };
@@ -345,17 +284,17 @@ in {
     plex = {
       image = "lscr.io/linuxserver/plex";
       environment = {
-        PUID = puid;
-        PGID = pgid;
-        TZ = tz;
+        PUID = vars.puid;
+        PGID = vars.pgid;
+        TZ = vars.tz;
         VERSION = "latest";
       };
       environmentFiles = [
-        "${configDir}/plex/env"
+        "${vars.configDir}/plex/env"
       ];
       volumes = [
-        "${configDir}/plex:/config"
-        "${dataDir}/media:/data"
+        "${vars.configDir}/plex:/config"
+        "${vars.dataDir}/media:/data"
       ];
       extraOptions = [
         "--device"
@@ -367,7 +306,7 @@ in {
     jf-vue = {
       image = "jellyfin/jellyfin-vue:unstable";
       environment = {
-        DEFAULT_SERVERS = "https://jellyfin.${domain}";
+        DEFAULT_SERVERS = "https://jellyfin.${vars.domain}";
       };
       ports = ["3831:80"];
     };
@@ -383,7 +322,7 @@ in {
     #   ports = ["8080:8080"];
     #   volumes = [
     #     "/dev/net/tun:/dev/net/tun"
-    #     "${configDir}/gluetun:/gluetun"
+    #     "${vars.configDir}/gluetun:/gluetun"
     #   ];
     #   extraOptions = [
     #     "--cap-add"
@@ -398,15 +337,15 @@ in {
     # qbittorrent = {
     #   image = "lscr.io/linuxserver/qbittorrent:latest";
     #   environment = {
-    #     PUID = puid;
-    #     PGID = pgid;
-    #     TZ = tz;
+    #     PUID = vars.puid;
+    #     PGID = vars.pgid;
+    #     TZ = vars.tz;
     #     WEBUI_PORT = "8080";
     #   };
     #   volumes = [
-    #     "${configDir}/qbittorrent:/config"
-    #     "${dataDir}/media:/media"
-    #     "${dataDir}/files:/files"
+    #     "${vars.configDir}/qbittorrent:/config"
+    #     "${vars.dataDir}/media:/media"
+    #     "${vars.dataDir}/files:/files"
     #   ];
     #   extraOptions = [
     #     "--network"
@@ -417,9 +356,9 @@ in {
     qflood = {
       image = "cr.hotio.dev/hotio/qflood";
       environment = {
-        PUID = puid;
-        PGID = pgid;
-        TZ = tz;
+        PUID = vars.puid;
+        PGID = vars.pgid;
+        TZ = vars.tz;
         FLOOD_AUTH = "false";
         VPN_LAN_NETWORK = "192.168.31.0/24,100.64.0.0/10";
         VPN_ENABLED = "true";
@@ -427,9 +366,9 @@ in {
       };
       ports = ["8080:8080/tcp" "3000:3000"];
       volumes = [
-        "${configDir}/qflood:/config"
-        "${dataDir}/media:/media"
-        "${dataDir}/files:/files"
+        "${vars.configDir}/qflood:/config"
+        "${vars.dataDir}/media:/media"
+        "${vars.dataDir}/files:/files"
       ];
       extraOptions = [
         "--cap-add"
@@ -457,8 +396,8 @@ in {
         COLLECTOR_CRON_SCHEDULE = "0 0 * * 7";
       };
       volumes = [
-        "${configDir}/scrutiny/config:/opt/scrutiny/config"
-        "${configDir}/scrutiny/influxdb:/opt/scrutiny/influxdb"
+        "${vars.configDir}/scrutiny/config:/opt/scrutiny/config"
+        "${vars.configDir}/scrutiny/influxdb:/opt/scrutiny/influxdb"
         "/run/udev:/run/udev:ro"
       ];
       extraOptions = [
@@ -478,16 +417,16 @@ in {
     # syncthing = {
     #   image = "ghcr.io/linuxserver/syncthing";
     #   environment = {
-    #     PUID = puid;
-    #     PGID = pgid;
-    #     TZ = tz;
+    #     PUID = vars.puid;
+    #     PGID = vars.pgid;
+    #     TZ = vars.tz;
     #   };
     #   ports = ["8384:8384" "22000:22000" "21027:21027/udp"];
     #   volumes = [
-    #     "${configDir}/syncthing:/config"
-    #     "${dataDir}/files:/data"
-    #     "${dataDir}/files:/files"
-    #     "${dataDir}/media:/media"
+    #     "${vars.configDir}/syncthing:/config"
+    #     "${vars.dataDir}/files:/data"
+    #     "${vars.dataDir}/files:/files"
+    #     "${vars.dataDir}/media:/media"
     #   ];
     # };
 
@@ -500,7 +439,7 @@ in {
         PHOTOPRISM_ADMIN_PASSWORD = "password";
       };
       volumes = [
-        "${configDir}/photoprism:/photoprism/storage"
+        "${vars.configDir}/photoprism:/photoprism/storage"
         "/home/arosenfeld/Pictures:/photoprism/originals"
       ];
       extraOptions = [
@@ -515,8 +454,8 @@ in {
       image = "stashapp/stash:latest";
       ports = ["9999:9999"];
       volumes = [
-        "${configDir}/stash:/root/.stash"
-        "${dataDir}/media:/data"
+        "${vars.configDir}/stash:/root/.stash"
+        "${vars.dataDir}/media:/data"
       ];
     };
 
@@ -524,128 +463,128 @@ in {
       image = "machines/filestash";
       ports = ["8334:8334"];
       volumes = [
-        "${configDir}/filestash:/app/data/state"
-        "${dataDir}/media:/mnt/data/media"
-        "${dataDir}/files:/mnt/data/files"
+        "${vars.configDir}/filestash:/app/data/state"
+        "${vars.dataDir}/media:/mnt/data/media"
+        "${vars.dataDir}/files:/mnt/data/files"
       ];
     };
 
     nzbget = {
       image = "ghcr.io/linuxserver/nzbget";
       environment = {
-        PUID = puid;
-        PGID = pgid;
-        TZ = tz;
+        PUID = vars.puid;
+        PGID = vars.pgid;
+        TZ = vars.tz;
       };
       ports = ["6789:6789"];
       volumes = [
-        "${configDir}/nzbget:/config"
-        "${dataDir}/files:/files"
-        "${dataDir}/media:/media"
+        "${vars.configDir}/nzbget:/config"
+        "${vars.dataDir}/files:/files"
+        "${vars.dataDir}/media:/media"
       ];
     };
 
     sabnzbd = {
       image = "ghcr.io/linuxserver/sabnzbd";
       environment = {
-        PUID = puid;
-        PGID = pgid;
-        TZ = tz;
+        PUID = vars.puid;
+        PGID = vars.pgid;
+        TZ = vars.tz;
       };
       ports = ["8880:8080"];
       volumes = [
-        "${configDir}/sabnzbd:/config"
-        "${dataDir}/files:/files"
-        "${dataDir}/media:/media"
+        "${vars.configDir}/sabnzbd:/config"
+        "${vars.dataDir}/files:/files"
+        "${vars.dataDir}/media:/media"
       ];
     };
 
     nzbhydra2 = {
       image = "ghcr.io/linuxserver/nzbhydra2";
       environment = {
-        PUID = puid;
-        PGID = pgid;
-        TZ = tz;
+        PUID = vars.puid;
+        PGID = vars.pgid;
+        TZ = vars.tz;
       };
       ports = ["5076:5076"];
       volumes = [
-        "${configDir}/nzbhydra2:/config"
-        "${dataDir}/files:/files"
-        "${dataDir}/media:/media"
+        "${vars.configDir}/nzbhydra2:/config"
+        "${vars.dataDir}/files:/files"
+        "${vars.dataDir}/media:/media"
       ];
     };
 
     jackett = {
       image = "ghcr.io/linuxserver/jackett";
       environment = {
-        PUID = puid;
-        PGID = pgid;
-        TZ = tz;
+        PUID = vars.puid;
+        PGID = vars.pgid;
+        TZ = vars.tz;
       };
       ports = ["9117:9117"];
       volumes = [
-        "${configDir}/jackett:/config"
-        "${dataDir}/files:/files"
-        "${dataDir}/media:/media"
+        "${vars.configDir}/jackett:/config"
+        "${vars.dataDir}/files:/files"
+        "${vars.dataDir}/media:/media"
       ];
     };
 
     sonarr = {
       image = "ghcr.io/linuxserver/sonarr";
       environment = {
-        PUID = puid;
-        PGID = pgid;
-        TZ = tz;
+        PUID = vars.puid;
+        PGID = vars.pgid;
+        TZ = vars.tz;
       };
       ports = ["8989:8989"];
       volumes = [
-        "${configDir}/sonarr:/config"
-        "${dataDir}/files:/files"
-        "${dataDir}/media:/media"
+        "${vars.configDir}/sonarr:/config"
+        "${vars.dataDir}/files:/files"
+        "${vars.dataDir}/media:/media"
       ];
     };
 
     radarr = {
       image = "ghcr.io/linuxserver/radarr";
       environment = {
-        PUID = puid;
-        PGID = pgid;
-        TZ = tz;
+        PUID = vars.puid;
+        PGID = vars.pgid;
+        TZ = vars.tz;
       };
       ports = ["7878:7878"];
       volumes = [
-        "${configDir}/radarr:/config"
-        "${dataDir}/files:/files"
-        "${dataDir}/media:/media"
+        "${vars.configDir}/radarr:/config"
+        "${vars.dataDir}/files:/files"
+        "${vars.dataDir}/media:/media"
       ];
     };
 
     whisparr = {
       image = "cr.hotio.dev/hotio/whisparr";
       environment = {
-        PUID = puid;
-        PGID = pgid;
-        TZ = tz;
+        PUID = vars.puid;
+        PGID = vars.pgid;
+        TZ = vars.tz;
       };
       ports = ["6969:6969"];
       volumes = [
-        "${configDir}/whisparr:/config"
-        "${dataDir}/media:/media"
+        "${vars.configDir}/whisparr:/config"
+        "${vars.dataDir}/media:/media"
       ];
     };
 
     prowlarr = {
       image = "ghcr.io/linuxserver/prowlarr:develop";
       environment = {
-        PUID = puid;
-        PGID = pgid;
-        TZ = tz;
+        PUID = vars.puid;
+        PGID = vars.pgid;
+        TZ = vars.tz;
       };
       ports = ["9696:9696"];
       volumes = [
-        "${configDir}/prowlarr:/config"
-        "${dataDir}/files:/files"
-        "${dataDir}/media:/media"
+        "${vars.configDir}/prowlarr:/config"
+        "${vars.dataDir}/files:/files"
+        "${vars.dataDir}/media:/media"
       ];
     };
 
@@ -671,8 +610,8 @@ in {
       };
       ports = ["6000:80"];
       volumes = [
-        "${configDir}/filerun:/var/www/html"
-        "${dataDir}/files/Filerun:/user-files"
+        "${vars.configDir}/filerun:/var/www/html"
+        "${vars.dataDir}/files/Filerun:/user-files"
       ];
       extraOptions = [
         "--add-host"
