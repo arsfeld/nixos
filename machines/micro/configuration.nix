@@ -1,4 +1,4 @@
-{...}: {
+{config, ...}: {
   imports = [
     ../../common/common.nix
     ../../common/users.nix
@@ -43,34 +43,31 @@
     enable = true;
   };
 
+  age.secrets."restic-password".file = ../../secrets/restic-password.age;
+  age.secrets."restic-password".mode = "444";
+
   services.restic.backups = {
     micro = {
-      paths = ["/var/lib"];
-      repository = "rest:http://storage:8000/micro-backup";
-      passwordFile = "/etc/secrets/restic";
+      paths = [
+        "/var/lib"
+        "/root"
+      ];
+      exclude = [
+        # very large paths
+        "/var/lib/docker"
+        "/var/lib/systemd"
+        "/var/lib/libvirt"
+
+        "'**/.cache'"
+        "'**/.nix-profile'"
+      ];
+      passwordFile = config.age.secrets."restic-password".path;
+      repository = "rest:http://storage:8000/micro";
+      initialize = true;
       timerConfig = {
         OnCalendar = "daily";
       };
     };
-  };
-
-  services.borgbackup.jobs.micro = {
-    paths = [
-      "/var/lib"
-      "/root"
-    ];
-    exclude = [
-      # very large paths
-      "/var/lib/docker"
-      "/var/lib/systemd"
-      "/var/lib/libvirt"
-
-      "'**/.cache'"
-      "'**/.nix-profile'"
-    ];
-    encryption.mode = "none";
-    compression = "auto,zstd";
-    repo = "borg@storage:micro";
   };
 
   networking.firewall.enable = false;
