@@ -11,6 +11,7 @@ args @ {
 }:
 with lib; {
   imports = [
+    ./variables.nix
     ./hardware-configuration.nix
     ../../common/common.nix
     ../../common/services.nix
@@ -25,6 +26,8 @@ with lib; {
     ./backup.nix
     ./backup-kopia.nix
     ./services.nix
+    ./services/backup.nix
+    ./services/metrics.nix
     (
       import ../../common/backup.nix (
         args
