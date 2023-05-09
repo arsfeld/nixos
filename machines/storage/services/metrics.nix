@@ -2,8 +2,6 @@
   lib,
   config,
   pkgs,
-  nixpkgs,
-  modulesPath,
   ...
 }: {
   services.grafana = {

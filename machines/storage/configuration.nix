@@ -28,6 +28,7 @@ with lib; {
     ./services.nix
     ./services/backup.nix
     ./services/metrics.nix
+    ./services/media.nix
     (
       import ../../common/backup.nix (
         args
