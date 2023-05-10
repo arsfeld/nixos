@@ -54,6 +54,13 @@
     };
   };
 
+  systemd.timers.podman-auto-update = {
+    description = "Podman auto-update timer";
+    partOf = ["podman-auto-update.service"];
+    wantedBy = ["timers.target"];
+    timerConfig.OnCalendar = "weekly";
+  };
+
   services.home-assistant = {
     enable = false;
     config = {
