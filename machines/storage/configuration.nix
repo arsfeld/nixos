@@ -51,6 +51,9 @@ with lib; {
     #supportedFilesystems = ["zfs"];
   };
 
+  systemd.email-notify.mailFrom = "admin@arsfeld.one";
+  systemd.email-notify.mailTo = "arsfeld@gmail.com";
+
   services.zfs.autoScrub.enable = true;
   services.zfs.autoScrub.interval = "monthly";
   services.smartd.enable = true;

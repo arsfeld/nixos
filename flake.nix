@@ -77,6 +77,7 @@
           [
             vscode-server.nixosModule
             agenix.nixosModules.default
+            ./common/modules/systemd-email-notify.nix
             ./machines/storage/configuration.nix
           ]
           ++ homeFeatures;
