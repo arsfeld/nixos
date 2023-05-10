@@ -21,20 +21,14 @@
 
   boot = {
     binfmt.emulatedSystems = ["aarch64-linux"];
-    kernelModules = ["kvm-intel"];
+    kernelModules = ["kvm-intel" "amdgpu"];
   };
 
   networking.hostName = "striker";
 
   # Enable networking
-  # networking.networkmanager.enable = true;
-  networking.useNetworkd = true;
-
-  # Select internationalisation properties.
-  i18n.defaultLocale = "en_CA.utf8";
-
-  # Enable the X11 windowing system.
-  #services.xserver.enable = true;
+  networking.networkmanager.enable = true;
+  # networking.useNetworkd = true;
 
   boot.plymouth.enable = true;
   boot.initrd.verbose = false;
@@ -79,30 +73,64 @@
   #   pkgs.wingpanel-indicator-ayatana
   # ];
 
-  # services.flatpak.enable = true;
+  services.flatpak.enable = true;
 
-  # # Configure keymap in X11
-  # services.xserver = {
-  #   layout = "us";
-  #   xkbVariant = "alt-intl";
-  # };
+  programs.steam.enable = true;
+  hardware.steam-hardware.enable = true;
 
-  # # Configure console keymap
-  # console.keyMap = "dvorak";
+  # Vulkan
+  hardware.opengl.driSupport = true;
+  hardware.opengl.driSupport32Bit = true;
 
-  # # Enable CUPS to print documents.
-  # services.printing.enable = true;
+  #services.xserver.videoDrivers = ["amd"];
+  services.xserver.videoDrivers = ["amdgpu"];
+  hardware.opengl = {
+    enable = true;
+    extraPackages = with pkgs; [
+      vaapiVdpau
+      libvdpau-va-gl
+      rocm-opencl-icd
+      rocm-opencl-runtime
+      amdvlk
+    ];
+  };
+
+  hardware.opengl.extraPackages32 = with pkgs; [
+    driversi686Linux.amdvlk
+  ];
+
+  services.netdata = {
+    enable = true;
+  };
+
+  services.avahi.enable = true;
+  services.avahi.nssmdns = true;
+
+  time.timeZone = "America/Toronto";
+  i18n.defaultLocale = "en_CA.utf8";
+
+  services.xserver.enable = true;
+
+  services.xserver.displayManager.gdm.enable = true;
+  services.xserver.desktopManager.gnome.enable = true;
+
+  services.xserver.displayManager.gdm.autoSuspend = false;
+
+  services.gnome.gnome-keyring.enable = true;
+  programs.seahorse.enable = true;
+
+  programs.gamemode.enable = true;
 
   # Enable sound with pipewire.
-  # sound.enable = true;
-  # hardware.pulseaudio.enable = false;
-  # security.rtkit.enable = true;
-  # services.pipewire = {
-  #   enable = true;
-  #   alsa.enable = true;
-  #   alsa.support32Bit = true;
-  #   pulse.enable = true;
-  # };
+  sound.enable = true;
+  hardware.pulseaudio.enable = false;
+  security.rtkit.enable = true;
+  services.pipewire = {
+    enable = true;
+    alsa.enable = true;
+    alsa.support32Bit = true;
+    pulse.enable = true;
+  };
 
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.arosenfeld = {
@@ -120,11 +148,20 @@
   environment.systemPackages = with pkgs; [
     #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
     #  wget
+    vscode
+    gnomeExtensions.appindicator
+    gnomeExtensions.random-wallpaper
+    gnomeExtensions.zfs-status-monitor
+    gnomeExtensions.wireless-hid
+    gnomeExtensions.tailscale-status
+    gnomeExtensions.dash2dock-lite
   ];
 
-  # fonts.fonts = with pkgs; [
-  #   (nerdfonts.override {fonts = ["FiraCode" "CascadiaCode"];})
-  # ];
+  services.udev.packages = with pkgs; [gnome.gnome-settings-daemon];
+
+  fonts.fonts = with pkgs; [
+    (nerdfonts.override {fonts = ["FiraCode" "CascadiaCode"];})
+  ];
 
   networking.firewall.enable = false;
 
