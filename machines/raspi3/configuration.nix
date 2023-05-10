@@ -16,6 +16,8 @@
   # Use the extlinux boot loader. (NixOS wants to enable GRUB by default)
   boot.loader.grub.enable = false;
 
+  services.netdata.enable = true;
+
   boot.loader.raspberryPi = {
     enable = true;
     version = 3;

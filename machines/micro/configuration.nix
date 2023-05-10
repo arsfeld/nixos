@@ -11,6 +11,8 @@
 
   users.users.caddy.extraGroups = ["acme"];
 
+  services.netdata.enable = true;
+
   services.caddy = {
     enable = true;
   };
