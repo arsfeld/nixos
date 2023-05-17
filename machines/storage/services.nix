@@ -225,9 +225,8 @@ in {
     };
 
     speedtest = {
-      image = "henrywhitaker3/speedtest-tracker";
-      volumes = ["speedtest:/config"];
-      environment.OOKLA_EULA_GDPR = "true";
+      image = "ghcr.io/alexjustesen/speedtest-tracker:latest";
+      volumes = ["${vars.configDir}/speedtest:/config"];
       ports = ["8765:80"];
     };
 
