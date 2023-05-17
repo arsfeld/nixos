@@ -46,6 +46,7 @@ in {
       dogdns
       tldr
       nvidia-offload
+      nil
       (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
       (writeScriptBin "running" (builtins.readFile ./scripts/running))
     ];
