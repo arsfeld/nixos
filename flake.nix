@@ -25,7 +25,9 @@
     nixos-generators,
     vscode-server,
     ...
-  }: {
+  }: let
+    inherit (self) outputs;
+  in {
     colmena = let
       homeFeatures = [
         home-manager.nixosModules.home-manager
@@ -40,6 +42,7 @@
         nixpkgs = import nixpkgs {
           system = "x86_64-linux";
         };
+        specialArgs = {inherit inputs outputs;};
       };
 
       micro = {
