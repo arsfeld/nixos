@@ -21,8 +21,8 @@ with lib; let
       "sync-${provider}" = {
         wantedBy = ["timers.target"];
         partOf = ["sync-${provider}.service"];
-        timerConfig.OnCalendar = "daily";
-        timerConfig.RandomizedDelaySec = "30m";
+        timerConfig.OnCalendar = "weekly";
+        timerConfig.RandomizedDelaySec = "120m";
       };
     })
     providers));
