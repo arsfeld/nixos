@@ -1,11 +1,4 @@
-{
-  lib,
-  config,
-  pkgs,
-  nixpkgs,
-  modulesPath,
-  ...
-}: {
+{...}: {
   services.restic.server = {
     enable = true;
     appendOnly = true;

@@ -2,11 +2,8 @@
   lib,
   config,
   pkgs,
-  nixpkgs,
-  modulesPath,
   ...
-}:
-with lib; let
+}: let
   vars = config.vars;
   ports = {
     qbittorrent = "8080";
@@ -14,8 +11,6 @@ with lib; let
   };
 in {
   services.netdata.enable = true;
-
-  #users.users.vault.extraGroups = ["acme" "caddy"];
 
   services.vault = {
     enable = false;
