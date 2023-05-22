@@ -1,9 +1,6 @@
 {
   lib,
-  config,
   pkgs,
-  nixpkgs,
-  modulesPath,
   ...
 }:
 with lib; let

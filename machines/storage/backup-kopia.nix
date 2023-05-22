@@ -1,11 +1,4 @@
-{
-  lib,
-  config,
-  pkgs,
-  nixpkgs,
-  modulesPath,
-  ...
-}: let
+{pkgs, ...}: let
   backupDir = "/mnt/data/homes";
   credentialsFile = "/etc/secrets/kopia";
 in {

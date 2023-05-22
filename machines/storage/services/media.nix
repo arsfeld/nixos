@@ -1,9 +1,4 @@
-{
-  lib,
-  config,
-  pkgs,
-  ...
-}: let
+{config, ...}: let
   vars = config.vars;
 in {
   services.bazarr = {

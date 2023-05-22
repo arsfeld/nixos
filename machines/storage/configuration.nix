@@ -3,10 +3,7 @@
 # and in the NixOS manual (accessible by running ‘nixos-help’).
 args @ {
   lib,
-  config,
   pkgs,
-  nixpkgs,
-  modulesPath,
   ...
 }:
 with lib; {
@@ -38,7 +35,6 @@ with lib; {
   ];
 
   networking.hostName = "storage";
-  # networking.hostId = "86f58bee";
   networking.firewall.enable = false;
 
   virtualisation.docker.storageDriver = "zfs";
@@ -56,20 +52,27 @@ with lib; {
 
   services.zfs.autoScrub.enable = true;
   services.zfs.autoScrub.interval = "monthly";
-  services.smartd.enable = true;
-  services.smartd.notifications.mail.enable = true;
-  services.smartd.notifications.test = true;
+  services.smartd = {
+    enable = true;
+    notifications.mail.enable = true;
+    notifications.test = true;
+  };
+
   services.sshguard.enable = true;
 
-  services.printing.enable = true;
-  services.printing.drivers = [pkgs.samsung-unified-linux-driver];
-  services.printing.browsing = true;
-  services.printing.allowFrom = ["all"]; # this gives access to anyone on the interface you might want to limit it see the official documentation
-  services.printing.defaultShared = true; # If you want
+  services.printing = {
+    enable = true;
+    drivers = [pkgs.samsung-unified-linux-driver];
+    browsing = true;
+    allowFrom = ["all"]; # this gives access to anyone on the interface you might want to limit it see the official documentation
+    defaultShared = true;
+  };
 
-  services.avahi.enable = true;
-  services.avahi.publish.enable = true;
-  services.avahi.publish.userServices = true;
+  services.avahi = {
+    enable = true;
+    publish.enable = true;
+    publish.userServices = true;
+  };
 
   nixpkgs.config.packageOverrides = pkgs: {
     vaapiIntel = pkgs.vaapiIntel.override {enableHybridCodec = true;};
