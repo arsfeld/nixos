@@ -12,7 +12,7 @@
     (modulesPath + "/installer/scan/not-detected.nix")
   ];
 
-  boot.initrd.availableKernelModules = ["xhci_pci" "ahci" "mpt3sas" "nvme" "usbhid" "uas" "sd_mod"];
+  boot.initrd.availableKernelModules = ["xhci_pci" "ahci" "mpt3sas" "nvme" "usbhid" "uas" "sd_mod" "ip6table_filter"];
   boot.initrd.kernelModules = [];
   boot.kernelModules = ["kvm-intel" "it87"];
   boot.extraModulePackages = with config.boot.zfs.package.latestCompatibleLinuxPackages; [it87];

@@ -57,7 +57,7 @@ in {
         PGID = vars.pgid;
         TZ = vars.tz;
         FLOOD_AUTH = "false";
-        VPN_LAN_NETWORK = "192.168.31.0/24,100.64.0.0/10";
+        VPN_LAN_NETWORK = "192.168.1.0/24,100.64.0.0/10";
         VPN_ENABLED = "true";
         VPN_IP_CHECK_DELAY = "15";
       };
@@ -73,7 +73,7 @@ in {
         "--sysctl"
         "net.ipv4.conf.all.src_valid_mark=1"
         "--sysctl"
-        "net.ipv6.conf.all.disable_ipv6=1"
+        "net.ipv6.conf.all.disable_ipv6=0"
       ];
     };
 
