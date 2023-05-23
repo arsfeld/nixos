@@ -25,17 +25,25 @@
     "!**/.nix-profile"
   ];
   opts = {
-    package = rustic;
+    #package = rustic;
     extraBackupArgs = [
-      "--one-file-system"
-      "--glob-file=${pkgs.writeText "glob-file" (lib.concatStringsSep "\n" glob)}"
-      "--progress-interval=1s"
+      #"--glob-file=${pkgs.writeText "glob-file" (lib.concatStringsSep "\n" glob)}"
+      #"--progress-interval=1s"
     ];
     paths = [
       "/mnt/data/homes"
       "/var/lib"
       "/var/data"
       "/root"
+    ];
+    exclude = [
+      # very large paths
+      "/var/lib/docker"
+      "/var/lib/systemd"
+      "/var/lib/libvirt"
+
+      "**/.cache"
+      "**/.nix-profile"
     ];
     rcloneConfigFile = config.age.secrets."rclone-idrive".path;
     passwordFile = config.age.secrets."restic-password".path;
