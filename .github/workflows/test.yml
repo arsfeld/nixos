@@ -1,24 +1,23 @@
-name: "Devenv"
+name: "Test"
 
-on: [push]
+on:
+  pull_request:
+  push:
 
 jobs:
   tests:
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v3
-    - uses: https://github.com/cachix/install-nix-action@v20
-      env:
-        GITHUB_TOKEN: ""
-    - uses: https://github.com/cachix/cachix-action@v12
+    - uses: cachix/install-nix-action@v20
+    - uses: cachix/cachix-action@v12
       with:
         name: devenv
-    - run: sed -i 's/access-tokens.*//' /etc/nix/nix.conf
     - name: Install devenv.sh
-      run: nix --debug --show-trace profile install github:cachix/devenv/latest
+      run: nix profile install github:cachix/devenv/latest
       shell: sh
     - run: devenv ci
     - run: devenv shell echo ok
