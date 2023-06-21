@@ -87,7 +87,7 @@ in {
   };
 
   services.code-server = {
-    enable = true;
+    enable = false;
     user = "arosenfeld";
     host = "0.0.0.0";
   };
@@ -154,6 +154,7 @@ in {
     hostName = "localhost";
     maxUploadSize = "10G";
     package = pkgs.nextcloud26;
+    enableBrokenCiphersForSSE = false;
     config = {
       dbtype = "pgsql";
       dbuser = "nextcloud";

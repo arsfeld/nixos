@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
     nixos-generators = {
       url = "github:nix-community/nixos-generators";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -12,8 +12,6 @@
 
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
-
-    vscode-server.url = "github:msteen/nixos-vscode-server";
   };
 
   outputs = inputs @ {
@@ -23,7 +21,6 @@
     utils,
     agenix,
     nixos-generators,
-    vscode-server,
     ...
   }: let
     inherit (self) outputs;
@@ -78,7 +75,6 @@
         };
         imports =
           [
-            vscode-server.nixosModule
             agenix.nixosModules.default
             ./common/modules/systemd-email-notify.nix
             ./machines/storage/configuration.nix
@@ -93,7 +89,6 @@
         };
         imports =
           [
-            vscode-server.nixosModule
             agenix.nixosModules.default
             ./machines/striker/configuration.nix
           ]
@@ -107,7 +102,6 @@
         };
         imports =
           [
-            vscode-server.nixosModule
             ./machines/pegasus/configuration.nix
           ]
           ++ homeFeatures;
