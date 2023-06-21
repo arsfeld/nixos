@@ -43,7 +43,7 @@ with lib; {
     #loader.systemd-boot.enable = true;
     #loader.efi.canTouchEfiVariables = true;
     binfmt.emulatedSystems = ["aarch64-linux"];
-    kernelModules = ["kvm-intel"];
+    kernelModules = ["kvm-intel" "ip6_tables"];
     #supportedFilesystems = ["zfs"];
   };
 

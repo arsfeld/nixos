@@ -85,6 +85,10 @@ in {
       useACMEHost = domain;
       extraConfig = "reverse_proxy storage:8080";
     };
+    "transmission.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = "reverse_proxy storage:9091";
+    };
     "qflood.${domain}" = {
       useACMEHost = domain;
       extraConfig = "reverse_proxy storage:3000";

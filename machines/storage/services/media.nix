@@ -50,26 +50,36 @@ in {
       ports = ["3831:80"];
     };
 
-    qflood = {
-      image = "cr.hotio.dev/hotio/qflood";
+    "transmission-openvpn" = {
+      image = "haugene/transmission-openvpn";
       environment = {
         PUID = vars.puid;
         PGID = vars.pgid;
         TZ = vars.tz;
-        FLOOD_AUTH = "false";
-        VPN_LAN_NETWORK = "192.168.1.0/24,100.64.0.0/10";
-        VPN_ENABLED = "true";
-        VPN_IP_CHECK_DELAY = "15";
+
+        OPENVPN_PROVIDER = "PIA";
+        OPENVPN_CONFIG = "ca_toronto";
+        OPENVPN_USERNAME = "***REMOVED***";
+        OPENVPN_PASSWORD = "***REMOVED***";
+        LOCAL_NETWORK = "192.168.1.0/24,100.64.0.0/10";
+        TRANSMISSION_WEB_UI = "flood-for-transmission";
+        TRANSMISSION_RPC_USERNAME = "admin";
+        TRANSMISSION_RPC_PASSWORD = "***REMOVED***";
+        TRANSMISSION_RPC_AUTHENTICATION_REQUIRED = "true";
+        TRANSMISSION_DOWNLOAD_DIR = "/media/Downloads";
+        TRANSMISSION_INCOMPLETE_DIR = "/media/Downloads/incomplete";
       };
-      ports = ["8080:8080/tcp" "3000:3000"];
+      ports = ["9091:9091"];
       volumes = [
-        "${vars.configDir}/qflood:/config"
+        "${vars.configDir}/transmission-openvpn:/config"
         "${vars.dataDir}/media:/media"
         "${vars.dataDir}/files:/files"
       ];
       extraOptions = [
         "--cap-add"
         "NET_ADMIN"
+        "--cap-add"
+        "NET_RAW"
         "--sysctl"
         "net.ipv4.conf.all.src_valid_mark=1"
         "--sysctl"
@@ -77,13 +87,50 @@ in {
       ];
     };
 
+    # qflood = {
+    #   image = "cr.hotio.dev/hotio/qflood";
+    #   environment = {
+    #     PUID = vars.puid;
+    #     PGID = vars.pgid;
+    #     TZ = vars.tz;
+    #     FLOOD_AUTH = "false";
+    #     VPN_LAN_NETWORK = "192.168.1.0/24,100.64.0.0/10";
+    #     VPN_ENABLED = "true";
+    #     VPN_IP_CHECK_DELAY = "15";
+    #   };
+    #   ports = ["8080:8080/tcp" "3000:3000"];
+    #   volumes = [
+    #     "${vars.configDir}/qflood:/config"
+    #     "${vars.dataDir}/media:/media"
+    #     "${vars.dataDir}/files:/files"
+    #   ];
+    #   extraOptions = [
+    #     "--cap-add"
+    #     "NET_ADMIN"
+    #     "--cap-add"
+    #     "NET_RAW"
+    #     "--sysctl"
+    #     "net.ipv4.conf.all.src_valid_mark=1"
+    #     "--sysctl"
+    #     "net.ipv6.conf.all.disable_ipv6=0"
+    #   ];
+    # };
+
     # gluetun = {
     #   image = "ghcr.io/qdm12/gluetun";
     #   environment = {
-    #     VPN_SERVICE_PROVIDER = "MULLVAD";
-    #     VPN_TYPE = "openvpn";
-    #     OPENVPN_USER = "4493235546215778";
-    #     OPENVPN_PASSWORD = "m";
+    #     # VPN_SERVICE_PROVIDER = "MULLVAD";
+    #     # VPN_TYPE = "openvpn";
+    #     # OPENVPN_USER = "4493235546215778";
+    #     # OPENVPN_PASSWORD = "m";
+    #     VPN_SERVICE_PROVIDER = "custom";
+    #     VPN_TYPE = "wireguard";
+    #     VPN_ENDPOINT_IP = "162.159.192.1";
+    #     VPN_ENDPOINT_PORT = "2408";
+    #     WIREGUARD_PUBLIC_KEY = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=";
+    #     WIREGUARD_PRIVATE_KEY = "oDXcvp6aOqr4hOhpL7nYV09JK0wyuURTQ3wW2jEYyE0=";
+    #     #WIREGUARD_PRESHARED_KEY = "xOEI9rqqbDwnN8/Bpp22sVz48T71vJ4fYmFWujulwUU=
+    #     WIREGUARD_ADDRESSES = "172.16.0.2/32"; #,2606:4700:110:8a9e:8b4e:12ce:1da2:63b2/128";
     #   };
     #   ports = ["8080:8080"];
     #   volumes = [
