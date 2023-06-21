@@ -219,6 +219,14 @@ in {
       ];
     };
 
+    remotely = {
+      image = "immybot/remotely:latest";
+      ports = ["5000:5000"];
+      volumes = [
+        "${vars.configDir}/remotely:/remotely-data"
+      ];
+    };
+
     speedtest = {
       image = "ghcr.io/alexjustesen/speedtest-tracker:latest";
       volumes = ["${vars.configDir}/speedtest:/config"];
