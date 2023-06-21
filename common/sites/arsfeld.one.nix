@@ -109,6 +109,10 @@ in {
         reverse_proxy storage:19999
       '';
     };
+    "remotely.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = "reverse_proxy storage:5000";
+    };
     "tautulli.${domain}" = {
       useACMEHost = domain;
       extraConfig = ''
