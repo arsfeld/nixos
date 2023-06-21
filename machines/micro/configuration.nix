@@ -73,7 +73,7 @@
   };
 
   networking.firewall.enable = false;
-  boot.cleanTmpDir = true;
+  boot.tmp.cleanOnBoot = true;
   zramSwap.enable = true;
   networking.nameservers = ["1.1.1.1" "9.9.9.9"];
   networking.hostName = "micro";
