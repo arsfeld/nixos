@@ -68,6 +68,8 @@ in {
         TRANSMISSION_RPC_AUTHENTICATION_REQUIRED = "true";
         TRANSMISSION_DOWNLOAD_DIR = "/media/Downloads";
         TRANSMISSION_INCOMPLETE_DIR = "/media/Downloads/incomplete";
+        TRANSMISSION_SPEED_LIMIT_UP = "1000";
+        TRANSMISSION_SPEED_LIMIT_UP_ENABLED = "true";
       };
       ports = ["9091:9091"];
       volumes = [
