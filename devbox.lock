@@ -1,0 +1,17 @@
+{
+  "lockfile_version": "1",
+  "packages": {
+    "alejandra@latest": {
+      "resolved": "github:NixOS/nixpkgs/f80ac848e3d6f0c12c52758c0f25c10c97ca3b62#alejandra"
+    },
+    "colmena@latest": {
+      "resolved": "github:NixOS/nixpkgs/f80ac848e3d6f0c12c52758c0f25c10c97ca3b62#colmena"
+    },
+    "home-manager@latest": {
+      "resolved": "github:NixOS/nixpkgs/f80ac848e3d6f0c12c52758c0f25c10c97ca3b62#home-manager"
+    },
+    "nil@latest": {
+      "resolved": "github:NixOS/nixpkgs/f80ac848e3d6f0c12c52758c0f25c10c97ca3b62#nil"
+    }
+  }
+}
