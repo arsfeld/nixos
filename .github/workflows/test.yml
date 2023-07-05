@@ -12,12 +12,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v3
-    - uses: cachix/install-nix-action@v22
-    - uses: cachix/cachix-action@v12
+
+    - name: Install devbox
+      uses: jetpack-io/devbox-install-action@v0.2.0
       with:
-        name: devenv
-    - name: Install devenv.sh
-      run: nix profile install github:cachix/devenv/latest
-      shell: sh
-    - run: devenv ci
-    - run: devenv shell echo ok
+        enable-cache: true
+
+    - name: Build Linux
+      if: runner.os == 'Linux'
+      run: devbox shell -- colmena build --on storage,micro
