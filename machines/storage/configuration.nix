@@ -21,17 +21,10 @@ with lib; {
     ./users.nix
     ./samba.nix
     ./backup.nix
-    ./backup-kopia.nix
     ./services.nix
     ./services/backup.nix
     ./services/metrics.nix
     ./services/media.nix
-    (
-      import ../../common/backup.nix (
-        args
-        // {repo = "u2ru7hl3@u2ru7hl3.repo.borgbase.com:repo";}
-      )
-    )
   ];
 
   networking.hostName = "storage";
