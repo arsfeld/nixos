@@ -17,6 +17,7 @@ jobs:
       uses: jetpack-io/devbox-install-action@v0.2.0
       with:
         enable-cache: true
+        devbox-version: '0.4.9'
 
     - name: Build Linux
       if: runner.os == 'Linux'
