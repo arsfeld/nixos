@@ -13,6 +13,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: Check Nix flake inputs
+      uses: DeterminateSystems/flake-checker-action@v4
+
     - name: Install devbox
       uses: jetpack-io/devbox-install-action@v0.4.0
       with:
