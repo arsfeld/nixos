@@ -42,6 +42,14 @@ in {
       ];
     };
 
+    xteve = {
+      image = "dnsforge/xteve:latest";
+      volumes = [
+        "${vars.configDir}/xteve:/home/xteve/conf"
+      ];
+      ports = ["34400:34400"];
+    };
+
     jf-vue = {
       image = "jellyfin/jellyfin-vue:unstable";
       environment = {
