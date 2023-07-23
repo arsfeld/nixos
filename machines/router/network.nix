@@ -139,6 +139,10 @@ in {
 
   services.resolved.enable = false;
 
+  virtualisation.libvirtd = {
+    enable = true;
+  };
+
   services.adguardhome = {
     enable = true;
     settings = {
@@ -152,6 +156,21 @@ in {
       dns = {
         bind_hosts = ["0.0.0.0"];
         port = 53;
+      };
+      dhcp = {
+        enabled = true;
+        interface_name = "br-lan";
+        dhcpv4 = {
+          gateway_ip = "192.168.10.1";
+          subnet_mask = "255.255.255.0";
+          range_start = "192.168.10.50";
+          range_end = "192.168.10.250";
+          lease_duration = 86400;
+        };
+        dhcpv6 = {
+          range_start = "2001::1";
+          lease_duration = 86400;
+        };
       };
     };
   };
@@ -174,7 +193,7 @@ in {
   };
 
   services.dnsmasq = {
-    enable = true;
+    enable = false;
     settings = {
       # upstream DNS servers
       server = ["9.9.9.9" "8.8.8.8" "1.1.1.1"];
@@ -183,7 +202,7 @@ in {
       bogus-priv = true;
       no-resolv = true;
 
-      port = 5353;
+      port = 53;
 
       dhcp-range = ["br-lan,192.168.10.50,192.168.10.254,24h"];
       interface = "br-lan";

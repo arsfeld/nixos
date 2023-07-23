@@ -18,6 +18,10 @@ with lib; {
   };
   boot.loader.systemd-boot.enable = true;
   services.openssh.enable = true;
+  services.fail2ban.enable = true;
+  services.fail2ban.ignoreIP = [  "192.168.0.0/16"];
+
+  services.netdata.enable = true;
 
   nixpkgs.overlays = [
     (final: prev: {
