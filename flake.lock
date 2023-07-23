@@ -42,6 +42,47 @@
         "type": "github"
       }
     },
+    "dependencyDagOfSubmodule": {
+      "inputs": {
+        "nixpkgs": [
+          "nixos-nftables-firewall",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1656615370,
+        "narHash": "sha256-IZDqz1aSySoqf1qtVQg+oJMHfC4IlT55Zoa7EkjvPug=",
+        "owner": "thelegy",
+        "repo": "nix-dependencyDagOfSubmodule",
+        "rev": "98eb563d80b35acafbfc1abb9ccee569c1efb19c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "thelegy",
+        "repo": "nix-dependencyDagOfSubmodule",
+        "type": "github"
+      }
+    },
+    "disko": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1689977778,
+        "narHash": "sha256-lvz4hZO/EP6xLJQIrEdHdYWi/Uz49HCAownL5HZUy1M=",
+        "owner": "nix-community",
+        "repo": "disko",
+        "rev": "7b186e0f812a7c54a1fa86b8f7c0f01afecc69c2",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "disko",
+        "type": "github"
+      }
+    },
     "home-manager": {
       "inputs": {
         "nixpkgs": [
@@ -119,6 +160,27 @@
         "type": "github"
       }
     },
+    "nixos-nftables-firewall": {
+      "inputs": {
+        "dependencyDagOfSubmodule": "dependencyDagOfSubmodule",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1677020959,
+        "narHash": "sha256-r06isoyASAIoYH+zcbb8jescQyYq+AYNccVPUlzivDk=",
+        "owner": "thelegy",
+        "repo": "nixos-nftables-firewall",
+        "rev": "6cb25335de6f1fe0722f02573d0cfbaea4cd7ecf",
+        "type": "github"
+      },
+      "original": {
+        "owner": "thelegy",
+        "repo": "nixos-nftables-firewall",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1677676435,
@@ -154,8 +216,10 @@
     "root": {
       "inputs": {
         "agenix": "agenix",
+        "disko": "disko",
         "home-manager": "home-manager_2",
         "nixos-generators": "nixos-generators",
+        "nixos-nftables-firewall": "nixos-nftables-firewall",
         "nixpkgs": "nixpkgs_2",
         "utils": "utils"
       }
