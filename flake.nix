@@ -1,15 +1,14 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
-    nixos-generators = {
-      url = "github:nix-community/nixos-generators";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
+    nixos-generators.url = "github:nix-community/nixos-generators";
+    nixos-generators.inputs.nixpkgs.follows = "nixpkgs";
+    disko.url = github:nix-community/disko;
+    disko.inputs.nixpkgs.follows = "nixpkgs";
+    nixos-nftables-firewall.url = "github:thelegy/nixos-nftables-firewall";
+    nixos-nftables-firewall.inputs.nixpkgs.follows = "nixpkgs";
     agenix.url = "github:ryantm/agenix";
-
     utils.url = "github:numtide/flake-utils";
-
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
   };
@@ -19,12 +18,33 @@
     home-manager,
     nixpkgs,
     utils,
+    disko,
     agenix,
     nixos-generators,
+    nixos-nftables-firewall,
     ...
   }: let
     inherit (self) outputs;
   in {
+    nixosConfigurations = {
+      live = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          "${nixpkgs}/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix"
+          ({
+            pkgs,
+            modulesPath,
+            ...
+          }: {
+            imports = [
+              ./common/users.nix
+            ];
+            systemd.services.sshd.wantedBy = pkgs.lib.mkForce ["multi-user.target"];
+            isoImage.squashfsCompression = "gzip -Xcompression-level 1";
+          })
+        ];
+      };
+    };
     colmena = let
       homeFeatures = [
         home-manager.nixosModules.home-manager
@@ -51,6 +71,19 @@
           [
             agenix.nixosModules.default
             ./machines/micro/configuration.nix
+          ]
+          ++ homeFeatures;
+      };
+
+      router = {
+        deployment = {
+          targetHost = "router";
+        };
+        imports =
+          [
+            disko.nixosModules.disko
+            nixos-nftables-firewall.nixosModules.default
+            ./machines/router/configuration.nix
           ]
           ++ homeFeatures;
       };
@@ -153,7 +186,6 @@
         pkgs = nixpkgs.legacyPackages.${system};
         modules = [
           ./home/home.nix
-          ./home/vscode-ssh-fix.nix
         ];
       };
 
