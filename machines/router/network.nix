@@ -42,6 +42,7 @@ in {
         zones = {
           lan.interfaces = ["br-lan"];
           wan.interfaces = ["${settings.wanInterface}"];
+          trusted.interfaces = ["tailscale0"];
         };
         rules = {
           lan = {
@@ -52,6 +53,11 @@ in {
           outbound = {
             from = ["lan"];
             to = ["lan" "wan"];
+            verdict = "accept";
+          };
+          trusted = {
+            from = ["tailscale0"];
+            to = ["all"];
             verdict = "accept";
           };
           nat = {

@@ -44,6 +44,14 @@
           })
         ];
       };
+      router = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          disko.nixosModules.disko
+          nixos-nftables-firewall.nixosModules.default
+          ./machines/router/configuration.nix
+        ];
+      };
     };
     colmena = let
       homeFeatures = [
