@@ -22,9 +22,37 @@ with lib; {
   boot.loader.systemd-boot.enable = true;
   services.openssh.enable = true;
   services.cockpit.enable = true;
-  virtualisation.podman.enable = true;
+  services.ntopng.enable = true;
+  services.ntopng.httpPort = 3333;
   services.fail2ban.enable = true;
   services.fail2ban.ignoreIP = ["192.168.0.0/16"];
+
+  virtualisation.podman.enable = true;
+  virtualisation.podman.dockerSocket.enable = true;
+
+  virtualisation.oci-containers = {
+    backend = "podman";
+    containers = {
+      homeassistant = {
+        volumes = ["/etc/home-assistant:/config"];
+        environment.TZ = "America/Toronto";
+        image = "ghcr.io/home-assistant/home-assistant:stable";
+        extraOptions = [
+          "--network=host"
+          "--privileged"
+          "--label"
+          "io.containers.autoupdate=image"
+        ];
+      };
+    };
+  };
+
+  systemd.timers.podman-auto-update = {
+    description = "Podman auto-update timer";
+    partOf = ["podman-auto-update.service"];
+    wantedBy = ["timers.target"];
+    timerConfig.OnCalendar = "weekly";
+  };
 
   services.netdata.enable = true;
 
