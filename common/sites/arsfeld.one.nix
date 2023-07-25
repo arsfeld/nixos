@@ -143,7 +143,8 @@ in {
     };
     "hass.${domain}" = {
       useACMEHost = domain;
-      extraConfig = "reverse_proxy raspi3:8123";
+      # Use router IP address, otherwise it doesnt work
+      extraConfig = "reverse_proxy 192.168.10.1:8123";
     };
     "grafana.${domain}" = {
       useACMEHost = domain;
