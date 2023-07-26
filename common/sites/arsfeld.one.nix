@@ -159,7 +159,11 @@ in {
     "code.${domain}" = {
       useACMEHost = domain;
       extraConfig = ''
-        reverse_proxy storage:4444
+        basicauth /* {
+          admin $2a$14$oVkXE/xxSehMnluRIbEzyeCETY.ra1XGx3rCohBi1k/usv32CF2JS
+        }
+
+        reverse_proxy cloud:3000
       '';
     };
     "seafile.${domain}" = {
