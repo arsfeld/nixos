@@ -1,4 +1,4 @@
-{ ... }: {
+{config, ...}: {
   imports = [
     ./hardware-configuration.nix
     ../../common/common.nix
@@ -20,10 +20,37 @@
 
   users.users.arosenfeld = {
     isNormalUser = true;
-    extraGroups = [ "wheel" ];
+    extraGroups = ["wheel"];
     openssh.authorizedKeys.keys = [
       ''ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBDeQP9ZHuDegrcgBEAuLpCWEK0v8eIBAgaLMSquCP0w arsfeld@gmail.com''
     ];
+  };
+
+  services.atticd = {
+    enable = true;
+
+    # Replace with absolute path to your credentials file
+    credentialsFile = "/etc/atticd.env";
+
+    settings = {
+      listen = "[::]:8080";
+      chunking = {
+        # The minimum NAR size to trigger chunking
+        #
+        # If 0, chunking is disabled entirely for newly-uploaded NARs.
+        # If 1, all NARs are chunked.
+        nar-size-threshold = 64 * 1024; # 64 KiB
+
+        # The preferred minimum size of a chunk, in bytes
+        min-size = 16 * 1024; # 16 KiB
+
+        # The preferred average size of a chunk, in bytes
+        avg-size = 64 * 1024; # 64 KiB
+
+        # The preferred maximum size of a chunk, in bytes
+        max-size = 256 * 1024; # 256 KiB
+      };
+    };
   };
 
   users.users.root.openssh.authorizedKeys.keys = [
