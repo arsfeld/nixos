@@ -11,6 +11,5 @@ in {
   "keycloak-pass.age".publicKeys = users ++ systems;
   "smtp_password.age".publicKeys = users ++ systems;
   "rclone-idrive.age".publicKeys = users ++ systems;
-  "harmonia.age".publicKeys = users ++ systems;
   "restic-password.age".publicKeys = systems;
 }
