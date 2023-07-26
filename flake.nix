@@ -83,6 +83,20 @@
           ++ homeFeatures;
       };
 
+      cloud = {
+        nixpkgs.system = "aarch64-linux";
+        deployment = {
+          targetHost = "cloud";
+          tags = ["cloud"];
+        };
+        imports =
+          [
+            agenix.nixosModules.default
+            ./machines/cloud/configuration.nix
+          ]
+          ++ homeFeatures;
+      };
+
       router = {
         deployment = {
           targetHost = "router";

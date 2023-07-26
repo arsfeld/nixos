@@ -55,9 +55,14 @@ in {
             to = ["lan" "wan"];
             verdict = "accept";
           };
-          trusted = {
+          trusted1 = {
             from = ["tailscale0"];
             to = ["all"];
+            verdict = "accept";
+          };
+          trusted2 = {
+            from = ["all"];
+            to = ["tailscale"];
             verdict = "accept";
           };
           nat = {
