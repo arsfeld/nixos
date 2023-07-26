@@ -3,7 +3,8 @@
     "colmena@latest",
     "home-manager@latest",
     "alejandra@latest",
-    "nil@latest"
+    "nil@latest",
+    "github:ryantm/agenix"
   ],
   "shell": {
     "init_hook": [

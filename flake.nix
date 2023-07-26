@@ -11,6 +11,8 @@
     utils.url = "github:numtide/flake-utils";
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
+    attic.url = "github:zhaofengli/attic";
+    attic.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = inputs @ {
@@ -20,6 +22,7 @@
     utils,
     disko,
     agenix,
+    attic,
     nixos-generators,
     nixos-nftables-firewall,
     ...
@@ -86,12 +89,14 @@
       cloud = {
         nixpkgs.system = "aarch64-linux";
         deployment = {
+          allowLocalDeployment = true;
           targetHost = "cloud";
           tags = ["cloud"];
         };
         imports =
           [
             agenix.nixosModules.default
+            attic.nixosModules.atticd
             ./machines/cloud/configuration.nix
           ]
           ++ homeFeatures;
@@ -113,7 +118,7 @@
       G14 = {
         deployment = {
           targetHost = null;
-          allowLocalDeployment = true;
+          #allowLocalDeployment = true;
           tags = ["local"];
         };
         imports =
