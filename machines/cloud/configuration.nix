@@ -26,6 +26,17 @@
     ];
   };
 
+  nixpkgs.config.permittedInsecurePackages = [
+    "nodejs-16.20.1"
+  ];
+
+  services.openvscode-server = {
+    enable = true;
+    user = "arosenfeld";
+    host = "0.0.0.0";
+    withoutConnectionToken = true;
+  };
+
   services.atticd = {
     enable = true;
 
