@@ -7,6 +7,7 @@
     ./hardware-configuration.nix
     ../../common/sites/arsfeld.one.nix
     ../../common/sites/rosenfeld.one.nix
+    ../../common/sites/rosenfeld.blog.nix
     ../../common/sites/arsfeld.dev.nix
   ];
 
