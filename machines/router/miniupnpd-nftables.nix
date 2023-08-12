@@ -5,7 +5,7 @@
   ...
 }:
 with lib; let
-  cfg = config.services.miniupnpd;
+  cfg = config.services.miniupnpd-nftables;
   configFile = pkgs.writeText "miniupnpd.conf" ''
     ext_ifname=${cfg.externalInterface}
     enable_natpmp=${
@@ -30,10 +30,11 @@ with lib; let
     if config.networking.nftables.enable
     then "nftables"
     else "iptables";
-  miniupnpd = pkgs.miniupnpd.override {inherit firewall;};
+  miniupnpd = pkgs.miniupnpd-nftables;
   firewalls =
-    [firewall]
-    ++ lib.optional (firewall == "iptables" && config.networking.enableIPv6) "ip6tables";
+    if config.networking.nftables.enable
+    then ["nft"]
+    else ["iptables"] ++ lib.optional (config.networking.enableIPv6) "ip6tables";
 in {
   options = {
     services.miniupnpd-nftables = {
@@ -75,13 +76,14 @@ in {
   };
 
   config = mkIf cfg.enable {
+    # pass as env var instead of script argument because nftables scripts dont take arguments
     networking.firewall.extraCommands = builtins.concatStringsSep "\n" (map (fw: ''
-        ${pkgs.bash}/bin/bash -x ${miniupnpd}/etc/miniupnpd/${fw}_init.sh -i ${lib.escapeShellArg cfg.externalInterface}
+        EXTIF=${cfg.externalInterface} ${pkgs.bash}/bin/bash -x ${miniupnpd}/etc/miniupnpd/${fw}_init.sh
       '')
       firewalls);
 
     networking.firewall.extraStopCommands = builtins.concatStringsSep "\n" (map (fw: ''
-        ${pkgs.bash}/bin/bash -x ${miniupnpd}/etc/miniupnpd/${fw}_removeall.sh -i ${lib.escapeShellArg cfg.externalInterface}
+        EXTIF=${cfg.externalInterface} ${pkgs.bash}/bin/bash -x ${miniupnpd}/etc/miniupnpd/${fw}_removeall.sh
       '')
       firewalls);
 
