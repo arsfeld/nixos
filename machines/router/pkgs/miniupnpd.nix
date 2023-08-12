@@ -1,4 +1,3 @@
-# https://github.com/NixOS/nixpkgs/blob/4a28350aeea6c8b0dca20b3cb9ff36e68444f174/pkgs/tools/networking/miniupnpd/default.nix
 {
   stdenv,
   lib,
@@ -11,14 +10,38 @@
   iproute2,
   gnused,
   coreutils,
+  gnugrep,
   gawk,
   makeWrapper,
   nixosTests,
   firewall ? "iptables",
+  nftables,
   libmnl,
   libnftnl,
 }: let
-  scriptBinEnv = lib.makeBinPath [which iproute2 iptables-legacy gnused coreutils gawk];
+  scriptBinEnv =
+    lib.makeBinPath
+    {
+      iptables = [
+        # needed for dirname in ip{,6}tables_*.sh
+        coreutils
+        # used in miniupnpd_functions.sh:
+        which
+        iproute2
+        iptables-legacy
+        gnused
+        gnugrep
+        gawk
+      ];
+      nftables = [
+        # needed for dirname in nft_*.sh & cat in nft_init.sh
+        coreutils
+        # used in miniupnpd_functions.sh:
+        which
+        nftables
+      ];
+    }
+    .${firewall};
 in
   stdenv.mkDerivation rec {
     pname = "miniupnpd";
@@ -55,14 +78,14 @@ in
       then ''
         for script in $out/etc/miniupnpd/ip{,6}tables_{init,removeall}.sh
         do
-          wrapProgram $script --set PATH '${scriptBinEnv}:$PATH'
+          wrapProgram $script --suffix PATH : '${scriptBinEnv}:$PATH'
         done
       ''
       else if firewall == "nftables"
       then ''
         for script in $out/etc/miniupnpd/nft_{delete_chain,flush,init,removeall}.sh
         do
-          wrapProgram $script --set PATH '${scriptBinEnv}:$PATH'
+          wrapProgram $script --suffix PATH : '${scriptBinEnv}:$PATH'
         done
       ''
       else throw "Unsupported firewall: ${firewall}";

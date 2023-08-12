@@ -57,10 +57,17 @@ with lib; {
   services.netdata.enable = true;
 
   nixpkgs.overlays = [
-    (final: prev: {
-      miniupnpd-nftables = super.callPackage ./pkgs/upnp-nftables {firewall = "nftables";};
+    (self: super: {
+      miniupnpd-nftables = super.callPackage ./pkgs/miniupnpd.nix {firewall = "nftables";};
     })
   ];
+
+  services.miniupnpd-nftables = {
+    enable = true;
+    internalIPs = ["br-lan"];
+    externalInterface = "enp5s0";
+    natpmp = true;
+  };
 
   system.stateVersion = "23.05";
 }
