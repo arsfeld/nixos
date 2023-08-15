@@ -62,12 +62,5 @@ with lib; {
     })
   ];
 
-  services.miniupnpd-nftables = {
-    enable = true;
-    internalIPs = ["br-lan"];
-    externalInterface = "enp5s0";
-    natpmp = true;
-  };
-
   system.stateVersion = "23.05";
 }

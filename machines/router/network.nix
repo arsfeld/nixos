@@ -62,7 +62,7 @@ in {
           };
           trusted2 = {
             from = ["all"];
-            to = ["tailscale"];
+            to = ["tailscale0"];
             verdict = "accept";
           };
           nat = {
@@ -191,6 +191,7 @@ in {
     enable = true;
     externalInterface = "${settings.wanInterface}";
     internalIPs = ["br-lan"];
+    natpmp = true;
   };
 
   services.tailscale = {
