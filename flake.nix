@@ -89,7 +89,6 @@
       cloud = {
         nixpkgs.system = "aarch64-linux";
         deployment = {
-          allowLocalDeployment = true;
           targetHost = "cloud";
           tags = ["cloud"];
         };
@@ -131,6 +130,7 @@
       storage = {
         deployment = {
           targetHost = "storage";
+          allowLocalDeployment = true;
           tags = ["local"];
         };
         imports =
