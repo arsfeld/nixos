@@ -12,6 +12,23 @@
 in {
   services.netdata.enable = true;
 
+  services.adguardhome = {
+    enable = true;
+    settings = {
+      users = [
+        {
+          name = "admin";
+          password = "$2a$10$ZqHeXubJoB7II0u/39Byiu4McdkjCoqurctIlMikm4kyILQvEevEO";
+        }
+      ];
+      bind_port = 3000;
+      dns = {
+        bind_hosts = ["0.0.0.0"];
+        port = 53;
+      };
+    };
+  };
+
   services.vault = {
     enable = false;
     storageBackend = "file";
