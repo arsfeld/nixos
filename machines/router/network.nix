@@ -37,6 +37,9 @@ in {
     nftables = {
       enable = true;
       stopRuleset = "";
+      chains.prerouting.plex.rules = [
+        "tcp dport { 32400 } dnat ip to 192.168.10.5"
+      ];
       firewall = {
         enable = true;
         zones = {
@@ -56,13 +59,19 @@ in {
             verdict = "accept";
           };
           trusted1 = {
-            from = ["tailscale0"];
+            from = ["trusted"];
             to = ["all"];
             verdict = "accept";
           };
           trusted2 = {
             from = ["all"];
-            to = ["tailscale0"];
+            to = ["trusted"];
+            verdict = "accept";
+          };
+          plex = {
+            from = ["all"];
+            to = ["wan"];
+            allowedTCPPorts = [32400];
             verdict = "accept";
           };
           nat = {
