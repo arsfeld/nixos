@@ -11,9 +11,42 @@
     ../../common/sites/arsfeld.dev.nix
   ];
 
-  users.users.caddy.extraGroups = ["acme"];
+  users.users.adguard.isSystemUser = true;
+  users.users.adguard.group = "caddy";
 
   services.netdata.enable = true;
+
+  services.adguardhome = {
+    enable = true;
+    settings = {
+      users = [
+        {
+          name = "admin";
+          password = "$2a$10$ZqHeXubJoB7II0u/39Byiu4McdkjCoqurctIlMikm4kyILQvEevEO";
+        }
+      ];
+      bind_port = 3000;
+      dns = {
+        bind_hosts = ["0.0.0.0"];
+        port = 53;
+        rewrites = [
+          {
+            domain = "*.arsfeld.one";
+            answer = "100.101.207.61";
+          }
+        ];
+      };
+      os = {
+        group = "";
+        user = "";
+      };
+      tls = {
+        server_name = "arsfeld.one";
+        certificate_chain = "${config.security.acme.certs."arsfeld.one".directory}/chain.pem";
+        private_key = "${config.security.acme.certs."arsfeld.one".directory}/key.pem";
+      };
+    };
+  };
 
   services.caddy = {
     enable = true;

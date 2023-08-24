@@ -13,7 +13,7 @@ in {
   services.netdata.enable = true;
 
   services.adguardhome = {
-    enable = true;
+    enable = false;
     settings = {
       users = [
         {
@@ -242,6 +242,18 @@ in {
       ports = ["5000:5000"];
       volumes = [
         "${vars.configDir}/remotely:/remotely-data"
+      ];
+    };
+
+    homeassistant = {
+      volumes = ["/var/lib/home-assistant:/config"];
+      environment.TZ = "America/Toronto";
+      image = "ghcr.io/home-assistant/home-assistant:stable";
+      extraOptions = [
+        "--network=host"
+        "--privileged"
+        "--label"
+        "io.containers.autoupdate=image"
       ];
     };
 
