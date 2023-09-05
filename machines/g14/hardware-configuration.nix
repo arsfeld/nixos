@@ -12,31 +12,31 @@
     (modulesPath + "/installer/scan/not-detected.nix")
   ];
 
-  boot.initrd.availableKernelModules = ["xhci_pci" "nvme" "ahci" "usbhid" "usb_storage" "sd_mod"];
+  boot.initrd.availableKernelModules = ["xhci_pci" "nvme" "ahci" "usb_storage" "usbhid" "sd_mod"];
   boot.initrd.kernelModules = [];
   boot.kernelModules = ["kvm-amd"];
   boot.extraModulePackages = [];
 
   fileSystems."/" = {
-    device = "/dev/disk/by-uuid/e4e5e318-7956-4084-9a17-4cd56b3675b6";
+    device = "/dev/disk/by-uuid/70d08bac-1885-4f23-ae74-ded37292eec7";
     fsType = "btrfs";
     options = ["subvol=nixos" "compress=zstd"];
   };
 
+  fileSystems."/nix" = {
+    device = "/dev/disk/by-uuid/70d08bac-1885-4f23-ae74-ded37292eec7";
+    fsType = "btrfs";
+    options = ["subvol=nix" "compress=zstd" "noatime"];
+  };
+
   fileSystems."/home" = {
-    device = "/dev/disk/by-uuid/e4e5e318-7956-4084-9a17-4cd56b3675b6";
+    device = "/dev/disk/by-uuid/70d08bac-1885-4f23-ae74-ded37292eec7";
     fsType = "btrfs";
     options = ["subvol=home" "compress=zstd"];
   };
 
-  fileSystems."/nix" = {
-    device = "/dev/disk/by-uuid/e4e5e318-7956-4084-9a17-4cd56b3675b6";
-    fsType = "btrfs";
-    options = ["subvol=nix" "compress=zstd"];
-  };
-
   fileSystems."/boot" = {
-    device = "/dev/disk/by-uuid/43E7-CEEC";
+    device = "/dev/disk/by-uuid/C5B2-9E09";
     fsType = "vfat";
   };
 
@@ -49,5 +49,6 @@
   networking.useDHCP = lib.mkDefault true;
   # networking.interfaces.wlp2s0.useDHCP = lib.mkDefault true;
 
+  nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 }
