@@ -90,6 +90,7 @@
         nixpkgs.system = "aarch64-linux";
         deployment = {
           targetHost = "cloud";
+          buildOnTarget = true;
           tags = ["cloud"];
         };
         imports =
@@ -116,8 +117,9 @@
 
       G14 = {
         deployment = {
-          targetHost = null;
+          targetHost = "nixos";
           #allowLocalDeployment = true;
+          buildOnTarget = true;
           tags = ["local"];
         };
         imports =
