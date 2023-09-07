@@ -69,7 +69,7 @@ in {
         OPENVPN_CONFIG = "ca_toronto";
         OPENVPN_USERNAME = "***REMOVED***";
         OPENVPN_PASSWORD = "***REMOVED***";
-        LOCAL_NETWORK = "192.168.1.0/24,100.64.0.0/10";
+        LOCAL_NETWORK = "192.168.1.0/24,192.168.2.0/24,100.64.0.0/10";
         TRANSMISSION_WEB_UI = "flood-for-transmission";
         TRANSMISSION_RPC_USERNAME = "admin";
         TRANSMISSION_RPC_PASSWORD = "***REMOVED***";
