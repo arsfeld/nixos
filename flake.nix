@@ -13,6 +13,7 @@
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     attic.url = "github:zhaofengli/attic";
     attic.inputs.nixpkgs.follows = "nixpkgs";
+    nixos-hardware.url = "github:NixOS/nixos-hardware/master";
   };
 
   outputs = inputs @ {
@@ -25,6 +26,7 @@
     attic,
     nixos-generators,
     nixos-nftables-firewall,
+    nixos-hardware,
     ...
   }: let
     inherit (self) outputs;
@@ -117,13 +119,15 @@
 
       G14 = {
         deployment = {
-          targetHost = "nixos";
+          targetHost = "G14";
           #allowLocalDeployment = true;
           buildOnTarget = true;
           tags = ["local"];
         };
         imports =
           [
+            nixos-hardware.nixosModules.common-gpu-nvidia-disable
+            nixos-hardware.nixosModules.common-cpu-amd-pstate
             ./machines/g14/configuration.nix
           ]
           ++ homeFeatures;
