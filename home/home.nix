@@ -162,8 +162,8 @@ in {
   };
 
   programs.bat.enable = true;
-  programs.exa.enable = true;
-  programs.exa.enableAliases = true;
+  programs.eza.enable = true;
+  programs.eza.enableAliases = true;
 
   programs.command-not-found.enable = true;
 
