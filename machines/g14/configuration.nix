@@ -45,9 +45,9 @@
 
   programs.steam.enable = true;
   hardware.steam-hardware.enable = true;
-  services.xserver.videoDrivers = ["nvidia"];
+  #services.xserver.videoDrivers = ["nvidia"];
 
-  services.switcherooControl.enable = true;
+  #services.switcherooControl.enable = true;
 
   hardware.opengl = {
     enable = true;
@@ -62,19 +62,19 @@
     ];
   };
 
-  hardware.nvidia = {
-    # PCI-Express Runtime D3 Power Management is enabled by default on this laptop
-    # But it can fix screen tearing & suspend/resume screen corruption in sync mode
-    modesetting.enable = true;
-    # Enable DRM kernel mode setting
-    powerManagement.enable = true;
+  # hardware.nvidia = {
+  #   # PCI-Express Runtime D3 Power Management is enabled by default on this laptop
+  #   # But it can fix screen tearing & suspend/resume screen corruption in sync mode
+  #   modesetting.enable = true;
+  #   # Enable DRM kernel mode setting
+  #   powerManagement.enable = true;
 
-    prime = {
-      offload.enable = true;
-      amdgpuBusId = "PCI:4:0:0";
-      nvidiaBusId = "PCI:1:0:0";
-    };
-  };
+  #   prime = {
+  #     offload.enable = true;
+  #     amdgpuBusId = "PCI:4:0:0";
+  #     nvidiaBusId = "PCI:1:0:0";
+  #   };
+  # };
 
   services.supergfxd.enable = true;
 
@@ -223,7 +223,7 @@
       tree
       distrobox
       vim
-      vscode
+      #vscode
       microsoft-edge
       hypnotix
       protonup-ng
