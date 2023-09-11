@@ -138,7 +138,7 @@ in {
     "sabnzbd.${domain}" = {
       useACMEHost = domain;
       extraConfig = ''
-        reverse_proxy storage:8888
+        reverse_proxy storage:8889
       '';
     };
     "hass.${domain}" = {
