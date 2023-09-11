@@ -18,11 +18,11 @@ in {
       paths = {
         all = {
           runOnReady = ''
-            ffmpeg -i rtsp://localhost:$RTSP_PORT/$MTX_PATH
+            ${pkgs.ffmpeg}/bin/ffmpeg -i rtsp://localhost:$RTSP_PORT/$MTX_PATH
             -c copy
             -f segment -strftime 1 -segment_time 60 -segment_format mpegts ${vars.dataDir}/files/Camera/saved_%Y-%m-%d_%H-%M-%S.ts
           '';
-          runOnReadyRestart = "yes";
+          runOnReadyRestart = true;
         };
       };
     };
@@ -315,7 +315,7 @@ in {
 
     scrutiny = {
       image = "ghcr.io/analogj/scrutiny:master-omnibus";
-      ports = ["8888:8080" "8086:8086"];
+      ports = ["8889:8080" "8086:8086"];
       environment = {
         COLLECTOR_CRON_SCHEDULE = "0 0 * * 7";
       };

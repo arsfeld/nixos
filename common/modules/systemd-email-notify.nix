@@ -13,7 +13,7 @@ with lib; let
       ${pkgs.system-sendmail}/bin/sendmail -t <<ERRMAIL
       To: $1
       From: ${config.systemd.email-notify.mailFrom}
-      Subject: Status of service $2
+      Subject: [$(${hostname-net-tools}/bin/hostname)] Status of service $2
       Content-Transfer-Encoding: 8bit
       Content-Type: text/plain; charset=UTF-8
 
