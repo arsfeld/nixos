@@ -11,9 +11,6 @@
     ../../common/sites/arsfeld.dev.nix
   ];
 
-  users.users.adguard.isSystemUser = true;
-  users.users.adguard.group = "caddy";
-
   services.netdata.enable = true;
 
   services.adguardhome = {
@@ -35,15 +32,7 @@
             answer = "100.101.207.61";
           }
         ];
-      };
-      os = {
-        group = "";
-        user = "";
-      };
-      tls = {
-        server_name = "arsfeld.one";
-        certificate_chain = "${config.security.acme.certs."arsfeld.one".directory}/chain.pem";
-        private_key = "${config.security.acme.certs."arsfeld.one".directory}/key.pem";
+        upstream_dns = ["1.1.1.1" "1.0.0.1"];
       };
     };
   };

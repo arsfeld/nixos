@@ -13,7 +13,7 @@ in {
   services.netdata.enable = true;
 
   services.adguardhome = {
-    enable = false;
+    enable = true;
     settings = {
       users = [
         {
@@ -25,6 +25,13 @@ in {
       dns = {
         bind_hosts = ["0.0.0.0"];
         port = 53;
+        rewrites = [
+          {
+            domain = "*.arsfeld.one";
+            answer = "100.101.207.61";
+          }
+        ];
+        upstream_dns = ["1.1.1.1" "1.0.0.1"];
       };
     };
   };
