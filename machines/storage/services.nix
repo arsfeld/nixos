@@ -16,6 +16,15 @@ in {
     enable = true;
     settings = {
       paths = {
+        backyard = {
+          source = "rtsp://Xs35gu17EcpZ:Fk5pWwyEC9cv@192.168.1.9/live0";
+        };
+        parking = {
+          source = "rtsp://Xs35gu17EcpZ:Fk5pWwyEC9cv@192.168.1.9/live1";
+        };
+        driveway = {
+          source = "rtsp://Qg1iB00ay1ep:Tf7RLVkG6Tqb@192.168.1.243/live0";
+        };
         all = {
           runOnReady = ''
             ${pkgs.ffmpeg}/bin/ffmpeg -i rtsp://localhost:$RTSP_PORT/$MTX_PATH
@@ -315,7 +324,7 @@ in {
 
     scrutiny = {
       image = "ghcr.io/analogj/scrutiny:master-omnibus";
-      ports = ["8889:8080" "8086:8086"];
+      ports = ["9998:8080" "8086:8086"];
       environment = {
         COLLECTOR_CRON_SCHEDULE = "0 0 * * 7";
       };
