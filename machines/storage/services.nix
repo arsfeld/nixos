@@ -12,6 +12,22 @@
 in {
   services.netdata.enable = true;
 
+  services.mediamtx = {
+    enable = true;
+    settings = {
+      paths = {
+        all = {
+          runOnReady = ''
+            ffmpeg -i rtsp://localhost:$RTSP_PORT/$MTX_PATH
+            -c copy
+            -f segment -strftime 1 -segment_time 60 -segment_format mpegts ${vars.dataDir}/files/Camera/saved_%Y-%m-%d_%H-%M-%S.ts
+          '';
+          runOnReadyRestart = "yes";
+        };
+      };
+    };
+  };
+
   services.adguardhome = {
     enable = true;
     settings = {
