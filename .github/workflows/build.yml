@@ -24,4 +24,4 @@ jobs:
         devbox-version: '0.5.13'
 
     - name: Build Linux
-      run: devbox run -- colmena build
+      run: devbox run -- colmena build --verbose --no-build-on-target
