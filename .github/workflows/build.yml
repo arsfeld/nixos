@@ -28,6 +28,8 @@ jobs:
         enable-cache: true
         devbox-version: '0.5.13'
     - name: Get names
-      run: devbox run -- colmena eval -E "{ nodes, pkgs, lib, ... }: lib.attrsets.mapAttrs (k: v: v.config.networking.hostName ) nodes"
+      run: |
+        devbox run -- colmena eval -E "{ nodes, pkgs, lib, ... }: lib.attrsets.mapAttrs (k: v: v.config.networking.hostName ) nodes"
     - name: Build on host
-      run: devbox run -- colmena build --build-on-target
+      run: |
+        devbox run -- colmena build --build-on-target
