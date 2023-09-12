@@ -135,10 +135,12 @@ in {
     };
   };
 
-  services.code-server = {
-    enable = false;
+  services.openvscode-server = {
+    enable = true;
     user = "arosenfeld";
     host = "0.0.0.0";
+    port = 3434;
+    withoutConnectionToken = true;
   };
 
   services.gitea = {

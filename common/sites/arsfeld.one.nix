@@ -163,7 +163,7 @@ in {
           admin $2a$14$oVkXE/xxSehMnluRIbEzyeCETY.ra1XGx3rCohBi1k/usv32CF2JS
         }
 
-        reverse_proxy cloud:3000
+        reverse_proxy cloud:3434
       '';
     };
     "seafile.${domain}" = {
