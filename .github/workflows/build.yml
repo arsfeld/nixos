@@ -6,22 +6,22 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
 
+    - name: Install Nix
+      uses: DeterminateSystems/nix-installer-action@v4
+    - name: Run the Magic Nix Cache
+      uses: DeterminateSystems/magic-nix-cache-action@v2
     - name: Check Nix flake inputs
       uses: DeterminateSystems/flake-checker-action@v4
 
     - name: Install devbox
-      uses: jetpack-io/devbox-install-action@v0.4.0
+      uses: jetpack-io/devbox-install-action@v0.6.1
       with:
         enable-cache: true
-        devbox-version: '0.5.6'
+        devbox-version: '0.5.13'
 
     - name: Build Linux
-      if: runner.os == 'Linux'
-      run: devbox run build
+      run: devbox run -- colmena build

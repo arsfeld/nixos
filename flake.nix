@@ -104,18 +104,18 @@
           ++ homeFeatures;
       };
 
-      router = {
-        deployment = {
-          targetHost = "router";
-        };
-        imports =
-          [
-            disko.nixosModules.disko
-            nixos-nftables-firewall.nixosModules.default
-            ./machines/router/configuration.nix
-          ]
-          ++ homeFeatures;
-      };
+      # router = {
+      #   deployment = {
+      #     targetHost = "router";
+      #   };
+      #   imports =
+      #     [
+      #       disko.nixosModules.disko
+      #       nixos-nftables-firewall.nixosModules.default
+      #       ./machines/router/configuration.nix
+      #     ]
+      #     ++ homeFeatures;
+      # };
 
       G14 = {
         deployment = {
@@ -148,42 +148,42 @@
           ++ homeFeatures;
       };
 
-      striker = {
-        deployment = {
-          targetHost = "striker";
-          tags = ["local"];
-        };
-        imports =
-          [
-            agenix.nixosModules.default
-            ./machines/striker/configuration.nix
-          ]
-          ++ homeFeatures;
-      };
+      # striker = {
+      #   deployment = {
+      #     targetHost = "striker";
+      #     tags = ["local"];
+      #   };
+      #   imports =
+      #     [
+      #       agenix.nixosModules.default
+      #       ./machines/striker/configuration.nix
+      #     ]
+      #     ++ homeFeatures;
+      # };
 
-      pegasus = {
-        deployment = {
-          targetHost = "pegasus";
-          tags = ["local"];
-        };
-        imports =
-          [
-            ./machines/pegasus/configuration.nix
-          ]
-          ++ homeFeatures;
-      };
+      # pegasus = {
+      #   deployment = {
+      #     targetHost = "pegasus";
+      #     tags = ["local"];
+      #   };
+      #   imports =
+      #     [
+      #       ./machines/pegasus/configuration.nix
+      #     ]
+      #     ++ homeFeatures;
+      # };
 
-      raspi3 = {
-        deployment = {
-          targetHost = "raspi3";
-          tags = ["local"];
-        };
-        imports =
-          [
-            ./machines/raspi3/configuration.nix
-          ]
-          ++ homeFeatures;
-      };
+      # raspi3 = {
+      #   deployment = {
+      #     targetHost = "raspi3";
+      #     tags = ["local"];
+      #   };
+      #   imports =
+      #     [
+      #       ./machines/raspi3/configuration.nix
+      #     ]
+      #     ++ homeFeatures;
+      # };
 
       # r2s = {
       #   nixpkgs.system = "aarch64-linux";

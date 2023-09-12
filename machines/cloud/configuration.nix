@@ -28,6 +28,7 @@
 
   nixpkgs.config.permittedInsecurePackages = [
     "nodejs-16.20.1"
+    "nodejs-16.20.2"
   ];
 
   services.openvscode-server = {
