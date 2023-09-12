@@ -14,14 +14,20 @@ jobs:
       uses: DeterminateSystems/nix-installer-action@v4
     - name: Run the Magic Nix Cache
       uses: DeterminateSystems/magic-nix-cache-action@v2
+    - name: Tailscale
+      uses: tailscale/github-action@v2
+      with:
+        oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+        oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+        tags: tag:ci
     - name: Check Nix flake inputs
       uses: DeterminateSystems/flake-checker-action@v4
-
     - name: Install devbox
       uses: jetpack-io/devbox-install-action@v0.6.1
       with:
         enable-cache: true
         devbox-version: '0.5.13'
-
-    - name: Build Linux
-      run: devbox run -- colmena build --verbose --no-build-on-target
+    - name: Get names
+      run: devbox run -- colmena eval -E "{ nodes, pkgs, lib, ... }: lib.attrsets.mapAttrs (k: v: v.config.networking.hostName ) nodes"
+    - name: Build on host
+      run: devbox run -- colmena build --build-on-target
