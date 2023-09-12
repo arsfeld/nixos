@@ -30,6 +30,10 @@ with lib; {
   networking.hostName = "storage";
   networking.firewall.enable = false;
 
+  nixpkgs.config.permittedInsecurePackages = [
+    "nodejs-16.20.2"
+  ];
+
   virtualisation.docker.storageDriver = "zfs";
 
   boot = {
