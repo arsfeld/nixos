@@ -5,9 +5,13 @@
       upstream = {
         default = ["1.1.1.1" "9.9.9.9"];
       };
+      caching = {
+        minTime = "5m";
+        prefetching = true;
+      };
       customDNS = {
         mapping = {
-          "arsfeld.one" = "192.168.31.15";
+          "arsfeld.one" = "100.101.207.61";
         };
       };
       conditional = {

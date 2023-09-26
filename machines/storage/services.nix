@@ -38,7 +38,7 @@ in {
   };
 
   services.adguardhome = {
-    enable = true;
+    enable = false;
     settings = {
       users = [
         {
