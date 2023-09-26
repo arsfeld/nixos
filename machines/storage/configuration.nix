@@ -15,6 +15,7 @@ with lib; {
     ../../common/acme.nix
     ../../common/users.nix
     ../../common/mail.nix
+    ../../common/blocky.nix
     ../../common/sites/arsfeld.one.nix
     ./zfs.nix
     ./cloud-sync.nix

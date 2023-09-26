@@ -4,6 +4,7 @@
     ../../common/users.nix
     ../../common/services.nix
     ../../common/acme.nix
+    ../../common/blocky.nix
     ./hardware-configuration.nix
     ../../common/sites/arsfeld.one.nix
     ../../common/sites/rosenfeld.one.nix
@@ -14,7 +15,7 @@
   services.netdata.enable = true;
 
   services.adguardhome = {
-    enable = true;
+    enable = false;
     settings = {
       users = [
         {
