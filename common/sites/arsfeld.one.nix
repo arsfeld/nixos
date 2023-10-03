@@ -9,6 +9,55 @@
 with lib; let
   domain = "arsfeld.one";
   email = "arsfeld@gmail.com";
+  generateHost = cfg: {
+    "${cfg.name}.${domain}" = {
+      useACMEHost = domain;
+      extraConfig = "reverse_proxy ${cfg.host}:${cfg.port}";
+    };
+  };
+  services = {
+    micro = {
+      "vault" = "8000";
+      "yarr" = "7070";
+    };
+    storage = {
+      "minio" = "9000";
+      "gitea" = "3001";
+      "speedtest" = "8765";
+      "photos" = "15777";
+      "immich" = "15777";
+      "duplicati" = "8200";
+      "radarr" = "7878";
+      "lidarr" = "8686";
+      "jackett" = "9117";
+      "sonarr" = "8989";
+      "bazarr" = "6767";
+      "whisparr" = "6969";
+      "qbittorrent" = "8080";
+      "transmission" = "9091";
+      "qflood" = "3000";
+      "prowlarr" = "9696";
+      "flaresolverr" = "8191";
+      "stash" = "9999";
+      "netdata" = "19999";
+      "remotely" = "5000";
+      "tautulli" = "8181";
+      "jellyfin" = "8096";
+      "jf" = "3831";
+      "nzbhydra2" = "5076";
+      "sabnzbd" = "9998";
+      "hass" = "8123";
+      "grafana" = "2345";
+      "seafile" = "8082";
+      "filestash" = "8334";
+      "filerun" = "6000";
+    };
+    cloud = {
+      "dev" = "8000";
+    };
+  };
+  configs = concatLists (mapAttrsToList (host: pairs: mapAttrsToList (name: port: {inherit name port host;}) pairs) services);
+  hosts = foldl' (acc: host: acc // host) {} (map generateHost configs);
 in {
   security.acme.certs."${domain}" = {
     extraDomainNames = ["*.${domain}"];
@@ -16,192 +65,27 @@ in {
 
   services.caddy.email = email;
 
-  services.caddy.virtualHosts = {
-    "vault.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy micro:8000";
-    };
-    "yarr.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy micro:7070";
-    };
-    "minio.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:9000";
-    };
-    "gitea.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:3001";
-    };
-    "speedtest.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:8765";
-    };
-    "photos.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:15777";
-    };
-    "immich.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:15777";
-    };
-    "duplicati.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:8200";
-    };
-    "radarr.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = ''
-        reverse_proxy storage:7878
-      '';
-    };
-    "lidarr.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:8686";
-    };
-    "jackett.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = ''
-        reverse_proxy storage:9117
-      '';
-    };
-    "sonarr.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = ''
-        reverse_proxy storage:8989
-      '';
-    };
-    "bazarr.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = ''
-        reverse_proxy storage:6767
-      '';
-    };
-    "whisparr.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:6969";
-    };
-    "qbittorrent.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:8080";
-    };
-    "transmission.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:9091";
-    };
-    "qflood.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:3000";
-    };
-    "prowlarr.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:9696";
-    };
-    "flaresolverr.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:8191";
-    };
-    "stash.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = ''
-        reverse_proxy storage:9999
-      '';
-    };
-    "netdata.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = ''
-        reverse_proxy storage:19999
-      '';
-    };
-    "remotely.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:5000";
-    };
-    "tautulli.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = ''
-        reverse_proxy storage:8181
-      '';
-    };
-    "jellyfin.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:8096";
-    };
-    "jf.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:3831";
-    };
-    "nzbhydra2.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:5076";
-    };
-    "sabnzbd.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = ''
-        reverse_proxy storage:9998
-      '';
-    };
-    "hass.${domain}" = {
-      useACMEHost = domain;
-      # Use router IP address, otherwise it doesnt work
-      extraConfig = "reverse_proxy storage:8123";
-    };
-    "grafana.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = "reverse_proxy storage:2345";
-    };
-    "dev.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = ''
-        reverse_proxy cloud:8000
-      '';
-    };
-    "code.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = ''
-        basicauth /* {
-          admin $2a$14$oVkXE/xxSehMnluRIbEzyeCETY.ra1XGx3rCohBi1k/usv32CF2JS
-        }
-
-        reverse_proxy storage:3434
-      '';
-    };
-    "seafile.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = ''
-        reverse_proxy storage:8082
-      '';
-    };
-    "filestash.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = ''
-        reverse_proxy storage:8334
-      '';
-    };
-    "filerun.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = ''
-        reverse_proxy storage:6000
-      '';
-    };
-    "idm.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = ''
-        reverse_proxy https://storage:8443 {
-          transport http {
-            tls_insecure_skip_verify
+  services.caddy.virtualHosts =
+    hosts
+    // {
+      "code.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = ''
+          basicauth /* {
+            admin $2a$14$oVkXE/xxSehMnluRIbEzyeCETY.ra1XGx3rCohBi1k/usv32CF2JS
           }
-        }
-      '';
-    };
-    "nextcloud.${domain}" = {
-      useACMEHost = domain;
-      extraConfig = ''
-        rewrite /.well-known/carddav /remote.php/dav
-        rewrite /.well-known/caldav /remote.php/dav
 
-        reverse_proxy storage:8099
-      '';
+          reverse_proxy storage:3434
+        '';
+      };
+      "nextcloud.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = ''
+          rewrite /.well-known/carddav /remote.php/dav
+          rewrite /.well-known/caldav /remote.php/dav
+
+          reverse_proxy storage:8099
+        '';
+      };
     };
-  };
 }
