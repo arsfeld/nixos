@@ -73,6 +73,7 @@
           system = "x86_64-linux";
         };
         specialArgs = {inherit inputs outputs;};
+        machinesFile = ./buildMachines;
       };
 
       micro = {

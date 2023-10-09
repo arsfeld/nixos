@@ -32,4 +32,4 @@ jobs:
         devbox run -- colmena eval -E "{ nodes, pkgs, lib, ... }: lib.attrsets.mapAttrs (k: v: v.config.networking.hostName ) nodes"
     - name: Build on host
       run: |
-        devbox run -- colmena build --build-on-target
+        devbox run -- colmena build --no-build-on-target
