@@ -1,0 +1,2 @@
+ssh://root@storage x86_64-linux
+ssh://root@cloud   aarch64
