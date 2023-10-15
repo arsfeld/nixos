@@ -15,15 +15,21 @@ in {
   services.caddy.virtualHosts = {
     "${domain}" = {
       extraConfig = ''
-        redir /.well-known/webfinger /webfinger/{query.resource}.json
-        @httpwebfinger {
-          path_regexp webfinger /webfinger/https?://(.+)
+        handle_path /.well-known/webfinger {
+          respond `
+              {
+                "subject": "acct:alex@rosenfeld.one",
+                "links": [
+                  {
+                    "rel": "http://openid.net/specs/connect/1.0/issuer",
+                    "href": "https://rosenfeld.one"
+                  }
+                ]
+              }
+            ` 200
         }
-        rewrite @httpwebfinger /webfinger/{re.webfinger.1}
+        reverse_proxy localhost:5556
       '';
-    };
-    "cloak.${domain}" = {
-      extraConfig = "reverse_proxy storage:38080";
     };
   };
 }
