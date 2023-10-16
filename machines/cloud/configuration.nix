@@ -1,9 +1,16 @@
 {config, ...}: {
   imports = [
     ./hardware-configuration.nix
+    ../../common/acme.nix
     ../../common/common.nix
     ../../common/services.nix
     ../../common/users.nix
+    ../../common/sites/arsfeld.one.nix
+    ../../common/sites/rosenfeld.one.nix
+    ../../common/sites/rosenfeld.blog.nix
+    ../../common/sites/arsfeld.dev.nix
+    ./services.nix
+    ./containers.nix
   ];
 
   boot = {
@@ -13,29 +20,9 @@
   boot.cleanTmpDir = true;
   zramSwap.enable = true;
   networking.hostName = "cloud";
-  networking.domain = "penguin-gecko.ts.net";
-  services.openssh.enable = true;
-
-  services.tailscale.enable = true;
-
-  users.users.arosenfeld = {
-    isNormalUser = true;
-    extraGroups = ["wheel"];
-    openssh.authorizedKeys.keys = [
-      ''ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBDeQP9ZHuDegrcgBEAuLpCWEK0v8eIBAgaLMSquCP0w arsfeld@gmail.com''
-    ];
-  };
-
-  nixpkgs.config.permittedInsecurePackages = [
-    "nodejs-16.20.2"
-  ];
-
-  services.openvscode-server = {
-    enable = true;
-    user = "arosenfeld";
-    host = "0.0.0.0";
-    withoutConnectionToken = true;
-  };
+  networking.firewall.enable = false;
+  # This should be overriden by tailscale at some point
+  networking.nameservers = ["1.1.1.1" "9.9.9.9"];
 
   services.atticd = {
     enable = true;
@@ -63,8 +50,4 @@
       };
     };
   };
-
-  users.users.root.openssh.authorizedKeys.keys = [
-    ''ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBDeQP9ZHuDegrcgBEAuLpCWEK0v8eIBAgaLMSquCP0w arsfeld@gmail.com''
-  ];
 }

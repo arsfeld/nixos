@@ -11,7 +11,7 @@
       };
       customDNS = {
         mapping = {
-          "arsfeld.one" = "100.101.207.61";
+          "arsfeld.one" = "100.118.254.136";
         };
       };
       conditional = {
