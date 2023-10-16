@@ -53,7 +53,7 @@ in {
         rewrites = [
           {
             domain = "*.arsfeld.one";
-            answer = "100.101.207.61";
+            answer = "100.118.254.136";
           }
         ];
         upstream_dns = ["1.1.1.1" "1.0.0.1"];
