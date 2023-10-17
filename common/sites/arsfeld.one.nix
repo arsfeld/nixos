@@ -16,9 +16,10 @@ with lib; let
     };
   };
   services = {
-    micro = {
+    cloud = {
       "vault" = "8000";
       "yarr" = "7070";
+      "dev" = "8000";
     };
     storage = {
       "minio" = "9000";
@@ -51,9 +52,6 @@ with lib; let
       "seafile" = "8082";
       "filestash" = "8334";
       "filerun" = "6000";
-    };
-    cloud = {
-      "dev" = "8000";
     };
   };
   configs = concatLists (mapAttrsToList (host: pairs: mapAttrsToList (name: port: {inherit name port host;}) pairs) services);
