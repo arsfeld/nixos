@@ -49,6 +49,16 @@
     };
   };
 
+  services.invidious = {
+    enable = true;
+    port = 3939;
+    domain = "invidious.arsfeld.one";
+    database.createLocally = true;
+    settings = {
+      https_only = true;
+    };
+  };
+
   # For vscode
   nixpkgs.config.permittedInsecurePackages = [
     "nodejs-16.20.2"
