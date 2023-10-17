@@ -20,6 +20,7 @@ with lib; let
       "vault" = "8000";
       "yarr" = "7070";
       "dev" = "8000";
+      "invidious" = "3939";
     };
     storage = {
       "minio" = "9000";
