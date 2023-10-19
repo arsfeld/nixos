@@ -70,6 +70,8 @@
     };
   };
 
+  services.journald.extraConfig = "SystemMaxUse=1G";
+
   services.caddy = {
     enable = true;
   };
