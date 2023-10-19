@@ -11,5 +11,5 @@ in {
   "keycloak-pass.age".publicKeys = users ++ systems;
   "smtp_password.age".publicKeys = users ++ systems;
   "rclone-idrive.age".publicKeys = users ++ systems;
-  "restic-password.age".publicKeys = [storage micro];
+  "restic-password.age".publicKeys = users ++ systems;
 }
