@@ -205,7 +205,6 @@ in {
     hostName = "localhost";
     maxUploadSize = "10G";
     package = pkgs.nextcloud26;
-    enableBrokenCiphersForSSE = false;
     config = {
       dbtype = "pgsql";
       dbuser = "nextcloud";

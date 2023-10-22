@@ -47,6 +47,7 @@ in {
       tldr
       nvidia-offload
       nil
+      devbox
       (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
       (writeScriptBin "running" (builtins.readFile ./scripts/running))
     ];
