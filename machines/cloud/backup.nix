@@ -4,10 +4,9 @@
   pkgs,
   ...
 }: {
-
   age.secrets."restic-password".file = ../../secrets/restic-password.age;
   age.secrets."restic-password".mode = "444";
-  
+
   services.restic.backups = {
     cloud = {
       paths = [

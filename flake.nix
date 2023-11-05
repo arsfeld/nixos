@@ -118,26 +118,26 @@
       #     ++ homeFeatures;
       # };
 
-      G14 = {
-        deployment = {
-          targetHost = "G14";
-          #allowLocalDeployment = true;
-          buildOnTarget = true;
-          tags = ["local"];
-        };
-        imports =
-          [
-            nixos-hardware.nixosModules.common-gpu-nvidia-disable
-            nixos-hardware.nixosModules.common-cpu-amd-pstate
-            ./machines/g14/configuration.nix
-          ]
-          ++ homeFeatures;
-      };
+      # G14 = {
+      #   deployment = {
+      #     targetHost = "G14";
+      #     #allowLocalDeployment = true;
+      #     buildOnTarget = true;
+      #     tags = ["local"];
+      #   };
+      #   imports =
+      #     [
+      #       nixos-hardware.nixosModules.common-gpu-nvidia-disable
+      #       nixos-hardware.nixosModules.common-cpu-amd-pstate
+      #       ./machines/g14/configuration.nix
+      #     ]
+      #     ++ homeFeatures;
+      # };
 
       storage = {
         deployment = {
           targetHost = "storage";
-          allowLocalDeployment = true;
+          #allowLocalDeployment = true;
           tags = ["local"];
         };
         imports =
@@ -145,6 +145,19 @@
             agenix.nixosModules.default
             ./common/modules/systemd-email-notify.nix
             ./machines/storage/configuration.nix
+          ]
+          ++ homeFeatures;
+      };
+
+      raider = {
+        deployment = {
+          targetHost = "raider";
+          allowLocalDeployment = true;
+          tags = ["local"];
+        };
+        imports =
+          [
+            ./machines/raider/configuration.nix
           ]
           ++ homeFeatures;
       };
