@@ -151,7 +151,7 @@
 
       raider = {
         deployment = {
-          targetHost = "raider";
+          targetHost = "raider-1";
           allowLocalDeployment = true;
           tags = ["local"];
         };

@@ -6,6 +6,8 @@
   appimage = pkgs.callPackage (import ./appimage.nix) {};
 in {
   imports = [
+    ../../common/common.nix
+    ../../common/users.nix
     ./hardware-configuration.nix
     # ./pantheon.nix
   ];
@@ -23,8 +25,6 @@ in {
   boot.plymouth = {
     enable = true;
   };
-
-  nix.settings.experimental-features = ["nix-command" "flakes"];
 
   networking.hostName = "raider";
 
@@ -44,12 +44,6 @@ in {
     extraPackages = with pkgs; [mangohud];
     extraPackages32 = with pkgs; [mangohud];
   };
-
-  # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
-
-  # Configure network proxy if necessary
-  # networking.proxy.default = "http://user:password@proxy:port/";
-  # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
 
   boot.kernelPackages = pkgs.linuxPackages_zen;
   #boot.extraModulePackages = with config.boot.kernelPackages; [ bcachefs ];
@@ -96,28 +90,9 @@ in {
     (nerdfonts.override {fonts = ["FiraCode" "DroidSansMono" "CascadiaCode"];})
   ];
 
-  # Define a user account. Don't forget to set a password with ‘passwd’.
-  users.users.arosenfeld = {
-    isNormalUser = true;
-    description = "Alexandre Rosenfeld";
-    extraGroups = ["networkmanager" "wheel"];
-    packages = with pkgs; [
-      appimage-run
-      (appimage.appimagePackage {
-        binName = "thorium";
-        version = "117.0.5938.157";
-        url = "https://github.com/Alex313031/thorium/releases/download/M117.0.5938.157/Thorium_Browser_117.0.5938.157_x64.AppImage";
-        sha256 = "sha256-dlfClBbwSkQg4stKZdSgNg3EFsWksoI21cxRG5SMrOM=";
-      })
-    ];
-  };
-
   # Enable automatic login for the user.
   #services.xserver.displayManager.autoLogin.enable = true;
   #services.xserver.displayManager.autoLogin.user = "arosenfeld";
-
-  # Allow unfree packages
-  nixpkgs.config.allowUnfree = true;
 
   #programs.steam.enable = true;
   #programs.steam.gamescopeSession.enable = true;
@@ -161,6 +136,14 @@ in {
     pantheon.elementary-sound-theme
     pantheon.elementary-gtk-theme
     pantheon.elementary-icon-theme
+
+    appimage-run
+    (appimage.appimagePackage {
+      binName = "thorium";
+      version = "117.0.5938.157";
+      url = "https://github.com/Alex313031/thorium/releases/download/M117.0.5938.157/Thorium_Browser_117.0.5938.157_x64.AppImage";
+      sha256 = "sha256-dlfClBbwSkQg4stKZdSgNg3EFsWksoI21cxRG5SMrOM=";
+    })
   ];
 
   environment.variables = {

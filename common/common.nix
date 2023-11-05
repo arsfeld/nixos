@@ -36,6 +36,7 @@
     nano
     zsh
     file
+    killall
     keychain
     psmisc
     parted
