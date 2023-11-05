@@ -9,7 +9,7 @@
     isNormalUser = true;
     shell = pkgs.zsh;
     description = "Alexandre Rosenfeld";
-    extraGroups = ["wheel" "docker" "lxd" "media" "libvirtd"];
+    extraGroups = ["wheel" "docker" "lxd" "media" "libvirtd" "networkmanager"];
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBDeQP9ZHuDegrcgBEAuLpCWEK0v8eIBAgaLMSquCP0w"
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICobaxx3CHHrOxWLW9Sol7WSaUyLDmG+un2g5K1ongBK alexandre.rosenfeld@ubisoft.com"

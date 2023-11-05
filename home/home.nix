@@ -168,8 +168,57 @@ in {
 
   programs.command-not-found.enable = true;
 
-  services.syncthing = {
-    enable = pkgs.stdenv.isLinux;
+  # services.syncthing = {
+  #   enable = pkgs.stdenv.isLinux;
+  # };
+
+  programs.mangohud = {
+    enable = true;
+    enableSessionWide = true;
+    settings = {
+      # full = true;
+      # no_display = true;
+      # cpu_load_change = true;
+      # toggle_fps_limit="F1";
+      legacy_layout = false;
+      gpu_stats = true;
+      gpu_temp = true;
+      gpu_load_change = true;
+      gpu_load_value = "50,90";
+      gpu_load_color = "FFFFFF,FF7800,CC0000";
+      gpu_text = "GPU";
+      cpu_stats = true;
+      cpu_temp = true;
+      cpu_load_change = true;
+      core_load_change = true;
+      cpu_load_value = "50,90";
+      cpu_load_color = "FFFFFF,FF7800,CC0000";
+      cpu_color = "2e97cb";
+      cpu_text = "CPU";
+      io_color = "a491d3";
+      vram = true;
+      vram_color = "ad64c1";
+      ram_color = "c26693";
+      fps = true;
+      engine_color = "eb5b5b";
+      gpu_color = "2e9762e";
+      wine_color = "eb5b5b";
+      frame_timing = 1;
+      frametime_color = "00ff00";
+      media_player_color = "ffffff";
+      background_alpha = 0.4;
+      font_size = 24;
+      blacklist = "google-chrome,chrome";
+      background_color = "020202";
+      position = "top-left";
+      text_color = "ffffff";
+      round_corners = 0;
+      toggle_hud = "Shift_R+F12";
+      toggle_logging = "Shift_L+F2";
+      upload_log = "F5";
+      output_folder = "/home/arosenfeld";
+      media_player_name = "spotify";
+    };
   };
 
   programs.zsh.shellAliases = {
