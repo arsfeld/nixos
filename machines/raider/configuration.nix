@@ -17,7 +17,7 @@ in {
     "quiet"
     "rd.systemd.show_status=auto"
     "rd.udev.log_priority=3"
-    "splash" 
+    "splash"
   ];
 
   boot.plymouth = {
@@ -38,7 +38,7 @@ in {
   services.xserver.displayManager.gdm.enable = true;
   services.xserver.desktopManager.gnome.enable = true;
   #environment.systemPackages = with pkgs; [ gnomeExtensions.appindicator ];
-  services.udev.packages = with pkgs; [ gnome.gnome-settings-daemon ];
+  services.udev.packages = with pkgs; [gnome.gnome-settings-daemon];
 
   hardware.opengl = {
     extraPackages = with pkgs; [mangohud];
@@ -122,7 +122,8 @@ in {
   #programs.steam.enable = true;
   #programs.steam.gamescopeSession.enable = true;
 
-  hardware.opengl = { # this fixes the "glXChooseVisual failed" bug, context: https://github.com/NixOS/nixpkgs/issues/47932
+  hardware.opengl = {
+    # this fixes the "glXChooseVisual failed" bug, context: https://github.com/NixOS/nixpkgs/issues/47932
     enable = true;
     driSupport = true;
     driSupport32Bit = true;
@@ -160,17 +161,15 @@ in {
     pantheon.elementary-sound-theme
     pantheon.elementary-gtk-theme
     pantheon.elementary-icon-theme
-
   ];
 
   environment.variables = {
-    MANGOHUD="1";
+    MANGOHUD = "1";
   };
 
   services.flatpak = {
     enable = true;
   };
-
 
   # Enable the OpenSSH daemon.
   services.openssh.enable = true;
