@@ -10,6 +10,20 @@ in {
     # ./pantheon.nix
   ];
 
+  boot.kernelParams = [
+    "zswap.enabled=1"
+    "mitigations=off"
+    "panic=1"
+    "quiet"
+    "rd.systemd.show_status=auto"
+    "rd.udev.log_priority=3"
+    "splash" 
+  ];
+
+  boot.plymouth = {
+    enable = true;
+  };
+
   nix.settings.experimental-features = ["nix-command" "flakes"];
 
   networking.hostName = "raider";
@@ -122,12 +136,10 @@ in {
 
   environment.systemPackages = with pkgs; [
     vscode
-    #chromium
-    google-chrome
-    # microsoft-edge
     vim
     wget
     wineWowPackages.stable
+    gamescope
     goverlay
     mangohud
     vkbasalt
