@@ -1,4 +1,9 @@
-{ inputs, lib, pkgs, ... }: {
+{
+  inputs,
+  lib,
+  pkgs,
+  ...
+}: {
   # Exclude the elementary apps I don't use
   environment = {
     pantheon.excludePackages = with pkgs.pantheon; [
@@ -11,18 +16,18 @@
     # App indicator
     # - https://discourse.nixos.org/t/anyone-with-pantheon-de/28422
     # - https://github.com/NixOS/nixpkgs/issues/144045#issuecomment-992487775
-    pathsToLink = [ "/libexec" ];
+    pathsToLink = ["/libexec"];
 
     # Add additional apps and include Yaru for syntax highlighting
     systemPackages = with pkgs; [
-      appeditor                   # elementary OS menu editor
-      celluloid                   # Video Player
-      formatter                   # elementary OS filesystem formatter
-      gthumb                      # Image Viewer
-      gnome.simple-scan           # Scanning
-      indicator-application-gtk3  # App Indicator
-      pantheon.sideload           # elementary OS Flatpak installer
-      torrential                  # elementary OS torrent client
+      appeditor # elementary OS menu editor
+      celluloid # Video Player
+      formatter # elementary OS filesystem formatter
+      gthumb # Image Viewer
+      gnome.simple-scan # Scanning
+      indicator-application-gtk3 # App Indicator
+      pantheon.sideload # elementary OS Flatpak installer
+      torrential # elementary OS torrent client
       yaru-theme
     ];
   };
@@ -63,8 +68,8 @@
   # - https://github.com/NixOS/nixpkgs/issues/144045#issuecomment-992487775
   systemd.user.services.indicatorapp = {
     description = "indicator-application-gtk3";
-    wantedBy = [ "graphical-session.target" ];
-    partOf = [ "graphical-session.target" ];
+    wantedBy = ["graphical-session.target"];
+    partOf = ["graphical-session.target"];
     serviceConfig = {
       ExecStart = "${pkgs.indicator-application-gtk3}/libexec/indicator-application/indicator-application-service";
     };
