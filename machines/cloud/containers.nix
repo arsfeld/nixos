@@ -38,5 +38,10 @@
         "YARR_AUTH" = "admin:***REMOVED***";
       };
     };
+
+    ladder = {
+      image = "ghcr.io/kubero-dev/ladder:latest";
+      ports = ["8766:8080"];
+    };
   };
 }
