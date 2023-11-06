@@ -72,15 +72,15 @@ in {
   # services.printing.enable = true;
 
   # # Enable sound with pipewire.
-  # sound.enable = true;
-  # hardware.pulseaudio.enable = false;
-  # security.rtkit.enable = true;
-  # services.pipewire = {
-  #   enable = true;
-  #   alsa.enable = true;
-  #   alsa.support32Bit = true;
-  #   pulse.enable = true;
-  # };
+  sound.enable = true;
+  hardware.pulseaudio.enable = false;
+  security.rtkit.enable = true;
+  services.pipewire = {
+    enable = true;
+    alsa.enable = true;
+    alsa.support32Bit = true;
+    pulse.enable = true;
+  };
 
   services.netdata.enable = true;
 
@@ -145,6 +145,28 @@ in {
       sha256 = "sha256-dlfClBbwSkQg4stKZdSgNg3EFsWksoI21cxRG5SMrOM=";
     })
   ];
+
+  #   nixpkgs.overlays = [
+  #   (self: super: {
+  #     gnome = super.gnome.overrideScope' (pself: psuper: {
+  #       mutter = psuper.mutter.overrideAttrs (oldAttrs: {
+  #         version = "44.5";
+  #         src = super.fetchgit {
+  #           url = "https://gitlab.gnome.org/doraskayo/mutter.git";
+  #           rev = "5c70e0148d5302046cc83cfd1c6feb8696521d95";
+  #           hash = "sha256-399fXCWhrCwHiiVoPU8sM6zQ/4Rhx5ROBiuMw9GZ0+Y=";
+  #         };
+  #         patches = (oldAttrs.patches or [ ]) ++ [
+  #           #./vrr.patch
+  #           (super.fetchpatch {
+  #              url = "https://raw.githubusercontent.com/KyleGospo/gnome-vrr/main/mutter/enable-vrr-setting.patch";
+  #              hash = "sha256-2SXIvAms1UfkkTEeQA3Ij4IwEFnIB/RlzQq74HgmKaw=";
+  #           })
+  #         ];
+  #       });
+  #     });
+  #   })
+  # ];
 
   environment.variables = {
     MANGOHUD = "1";
