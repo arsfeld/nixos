@@ -9,8 +9,31 @@
     qbittorrent = "8080";
     immich = "15777";
   };
+  plex-trakt-sync = {interactive ? false}: ''    ${pkgs.docker}/bin/docker run ${
+      if interactive
+      then "-it"
+      else ""
+    } --rm \
+            -v ${vars.configDir}/plex-track-sync:/app/config \
+            ghcr.io/taxel/plextraktsync'';
 in {
   services.netdata.enable = true;
+
+  environment.systemPackages = [
+    (pkgs.writeShellScriptBin "plex-trakt-sync" "${(plex-trakt-sync {interactive = true;})} \"$@\"")
+  ];
+
+  systemd = {
+    timers.plex-trakt-sync = {
+      wantedBy = ["timers.target"];
+      partOf = ["simple-timer.service"];
+      timerConfig.OnCalendar = "weekly";
+    };
+    services.plex-trakt-sync = {
+      serviceConfig.Type = "oneshot";
+      script = "${(plex-trakt-sync {})} sync";
+    };
+  };
 
   services.mediamtx = {
     enable = true;

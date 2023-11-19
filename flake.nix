@@ -137,7 +137,7 @@
       storage = {
         deployment = {
           targetHost = "storage";
-          #allowLocalDeployment = true;
+          allowLocalDeployment = true;
           tags = ["local"];
         };
         imports =
@@ -152,7 +152,7 @@
       raider = {
         deployment = {
           targetHost = "raider-1";
-          allowLocalDeployment = true;
+          #allowLocalDeployment = true;
           tags = ["local"];
         };
         imports =
