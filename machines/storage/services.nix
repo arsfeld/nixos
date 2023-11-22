@@ -227,7 +227,7 @@ in {
     datadir = "${vars.dataDir}/files/Nextcloud";
     hostName = "localhost";
     maxUploadSize = "10G";
-    package = pkgs.nextcloud26;
+    package = pkgs.nextcloud27;
     config = {
       dbtype = "pgsql";
       dbuser = "nextcloud";
