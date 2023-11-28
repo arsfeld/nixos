@@ -14,6 +14,8 @@
     attic.url = "github:zhaofengli/attic";
     attic.inputs.nixpkgs.follows = "nixpkgs";
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
+    nixos-mailserver.url = "gitlab:simple-nixos-mailserver/nixos-mailserver";
+    nixos-mailserver.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = inputs @ {
@@ -27,6 +29,7 @@
     nixos-generators,
     nixos-nftables-firewall,
     nixos-hardware,
+    nixos-mailserver,
     ...
   }: let
     inherit (self) outputs;
@@ -100,6 +103,7 @@
           [
             agenix.nixosModules.default
             attic.nixosModules.atticd
+            nixos-mailserver.nixosModules.default
             ./machines/cloud/configuration.nix
           ]
           ++ homeFeatures;
