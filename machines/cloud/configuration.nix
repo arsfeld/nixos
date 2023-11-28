@@ -17,12 +17,35 @@
     binfmt.emulatedSystems = ["x86_64-linux"];
   };
 
-  boot.cleanTmpDir = true;
-  zramSwap.enable = true;
+  boot.tmp.cleanOnBoot = true;
   networking.hostName = "cloud";
   networking.firewall.enable = false;
   # This should be overriden by tailscale at some point
   networking.nameservers = ["1.1.1.1" "9.9.9.9"];
+
+  security.acme.certs."arsfeld.dev" = {
+    extraDomainNames = ["*.arsfeld.dev"];
+  };
+
+  mailserver = {
+    enable = true;
+    fqdn = "mail.arsfeld.dev";
+    domains = ["arsfeld.dev"];
+
+    vmailUID = 5005;
+
+    # A list of all login accounts. To create the password hashes, use
+    # nix-shell -p mkpasswd --run 'mkpasswd -sm bcrypt'
+    loginAccounts = {
+      "alex@arsfeld.dev" = {
+        hashedPassword = "$6$Csmhna5YUVoHnZ/S$lrSk0wko.Z/oL.Omf2jAdLc/mSpZsrw8sOXlknmfdHEjMopP7hESNk9PCArGBnZKm566Fo2QoubQWt0SLjbng.";
+
+        aliases = ["postmaster@arsfeld.dev"];
+      };
+    };
+
+    certificateScheme = "acme";
+  };
 
   services.atticd = {
     enable = true;
