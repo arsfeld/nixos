@@ -38,6 +38,16 @@
   services.nginx.defaultSSLListenPort = 8443;
   services.nginx.defaultHTTPListenPort = 8888;
 
+  services.fail2ban = {
+    enable = true;
+    ignoreIP = [
+      "10.0.0.0/8"
+      "172.16.0.0/12"
+      "192.168.0.0/16"
+      "100.64.0.0/10"
+    ];
+  };
+
   services.nginx.virtualHosts."webmail.arsfeld.net" = {
     forceSSL = false;
     enableACME = false;
