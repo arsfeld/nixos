@@ -22,6 +22,7 @@ with lib; let
       "dev" = "8000";
       "invidious" = "3939";
       "ladder" = "8766";
+      "actual" = "5006";
     };
     storage = {
       "minio" = "9000";
