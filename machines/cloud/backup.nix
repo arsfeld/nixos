@@ -23,7 +23,7 @@
         "'**/.nix-profile'"
       ];
       passwordFile = config.age.secrets."restic-password".path;
-      repository = "rest:http://storage:8000/cloud";
+      repository = "rest:https://storage.bat-boa.ts.net/restic/cloud";
       initialize = true;
       timerConfig = {
         OnCalendar = "daily";

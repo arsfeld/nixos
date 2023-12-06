@@ -11,6 +11,7 @@
     ../../common/sites/arsfeld.dev.nix
     ./services.nix
     ./containers.nix
+    ./backup.nix
   ];
 
   boot = {
