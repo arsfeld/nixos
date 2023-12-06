@@ -43,5 +43,11 @@
       image = "ghcr.io/kubero-dev/ladder:latest";
       ports = ["8766:8080"];
     };
+
+    actual = {
+      image = "actualbudget/actual-server:latest";
+      ports = ["5006:5006"];
+      volumes = ["/var/lib/actual:/data"];
+    };
   };
 }
