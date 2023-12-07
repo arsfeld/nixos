@@ -1,9 +1,4 @@
-{
-  lib,
-  config,
-  pkgs,
-  ...
-}: {
+{...}: {
   services.dex = {
     enable = true;
     settings = {

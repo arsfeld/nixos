@@ -55,6 +55,7 @@ with lib; let
       "seafile" = "8082";
       "filestash" = "8334";
       "filerun" = "6000";
+      "restic" = "8000";
     };
   };
   configs = concatLists (mapAttrsToList (host: pairs: mapAttrsToList (name: port: {inherit name port host;}) pairs) services);

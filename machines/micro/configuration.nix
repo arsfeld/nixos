@@ -11,9 +11,6 @@
 
   services.journald.extraConfig = "SystemMaxUse=1G";
 
-  age.secrets."restic-password".file = ../../secrets/restic-password.age;
-  age.secrets."restic-password".mode = "444";
-
   services.tailscale.enable = true;
 
   users.users.mox = {
@@ -65,6 +62,12 @@
     '';
   };
 
+  age.secrets."restic-password".file = ../../secrets/restic-password.age;
+  age.secrets."restic-password".mode = "444";
+
+  age.secrets."restic-rest-micro".file = ../../secrets/restic-rest-micro.age;
+  age.secrets."restic-rest-micro".mode = "444";
+
   services.restic.backups = {
     micro = {
       paths = [
@@ -81,7 +84,8 @@
         "'**/.nix-profile'"
       ];
       passwordFile = config.age.secrets."restic-password".path;
-      repository = "rest:http://storage:8000/micro";
+      environmentFile = config.age.secrets."restic-rest-micro".path;
+      repository = "rest:https://restic.arsfeld.one/micro";
       initialize = true;
       timerConfig = {
         OnCalendar = "daily";
