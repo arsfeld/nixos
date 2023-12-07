@@ -1,9 +1,4 @@
-{
-  lib,
-  config,
-  pkgs,
-  ...
-}: {
+{...}: {
   virtualisation.oci-containers.containers = {
     watchtower = {
       image = "containrrr/watchtower";

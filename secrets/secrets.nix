@@ -12,4 +12,6 @@ in {
   "smtp_password.age".publicKeys = users ++ systems;
   "rclone-idrive.age".publicKeys = users ++ systems;
   "restic-password.age".publicKeys = users ++ systems;
+  "restic-rest-cloud.age".publicKeys = users ++ [cloud];
+  "restic-rest-micro.age".publicKeys = users ++ [micro];
 }
