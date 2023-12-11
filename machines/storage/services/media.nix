@@ -78,8 +78,10 @@ in {
         TRANSMISSION_INCOMPLETE_DIR = "/media/Downloads/incomplete";
         TRANSMISSION_SPEED_LIMIT_UP = "1000";
         TRANSMISSION_SPEED_LIMIT_UP_ENABLED = "true";
+        WEBPROXY_ENABLED = "true";
+        WEBPROXY_PORT = "8118";
       };
-      ports = ["9091:9091"];
+      ports = ["9091:9091" "8118:8118"];
       volumes = [
         "${vars.configDir}/transmission-openvpn:/config"
         "${vars.dataDir}/media:/media"
@@ -261,7 +263,7 @@ in {
     };
 
     radarr = {
-      image = "ghcr.io/linuxserver/radarr";
+      image = "lscr.io/linuxserver/radarr:latest";
       environment = {
         PUID = vars.puid;
         PGID = vars.pgid;
@@ -285,6 +287,24 @@ in {
       ports = ["5055:5055"];
       volumes = [
         "${vars.configDir}/overseerr:/config"
+      ];
+    };
+
+    rdesktop = {
+      image = "lscr.io/linuxserver/rdesktop:fedora-xfce";
+      environment = {
+        PUID = vars.puid;
+        PGID = vars.pgid;
+        TZ = vars.tz;
+      };
+      ports = ["3389:3389"];
+      volumes = [
+        "/var/run/docker.sock:/var/run/docker.sock"
+        "${vars.configDir}/rdesktop:/config"
+        "/home/arosenfeld:/data/arosenfeld"
+        "${vars.dataDir}/homes:/data/homes"
+        "${vars.dataDir}/files:/data/files"
+        "${vars.dataDir}/media:/data/media"
       ];
     };
 
