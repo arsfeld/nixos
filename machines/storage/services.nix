@@ -28,8 +28,6 @@ in {
     };
   };
 
-  services.kasmweb.enable = true;
-
   environment.systemPackages = [
     (pkgs.writeShellScriptBin "plex-trakt-sync" "${(plex-trakt-sync {interactive = true;})} \"$@\"")
   ];
