@@ -275,6 +275,19 @@ in {
       ];
     };
 
+    overseerr = {
+      image = "lscr.io/linuxserver/overseerr:latest";
+      environment = {
+        PUID = vars.puid;
+        PGID = vars.pgid;
+        TZ = vars.tz;
+      };
+      ports = ["5055:5055"];
+      volumes = [
+        "${vars.configDir}/overseerr:/config"
+      ];
+    };
+
     whisparr = {
       image = "cr.hotio.dev/hotio/whisparr";
       environment = {
