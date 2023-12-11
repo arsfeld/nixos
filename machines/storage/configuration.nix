@@ -24,7 +24,6 @@ with lib; {
     ./backup.nix
     ./services.nix
     ./services/backup.nix
-    ./services/metrics.nix
     ./services/media.nix
   ];
 
@@ -54,16 +53,6 @@ with lib; {
     enable = true;
     notifications.mail.enable = true;
     notifications.test = true;
-  };
-
-  services.sshguard.enable = true;
-
-  services.printing = {
-    enable = true;
-    drivers = [pkgs.samsung-unified-linux-driver];
-    browsing = true;
-    allowFrom = ["all"]; # this gives access to anyone on the interface you might want to limit it see the official documentation
-    defaultShared = true;
   };
 
   services.avahi = {

@@ -28,6 +28,8 @@ in {
     };
   };
 
+  services.kasmweb.enable = true;
+
   environment.systemPackages = [
     (pkgs.writeShellScriptBin "plex-trakt-sync" "${(plex-trakt-sync {interactive = true;})} \"$@\"")
   ];
@@ -105,15 +107,15 @@ in {
 
   #users.users.kanidm.extraGroups = ["acme"];
 
-  security.acme.certs."idm.${vars.domain}" = {
-    email = vars.email;
-    group = "kanidm";
-  };
+  # security.acme.certs."idm.${vars.domain}" = {
+  #   email = vars.email;
+  #   group = "kanidm";
+  # };
 
   #security.pki.certificates = [(builtins.readFile ../../common/certs/cert.crt)];
 
   services.kanidm = {
-    enableServer = true;
+    enableServer = false;
     serverSettings = {
       origin = "https://idm.${vars.domain}";
       domain = vars.domain;
