@@ -5,6 +5,9 @@
       upstream = {
         default = ["1.1.1.1" "9.9.9.9"];
       };
+      ports = {
+        http = ":4000";
+      };
       caching = {
         minTime = "5m";
         prefetching = true;
@@ -16,7 +19,7 @@
       };
       conditional = {
         rewrite = {
-          lan = "penguin-gecko.ts.net";
+          lan = "bat-boa.ts.net";
         };
         mapping = {
           "ts.net" = "100.100.100.100";
