@@ -17,7 +17,16 @@
             -v ${vars.configDir}/plex-track-sync:/app/config \
             ghcr.io/taxel/plextraktsync'';
 in {
-  services.netdata.enable = true;
+  services.netdata = {
+    enable = true;
+    configDir = {
+      "go.d/prometheus.conf" = pkgs.writeText "go.d/prometheus.conf" ''
+        jobs:
+        - name: blocky-dns
+          url: http://127.0.0.1:4000/metrics
+      '';
+    };
+  };
 
   environment.systemPackages = [
     (pkgs.writeShellScriptBin "plex-trakt-sync" "${(plex-trakt-sync {interactive = true;})} \"$@\"")
