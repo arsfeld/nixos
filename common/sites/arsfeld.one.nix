@@ -36,6 +36,7 @@ with lib; let
       "jackett" = "9117";
       "sonarr" = "8989";
       "bazarr" = "6767";
+      "overseer" = "5055";
       "whisparr" = "6969";
       "qbittorrent" = "8080";
       "transmission" = "9091";
