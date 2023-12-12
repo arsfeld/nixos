@@ -1,9 +1,11 @@
-{...}: {
+{lib, ...}: {
   services.blocky = {
     enable = true;
     settings = {
-      upstream = {
-        default = ["1.1.1.1" "9.9.9.9"];
+      upstreams = {
+        groups = {
+          default = ["1.1.1.1" "9.9.9.9"];
+        };
       };
       ports = {
         http = ":4000";
@@ -14,7 +16,7 @@
       };
       customDNS = {
         mapping = {
-          "arsfeld.one" = "100.118.254.136";
+          "arsfeld.one" = lib.mkDefault "192.168.1.5"; # "100.118.254.136";
         };
       };
       conditional = {
