@@ -5,6 +5,7 @@
     ../../common/common.nix
     ../../common/services.nix
     ../../common/users.nix
+    ../../common/blocky.nix
     ../../common/sites/arsfeld.one.nix
     ../../common/sites/rosenfeld.one.nix
     ../../common/sites/rosenfeld.blog.nix
@@ -17,6 +18,8 @@
   boot = {
     binfmt.emulatedSystems = ["x86_64-linux"];
   };
+
+  services.blocky.settings.customDNS.mapping."arsfeld.one" = "100.118.254.136";
 
   boot.tmp.cleanOnBoot = true;
   networking.hostName = "cloud";
