@@ -326,6 +326,31 @@ in {
       image = "ghcr.io/alexjustesen/speedtest-tracker:latest";
       volumes = ["${vars.configDir}/speedtest:/config"];
       ports = ["8765:80"];
+      environment = {
+        "APP_KEY" = "base64:MGxwY3Y1OHZpMnJwN2s2dGtkdnJ6dm40ODEwd3J4eGI=";
+        "DB_CONNECTION" = "sqlite";
+      };
+    };
+
+    netbootxyz = {
+      image = "lscr.io/linuxserver/netbootxyz:latest";
+      environment = {
+        PUID = vars.puid;
+        PGID = vars.pgid;
+        TZ = vars.tz;
+        # - MENU_VERSION=1.9.9 #optional
+        # - PORT_RANGE=30000:30010 #optional
+        # - SUBFOLDER=/ #optional
+      };
+      volumes = [
+        "${vars.configDir}/netbootxyz:/config"
+        "${vars.dataDir}/files/ISO:/assets"
+      ];
+      ports = [
+        "3000:3000"
+        "69:69/udp"
+        "8080:80"
+      ];
     };
 
     immich = {
