@@ -10,6 +10,26 @@
     "home-manager@latest": {
       "resolved": "github:NixOS/nixpkgs/f80ac848e3d6f0c12c52758c0f25c10c97ca3b62#home-manager"
     },
+    "just@latest": {
+      "last_modified": "2023-11-19T09:25:46Z",
+      "resolved": "github:NixOS/nixpkgs/53aeb5c67b78a1bb565467043b79c3948afacbc9#just",
+      "source": "devbox-search",
+      "version": "1.16.0",
+      "systems": {
+        "aarch64-darwin": {
+          "store_path": "/nix/store/b4gw7iwz4b6s1q9sj6fj85szaiqil5q5-just-1.16.0"
+        },
+        "aarch64-linux": {
+          "store_path": "/nix/store/42c5w05p8clgdji2mq8ggy95xqzn9s87-just-1.16.0"
+        },
+        "x86_64-darwin": {
+          "store_path": "/nix/store/ibhlw2lqnhh0cf3annqwc0i2g3kbbzxl-just-1.16.0"
+        },
+        "x86_64-linux": {
+          "store_path": "/nix/store/fv9livr2vv8nr9mgr6g2lfyblh6pkwzj-just-1.16.0"
+        }
+      }
+    },
     "nil@latest": {
       "resolved": "github:NixOS/nixpkgs/f80ac848e3d6f0c12c52758c0f25c10c97ca3b62#nil"
     }

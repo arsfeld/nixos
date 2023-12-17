@@ -4,7 +4,8 @@
     "home-manager@latest",
     "alejandra@latest",
     "nil@latest",
-    "github:ryantm/agenix"
+    "github:ryantm/agenix",
+    "just@latest"
   ],
   "shell": {
     "init_hook": [
