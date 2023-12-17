@@ -25,6 +25,7 @@ with lib; {
     ./services.nix
     ./services/backup.nix
     ./services/media.nix
+    ./services/home.nix
   ];
 
   networking.hostName = "storage";

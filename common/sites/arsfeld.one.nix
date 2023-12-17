@@ -38,9 +38,9 @@ with lib; let
       "bazarr" = "6767";
       "overseer" = "5055";
       "whisparr" = "6969";
+      "grocy" = "9283";
       "qbittorrent" = "8080";
       "transmission" = "9091";
-      "qflood" = "3000";
       "prowlarr" = "9696";
       "flaresolverr" = "8191";
       "stash" = "9999";
