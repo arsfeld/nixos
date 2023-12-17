@@ -11,7 +11,7 @@
   #   dtsFile = ./files/sysled.dts;
   # }];
 
-  # nanopi r2s's DTS has not been actively updated, so just use the prebuilt one to avoid rebuild
+  # NanoPi R2S's DTS has not been actively updated, so just use the prebuilt one to avoid rebuilding
   hardware.deviceTree.package = pkgs.lib.mkForce (
     pkgs.runCommand "dtbs-nanopi-r2s" {} ''
       install -TDm644 ${./files/rk3328-nanopi-r2s.dtb} $out/rockchip/rk3328-nanopi-r2s.dtb
@@ -23,11 +23,23 @@
       pkgs.runCommand
       "linux-firmware-r8152"
       {}
-      "install -TDm644 ${./files/rtl8153a-4.fw} $out/lib/firmware/rtl_nic/rtl8153a-4.fw"
+      ''
+        install -TDm644 ${./files/rtl8153a-4.fw} $out/lib/firmware/rtl_nic/rtl8153a-4.fw
+        install -TDm644 ${./files/rtl8153b-2.fw} $out/lib/firmware/rtl_nic/rtl8153b-2.fw
+      ''
     )
   ];
 
   fileSystems = {
+    # "/boot" = {
+    #   device = "/dev/disk/by-label/NIXOS_BOOT";
+    #   fsType = "ext4";
+    # };
+    # "/" = {
+    #   device = "/dev/disk/by-label/NIXOS_SD";
+    #   fsType = "f2fs";
+    #   options = ["compress_algorithm=zstd:6" "compress_chksum" "atgc" "gc_merge" "lazytime"];
+    # };
     "/" = {
       device = "/dev/disk/by-label/NIXOS_SD";
       fsType = "ext4";
@@ -36,10 +48,14 @@
 
   boot = {
     loader = {
-      timeout = 5;
+      timeout = 1;
       grub.enable = false;
-      generic-extlinux-compatible.enable = true;
+      generic-extlinux-compatible = {
+        enable = true;
+        configurationLimit = 5;
+      };
     };
+    kernelPackages = pkgs.linuxPackages;
     kernelParams = [
       "console=ttyS2,1500000"
       "earlycon=uart8250,mmio32,0xff130000"
@@ -51,7 +67,7 @@
     };
     blacklistedKernelModules = ["hantro_vpu" "drm" "lima" "videodev"];
     kernelModules = ["ledtrig-netdev"];
-    tmpOnTmpfs = true;
+    tmp.useTmpfs = true;
   };
 
   boot.kernel.sysctl = {
@@ -62,7 +78,30 @@
 
   powerManagement.cpuFreqGovernor = "schedutil";
 
+  services.lvm.enable = false;
+
+  services.timesyncd.extraConfig = ''
+    PollIntervalMinSec=16
+    PollIntervalMaxSec=180
+    ConnectionRetrySec=3
+  '';
+  systemd.additionalUpstreamSystemUnits = [
+    "systemd-time-wait-sync.service"
+  ];
   #services.fake-hwclock.enable = true;
+  networking.timeServers = [
+    "0.ca.pool.ntp.org"
+    "1.ca.pool.ntp.org"
+    "2.ca.pool.ntp.org"
+  ];
+
+  systemd.services."wait-system-running" = {
+    description = "Wait system running";
+    serviceConfig = {Type = "simple";};
+    script = ''
+      systemctl is-system-running --wait
+    '';
+  };
 
   systemd.services."setup-net-leds" = {
     description = "Setup network LEDs";
@@ -83,7 +122,8 @@
   };
   systemd.services."setup-sys-led" = {
     description = "Setup booted LED";
-    serviceConfig = {Type = "idle";};
+    requires = ["wait-system-running.service"];
+    after = ["wait-system-running.service"];
     wantedBy = ["multi-user.target"];
     script = ''
       echo default-on > /sys/class/leds/nanopi-r2s:red:sys/trigger
