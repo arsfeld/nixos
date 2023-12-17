@@ -60,7 +60,15 @@
           ./machines/router/configuration.nix
         ];
       };
+
+      r2s = {
+        system = "aarch64-linux";
+        modules = [
+          ./machines/r2s/configuration.nix
+        ];
+      };
     };
+    #images.r2s = nixosConfigurations.r2s.config.system.build.sdImage;
     colmena = let
       homeFeatures = [
         home-manager.nixosModules.home-manager
