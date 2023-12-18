@@ -8,8 +8,8 @@
     ../../common/blocky.nix
     ./hardware.nix
     (import ./networking.nix {
-      internalInterface = "eth1"; # or w/e ethernet interface you want to connect your raspberry pi to
-      externalInterface = "eth0"; # or w/e interface you get your internet connection to your pc
+      internalInterface = "enu1"; # or w/e ethernet interface you want to connect your raspberry pi to
+      externalInterface = "end0"; # or w/e interface you get your internet connection to your pc
     })
   ];
 
