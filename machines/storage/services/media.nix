@@ -99,6 +99,14 @@ in {
       ];
     };
 
+    transmission-rss = {
+      image = "haugene/transmission-rss";
+      volumes = [
+        "${vars.configDir}/transmission-rss/transmission-rss.conf:/etc/transmission-rss.conf"
+        "${vars.configDir}/transmission-rss/seen:/etc/seen"
+      ];
+    };
+
     stash = {
       image = "stashapp/stash:latest";
       ports = ["9999:9999"];
