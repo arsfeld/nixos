@@ -1,9 +1,7 @@
 {
   internalInterface,
   externalInterface,
-  ipRange ? "10.1.1.0/24",
-  maxLeaseTime ? "604800",
-  defaultLeaseTime ? "86400",
+  ipRange ? "192.168.2.0/24",
   dnsServers ? ["8.8.8.8" "8.8.4.4"],
 }:
 with import ./helpers.nix;
@@ -17,44 +15,85 @@ with import ./helpers.nix;
       networking.nat.enable = true;
       networking.nat.internalIPs = [ipRange];
       networking.nat.externalInterface = externalInterface;
-      networking.interfaces."${internalInterface}" = {
-        ipv4.addresses = [
-          {
-            address = gatewayIP;
-            prefixLength = 24;
-          }
-        ];
-      };
-      networking.interfaces."${externalInterface}" = {
-        useDHCP = true;
+
+      systemd.network = {
+        enable = true;
+
+        wait-online.anyInterface = true;
+
+        networks = {
+          # Connect the bridge ports to the bridge
+          "30-lan" = {
+            matchConfig.Name = internalInterface;
+            address = [
+              "${gatewayIP}/24"
+            ];
+            networkConfig = {
+              ConfigureWithoutCarrier = true;
+            };
+            linkConfig.RequiredForOnline = "no";
+          };
+          "10-wan" = {
+            matchConfig.Name = "${externalInterface}";
+            networkConfig = {
+              # start a DHCP Client for IPv4 Addressing/Routing
+              DHCP = "ipv4";
+              # accept Router Advertisements for Stateless IPv6 Autoconfiguraton (SLAAC)
+              IPv6AcceptRA = true;
+              DNSOverTLS = true;
+              DNSSEC = true;
+              IPv6PrivacyExtensions = false;
+              IPForward = true;
+            };
+            cakeConfig = {
+              Bandwidth = "500M";
+              CompensationMode = "ptm";
+              OverheadBytes = 8;
+            };
+            # make routing on this interface a dependency for network-online.target
+            linkConfig.RequiredForOnline = "routable";
+          };
+        };
       };
 
-      # services.dhcpd4 = let
-      #   subnet = ipRangePrefix + "0";
-      #   netMask = "255.255.255.0";
-      #   ipRangeFrom = ipRangePrefix + "10";
-      #   ipRangeTo = ipRangePrefix + "254";
-      #   broadcastAddress = ipRangePrefix + "255";
-      #   commaSepDNSServers = commaSeparated dnsServers;
-      # in {
-      #   enable = true;
-      #   interfaces = [internalInterface];
-      #   extraConfig = ''
-      #     ddns-update-style none;
-      #     #option subnet-mask         ${netMask};
-      #     one-lease-per-client true;
-      #     subnet ${ipRangePrefix}0 netmask ${netMask} {
-      #       range ${ipRangeFrom} ${ipRangeTo};
-      #       authoritative;
-      #       # Allows clients to request up to a week (although they won't)
-      #       max-lease-time              ${maxLeaseTime};
-      #       # By default a lease will expire in 24 hours.
-      #       default-lease-time          ${defaultLeaseTime};
-      #       option subnet-mask          ${netMask};
-      #       option broadcast-address    ${broadcastAddress};
-      #       option routers              ${gatewayIP};
-      #       option domain-name-servers  ${commaSepDNSServers};
-      #     }
-      #   '';
-      # };
+      services.kea = {
+        dhcp4 = {
+          enable = true;
+          settings = {
+            interfaces-config = {
+              interfaces = [
+                internalInterface
+              ];
+            };
+            lease-database = {
+              name = "/var/lib/kea/dhcp4.leases";
+              persist = true;
+              type = "memfile";
+            };
+            rebind-timer = 2000;
+            renew-timer = 1000;
+            subnet4 = [
+              {
+                pools = [
+                  {
+                    pool = "${ipRangePrefix + "10"} - ${ipRangePrefix + "254"}";
+                  }
+                ];
+                subnet = ipRange;
+                "option-data" = [
+                  {
+                    "name" = "routers";
+                    "data" = gatewayIP;
+                  }
+                  {
+                    "name" = "domain-name-servers";
+                    "data" = gatewayIP;
+                  }
+                ];
+              }
+            ];
+            valid-lifetime = 4000;
+          };
+        };
+      };
     }
