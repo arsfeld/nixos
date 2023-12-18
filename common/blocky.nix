@@ -3,6 +3,7 @@
   pkgs,
   ...
 }: let
+  # Fixing https://github.com/0xERR0R/blocky/issues/1113
   blocky_overlay = self: super: {
     blocky = super.callPackage "${super.path}/pkgs/applications/networking/blocky" {
       buildGoModule = args:
