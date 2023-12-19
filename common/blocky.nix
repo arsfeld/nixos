@@ -28,7 +28,7 @@ in {
     settings = {
       upstreams = {
         groups = {
-          default = ["tcp-tls:security.cloudflare-dns.com"];
+          default = ["1.1.1.2" "1.0.0.2"];
         };
       };
       ports = {
@@ -44,9 +44,9 @@ in {
         };
       };
       conditional = {
-        rewrite = {
-          lan = "bat-boa.ts.net";
-        };
+        # rewrite = {
+        #   lan = "bat-boa.ts.net";
+        # };
         mapping = {
           "ts.net" = "100.100.100.100";
         };
