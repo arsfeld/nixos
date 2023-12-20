@@ -49,6 +49,62 @@
     enable = true;
   };
 
+  age.secrets.authelia-jwt.file = ../../secrets/authelia-jwt.age;
+  age.secrets.authelia-jwt.mode = "444";
+
+  age.secrets.authelia-storage-encryption-key.file = ../../secrets/authelia-storage-encryption-key.age;
+  age.secrets.authelia-storage-encryption-key.mode = "444";
+
+  services.authelia.instances."arsfeld.one" = {
+    enable = true;
+    settings = {
+      server = {
+        host = "0.0.0.0";
+        port = 9099;
+      };
+      authentication_backend = {
+        ldap = {
+          implementation = "custom";
+          url = "ldap://127.0.0.1:3890";
+          timeout = "5s";
+          start_tls = "false";
+          base_dn = "DC=rosenfeld,DC=one";
+          username_attribute = "uid";
+          additional_users_dn = "ou=people";
+          users_filter = "(&({username_attribute}={input})(objectClass=person))";
+          additional_groups_dn = "ou=groups";
+          groups_filter = "(member={dn})";
+          group_name_attribute = "cn";
+          mail_attribute = "mail";
+          display_name_attribute = "displayName";
+          user = "uid=admin,ou=people,dc=rosenfeld,dc=one";
+          password = "***REMOVED***";
+        };
+      };
+      access_control = {
+        default_policy = "one_factor";
+      };
+      notifier = {
+        disable_startup_check = false;
+        filesystem = {
+          filename = "/var/lib/authelia-arsfeld.one/notification.txt";
+        };
+      };
+      storage = {
+        local = {
+          path = "/var/lib/authelia-arsfeld.one/db.sqlite3";
+        };
+      };
+      session = {
+        domain = "arsfeld.one";
+      };
+    };
+    secrets = {
+      jwtSecretFile = config.age.secrets.authelia-jwt.path;
+      storageEncryptionKeyFile = config.age.secrets.authelia-storage-encryption-key.path;
+    };
+  };
+
   services.vaultwarden = {
     enable = true;
     config = {
