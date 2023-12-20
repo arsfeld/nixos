@@ -104,7 +104,7 @@
   };
 
   services.avahi.enable = true;
-  services.avahi.nssmdns = true;
+  services.avahi.nssmdns4 = true;
 
   time.timeZone = "America/Toronto";
   i18n.defaultLocale = "en_CA.utf8";
