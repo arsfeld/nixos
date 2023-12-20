@@ -6,6 +6,7 @@
     ../../common/services.nix
     ../../common/users.nix
     ../../common/blocky.nix
+    ../../common/mail.nix
     ../../common/sites/arsfeld.one.nix
     ../../common/sites/rosenfeld.one.nix
     ../../common/sites/rosenfeld.blog.nix
@@ -20,6 +21,9 @@
   };
 
   services.blocky.settings.customDNS.mapping."arsfeld.one" = "100.118.254.136";
+
+  systemd.email-notify.mailFrom = "admin@arsfeld.one";
+  systemd.email-notify.mailTo = "arsfeld@gmail.com";
 
   boot.tmp.cleanOnBoot = true;
   networking.hostName = "cloud";

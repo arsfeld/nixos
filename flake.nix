@@ -112,6 +112,7 @@
             agenix.nixosModules.default
             attic.nixosModules.atticd
             nixos-mailserver.nixosModules.default
+            ./common/modules/systemd-email-notify.nix
             ./machines/cloud/configuration.nix
           ]
           ++ homeFeatures;
