@@ -16,6 +16,7 @@
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
     nixos-mailserver.url = "gitlab:simple-nixos-mailserver/nixos-mailserver";
     nixos-mailserver.inputs.nixpkgs.follows = "nixpkgs";
+    deploy-rs.url = "github:serokell/deploy-rs";
   };
 
   outputs = inputs @ {
@@ -30,9 +31,18 @@
     nixos-nftables-firewall,
     nixos-hardware,
     nixos-mailserver,
+    deploy-rs,
     ...
   }: let
     inherit (self) outputs;
+    homeFeatures = [
+      home-manager.nixosModules.home-manager
+      {
+        home-manager.useGlobalPkgs = true;
+        home-manager.useUserPackages = true;
+        home-manager.users.arosenfeld = import ./home/home.nix;
+      }
+    ];
   in {
     nixosConfigurations = {
       live = nixpkgs.lib.nixosSystem {
@@ -63,22 +73,23 @@
 
       r2s = {
         system = "aarch64-linux";
-        modules = [
-          ./machines/r2s/configuration.nix
-        ];
+        modules =
+          [
+            ./machines/r2s/configuration.nix
+          ]
+          ++ homeFeatures;
       };
     };
+
+    deploy.nodes.r2s.profiles.system = {
+      user = "root";
+      path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.r2s;
+    };
+
+    # This is highly advised, and will prevent many possible mistakes
+    checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) deploy-rs.lib;
     #images.r2s = nixosConfigurations.r2s.config.system.build.sdImage;
-    colmena = let
-      homeFeatures = [
-        home-manager.nixosModules.home-manager
-        {
-          home-manager.useGlobalPkgs = true;
-          home-manager.useUserPackages = true;
-          home-manager.users.arosenfeld = import ./home/home.nix;
-        }
-      ];
-    in {
+    colmena = {
       meta = {
         nixpkgs = import nixpkgs {
           system = "x86_64-linux";

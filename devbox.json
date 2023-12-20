@@ -5,7 +5,8 @@
     "alejandra@latest",
     "nil@latest",
     "github:ryantm/agenix",
-    "just@latest"
+    "just@latest",
+    "deploy-rs@latest"
   ],
   "shell": {
     "init_hook": [
