@@ -1,4 +1,4 @@
-{...}: {
+{config, ...}: {
   services.dex = {
     enable = true;
     settings = {
@@ -29,6 +29,20 @@
         }
       ];
     };
+  };
+
+  age.secrets.lldap-env.file = ../../secrets/lldap-env.age;
+  age.secrets.lldap-env.mode = "444";
+
+  services.lldap = {
+    enable = true;
+    settings = {
+      http_url = "https://users.arsfeld.one";
+      ldap_user_email = "admin@rosenfeld.one";
+      ldap_user_dn = "admin";
+      ldap_base_dn = "dc=rosenfeld,dc=one";
+    };
+    environmentFile = config.age.secrets.lldap-env.path;
   };
 
   services.caddy = {

@@ -23,6 +23,7 @@ with lib; let
       "invidious" = "3939";
       "ladder" = "8766";
       "actual" = "5006";
+      "users" = "17170";
     };
     storage = {
       "minio" = "9000";
