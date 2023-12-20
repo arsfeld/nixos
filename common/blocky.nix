@@ -9,13 +9,13 @@
       buildGoModule = args:
         super.buildGoModule (args
           // {
-            vendorHash = "sha256-9n9IXmzhBB2YRDLiQPUQAdlcHZsn0xK3NZkHPTK5JeA=";
-            version = "git";
+            vendorHash = "sha256-h1CkvI7M1kt2Ix3D8+gDl97CFElV+0/9Eram1burOaM=";
+            version = "0.23";
             src = pkgs.fetchFromGitHub {
               owner = "0xERR0R";
               repo = "blocky";
-              rev = "abe9e5c46133455eefea620d04c545b91f3f2ca9";
-              sha256 = "qi40sXzZPhDZ90s6HjwLtMz0VfQ9wQkyoNWv3gXDFzw=";
+              rev = "dece894bd6d62205f2ec69379850e2a526667c8d";
+              sha256 = "NVtZCqxvsTaz5EDTMCxsubR5V6ESE2KozOXriFdnNWE=";
             };
           });
     };
@@ -44,9 +44,9 @@ in {
         };
       };
       conditional = {
-        # rewrite = {
-        #   lan = "bat-boa.ts.net";
-        # };
+        rewrite = {
+          lan = "bat-boa.ts.net";
+        };
         mapping = {
           "ts.net" = "100.100.100.100";
         };
