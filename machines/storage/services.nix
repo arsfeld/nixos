@@ -265,11 +265,19 @@ in {
     ensureUsers = [
       {
         name = "nextcloud";
-        ensurePermissions."DATABASE nextcloud" = "ALL PRIVILEGES";
+        ensureClauses = {
+          createrole = true;
+          createdb = true;
+        };
+        ensureDBOwnership = true;
       }
       {
         name = "immich";
-        ensurePermissions."DATABASE immich" = "ALL PRIVILEGES";
+        ensureClauses = {
+          createrole = true;
+          createdb = true;
+        };
+        ensureDBOwnership = true;
       }
     ];
     authentication = lib.mkForce ''
