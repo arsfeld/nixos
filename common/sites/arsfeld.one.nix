@@ -12,7 +12,13 @@ with lib; let
   generateHost = cfg: {
     "${cfg.name}.${domain}" = {
       useACMEHost = domain;
-      extraConfig = "reverse_proxy ${cfg.host}:${cfg.port}";
+      extraConfig = ''
+        forward_auth cloud:9099 {
+          uri /api/verify?rd=https://auth.${domain}/
+          copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
+        reverse_proxy ${cfg.host}:${cfg.port}
+      '';
     };
   };
   services = {
@@ -24,6 +30,7 @@ with lib; let
       "ladder" = "8766";
       "actual" = "5006";
       "users" = "17170";
+      "auth" = "9099";
     };
     storage = {
       "minio" = "9000";
