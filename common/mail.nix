@@ -9,17 +9,24 @@ with lib; let
   toEmail = "arsfeld@gmail.com";
 
   sendEmailEvent = {event}: ''
-    printf "Subject: [$(${pkgs.nettools}/bin/hostname)] ${event} ''$(${pkgs.coreutils}/bin/date --iso-8601=seconds)\n\nzpool status:\n\n''$(${pkgs.zfs}/bin/zpool status)" | ${pkgs.msmtp}/bin/msmtp -a default ${toEmail}
+    printf "Subject: [$(${pkgs.nettools}/bin/hostname)] ${event} ''$(${pkgs.coreutils}/bin/date --iso-8601=seconds)\n\n''$(${pkgs.neofetch}/bin/neofetch --stdout)\n\nzpool status:\n\n''$(${pkgs.zfs}/bin/zpool status)" | ${pkgs.msmtp}/bin/msmtp -a default ${toEmail}
   '';
 in {
-  nixpkgs.config.packageOverrides = pkgs: {
-    zfsStable = pkgs.zfsStable.override {enableMail = true;};
-  };
+  # nixpkgs.config.packageOverrides = pkgs: {
+  #   zfsStable = pkgs.zfsStable.override {enableMail = true;};
+  # };
 
-  services.zfs.zed.enableMail = true;
   services.zfs.zed.settings = {
-    ZED_EMAIL_ADDR = [email];
+    ZED_DEBUG_LOG = "/tmp/zed.debug.log";
+    ZED_EMAIL_ADDR = ["root"];
+    ZED_EMAIL_PROG = "${pkgs.msmtp}/bin/msmtp";
+    ZED_EMAIL_OPTS = "@ADDRESS@";
+
+    ZED_NOTIFY_INTERVAL_SECS = 3600;
     ZED_NOTIFY_VERBOSE = true;
+
+    ZED_USE_ENCLOSURE_LEDS = true;
+    ZED_SCRUB_AFTER_RESILVER = true;
   };
 
   age.secrets.smtp_password.file = ../secrets/smtp_password.age;
@@ -41,6 +48,7 @@ in {
     defaults = {
       aliases = builtins.toFile "aliases" ''
         default: ${email}
+        root: ${email}
       '';
     };
   };
