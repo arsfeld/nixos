@@ -31,5 +31,8 @@ in {
         reverse_proxy localhost:5556
       '';
     };
+    "users.${domain}" = {
+      extraConfig = "reverse_proxy localhost:17170";
+    };
   };
 }
