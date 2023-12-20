@@ -16,7 +16,6 @@ with lib; {
     grub = {
       efiInstallAsRemovable = true;
       enable = true;
-      version = 2;
       copyKernels = true;
       efiSupport = true;
       zfsSupport = true;
