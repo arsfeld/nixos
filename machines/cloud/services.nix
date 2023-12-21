@@ -1,9 +1,12 @@
-{config, ...}: {
+{config, ...}: let
+  mediaDomain = "arsfeld.one";
+  authDomain = "rosenfeld.one";
+in {
   services.dex = {
     enable = true;
     settings = {
       # External url
-      issuer = "https://rosenfeld.one";
+      issuer = "https://${authDomain}";
       storage = {
         type = "sqlite3";
         config.host = "/var/lib/dex/dex.db";
@@ -22,7 +25,7 @@
       ];
       staticPasswords = [
         {
-          email = "alex@rosenfeld.one";
+          email = "alex@${authDomain}";
           hash = "$2y$10$vTnuL0D2crbZIBOgE3TpK.vD9dzwDDt3c8YxGvTNSaYbvfJf7hWSi";
           username = "admin";
           userID = "1847de6f-4be1-4dac-8de0-acdf57b01952";
@@ -37,8 +40,8 @@
   services.lldap = {
     enable = true;
     settings = {
-      http_url = "https://users.arsfeld.one";
-      ldap_user_email = "admin@rosenfeld.one";
+      http_url = "https://users.${mediaDomain}";
+      ldap_user_email = "admin@${authDomain}";
       ldap_user_dn = "admin";
       ldap_base_dn = "dc=rosenfeld,dc=one";
     };
@@ -49,13 +52,27 @@
     enable = true;
   };
 
-  age.secrets.authelia-jwt.file = ../../secrets/authelia-jwt.age;
-  age.secrets.authelia-jwt.mode = "444";
+  age.secrets = {
+    authelia-jwt = {
+      file = ../../secrets/authelia-jwt.age;
+      mode = "700";
+      owner = "authelia-${mediaDomain}";
+    };
 
-  age.secrets.authelia-storage-encryption-key.file = ../../secrets/authelia-storage-encryption-key.age;
-  age.secrets.authelia-storage-encryption-key.mode = "444";
+    authelia-storage-encryption-key = {
+      file = ../../secrets/authelia-storage-encryption-key.age;
+      mode = "700";
+      owner = "authelia-${mediaDomain}";
+    };
 
-  services.authelia.instances."arsfeld.one" = {
+    authelia-ldap-password = {
+      file = ../../secrets/authelia-ldap-password.age;
+      mode = "700";
+      owner = "authelia-${mediaDomain}";
+    };
+  };
+
+  services.authelia.instances."${mediaDomain}" = {
     enable = true;
     settings = {
       server = {
@@ -78,37 +95,56 @@
           mail_attribute = "mail";
           display_name_attribute = "displayName";
           user = "uid=admin,ou=people,dc=rosenfeld,dc=one";
-          password = "***REMOVED***";
         };
       };
       access_control = {
         default_policy = "one_factor";
+        rules = [
+          {
+            domain = "transmission.${mediaDomain}";
+            policy = "bypass";
+            resources = ["^/transmission/rpc$"];
+          }
+          {
+            domain = ["radarr.${mediaDomain}" "sonarr.${mediaDomain}" "prowlarr.${mediaDomain}" "jackett.${mediaDomain}"];
+            policy = "bypass";
+            resources = ["^/api/.*$" "^/api$"];
+          }
+          {
+            domain = ["prowlarr.${mediaDomain}"];
+            policy = "bypass";
+            resources = ["^(/[0-9]+)?/api" "^(/[0-9]+)?/download"];
+          }
+        ];
       };
       notifier = {
         disable_startup_check = false;
         filesystem = {
-          filename = "/var/lib/authelia-arsfeld.one/notification.txt";
+          filename = "/var/lib/authelia-${mediaDomain}/notification.txt";
         };
       };
       storage = {
         local = {
-          path = "/var/lib/authelia-arsfeld.one/db.sqlite3";
+          path = "/var/lib/authelia-${mediaDomain}/db.sqlite3";
         };
       };
       session = {
-        domain = "arsfeld.one";
+        domain = "${mediaDomain}";
       };
     };
     secrets = {
       jwtSecretFile = config.age.secrets.authelia-jwt.path;
       storageEncryptionKeyFile = config.age.secrets.authelia-storage-encryption-key.path;
     };
+    environmentVariables = {
+      AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE = config.age.secrets.authelia-ldap-password.path;
+    };
   };
 
   services.vaultwarden = {
     enable = true;
     config = {
-      DOMAIN = "https://bitwarden.arsfeld.one";
+      DOMAIN = "https://bitwarden.${mediaDomain}";
       SIGNUPS_ALLOWED = true;
       ROCKET_ADDRESS = "0.0.0.0";
     };
@@ -117,7 +153,7 @@
   services.invidious = {
     enable = true;
     port = 3939;
-    domain = "invidious.arsfeld.one";
+    domain = "invidious.${mediaDomain}";
     database.createLocally = true;
     settings = {
       https_only = true;

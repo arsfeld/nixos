@@ -30,9 +30,9 @@ with lib; let
       "ladder" = "8766";
       "actual" = "5006";
       "users" = "17170";
-      "auth" = "9099";
     };
     storage = {
+      "code" = "3434";
       "minio" = "9000";
       "gitea" = "3001";
       "speedtest" = "8765";
@@ -79,15 +79,9 @@ in {
   services.caddy.virtualHosts =
     hosts
     // {
-      "code.${domain}" = {
+      "auth.${domain}" = {
         useACMEHost = domain;
-        extraConfig = ''
-          basicauth /* {
-            admin $2a$14$oVkXE/xxSehMnluRIbEzyeCETY.ra1XGx3rCohBi1k/usv32CF2JS
-          }
-
-          reverse_proxy storage:3434
-        '';
+        extraConfig = "reverse_proxy cloud:9099";
       };
       "nextcloud.${domain}" = {
         useACMEHost = domain;
