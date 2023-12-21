@@ -29,9 +29,6 @@
       image = "arsfeld/yarr:c76ff26bd6dff6137317da2fe912bc44950eb17a";
       volumes = ["/var/lib/yarr:/data"];
       ports = ["7070:7070"];
-      environment = {
-        "YARR_AUTH" = "admin:***REMOVED***";
-      };
     };
 
     ladder = {
