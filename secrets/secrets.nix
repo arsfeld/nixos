@@ -16,6 +16,7 @@ in {
   "restic-rest-micro.age".publicKeys = users ++ [micro];
   "lldap-env.age".publicKeys = users ++ [cloud];
   "authelia-jwt.age".publicKeys = users ++ [cloud];
+  "authelia-session-secret.age".publicKeys = users ++ [cloud];
   "authelia-storage-encryption-key.age".publicKeys = users ++ [cloud];
   "authelia-ldap-password.age".publicKeys = users ++ [cloud];
 }

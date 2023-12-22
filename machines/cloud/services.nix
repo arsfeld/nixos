@@ -1,6 +1,7 @@
 {config, ...}: let
   mediaDomain = "arsfeld.one";
   authDomain = "rosenfeld.one";
+  autheliaConfig = "arsfeld.one";
 in {
   services.dex = {
     enable = true;
@@ -56,23 +57,29 @@ in {
     authelia-jwt = {
       file = ../../secrets/authelia-jwt.age;
       mode = "700";
-      owner = "authelia-${mediaDomain}";
+      owner = "authelia-${autheliaConfig}";
     };
 
     authelia-storage-encryption-key = {
       file = ../../secrets/authelia-storage-encryption-key.age;
       mode = "700";
-      owner = "authelia-${mediaDomain}";
+      owner = "authelia-${autheliaConfig}";
+    };
+
+    authelia-session-secret = {
+      file = ../../secrets/authelia-session-secret.age;
+      mode = "700";
+      owner = "authelia-${autheliaConfig}";
     };
 
     authelia-ldap-password = {
       file = ../../secrets/authelia-ldap-password.age;
       mode = "700";
-      owner = "authelia-${mediaDomain}";
+      owner = "authelia-${autheliaConfig}";
     };
   };
 
-  services.authelia.instances."${mediaDomain}" = {
+  services.authelia.instances."${autheliaConfig}" = {
     enable = true;
     settings = {
       server = {
@@ -115,30 +122,48 @@ in {
             policy = "bypass";
             resources = ["^(/[0-9]+)?/api" "^(/[0-9]+)?/download"];
           }
+          {
+            domain = ["yarr.${mediaDomain}"];
+            policy = "bypass";
+            resources = ["^fever/.*$"];
+          }
         ];
       };
       notifier = {
         disable_startup_check = false;
         filesystem = {
-          filename = "/var/lib/authelia-${mediaDomain}/notification.txt";
-        };
-      };
-      storage = {
-        local = {
-          path = "/var/lib/authelia-${mediaDomain}/db.sqlite3";
+          filename = "/var/lib/authelia-${autheliaConfig}/notification.txt";
         };
       };
       session = {
+        name = "authelia_session";
+        expiration = "7d";
+        inactivity = "45m";
+        remember_me_duration = "1M";
         domain = "${mediaDomain}";
+        redis.host = "/run/redis-authelia-${autheliaConfig}/redis.sock";
+      };
+      storage = {
+        local = {
+          path = "/var/lib/authelia-${autheliaConfig}/db.sqlite3";
+        };
       };
     };
     secrets = {
       jwtSecretFile = config.age.secrets.authelia-jwt.path;
       storageEncryptionKeyFile = config.age.secrets.authelia-storage-encryption-key.path;
+      sessionSecretFile = config.age.secrets.authelia-session-secret.path;
     };
     environmentVariables = {
       AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE = config.age.secrets.authelia-ldap-password.path;
     };
+  };
+
+  services.redis.servers."authelia-${autheliaConfig}" = {
+    enable = true;
+    user = "authelia-${autheliaConfig}";
+    port = 0;
+    unixSocketPerm = 600;
   };
 
   services.vaultwarden = {
