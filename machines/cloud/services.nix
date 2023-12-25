@@ -110,7 +110,7 @@ in {
           {
             domain = "transmission.${mediaDomain}";
             policy = "bypass";
-            resources = ["^/transmission/rpc$"];
+            resources = ["^/transmission/rpc$" "^/transmission/rpc/$"];
           }
           {
             domain = ["radarr.${mediaDomain}" "sonarr.${mediaDomain}" "prowlarr.${mediaDomain}" "jackett.${mediaDomain}"];

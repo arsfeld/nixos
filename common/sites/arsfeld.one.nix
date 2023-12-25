@@ -48,7 +48,7 @@ with lib; let
       "whisparr" = "6969";
       "grocy" = "9283";
       "qbittorrent" = "8080";
-      "transmission" = "9091";
+      #"transmission" = "9091";
       "prowlarr" = "9696";
       "flaresolverr" = "8191";
       "stash" = "9999";
@@ -82,6 +82,10 @@ in {
       "auth.${domain}" = {
         useACMEHost = domain;
         extraConfig = "reverse_proxy cloud:9099";
+      };
+      "transmission.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy storage:9091";
       };
       "nextcloud.${domain}" = {
         useACMEHost = domain;
