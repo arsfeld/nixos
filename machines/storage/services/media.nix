@@ -71,9 +71,7 @@ in {
         OPENVPN_PASSWORD = "***REMOVED***";
         LOCAL_NETWORK = "192.168.1.0/24,192.168.2.0/24,100.64.0.0/10";
         TRANSMISSION_WEB_UI = "flood-for-transmission";
-        TRANSMISSION_RPC_USERNAME = "admin";
-        TRANSMISSION_RPC_PASSWORD = "***REMOVED***";
-        TRANSMISSION_RPC_AUTHENTICATION_REQUIRED = "true";
+        TRANSMISSION_RPC_AUTHENTICATION_REQUIRED = "false";
         TRANSMISSION_DOWNLOAD_DIR = "/media/Downloads";
         TRANSMISSION_INCOMPLETE_DIR = "/media/Downloads/incomplete";
         TRANSMISSION_SPEED_LIMIT_UP = "1000";
