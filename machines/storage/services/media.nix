@@ -19,6 +19,8 @@ in {
     group = vars.group;
   };
 
+  age.secrets."transmission-openvpn-pia".file = ../../../secrets/transmission-openvpn-pia.age;
+
   virtualisation.oci-containers.containers = {
     plex = {
       image = "lscr.io/linuxserver/plex";
@@ -65,13 +67,11 @@ in {
         PGID = vars.pgid;
         TZ = vars.tz;
 
-        OPENVPN_PROVIDER = "PIA";
-        OPENVPN_CONFIG = "ca_toronto";
-        OPENVPN_USERNAME = "***REMOVED***";
-        OPENVPN_PASSWORD = "***REMOVED***";
         LOCAL_NETWORK = "192.168.1.0/24,192.168.2.0/24,100.64.0.0/10";
         TRANSMISSION_WEB_UI = "flood-for-transmission";
-        TRANSMISSION_RPC_AUTHENTICATION_REQUIRED = "false";
+        TRANSMISSION_RPC_AUTHENTICATION_REQUIRED = "true";
+        TRANSMISSION_RPC_USERNAME = "admin";
+        TRANSMISSION_RPC_PASSWORD = "{d8fdc58747d7f336a38e1676c9f5ce6b3daee67b3d6a62b1";
         TRANSMISSION_DOWNLOAD_DIR = "/media/Downloads";
         TRANSMISSION_INCOMPLETE_DIR = "/media/Downloads/incomplete";
         TRANSMISSION_SPEED_LIMIT_UP = "1000";
@@ -79,6 +79,9 @@ in {
         WEBPROXY_ENABLED = "true";
         WEBPROXY_PORT = "8118";
       };
+      environmentFiles = [
+        config.age.secrets.transmission-openvpn-pia.path
+      ];
       ports = ["9091:9091" "8118:8118"];
       volumes = [
         "${vars.configDir}/transmission-openvpn:/config"
