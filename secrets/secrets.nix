@@ -20,4 +20,5 @@ in {
   "authelia-session-secret.age".publicKeys = users ++ [cloud];
   "authelia-storage-encryption-key.age".publicKeys = users ++ [cloud];
   "authelia-ldap-password.age".publicKeys = users ++ [cloud];
+  "dex-clients-tailscale-secret.age".publicKeys = users ++ [cloud];
 }
