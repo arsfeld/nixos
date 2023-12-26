@@ -3,6 +3,8 @@
   authDomain = "rosenfeld.one";
   autheliaConfig = "arsfeld.one";
 in {
+  age.secrets.dex-clients-tailscale-secret.file = ../../secrets/dex-clients-tailscale-secret.age;
+
   services.dex = {
     enable = true;
     settings = {
@@ -21,7 +23,7 @@ in {
           id = "tailscale";
           name = "Tailscale";
           redirectURIs = ["https://login.tailscale.com/a/oauth_response"];
-          secret = "***REMOVED***";
+          secretFile = config.age.secrets.dex-clients-tailscale-secret.path;
         }
       ];
       staticPasswords = [
