@@ -14,5 +14,13 @@ in {
       ];
       ports = ["9283:80"];
     };
+
+    stirling = {
+      image = "frooodle/s-pdf:latest";
+      volumes = [
+        "${vars.configDir}/stirling:/configs"
+      ];
+      ports = ["9284:8080"];
+    };
   };
 }
