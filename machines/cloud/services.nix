@@ -125,9 +125,14 @@ in {
             resources = ["^(/[0-9]+)?/api" "^(/[0-9]+)?/download"];
           }
           {
+            domain = ["stash.${mediaDomain}"];
+            policy = "bypass";
+            resources = ["^/scene/([0-9]+)?/stream"];
+          }
+          {
             domain = ["yarr.${mediaDomain}"];
             policy = "bypass";
-            resources = ["^fever/.*$"];
+            resources = ["^/fever/.*$"];
           }
         ];
       };
@@ -184,6 +189,7 @@ in {
     database.createLocally = true;
     settings = {
       https_only = true;
+      db.user = "invidious";
     };
   };
 
