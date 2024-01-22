@@ -236,9 +236,11 @@ in {
   services.nextcloud = {
     enable = true;
     datadir = "${vars.dataDir}/files/Nextcloud";
-    hostName = "localhost";
+    hostName = "nextcloud.arsfeld.one";
     maxUploadSize = "10G";
-    package = pkgs.nextcloud27;
+    package = pkgs.nextcloud28;
+    autoUpdateApps.enable = true;
+    configureRedis = true;
     config = {
       dbtype = "pgsql";
       dbuser = "nextcloud";
@@ -246,13 +248,13 @@ in {
       dbname = "nextcloud";
       adminpassFile = "/etc/secrets/nextcloud";
       adminuser = "root";
-      extraTrustedDomains = ["nextcloud.arsfeld.one" "storage"];
-      trustedProxies = ["100.66.83.36"];
-      #overwriteProtocol = "https";
     };
     extraOptions = {
       mail_smtpmode = "sendmail";
       mail_sendmailmode = "pipe";
+      trusted_domains = ["storage" "storage.bat-boa.ts.net"];
+      trusted_proxies = ["100.66.83.36"];
+      overwriteprotocol = "https";
     };
   };
 
