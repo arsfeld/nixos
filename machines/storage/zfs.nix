@@ -8,7 +8,6 @@ with lib; {
   boot.supportedFilesystems = ["zfs"];
 
   networking.hostId = "86f58bee";
-  boot.kernelPackages = config.boot.zfs.package.latestCompatibleLinuxPackages;
   boot.loader = {
     efi.efiSysMountPoint = "/boot/efi";
     efi.canTouchEfiVariables = false;
@@ -25,14 +24,10 @@ with lib; {
     };
   };
 
-  # boot.zfs = {
-  #   forceImportAll = false;
-  #   extraPools = ["data"];
-  # };
-
   services.zfs = {
     autoScrub.enable = true;
     trim.enable = true;
+    zed.enableMail = true;
   };
 
   services.sanoid = {
