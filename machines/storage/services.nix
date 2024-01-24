@@ -44,6 +44,13 @@ in {
     };
   };
 
+  users.users.syncthing.extraGroups = ["nextcloud"];
+
+  services.syncthing = {
+    enable = true;
+    guiAddress = "0.0.0.0:8384";
+  };
+
   services.mediamtx = {
     enable = true;
     settings = {
@@ -264,6 +271,8 @@ in {
     enable = true;
     ensureDatabases = ["nextcloud" "immich"];
     enableTCPIP = true;
+    #package = pkgs.postgresql_15;
+    extraPlugins = with pkgs.postgresql_15.pkgs; [pgvector];
     ensureUsers = [
       {
         name = "nextcloud";
@@ -365,32 +374,32 @@ in {
       ];
     };
 
-    immich = {
-      image = "ghcr.io/imagegenius/immich:latest";
-      environment = {
-        PUID = vars.puid;
-        PGID = vars.pgid;
-        TZ = vars.tz;
+    # immich = {
+    #   image = "ghcr.io/imagegenius/immich:latest";
+    #   environment = {
+    #     PUID = vars.puid;
+    #     PGID = vars.pgid;
+    #     TZ = vars.tz;
 
-        DB_HOSTNAME = "host.docker.internal";
-        DB_USERNAME = "immich";
-        DB_PASSWORD = "immich";
-        DB_DATABASE_NAME = "immich";
-        REDIS_HOSTNAME = "host.docker.internal";
-        JWT_SECRET = "somelongrandomstring";
-        DB_PORT = "5432";
-        REDIS_PORT = "60609";
-      };
-      ports = ["${ports.immich}:8080/tcp"];
-      environmentFiles = [
-        "${vars.configDir}/plex/env"
-      ];
-      volumes = [
-        "${vars.configDir}/immich:/config"
-        "${vars.dataDir}/files/Photos:/photos"
-      ];
-      extraOptions = ["--add-host" "host.docker.internal:host-gateway"];
-    };
+    #     DB_HOSTNAME = "host.docker.internal";
+    #     DB_USERNAME = "immich";
+    #     DB_PASSWORD = "immich";
+    #     DB_DATABASE_NAME = "immich";
+    #     REDIS_HOSTNAME = "host.docker.internal";
+    #     JWT_SECRET = "somelongrandomstring";
+    #     DB_PORT = "5432";
+    #     REDIS_PORT = "60609";
+    #   };
+    #   ports = ["${ports.immich}:8080/tcp"];
+    #   environmentFiles = [
+    #     "${vars.configDir}/plex/env"
+    #   ];
+    #   volumes = [
+    #     "${vars.configDir}/immich:/config"
+    #     "${vars.dataDir}/files/Photos:/photos"
+    #   ];
+    #   extraOptions = ["--add-host" "host.docker.internal:host-gateway"];
+    # };
 
     scrutiny = {
       image = "ghcr.io/analogj/scrutiny:master-omnibus";
