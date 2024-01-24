@@ -126,6 +126,7 @@ in {
     gnomeExtensions.appindicator
     gnomeExtensions.blur-my-shell
     gnomeExtensions.dash-to-dock
+    gnomeExtensions.gsnap
 
     materia-theme
     yaru-theme
