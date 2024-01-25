@@ -243,7 +243,7 @@ in {
   services.nextcloud = {
     enable = true;
     datadir = "${vars.dataDir}/files/Nextcloud";
-    hostName = "nextcloud.arsfeld.one";
+    hostName = "nextcloud.${vars.domain}";
     maxUploadSize = "10G";
     package = pkgs.nextcloud28;
     autoUpdateApps.enable = true;
@@ -262,6 +262,9 @@ in {
       trusted_domains = ["storage" "storage.bat-boa.ts.net"];
       trusted_proxies = ["100.66.83.36"];
       overwriteprotocol = "https";
+    };
+    phpOptions = {
+      "opcache.interned_strings_buffer" = "23";
     };
   };
 
