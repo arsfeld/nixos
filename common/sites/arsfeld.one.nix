@@ -66,6 +66,7 @@ with lib; let
       "filerun" = "6000";
       "restic" = "8000";
       "stirling" = "9284";
+      "syncthing" = "8384";
     };
   };
   configs = concatLists (mapAttrsToList (host: pairs: mapAttrsToList (name: port: {inherit name port host;}) pairs) services);
