@@ -56,26 +56,8 @@ in {
   };
 
   age.secrets = {
-    authelia-jwt = {
-      file = ../../secrets/authelia-jwt.age;
-      mode = "700";
-      owner = "authelia-${autheliaConfig}";
-    };
-
-    authelia-storage-encryption-key = {
-      file = ../../secrets/authelia-storage-encryption-key.age;
-      mode = "700";
-      owner = "authelia-${autheliaConfig}";
-    };
-
-    authelia-session-secret = {
-      file = ../../secrets/authelia-session-secret.age;
-      mode = "700";
-      owner = "authelia-${autheliaConfig}";
-    };
-
-    authelia-ldap-password = {
-      file = ../../secrets/authelia-ldap-password.age;
+    authelia-secrets = {
+      file = ../../secrets/authelia-secrets.age;
       mode = "700";
       owner = "authelia-${autheliaConfig}";
     };
@@ -156,14 +138,8 @@ in {
         };
       };
     };
-    secrets = {
-      jwtSecretFile = config.age.secrets.authelia-jwt.path;
-      storageEncryptionKeyFile = config.age.secrets.authelia-storage-encryption-key.path;
-      sessionSecretFile = config.age.secrets.authelia-session-secret.path;
-    };
-    environmentVariables = {
-      AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE = config.age.secrets.authelia-ldap-password.path;
-    };
+    settingsFiles = [config.age.secrets.authelia-secrets.path];
+    secrets.manual = true;
   };
 
   services.redis.servers."authelia-${autheliaConfig}" = {
@@ -183,7 +159,7 @@ in {
   };
 
   services.invidious = {
-    enable = true;
+    enable = false;
     port = 3939;
     domain = "invidious.${mediaDomain}";
     database.createLocally = true;
