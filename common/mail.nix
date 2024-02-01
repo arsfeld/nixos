@@ -5,8 +5,8 @@
   ...
 }:
 with lib; let
-  email = "admin@arsfeld.one";
-  toEmail = "arsfeld@gmail.com";
+  email = "admin@rosenfeld.one";
+  toEmail = "alex@rosenfeld.one";
 
   sendEmailEvent = {event}: ''
     printf "Subject: [$(${pkgs.nettools}/bin/hostname)] ${event} ''$(${pkgs.coreutils}/bin/date --iso-8601=seconds)\n\n''$(${pkgs.neofetch}/bin/neofetch --stdout)\n\nzpool status:\n\n''$(${pkgs.zfs}/bin/zpool status)" | ${pkgs.msmtp}/bin/msmtp -a default ${toEmail}
@@ -22,9 +22,9 @@ in {
         auth = true;
         tls = true;
         from = email;
-        host = "wednesday.mxrouting.net";
+        host = "email-smtp.ca-central-1.amazonaws.com";
         port = 587;
-        user = email;
+        user = "AKIAUFCYOD6JNQVAJYO4";
         passwordeval = "cat ${config.age.secrets.smtp_password.path}";
       };
     };
