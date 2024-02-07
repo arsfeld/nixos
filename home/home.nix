@@ -102,11 +102,27 @@ in {
       if [[ -s $HOME/.cargo/env ]]; then
         source $HOME/.cargo/env
       fi
+
+      if [[ -z "$ZELLIJ" && "$TERM_PROGRAM" != "vscode" ]]; then
+        zellij attach -c
+      fi
     '';
     profileExtra = ''
       if [[ -s /etc/set-environment ]]; then
         . /etc/set-environment
       fi
+    '';
+  };
+
+  programs.tmux = {
+    enable = true;
+    clock24 = true;
+    newSession = true;
+    extraConfig = ''
+      # Set new panes to open in current directory
+      bind c new-window -c "#{pane_current_path}"
+      bind '"' split-window -c "#{pane_current_path}"
+      bind % split-window -h -c "#{pane_current_path}"
     '';
   };
 
@@ -131,6 +147,8 @@ in {
     };
   };
 
+  programs.topgrade.enable = true;
+
   programs.gitui.enable = true;
 
   programs.direnv = {
@@ -148,7 +166,12 @@ in {
     enableBashIntegration = true;
   };
 
-  programs.zellij.enable = true;
+  programs.zellij = {
+    enable = true;
+    settings = {
+      theme = "dracula";
+    };
+  };
 
   programs.keychain = mkIf stdenv.isLinux {
     enable = true;
