@@ -2,27 +2,7 @@
   lib,
   pkgs,
   ...
-}: let
-  # Fixing https://github.com/0xERR0R/blocky/issues/1113
-  blocky_overlay = self: super: {
-    blocky = super.callPackage "${super.path}/pkgs/applications/networking/blocky" {
-      buildGoModule = args:
-        super.buildGoModule (args
-          // {
-            vendorHash = "sha256-h1CkvI7M1kt2Ix3D8+gDl97CFElV+0/9Eram1burOaM=";
-            version = "0.23";
-            src = pkgs.fetchFromGitHub {
-              owner = "0xERR0R";
-              repo = "blocky";
-              rev = "dece894bd6d62205f2ec69379850e2a526667c8d";
-              sha256 = "NVtZCqxvsTaz5EDTMCxsubR5V6ESE2KozOXriFdnNWE=";
-            };
-          });
-    };
-  };
-in {
-  nixpkgs.overlays = [blocky_overlay];
-
+}: {
   services.blocky = {
     enable = true;
     settings = {
