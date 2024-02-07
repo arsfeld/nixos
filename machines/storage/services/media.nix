@@ -110,10 +110,15 @@ in {
 
     stash = {
       image = "stashapp/stash:latest";
-      ports = ["9999:9999"];
+      #ports = ["9999:9999"];
       volumes = [
         "${vars.configDir}/stash:/root/.stash"
         "${vars.dataDir}/media:/data"
+      ];
+      extraOptions = [
+        "--device"
+        "/dev/dri:/dev/dri"
+        "--network=host"
       ];
     };
 
