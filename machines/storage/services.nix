@@ -433,7 +433,7 @@ in {
       image = "photoprism/photoprism:latest";
       ports = ["2342:2342"];
       environment = {
-        PHOTOPRISM_SITE_URL = "https://photoprism.arsfeld.dev/";
+        PHOTOPRISM_SITE_URL = "https://photoprism.arsfeld.one/";
         PHOTOPRISM_UPLOAD_NSFW = "true";
         PHOTOPRISM_ADMIN_PASSWORD = "password";
       };
