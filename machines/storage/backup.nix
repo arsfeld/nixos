@@ -77,10 +77,10 @@ in
           repository = "rclone:idrive:arosenfeld";
         };
 
-      local =
-        opts
-        // {
-          repository = "/mnt/backup/restic";
-        };
+      # local =
+      #   opts
+      #   // {
+      #     repository = "/mnt/backup/restic";
+      #   };
     };
   }

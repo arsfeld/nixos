@@ -4,6 +4,7 @@
 args @ {
   lib,
   pkgs,
+  config,
   ...
 }:
 with lib; {
@@ -23,7 +24,7 @@ with lib; {
     ./samba.nix
     ./backup.nix
     ./services.nix
-    ./services/backup.nix
+    # ./services/backup.nix
     ./services/media.nix
     ./services/home.nix
   ];
@@ -44,6 +45,9 @@ with lib; {
     kernelModules = ["kvm-intel" "ip6_tables"];
     #supportedFilesystems = ["zfs"];
   };
+
+  boot.kernelPackages = config.boot.zfs.package.latestCompatibleLinuxPackages;
+  #boot.kernelPackages = pkgs.linuxPackages_latest;
 
   systemd.email-notify.mailFrom = "admin@arsfeld.one";
   systemd.email-notify.mailTo = "arsfeld@gmail.com";
