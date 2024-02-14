@@ -103,7 +103,7 @@ in {
         source $HOME/.cargo/env
       fi
 
-      if [[ -z "$ZELLIJ" && "$TERM_PROGRAM" != "vscode" ]]; then
+      if [[ -z "$ZELLIJ" && "$TERM_PROGRAM" != "vscode" && -n "$SSH_CLIENT" ]]; then
         zellij attach -c
       fi
     '';
