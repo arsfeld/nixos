@@ -88,10 +88,32 @@
     options = ["zfsutil" "X-mount.mkdir"];
   };
 
-  fileSystems."/mnt/backup" = {
-    device = "backup";
-    fsType = "zfs";
-    options = ["zfsutil" "X-mount.mkdir"];
+  # fileSystems."/mnt/backup" = {
+  #   device = "backup";
+  #   fsType = "zfs";
+  #   options = ["zfsutil" "X-mount.mkdir"];
+  # };
+
+  environment.systemPackages = with pkgs; [
+    mergerfs
+  ];
+
+  fileSystems."/mnt/disk1" = {
+    device = "/dev/disk/by-id/ata-ST8000DM004-2CX188_ZCT19JFS-part1";
+    fsType = "btrfs";
+    options = ["compress=zstd" "noatime"];
+  };
+
+  fileSystems."/mnt/disk2" = {
+    device = "/dev/disk/by-id/ata-ST4000VN008-2DR166_WDH2WDVD-part1";
+    fsType = "btrfs";
+    options = ["compress=zstd" "noatime"];
+  };
+
+  fileSystems."/mnt/storage" = {
+    fsType = "fuse.mergerfs";
+    device = "/mnt/disk*";
+    options = ["cache.files=partial" "dropcacheonclose=true" "category.create=pfrd"];
   };
 
   swapDevices = [

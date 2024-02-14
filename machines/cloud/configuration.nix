@@ -1,4 +1,4 @@
-{...}: {
+{pkgs, ...}: {
   imports = [
     ./hardware-configuration.nix
     ../../common/acme.nix
@@ -19,6 +19,8 @@
   boot = {
     binfmt.emulatedSystems = ["x86_64-linux"];
   };
+
+  #boot.kernelPackages = pkgs.linuxPackages_latest;
 
   services.blocky.settings.customDNS.mapping."arsfeld.one" = "100.118.254.136";
 
