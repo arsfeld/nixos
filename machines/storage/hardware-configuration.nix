@@ -113,7 +113,7 @@
   fileSystems."/mnt/storage" = {
     fsType = "fuse.mergerfs";
     device = "/mnt/disk*";
-    options = ["cache.files=partial" "dropcacheonclose=true" "category.create=pfrd"];
+    options = ["cache.files=partial" "dropcacheonclose=true" "category.create=mfs" "moveonenospc=true"];
   };
 
   swapDevices = [
