@@ -11,8 +11,6 @@
     utils.url = "github:numtide/flake-utils";
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
-    attic.url = "github:zhaofengli/attic";
-    attic.inputs.nixpkgs.follows = "nixpkgs";
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
     nixos-mailserver.url = "gitlab:simple-nixos-mailserver/nixos-mailserver";
     nixos-mailserver.inputs.nixpkgs.follows = "nixpkgs";
@@ -26,7 +24,6 @@
     utils,
     disko,
     agenix,
-    attic,
     nixos-generators,
     nixos-nftables-firewall,
     nixos-hardware,
@@ -121,7 +118,6 @@
         imports =
           [
             agenix.nixosModules.default
-            attic.nixosModules.atticd
             nixos-mailserver.nixosModules.default
             ./common/modules/systemd-email-notify.nix
             ./machines/cloud/configuration.nix
