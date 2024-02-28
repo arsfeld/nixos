@@ -28,6 +28,11 @@ in {
     };
   };
 
+  services.redis.servers.blocky.slaveOf = {
+    ip = "100.66.38.77";
+    port = 6378;
+  };
+
   environment.systemPackages = [
     (pkgs.writeShellScriptBin "plex-trakt-sync" "${(plex-trakt-sync {interactive = true;})} \"$@\"")
   ];
