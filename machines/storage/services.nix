@@ -52,7 +52,7 @@ in {
   };
 
   services.mediamtx = {
-    enable = true;
+    enable = false;
     settings = {
       paths = {
         backyard = {
@@ -198,7 +198,7 @@ in {
   };
 
   services.minio = {
-    enable = true;
+    enable = false;
     dataDir = ["${vars.dataDir}/files/minio"];
   };
 
