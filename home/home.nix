@@ -58,7 +58,7 @@ in {
   # programs.home-manager.enable = true;
 
   xdg.configFile."starship.toml" = {
-    source = ./files/pastel.toml;
+    source = ./files/starship.toml;
   };
   xdg.configFile."htop/htoprc" = {
     source = ./files/htoprc;
