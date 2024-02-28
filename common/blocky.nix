@@ -1,11 +1,25 @@
 {
   lib,
-  pkgs,
+  config,
   ...
 }: {
+  services.redis = {
+    enable = true;
+    servers = {
+      blocky = {
+        enable = true;
+        user = "blocky";
+        settings = {
+          "protected-mode" = "no";
+        };
+      };
+    };
+  };
+
   services.blocky = {
     enable = true;
     settings = {
+      queryLog.type = "none";
       upstreams = {
         groups = {
           default = ["1.1.1.2" "1.0.0.2"];
@@ -13,6 +27,13 @@
       };
       ports = {
         http = ":4000";
+      };
+      redis = {
+        address = "100.66.38.77:6378";
+        database = 2;
+        required = false;
+        connectionAttempts = 20;
+        connectionCooldown = "6s";
       };
       caching = {
         minTime = "5m";
