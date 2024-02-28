@@ -97,9 +97,20 @@ in {
             resources = ["^/transmission/rpc$" "^/transmission/rpc/$"];
           }
           {
-            domain = ["radarr.${mediaDomain}" "sonarr.${mediaDomain}" "prowlarr.${mediaDomain}" "jackett.${mediaDomain}"];
+            domain = [
+              "radarr.${mediaDomain}"
+              "sonarr.${mediaDomain}"
+              "prowlarr.${mediaDomain}"
+              "lidarr.${mediaDomain}"
+              "jackett.${mediaDomain}"
+            ];
             policy = "bypass";
             resources = ["^/api/.*$" "^/api$"];
+          }
+          {
+            domain = ["flaresolverr.${mediaDomain}"];
+            policy = "bypass";
+            resources = ["^/v1/.*$" "^/v1$"];
           }
           {
             domain = ["prowlarr.${mediaDomain}"];
