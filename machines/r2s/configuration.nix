@@ -5,7 +5,6 @@
     ../../common/common.nix
     ../../common/services.nix
     ../../common/users.nix
-    ../../common/blocky.nix
     ./hardware.nix
     (import ./networking.nix {
       internalInterface = "enu1"; # or w/e ethernet interface you want to connect your raspberry pi to
@@ -21,26 +20,26 @@
   networking.hostName = "r2s";
   networking.firewall.enable = false;
 
-  # services.adguardhome = {
-  #   enable = true;
-  #   settings = {
-  #     dns = {
-  #       bind_host = "0.0.0.0";
-  #       bootstrap_dns = ["9.9.9.10"];
-  #     };
-  #   };
-  # };
+  virtualisation.oci-containers.containers = {
+    watchtower = {
+      image = "containrrr/watchtower";
+      volumes = [
+        "/var/run/docker.sock:/var/run/docker.sock"
+      ];
+    };
 
-  # virtualisation.oci-containers = {
-  #   containers.homeassistant = {
-  #     volumes = ["home-assistant:/config"];
-  #     environment.TZ = "Europe/Berlin";
-  #     image = "ghcr.io/home-assistant/home-assistant:stable"; # Warning: if the tag does not change, the image will not be updated
-  #     extraOptions = [
-  #       "--network=host"
-  #     ];
-  #   };
-  # };
+    homeassistant = {
+      volumes = ["/var/lib/home-assistant:/config"];
+      environment.TZ = "America/Toronto";
+      image = "ghcr.io/home-assistant/home-assistant:stable";
+      extraOptions = [
+        "--network=host"
+        "--privileged"
+        "--label"
+        "io.containers.autoupdate=image"
+      ];
+    };
+  };
 
   # put your own configuration here, for example ssh keys:
   users.extraUsers.root.openssh.authorizedKeys.keys = [
