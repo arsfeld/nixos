@@ -43,7 +43,7 @@ with lib; {
     #loader.efi.canTouchEfiVariables = true;
     binfmt.emulatedSystems = ["aarch64-linux"];
     kernelModules = ["kvm-intel" "ip6_tables"];
-    #supportedFilesystems = ["zfs"];
+    supportedFilesystems = ["zfs" "bcachefs"];
   };
 
   boot.kernelPackages = config.boot.zfs.package.latestCompatibleLinuxPackages;
@@ -51,6 +51,8 @@ with lib; {
 
   systemd.email-notify.mailFrom = "admin@arsfeld.one";
   systemd.email-notify.mailTo = "arsfeld@gmail.com";
+
+  systemd.enableEmergencyMode = false;
 
   services.zfs.autoScrub.enable = true;
   services.zfs.autoScrub.interval = "monthly";
