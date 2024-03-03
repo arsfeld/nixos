@@ -1,10 +1,4 @@
 {
-  config,
-  pkgs,
-  lib,
-  ...
-}:
-with lib; {
   boot.supportedFilesystems = ["zfs"];
 
   networking.hostId = "86f58bee";
