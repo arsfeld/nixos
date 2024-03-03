@@ -103,9 +103,9 @@ in {
         source $HOME/.cargo/env
       fi
 
-      if [[ -z "$ZELLIJ" && "$TERM_PROGRAM" != "vscode" && -n "$SSH_CLIENT" ]]; then
-        zellij attach -c
-      fi
+      # if [[ -z "$ZELLIJ" && "$TERM_PROGRAM" != "vscode" && -n "$SSH_CLIENT" ]]; then
+      #   zellij attach -c
+      # fi
     '';
     profileExtra = ''
       if [[ -s /etc/set-environment ]]; then
