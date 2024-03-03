@@ -18,4 +18,6 @@ in {
   "lldap-env.age".publicKeys = users ++ [cloud];
   "dex-clients-tailscale-secret.age".publicKeys = users ++ [cloud];
   "authelia-secrets.age".publicKeys = users ++ [cloud];
+  "hetzner.age".publicKeys = users ++ systems;
+  "borg-passkey.age".publicKeys = users ++ systems;
 }

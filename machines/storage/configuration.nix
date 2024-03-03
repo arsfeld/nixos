@@ -24,7 +24,7 @@ with lib; {
     ./samba.nix
     ./backup.nix
     ./services.nix
-    # ./services/backup.nix
+    ./borg.nix
     ./services/media.nix
     ./services/home.nix
   ];
