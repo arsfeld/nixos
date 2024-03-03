@@ -170,6 +170,8 @@ in {
     enable = true;
     settings = {
       theme = "dracula";
+      #mouse_mode = false;
+      copy_on_select = false;
     };
   };
 
