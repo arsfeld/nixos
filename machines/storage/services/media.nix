@@ -1,5 +1,12 @@
 {config, ...}: let
   vars = config.vars;
+  tailscale-mod = {
+    DOCKER_MODS = "ghcr.io/tailscale-dev/docker-mod:main";
+    TAILSCALE_STATE_DIR = "/config/tailscale";
+    TAILSCALE_USE_SSH = "1";
+    TAILSCALE_SERVE_MODE = "https";
+    TAILSCALE_FUNNEL = "1";
+  };
 in {
   services.bazarr = {
     enable = true;
@@ -20,6 +27,8 @@ in {
   };
 
   age.secrets."transmission-openvpn-pia".file = ../../../secrets/transmission-openvpn-pia.age;
+
+  age.secrets."tailscale-key".file = ../../../secrets/tailscale-key.age;
 
   virtualisation.oci-containers.containers = {
     plex = {
@@ -139,11 +148,18 @@ in {
 
     sonarr = {
       image = "ghcr.io/linuxserver/sonarr";
-      environment = {
-        PUID = vars.puid;
-        PGID = vars.pgid;
-        TZ = vars.tz;
-      };
+      environment =
+        {
+          TAILSCALE_SERVE_PORT = "8989";
+          TAILSCALE_HOSTNAME = "sonarr";
+          PUID = vars.puid;
+          PGID = vars.pgid;
+          TZ = vars.tz;
+        }
+        // tailscale-mod;
+      environmentFiles = [
+        config.age.secrets.tailscale-key.path
+      ];
       ports = ["8989:8989"];
       volumes = [
         "${vars.configDir}/sonarr:/config"
@@ -154,11 +170,18 @@ in {
 
     radarr = {
       image = "lscr.io/linuxserver/radarr:latest";
-      environment = {
-        PUID = vars.puid;
-        PGID = vars.pgid;
-        TZ = vars.tz;
-      };
+      environment =
+        {
+          TAILSCALE_SERVE_PORT = "7878";
+          TAILSCALE_HOSTNAME = "radarr";
+          PUID = vars.puid;
+          PGID = vars.pgid;
+          TZ = vars.tz;
+        }
+        // tailscale-mod;
+      environmentFiles = [
+        config.age.secrets.tailscale-key.path
+      ];
       ports = ["7878:7878"];
       volumes = [
         "${vars.configDir}/radarr:/config"
@@ -182,12 +205,19 @@ in {
 
     prowlarr = {
       image = "ghcr.io/linuxserver/prowlarr:develop";
-      environment = {
-        PUID = vars.puid;
-        PGID = vars.pgid;
-        TZ = vars.tz;
-      };
+      environment =
+        {
+          TAILSCALE_SERVE_PORT = "9696";
+          TAILSCALE_HOSTNAME = "prowlarr";
+          PUID = vars.puid;
+          PGID = vars.pgid;
+          TZ = vars.tz;
+        }
+        // tailscale-mod;
       ports = ["9696:9696"];
+      environmentFiles = [
+        config.age.secrets.tailscale-key.path
+      ];
       volumes = [
         "${vars.configDir}/prowlarr:/config"
         "${vars.dataDir}/files:/files"
