@@ -247,19 +247,21 @@ in {
 
   services.nextcloud = {
     enable = true;
-    datadir = "${vars.dataDir}/files/Nextcloud";
+    #datadir = "${vars.dataDir}/files/Nextcloud";
     hostName = "nextcloud.${vars.domain}";
     maxUploadSize = "10G";
     package = pkgs.nextcloud28;
+    appstoreEnable = true;
     autoUpdateApps.enable = true;
     configureRedis = true;
+    database.createLocally = true;
+    extraApps = {
+      inherit (config.services.nextcloud.package.packages.apps) memories contacts calendar tasks;
+    };
+    extraAppsEnable = true;
     config = {
       dbtype = "pgsql";
-      dbuser = "nextcloud";
-      dbhost = "/run/postgresql"; # nextcloud will add /.s.PGSQL.5432 by itself
-      dbname = "nextcloud";
       adminpassFile = "/etc/secrets/nextcloud";
-      adminuser = "root";
     };
     extraOptions = {
       mail_smtpmode = "sendmail";
@@ -271,6 +273,19 @@ in {
     phpOptions = {
       "opcache.interned_strings_buffer" = "23";
     };
+    extraOptions.enabledPreviewProviders = [
+      "OC\\Preview\\BMP"
+      "OC\\Preview\\GIF"
+      "OC\\Preview\\JPEG"
+      "OC\\Preview\\Krita"
+      "OC\\Preview\\MarkDown"
+      "OC\\Preview\\MP3"
+      "OC\\Preview\\OpenDocument"
+      "OC\\Preview\\PNG"
+      "OC\\Preview\\TXT"
+      "OC\\Preview\\XBitmap"
+      "OC\\Preview\\HEIC"
+    ];
   };
 
   services.nginx.defaultHTTPListenPort = 8099;
