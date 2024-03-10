@@ -354,17 +354,17 @@ in {
       ];
     };
 
-    homeassistant = {
-      volumes = ["/var/lib/home-assistant:/config"];
-      environment.TZ = "America/Toronto";
-      image = "ghcr.io/home-assistant/home-assistant:stable";
-      extraOptions = [
-        "--network=host"
-        "--privileged"
-        "--label"
-        "io.containers.autoupdate=image"
-      ];
-    };
+    # homeassistant = {
+    #   volumes = ["/var/lib/home-assistant:/config"];
+    #   environment.TZ = "America/Toronto";
+    #   image = "ghcr.io/home-assistant/home-assistant:stable";
+    #   extraOptions = [
+    #     "--network=host"
+    #     "--privileged"
+    #     "--label"
+    #     "io.containers.autoupdate=image"
+    #   ];
+    # };
 
     speedtest = {
       image = "ghcr.io/alexjustesen/speedtest-tracker:latest";
