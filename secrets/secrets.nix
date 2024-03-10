@@ -20,4 +20,5 @@ in {
   "authelia-secrets.age".publicKeys = users ++ [cloud];
   "hetzner.age".publicKeys = users ++ systems;
   "borg-passkey.age".publicKeys = users ++ systems;
+  "tailscale-key.age".publicKeys = users ++ systems;
 }
