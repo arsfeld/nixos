@@ -59,7 +59,6 @@ with lib; let
       "jf" = "3831";
       "nzbhydra2" = "5076";
       "sabnzbd" = "9998";
-      "hass" = "8123";
       "grafana" = "2345";
       "seafile" = "8082";
       "filestash" = "8334";
@@ -67,6 +66,9 @@ with lib; let
       "restic" = "8000";
       "stirling" = "9284";
       "syncthing" = "8384";
+    };
+    "r2s" = {
+      "hass" = "8123";
     };
   };
   configs = concatLists (mapAttrsToList (host: pairs: mapAttrsToList (name: port: {inherit name port host;}) pairs) services);
