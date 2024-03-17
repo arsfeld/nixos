@@ -4,6 +4,7 @@ format = """
 [](color_orange)\
 $os\
 $username\
+$hostname\
 [](fg:color_orange bg:color_yellow)\
 $directory\
 [](fg:color_yellow bg:color_aqua)\
@@ -54,6 +55,7 @@ color_red = '#FF8080'
 color_yellow = '#DA627D'
 
 [os]
+format = '[$symbol ]($style)'
 disabled = false
 style = "bg:color_orange fg:color_fg0"
 
@@ -81,7 +83,11 @@ RedHatEnterprise = "󱄛"
 [username]
 style_user = "bg:color_orange fg:color_fg0"
 style_root = "bg:color_orange fg:color_fg0"
-format = '[ $user ]($style)'
+format = '[$user]($style)'
+
+[hostname]
+style = "bg:color_orange fg:color_fg0"
+format = "[•$hostname ]($style)"
 
 [directory]
 style = "fg:color_fg0 bg:color_yellow"
