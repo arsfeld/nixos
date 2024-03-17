@@ -15,24 +15,29 @@ in {
   boot.kernelParams = [
     "zswap.enabled=1"
     "mitigations=off"
-    "panic=1"
-    "quiet"
-    "rd.systemd.show_status=auto"
-    "rd.udev.log_priority=3"
     "splash"
+    "quiet"
+    "udev.log_level=0"
   ];
 
-  boot.plymouth = {
-    enable = true;
-  };
+  boot.plymouth.enable = true;
+  boot.plymouth.theme = "bgrt";
 
-  networking.hostName = "raider";
+  boot.initrd.verbose = false;
+  boot.consoleLogLevel = 0;
+
+  services.system76-scheduler.enable = true;
+
+  networking.hostName = "raider-nixos";
 
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
   boot.supportedFilesystems = ["ntfs"];
+
+  virtualisation.podman.enable = true;
+  virtualisation.podman.dockerCompat = true;
 
   services.xserver.enable = true;
   services.xserver.displayManager.gdm.enable = true;
@@ -50,6 +55,8 @@ in {
 
   # Enable networking
   networking.networkmanager.enable = true;
+
+  programs.coolercontrol.enable = true;
 
   services.tailscale.enable = true;
 
@@ -84,18 +91,25 @@ in {
 
   services.netdata.enable = true;
 
-  programs.gamemode.enable = true;
+  # programs.gamemode.enable = true;
 
   fonts.packages = with pkgs; [
     (nerdfonts.override {fonts = ["FiraCode" "DroidSansMono" "CascadiaCode"];})
+
+    noto-fonts
+    noto-fonts-cjk
+    noto-fonts-emoji
+    liberation_ttf
+    source-han-sans-japanese
+    source-han-serif-japanese
   ];
 
   # Enable automatic login for the user.
   #services.xserver.displayManager.autoLogin.enable = true;
   #services.xserver.displayManager.autoLogin.user = "arosenfeld";
 
-  #programs.steam.enable = true;
-  #programs.steam.gamescopeSession.enable = true;
+  programs.steam.enable = true;
+  programs.steam.gamescopeSession.enable = true;
 
   hardware.opengl = {
     # this fixes the "glXChooseVisual failed" bug, context: https://github.com/NixOS/nixpkgs/issues/47932
@@ -111,7 +125,7 @@ in {
   programs._1password.enable = true;
 
   environment.systemPackages = with pkgs; [
-    vscode
+    #vscode
     vim
     wget
     wineWowPackages.stable
@@ -120,23 +134,43 @@ in {
     mangohud
     vkbasalt
     plex-mpv-shim
+    mission-center
+    variety
+    bottles
+    quickemu
+    quickgui
 
+    blackbox-terminal
+
+    gnome-extension-manager
     gnome.gnome-tweaks
     gnome.gnome-terminal
     gnomeExtensions.appindicator
     gnomeExtensions.blur-my-shell
     gnomeExtensions.dash-to-dock
     gnomeExtensions.gsnap
+    gnomeExtensions.system76-scheduler
+    gnomeExtensions.gsconnect
+    gnomeExtensions.gtile
 
-    materia-theme
+    qogir-theme
+    #materia-theme
     yaru-theme
-    zuki-themes
-
-    monitor
+    #zuki-themes
+    #tela-icon-theme
+    #tela-circle-icon-theme
+    #vimix-icon-theme
+    qogir-icon-theme
+    #papirus-icon-theme
+    morewaita-icon-theme
+    #moka-icon-theme
+    colloid-icon-theme
+    orchis-theme
 
     pantheon.elementary-sound-theme
     pantheon.elementary-gtk-theme
     pantheon.elementary-icon-theme
+    pantheon.elementary-wallpapers
 
     appimage-run
     (appimage.appimagePackage {
@@ -144,6 +178,40 @@ in {
       version = "117.0.5938.157";
       url = "https://github.com/Alex313031/thorium/releases/download/M117.0.5938.157/Thorium_Browser_117.0.5938.157_x64.AppImage";
       sha256 = "sha256-dlfClBbwSkQg4stKZdSgNg3EFsWksoI21cxRG5SMrOM=";
+    })
+  ];
+
+  environment.gnome.excludePackages =
+    (with pkgs; [
+      gnome-photos
+      gnome-tour
+    ])
+    ++ (with pkgs.gnome; [
+      gnome-music
+      gnome-terminal
+      gnome-system-monitor
+      gnome-shell-extensions
+      geary # email reader
+      evince # document viewer
+      totem # video player
+      tali # poker game
+      iagno # go game
+      hitori # sudoku game
+      atomix # puzzle game
+    ]);
+
+  nixpkgs.overlays = [
+    (final: prev: {
+      gnome = prev.gnome.overrideScope' (gnomeFinal: gnomePrev: {
+        mutter = gnomePrev.mutter.overrideAttrs (old: {
+          src = pkgs.fetchgit {
+            url = "https://gitlab.gnome.org/vanvugt/mutter.git";
+            # GNOME 45: triple-buffering-v4-45
+            rev = "0b896518b2028d9c4d6ea44806d093fd33793689";
+            sha256 = "sha256-mzNy5GPlB2qkI2KEAErJQzO//uo8yO0kPQUwvGDwR4w=";
+          };
+        });
+      });
     })
   ];
 

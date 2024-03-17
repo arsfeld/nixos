@@ -12,38 +12,26 @@
     (modulesPath + "/installer/scan/not-detected.nix")
   ];
 
-  boot.initrd.availableKernelModules = ["xhci_pci" "ahci" "nvme" "usbhid" "sd_mod"];
+  boot.initrd.availableKernelModules = ["xhci_pci" "ahci" "nvme" "usbhid" "usb_storage" "sd_mod"];
   boot.initrd.kernelModules = [];
   boot.kernelModules = ["kvm-intel"];
   boot.extraModulePackages = [];
 
   fileSystems."/" = {
-    device = "/dev/disk/by-uuid/54b48d1f-763d-4627-a122-a97498667e22";
+    device = "/dev/disk/by-uuid/aca3914a-00f5-4d1d-854a-60e99b56a837";
     fsType = "btrfs";
-    options = ["subvol=root" "compress=zstd"];
-  };
-
-  fileSystems."/home" = {
-    device = "/dev/disk/by-uuid/54b48d1f-763d-4627-a122-a97498667e22";
-    fsType = "btrfs";
-    options = ["subvol=home" "compress=zstd"];
-  };
-
-  fileSystems."/nix" = {
-    device = "/dev/disk/by-uuid/54b48d1f-763d-4627-a122-a97498667e22";
-    fsType = "btrfs";
-    options = ["subvol=nix" "compress=zstd" "noatime"];
+    options = ["subvol=@" "compress=zstd"];
   };
 
   fileSystems."/boot" = {
-    device = "/dev/disk/by-uuid/1EBB-A61A";
+    device = "/dev/disk/by-uuid/FFB9-41BF";
     fsType = "vfat";
   };
 
-  fileSystems."/mnt/windows" = {
-    device = "/dev/nvme0n1p3";
-    fsType = "ntfs";
-    options = ["rw" "uid=1000"];
+  fileSystems."/mnt/games" = {
+    device = "/dev/disk/by-label/games";
+    fsType = "btrfs";
+    options = ["nofail" "compress=zstd"];
   };
 
   swapDevices = [];
@@ -55,7 +43,6 @@
   networking.useDHCP = lib.mkDefault true;
   # networking.interfaces.enp6s0.useDHCP = lib.mkDefault true;
   # networking.interfaces.enp7s0.useDHCP = lib.mkDefault true;
-  # networking.interfaces.tailscale0.useDHCP = lib.mkDefault true;
   # networking.interfaces.wlp5s0.useDHCP = lib.mkDefault true;
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
