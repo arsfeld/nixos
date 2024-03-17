@@ -171,12 +171,13 @@
 
       raider = {
         deployment = {
-          targetHost = "raider-1";
+          targetHost = "raider";
           #allowLocalDeployment = true;
           tags = ["local"];
         };
         imports =
           [
+            agenix.nixosModules.default
             ./machines/raider/configuration.nix
           ]
           ++ homeFeatures;
