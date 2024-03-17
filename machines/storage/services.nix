@@ -247,7 +247,7 @@ in {
 
   services.nextcloud = {
     enable = true;
-    #datadir = "${vars.dataDir}/files/Nextcloud";
+    datadir = "${vars.dataDir}/files/Nextcloud";
     hostName = "nextcloud.${vars.domain}";
     maxUploadSize = "10G";
     package = pkgs.nextcloud28;
@@ -346,13 +346,17 @@ in {
       ];
     };
 
-    remotely = {
-      image = "immybot/remotely:latest";
-      ports = ["5000:5000"];
-      volumes = [
-        "${vars.configDir}/remotely:/remotely-data"
-      ];
-    };
+    # remotely = {
+    #   image = "immybot/remotely:latest";
+    #   ports = ["5000:5000"];
+    #   volumes = [
+    #     "${vars.configDir}/remotely:/app/AppData"
+    #   ];
+    #   environment = {
+    #     Remotely_ApplicationOptions__DbProvider = "SQLite";
+    #     Remotely_ConnectionStrings__SQLite = "Data Source=/app/AppData/Remotely.db";
+    #   };
+    # };
 
     # homeassistant = {
     #   volumes = ["/var/lib/home-assistant:/config"];
@@ -367,7 +371,7 @@ in {
     # };
 
     speedtest = {
-      image = "ghcr.io/alexjustesen/speedtest-tracker:latest";
+      image = "lscr.io/linuxserver/speedtest-tracker:latest";
       volumes = ["${vars.configDir}/speedtest:/config"];
       ports = ["8765:80"];
       environment = {
