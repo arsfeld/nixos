@@ -88,12 +88,6 @@
     options = ["zfsutil" "X-mount.mkdir"];
   };
 
-  # fileSystems."/mnt/backup" = {
-  #   device = "backup";
-  #   fsType = "zfs";
-  #   options = ["zfsutil" "X-mount.mkdir"];
-  # };
-
   environment.systemPackages = with pkgs; [
     mergerfs
     bcachefs-tools
@@ -113,7 +107,7 @@
 
   fileSystems."/mnt/storage" = {
     fsType = "bcachefs";
-    device = "UUID=07b5f3e2-89f4-4968-b73b-806d57eaeeae";
+    device = "UUID=e404faef-eb8c-4aae-97d2-4bb140c624c8";
     #device = "/dev/disk/by-id/ata-ST8000DM004-2CX188_ZCT19JFS-part1:/dev/disk/by-id/ata-ST4000VN008-2DR166_WDH2WDVD-part1";
     #options = ["cache.files=partial" "dropcacheonclose=true" "category.create=mfs" "moveonenospc=true"];
     options = ["compression=zstd" "nofail"];
