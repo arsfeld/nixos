@@ -1,15 +1,11 @@
 {
   config,
   pkgs,
+  self,
   ...
 }: {
-  virtualisation.lxd = {
-    enable = false;
-    recommendedSysctlSettings = true;
-  };
-
   age.secrets.cloudflare = {
-    file = ../secrets/cloudflare.age;
+    file = "${self}/secrets/cloudflare.age";
     owner = "acme";
     group = "acme";
   };
