@@ -1,8 +1,8 @@
 {config, ...}: {
-  age.secrets."restic-password".file = ../../secrets/restic-password.age;
+  age.secrets."restic-password".file = "${self}/secrets/restic-password.age";
   age.secrets."restic-password".mode = "444";
 
-  age.secrets."restic-rest-cloud".file = ../../secrets/restic-rest-cloud.age;
+  age.secrets."restic-rest-cloud".file = "${self}/secrets/restic-rest-cloud.age";
   age.secrets."restic-rest-cloud".mode = "444";
 
   services.restic.backups = {

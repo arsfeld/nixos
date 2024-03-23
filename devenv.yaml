@@ -1,5 +1,0 @@
-inputs:
-  nixpkgs:
-    url: github:NixOS/nixpkgs/nixpkgs-unstable
-  agenix:
-    url: github:ryantm/agenix

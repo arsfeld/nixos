@@ -1,13 +1,10 @@
 {
   config,
   pkgs,
+  suites,
   ...
 }: {
-  imports = [
-    ../../common/common.nix
-    ../../common/users.nix
-    ./hardware-configuration.nix
-  ];
+  imports = suites.micro ++ [./hardware-configuration.nix];
 
   services.journald.extraConfig = "SystemMaxUse=1G";
 
