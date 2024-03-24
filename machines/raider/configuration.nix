@@ -139,6 +139,7 @@ in {
     bottles
     quickemu
     quickgui
+    multiviewer-for-f1
 
     blackbox-terminal
 
