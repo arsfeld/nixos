@@ -35,7 +35,7 @@ in {
       direnv
       ruby
       starship
-      rnix-lsp
+      nil
       kondo
       fd
       ripgrep
@@ -189,7 +189,7 @@ in {
 
   programs.bat.enable = true;
   programs.eza.enable = true;
-  programs.eza.enableAliases = true;
+  programs.eza.enableZshIntegration = true;
 
   programs.command-not-found.enable = true;
 
