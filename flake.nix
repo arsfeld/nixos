@@ -19,6 +19,7 @@
     haumea.url = "github:nix-community/haumea";
     devshell.url = "github:numtide/devshell";
     treefmt-nix.url = "github:numtide/treefmt-nix";
+    chaotic.url = "github:chaotic-cx/nyx/nyxpkgs-unstable";
   };
 
   outputs = {
@@ -35,8 +36,8 @@
     nixos-nftables-firewall,
     nixos-hardware,
     nixos-mailserver,
-    deploy-rs,
     treefmt-nix,
+    chaotic,
     ...
   } @ inputs:
     flake-parts.lib.mkFlake {inherit inputs;} ({moduleWithSystem, ...}: {
@@ -145,29 +146,23 @@
           ];
         };
 
-        storage = {
+        storage = {...}: {
           imports = [
+            chaotic.nixosModules.default
             ./hosts/storage/configuration.nix
           ];
         };
 
-        raider = {
-          deployment = {
-            targetHost = "raider";
-            #allowLocalDeployment = true;
-            tags = ["local"];
-          };
+        raider = {...}: {
           imports = [
             agenix.nixosModules.default
+            chaotic.nixosModules.default
             ./machines/raider/configuration.nix
           ];
         };
 
-        r2s = {
+        r2s = {...}: {
           nixpkgs.system = "aarch64-linux";
-          deployment = {
-            targetHost = "r2s";
-          };
           imports = [
             ./common/modules/fake-hwclock.nix
             ./machines/r2s/configuration.nix
