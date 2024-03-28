@@ -72,6 +72,9 @@ in {
     xkbVariant = "alt-intl";
   };
 
+  #chaotic.mesa-git.enable = true;
+  #chaotic.appmenu-gtk3-module.enable = true;
+
   # Configure console keymap
   console.keyMap = "us";
 
@@ -139,6 +142,7 @@ in {
     bottles
     quickemu
     quickgui
+    multiviewer-for-f1
 
     blackbox-terminal
 
@@ -152,20 +156,25 @@ in {
     gnomeExtensions.system76-scheduler
     gnomeExtensions.gsconnect
     gnomeExtensions.gtile
+    gnomeExtensions.xwayland-indicator
+    gnomeExtensions.vitals
+    gnomeExtensions.window-gestures
+    gnomeExtensions.user-themes
 
-    qogir-theme
+    #qogir-theme
     #materia-theme
     yaru-theme
     #zuki-themes
     #tela-icon-theme
     #tela-circle-icon-theme
     #vimix-icon-theme
-    qogir-icon-theme
+    #qogir-icon-theme
     #papirus-icon-theme
-    morewaita-icon-theme
+    #morewaita-icon-theme
     #moka-icon-theme
     colloid-icon-theme
-    orchis-theme
+    colloid-gtk-theme
+    #orchis-theme
 
     pantheon.elementary-sound-theme
     pantheon.elementary-gtk-theme

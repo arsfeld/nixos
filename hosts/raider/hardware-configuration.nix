@@ -31,7 +31,7 @@
   fileSystems."/mnt/games" = {
     device = "/dev/disk/by-label/games";
     fsType = "btrfs";
-    options = ["nofail" "compress=zstd"];
+    options = ["nofail" "compress=zstd" "x-gvfs-show" "x-gvfs-name=Games" "x-gvfs-icon=folder-games" "x-gvfs-symbolic-icon=folder-games-symbolic"];
   };
 
   swapDevices = [];

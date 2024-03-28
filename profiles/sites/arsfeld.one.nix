@@ -67,9 +67,6 @@ with lib; let
       "stirling" = "9284";
       "syncthing" = "8384";
     };
-    "r2s" = {
-      "hass" = "8123";
-    };
   };
   configs = concatLists (mapAttrsToList (host: pairs: mapAttrsToList (name: port: {inherit name port host;}) pairs) services);
   hosts = foldl' (acc: host: acc // host) {} (map generateHost configs);
@@ -90,6 +87,10 @@ in {
       "transmission.${domain}" = {
         useACMEHost = domain;
         extraConfig = "reverse_proxy storage:9091";
+      };
+      "hass.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy r2s:8123";
       };
       "nextcloud.${domain}" = {
         useACMEHost = domain;
