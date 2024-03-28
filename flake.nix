@@ -77,7 +77,8 @@
           commands = [
             {package = pkgs.nixUnstable;}
             {package = inputs'.agenix.packages.default;}
-            {package = inputs'.colmena.packages.colmena;}
+            {package = pkgs.colmena;}
+            {package = pkgs.alejandra;}
           ];
         };
       };
@@ -90,11 +91,12 @@
         suites = self.nixosSuites;
       in
         with self.nixosProfiles; {
-          base = [core.default users.root users.arosenfeld users.media];
-          network = with networking; [acme blocky mail tailscale];
+          base = [core.default users.root users.arosenfeld users.media networking.tailscale];
+          network = with networking; [acme blocky mail];
           backups = with backup; [common];
           #sites = with sites; ["arsfeld.one" "arsfeld.dev" "rosenfeld.blog" "rosenfeld.one"];
           micro = with suites; nixpkgs.lib.flatten [base network backups];
+          raider = with suites; nixpkgs.lib.flatten [base];
         };
 
       flake.colmena = {
@@ -114,12 +116,12 @@
             imports =
               [
                 agenix.nixosModules.default
-                # home-manager.nixosModules.home-manager
-                # {
-                #      home-manager.useGlobalPkgs = true;
-                #      home-manager.useUserPackages = true;
-                #      home-manager.users.arosenfeld = import ./home/home.nix;
-                # }
+                home-manager.nixosModules.home-manager
+                {
+                  home-manager.useGlobalPkgs = true;
+                  home-manager.useUserPackages = true;
+                  home-manager.users.arosenfeld = import ./home/home.nix;
+                }
               ]
               ++ lib.attrValues self.nixosModules;
             _module.args = {
@@ -127,8 +129,7 @@
               self = self // perSystem.self'; # to preserve original attributes in self like outPath
             };
             deployment = {
-              buildOnTarget = true;
-              targetUser = null;
+              buildOnTarget = false;
             };
           }
         );
@@ -153,11 +154,13 @@
           ];
         };
 
-        raider = {...}: {
+        raider-nixos = {...}: {
+          deployment = {
+            targetHost = "raider-nixos";
+          };
           imports = [
-            agenix.nixosModules.default
             chaotic.nixosModules.default
-            ./machines/raider/configuration.nix
+            ./hosts/raider/configuration.nix
           ];
         };
 
@@ -165,7 +168,7 @@
           nixpkgs.system = "aarch64-linux";
           imports = [
             ./common/modules/fake-hwclock.nix
-            ./machines/r2s/configuration.nix
+            ./hosts/r2s/configuration.nix
           ];
         };
       };
