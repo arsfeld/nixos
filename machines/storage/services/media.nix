@@ -87,6 +87,7 @@ in {
         TRANSMISSION_SPEED_LIMIT_UP_ENABLED = "true";
         WEBPROXY_ENABLED = "true";
         WEBPROXY_PORT = "8118";
+        OVERRIDE_DNS_1 = "8.8.8.8";
       };
       environmentFiles = [
         config.age.secrets.transmission-openvpn-pia.path
