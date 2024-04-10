@@ -55,26 +55,6 @@
     "colmena@latest": {
       "resolved": "github:NixOS/nixpkgs/f80ac848e3d6f0c12c52758c0f25c10c97ca3b62#colmena"
     },
-    "deploy-rs@latest": {
-      "last_modified": "2023-11-17T14:14:56Z",
-      "resolved": "github:NixOS/nixpkgs/a71323f68d4377d12c04a5410e214495ec598d4c#deploy-rs",
-      "source": "devbox-search",
-      "version": "2023-09-12",
-      "systems": {
-        "aarch64-darwin": {
-          "store_path": "/nix/store/bgrxx2b0nrkrnkj6fci7ncnzihs7krln-deploy-rs-unstable-2023-09-12"
-        },
-        "aarch64-linux": {
-          "store_path": "/nix/store/vrygnc5c597zdbv07yvyzjlllvrlsrn5-deploy-rs-unstable-2023-09-12"
-        },
-        "x86_64-darwin": {
-          "store_path": "/nix/store/g30ga9jyw31v7f46x1frx93qrfvfhlf0-deploy-rs-unstable-2023-09-12"
-        },
-        "x86_64-linux": {
-          "store_path": "/nix/store/7dfx34s19qr85z29jhcx5d8sgh44gz22-deploy-rs-unstable-2023-09-12"
-        }
-      }
-    },
     "home-manager@latest": {
       "resolved": "github:NixOS/nixpkgs/f80ac848e3d6f0c12c52758c0f25c10c97ca3b62#home-manager"
     },

@@ -51,9 +51,10 @@ jobs:
       with:
         enable-cache: true
         devbox-version: '0.10.1'
-    - name: Build on host
+    - name: Build
       run: |
         eval $(devbox shellenv --no-refresh-alias)
-        attic login cloud http://cloud.bat-boa.ts.net:8080 ${{ secrets.ATTIC_TOKEN }}
+        attic login cloud https://attic.arsfeld.one ${{ secrets.ATTIC_TOKEN }}
         attic use system
-        attic push system $(colmena eval --instantiate -E '{ nodes, ... }: nodes.${{ matrix.machine.host }}.config.system.build.toplevel')
+        out=$(colmena eval --instantiate -E '{ nodes, ... }: nodes.${{ matrix.machine.host }}.config.system.build.toplevel')
+        attic push system $out
