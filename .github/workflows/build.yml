@@ -21,11 +21,11 @@ jobs:
             platform: x86-64-linux
 
     steps:
-      - uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-      # We only run this if we are building an aarch64-linux system
-      - if: matrix.machine.platform == 'aarch64-linux'
-        uses: docker/setup-qemu-action@v3
+    # We only run this if we are building an aarch64-linux system
+    - if: matrix.machine.platform == 'aarch64-linux'
+      uses: docker/setup-qemu-action@v3
     - name: Install Nix
       uses: DeterminateSystems/nix-installer-action@v4
       with:
@@ -36,12 +36,6 @@ jobs:
           extra-platforms = aarch64-linux
     - name: Run the Magic Nix Cache
       uses: DeterminateSystems/magic-nix-cache-action@v2
-    - name: Tailscale
-      uses: tailscale/github-action@v2
-      with:
-        oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-        oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-        tags: tag:ci
     - name: Check Nix flake inputs
       uses: DeterminateSystems/flake-checker-action@v4
     - name: Install devbox
