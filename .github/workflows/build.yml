@@ -7,11 +7,33 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
 
+    strategy:
+      fail-fast: false
+      # Here we specify the matrix of our hosts and their target platform architectures
+      matrix:
+        machine:
+          - host: cloud
+            platform: aarch64-linux
+          - host: storage
+            platform: x86-64-linux
+          - host: raider
+            platform: x86-64-linux
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # We only run this if we are building an aarch64-linux system
+      - if: matrix.machine.platform == 'aarch64-linux'
+        uses: docker/setup-qemu-action@v3
     - name: Install Nix
       uses: DeterminateSystems/nix-installer-action@v4
+      with:
+        extra-conf: |
+          fallback = true
+          http-connections = 128
+          max-substitution-jobs = 128
+          extra-platforms = aarch64-linux
     - name: Run the Magic Nix Cache
       uses: DeterminateSystems/magic-nix-cache-action@v2
     - name: Tailscale
@@ -26,10 +48,9 @@ jobs:
       uses: jetpack-io/devbox-install-action@v0.6.1
       with:
         enable-cache: true
-        devbox-version: '0.5.13'
-    - name: Get names
-      run: |
-        devbox run -- colmena eval -E "{ nodes, pkgs, lib, ... }: lib.attrsets.mapAttrs (k: v: v.config.networking.hostName ) nodes"
+        devbox-version: '0.10.1'
     - name: Build on host
       run: |
-        devbox run -- colmena build --no-build-on-target
+        attic login fly https://attic.arsfeld.one ${{ secrets.ATTIC_TOKEN }}
+        attic use system
+        attic push system $(colmena eval --instantiate -E '{ nodes, ... }: nodes.${{ matrix.machine.host }}.config.system.build.toplevel')
