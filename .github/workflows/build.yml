@@ -26,6 +26,12 @@ jobs:
     # We only run this if we are building an aarch64-linux system
     - if: matrix.machine.platform == 'aarch64-linux'
       uses: docker/setup-qemu-action@v3
+    - name: Tailscale
+      uses: tailscale/github-action@v2
+      with:
+        oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+        oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+        tags: tag:ci
     - name: Install Nix
       uses: DeterminateSystems/nix-installer-action@v4
       with:
@@ -46,6 +52,6 @@ jobs:
     - name: Build on host
       run: |
         eval $(devbox shellenv --no-refresh-alias)
-        attic login fly https://attic.arsfeld.one ${{ secrets.ATTIC_TOKEN }}
+        attic login cloud https://attic.arsfeld.one ${{ secrets.ATTIC_TOKEN }}
         attic use system
         attic push system $(colmena eval --instantiate -E '{ nodes, ... }: nodes.${{ matrix.machine.host }}.config.system.build.toplevel')
