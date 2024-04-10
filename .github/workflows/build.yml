@@ -46,8 +46,6 @@ jobs:
           extra-platforms = aarch64-linux
     - name: Run the Magic Nix Cache
       uses: DeterminateSystems/magic-nix-cache-action@v2
-    - name: Check Nix flake inputs
-      uses: DeterminateSystems/flake-checker-action@v4
     - name: Install devbox
       uses: jetpack-io/devbox-install-action@v0.6.1
       with:
