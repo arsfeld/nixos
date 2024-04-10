@@ -81,6 +81,7 @@
             {package = inputs'.agenix.packages.default;}
             {package = pkgs.colmena;}
             {package = pkgs.alejandra;}
+            {package = pkgs.attic-client;}
           ];
         };
       };
