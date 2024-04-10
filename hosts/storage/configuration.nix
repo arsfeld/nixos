@@ -32,10 +32,6 @@ with lib; {
   networking.hostName = "storage";
   networking.firewall.enable = false;
 
-  nixpkgs.config.permittedInsecurePackages = [
-    "nodejs-16.20.2"
-  ];
-
   virtualisation.docker.storageDriver = "zfs";
 
   boot = {
@@ -48,6 +44,8 @@ with lib; {
 
   boot.kernelPackages = config.boot.zfs.package.latestCompatibleLinuxPackages;
   #boot.kernelPackages = pkgs.linuxPackages_latest;
+
+  boot.kernelParams = ["i915.enable_guc=3"];
 
   systemd.email-notify.mailFrom = "admin@arsfeld.one";
   systemd.email-notify.mailTo = "arsfeld@gmail.com";
@@ -66,6 +64,12 @@ with lib; {
     enable = true;
     publish.enable = true;
     publish.userServices = true;
+  };
+
+  programs.gnupg.agent = {
+    enable = true;
+    enableSSHSupport = true;
+    pinentryPackage = pkgs.pinentry-curses;
   };
 
   nixpkgs.config.packageOverrides = pkgs: {

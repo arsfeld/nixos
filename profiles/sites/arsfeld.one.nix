@@ -50,7 +50,6 @@ with lib; let
       "qbittorrent" = "8080";
       #"transmission" = "9091";
       "prowlarr" = "9696";
-      "flaresolverr" = "8191";
       "stash" = "9999";
       "netdata" = "19999";
       "remotely" = "5000";
@@ -88,9 +87,17 @@ in {
         useACMEHost = domain;
         extraConfig = "reverse_proxy storage:9091";
       };
+      "flaresolverr.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy storage:8191";
+      };
       "hass.${domain}" = {
         useACMEHost = domain;
         extraConfig = "reverse_proxy r2s:8123";
+      };
+      "attic.${domain}" = {
+        useACMEHost = domain;
+        extraConfig = "reverse_proxy cloud:8080";
       };
       "nextcloud.${domain}" = {
         useACMEHost = domain;

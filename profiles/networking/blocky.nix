@@ -4,7 +4,6 @@
   ...
 }: {
   services.redis = {
-    enable = true;
     servers = {
       blocky = {
         enable = true;

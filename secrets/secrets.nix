@@ -21,4 +21,8 @@ in {
   "hetzner.age".publicKeys = users ++ systems;
   "borg-passkey.age".publicKeys = users ++ systems;
   "tailscale-key.age".publicKeys = users ++ systems;
+  "attic-server.age".publicKeys = users ++ [cloud];
+  "attic-token.age".publicKeys = users ++ systems;
+  "attic-netrc.age".publicKeys = users ++ systems;
+  "github-runner-token.age".publicKeys = users ++ systems;
 }

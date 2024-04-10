@@ -1,4 +1,8 @@
-{config, ...}: let
+{
+  config,
+  pkgs,
+  ...
+}: let
   mediaDomain = "arsfeld.one";
   authDomain = "rosenfeld.one";
   autheliaConfig = "arsfeld.one";
@@ -53,6 +57,38 @@ in {
 
   services.caddy = {
     enable = true;
+  };
+
+  age.secrets.github-runner-token.file = ../../secrets/github-runner-token.age;
+
+  # services.github-runners.cloud = {
+  #   enable = false;
+  #   extraLabels = ["nixos" "cloud" "aarch64"];
+  #   tokenFile = config.age.secrets.github-runner-token.path;
+  #   url = "https://github.com/arsfeld/nixos";
+  # };
+
+  age.secrets.attic-token.file = ../../secrets/attic-token.age;
+
+  age.secrets.attic-server = {
+    file = ../../secrets/attic-server.age;
+    mode = "444";
+  };
+
+  systemd.services.atticd = {
+    enable = true;
+    description = "Attic Server";
+    serviceConfig = {
+      ExecStart = "${pkgs.attic-server}/bin/atticd -f ${config.age.secrets.attic-server.path} --mode monolithic";
+      User = "atticd";
+      Group = "atticd";
+      DynamicUser = true;
+      ProtectHome = true;
+      StateDirectory = "atticd";
+      ReadWritePaths = ["/var/lib/atticd"];
+    };
+    wantedBy = ["multi-user.target"];
+    after = ["network.target"];
   };
 
   age.secrets = {

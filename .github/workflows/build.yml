@@ -7,29 +7,54 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
 
-    - name: Install Nix
-      uses: DeterminateSystems/nix-installer-action@v4
-    - name: Run the Magic Nix Cache
-      uses: DeterminateSystems/magic-nix-cache-action@v2
+    strategy:
+      fail-fast: false
+      # Here we specify the matrix of our hosts and their target platform architectures
+      matrix:
+        machine:
+          - host: cloud
+            platform: aarch64-linux
+          - host: r2s
+            platform: aarch64-linux
+          - host: storage
+            platform: x86-64-linux
+          - host: micro
+            platform: x86-64-linux
+          - host: raider
+            platform: x86-64-linux
+
+    steps:
+    - uses: actions/checkout@v4
+
+    # We only run this if we are building an aarch64-linux system
+    - if: matrix.machine.platform == 'aarch64-linux'
+      uses: docker/setup-qemu-action@v3
     - name: Tailscale
       uses: tailscale/github-action@v2
       with:
         oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
         oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
         tags: tag:ci
-    - name: Check Nix flake inputs
-      uses: DeterminateSystems/flake-checker-action@v4
+    - name: Install Nix
+      uses: DeterminateSystems/nix-installer-action@v4
+      with:
+        extra-conf: |
+          fallback = true
+          http-connections = 128
+          max-substitution-jobs = 128
+          extra-platforms = aarch64-linux
+    - name: Run the Magic Nix Cache
+      uses: DeterminateSystems/magic-nix-cache-action@v2
     - name: Install devbox
       uses: jetpack-io/devbox-install-action@v0.6.1
       with:
         enable-cache: true
-        devbox-version: '0.5.13'
-    - name: Get names
+        devbox-version: '0.10.1'
+    - name: Build
       run: |
-        devbox run -- colmena eval -E "{ nodes, pkgs, lib, ... }: lib.attrsets.mapAttrs (k: v: v.config.networking.hostName ) nodes"
-    - name: Build on host
-      run: |
-        devbox run -- colmena build --no-build-on-target
+        eval $(devbox shellenv --no-refresh-alias)
+        attic login cloud https://attic.arsfeld.one ${{ secrets.ATTIC_TOKEN }}
+        attic use system
+        out=$(colmena eval --instantiate -E '{ nodes, ... }: nodes.${{ matrix.machine.host }}.config.system.build.toplevel')
+        attic push system $out
