@@ -6,7 +6,6 @@
     "nil@latest",
     "github:ryantm/agenix",
     "just@latest",
-    "deploy-rs@latest",
     "attic-client@latest"
   ],
   "shell": {
