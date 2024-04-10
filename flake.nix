@@ -20,6 +20,7 @@
     devshell.url = "github:numtide/devshell";
     treefmt-nix.url = "github:numtide/treefmt-nix";
     chaotic.url = "github:chaotic-cx/nyx/nyxpkgs-unstable";
+    attic.url = "github:zhaofengli/attic";
   };
 
   outputs = {
@@ -38,6 +39,7 @@
     nixos-mailserver,
     treefmt-nix,
     chaotic,
+    attic,
     ...
   } @ inputs:
     flake-parts.lib.mkFlake {inherit inputs;} ({moduleWithSystem, ...}: {
@@ -143,6 +145,7 @@
         cloud = {...}: {
           nixpkgs.system = "aarch64-linux";
           imports = [
+            attic.nixosModules.atticd
             ./hosts/cloud/configuration.nix
           ];
         };

@@ -12,6 +12,7 @@
     vars = {
       configDir = "/var/data";
       dataDir = "/mnt/data";
+      storageDir = "/mnt/storage";
       puid = "5000";
       pgid = "5000";
       user = "media";
