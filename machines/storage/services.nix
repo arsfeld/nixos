@@ -17,6 +17,8 @@
             -v ${vars.configDir}/plex-track-sync:/app/config \
             ghcr.io/taxel/plextraktsync'';
 in {
+  age.secrets.attic-token.file = ../../secrets/attic-token.age;
+
   services.netdata = {
     enable = true;
     configDir = {

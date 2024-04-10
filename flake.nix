@@ -15,7 +15,7 @@
     nixos-mailserver.url = "gitlab:simple-nixos-mailserver/nixos-mailserver";
     nixos-mailserver.inputs.nixpkgs.follows = "nixpkgs";
     deploy-rs.url = "github:serokell/deploy-rs";
-    chaotic.url = "github:chaotic-cx/nyx/nyxpkgs-unstable";
+    attic.url = "github:zhaofengli/attic";
   };
 
   outputs = inputs @ {
@@ -30,7 +30,7 @@
     nixos-hardware,
     nixos-mailserver,
     deploy-rs,
-    chaotic,
+    attic,
     ...
   }: let
     inherit (self) outputs;
@@ -121,6 +121,7 @@
           [
             agenix.nixosModules.default
             nixos-mailserver.nixosModules.default
+            attic.nixosModules.atticd
             ./common/modules/systemd-email-notify.nix
             ./machines/cloud/configuration.nix
           ]
@@ -165,7 +166,6 @@
         imports =
           [
             agenix.nixosModules.default
-            chaotic.nixosModules.default
             ./common/modules/systemd-email-notify.nix
             ./machines/storage/configuration.nix
           ]
@@ -181,7 +181,6 @@
         imports =
           [
             agenix.nixosModules.default
-            chaotic.nixosModules.default
             ./machines/raider/configuration.nix
           ]
           ++ homeFeatures;

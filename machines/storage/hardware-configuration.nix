@@ -107,14 +107,14 @@
 
   fileSystems."/mnt/storage" = {
     fsType = "bcachefs";
-    device = "UUID=e404faef-eb8c-4aae-97d2-4bb140c624c8";
+    device = "OLD_BLKID_UUID=e404faef-eb8c-4aae-97d2-4bb140c624c8";
     #device = "/dev/disk/by-id/ata-ST8000DM004-2CX188_ZCT19JFS-part1:/dev/disk/by-id/ata-ST4000VN008-2DR166_WDH2WDVD-part1";
     #options = ["cache.files=partial" "dropcacheonclose=true" "category.create=mfs" "moveonenospc=true"];
     options = ["compression=zstd" "nofail"];
   };
 
   swapDevices = [
-    {device = "/dev/disk/by-uuid/ecced37a-a038-493b-96e6-936ac9dbdc57";}
+    {device = "/dev/disk/by-uuid/5b0cde2c-d3f4-4d49-905f-5ada9910eda4";}
   ];
 
   networking.useDHCP = lib.mkDefault true;

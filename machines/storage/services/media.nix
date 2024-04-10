@@ -1,12 +1,5 @@
 {config, ...}: let
   vars = config.vars;
-  tailscale-mod = {
-    DOCKER_MODS = "ghcr.io/tailscale-dev/docker-mod:main";
-    TAILSCALE_STATE_DIR = "/config/tailscale";
-    TAILSCALE_USE_SSH = "1";
-    TAILSCALE_SERVE_MODE = "https";
-    TAILSCALE_FUNNEL = "1";
-  };
 in {
   services.bazarr = {
     enable = true;
@@ -20,6 +13,22 @@ in {
     group = vars.group;
   };
 
+  services.radarr = {
+    enable = true;
+    user = vars.user;
+    group = vars.group;
+  };
+
+  services.sonarr = {
+    enable = true;
+    user = vars.user;
+    group = vars.group;
+  };
+
+  services.prowlarr = {
+    enable = true;
+  };
+
   services.jellyfin = {
     enable = true;
     user = vars.user;
@@ -27,8 +36,6 @@ in {
   };
 
   age.secrets."transmission-openvpn-pia".file = ../../../secrets/transmission-openvpn-pia.age;
-
-  age.secrets."tailscale-key".file = ../../../secrets/tailscale-key.age;
 
   virtualisation.oci-containers.containers = {
     plex = {
@@ -53,22 +60,6 @@ in {
       ];
     };
 
-    xteve = {
-      image = "dnsforge/xteve:latest";
-      volumes = [
-        "${vars.configDir}/xteve:/home/xteve/conf"
-      ];
-      ports = ["34400:34400"];
-    };
-
-    jf-vue = {
-      image = "jellyfin/jellyfin-vue:unstable";
-      environment = {
-        DEFAULT_SERVERS = "https://jellyfin.${vars.domain}";
-      };
-      ports = ["3831:80"];
-    };
-
     "transmission-openvpn" = {
       image = "haugene/transmission-openvpn";
       environment = {
@@ -81,8 +72,8 @@ in {
         TRANSMISSION_RPC_AUTHENTICATION_REQUIRED = "true";
         TRANSMISSION_RPC_USERNAME = "admin";
         TRANSMISSION_RPC_PASSWORD = "{d8fdc58747d7f336a38e1676c9f5ce6b3daee67b3d6a62b1";
-        TRANSMISSION_DOWNLOAD_DIR = "/media/Downloads";
-        TRANSMISSION_INCOMPLETE_DIR = "/media/Downloads/incomplete";
+        TRANSMISSION_DOWNLOAD_DIR = "${vars.dataDir}/media/Downloads";
+        TRANSMISSION_INCOMPLETE_DIR = "${vars.dataDir}/media/Downloads/incomplete";
         TRANSMISSION_SPEED_LIMIT_UP = "1000";
         TRANSMISSION_SPEED_LIMIT_UP_ENABLED = "true";
         WEBPROXY_ENABLED = "true";
@@ -95,8 +86,8 @@ in {
       ports = ["9091:9091" "8118:8118"];
       volumes = [
         "${vars.configDir}/transmission-openvpn:/config"
-        "${vars.dataDir}/media:/media"
-        "${vars.dataDir}/files:/files"
+        "${vars.dataDir}:${vars.dataDir}"
+        "${vars.storageDir}:${vars.storageDir}"
       ];
       extraOptions = [
         "--cap-add"
@@ -123,7 +114,7 @@ in {
       #ports = ["9999:9999"];
       volumes = [
         "${vars.configDir}/stash:/root/.stash"
-        "${vars.dataDir}/media:/data"
+        "${vars.storageDir}/media:/data"
       ];
       extraOptions = [
         "--device"
@@ -147,50 +138,6 @@ in {
       ];
     };
 
-    sonarr = {
-      image = "ghcr.io/linuxserver/sonarr";
-      environment =
-        {
-          TAILSCALE_SERVE_PORT = "8989";
-          TAILSCALE_HOSTNAME = "sonarr";
-          PUID = vars.puid;
-          PGID = vars.pgid;
-          TZ = vars.tz;
-        }
-        // tailscale-mod;
-      environmentFiles = [
-        config.age.secrets.tailscale-key.path
-      ];
-      ports = ["8989:8989"];
-      volumes = [
-        "${vars.configDir}/sonarr:/config"
-        "${vars.dataDir}/files:/files"
-        "${vars.dataDir}/media:/media"
-      ];
-    };
-
-    radarr = {
-      image = "lscr.io/linuxserver/radarr:latest";
-      environment =
-        {
-          TAILSCALE_SERVE_PORT = "7878";
-          TAILSCALE_HOSTNAME = "radarr";
-          PUID = vars.puid;
-          PGID = vars.pgid;
-          TZ = vars.tz;
-        }
-        // tailscale-mod;
-      environmentFiles = [
-        config.age.secrets.tailscale-key.path
-      ];
-      ports = ["7878:7878"];
-      volumes = [
-        "${vars.configDir}/radarr:/config"
-        "${vars.dataDir}/files:/files"
-        "${vars.dataDir}/media:/media"
-      ];
-    };
-
     overseerr = {
       image = "lscr.io/linuxserver/overseerr:latest";
       environment = {
@@ -201,28 +148,6 @@ in {
       ports = ["5055:5055"];
       volumes = [
         "${vars.configDir}/overseerr:/config"
-      ];
-    };
-
-    prowlarr = {
-      image = "ghcr.io/linuxserver/prowlarr:develop";
-      environment =
-        {
-          TAILSCALE_SERVE_PORT = "9696";
-          TAILSCALE_HOSTNAME = "prowlarr";
-          PUID = vars.puid;
-          PGID = vars.pgid;
-          TZ = vars.tz;
-        }
-        // tailscale-mod;
-      ports = ["9696:9696"];
-      environmentFiles = [
-        config.age.secrets.tailscale-key.path
-      ];
-      volumes = [
-        "${vars.configDir}/prowlarr:/config"
-        "${vars.dataDir}/files:/files"
-        "${vars.dataDir}/media:/media"
       ];
     };
 

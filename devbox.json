@@ -6,7 +6,8 @@
     "nil@latest",
     "github:ryantm/agenix",
     "just@latest",
-    "deploy-rs@latest"
+    "deploy-rs@latest",
+    "attic-client@latest"
   ],
   "shell": {
     "init_hook": [
