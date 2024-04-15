@@ -79,7 +79,7 @@
           commands = [
             {package = pkgs.nixUnstable;}
             {package = inputs'.agenix.packages.default;}
-            {package = pkgs.colmena;}
+            {package = inputs'.colmena.packages.default;}
             {package = pkgs.alejandra;}
             {package = pkgs.attic-client;}
           ];
@@ -153,7 +153,6 @@
 
         storage = {...}: {
           imports = [
-            chaotic.nixosModules.default
             ./hosts/storage/configuration.nix
           ];
         };
@@ -163,7 +162,6 @@
             targetHost = "raider-nixos";
           };
           imports = [
-            chaotic.nixosModules.default
             ./hosts/raider/configuration.nix
           ];
         };
