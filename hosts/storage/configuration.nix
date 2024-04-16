@@ -1,33 +1,26 @@
-# Edit this configuration file to define what should be installed on
-# your system.  Help is available in the configuration.nix(5) man page
-# and in the NixOS manual (accessible by running ‘nixos-help’).
 args @ {
   lib,
   pkgs,
   config,
+  suites,
   ...
 }:
 with lib; {
-  imports = [
-    ./variables.nix
-    ./hardware-configuration.nix
-    ../../common/common.nix
-    ../../common/services.nix
-    ../../common/acme.nix
-    ../../common/users.nix
-    ../../common/mail.nix
-    ../../common/blocky.nix
-    ../../common/sites/arsfeld.one.nix
-    ./zfs.nix
-    ./cloud-sync.nix
-    ./users.nix
-    ./samba.nix
-    ./backup.nix
-    ./services.nix
-    ./borg.nix
-    ./services/media.nix
-    ./services/home.nix
-  ];
+  imports =
+    suites.storage
+    ++ [
+      ./variables.nix
+      ./hardware-configuration.nix
+      ./zfs.nix
+      ./cloud-sync.nix
+      ./users.nix
+      ./samba.nix
+      ./backup.nix
+      ./services.nix
+      ./borg.nix
+      ./services/media.nix
+      ./services/home.nix
+    ];
 
   networking.hostName = "storage";
   networking.firewall.enable = false;

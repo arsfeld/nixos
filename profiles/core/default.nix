@@ -3,9 +3,10 @@
   config,
   pkgs,
   lib,
+  self,
   ...
 }: {
-  age.secrets.attic-netrc.file = ../secrets/attic-netrc.age;
+  age.secrets.attic-netrc.file = "${self}/secrets/attic-netrc.age";
 
   nix = {
     settings = {
@@ -38,6 +39,8 @@
     # Making legacy nix commands consistent as well, awesome!
     #nixPath = lib.mapAttrsToList (key: value: "${key}=${value.to.path}") config.nix.registry;
   };
+
+  security.polkit.enable = true;
 
   programs.zsh.enable = true;
 
