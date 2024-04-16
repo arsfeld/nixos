@@ -16,6 +16,7 @@
   boot.initrd.kernelModules = [];
   boot.kernelModules = ["kvm-intel" "it87"];
   boot.extraModulePackages = with config.boot.zfs.package.latestCompatibleLinuxPackages; [it87];
+  boot.kernelParams = ["acpi_osi=\"Windows 2015\""];
 
   fileSystems."/" = {
     device = "nix-pool/nixos/root";
@@ -107,10 +108,16 @@
 
   fileSystems."/mnt/storage" = {
     fsType = "bcachefs";
-    device = "OLD_BLKID_UUID=e404faef-eb8c-4aae-97d2-4bb140c624c8";
+    device = "OLD_BLKID_UUID=dc302bad-592a-412a-8912-88eb07ced0b9";
     #device = "/dev/disk/by-id/ata-ST8000DM004-2CX188_ZCT19JFS-part1:/dev/disk/by-id/ata-ST4000VN008-2DR166_WDH2WDVD-part1";
     #options = ["cache.files=partial" "dropcacheonclose=true" "category.create=mfs" "moveonenospc=true"];
     options = ["compression=zstd" "nofail"];
+  };
+
+  systemd.services.mount-ssd = {
+    description = "mount storage";
+    script = "/run/current-system/sw/bin/mount /mnt/storage";
+    wantedBy = ["multi-user.target"];
   };
 
   swapDevices = [
