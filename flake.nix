@@ -14,7 +14,7 @@
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
     nixos-mailserver.url = "gitlab:simple-nixos-mailserver/nixos-mailserver";
     nixos-mailserver.inputs.nixpkgs.follows = "nixpkgs";
-    colmena.url = "github:zhaofengli/colmena";
+    deploy-rs.url = "github:serokell/deploy-rs";
     flake-parts.url = "github:hercules-ci/flake-parts";
     haumea.url = "github:nix-community/haumea";
     devshell.url = "github:numtide/devshell";
@@ -43,15 +43,6 @@
     ...
   } @ inputs:
     flake-parts.lib.mkFlake {inherit inputs;} ({moduleWithSystem, ...}: {
-      # homeFeatures = [
-      #   home-manager.nixosModules.home-manager
-      #   {
-      #     home-manager.useGlobalPkgs = true;
-      #     home-manager.useUserPackages = true;
-      #     home-manager.users.arosenfeld = import ./home/home.nix;
-      #   }
-      # ];
-
       imports = [
         devshell.flakeModule
         treefmt-nix.flakeModule
@@ -79,9 +70,12 @@
           commands = [
             {package = pkgs.nixUnstable;}
             {package = inputs'.agenix.packages.default;}
-            {package = inputs'.colmena.packages.default;}
-            {package = pkgs.alejandra;}
-            {package = pkgs.attic-client;}
+          ];
+          packages = [
+            pkgs.just
+            pkgs.attic-client
+            pkgs.alejandra
+            pkgs.deploy-rs
           ];
         };
       };
@@ -97,10 +91,27 @@
           base = [core.default users.root users.arosenfeld users.media networking.tailscale];
           network = with networking; [acme blocky mail];
           backups = with backup; [common];
-          #sites = with sites; ["arsfeld.one" "arsfeld.dev" "rosenfeld.blog" "rosenfeld.one"];
+          sites = with sites; [arsfeld-one arsfeld-dev rosenfeld-blog rosenfeld-one];
+          storage = with suites; nixpkgs.lib.flatten [base core.virt network backups sites];
           micro = with suites; nixpkgs.lib.flatten [base network backups];
           raider = with suites; nixpkgs.lib.flatten [base];
         };
+
+      flake.nixosConfigurations = {
+        storage = nixpkgs.lib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [./hosts/storage/configuration.nix];
+        };
+      };
+
+      flake.deploy.nodes = {
+        storage.profiles.system = {
+          user = "root";
+          path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.storage;
+        };
+      };
+
+      flake.checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) inputs.deploy-rs.lib;
 
       flake.colmena = {
         meta = {
@@ -153,6 +164,7 @@
 
         storage = {...}: {
           imports = [
+            ./common/modules/systemd-email-notify.nix
             ./hosts/storage/configuration.nix
           ];
         };
