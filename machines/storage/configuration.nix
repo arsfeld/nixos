@@ -45,7 +45,7 @@ with lib; {
   boot.kernelPackages = config.boot.zfs.package.latestCompatibleLinuxPackages;
   #boot.kernelPackages = pkgs.linuxPackages_latest;
 
-  boot.kernelParams = ["i915.enable_guc=3"];
+  #boot.kernelParams = ["i915.enable_guc=3"];
 
   systemd.email-notify.mailFrom = "admin@arsfeld.one";
   systemd.email-notify.mailTo = "arsfeld@gmail.com";

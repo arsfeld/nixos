@@ -87,7 +87,7 @@ in {
       volumes = [
         "${vars.configDir}/transmission-openvpn:/config"
         "${vars.dataDir}:${vars.dataDir}"
-        "${vars.storageDir}:${vars.storageDir}"
+        "${vars.dataDir}:${vars.storageDir}"
       ];
       extraOptions = [
         "--cap-add"
@@ -114,7 +114,7 @@ in {
       #ports = ["9999:9999"];
       volumes = [
         "${vars.configDir}/stash:/root/.stash"
-        "${vars.storageDir}/media:/data"
+        "${vars.dataDir}/media:/data"
       ];
       extraOptions = [
         "--device"
