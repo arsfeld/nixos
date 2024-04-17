@@ -14,18 +14,19 @@ with lib; let
     "${cfg.name}.${domain}" = {
       useACMEHost = domain;
       extraConfig =
-        if builtins.elem domain bypassAuth
-        then ""
-        else
-          ''
+        (
+          if builtins.elem cfg.name bypassAuth
+          then ""
+          else ''
             forward_auth cloud:9099 {
               uri /api/verify?rd=https://auth.${domain}/
               copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
             }
           ''
-          + ''
-            reverse_proxy ${cfg.host}:${toString cfg.port}
-          '';
+        )
+        + ''
+          reverse_proxy ${cfg.host}:${toString cfg.port}
+        '';
     };
   };
   services = {
@@ -38,6 +39,7 @@ with lib; let
       actual = 5006;
       users = 17170;
       dns = 4000;
+      attic = 8080;
       #"auth" = "9099";
     };
     storage = {
@@ -75,7 +77,6 @@ with lib; let
       stirling = 9284;
       syncthing = 8384;
       flaresolverr = "8191";
-      attic = 8080;
     };
     r2s = {
       hass = 8123;
