@@ -2,6 +2,7 @@
   config,
   pkgs,
   suites,
+  lib,
   ...
 }: let
   appimage = pkgs.callPackage (import ./appimage.nix) {};
@@ -36,10 +37,24 @@ in {
   virtualisation.podman.dockerCompat = true;
 
   services.xserver.enable = true;
-  services.xserver.displayManager.gdm.enable = true;
-  services.xserver.desktopManager.gnome.enable = true;
-  #environment.systemPackages = with pkgs; [ gnomeExtensions.appindicator ];
+
+  services.xserver.displayManager.gdm.enable = lib.mkDefault true;
+  services.xserver.desktopManager.gnome.enable = lib.mkDefault true;
   services.udev.packages = with pkgs; [gnome.gnome-settings-daemon];
+
+  specialisation = {
+    gnome.configuration = {
+      system.nixos.tags = ["gnome"];
+    };
+    kde.configuration = {
+      system.nixos.tags = ["kde"];
+      services.xserver.displayManager.gdm.enable = false;
+      services.xserver.desktopManager.gnome.enable = false;
+      services.xserver.displayManager.sddm.enable = true;
+      services.xserver.displayManager.sddm.wayland.enable = true;
+      services.desktopManager.plasma6.enable = true;
+    };
+  };
 
   hardware.opengl = {
     extraPackages = with pkgs; [mangohud];
@@ -156,6 +171,8 @@ in {
     gnomeExtensions.vitals
     gnomeExtensions.window-gestures
     gnomeExtensions.user-themes
+
+    latte-dock
 
     #qogir-theme
     #materia-theme
