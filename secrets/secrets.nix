@@ -5,6 +5,7 @@ let
   storage = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILOJScEgldmHPqi7SqSl8GpKncVv5k7DXh2HGdnajIeQ root@storage";
   micro = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA6dDFoQv53Bb3vF0G2Kqna/O/bEr4o7lKkJL28+EIGK root@nixos-micro";
   cloud = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH51UBt4enqaDYdbEaBD1I1ef+wZGFmkjv68Mv4bnVWA root@dev";
+  raider = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIODq88FlnK+Px/J6hNSPvpJEkrFFYf/oYUqCUBQ7+2cz root@nixos";
   systems = [storage micro cloud];
 in {
   "cloudflare.age".publicKeys = users ++ systems;
@@ -23,6 +24,6 @@ in {
   "tailscale-key.age".publicKeys = users ++ systems;
   "attic-server.age".publicKeys = users ++ [cloud];
   "attic-token.age".publicKeys = users ++ systems;
-  "attic-netrc.age".publicKeys = users ++ systems;
+  "attic-netrc.age".publicKeys = users ++ systems ++ [raider];
   "github-runner-token.age".publicKeys = users ++ systems;
 }

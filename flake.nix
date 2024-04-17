@@ -76,6 +76,7 @@
             pkgs.attic-client
             pkgs.alejandra
             pkgs.deploy-rs
+            pkgs.colmena
           ];
         };
       };
