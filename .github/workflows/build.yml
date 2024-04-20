@@ -46,7 +46,7 @@ jobs:
           extra-platforms = aarch64-linux
     - name: Run the Magic Nix Cache
       uses: DeterminateSystems/magic-nix-cache-action@v2
-    - uses: workflow/nix-shell-action@v3
+    - uses: workflow/nix-shell-action@v3.3.0
       with:
         flakes-from-devshell: true
         script: |
