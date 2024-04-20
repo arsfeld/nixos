@@ -1,51 +1,36 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/073a26ea454df46ae180207c752ef8c6f6e6ea85";
     nixos-generators.url = "github:nix-community/nixos-generators";
     nixos-generators.inputs.nixpkgs.follows = "nixpkgs";
-    disko.url = github:nix-community/disko;
+    disko.url = "github:nix-community/disko";
     disko.inputs.nixpkgs.follows = "nixpkgs";
-    nixos-nftables-firewall.url = "github:thelegy/nixos-nftables-firewall";
-    nixos-nftables-firewall.inputs.nixpkgs.follows = "nixpkgs";
     agenix.url = "github:ryantm/agenix";
-    utils.url = "github:numtide/flake-utils";
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
-    nixos-mailserver.url = "gitlab:simple-nixos-mailserver/nixos-mailserver";
-    nixos-mailserver.inputs.nixpkgs.follows = "nixpkgs";
     deploy-rs.url = "github:serokell/deploy-rs";
+    deploy-rs.inputs.nixpkgs.follows = "nixpkgs";
     flake-parts.url = "github:hercules-ci/flake-parts";
     haumea.url = "github:nix-community/haumea";
+    haumea.inputs.nixpkgs.follows = "nixpkgs";
     devshell.url = "github:numtide/devshell";
+    devshell.inputs.nixpkgs.follows = "nixpkgs";
     treefmt-nix.url = "github:numtide/treefmt-nix";
-    chaotic.url = "github:chaotic-cx/nyx/nyxpkgs-unstable";
     attic.url = "github:zhaofengli/attic";
+    attic.inputs.nixpkgs.follows = "nixpkgs";
+    nixos-flake.url = "github:srid/nixos-flake";
   };
 
-  outputs = {
-    self,
-    flake-parts,
-    haumea,
-    devshell,
-    home-manager,
-    nixpkgs,
-    utils,
-    disko,
-    agenix,
-    nixos-generators,
-    nixos-nftables-firewall,
-    nixos-hardware,
-    nixos-mailserver,
-    treefmt-nix,
-    chaotic,
-    attic,
-    ...
-  } @ inputs:
-    flake-parts.lib.mkFlake {inherit inputs;} ({moduleWithSystem, ...}: {
+  outputs = {self, ...} @ inputs:
+    inputs.flake-parts.lib.mkFlake {inherit inputs;} ({moduleWithSystem, ...}: {
+      debug = true;
+
       imports = [
-        devshell.flakeModule
-        treefmt-nix.flakeModule
+        inputs.devshell.flakeModule
+        inputs.treefmt-nix.flakeModule
+        #inputs.colmena-flake.flakeModules.default
+        inputs.nixos-flake.flakeModule
       ];
 
       systems = ["x86_64-linux" "aarch64-linux"];
@@ -58,7 +43,7 @@
         system,
         ...
       }: {
-        packages = {inherit pkgs;}; #import ./pkgs {inherit pkgs;};
+        #packages = {inherit pkgs;}; #import ./pkgs {inherit pkgs;};
 
         treefmt = {
           programs.alejandra.enable = true;
@@ -70,6 +55,7 @@
           commands = [
             {package = pkgs.nixUnstable;}
             {package = inputs'.agenix.packages.default;}
+            #{package = inputs'.colmena.packages.colmena;}
           ];
           packages = [
             pkgs.just
@@ -81,112 +67,149 @@
         };
       };
 
-      flake.nixosProfiles = haumea.lib.load {
-        src = ./profiles;
-        loader = haumea.lib.loaders.path;
-      };
-      flake.nixosSuites = let
-        suites = self.nixosSuites;
-      in
-        with self.nixosProfiles; {
-          base = [core.default users.root users.arosenfeld users.media networking.tailscale];
-          network = with networking; [acme blocky mail];
-          backups = with backup; [common];
-          sites = with sites; [arsfeld-one arsfeld-dev rosenfeld-blog rosenfeld-one];
-          storage = with suites; nixpkgs.lib.flatten [base core.virt network backups sites];
-          micro = with suites; nixpkgs.lib.flatten [base network backups];
-          raider = with suites; nixpkgs.lib.flatten [base];
-        };
-
-      flake.nixosConfigurations = {
-        storage = nixpkgs.lib.nixosSystem {
-          system = "x86_64-linux";
-          modules = [./hosts/storage/configuration.nix];
-        };
-      };
-
-      flake.deploy.nodes = {
-        storage.profiles.system = {
-          user = "root";
-          path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.storage;
-        };
-      };
-
-      flake.checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) inputs.deploy-rs.lib;
-
-      flake.colmena = {
-        meta = {
-          nixpkgs = import nixpkgs {
-            system = "x86_64-linux";
-            config.allowUnfree = true;
-          };
-          specialArgs.suites = self.nixosSuites;
-        };
-
-        defaults = moduleWithSystem (
-          perSystem @ {
-            inputs',
-            self',
-          }: {lib, ...}: {
-            imports =
-              [
-                agenix.nixosModules.default
-                home-manager.nixosModules.home-manager
+      flake = {
+        lib = rec {
+          mkLinuxSystem = mod:
+            inputs.nixpkgs.lib.nixosSystem {
+              # Arguments to pass to all modules.
+              specialArgs = {inherit self inputs;};
+              modules = [
+                inputs.agenix.nixosModules.default
+                inputs.home-manager.nixosModules.home-manager
                 {
                   home-manager.useGlobalPkgs = true;
                   home-manager.useUserPackages = true;
                   home-manager.users.arosenfeld = import ./home/home.nix;
                 }
-              ]
-              ++ lib.attrValues self.nixosModules;
-            _module.args = {
-              inputs = perSystem.inputs';
-              self = self // perSystem.self'; # to preserve original attributes in self like outPath
+                mod
+              ];
             };
-            deployment = {
-              buildOnTarget = false;
-            };
-          }
-        );
-
-        micro = {...}: {
-          imports = [
-            ./hosts/micro/configuration.nix
-          ];
         };
 
-        cloud = {...}: {
-          nixpkgs.system = "aarch64-linux";
-          imports = [
-            attic.nixosModules.atticd
-            ./hosts/cloud/configuration.nix
-          ];
+        nixosProfiles = inputs.haumea.lib.load {
+          src = ./profiles;
+          loader = inputs.haumea.lib.loaders.path;
         };
 
-        storage = {...}: {
-          imports = [
-            ./common/modules/systemd-email-notify.nix
-            ./hosts/storage/configuration.nix
-          ];
-        };
-
-        raider-nixos = {...}: {
-          deployment = {
-            targetHost = "raider-nixos";
+        nixosSuites = let
+          flatten = inputs.nixpkgs.lib.flatten;
+          suites = self.nixosSuites;
+        in
+          with self.nixosProfiles; {
+            base = [core.default users.root users.arosenfeld users.media networking.tailscale];
+            network = with networking; [acme blocky mail];
+            backups = with backup; [common];
+            sites = with sites; [arsfeld-one arsfeld-dev rosenfeld-blog rosenfeld-one];
+            storage = with suites; flatten [base core.virt network backups sites];
+            #micro = with suites; flatten [base network backups];
+            raider = with suites; flatten [base];
           };
-          imports = [
-            ./hosts/raider/configuration.nix
-          ];
+
+        nixosConfigurations = {
+          storage = self.lib.mkLinuxSystem ./hosts/storage/configuration.nix;
+          raider = self.lib.mkLinuxSystem ./hosts/raider/configuration.nix;
         };
 
-        r2s = {...}: {
-          nixpkgs.system = "aarch64-linux";
-          imports = [
-            ./common/modules/fake-hwclock.nix
-            ./hosts/r2s/configuration.nix
-          ];
+        deploy = {
+          sshUser = "root";
+          nodes = {
+            storage = {
+              hostname = "storage";
+              profiles.system.path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.storage;
+            };
+            raider = {
+              hostname = "raider-nixos";
+              profiles.system.path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.raider;
+            };
+          };
         };
+
+        checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) inputs.deploy-rs.lib;
+
+        # nixosModules = {
+        #   base = [
+        #     ./profiles/core/default.nix
+        #     ./profiles/users/root.nix
+        #     ./profiles/users/arosenfeld.nix
+        #     ./profiles/users/media.nix
+        #     ./profiles/networking/tailscale.nix
+        #   ];
+        # };
       };
+
+      # flake.colmena = {
+      #   meta = {
+      #     nixpkgs = import inputs.nixpkgs {
+      #       system = "x86_64-linux";
+      #       config.allowUnfree = true;
+      #     };
+      #     specialArgs.suites = self.nixosSuites;
+      #   };
+
+      #   defaults = moduleWithSystem (
+      #     perSystem @ {
+      #       inputs',
+      #       self',
+      #     }: {lib, ...}: {
+      #       imports =
+      #         [
+      #           inputs.agenix.nixosModules.default
+      #           inputs.home-manager.nixosModules.home-manager
+      #           {
+      #             home-manager.useGlobalPkgs = true;
+      #             home-manager.useUserPackages = true;
+      #             home-manager.users.arosenfeld = import ./home/home.nix;
+      #           }
+      #         ]
+      #         ++ lib.attrValues self.nixosModules;
+      #       _module.args = {
+      #         inputs = perSystem.inputs';
+      #         self = self // perSystem.self'; # to preserve original attributes in self like outPath
+      #       };
+      #       deployment = {
+      #         buildOnTarget = false;
+      #       };
+      #     }
+      #   );
+      # } // builtins.mapAttrs (name: value: { imports = value._module.args.modules; }) self.nixosConfigurations;
+
+      # micro = {...}: {
+      #   imports = [
+      #     ./hosts/micro/configuration.nix
+      #   ];
+      # };
+
+      # cloud = {...}: {
+      #   nixpkgs.system = "aarch64-linux";
+      #   imports = [
+      #     inputs.attic.nixosModules.atticd
+      #     ./hosts/cloud/configuration.nix
+      #   ];
+      # };
+
+      # storage = {...}: {
+      #   imports = [
+      #     ./common/modules/systemd-email-notify.nix
+      #     ./hosts/storage/configuration.nix
+      #   ];
+      # };
+
+      # raider-nixos = {...}: {
+      #   deployment = {
+      #     targetHost = "raider-nixos";
+      #   };
+      #   imports = [
+      #     ./hosts/raider/configuration.nix
+      #   ];
+      # };
+
+      # r2s = {...}: {
+      #   nixpkgs.system = "aarch64-linux";
+      #   imports = [
+      #     ./common/modules/fake-hwclock.nix
+      #     ./hosts/r2s/configuration.nix
+      #   ];
+      # };
     });
 
   # homeConfigurations."linux" = let

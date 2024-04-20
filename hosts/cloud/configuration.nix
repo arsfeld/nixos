@@ -26,8 +26,8 @@
   services.redis.servers.blocky.bind = "100.66.38.77";
   services.redis.servers.blocky.port = 6378;
 
-  systemd.email-notify.mailFrom = "admin@arsfeld.one";
-  systemd.email-notify.mailTo = "arsfeld@gmail.com";
+  # systemd.email-notify.mailFrom = "admin@arsfeld.one";
+  # systemd.email-notify.mailTo = "arsfeld@gmail.com";
 
   boot.tmp.cleanOnBoot = true;
   networking.hostName = "cloud";

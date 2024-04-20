@@ -1,13 +1,13 @@
 {
   config,
   pkgs,
-  suites,
   lib,
+  self,
   ...
 }: let
   appimage = pkgs.callPackage (import ./appimage.nix) {};
 in {
-  imports = suites.raider ++ [./hardware-configuration.nix];
+  imports = self.nixosSuites.raider ++ [./hardware-configuration.nix];
 
   boot.kernelParams = [
     "zswap.enabled=1"

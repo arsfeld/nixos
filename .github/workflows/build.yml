@@ -13,14 +13,14 @@ jobs:
       # Here we specify the matrix of our hosts and their target platform architectures
       matrix:
         machine:
-          - host: cloud
-            platform: aarch64-linux
-          - host: r2s
-            platform: aarch64-linux
+          # - host: cloud
+          #   platform: aarch64-linux
+          # - host: r2s
+          #   platform: aarch64-linux
           - host: storage
             platform: x86-64-linux
-          - host: micro
-            platform: x86-64-linux
+          # - host: micro
+          #   platform: x86-64-linux
           - host: raider
             platform: x86-64-linux
 
@@ -46,15 +46,12 @@ jobs:
           extra-platforms = aarch64-linux
     - name: Run the Magic Nix Cache
       uses: DeterminateSystems/magic-nix-cache-action@v2
-    - name: Install devbox
-      uses: jetpack-io/devbox-install-action@v0.6.1
+    - uses: workflow/nix-shell-action@v3
       with:
-        enable-cache: true
-        devbox-version: '0.10.1'
-    - name: Build
-      run: |
-        eval $(devbox shellenv --no-refresh-alias)
-        attic login cloud https://attic.arsfeld.one ${{ secrets.ATTIC_TOKEN }}
-        attic use system
-        out=$(colmena eval --instantiate -E '{ nodes, ... }: nodes.${{ matrix.machine.host }}.config.system.build.toplevel')
-        attic push system $out
+        flakes-from-devshell: true
+        script: |
+          attic login cloud https://attic.arsfeld.one ${{ secrets.ATTIC_TOKEN }}
+          attic use system
+          nix build '.#nixosConfigurations.${{ matrix.machine.host }}.config.system.build.toplevel'
+          attic push system result
+        

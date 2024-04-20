@@ -21,7 +21,7 @@
   services.zfs = {
     autoScrub.enable = true;
     trim.enable = true;
-    zed.enableMail = true;
+    #zed.enableMail = true;
   };
 
   services.sanoid = {
