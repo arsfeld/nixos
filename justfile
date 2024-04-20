@@ -1,10 +1,13 @@
 
 
-boot HOST:
-    colmena apply --impure boot --on {{HOST}}
+fmt: 
+    nix fmt
 
-apply HOST:
-    colmena apply --impure --on {{HOST}}
+boot HOST: fmt
+    deploy --boot .#{{HOST}}
+
+deploy HOST: fmt
+    deploy .#{{HOST}}
 
 r2s:
     nix-build '<nixpkgs/nixos>' -A config.system.build.sdImage -I nixos-config=./machines/r2s/sd-image.nix

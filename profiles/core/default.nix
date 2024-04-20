@@ -53,7 +53,7 @@
 
   environment.systemPackages = with pkgs; [
     binutils
-    coreutils
+    uutils-coreutils-noprefix
     dosfstools
     usbutils
     moreutils

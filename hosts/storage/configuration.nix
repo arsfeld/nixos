@@ -2,12 +2,13 @@ args @ {
   lib,
   pkgs,
   config,
-  suites,
+  self,
+  inputs,
   ...
 }:
 with lib; {
   imports =
-    suites.storage
+    self.nixosSuites.storage
     ++ [
       ./variables.nix
       ./hardware-configuration.nix
@@ -24,6 +25,7 @@ with lib; {
 
   networking.hostName = "storage";
   networking.firewall.enable = false;
+  nixpkgs.hostPlatform = "x86_64-linux";
 
   virtualisation.docker.storageDriver = "zfs";
 
@@ -36,12 +38,13 @@ with lib; {
   };
 
   boot.kernelPackages = config.boot.zfs.package.latestCompatibleLinuxPackages;
-  #boot.kernelPackages = pkgs.linuxPackages_latest;
+  #boot.kernelPackages = pkgs.linuxPackages_6_7;
+  #boot.kernelPackages = pkgs.linuxPackages_zen;
 
   #boot.kernelParams = ["i915.enable_guc=3"];
 
-  systemd.email-notify.mailFrom = "admin@arsfeld.one";
-  systemd.email-notify.mailTo = "arsfeld@gmail.com";
+  # systemd.email-notify.mailFrom = "admin@arsfeld.one";
+  # systemd.email-notify.mailTo = "arsfeld@gmail.com";
 
   systemd.enableEmergencyMode = false;
 
@@ -61,8 +64,8 @@ with lib; {
 
   programs.gnupg.agent = {
     enable = true;
-    enableSSHSupport = true;
-    pinentryPackage = pkgs.pinentry-curses;
+    enableSSHSupport = false;
+    pinentryPackage = pkgs.pinentry-tty;
   };
 
   nixpkgs.config.packageOverrides = pkgs: {
@@ -78,4 +81,6 @@ with lib; {
       intel-compute-runtime # OpenCL filter support (hardware tonemapping and subtitle burn-in)
     ];
   };
+
+  system.stateVersion = "24.05";
 }
