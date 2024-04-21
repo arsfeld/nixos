@@ -1,4 +1,4 @@
-name: "Test"
+name: "Build"
 
 on:
   pull_request:
@@ -7,7 +7,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     strategy:
       fail-fast: false
       # Here we specify the matrix of our hosts and their target platform architectures
@@ -25,8 +24,11 @@ jobs:
             platform: x86-64-linux
 
     steps:
+    - name: Free Disk Space
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
     - uses: actions/checkout@v4
-
     # We only run this if we are building an aarch64-linux system
     - if: matrix.machine.platform == 'aarch64-linux'
       uses: docker/setup-qemu-action@v3
