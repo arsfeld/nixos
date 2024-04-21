@@ -43,7 +43,7 @@ jobs:
           fallback = true
           http-connections = 128
           max-substitution-jobs = 128
-          extra-platforms = aarch64-linux
+          extra-platforms = aarch64-linux i686-linux
     - uses: workflow/nix-shell-action@v3.3.0
       with:
         flakes-from-devshell: true
