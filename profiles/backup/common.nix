@@ -62,15 +62,15 @@ in
     age.secrets."restic-password".mode = "444";
 
     services.restic.backups = {
-      nas = {
-        paths = ["/var/data"];
-        repository = "/mnt/data/backups/restic";
-        passwordFile = "/etc/secrets/restic";
-        timerConfig = {
-          OnCalendar = "daily";
-          RandomizedDelaySec = "5h";
-        };
-      };
+      # nas = {
+      #   paths = ["/var/data"];
+      #   repository = "/mnt/data/backups/restic";
+      #   passwordFile = "/etc/secrets/restic";
+      #   timerConfig = {
+      #     OnCalendar = "daily";
+      #     RandomizedDelaySec = "5h";
+      #   };
+      # };
 
       idrive =
         opts

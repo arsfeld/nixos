@@ -1,4 +1,8 @@
-{config, ...}: {
+{
+  config,
+  self,
+  ...
+}: {
   age.secrets."restic-password".file = "${self}/secrets/restic-password.age";
   age.secrets."restic-password".mode = "444";
 
