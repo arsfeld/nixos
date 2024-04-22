@@ -103,11 +103,13 @@
             storage = with suites; flatten [base core.virt network backups sites];
             #micro = with suites; flatten [base network backups];
             raider = with suites; flatten [base];
+            cloud = with suites; flatten [base core.virt network backups sites];
           };
 
         nixosConfigurations = {
           storage = self.lib.mkLinuxSystem ./hosts/storage/configuration.nix;
           raider = self.lib.mkLinuxSystem ./hosts/raider/configuration.nix;
+          cloud = self.lib.mkLinuxSystem ./hosts/cloud/configuration.nix;
         };
 
         deploy = {
@@ -120,6 +122,11 @@
             raider = {
               hostname = "raider-nixos";
               profiles.system.path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.raider;
+            };
+            cloud = {
+              hostname = "cloud";
+              remoteBuild = true;
+              profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.cloud;
             };
           };
         };

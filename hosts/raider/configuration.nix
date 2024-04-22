@@ -50,9 +50,7 @@ in {
       system.nixos.tags = ["kde"];
       services.xserver.displayManager.gdm.enable = false;
       services.xserver.desktopManager.gnome.enable = false;
-      services.xserver.displayManager.sddm.enable = true;
-      services.xserver.displayManager.sddm.wayland.enable = true;
-      services.desktopManager.plasma6.enable = true;
+      services.xserver.desktopManager.pantheon.enable = true;
     };
   };
 

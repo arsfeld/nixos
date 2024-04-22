@@ -1,24 +1,21 @@
-{pkgs, ...}: {
-  imports = [
-    ./hardware-configuration.nix
-    ../../common/acme.nix
-    ../../common/common.nix
-    ../../common/services.nix
-    ../../common/users.nix
-    ../../common/blocky.nix
-    ../../common/mail.nix
-    ../../common/sites/arsfeld.one.nix
-    ../../common/sites/rosenfeld.one.nix
-    ../../common/sites/rosenfeld.blog.nix
-    ../../common/sites/arsfeld.dev.nix
-    ./services.nix
-    ./containers.nix
-    ./backup.nix
-  ];
+{
+  pkgs,
+  self,
+  ...
+}: {
+  imports =
+    self.nixosSuites.cloud
+    ++ [
+      ./hardware-configuration.nix
+      ./services.nix
+      ./containers.nix
+    ];
 
   boot = {
     binfmt.emulatedSystems = ["x86_64-linux"];
   };
+
+  nixpkgs.hostPlatform = "aarch64-linux";
 
   #boot.kernelPackages = pkgs.linuxPackages_latest;
 
@@ -47,25 +44,5 @@
 
   security.acme.certs."arsfeld.dev" = {
     extraDomainNames = ["*.arsfeld.dev"];
-  };
-
-  mailserver = {
-    enable = false;
-    fqdn = "mail.arsfeld.dev";
-    domains = ["arsfeld.dev"];
-
-    vmailUID = 5005;
-
-    # A list of all login accounts. To create the password hashes, use
-    # nix-shell -p mkpasswd --run 'mkpasswd -sm bcrypt'
-    loginAccounts = {
-      "alex@arsfeld.dev" = {
-        hashedPassword = "$6$Csmhna5YUVoHnZ/S$lrSk0wko.Z/oL.Omf2jAdLc/mSpZsrw8sOXlknmfdHEjMopP7hESNk9PCArGBnZKm566Fo2QoubQWt0SLjbng.";
-
-        aliases = ["postmaster@arsfeld.dev"];
-      };
-    };
-
-    certificateScheme = "acme";
   };
 }
