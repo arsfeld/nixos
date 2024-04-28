@@ -59,6 +59,38 @@ in {
     enable = true;
   };
 
+  services.searx = {
+    enable = true;
+    redisCreateLocally = true;
+    settings = {
+      server.port = 8888;
+      server.bind_address = "0.0.0.0";
+      server.secret_key = "secret-indeed";
+      ui.center_alignment = true;
+      ui.infinite_scroll = true;
+      ui.results_on_new_tab = true;
+      engines = [
+        {
+          name = "bing";
+          engine = "bing";
+          disabled = false;
+        }
+        {
+          name = "duckduckgo";
+          disabled = true;
+        }
+        {
+          name = "1337x";
+          disabled = false;
+        }
+        {
+          name = "qwant";
+          disabled = true;
+        }
+      ];
+    };
+  };
+
   age.secrets.github-runner-token.file = ../../secrets/github-runner-token.age;
 
   # services.github-runners.cloud = {
