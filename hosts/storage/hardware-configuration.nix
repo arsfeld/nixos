@@ -65,11 +65,11 @@
     options = ["zfsutil" "X-mount.mkdir"];
   };
 
-  fileSystems."/mnt/data/media" = {
-    device = "data/media";
-    fsType = "zfs";
-    options = ["zfsutil" "X-mount.mkdir"];
-  };
+  # fileSystems."/mnt/data/media" = {
+  #   device = "data/media";
+  #   fsType = "zfs";
+  #   options = ["zfsutil" "X-mount.mkdir"];
+  # };
 
   fileSystems."/mnt/data/files" = {
     device = "data/files";
@@ -109,15 +109,18 @@
   fileSystems."/mnt/storage" = {
     fsType = "bcachefs";
     device = "OLD_BLKID_UUID=dc302bad-592a-412a-8912-88eb07ced0b9";
-    #device = "/dev/disk/by-id/ata-ST8000DM004-2CX188_ZCT19JFS-part1:/dev/disk/by-id/ata-ST4000VN008-2DR166_WDH2WDVD-part1";
-    #options = ["cache.files=partial" "dropcacheonclose=true" "category.create=mfs" "moveonenospc=true"];
     options = ["compression=zstd" "nofail"];
   };
 
-  systemd.services.mount-ssd = {
+  systemd.services.mount-storage = {
     description = "mount storage";
     script = "/run/current-system/sw/bin/mount /mnt/storage";
     wantedBy = ["multi-user.target"];
+  };
+
+  fileSystems."/mnt/data/media" = {
+    device = "/mnt/storage/media";
+    options = ["bind" "X-mount.mkdir"];
   };
 
   swapDevices = [
