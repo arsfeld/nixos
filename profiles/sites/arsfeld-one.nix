@@ -9,7 +9,7 @@
 with lib; let
   domain = "arsfeld.one";
   email = "arsfeld@gmail.com";
-  bypassAuth = ["auth" "transmission" "flaresolverr" "attic" "dns"];
+  bypassAuth = ["auth" "transmission" "flaresolverr" "attic" "dns" "search"];
   generateHost = cfg: {
     "${cfg.name}.${domain}" = {
       useACMEHost = domain;
@@ -41,6 +41,7 @@ with lib; let
       dns = 4000;
       attic = 8080;
       #"auth" = "9099";
+      search = 8888;
     };
     storage = {
       code = 3434;
