@@ -132,16 +132,6 @@
         };
 
         checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) inputs.deploy-rs.lib;
-
-        # nixosModules = {
-        #   base = [
-        #     ./profiles/core/default.nix
-        #     ./profiles/users/root.nix
-        #     ./profiles/users/arosenfeld.nix
-        #     ./profiles/users/media.nix
-        #     ./profiles/networking/tailscale.nix
-        #   ];
-        # };
       };
 
       # r2s = {...}: {
