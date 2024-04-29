@@ -27,6 +27,8 @@ in {
 
   networking.hostName = "raider-nixos";
 
+  systemd.services.NetworkManager-wait-online.enable = false;
+
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
@@ -43,11 +45,8 @@ in {
   services.udev.packages = with pkgs; [gnome.gnome-settings-daemon];
 
   specialisation = {
-    gnome.configuration = {
-      system.nixos.tags = ["gnome"];
-    };
     kde.configuration = {
-      system.nixos.tags = ["kde"];
+      system.nixos.tags = ["elementary"];
       services.xserver.displayManager.gdm.enable = false;
       services.xserver.desktopManager.gnome.enable = false;
       services.xserver.desktopManager.pantheon.enable = true;
@@ -77,8 +76,8 @@ in {
 
   # Configure keymap in X11
   services.xserver = {
-    layout = "us";
-    xkbVariant = "alt-intl";
+    xkb.layout = "us";
+    xkb.variant = "alt-intl";
   };
 
   #chaotic.mesa-git.enable = true;
@@ -152,8 +151,10 @@ in {
     quickemu
     quickgui
     multiviewer-for-f1
+    lutris
+    cartridges
 
-    blackbox-terminal
+    #blackbox-terminal
 
     gnome-extension-manager
     gnome.gnome-tweaks
@@ -169,8 +170,6 @@ in {
     gnomeExtensions.vitals
     gnomeExtensions.window-gestures
     gnomeExtensions.user-themes
-
-    latte-dock
 
     #qogir-theme
     #materia-theme
@@ -191,14 +190,6 @@ in {
     pantheon.elementary-gtk-theme
     pantheon.elementary-icon-theme
     pantheon.elementary-wallpapers
-
-    appimage-run
-    (appimage.appimagePackage {
-      binName = "thorium";
-      version = "117.0.5938.157";
-      url = "https://github.com/Alex313031/thorium/releases/download/M117.0.5938.157/Thorium_Browser_117.0.5938.157_x64.AppImage";
-      sha256 = "sha256-dlfClBbwSkQg4stKZdSgNg3EFsWksoI21cxRG5SMrOM=";
-    })
   ];
 
   environment.gnome.excludePackages =
@@ -220,20 +211,20 @@ in {
       atomix # puzzle game
     ]);
 
-  nixpkgs.overlays = [
-    (final: prev: {
-      gnome = prev.gnome.overrideScope' (gnomeFinal: gnomePrev: {
-        mutter = gnomePrev.mutter.overrideAttrs (old: {
-          src = pkgs.fetchgit {
-            url = "https://gitlab.gnome.org/vanvugt/mutter.git";
-            # GNOME 45: triple-buffering-v4-45
-            rev = "0b896518b2028d9c4d6ea44806d093fd33793689";
-            sha256 = "sha256-mzNy5GPlB2qkI2KEAErJQzO//uo8yO0kPQUwvGDwR4w=";
-          };
-        });
-      });
-    })
-  ];
+  # nixpkgs.overlays = [
+  #   (final: prev: {
+  #     gnome = prev.gnome.overrideScope (gnomeFinal: gnomePrev: {
+  #       mutter = gnomePrev.mutter.overrideAttrs (old: {
+  #         src = pkgs.fetchgit {
+  #           url = "https://gitlab.gnome.org/vanvugt/mutter.git";
+  #           # GNOME 45: triple-buffering-v4-45
+  #           rev = "0b896518b2028d9c4d6ea44806d093fd33793689";
+  #           sha256 = "sha256-mzNy5GPlB2qkI2KEAErJQzO//uo8yO0kPQUwvGDwR4w=";
+  #         };
+  #       });
+  #     });
+  #   })
+  # ];
 
   #   nixpkgs.overlays = [
   #   (self: super: {
