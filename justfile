@@ -3,11 +3,13 @@
 fmt: 
     nix fmt
 
+args := "--skip-checks --auto-rollback false --keep-result"
+
 boot HOST: fmt
-    deploy --skip-checks --auto-rollback false --boot .#{{HOST}}
+    deploy {{ args }} --boot .#{{HOST}}
 
 deploy HOST: fmt
-    deploy --skip-checks --auto-rollback false .#{{HOST}}
+    deploy {{ args }} .#{{HOST}}
 
 r2s:
     nix-build '<nixpkgs/nixos>' -A config.system.build.sdImage -I nixos-config=./machines/r2s/sd-image.nix
