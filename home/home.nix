@@ -31,7 +31,7 @@ in {
       cachix
       fortune
       distrobox
-      neofetch
+      fastfetch
       direnv
       ruby
       starship
