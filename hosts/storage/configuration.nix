@@ -37,8 +37,8 @@ with lib; {
     supportedFilesystems = ["zfs" "bcachefs"];
   };
 
-  boot.kernelPackages = config.boot.zfs.package.latestCompatibleLinuxPackages;
-  #boot.kernelPackages = pkgs.linuxPackages_6_7;
+  #boot.kernelPackages = config.boot.zfs.package.latestCompatibleLinuxPackages;
+  boot.kernelPackages = pkgs.pinned.linuxPackages_6_7;
   #boot.kernelPackages = pkgs.linuxPackages_zen;
 
   #boot.kernelParams = ["i915.enable_guc=3"];

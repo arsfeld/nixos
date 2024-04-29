@@ -15,7 +15,7 @@
   boot.initrd.availableKernelModules = ["xhci_pci" "ahci" "mpt3sas" "nvme" "usbhid" "uas" "sd_mod" "ip6table_filter"];
   boot.initrd.kernelModules = [];
   boot.kernelModules = ["kvm-intel" "it87"];
-  boot.extraModulePackages = with config.boot.zfs.package.latestCompatibleLinuxPackages; [it87];
+  boot.extraModulePackages = with config.boot.kernelPackages; [it87];
   boot.kernelParams = ["acpi_osi=\"Windows 2015\""];
 
   fileSystems."/" = {

@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/073a26ea454df46ae180207c752ef8c6f6e6ea85";
+    nixpkgs.url = "nixpkgs/nixos-unstable";
     nixos-generators.url = "github:nix-community/nixos-generators";
     disko.url = "github:nix-community/disko";
     agenix.url = "github:ryantm/agenix";
@@ -16,6 +16,7 @@
     treefmt-nix.url = "github:numtide/treefmt-nix";
     attic.url = "github:zhaofengli/attic";
     nixos-flake.url = "github:srid/nixos-flake";
+    pinned-nixpkgs.url = "github:NixOS/nixpkgs/073a26ea454df46ae180207c752ef8c6f6e6ea85";
   };
 
   outputs = {self, ...} @ inputs:
@@ -81,6 +82,17 @@
                   home-manager.useUserPackages = true;
                   home-manager.users.arosenfeld = import ./home/home.nix;
                 }
+                ({
+                  config,
+                  pkgs,
+                  ...
+                }: {
+                  nixpkgs.overlays = [
+                    (final: prev: {
+                      pinned = inputs.pinned-nixpkgs.legacyPackages.${prev.system};
+                    })
+                  ];
+                })
                 mod
               ];
             };
