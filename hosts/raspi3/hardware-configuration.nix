@@ -9,7 +9,7 @@
   ...
 }: {
   imports = [
-    (modulesPath + "/installer/scan/not-detected.nix")
+    (modulesPath + "/installer/sd-card/sd-image-aarch64.nix")
   ];
 
   boot.initrd.availableKernelModules = ["usbhid"];
@@ -17,9 +17,24 @@
   boot.kernelModules = [];
   boot.extraModulePackages = [];
 
-  fileSystems."/" = {
-    device = "/dev/disk/by-uuid/44444444-4444-4444-8888-888888888888";
-    fsType = "ext4";
+  fileSystems = {
+    "/" = {
+      device = "/dev/disk/by-label/NIXOS_SD";
+
+      fsType = "ext4";
+
+      options = ["noatime"];
+    };
+  };
+
+  networking = {
+    wireless = {
+      enable = true;
+
+      networks.BaconsHouse.psk = "camillealex2014";
+
+      interfaces = ["wlan0"];
+    };
   };
 
   swapDevices = [];
