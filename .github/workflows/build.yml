@@ -16,6 +16,8 @@ jobs:
             platform: aarch64-linux
           # - host: r2s
           #   platform: aarch64-linux
+          - host: raspi3
+            platform: aarch64-linux
           - host: storage
             platform: x86-64-linux
           # - host: micro
