@@ -69,32 +69,37 @@
       };
 
       flake = {
-        lib = rec {
+        lib = let
+          commonModules = [
+            inputs.agenix.nixosModules.default
+            inputs.home-manager.nixosModules.home-manager
+            {
+              home-manager.useGlobalPkgs = true;
+              home-manager.useUserPackages = true;
+              home-manager.users.arosenfeld = import ./home/home.nix;
+            }
+            ({
+              config,
+              pkgs,
+              ...
+            }: {
+              nixpkgs.overlays = [
+                (final: prev: {
+                  pinned = inputs.pinned-nixpkgs.legacyPackages.${prev.system};
+                })
+              ];
+            })
+          ];
+        in rec {
           mkLinuxSystem = mod:
             inputs.nixpkgs.lib.nixosSystem {
               # Arguments to pass to all modules.
               specialArgs = {inherit self inputs;};
-              modules = [
-                inputs.agenix.nixosModules.default
-                inputs.home-manager.nixosModules.home-manager
-                {
-                  home-manager.useGlobalPkgs = true;
-                  home-manager.useUserPackages = true;
-                  home-manager.users.arosenfeld = import ./home/home.nix;
-                }
-                ({
-                  config,
-                  pkgs,
-                  ...
-                }: {
-                  nixpkgs.overlays = [
-                    (final: prev: {
-                      pinned = inputs.pinned-nixpkgs.legacyPackages.${prev.system};
-                    })
-                  ];
-                })
-                mod
-              ];
+              modules =
+                commonModules
+                ++ [
+                  mod
+                ];
             };
         };
 
@@ -122,6 +127,7 @@
           storage = self.lib.mkLinuxSystem ./hosts/storage/configuration.nix;
           raider = self.lib.mkLinuxSystem ./hosts/raider/configuration.nix;
           cloud = self.lib.mkLinuxSystem ./hosts/cloud/configuration.nix;
+          raspi3 = self.lib.mkLinuxSystem ./hosts/raspi3/configuration.nix;
         };
 
         deploy = {
@@ -140,6 +146,20 @@
               remoteBuild = true;
               profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.cloud;
             };
+            raspi3 = {
+              hostname = "raspi3";
+              profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.raspi3;
+            };
+          };
+        };
+
+        packages.aarch64-linux = {
+          raspi3 = inputs.nixos-generators.nixosGenerate {
+            pkgs = inputs.nixpkgs.legacyPackages.aarch64-linux;
+            modules = [
+              ./hosts/raspi3/configuration.nix
+            ];
+            format = "sd-aarch64";
           };
         };
 
