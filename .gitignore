@@ -44,3 +44,4 @@ devenv.local.nix
 
 /result
 /out
+/.deploy-gc

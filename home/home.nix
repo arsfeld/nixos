@@ -18,10 +18,10 @@ in {
   # paths it should manage.
   home = {
     username = "arosenfeld";
-    homeDirectory =
-      if stdenv.isLinux
-      then "/home/arosenfeld"
-      else "/Users/arosenfeld";
+    # homeDirectory =
+    #   if stdenv.isLinux
+    #   then "/home/arosenfeld"
+    #   else "/Users/arosenfeld";
     stateVersion = "22.05";
     packages = with pkgs; [
       vim
@@ -31,7 +31,7 @@ in {
       cachix
       fortune
       distrobox
-      neofetch
+      fastfetch
       direnv
       ruby
       starship
@@ -106,6 +106,8 @@ in {
       # if [[ -z "$ZELLIJ" && "$TERM_PROGRAM" != "vscode" && -n "$SSH_CLIENT" ]]; then
       #   zellij attach -c
       # fi
+
+      unsetopt EXTENDED_GLOB
     '';
     profileExtra = ''
       if [[ -s /etc/set-environment ]]; then
@@ -196,6 +198,13 @@ in {
   # services.syncthing = {
   #   enable = pkgs.stdenv.isLinux;
   # };
+
+  programs.atuin = {
+    enable = true;
+    flags = [
+      "--disable-up-arrow"
+    ];
+  };
 
   programs.mangohud = {
     enable = true;
