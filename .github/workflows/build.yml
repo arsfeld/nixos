@@ -1,4 +1,4 @@
-name: "Test"
+name: "Build"
 
 on:
   pull_request:
@@ -7,7 +7,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     strategy:
       fail-fast: false
       # Here we specify the matrix of our hosts and their target platform architectures
@@ -15,18 +14,23 @@ jobs:
         machine:
           - host: cloud
             platform: aarch64-linux
-          - host: r2s
+          # - host: r2s
+          #   platform: aarch64-linux
+          - host: raspi3
             platform: aarch64-linux
           - host: storage
             platform: x86-64-linux
-          - host: micro
-            platform: x86-64-linux
+          # - host: micro
+          #   platform: x86-64-linux
           - host: raider
             platform: x86-64-linux
 
     steps:
+    - name: Free Disk Space
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
     - uses: actions/checkout@v4
-
     # We only run this if we are building an aarch64-linux system
     - if: matrix.machine.platform == 'aarch64-linux'
       uses: docker/setup-qemu-action@v3
@@ -43,18 +47,13 @@ jobs:
           fallback = true
           http-connections = 128
           max-substitution-jobs = 128
-          extra-platforms = aarch64-linux
-    - name: Run the Magic Nix Cache
-      uses: DeterminateSystems/magic-nix-cache-action@v2
-    - name: Install devbox
-      uses: jetpack-io/devbox-install-action@v0.6.1
+          extra-platforms = aarch64-linux i686-linux
+    - uses: workflow/nix-shell-action@v3.3.0
       with:
-        enable-cache: true
-        devbox-version: '0.10.1'
-    - name: Build
-      run: |
-        eval $(devbox shellenv --no-refresh-alias)
-        attic login cloud https://attic.arsfeld.one ${{ secrets.ATTIC_TOKEN }}
-        attic use system
-        out=$(colmena eval --instantiate -E '{ nodes, ... }: nodes.${{ matrix.machine.host }}.config.system.build.toplevel')
-        attic push system $out
+        flakes-from-devshell: true
+        script: |
+          attic login cloud https://attic.arsfeld.one ${{ secrets.ATTIC_TOKEN }}
+          attic use system
+          nix build '.#nixosConfigurations.${{ matrix.machine.host }}.config.system.build.toplevel'
+          attic push system result
+        
