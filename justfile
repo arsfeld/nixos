@@ -11,5 +11,9 @@ boot HOST: fmt
 deploy HOST: fmt
     deploy {{ args }} .#{{HOST}}
 
+build HOST:
+    nix build '.#nixosConfigurations.{{ HOST }}.config.system.build.toplevel'
+    attic push system result
+
 r2s:
     ./r2s.sh
