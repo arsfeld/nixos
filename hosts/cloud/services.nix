@@ -66,9 +66,11 @@ in {
       server.port = 8888;
       server.bind_address = "0.0.0.0";
       server.secret_key = "secret-indeed";
+      server.method = "GET";
       ui.center_alignment = true;
       ui.infinite_scroll = true;
       ui.results_on_new_tab = true;
+      ui.query_in_title = true;
       engines = [
         {
           name = "bing";
