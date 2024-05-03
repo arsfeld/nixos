@@ -44,6 +44,13 @@ in {
   services.xserver.desktopManager.gnome.enable = lib.mkDefault true;
   services.udev.packages = with pkgs; [gnome.gnome-settings-daemon];
 
+  services.xserver.desktopManager.gnome = {
+    extraGSettingsOverrides = ''
+      [org.gnome.mutter]
+      experimental-features=['scale-monitor-framebuffer']
+    '';
+  };
+
   specialisation = {
     kde.configuration = {
       system.nixos.tags = ["elementary"];
@@ -67,6 +74,8 @@ in {
   programs.coolercontrol.enable = true;
 
   services.tailscale.enable = true;
+
+  services.power-profiles-daemon.enable = false;
 
   # Set your time zone.
   time.timeZone = "America/Toronto";
