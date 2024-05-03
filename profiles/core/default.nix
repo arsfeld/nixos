@@ -19,11 +19,13 @@
         "https://nix-community.cachix.org?priority=41" # this is a useful public cache!
         "https://numtide.cachix.org?priority=42" # this is also a useful public cache!
         "https://attic.arsfeld.one/system?priority=43"
+        "https://deploy-rs.cachix.org"
       ];
       trusted-public-keys = [
         "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
         "numtide.cachix.org-1:2ps1kLBUWjxIneOy1Ik6cQjb41X0iXVXeHigGmycPPE="
         "system:HOMg/Zztxw6YUqkgtLkotBN0jA0q1xOYiIBtUL6gswY="
+        "deploy-rs.cachix.org-1:xfNobmiwF/vzvK1gpfediPwpdIP0rpDV2rYqx40zdSI="
       ];
 
       netrc-file = config.age.secrets.attic-netrc.path;
