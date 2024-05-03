@@ -45,9 +45,10 @@ in {
   services.udev.packages = with pkgs; [gnome.gnome-settings-daemon];
 
   services.xserver.desktopManager.gnome = {
+    extraGSettingsOverridePackages = [pkgs.gnome.mutter];
     extraGSettingsOverrides = ''
       [org.gnome.mutter]
-      experimental-features=['scale-monitor-framebuffer']
+      experimental-features=['variable-refresh-rate']
     '';
   };
 
