@@ -432,6 +432,7 @@ in {
       extraOptions = [
         "--add-host=host.docker.internal:host-gateway"
         "--link=immich-db"
+        "--link=immich-ml"
         "--device=/dev/dri"
       ];
     };
@@ -459,8 +460,17 @@ in {
       extraOptions = [
         "--add-host=host.docker.internal:host-gateway"
         "--link=immich-db"
+        "--link=immich-ml"
         "--device=/dev/dri"
       ];
+    };
+
+    immich-ml = {
+      image = "ghcr.io/immich-app/immich-machine-learning:release";
+      volumes = [
+        "${vars.configDir}/immich/model-cache:/cache"
+      ];
+      extraOptions = ["--net-alias=immich-ml"];
     };
 
     immich-db = {
