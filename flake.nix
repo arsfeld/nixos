@@ -81,8 +81,10 @@
             ({
               config,
               pkgs,
+              modulesPath,
               ...
             }: {
+              imports = [(modulesPath + "/profiles/base.nix")];
               nixpkgs.overlays = [
                 (final: prev: {
                   pinned = inputs.pinned-nixpkgs.legacyPackages.${prev.system};
