@@ -163,6 +163,11 @@ in {
     multiviewer-for-f1
     lutris
     cartridges
+    ryujinx
+    mupen64plus
+    rpcs3
+
+    virtualboxKvm
 
     #blackbox-terminal
 
