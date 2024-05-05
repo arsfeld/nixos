@@ -345,7 +345,76 @@ in {
     };
   };
 
-  virtualisation.oci-containers.containers = {
+  virtualisation.oci-containers.containers = let
+    immich-options = {
+      image = "ghcr.io/immich-app/immich-server:release";
+      environment = {
+        PUID = vars.puid;
+        PGID = vars.pgid;
+        TZ = vars.tz;
+
+        DB_HOSTNAME = "immich-db";
+        DB_USERNAME = "immich";
+        DB_PASSWORD = "immich";
+        DB_DATABASE_NAME = "immich";
+        REDIS_HOSTNAME = "host.docker.internal";
+        JWT_SECRET = "somelongrandomstring";
+        DB_PORT = "5432";
+        REDIS_PORT = "60609";
+      };
+      volumes = [
+        "${vars.dataDir}/files/Photos:/usr/src/app/upload"
+        "${vars.dataDir}/files/Takeout:/takeout"
+      ];
+      cmd = ["start.sh" "immich"];
+      extraOptions = [
+        "--add-host=host.docker.internal:host-gateway"
+        "--link=immich-db"
+        "--link=immich-ml"
+        "--device=/dev/dri"
+      ];
+    };
+  in {
+    immich-server =
+      immich-options
+      // {
+        ports = ["${ports.immich}:3001"];
+        cmd = ["start.sh" "immich"];
+      };
+
+    immich-microservices =
+      immich-options
+      // {
+        cmd = ["start.sh" "microservices"];
+        extraOptions = [
+          "--add-host=host.docker.internal:host-gateway"
+          "--link=immich-db"
+          "--link=immich-ml"
+          "--device=/dev/dri"
+        ];
+      };
+
+    immich-ml = {
+      image = "ghcr.io/immich-app/immich-machine-learning:release";
+      volumes = [
+        "${vars.configDir}/immich/model-cache:/cache"
+      ];
+      extraOptions = ["--net-alias=immich-ml"];
+    };
+
+    immich-db = {
+      image = "registry.hub.docker.com/tensorchord/pgvecto-rs:pg14-v0.2.0";
+      environment = {
+        POSTGRES_PASSWORD = "immich";
+        POSTGRES_USER = "immich";
+        POSTGRES_DB = "immich";
+      };
+      volumes = [
+        "${vars.configDir}/immich/db:/var/lib/postgresql/data"
+      ];
+      extraOptions = ["--net-alias=immich-db"];
+    };
+
     watchtower = {
       image = "containrrr/watchtower";
       volumes = [
@@ -406,84 +475,6 @@ in {
         "69:69/udp"
         "8080:80"
       ];
-    };
-
-    immich-server = {
-      image = "ghcr.io/immich-app/immich-server:release";
-      environment = {
-        PUID = vars.puid;
-        PGID = vars.pgid;
-        TZ = vars.tz;
-
-        DB_HOSTNAME = "immich-db";
-        DB_USERNAME = "immich";
-        DB_PASSWORD = "immich";
-        DB_DATABASE_NAME = "immich";
-        REDIS_HOSTNAME = "host.docker.internal";
-        JWT_SECRET = "somelongrandomstring";
-        DB_PORT = "5432";
-        REDIS_PORT = "60609";
-      };
-      ports = ["${ports.immich}:3001"];
-      volumes = [
-        "${vars.dataDir}/files/Photos:/usr/src/app/upload"
-      ];
-      cmd = ["start.sh" "immich"];
-      extraOptions = [
-        "--add-host=host.docker.internal:host-gateway"
-        "--link=immich-db"
-        "--link=immich-ml"
-        "--device=/dev/dri"
-      ];
-    };
-
-    immich-microservices = {
-      image = "ghcr.io/immich-app/immich-server:release";
-      environment = {
-        PUID = vars.puid;
-        PGID = vars.pgid;
-        TZ = vars.tz;
-
-        DB_HOSTNAME = "immich-db";
-        DB_USERNAME = "immich";
-        DB_PASSWORD = "immich";
-        DB_DATABASE_NAME = "immich";
-        REDIS_HOSTNAME = "host.docker.internal";
-        JWT_SECRET = "somelongrandomstring";
-        DB_PORT = "5432";
-        REDIS_PORT = "60609";
-      };
-      volumes = [
-        "${vars.dataDir}/files/Photos:/usr/src/app/upload"
-      ];
-      cmd = ["start.sh" "microservices"];
-      extraOptions = [
-        "--add-host=host.docker.internal:host-gateway"
-        "--link=immich-db"
-        "--link=immich-ml"
-        "--device=/dev/dri"
-      ];
-    };
-
-    immich-ml = {
-      image = "ghcr.io/immich-app/immich-machine-learning:release";
-      volumes = [
-        "${vars.configDir}/immich/model-cache:/cache"
-      ];
-      extraOptions = ["--net-alias=immich-ml"];
-    };
-
-    immich-db = {
-      image = "registry.hub.docker.com/tensorchord/pgvecto-rs:pg14-v0.2.0";
-      environment = {
-        POSTGRES_PASSWORD = "immich";
-        POSTGRES_USER = "immich";
-        POSTGRES_DB = "immich";
-      };
-      volumes = [
-        "${vars.configDir}/immich/db:/var/lib/postgresql/data"
-      ];
-      extraOptions = ["--net-alias=immich-db"];
     };
 
     scrutiny = {
