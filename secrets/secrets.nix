@@ -6,7 +6,8 @@ let
   micro = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA6dDFoQv53Bb3vF0G2Kqna/O/bEr4o7lKkJL28+EIGK root@nixos-micro";
   cloud = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH51UBt4enqaDYdbEaBD1I1ef+wZGFmkjv68Mv4bnVWA root@dev";
   raider = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIODq88FlnK+Px/J6hNSPvpJEkrFFYf/oYUqCUBQ7+2cz root@nixos";
-  systems = [storage micro cloud];
+  raspi3 = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDgLgYS1DyvdxHbwa4p94Tnu6pbqksrtP7DmsagVOAfI root@raspi3";
+  systems = [storage micro cloud raspi3];
 in {
   "cloudflare.age".publicKeys = users ++ systems;
   "keycloak-pass.age".publicKeys = users ++ systems;
