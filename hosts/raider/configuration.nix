@@ -33,7 +33,7 @@ in {
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  boot.supportedFilesystems = ["ntfs"];
+  boot.zfs.package = pkgs.zfs_unstable;
 
   virtualisation.podman.enable = true;
   virtualisation.podman.dockerCompat = true;
