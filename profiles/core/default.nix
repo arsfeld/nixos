@@ -55,7 +55,6 @@
 
   environment.systemPackages = with pkgs; [
     binutils
-    uutils-coreutils-noprefix
     dosfstools
     usbutils
     moreutils
