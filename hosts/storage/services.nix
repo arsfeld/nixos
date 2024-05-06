@@ -51,7 +51,7 @@ in {
     };
   };
 
-  users.users.syncthing.extraGroups = ["nextcloud"];
+  users.users.syncthing.extraGroups = ["nextcloud" "media"];
 
   services.syncthing = {
     enable = true;
@@ -296,8 +296,8 @@ in {
     enable = true;
     ensureDatabases = ["nextcloud" "immich"];
     enableTCPIP = true;
-    #package = pkgs.postgresql_15;
-    extraPlugins = with pkgs.postgresql_15.pkgs; [pgvector];
+    package = pkgs.postgresql_15;
+    extraPlugins = with pkgs.postgresql_15.pkgs; [pgvecto-rs pgvector];
     ensureUsers = [
       {
         name = "nextcloud";
@@ -326,6 +326,11 @@ in {
     '';
   };
 
+  services.postgresqlBackup = {
+    enable = true;
+    compression = "zstd";
+  };
+
   systemd.services."nextcloud-setup" = {
     requires = ["postgresql.service"];
     after = ["postgresql.service"];
@@ -340,7 +345,76 @@ in {
     };
   };
 
-  virtualisation.oci-containers.containers = {
+  virtualisation.oci-containers.containers = let
+    immich-options = {
+      image = "ghcr.io/immich-app/immich-server:release";
+      environment = {
+        PUID = vars.puid;
+        PGID = vars.pgid;
+        TZ = vars.tz;
+
+        DB_HOSTNAME = "immich-db";
+        DB_USERNAME = "immich";
+        DB_PASSWORD = "immich";
+        DB_DATABASE_NAME = "immich";
+        REDIS_HOSTNAME = "host.docker.internal";
+        JWT_SECRET = "somelongrandomstring";
+        DB_PORT = "5432";
+        REDIS_PORT = "60609";
+      };
+      volumes = [
+        "${vars.dataDir}/files/Photos:/usr/src/app/upload"
+        "${vars.dataDir}/files/Takeout:/takeout"
+      ];
+      cmd = ["start.sh" "immich"];
+      extraOptions = [
+        "--add-host=host.docker.internal:host-gateway"
+        "--link=immich-db"
+        "--link=immich-ml"
+        "--device=/dev/dri"
+      ];
+    };
+  in {
+    immich-server =
+      immich-options
+      // {
+        ports = ["${ports.immich}:3001"];
+        cmd = ["start.sh" "immich"];
+      };
+
+    immich-microservices =
+      immich-options
+      // {
+        cmd = ["start.sh" "microservices"];
+        extraOptions = [
+          "--add-host=host.docker.internal:host-gateway"
+          "--link=immich-db"
+          "--link=immich-ml"
+          "--device=/dev/dri"
+        ];
+      };
+
+    immich-ml = {
+      image = "ghcr.io/immich-app/immich-machine-learning:release";
+      volumes = [
+        "${vars.configDir}/immich/model-cache:/cache"
+      ];
+      extraOptions = ["--net-alias=immich-ml"];
+    };
+
+    immich-db = {
+      image = "registry.hub.docker.com/tensorchord/pgvecto-rs:pg14-v0.2.0";
+      environment = {
+        POSTGRES_PASSWORD = "immich";
+        POSTGRES_USER = "immich";
+        POSTGRES_DB = "immich";
+      };
+      volumes = [
+        "${vars.configDir}/immich/db:/var/lib/postgresql/data"
+      ];
+      extraOptions = ["--net-alias=immich-db"];
+    };
+
     watchtower = {
       image = "containrrr/watchtower";
       volumes = [
@@ -402,33 +476,6 @@ in {
         "8080:80"
       ];
     };
-
-    # immich = {
-    #   image = "ghcr.io/imagegenius/immich:latest";
-    #   environment = {
-    #     PUID = vars.puid;
-    #     PGID = vars.pgid;
-    #     TZ = vars.tz;
-
-    #     DB_HOSTNAME = "host.docker.internal";
-    #     DB_USERNAME = "immich";
-    #     DB_PASSWORD = "immich";
-    #     DB_DATABASE_NAME = "immich";
-    #     REDIS_HOSTNAME = "host.docker.internal";
-    #     JWT_SECRET = "somelongrandomstring";
-    #     DB_PORT = "5432";
-    #     REDIS_PORT = "60609";
-    #   };
-    #   ports = ["${ports.immich}:8080/tcp"];
-    #   environmentFiles = [
-    #     "${vars.configDir}/plex/env"
-    #   ];
-    #   volumes = [
-    #     "${vars.configDir}/immich:/config"
-    #     "${vars.dataDir}/files/Photos:/photos"
-    #   ];
-    #   extraOptions = ["--add-host" "host.docker.internal:host-gateway"];
-    # };
 
     scrutiny = {
       image = "ghcr.io/analogj/scrutiny:master-omnibus";
