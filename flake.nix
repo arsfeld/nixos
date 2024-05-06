@@ -16,7 +16,6 @@
     treefmt-nix.url = "github:numtide/treefmt-nix";
     attic.url = "github:zhaofengli/attic";
     nixos-flake.url = "github:srid/nixos-flake";
-    pinned-nixpkgs.url = "github:nixos/nixpkgs/073a26ea454df46ae180207c752ef8c6f6e6ea85";
   };
 
   outputs = {self, ...} @ inputs:
@@ -80,13 +79,10 @@
             ({
               config,
               pkgs,
+              modulesPath,
               ...
             }: {
-              nixpkgs.overlays = [
-                (final: prev: {
-                  pinned = inputs.pinned-nixpkgs.legacyPackages.${prev.system};
-                })
-              ];
+              imports = [(modulesPath + "/profiles/base.nix")];
             })
           ];
         in rec {
