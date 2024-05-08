@@ -16,6 +16,15 @@
     treefmt-nix.url = "github:numtide/treefmt-nix";
     attic.url = "github:zhaofengli/attic";
     nixos-flake.url = "github:srid/nixos-flake";
+
+    lix = {
+      url = "git+https://git@git.lix.systems/lix-project/lix?ref=refs/tags/2.90-beta.1";
+    };
+    lix-module = {
+      url = "git+https://git.lix.systems/lix-project/nixos-module";
+      inputs.lix.follows = "lix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = {self, ...} @ inputs:
@@ -46,7 +55,7 @@
 
         devshells.default = {pkgs, ...}: {
           commands = [
-            {package = pkgs.nixVersions.latest;}
+            {package = inputs'.lix.packages.nix;}
             {package = inputs'.agenix.packages.default;}
           ];
           packages = [
@@ -71,6 +80,7 @@
           commonModules = [
             inputs.agenix.nixosModules.default
             inputs.home-manager.nixosModules.home-manager
+            inputs.lix-module.nixosModules.default
             {
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = true;
