@@ -45,7 +45,7 @@ with lib; let
     };
     storage = {
       code = 3434;
-      minio = 9000;
+      resilio = 9000;
       gitea = 3001;
       speedtest = 8765;
       photos = 2342;
