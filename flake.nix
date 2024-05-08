@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-unstable";
+    nixpkgs.url = "nixpkgs/nixos-unstable-small";
     nixos-generators.url = "github:nix-community/nixos-generators";
     disko.url = "github:nix-community/disko";
     agenix.url = "github:ryantm/agenix";
@@ -16,7 +16,6 @@
     treefmt-nix.url = "github:numtide/treefmt-nix";
     attic.url = "github:zhaofengli/attic";
     nixos-flake.url = "github:srid/nixos-flake";
-    pinned-nixpkgs.url = "github:NixOS/nixpkgs/073a26ea454df46ae180207c752ef8c6f6e6ea85";
   };
 
   outputs = {self, ...} @ inputs:
@@ -47,9 +46,8 @@
 
         devshells.default = {pkgs, ...}: {
           commands = [
-            {package = pkgs.nixUnstable;}
+            {package = pkgs.nixVersions.latest;}
             {package = inputs'.agenix.packages.default;}
-            #{package = inputs'.colmena.packages.colmena;}
           ];
           packages = [
             pkgs.just
@@ -85,11 +83,6 @@
               ...
             }: {
               imports = [(modulesPath + "/profiles/base.nix")];
-              nixpkgs.overlays = [
-                (final: prev: {
-                  pinned = inputs.pinned-nixpkgs.legacyPackages.${prev.system};
-                })
-              ];
             })
           ];
         in rec {
@@ -141,6 +134,7 @@
             };
             raider = {
               hostname = "raider-nixos";
+              fastConnection = true;
               profiles.system.path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.raider;
             };
             cloud = {
