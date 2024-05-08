@@ -65,11 +65,11 @@
     options = ["zfsutil" "X-mount.mkdir"];
   };
 
-  # fileSystems."/mnt/data/media" = {
-  #   device = "data/media";
-  #   fsType = "zfs";
-  #   options = ["zfsutil" "X-mount.mkdir"];
-  # };
+  fileSystems."/mnt/data/media" = {
+    device = "data/media";
+    fsType = "zfs";
+    options = ["zfsutil" "X-mount.mkdir"];
+  };
 
   fileSystems."/mnt/data/files" = {
     device = "data/files";
@@ -116,11 +116,6 @@
     description = "mount storage";
     script = "/run/current-system/sw/bin/mount /mnt/storage";
     wantedBy = ["multi-user.target"];
-  };
-
-  fileSystems."/mnt/data/media" = {
-    device = "/mnt/storage/media";
-    options = ["bind" "X-mount.mkdir"];
   };
 
   swapDevices = [

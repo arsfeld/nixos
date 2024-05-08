@@ -51,7 +51,7 @@ in {
       ];
       volumes = [
         "${vars.configDir}/plex:/config"
-        "${vars.dataDir}/media:/data"
+        "${vars.storageDir}/media:/data"
       ];
       extraOptions = [
         "--device"
@@ -72,8 +72,8 @@ in {
         TRANSMISSION_RPC_AUTHENTICATION_REQUIRED = "true";
         TRANSMISSION_RPC_USERNAME = "admin";
         TRANSMISSION_RPC_PASSWORD = "{d8fdc58747d7f336a38e1676c9f5ce6b3daee67b3d6a62b1";
-        TRANSMISSION_DOWNLOAD_DIR = "${vars.dataDir}/media/Downloads";
-        TRANSMISSION_INCOMPLETE_DIR = "${vars.dataDir}/media/Downloads/incomplete";
+        TRANSMISSION_DOWNLOAD_DIR = "${vars.storageDir}/media/Downloads";
+        TRANSMISSION_INCOMPLETE_DIR = "${vars.storageDir}/media/Downloads/incomplete";
         TRANSMISSION_SPEED_LIMIT_UP = "1000";
         TRANSMISSION_SPEED_LIMIT_UP_ENABLED = "true";
         WEBPROXY_ENABLED = "true";
@@ -87,7 +87,7 @@ in {
       volumes = [
         "${vars.configDir}/transmission-openvpn:/config"
         "${vars.dataDir}:${vars.dataDir}"
-        "${vars.dataDir}:${vars.storageDir}"
+        "${vars.storageDir}:${vars.storageDir}"
       ];
       extraOptions = [
         "--cap-add"
@@ -114,7 +114,7 @@ in {
       #ports = ["9999:9999"];
       volumes = [
         "${vars.configDir}/stash:/root/.stash"
-        "${vars.dataDir}/media:/data"
+        "${vars.storageDir}/media:/data"
       ];
       extraOptions = [
         "--device"
@@ -134,7 +134,7 @@ in {
       volumes = [
         "${vars.configDir}/jackett:/config"
         "${vars.dataDir}/files:/files"
-        "${vars.dataDir}/media:/media"
+        "${vars.storageDir}/media:/media"
       ];
     };
 
