@@ -35,6 +35,10 @@ in {
     group = vars.group;
   };
 
+  services.resilio = {
+    enable = true;
+  };
+
   age.secrets."transmission-openvpn-pia".file = ../../../secrets/transmission-openvpn-pia.age;
 
   virtualisation.oci-containers.containers = {
