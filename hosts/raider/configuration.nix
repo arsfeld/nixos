@@ -33,7 +33,7 @@ in {
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  boot.supportedFilesystems = ["ntfs"];
+  boot.zfs.package = pkgs.zfs_unstable;
 
   virtualisation.podman.enable = true;
   virtualisation.podman.dockerCompat = true;
@@ -43,6 +43,14 @@ in {
   services.xserver.displayManager.gdm.enable = lib.mkDefault true;
   services.xserver.desktopManager.gnome.enable = lib.mkDefault true;
   services.udev.packages = with pkgs; [gnome.gnome-settings-daemon];
+
+  services.xserver.desktopManager.gnome = {
+    extraGSettingsOverridePackages = [pkgs.gnome.mutter];
+    extraGSettingsOverrides = ''
+      [org.gnome.mutter]
+      experimental-features=['variable-refresh-rate']
+    '';
+  };
 
   specialisation = {
     kde.configuration = {
@@ -67,6 +75,8 @@ in {
   programs.coolercontrol.enable = true;
 
   services.tailscale.enable = true;
+
+  services.power-profiles-daemon.enable = false;
 
   # Set your time zone.
   time.timeZone = "America/Toronto";
@@ -153,6 +163,11 @@ in {
     multiviewer-for-f1
     lutris
     cartridges
+    ryujinx
+    mupen64plus
+    rpcs3
+
+    virtualboxKvm
 
     #blackbox-terminal
 
