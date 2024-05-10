@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-unstable-small";
+    nixpkgs.url = "nixpkgs/nixos-unstable";
     nixos-generators.url = "github:nix-community/nixos-generators";
     disko.url = "github:nix-community/disko";
     agenix.url = "github:ryantm/agenix";
