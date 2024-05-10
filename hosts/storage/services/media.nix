@@ -37,7 +37,11 @@ in {
 
   services.resilio = {
     enable = true;
+    enableWebUI = true;
+    httpListenAddr = "0.0.0.0";
   };
+
+  users.users.rslsync.extraGroups = ["nextcloud" "media"];
 
   age.secrets."transmission-openvpn-pia".file = ../../../secrets/transmission-openvpn-pia.age;
 
