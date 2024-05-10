@@ -248,7 +248,7 @@ in {
   };
 
   services.nextcloud = {
-    enable = true;
+    enable = false;
     datadir = "${vars.dataDir}/files/Nextcloud";
     hostName = "nextcloud.${vars.domain}";
     maxUploadSize = "10G";
