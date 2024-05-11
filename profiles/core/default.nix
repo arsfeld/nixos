@@ -88,6 +88,8 @@
   networking.firewall.allowedTCPPorts = [22];
   networking.firewall.checkReversePath = "loose";
 
+  hardware.enableRedistributableFirmware = true;
+
   nix.gc = {
     automatic = true;
     dates = "Sat *-*-* 03:15:00";
