@@ -116,6 +116,7 @@
             #micro = with suites; flatten [base network backups];
             raider = with suites; flatten [base];
             cloud = with suites; flatten [base core.virt network backups sites];
+            core = with suites; flatten [base];
           };
 
         nixosConfigurations = {
@@ -123,6 +124,7 @@
           raider = self.lib.mkLinuxSystem ./hosts/raider/configuration.nix;
           cloud = self.lib.mkLinuxSystem ./hosts/cloud/configuration.nix;
           raspi3 = self.lib.mkLinuxSystem ./hosts/raspi3/configuration.nix;
+          core = self.lib.mkLinuxSystem ./hosts/core/configuration.nix;
         };
 
         deploy = {
@@ -145,6 +147,10 @@
             raspi3 = {
               hostname = "raspi3";
               profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.raspi3;
+            };
+            core = {
+              hostname = "core";
+              profiles.system.path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.core;
             };
           };
         };
