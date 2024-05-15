@@ -14,14 +14,12 @@ jobs:
         machine:
           - host: cloud
             platform: aarch64-linux
-          # - host: r2s
-          #   platform: aarch64-linux
           - host: raspi3
             platform: aarch64-linux
           - host: storage
             platform: x86-64-linux
-          # - host: micro
-          #   platform: x86-64-linux
+          - host: core
+            platform: x86-64-linux
           - host: raider
             platform: x86-64-linux
 
