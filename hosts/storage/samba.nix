@@ -35,7 +35,7 @@
       };
 
       media = {
-        path = "/mnt/data/media";
+        path = "/mnt/storage/media";
         browseable = "yes";
         "read only" = "no";
       };
