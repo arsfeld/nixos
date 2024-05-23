@@ -1,6 +1,6 @@
 {self, ...}: {
   imports =
-    self.nixosSuites.core
+    self.nixosSuites.core-vm
     ++ [
       ./hardware-configuration.nix
     ];

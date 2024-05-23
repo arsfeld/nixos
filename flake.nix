@@ -116,7 +116,7 @@
             #micro = with suites; flatten [base network backups];
             raider = with suites; flatten [base];
             cloud = with suites; flatten [base core.virt network backups sites];
-            core = with suites; flatten [base];
+            core-vm = with suites; flatten [base];
           };
 
         nixosConfigurations = {
