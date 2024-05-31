@@ -46,7 +46,7 @@
 
         devshells.default = {pkgs, ...}: {
           commands = [
-            {package = pkgs.nixVersions.latest;}
+            {package = pkgs.lix;}
             {package = inputs'.agenix.packages.default;}
           ];
           packages = [
