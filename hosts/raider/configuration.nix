@@ -123,6 +123,8 @@ in {
     liberation_ttf
     source-han-sans-japanese
     source-han-serif-japanese
+
+    cascadia-code
   ];
 
   # Enable automatic login for the user.
@@ -211,6 +213,7 @@ in {
     (with pkgs; [
       gnome-photos
       gnome-tour
+      gnome-console
     ])
     ++ (with pkgs.gnome; [
       gnome-music
@@ -226,42 +229,20 @@ in {
       atomix # puzzle game
     ]);
 
-  # nixpkgs.overlays = [
-  #   (final: prev: {
-  #     gnome = prev.gnome.overrideScope (gnomeFinal: gnomePrev: {
-  #       mutter = gnomePrev.mutter.overrideAttrs (old: {
-  #         src = pkgs.fetchgit {
-  #           url = "https://gitlab.gnome.org/vanvugt/mutter.git";
-  #           # GNOME 45: triple-buffering-v4-45
-  #           rev = "0b896518b2028d9c4d6ea44806d093fd33793689";
-  #           sha256 = "sha256-mzNy5GPlB2qkI2KEAErJQzO//uo8yO0kPQUwvGDwR4w=";
-  #         };
-  #       });
-  #     });
-  #   })
-  # ];
+  nixpkgs.overlays = [
+    (self: super: let
+      id = "168727396";
+    in {
+      multiviewer-for-f1 = super.multiviewer-for-f1.overrideAttrs (old: rec {
+        version = "1.32.1";
 
-  #   nixpkgs.overlays = [
-  #   (self: super: {
-  #     gnome = super.gnome.overrideScope' (pself: psuper: {
-  #       mutter = psuper.mutter.overrideAttrs (oldAttrs: {
-  #         version = "44.5";
-  #         src = super.fetchgit {
-  #           url = "https://gitlab.gnome.org/doraskayo/mutter.git";
-  #           rev = "5c70e0148d5302046cc83cfd1c6feb8696521d95";
-  #           hash = "sha256-399fXCWhrCwHiiVoPU8sM6zQ/4Rhx5ROBiuMw9GZ0+Y=";
-  #         };
-  #         patches = (oldAttrs.patches or [ ]) ++ [
-  #           #./vrr.patch
-  #           (super.fetchpatch {
-  #              url = "https://raw.githubusercontent.com/KyleGospo/gnome-vrr/main/mutter/enable-vrr-setting.patch";
-  #              hash = "sha256-2SXIvAms1UfkkTEeQA3Ij4IwEFnIB/RlzQq74HgmKaw=";
-  #           })
-  #         ];
-  #       });
-  #     });
-  #   })
-  # ];
+        src = super.fetchurl {
+          url = "https://releases.multiviewer.dev/download/${id}/multiviewer-for-f1_${version}_amd64.deb";
+          sha256 = "sha256-cnfye5c3+ZYZLjlZ6F4OD90tXhxDbgbNBn98mgmZ+Hs=";
+        };
+      });
+    })
+  ];
 
   environment.variables = {
     MANGOHUD = "1";
