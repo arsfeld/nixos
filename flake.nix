@@ -16,6 +16,7 @@
     treefmt-nix.url = "github:numtide/treefmt-nix";
     attic.url = "github:zhaofengli/attic";
     nixos-flake.url = "github:srid/nixos-flake";
+    process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
   };
 
   outputs = {self, ...} @ inputs:
@@ -24,6 +25,7 @@
         inputs.devshell.flakeModule
         inputs.treefmt-nix.flakeModule
         inputs.nixos-flake.flakeModule
+        inputs.process-compose-flake.flakeModule
       ];
 
       systems = ["x86_64-linux" "aarch64-linux"];
@@ -37,6 +39,13 @@
         ...
       }: {
         #packages = {inherit pkgs;}; #import ./pkgs {inherit pkgs;};
+        process-compose."default" = {
+          settings = {
+            processes = {
+              attic-push.command = "attic watch-store oci:system";
+            };
+          };
+        };
 
         treefmt = {
           programs.alejandra.enable = true;
