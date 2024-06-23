@@ -33,6 +33,7 @@ in {
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
+  # Remove zfs
   boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "ntfs" "reiserfs" "vfat" "xfs" "bcachefs"];
 
   virtualisation.podman.enable = true;
@@ -41,6 +42,7 @@ in {
   services.xserver.enable = true;
 
   services.xserver.displayManager.gdm.enable = lib.mkDefault true;
+  services.xserver.displayManager.defaultSession = "gnome";
   services.xserver.desktopManager.gnome.enable = lib.mkDefault true;
   services.udev.packages = with pkgs; [gnome.gnome-settings-daemon];
 
@@ -52,24 +54,13 @@ in {
     '';
   };
 
-  specialisation = {
-    kde.configuration = {
-      system.nixos.tags = ["elementary"];
-      services.xserver.displayManager.gdm.enable = false;
-      services.xserver.desktopManager.gnome.enable = false;
-      services.xserver.desktopManager.pantheon.enable = true;
-    };
-  };
-
   hardware.opengl = {
     extraPackages = with pkgs; [mangohud];
     extraPackages32 = with pkgs; [mangohud];
   };
 
   boot.kernelPackages = pkgs.linuxPackages_zen;
-  #boot.extraModulePackages = with config.boot.kernelPackages; [ bcachefs ];
 
-  # Enable networking
   networking.networkmanager.enable = true;
 
   programs.coolercontrol.enable = true;
@@ -230,6 +221,24 @@ in {
     ]);
 
   nixpkgs.overlays = [
+    # (final: prev: let
+    #   aurRepo = pkgs.fetchgit {
+    #     url = "https://aur.archlinux.org/libadwaita-without-adwaita-git.git";
+    #     rev = "444b58f612c50a3570fc9b8370a299be2bcf6bda";
+    #     hash = "sha256-8qfIlmTAQpjmzGtl6CdWscoeFNk7YpfoutVLkilDATk=";
+    #   };
+    #   themingPatch = aurRepo + "/theming_patch.diff";
+    # in {
+    #   libadwaita = prev.libadwaita.overrideAttrs (old: {
+    #     doCheck = false;
+    #     patches =
+    #       (old.patches or [])
+    #       ++ [
+    #         themingPatch
+    #       ];
+    #   });
+    # })
+
     (self: super: let
       id = "168727396";
     in {
@@ -240,6 +249,21 @@ in {
           url = "https://releases.multiviewer.dev/download/${id}/multiviewer-for-f1_${version}_amd64.deb";
           sha256 = "sha256-cnfye5c3+ZYZLjlZ6F4OD90tXhxDbgbNBn98mgmZ+Hs=";
         };
+      });
+    })
+
+    # GNOME 46: triple-buffering-v4-46
+    (final: prev: {
+      gnome = prev.gnome.overrideScope (gnomeFinal: gnomePrev: {
+        mutter = gnomePrev.mutter.overrideAttrs (old: {
+          src = pkgs.fetchFromGitLab {
+            domain = "gitlab.gnome.org";
+            owner = "vanvugt";
+            repo = "mutter";
+            rev = "triple-buffering-v4-46";
+            hash = "sha256-fkPjB/5DPBX06t7yj0Rb3UEuu5b9mu3aS+jhH18+lpI=";
+          };
+        });
       });
     })
   ];
