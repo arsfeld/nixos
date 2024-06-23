@@ -242,7 +242,7 @@ in {
       media_player_color = "ffffff";
       background_alpha = 0.4;
       font_size = 24;
-      blacklist = "google-chrome,chrome,UplayWebCore";
+      blacklist = "google-chrome,chrome,UplayWebCore,upc";
       background_color = "020202";
       position = "top-left";
       text_color = "ffffff";
