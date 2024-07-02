@@ -42,9 +42,10 @@ in {
   services.xserver.enable = true;
 
   services.xserver.displayManager.gdm.enable = lib.mkDefault true;
-  services.xserver.displayManager.defaultSession = "gnome";
   services.xserver.desktopManager.gnome.enable = lib.mkDefault true;
   services.udev.packages = with pkgs; [gnome.gnome-settings-daemon];
+
+  services.displayManager.defaultSession = "gnome";
 
   services.xserver.desktopManager.gnome = {
     extraGSettingsOverridePackages = [pkgs.gnome.mutter];
@@ -54,7 +55,7 @@ in {
     '';
   };
 
-  hardware.opengl = {
+  hardware.graphics = {
     extraPackages = with pkgs; [mangohud];
     extraPackages32 = with pkgs; [mangohud];
   };
@@ -125,11 +126,10 @@ in {
   programs.steam.enable = true;
   programs.steam.gamescopeSession.enable = true;
 
-  hardware.opengl = {
+  hardware.graphics = {
     # this fixes the "glXChooseVisual failed" bug, context: https://github.com/NixOS/nixpkgs/issues/47932
     enable = true;
-    driSupport = true;
-    driSupport32Bit = true;
+    enable32Bit = true;
   };
 
   programs._1password-gui = {
@@ -151,6 +151,7 @@ in {
     mission-center
     variety
     bottles
+    protonplus
     quickemu
     quickgui
     multiviewer-for-f1
@@ -164,6 +165,7 @@ in {
 
     #blackbox-terminal
 
+    gradience
     gnome-extension-manager
     gnome.gnome-tweaks
     gnome.gnome-terminal

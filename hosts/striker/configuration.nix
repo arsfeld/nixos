@@ -79,12 +79,11 @@
   hardware.steam-hardware.enable = true;
 
   # Vulkan
-  hardware.opengl.driSupport = true;
-  hardware.opengl.driSupport32Bit = true;
+  hardware.graphics.enable32Bit = true;
 
   #services.xserver.videoDrivers = ["amd"];
   services.xserver.videoDrivers = ["amdgpu"];
-  hardware.opengl = {
+  hardware.graphics = {
     enable = true;
     extraPackages = with pkgs; [
       vaapiVdpau
@@ -95,7 +94,7 @@
     ];
   };
 
-  hardware.opengl.extraPackages32 = with pkgs; [
+  hardware.graphics.extraPackages32 = with pkgs; [
     driversi686Linux.amdvlk
   ];
 
