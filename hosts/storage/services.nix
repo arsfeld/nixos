@@ -58,6 +58,20 @@ in {
     guiAddress = "0.0.0.0:8384";
   };
 
+  services.scrutiny = {
+    enable = true;
+    #collector.schedule = "0 0 * * 7";
+    collector.enable = true;
+    settings.web.listen.port = 9998;
+  };
+
+  services.k3s = {
+    enable = true;
+    role = "server";
+    clusterInit = true;
+    extraFlags = "--disable=traefik";
+  };
+
   services.mediamtx = {
     enable = false;
     settings = {
@@ -294,21 +308,13 @@ in {
 
   services.postgresql = {
     enable = true;
-    ensureDatabases = ["nextcloud" "immich"];
+    ensureDatabases = ["nextcloud"];
     enableTCPIP = true;
     package = pkgs.postgresql_15;
-    extraPlugins = with pkgs.postgresql_15.pkgs; [pgvecto-rs pgvector];
+    extraPlugins = with pkgs.postgresql_15.pkgs; [pgvector];
     ensureUsers = [
       {
         name = "nextcloud";
-        ensureClauses = {
-          createrole = true;
-          createdb = true;
-        };
-        ensureDBOwnership = true;
-      }
-      {
-        name = "immich";
         ensureClauses = {
           createrole = true;
           createdb = true;
@@ -477,30 +483,30 @@ in {
       ];
     };
 
-    scrutiny = {
-      image = "ghcr.io/analogj/scrutiny:master-omnibus";
-      ports = ["9998:8080" "8086:8086"];
-      environment = {
-        COLLECTOR_CRON_SCHEDULE = "0 0 * * 7";
-      };
-      volumes = [
-        "${vars.configDir}/scrutiny/config:/opt/scrutiny/config"
-        "${vars.configDir}/scrutiny/influxdb:/opt/scrutiny/influxdb"
-        "/run/udev:/run/udev:ro"
-      ];
-      extraOptions = [
-        "--cap-add=SYS_RAWIO"
-        "--device=/dev/sda"
-        "--device=/dev/sdb"
-        "--device=/dev/sdc"
-        "--device=/dev/sdd"
-        "--device=/dev/sde"
-        "--device=/dev/sdf"
-        "--device=/dev/sdg"
-        "--device=/dev/sdh"
-        "--device=/dev/sdi"
-      ];
-    };
+    # scrutiny = {
+    #   image = "ghcr.io/analogj/scrutiny:master-omnibus";
+    #   ports = ["9998:8080" "8086:8086"];
+    #   environment = {
+    #     COLLECTOR_CRON_SCHEDULE = "0 0 * * 7";
+    #   };
+    #   volumes = [
+    #     "${vars.configDir}/scrutiny/config:/opt/scrutiny/config"
+    #     "${vars.configDir}/scrutiny/influxdb:/opt/scrutiny/influxdb"
+    #     "/run/udev:/run/udev:ro"
+    #   ];
+    #   extraOptions = [
+    #     "--cap-add=SYS_RAWIO"
+    #     "--device=/dev/sda"
+    #     "--device=/dev/sdb"
+    #     "--device=/dev/sdc"
+    #     "--device=/dev/sdd"
+    #     "--device=/dev/sde"
+    #     "--device=/dev/sdf"
+    #     "--device=/dev/sdg"
+    #     "--device=/dev/sdh"
+    #     "--device=/dev/sdi"
+    #   ];
+    # };
 
     photoprism = {
       image = "photoprism/photoprism:latest";
