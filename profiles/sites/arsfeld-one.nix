@@ -78,7 +78,8 @@ with lib; let
       restic = 8000;
       stirling = 9284;
       syncthing = 8384;
-      flaresolverr = "8191";
+      flaresolverr = 8191;
+      scrutiny = 9998;
     };
     r2s = {
       hass = 8123;
