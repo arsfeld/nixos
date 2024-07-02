@@ -12,8 +12,13 @@ with lib; let
 in {
   services.caddy.email = email;
 
+  security.acme.certs."${domain}" = {
+    extraDomainNames = ["*.${domain}"];
+  };
+
   services.caddy.virtualHosts = {
     "${domain}" = {
+      useACMEHost = domain;
       extraConfig = ''
         handle_path /.well-known/webfinger {
           respond `
@@ -32,6 +37,7 @@ in {
       '';
     };
     "users.${domain}" = {
+      useACMEHost = domain;
       extraConfig = "reverse_proxy localhost:17170";
     };
   };
