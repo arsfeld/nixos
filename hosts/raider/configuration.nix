@@ -89,7 +89,14 @@ in {
   console.keyMap = "us";
 
   # # Enable CUPS to print documents.
-  # services.printing.enable = true;
+  services.printing.enable = true;
+  services.printing.drivers = [pkgs.hplipWithPlugin pkgs.samsung-unified-linux-driver];
+
+  services.avahi = {
+    enable = true;
+    nssmdns = true;
+    openFirewall = true;
+  };
 
   # # Enable sound with pipewire.
   sound.enable = true;
@@ -164,6 +171,7 @@ in {
     virtualboxKvm
 
     #blackbox-terminal
+    ptyxis
 
     gradience
     gnome-extension-manager
