@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-unstable";
+    nixpkgs.url = "nixpkgs/nixos-unstable-small";
     nixos-generators.url = "github:nix-community/nixos-generators";
     disko.url = "github:nix-community/disko";
     agenix.url = "github:ryantm/agenix";
@@ -15,7 +15,6 @@
     devshell.inputs.nixpkgs.follows = "nixpkgs";
     treefmt-nix.url = "github:numtide/treefmt-nix";
     attic.url = "github:zhaofengli/attic";
-    nixos-flake.url = "github:srid/nixos-flake";
     process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
   };
 
@@ -24,7 +23,6 @@
       imports = [
         inputs.devshell.flakeModule
         inputs.treefmt-nix.flakeModule
-        inputs.nixos-flake.flakeModule
         inputs.process-compose-flake.flakeModule
       ];
 
