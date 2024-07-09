@@ -40,6 +40,12 @@
         "read only" = "no";
       };
 
+      media-legacy = {
+        path = "/mnt/data/media";
+        browseable = "yes";
+        "read only" = "no";
+      };
+
       backups = {
         path = "/mnt/data/backups";
         browseable = "yes";
