@@ -13,8 +13,6 @@
 
   nixpkgs.hostPlatform = "aarch64-linux";
 
-  services.netdata.enable = true;
-
   networking.hostName = "raspi3";
   time.timeZone = "America/Toronto";
 
