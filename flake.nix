@@ -132,6 +132,7 @@
           cloud = self.lib.mkLinuxSystem ./hosts/cloud/configuration.nix;
           raspi3 = self.lib.mkLinuxSystem ./hosts/raspi3/configuration.nix;
           core = self.lib.mkLinuxSystem ./hosts/core/configuration.nix;
+          g14 = self.lib.mkLinuxSystem ./hosts/g14/configuration.nix;
         };
 
         deploy = {
@@ -158,6 +159,10 @@
             core = {
               hostname = "core";
               profiles.system.path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.core;
+            };
+            g14 = {
+              hostname = "g14";
+              profiles.system.path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.g14;
             };
           };
         };
