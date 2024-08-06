@@ -192,14 +192,13 @@ in {
     gnomeExtensions.appindicator
     gnomeExtensions.blur-my-shell
     gnomeExtensions.dash-to-dock
-    gnomeExtensions.gsnap
-    gnomeExtensions.system76-scheduler
     gnomeExtensions.gsconnect
     gnomeExtensions.gtile
     gnomeExtensions.xwayland-indicator
     gnomeExtensions.vitals
     gnomeExtensions.window-gestures
     gnomeExtensions.user-themes
+    gnomeExtensions.tiling-shell
 
     #qogir-theme
     #materia-theme
