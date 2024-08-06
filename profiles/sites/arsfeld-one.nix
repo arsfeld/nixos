@@ -42,6 +42,7 @@ with lib; let
       attic = 8080;
       #"auth" = "9099";
       search = 8888;
+      metube = 8081;
     };
     storage = {
       code = 3434;
@@ -80,6 +81,7 @@ with lib; let
       syncthing = 8384;
       flaresolverr = 8191;
       scrutiny = 9998;
+      pinchflat = 8945;
     };
     r2s = {
       hass = 8123;

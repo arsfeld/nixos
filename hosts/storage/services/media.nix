@@ -163,5 +163,17 @@ in {
       image = "ghcr.io/flaresolverr/flaresolverr:latest";
       ports = ["8191:8191"];
     };
+
+    pinchflat = {
+      image = "ghcr.io/kieraneglin/pinchflat:latest";
+      environment = {
+        TZ = "America/New_York";
+      };
+      ports = ["8945:8945"];
+      volumes = [
+        "${vars.configDir}/pinchflat:/config"
+        "${vars.storageDir}/media/Pinchflat:/downloads"
+      ];
+    };
   };
 }
