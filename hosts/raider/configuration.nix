@@ -94,12 +94,11 @@ in {
 
   services.avahi = {
     enable = true;
-    nssmdns = true;
+    nssmdns4 = true;
     openFirewall = true;
   };
 
   # # Enable sound with pipewire.
-  sound.enable = true;
   hardware.pulseaudio.enable = false;
   security.rtkit.enable = true;
   services.pipewire = {
@@ -189,8 +188,7 @@ in {
 
     gradience
     gnome-extension-manager
-    gnome.gnome-tweaks
-    gnome.gnome-terminal
+    gnome-tweaks
     gnomeExtensions.appindicator
     gnomeExtensions.blur-my-shell
     gnomeExtensions.dash-to-dock
@@ -229,15 +227,15 @@ in {
       gnome-photos
       gnome-tour
       gnome-console
+      gnome-terminal
+      gnome-system-monitor
+      geary
+      evince
+      totem
     ])
     ++ (with pkgs.gnome; [
       gnome-music
-      gnome-terminal
-      gnome-system-monitor
       gnome-shell-extensions
-      geary # email reader
-      evince # document viewer
-      totem # video player
       tali # poker game
       iagno # go game
       hitori # sudoku game
@@ -263,33 +261,33 @@ in {
     #   });
     # })
 
-    (self: super: let
-      id = "168727396";
-    in {
-      multiviewer-for-f1 = super.multiviewer-for-f1.overrideAttrs (old: rec {
-        version = "1.32.1";
+    # (self: super: let
+    #   id = "168727396";
+    # in {
+    #   multiviewer-for-f1 = super.multiviewer-for-f1.overrideAttrs (old: rec {
+    #     version = "1.32.1";
 
-        src = super.fetchurl {
-          url = "https://releases.multiviewer.dev/download/${id}/multiviewer-for-f1_${version}_amd64.deb";
-          sha256 = "sha256-cnfye5c3+ZYZLjlZ6F4OD90tXhxDbgbNBn98mgmZ+Hs=";
-        };
-      });
-    })
+    #     src = super.fetchurl {
+    #       url = "https://releases.multiviewer.dev/download/${id}/multiviewer-for-f1_${version}_amd64.deb";
+    #       sha256 = "sha256-cnfye5c3+ZYZLjlZ6F4OD90tXhxDbgbNBn98mgmZ+Hs=";
+    #     };
+    #   });
+    # })
 
     # GNOME 46: triple-buffering-v4-46
-    (final: prev: {
-      gnome = prev.gnome.overrideScope (gnomeFinal: gnomePrev: {
-        mutter = gnomePrev.mutter.overrideAttrs (old: {
-          src = pkgs.fetchFromGitLab {
-            domain = "gitlab.gnome.org";
-            owner = "vanvugt";
-            repo = "mutter";
-            rev = "triple-buffering-v4-46";
-            hash = "sha256-fkPjB/5DPBX06t7yj0Rb3UEuu5b9mu3aS+jhH18+lpI=";
-          };
-        });
-      });
-    })
+    # (final: prev: {
+    #   gnome = prev.gnome.overrideScope (gnomeFinal: gnomePrev: {
+    #     mutter = gnomePrev.mutter.overrideAttrs (old: {
+    #       src = pkgs.fetchFromGitLab {
+    #         domain = "gitlab.gnome.org";
+    #         owner = "vanvugt";
+    #         repo = "mutter";
+    #         rev = "triple-buffering-v4-46";
+    #         hash = "sha256-nz1Enw1NjxLEF3JUG0qknJgf4328W/VvdMjJmoOEMYs=";
+    #       };
+    #     });
+    #   });
+    # })
   ];
 
   environment.variables = {
