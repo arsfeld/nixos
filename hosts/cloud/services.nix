@@ -233,7 +233,7 @@ in {
   services.vaultwarden = {
     enable = true;
     config = {
-      DOMAIN = "https://bitwarden.${mediaDomain}";
+      DOMAIN = "https://vault.${mediaDomain}";
       SIGNUPS_ALLOWED = true;
       ROCKET_ADDRESS = "0.0.0.0";
     };

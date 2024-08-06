@@ -41,5 +41,11 @@
       ports = ["5006:5006"];
       volumes = ["/var/lib/actual:/data"];
     };
+
+    metube = {
+      image = "ghcr.io/alexta69/metube";
+      volumes = ["/var/lib/metube:/downloads"];
+      ports = ["8081:8081"];
+    };
   };
 }
