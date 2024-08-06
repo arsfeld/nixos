@@ -108,7 +108,7 @@
 
   fileSystems."/mnt/storage" = {
     fsType = "bcachefs";
-    device = "OLD_BLKID_UUID=dc302bad-592a-412a-8912-88eb07ced0b9";
+    device = "UUID=dc302bad-592a-412a-8912-88eb07ced0b9";
     options = ["compression=zstd" "nofail"];
   };
 
