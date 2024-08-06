@@ -17,30 +17,38 @@
   boot.kernelModules = ["kvm-amd"];
   boot.extraModulePackages = [];
 
+  security.protectKernelImage = false;
+
+  boot.kernelParams = ["mem_sleep_default=deep"];
+
+  boot.resumeDevice = "/dev/disk/by-uuid/7d9e8321-3981-44a1-aa72-4491f2b445ef";
+
+  services.logind = {
+    lidSwitch = "suspend-then-hibernate";
+    extraConfig = ''
+      HandlePowerKey=suspend-then-hibernate
+      IdleAction=suspend-then-hibernate
+      IdleActionSec=2m
+    '';
+  };
+
+  systemd.sleep.extraConfig = ''
+    HibernateDelaySec=30m
+  '';
+
   fileSystems."/" = {
-    device = "/dev/disk/by-uuid/70d08bac-1885-4f23-ae74-ded37292eec7";
-    fsType = "btrfs";
-    options = ["subvol=nixos" "compress=zstd"];
-  };
-
-  fileSystems."/nix" = {
-    device = "/dev/disk/by-uuid/70d08bac-1885-4f23-ae74-ded37292eec7";
-    fsType = "btrfs";
-    options = ["subvol=nix" "compress=zstd" "noatime"];
-  };
-
-  fileSystems."/home" = {
-    device = "/dev/disk/by-uuid/70d08bac-1885-4f23-ae74-ded37292eec7";
-    fsType = "btrfs";
-    options = ["subvol=home" "compress=zstd"];
+    device = "/dev/disk/by-uuid/6a1e52ad-be97-4ff8-9f92-1c929e6de5ad";
+    fsType = "ext4";
   };
 
   fileSystems."/boot" = {
-    device = "/dev/disk/by-uuid/C5B2-9E09";
+    device = "/dev/disk/by-uuid/BE95-E1D2";
     fsType = "vfat";
   };
 
-  swapDevices = [];
+  swapDevices = [
+    {device = "/dev/disk/by-uuid/7d9e8321-3981-44a1-aa72-4491f2b445ef";}
+  ];
 
   # Enables DHCP on each ethernet and wireless interface. In case of scripted networking
   # (the default) this is the recommended approach. When using systemd-networkd it's
