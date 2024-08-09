@@ -405,7 +405,6 @@ in {
       volumes = [
         "${vars.configDir}/immich/model-cache:/cache"
       ];
-      extraOptions = ["--net-alias=immich-ml"];
     };
 
     immich-db = {
@@ -418,7 +417,7 @@ in {
       volumes = [
         "${vars.configDir}/immich/db:/var/lib/postgresql/data"
       ];
-      extraOptions = ["--net-alias=immich-db"];
+      #extraOptions = ["--net-alias=immich-db"];
     };
 
     watchtower = {
