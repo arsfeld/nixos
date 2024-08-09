@@ -71,7 +71,7 @@ with lib; let
       jellyfin = 8096;
       jf = 3831;
       nzbhydra2 = 5076;
-      sabnzbd = 9998;
+      sabnzbd = 8080;
       grafana = 2345;
       seafile = 8082;
       filestash = 8334;

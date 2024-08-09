@@ -25,9 +25,14 @@ in {
     group = vars.group;
   };
 
-  services.prowlarr = {
+  services.sabnzbd = {
     enable = true;
+    user = vars.user;
+    group = vars.group;
   };
+
+  services.prowlarr.enable = true;
+  services.nzbhydra2.enable = true;
 
   services.jellyfin = {
     enable = true;
