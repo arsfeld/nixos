@@ -16,6 +16,11 @@
     treefmt-nix.url = "github:numtide/treefmt-nix";
     attic.url = "github:zhaofengli/attic";
     process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
+
+    nixos-cosmic = {
+      url = "github:lilyinstarlight/nixos-cosmic";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = {self, ...} @ inputs:
@@ -93,15 +98,11 @@
             })
           ];
         in rec {
-          mkLinuxSystem = mod:
+          mkLinuxSystem = mods:
             inputs.nixpkgs.lib.nixosSystem {
               # Arguments to pass to all modules.
               specialArgs = {inherit self inputs;};
-              modules =
-                commonModules
-                ++ [
-                  mod
-                ];
+              modules = commonModules ++ mods;
             };
         };
 
@@ -127,12 +128,15 @@
           };
 
         nixosConfigurations = {
-          storage = self.lib.mkLinuxSystem ./hosts/storage/configuration.nix;
-          raider = self.lib.mkLinuxSystem ./hosts/raider/configuration.nix;
-          cloud = self.lib.mkLinuxSystem ./hosts/cloud/configuration.nix;
-          raspi3 = self.lib.mkLinuxSystem ./hosts/raspi3/configuration.nix;
-          core = self.lib.mkLinuxSystem ./hosts/core/configuration.nix;
-          g14 = self.lib.mkLinuxSystem ./hosts/g14/configuration.nix;
+          storage = self.lib.mkLinuxSystem [./hosts/storage/configuration.nix];
+          raider = self.lib.mkLinuxSystem [
+            inputs.nixos-cosmic.nixosModules.default
+            ./hosts/raider/configuration.nix
+          ];
+          cloud = self.lib.mkLinuxSystem [./hosts/cloud/configuration.nix];
+          raspi3 = self.lib.mkLinuxSystem [./hosts/raspi3/configuration.nix];
+          core = self.lib.mkLinuxSystem [./hosts/core/configuration.nix];
+          g14 = self.lib.mkLinuxSystem [./hosts/g14/configuration.nix];
         };
 
         deploy = {

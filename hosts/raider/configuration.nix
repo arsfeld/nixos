@@ -41,7 +41,7 @@ in {
 
   services.xserver.enable = true;
 
-  services.xserver.displayManager.gdm.enable = lib.mkDefault true;
+  services.xserver.displayManager.gdm.enable = lib.mkDefault false;
   services.xserver.desktopManager.gnome.enable = lib.mkDefault true;
   services.udev.packages = with pkgs; [gnome.gnome-settings-daemon];
 
@@ -54,6 +54,9 @@ in {
       experimental-features=['variable-refresh-rate']
     '';
   };
+
+  services.desktopManager.cosmic.enable = true;
+  services.displayManager.cosmic-greeter.enable = true;
 
   hardware.graphics = {
     extraPackages = with pkgs; [mangohud];
@@ -289,9 +292,9 @@ in {
     # })
   ];
 
-  environment.variables = {
-    MANGOHUD = "1";
-  };
+  # environment.variables = {
+  #   MANGOHUD = "1";
+  # };
 
   services.flatpak = {
     enable = true;
