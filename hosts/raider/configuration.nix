@@ -41,7 +41,7 @@ in {
 
   services.xserver.enable = true;
 
-  services.xserver.displayManager.gdm.enable = lib.mkDefault false;
+  services.xserver.displayManager.gdm.enable = lib.mkDefault true;
   services.xserver.desktopManager.gnome.enable = lib.mkDefault true;
   services.udev.packages = with pkgs; [gnome.gnome-settings-daemon];
 
@@ -56,7 +56,7 @@ in {
   };
 
   services.desktopManager.cosmic.enable = true;
-  services.displayManager.cosmic-greeter.enable = true;
+  #services.displayManager.cosmic-greeter.enable = true;
 
   hardware.graphics = {
     extraPackages = with pkgs; [mangohud];
@@ -64,6 +64,16 @@ in {
   };
 
   boot.kernelPackages = pkgs.linuxPackages_zen;
+
+  boot.kernelPatches = [
+    {
+      name = "amdfix";
+      patch = builtins.fetchurl {
+        url = "https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/patch/?id=e3615bd198289f319172c428f20857accb46b830";
+        sha256 = "0qcmy47rjrfh9p6ip45axnvwha4dp5hd0r5lm3zab4h9x16byhmc";
+      };
+    }
+  ];
 
   networking.networkmanager.enable = true;
 
