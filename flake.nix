@@ -136,7 +136,10 @@
           cloud = self.lib.mkLinuxSystem [./hosts/cloud/configuration.nix];
           raspi3 = self.lib.mkLinuxSystem [./hosts/raspi3/configuration.nix];
           core = self.lib.mkLinuxSystem [./hosts/core/configuration.nix];
-          g14 = self.lib.mkLinuxSystem [./hosts/g14/configuration.nix];
+          g14 = self.lib.mkLinuxSystem [
+            inputs.nixos-cosmic.nixosModules.default
+            ./hosts/g14/configuration.nix
+          ];
         };
 
         deploy = {
