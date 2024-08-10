@@ -25,7 +25,7 @@
       trusted-public-keys = [
         "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
         "numtide.cachix.org-1:2ps1kLBUWjxIneOy1Ik6cQjb41X0iXVXeHigGmycPPE="
-        "system:HOMg/Zztxw6YUqkgtLkotBN0jA0q1xOYiIBtUL6gswY="
+        "system:3+7hMuZfbXosfHEF4S2RG40v4yBPF03iUQ8UpDqiNBA="
         "deploy-rs.cachix.org-1:xfNobmiwF/vzvK1gpfediPwpdIP0rpDV2rYqx40zdSI="
         "cosmic.cachix.org-1:Dya9IyXD4xdBehWjrkPv6rtxpmMdRel02smYzA85dPE="
       ];
