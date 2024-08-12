@@ -114,9 +114,11 @@
 
   systemd.services.mount-storage = {
     description = "mount storage";
-    script = "/run/current-system/sw/bin/mount /mnt/storage";
+    script = "/run/current-system/sw/bin/mount /mnt/storage || true";
     wantedBy = ["multi-user.target"];
   };
+
+  systemd.services.docker.after = ["mount-storage.service"];
 
   swapDevices = [
     {device = "/dev/disk/by-uuid/5b0cde2c-d3f4-4d49-905f-5ada9910eda4";}
@@ -124,6 +126,7 @@
 
   networking.useDHCP = lib.mkDefault true;
 
-  powerManagement.cpuFreqGovernor = lib.mkDefault "powersave";
+  powerManagement.powertop.enable = true;
+
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 }
