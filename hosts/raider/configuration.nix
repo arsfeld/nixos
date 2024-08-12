@@ -23,6 +23,8 @@ in {
   boot.initrd.verbose = false;
   boot.consoleLogLevel = 0;
 
+  powerManagement.powertop.enable = true;
+
   services.system76-scheduler.enable = true;
 
   networking.hostName = "raider-nixos";
