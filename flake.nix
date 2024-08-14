@@ -21,6 +21,11 @@
       url = "github:lilyinstarlight/nixos-cosmic";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    lix-module = {
+      url = "https://git.lix.systems/lix-project/nixos-module/archive/2.91.0.tar.gz";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = {self, ...} @ inputs:
@@ -58,7 +63,7 @@
 
         devshells.default = {pkgs, ...}: {
           commands = [
-            {package = pkgs.lix;}
+            {package = inputs'.lix-module.packages.default;}
             {package = inputs'.agenix.packages.default;}
           ];
           packages = [
@@ -81,6 +86,7 @@
       flake = {
         lib = let
           commonModules = [
+            inputs.lix-module.nixosModules.default
             inputs.agenix.nixosModules.default
             inputs.home-manager.nixosModules.home-manager
             {
