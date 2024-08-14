@@ -37,6 +37,8 @@ with lib; {
     supportedFilesystems = ["zfs" "bcachefs"];
   };
 
+  services.earlyoom.enable = true;
+
   boot.kernelPackages = config.boot.zfs.package.latestCompatibleLinuxPackages;
 
   #boot.kernelParams = ["i915.enable_guc=3"];
