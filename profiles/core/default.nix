@@ -21,6 +21,7 @@
         "https://attic.arsfeld.one/system"
         "https://deploy-rs.cachix.org"
         "https://cosmic.cachix.org/"
+        "https://cache.lix.systems/"
       ];
       trusted-public-keys = [
         "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
@@ -28,6 +29,7 @@
         "system:3+7hMuZfbXosfHEF4S2RG40v4yBPF03iUQ8UpDqiNBA="
         "deploy-rs.cachix.org-1:xfNobmiwF/vzvK1gpfediPwpdIP0rpDV2rYqx40zdSI="
         "cosmic.cachix.org-1:Dya9IyXD4xdBehWjrkPv6rtxpmMdRel02smYzA85dPE="
+        "cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o="
       ];
 
       netrc-file = config.age.secrets.attic-netrc.path;
