@@ -23,7 +23,7 @@ in {
   boot.initrd.verbose = false;
   boot.consoleLogLevel = 0;
 
-  powerManagement.powertop.enable = true;
+  # powerManagement.powertop.enable = true;
 
   services.system76-scheduler.enable = true;
 
@@ -47,7 +47,10 @@ in {
   services.xserver.desktopManager.gnome.enable = lib.mkDefault true;
   services.udev.packages = with pkgs; [gnome.gnome-settings-daemon];
 
-  services.displayManager.defaultSession = "gnome";
+  services.desktopManager.cosmic.enable = true;
+  #services.displayManager.cosmic-greeter.enable = true;
+
+  #services.displayManager.defaultSession = "gnome";
 
   services.xserver.desktopManager.gnome = {
     extraGSettingsOverridePackages = [pkgs.gnome.mutter];
@@ -56,9 +59,6 @@ in {
       experimental-features=['variable-refresh-rate']
     '';
   };
-
-  services.desktopManager.cosmic.enable = true;
-  #services.displayManager.cosmic-greeter.enable = true;
 
   hardware.graphics = {
     extraPackages = with pkgs; [mangohud];
@@ -217,7 +217,6 @@ in {
 
     #qogir-theme
     #materia-theme
-    yaru-theme
     #zuki-themes
     #tela-icon-theme
     #tela-circle-icon-theme
@@ -226,14 +225,16 @@ in {
     #papirus-icon-theme
     #morewaita-icon-theme
     #moka-icon-theme
-    colloid-icon-theme
-    colloid-gtk-theme
     #orchis-theme
 
-    pantheon.elementary-sound-theme
-    pantheon.elementary-gtk-theme
-    pantheon.elementary-icon-theme
-    pantheon.elementary-wallpapers
+    # yaru-theme
+    # colloid-icon-theme
+    # colloid-gtk-theme
+
+    # pantheon.elementary-sound-theme
+    # pantheon.elementary-gtk-theme
+    # pantheon.elementary-icon-theme
+    # pantheon.elementary-wallpapers
   ];
 
   environment.gnome.excludePackages =
