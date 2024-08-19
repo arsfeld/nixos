@@ -48,6 +48,7 @@ in {
       nvidia-offload
       nil
       devbox
+      yt-dlp
       (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
       (writeScriptBin "running" (builtins.readFile ./scripts/running))
     ];
@@ -139,7 +140,7 @@ in {
 
   programs.git = {
     enable = true;
-    delta.enable = true;
+    #delta.enable = true;
     userEmail = "arsfeld@gmail.com";
     userName = "Alexandre Rosenfeld";
     extraConfig = {
@@ -171,7 +172,7 @@ in {
   programs.zellij = {
     enable = true;
     settings = {
-      theme = "dracula";
+      theme = "catppuccin-macchiato";
       #mouse_mode = false;
       copy_on_select = false;
     };

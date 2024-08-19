@@ -21,18 +21,13 @@
       url = "github:lilyinstarlight/nixos-cosmic";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-
-    lix-module = {
-      url = "https://git.lix.systems/lix-project/nixos-module/archive/2.91.0.tar.gz";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs = {self, ...} @ inputs:
     inputs.flake-parts.lib.mkFlake {inherit inputs;} ({moduleWithSystem, ...}: {
       imports = [
         inputs.devshell.flakeModule
-        inputs.treefmt-nix.flakeModule
+        #inputs.treefmt-nix.flakeModule
         inputs.process-compose-flake.flakeModule
       ];
 
@@ -55,18 +50,18 @@
           };
         };
 
-        treefmt = {
-          programs.alejandra.enable = true;
-          flakeFormatter = true;
-          projectRootFile = "flake.nix";
-        };
+        # treefmt = {
+        #   programs.alejandra.enable = true;
+        #   flakeFormatter = true;
+        #   projectRootFile = "flake.nix";
+        # };
 
         devshells.default = {pkgs, ...}: {
           commands = [
-            {package = inputs'.lix-module.packages.default;}
             {package = inputs'.agenix.packages.default;}
           ];
           packages = [
+            pkgs.lix
             pkgs.just
             pkgs.attic-client
             pkgs.alejandra
@@ -86,7 +81,6 @@
       flake = {
         lib = let
           commonModules = [
-            inputs.lix-module.nixosModules.default
             inputs.agenix.nixosModules.default
             inputs.home-manager.nixosModules.home-manager
             {
@@ -150,6 +144,8 @@
 
         deploy = {
           sshUser = "root";
+          autoRollback = false;
+          magicRollback = false;
           nodes = {
             storage = {
               hostname = "storage";
