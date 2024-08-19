@@ -177,7 +177,7 @@ in {
     quickgui
     multiviewer-for-f1
     lutris
-    cartridges
+    #cartridges
     ryujinx
     mupen64plus
     rpcs3
@@ -227,14 +227,14 @@ in {
     #moka-icon-theme
     #orchis-theme
 
-    # yaru-theme
-    # colloid-icon-theme
-    # colloid-gtk-theme
+    yaru-theme
+    colloid-icon-theme
+    colloid-gtk-theme
 
-    # pantheon.elementary-sound-theme
-    # pantheon.elementary-gtk-theme
-    # pantheon.elementary-icon-theme
-    # pantheon.elementary-wallpapers
+    pantheon.elementary-sound-theme
+    pantheon.elementary-gtk-theme
+    pantheon.elementary-icon-theme
+    pantheon.elementary-wallpapers
   ];
 
   environment.gnome.excludePackages =
@@ -258,51 +258,53 @@ in {
     ]);
 
   nixpkgs.overlays = [
-    # (final: prev: let
-    #   aurRepo = pkgs.fetchgit {
-    #     url = "https://aur.archlinux.org/libadwaita-without-adwaita-git.git";
-    #     rev = "444b58f612c50a3570fc9b8370a299be2bcf6bda";
-    #     hash = "sha256-8qfIlmTAQpjmzGtl6CdWscoeFNk7YpfoutVLkilDATk=";
-    #   };
-    #   themingPatch = aurRepo + "/theming_patch.diff";
-    # in {
-    #   libadwaita = prev.libadwaita.overrideAttrs (old: {
-    #     doCheck = false;
-    #     patches =
-    #       (old.patches or [])
-    #       ++ [
-    #         themingPatch
-    #       ];
-    #   });
-    # })
+    (final: prev: let
+      aurRepo = pkgs.fetchgit {
+        url = "https://aur.archlinux.org/libadwaita-without-adwaita-git.git";
+        rev = "444b58f612c50a3570fc9b8370a299be2bcf6bda";
+        hash = "sha256-8qfIlmTAQpjmzGtl6CdWscoeFNk7YpfoutVLkilDATk=";
+      };
+      themingPatch = aurRepo + "/theming_patch.diff";
+    in {
+      libadwaita-without-adwaita = prev.libadwaita.overrideAttrs (old: {
+        doCheck = false;
+        patches =
+          (old.patches or [])
+          ++ [
+            themingPatch
+          ];
+      });
 
-    # (self: super: let
-    #   id = "168727396";
-    # in {
-    #   multiviewer-for-f1 = super.multiviewer-for-f1.overrideAttrs (old: rec {
-    #     version = "1.32.1";
-
-    #     src = super.fetchurl {
-    #       url = "https://releases.multiviewer.dev/download/${id}/multiviewer-for-f1_${version}_amd64.deb";
-    #       sha256 = "sha256-cnfye5c3+ZYZLjlZ6F4OD90tXhxDbgbNBn98mgmZ+Hs=";
-    #     };
-    #   });
-    # })
+      # gnome-control-center = prev.gnome-control-center.overrideAttrs (old: {
+      #   doCheck = false;
+      #   preCheck = ''
+      #     ${old.preCheck}
+      #     export GTK_THEME=Adwaita-dark
+      #   '';
+      # });
+    })
 
     # GNOME 46: triple-buffering-v4-46
-    # (final: prev: {
-    #   gnome = prev.gnome.overrideScope (gnomeFinal: gnomePrev: {
-    #     mutter = gnomePrev.mutter.overrideAttrs (old: {
-    #       src = pkgs.fetchFromGitLab {
-    #         domain = "gitlab.gnome.org";
-    #         owner = "vanvugt";
-    #         repo = "mutter";
-    #         rev = "triple-buffering-v4-46";
-    #         hash = "sha256-nz1Enw1NjxLEF3JUG0qknJgf4328W/VvdMjJmoOEMYs=";
-    #       };
-    #     });
-    #   });
-    # })
+    (final: prev: {
+      gnome = prev.gnome.overrideScope (gnomeFinal: gnomePrev: {
+        mutter = gnomePrev.mutter.overrideAttrs (old: {
+          src = pkgs.fetchFromGitLab {
+            domain = "gitlab.gnome.org";
+            owner = "vanvugt";
+            repo = "mutter";
+            rev = "triple-buffering-v4-46";
+            hash = "sha256-C2VfW3ThPEZ37YkX7ejlyumLnWa9oij333d5c4yfZxc=";
+          };
+        });
+      });
+    })
+  ];
+
+  system.replaceRuntimeDependencies = [
+    {
+      original = pkgs.libadwaita;
+      replacement = pkgs.libadwaita-without-adwaita;
+    }
   ];
 
   # environment.variables = {
