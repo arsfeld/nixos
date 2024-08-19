@@ -3,13 +3,13 @@
 fmt: 
     nix fmt
 
-args := "--skip-checks --auto-rollback false"
+args := "--skip-checks"
 
-boot +HOST: fmt
-    deploy {{ args }} --boot --targets .#{{HOST}}
+boot +HOST: 
+    deploy {{ args }} --boot --targets .#{{HOST}} -- --impure
 
-deploy +HOST: fmt
-    deploy {{ args }} --targets .#{{HOST}}
+deploy +HOST: 
+    deploy {{ args }} --targets .#{{HOST}} -- --impure
 
 build HOST:
     nix build '.#nixosConfigurations.{{ HOST }}.config.system.build.toplevel'

@@ -81,6 +81,8 @@
     libvirt
     ffmpeg
     exiftool
+    #bandwhich
+    duf
   ];
 
   programs.nix-ld.enable = true;
