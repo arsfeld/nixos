@@ -59,35 +59,35 @@
     fsType = "vfat";
   };
 
-  fileSystems."/mnt/data" = {
-    device = "data";
-    fsType = "zfs";
-    options = ["zfsutil" "X-mount.mkdir"];
-  };
+  # fileSystems."/mnt/old-data" = {
+  #   device = "data";
+  #   fsType = "zfs";
+  #   options = ["zfsutil" "X-mount.mkdir"];
+  # };
 
-  fileSystems."/mnt/data/media" = {
-    device = "data/media";
-    fsType = "zfs";
-    options = ["zfsutil" "X-mount.mkdir"];
-  };
+  # fileSystems."/mnt/old-data/media" = {
+  #   device = "data/media";
+  #   fsType = "zfs";
+  #   options = ["zfsutil" "X-mount.mkdir"];
+  # };
 
-  fileSystems."/mnt/data/files" = {
-    device = "data/files";
-    fsType = "zfs";
-    options = ["zfsutil" "X-mount.mkdir"];
-  };
+  # fileSystems."/mnt/old-data/files" = {
+  #   device = "data/files";
+  #   fsType = "zfs";
+  #   options = ["zfsutil" "X-mount.mkdir"];
+  # };
 
-  fileSystems."/mnt/data/backups" = {
-    device = "data/backups";
-    fsType = "zfs";
-    options = ["zfsutil" "X-mount.mkdir"];
-  };
+  # fileSystems."/mnt/old-data/backups" = {
+  #   device = "data/backups";
+  #   fsType = "zfs";
+  #   options = ["zfsutil" "X-mount.mkdir"];
+  # };
 
-  fileSystems."/mnt/data/homes" = {
-    device = "data/homes";
-    fsType = "zfs";
-    options = ["zfsutil" "X-mount.mkdir"];
-  };
+  # fileSystems."/mnt/old-data/homes" = {
+  #   device = "data/homes";
+  #   fsType = "zfs";
+  #   options = ["zfsutil" "X-mount.mkdir"];
+  # };
 
   environment.systemPackages = with pkgs; [
     mergerfs
@@ -106,11 +106,17 @@
   #   options = ["compress=zstd" "noatime"];
   # };
 
-  fileSystems."/mnt/storage" = {
+  fileSystems."/mnt/data" = {
     fsType = "bcachefs";
-    device = "UUID=dc302bad-592a-412a-8912-88eb07ced0b9";
+    device = "/dev/disk/by-uuid/0f89df18-94d3-4083-8b21-2e5ebac00a44";
     options = ["compression=zstd" "nofail"];
   };
+
+  # fileSystems."/mnt/storage" = {
+  #   fsType = "bcachefs";
+  #   device = "/dev/disk/by-id/usb-Seagate_Expansion_HDD_00000000NT177PDR-0:0-part2";
+  #   options = ["compression=zstd" "nofail"];
+  # };
 
   systemd.services.mount-storage = {
     description = "mount storage";
