@@ -67,16 +67,6 @@ in {
 
   boot.kernelPackages = pkgs.linuxPackages_zen;
 
-  boot.kernelPatches = [
-    {
-      name = "amdfix";
-      patch = builtins.fetchurl {
-        url = "https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/patch/?id=e3615bd198289f319172c428f20857accb46b830";
-        sha256 = "0qcmy47rjrfh9p6ip45axnvwha4dp5hd0r5lm3zab4h9x16byhmc";
-      };
-    }
-  ];
-
   networking.networkmanager.enable = true;
 
   programs.coolercontrol.enable = true;
@@ -196,7 +186,7 @@ in {
     # Support the Video Audio (Hardware) Acceleration API
     gst_all_1.gst-vaapi
 
-    virtualboxKvm
+    #virtualboxKvm
 
     #blackbox-terminal
     ptyxis
@@ -300,12 +290,12 @@ in {
     })
   ];
 
-  system.replaceRuntimeDependencies = [
-    {
-      original = pkgs.libadwaita;
-      replacement = pkgs.libadwaita-without-adwaita;
-    }
-  ];
+  # system.replaceRuntimeDependencies = [
+  #   {
+  #     original = pkgs.libadwaita;
+  #     replacement = pkgs.libadwaita-without-adwaita;
+  #   }
+  # ];
 
   # environment.variables = {
   #   MANGOHUD = "1";
