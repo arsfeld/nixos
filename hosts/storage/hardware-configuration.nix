@@ -112,11 +112,11 @@
     options = ["compression=zstd" "nofail"];
   };
 
-  # fileSystems."/mnt/storage" = {
-  #   fsType = "bcachefs";
-  #   device = "/dev/disk/by-id/usb-Seagate_Expansion_HDD_00000000NT177PDR-0:0-part2";
-  #   options = ["compression=zstd" "nofail"];
-  # };
+  fileSystems."/mnt/storage" = {
+    fsType = "bcachefs";
+    device = "/dev/disk/by-uuid/74d26e9d-3e6c-4b33-9f63-d91bf13606b0";
+    options = ["compression=zstd" "nofail"];
+  };
 
   systemd.services.mount-storage = {
     description = "mount storage";
