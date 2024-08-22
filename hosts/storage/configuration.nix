@@ -39,7 +39,8 @@ with lib; {
 
   services.earlyoom.enable = true;
 
-  boot.kernelPackages = pkgs.linuxPackages_6_9;
+  boot.kernelPackages = pkgs.linuxPackages_6_10;
+  boot.zfs.package = pkgs.zfs_unstable;
 
   #boot.kernelParams = ["i915.enable_guc=3"];
 
