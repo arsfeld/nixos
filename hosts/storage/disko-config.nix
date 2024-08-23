@@ -1,5 +1,5 @@
 # btrfs/disko-config.nix
-{disk ? "/dev/nvme1n1", ...}: {
+{disk ? "/dev/disk/by-id/nvme-XrayDisk_512GB_SSD_AA000000000000000321", ...}: {
   disko.devices = {
     disk = {
       main = {

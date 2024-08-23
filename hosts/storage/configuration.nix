@@ -13,7 +13,6 @@ with lib; {
       ./disko-config.nix
       ./variables.nix
       ./hardware-configuration.nix
-      ./zfs.nix
       ./cloud-sync.nix
       ./users.nix
       ./samba.nix
@@ -28,14 +27,17 @@ with lib; {
   networking.firewall.enable = false;
   nixpkgs.hostPlatform = "x86_64-linux";
 
-  virtualisation.docker.storageDriver = "zfs";
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+
+  #virtualisation.docker.storageDriver = "zfs";
 
   boot = {
     #loader.systemd-boot.enable = true;
     #loader.efi.canTouchEfiVariables = true;
     binfmt.emulatedSystems = ["aarch64-linux"];
     kernelModules = ["kvm-intel" "ip6_tables"];
-    supportedFilesystems = ["zfs" "bcachefs"];
+    supportedFilesystems = ["bcachefs"];
   };
 
   services.earlyoom.enable = true;
@@ -50,8 +52,8 @@ with lib; {
 
   systemd.enableEmergencyMode = false;
 
-  services.zfs.autoScrub.enable = true;
-  services.zfs.autoScrub.interval = "monthly";
+  # services.zfs.autoScrub.enable = true;
+  # services.zfs.autoScrub.interval = "monthly";
   services.smartd = {
     enable = true;
     notifications.mail.enable = true;

@@ -18,123 +18,10 @@
   boot.extraModulePackages = with config.boot.kernelPackages; [it87];
   boot.kernelParams = ["acpi_osi=\"Windows 2015\""];
 
-  fileSystems."/" = {
-    device = "/dev/disk/by-uuid/0d82da00-d54c-42bf-933e-690b5fc32f60";
-    fsType = "btrfs";
-    options = ["subvol=root" "compress=zstd"];
-  };
-
-  fileSystems."/home" = {
-    device = "/dev/disk/by-uuid/0d82da00-d54c-42bf-933e-690b5fc32f60";
-    fsType = "btrfs";
-    options = ["subvol=home" "compress=zstd"];
-  };
-
-  fileSystems."/nix" = {
-    device = "/dev/disk/by-uuid/0d82da00-d54c-42bf-933e-690b5fc32f60";
-    fsType = "btrfs";
-    options = ["subvol=nix" "compress=zstd" "noatime"];
-  };
-
-  fileSystems."/var/data" = {
-    device = "/dev/disk/by-uuid/0d82da00-d54c-42bf-933e-690b5fc32f60";
-    fsType = "btrfs";
-    options = ["subvol=var/data" "compress=zstd" "noatime"];
-  };
-
-  fileSystems."/boot" = {
-    device = "/dev/disk/by-uuid/F667-684A";
-    fsType = "vfat";
-    options = ["fmask=0022" "dmask=0022"];
-  };
-
-  # fileSystems."/" = {
-  #   device = "nix-pool/nixos/root";
-  #   fsType = "zfs";
-  #   options = ["zfsutil" "X-mount.mkdir"];
-  # };
-
-  # fileSystems."/home" = {
-  #   device = "nix-pool/nixos/home";
-  #   fsType = "zfs";
-  #   options = ["zfsutil" "X-mount.mkdir"];
-  # };
-
-  # fileSystems."/var/lib" = {
-  #   device = "nix-pool/nixos/var/lib";
-  #   fsType = "zfs";
-  #   options = ["zfsutil" "X-mount.mkdir"];
-  # };
-
-  # fileSystems."/var/lib/docker" = {
-  #   device = "nix-pool/nixos/var/lib/docker";
-  #   fsType = "zfs";
-  #   options = ["zfsutil" "X-mount.mkdir"];
-  # };
-
-  # fileSystems."/var/log" = {
-  #   device = "nix-pool/nixos/var/log";
-  #   fsType = "zfs";
-  #   options = ["zfsutil" "X-mount.mkdir"];
-  # };
-
-  # fileSystems."/boot" = {
-  #   device = "bpool/nixos/root";
-  #   fsType = "zfs";
-  #   options = ["zfsutil" "X-mount.mkdir"];
-  # };
-
-  # fileSystems."/boot/efi" = {
-  #   device = "/dev/disk/by-uuid/6EA2-2234";
-  #   fsType = "vfat";
-  # };
-
-  # fileSystems."/mnt/old-data" = {
-  #   device = "data";
-  #   fsType = "zfs";
-  #   options = ["zfsutil" "X-mount.mkdir"];
-  # };
-
-  # fileSystems."/mnt/old-data/media" = {
-  #   device = "data/media";
-  #   fsType = "zfs";
-  #   options = ["zfsutil" "X-mount.mkdir"];
-  # };
-
-  # fileSystems."/mnt/old-data/files" = {
-  #   device = "data/files";
-  #   fsType = "zfs";
-  #   options = ["zfsutil" "X-mount.mkdir"];
-  # };
-
-  # fileSystems."/mnt/old-data/backups" = {
-  #   device = "data/backups";
-  #   fsType = "zfs";
-  #   options = ["zfsutil" "X-mount.mkdir"];
-  # };
-
-  # fileSystems."/mnt/old-data/homes" = {
-  #   device = "data/homes";
-  #   fsType = "zfs";
-  #   options = ["zfsutil" "X-mount.mkdir"];
-  # };
-
   environment.systemPackages = with pkgs; [
     mergerfs
     bcachefs-tools
   ];
-
-  # fileSystems."/mnt/disk1" = {
-  #   device = "/dev/disk/by-id/ata-ST8000DM004-2CX188_ZCT19JFS-part1";
-  #   fsType = "btrfs";
-  #   options = ["compress=zstd" "noatime"];
-  # };
-
-  # fileSystems."/mnt/disk2" = {
-  #   device = "/dev/disk/by-id/ata-ST4000VN008-2DR166_WDH2WDVD-part1";
-  #   fsType = "btrfs";
-  #   options = ["compress=zstd" "noatime"];
-  # };
 
   fileSystems."/mnt/data" = {
     fsType = "bcachefs";
@@ -155,10 +42,6 @@
   };
 
   systemd.services.docker.after = ["mount-storage.service"];
-
-  swapDevices = [
-    {device = "/dev/disk/by-uuid/5b0cde2c-d3f4-4d49-905f-5ada9910eda4";}
-  ];
 
   networking.useDHCP = lib.mkDefault true;
 
