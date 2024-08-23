@@ -10,6 +10,7 @@ with lib; {
   imports =
     self.nixosSuites.storage
     ++ [
+      ./disko-config.nix
       ./variables.nix
       ./hardware-configuration.nix
       ./zfs.nix

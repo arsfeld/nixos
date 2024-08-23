@@ -59,6 +59,7 @@
         devshells.default = {pkgs, ...}: {
           commands = [
             {package = inputs'.agenix.packages.default;}
+            {package = inputs'.disko.packages.default;}
           ];
           packages = [
             pkgs.lix
@@ -128,7 +129,10 @@
           };
 
         nixosConfigurations = {
-          storage = self.lib.mkLinuxSystem [./hosts/storage/configuration.nix];
+          storage = self.lib.mkLinuxSystem [
+            inputs.disko.nixosModules.disko
+            ./hosts/storage/configuration.nix
+          ];
           raider = self.lib.mkLinuxSystem [
             inputs.nixos-cosmic.nixosModules.default
             ./hosts/raider/configuration.nix
