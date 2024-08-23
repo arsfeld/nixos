@@ -19,45 +19,75 @@
   boot.kernelParams = ["acpi_osi=\"Windows 2015\""];
 
   fileSystems."/" = {
-    device = "nix-pool/nixos/root";
-    fsType = "zfs";
-    options = ["zfsutil" "X-mount.mkdir"];
+    device = "/dev/disk/by-uuid/0d82da00-d54c-42bf-933e-690b5fc32f60";
+    fsType = "btrfs";
+    options = ["subvol=root" "compress=zstd"];
   };
 
   fileSystems."/home" = {
-    device = "nix-pool/nixos/home";
-    fsType = "zfs";
-    options = ["zfsutil" "X-mount.mkdir"];
+    device = "/dev/disk/by-uuid/0d82da00-d54c-42bf-933e-690b5fc32f60";
+    fsType = "btrfs";
+    options = ["subvol=home" "compress=zstd"];
   };
 
-  fileSystems."/var/lib" = {
-    device = "nix-pool/nixos/var/lib";
-    fsType = "zfs";
-    options = ["zfsutil" "X-mount.mkdir"];
+  fileSystems."/nix" = {
+    device = "/dev/disk/by-uuid/0d82da00-d54c-42bf-933e-690b5fc32f60";
+    fsType = "btrfs";
+    options = ["subvol=nix" "compress=zstd" "noatime"];
   };
 
-  fileSystems."/var/lib/docker" = {
-    device = "nix-pool/nixos/var/lib/docker";
-    fsType = "zfs";
-    options = ["zfsutil" "X-mount.mkdir"];
-  };
-
-  fileSystems."/var/log" = {
-    device = "nix-pool/nixos/var/log";
-    fsType = "zfs";
-    options = ["zfsutil" "X-mount.mkdir"];
+  fileSystems."/var/data" = {
+    device = "/dev/disk/by-uuid/0d82da00-d54c-42bf-933e-690b5fc32f60";
+    fsType = "btrfs";
+    options = ["subvol=var/data" "compress=zstd" "noatime"];
   };
 
   fileSystems."/boot" = {
-    device = "bpool/nixos/root";
-    fsType = "zfs";
-    options = ["zfsutil" "X-mount.mkdir"];
+    device = "/dev/disk/by-uuid/F667-684A";
+    fsType = "vfat";
+    options = ["fmask=0022" "dmask=0022"];
   };
 
-  fileSystems."/boot/efi" = {
-    device = "/dev/disk/by-uuid/6EA2-2234";
-    fsType = "vfat";
-  };
+  # fileSystems."/" = {
+  #   device = "nix-pool/nixos/root";
+  #   fsType = "zfs";
+  #   options = ["zfsutil" "X-mount.mkdir"];
+  # };
+
+  # fileSystems."/home" = {
+  #   device = "nix-pool/nixos/home";
+  #   fsType = "zfs";
+  #   options = ["zfsutil" "X-mount.mkdir"];
+  # };
+
+  # fileSystems."/var/lib" = {
+  #   device = "nix-pool/nixos/var/lib";
+  #   fsType = "zfs";
+  #   options = ["zfsutil" "X-mount.mkdir"];
+  # };
+
+  # fileSystems."/var/lib/docker" = {
+  #   device = "nix-pool/nixos/var/lib/docker";
+  #   fsType = "zfs";
+  #   options = ["zfsutil" "X-mount.mkdir"];
+  # };
+
+  # fileSystems."/var/log" = {
+  #   device = "nix-pool/nixos/var/log";
+  #   fsType = "zfs";
+  #   options = ["zfsutil" "X-mount.mkdir"];
+  # };
+
+  # fileSystems."/boot" = {
+  #   device = "bpool/nixos/root";
+  #   fsType = "zfs";
+  #   options = ["zfsutil" "X-mount.mkdir"];
+  # };
+
+  # fileSystems."/boot/efi" = {
+  #   device = "/dev/disk/by-uuid/6EA2-2234";
+  #   fsType = "vfat";
+  # };
 
   # fileSystems."/mnt/old-data" = {
   #   device = "data";
