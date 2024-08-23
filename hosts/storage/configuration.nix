@@ -30,7 +30,7 @@ with lib; {
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  #virtualisation.docker.storageDriver = "zfs";
+  virtualisation.docker.storageDriver = "btrfs";
 
   boot = {
     #loader.systemd-boot.enable = true;
