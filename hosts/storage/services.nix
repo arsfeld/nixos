@@ -458,6 +458,7 @@ in {
       environment = {
         "APP_KEY" = "base64:MGxwY3Y1OHZpMnJwN2s2dGtkdnJ6dm40ODEwd3J4eGI=";
         "DB_CONNECTION" = "sqlite";
+        "SPEEDTEST_SCHEDULE" = "5 4 * * *";
       };
     };
 
