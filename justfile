@@ -6,10 +6,10 @@ fmt:
 args := "--skip-checks"
 
 boot +HOST: 
-    deploy {{ args }} --boot --targets .#{{HOST}} -- --impure
+    deploy {{ args }} --boot --targets .#{{HOST}}
 
 deploy +HOST: 
-    deploy {{ args }} --targets .#{{HOST}} -- --impure
+    deploy {{ args }} --targets .#{{HOST}}
 
 build HOST:
     nix build '.#nixosConfigurations.{{ HOST }}.config.system.build.toplevel'
