@@ -15,6 +15,7 @@ config.window_decorations = 'RESIZE'
 config.color_scheme = scheme_for_appearance(wezterm.gui.get_appearance())
 
 config.font_size = 14
+config.font = wezterm.font("Cascadia Code")
 
 config.window_background_opacity = 0.7
 config.macos_window_background_blur = 30

@@ -175,6 +175,7 @@
             };
             g14 = {
               hostname = "g14";
+              fastConnection = true;
               profiles.system.path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.g14;
             };
           };
