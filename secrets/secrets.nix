@@ -8,7 +8,8 @@ let
   raider = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIODq88FlnK+Px/J6hNSPvpJEkrFFYf/oYUqCUBQ7+2cz root@nixos";
   raspi3 = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDgLgYS1DyvdxHbwa4p94Tnu6pbqksrtP7DmsagVOAfI root@raspi3";
   core = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIApMMHFDPH4I3DZNf4s2M+/OGST+s5zt3184kq08AKVS root@core";
-  systems = [storage micro cloud raspi3 core];
+  g14 = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGj9e4+iZNzP2hnCVwr48VOay0y/zzphvkrBtG2WoJi+ root@G14";
+  systems = [storage micro cloud raspi3 core g14];
 in {
   "cloudflare.age".publicKeys = users ++ systems;
   "keycloak-pass.age".publicKeys = users ++ systems;
