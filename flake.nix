@@ -120,7 +120,7 @@
             base = [core.default users.root users.arosenfeld users.media networking.tailscale];
             network = with networking; [acme blocky mail];
             backups = with backup; [common];
-            sites = with sites; [arsfeld-one arsfeld-dev rosenfeld-blog rosenfeld-one];
+            sites = with sites; [arsfeld-one arsfeld-dev rosenfeld-one];
             storage = with suites; flatten [base core.virt network backups sites];
             #micro = with suites; flatten [base network backups];
             raider = with suites; flatten [base];

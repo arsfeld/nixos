@@ -2,7 +2,7 @@
   vars = config.vars;
 in {
   services.bazarr = {
-    enable = true;
+    enable = false;
     user = vars.user;
     group = vars.group;
   };
