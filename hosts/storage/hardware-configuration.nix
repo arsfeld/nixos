@@ -18,15 +18,11 @@
   boot.extraModulePackages = with config.boot.kernelPackages; [it87];
   boot.kernelParams = ["acpi_osi=\"Windows 2015\""];
 
-  environment.systemPackages = with pkgs; [
-    mergerfs
-    bcachefs-tools
-  ];
-
   fileSystems."/mnt/data" = {
-    fsType = "bcachefs";
-    device = "/dev/disk/by-uuid/0f89df18-94d3-4083-8b21-2e5ebac00a44";
-    options = ["compression=zstd" "nofail"];
+    depends = ["/mnt/storage"];
+    device = "/mnt/storage";
+    fsType = "none";
+    options = ["bind"];
   };
 
   fileSystems."/mnt/storage" = {
@@ -35,13 +31,13 @@
     options = ["compression=zstd" "nofail"];
   };
 
-  systemd.services.mount-storage = {
-    description = "mount storage";
-    script = "/run/current-system/sw/bin/mount /mnt/storage || true";
-    wantedBy = ["multi-user.target"];
-  };
+  # systemd.services.mount-storage = {
+  #   description = "mount storage";
+  #   script = "/run/current-system/sw/bin/mount /mnt/storage || true";
+  #   wantedBy = ["multi-user.target"];
+  # };
 
-  systemd.services.docker.after = ["mount-storage.service"];
+  systemd.services.docker.after = ["mnt-storage.mount"];
 
   networking.useDHCP = lib.mkDefault true;
 

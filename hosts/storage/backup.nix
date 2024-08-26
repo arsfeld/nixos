@@ -62,7 +62,17 @@ in
 
     services.restic.backups = {
       nas = {
-        paths = ["/var/data"];
+        paths = ["/"];
+        exclude = [
+          "/dev"
+          "/proc"
+          "/sys"
+          "/mnt"
+          "/media"
+          "/tmp"
+          "/var/cache"
+          "/home/*/.cache"
+        ];
         repository = "/mnt/data/backups/restic";
         passwordFile = "/etc/secrets/restic";
         timerConfig = {
