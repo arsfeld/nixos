@@ -46,6 +46,8 @@
     nixPath = lib.mapAttrsToList (key: value: "${key}=${value.to.path}") config.nix.registry;
   };
 
+  nix.package = pkgs.lix;
+
   security.polkit.enable = true;
 
   programs.zsh.enable = true;
