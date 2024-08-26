@@ -308,16 +308,28 @@ in {
 
   services.postgresql = {
     enable = true;
-    ensureDatabases = ["nextcloud"];
+    ensureDatabases = ["nextcloud" "immich"];
     enableTCPIP = true;
-    package = pkgs.postgresql_15;
-    extraPlugins = with pkgs.postgresql_15.pkgs; [pgvector];
+    package = pkgs.postgresql;
+    extraPlugins = with pkgs.postgresql.pkgs; [pgvector pgvecto-rs];
+    settings = {
+      shared_preload_libraries = ["vectors.so"];
+    };
     ensureUsers = [
       {
         name = "nextcloud";
         ensureClauses = {
           createrole = true;
           createdb = true;
+        };
+        ensureDBOwnership = true;
+      }
+      {
+        name = "immich";
+        ensureClauses = {
+          createrole = true;
+          createdb = true;
+          superuser = true;
         };
         ensureDBOwnership = true;
       }
@@ -342,6 +354,11 @@ in {
     after = ["postgresql.service"];
   };
 
+  systemd.services."docker-immich" = {
+    requires = ["postgresql.service"];
+    after = ["postgresql.service"];
+  };
+
   services.redis.servers.immich = {
     enable = true;
     port = 60609;
@@ -359,7 +376,7 @@ in {
         PGID = vars.pgid;
         TZ = vars.tz;
 
-        DB_HOSTNAME = "immich-db";
+        DB_HOSTNAME = "host.docker.internal";
         DB_USERNAME = "immich";
         DB_PASSWORD = "immich";
         DB_DATABASE_NAME = "immich";
@@ -369,7 +386,7 @@ in {
         REDIS_PORT = "60609";
       };
       volumes = [
-        "${vars.dataDir}/files/Photos:/usr/src/app/upload"
+        "${vars.dataDir}/files/Immich:/usr/src/app/upload"
         "${vars.dataDir}/files/Takeout:/takeout"
       ];
       cmd = ["start.sh" "immich"];
@@ -417,7 +434,6 @@ in {
       volumes = [
         "${vars.configDir}/immich/db:/var/lib/postgresql/data"
       ];
-      #extraOptions = ["--net-alias=immich-db"];
     };
 
     watchtower = {
@@ -482,31 +498,6 @@ in {
         "8080:80"
       ];
     };
-
-    # scrutiny = {
-    #   image = "ghcr.io/analogj/scrutiny:master-omnibus";
-    #   ports = ["9998:8080" "8086:8086"];
-    #   environment = {
-    #     COLLECTOR_CRON_SCHEDULE = "0 0 * * 7";
-    #   };
-    #   volumes = [
-    #     "${vars.configDir}/scrutiny/config:/opt/scrutiny/config"
-    #     "${vars.configDir}/scrutiny/influxdb:/opt/scrutiny/influxdb"
-    #     "/run/udev:/run/udev:ro"
-    #   ];
-    #   extraOptions = [
-    #     "--cap-add=SYS_RAWIO"
-    #     "--device=/dev/sda"
-    #     "--device=/dev/sdb"
-    #     "--device=/dev/sdc"
-    #     "--device=/dev/sdd"
-    #     "--device=/dev/sde"
-    #     "--device=/dev/sdf"
-    #     "--device=/dev/sdg"
-    #     "--device=/dev/sdh"
-    #     "--device=/dev/sdi"
-    #   ];
-    # };
 
     photoprism = {
       image = "photoprism/photoprism:latest";
