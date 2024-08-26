@@ -96,7 +96,6 @@
       nvtopPackages.full
       jamesdsp-pulse
       multiviewer-for-f1
-      brave
 
       # Video/Audio data composition framework tools like "gst-inspect", "gst-launch" ...
       gst_all_1.gstreamer
