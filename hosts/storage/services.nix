@@ -21,6 +21,11 @@ in {
 
   services.netdata = {
     enable = true;
+    config = {
+      plugins = {
+        "apps.d" = "no";
+      };
+    };
     configDir = {
       "go.d/prometheus.conf" = pkgs.writeText "go.d/prometheus.conf" ''
         jobs:
@@ -246,7 +251,7 @@ in {
   services.tailscale.permitCertUid = "caddy";
 
   services.mysql = {
-    enable = true;
+    enable = false;
     package = pkgs.mariadb;
     ensureUsers = [
       {
@@ -387,7 +392,7 @@ in {
       };
       volumes = [
         "${vars.dataDir}/files/Immich:/usr/src/app/upload"
-        "${vars.dataDir}/files/Takeout:/takeout"
+        "${vars.dataDir}/homes/arosenfeld/Photos:/photos"
       ];
       cmd = ["start.sh" "immich"];
       extraOptions = [
@@ -478,81 +483,81 @@ in {
       };
     };
 
-    netbootxyz = {
-      image = "lscr.io/linuxserver/netbootxyz:latest";
-      environment = {
-        PUID = vars.puid;
-        PGID = vars.pgid;
-        TZ = vars.tz;
-        # - MENU_VERSION=1.9.9 #optional
-        # - PORT_RANGE=30000:30010 #optional
-        # - SUBFOLDER=/ #optional
-      };
-      volumes = [
-        "${vars.configDir}/netbootxyz:/config"
-        "${vars.dataDir}/files/ISO:/assets"
-      ];
-      ports = [
-        "3000:3000"
-        "69:69/udp"
-        "8080:80"
-      ];
-    };
+    # netbootxyz = {
+    #   image = "lscr.io/linuxserver/netbootxyz:latest";
+    #   environment = {
+    #     PUID = vars.puid;
+    #     PGID = vars.pgid;
+    #     TZ = vars.tz;
+    #     # - MENU_VERSION=1.9.9 #optional
+    #     # - PORT_RANGE=30000:30010 #optional
+    #     # - SUBFOLDER=/ #optional
+    #   };
+    #   volumes = [
+    #     "${vars.configDir}/netbootxyz:/config"
+    #     "${vars.dataDir}/files/ISO:/assets"
+    #   ];
+    #   ports = [
+    #     "3000:3000"
+    #     "69:69/udp"
+    #     "8080:80"
+    #   ];
+    # };
 
-    photoprism = {
-      image = "photoprism/photoprism:latest";
-      ports = ["2342:2342"];
-      environment = {
-        PHOTOPRISM_SITE_URL = "https://photoprism.arsfeld.one/";
-        PHOTOPRISM_UPLOAD_NSFW = "true";
-        PHOTOPRISM_ADMIN_PASSWORD = "password";
-      };
-      volumes = [
-        "${vars.configDir}/photoprism:/photoprism/storage"
-        "/home/arosenfeld/Pictures:/photoprism/originals"
-      ];
-      extraOptions = [
-        "--security-opt"
-        "seccomp=unconfined"
-        "--security-opt"
-        "apparmor=unconfined"
-      ];
-    };
+    # photoprism = {
+    #   image = "photoprism/photoprism:latest";
+    #   ports = ["2342:2342"];
+    #   environment = {
+    #     PHOTOPRISM_SITE_URL = "https://photoprism.arsfeld.one/";
+    #     PHOTOPRISM_UPLOAD_NSFW = "true";
+    #     PHOTOPRISM_ADMIN_PASSWORD = "password";
+    #   };
+    #   volumes = [
+    #     "${vars.configDir}/photoprism:/photoprism/storage"
+    #     "/home/arosenfeld/Pictures:/photoprism/originals"
+    #   ];
+    #   extraOptions = [
+    #     "--security-opt"
+    #     "seccomp=unconfined"
+    #     "--security-opt"
+    #     "apparmor=unconfined"
+    #   ];
+    # };
 
-    filestash = {
-      image = "machines/filestash";
-      ports = ["8334:8334"];
-      volumes = [
-        "${vars.configDir}/filestash:/app/data/state"
-        "${vars.dataDir}/media:/mnt/data/media"
-        "${vars.dataDir}/files:/mnt/data/files"
-      ];
-    };
+    # filestash = {
+    #   image = "machines/filestash";
+    #   ports = ["8334:8334"];
+    #   volumes = [
+    #     "${vars.configDir}/filestash:/app/data/state"
+    #     "${vars.dataDir}/media:/mnt/data/media"
+    #     "${vars.dataDir}/files:/mnt/data/files"
+    #   ];
+    # };
 
-    "headscale-ui" = {
+    headscale-ui = {
       image = "ghcr.io/gurucomputing/headscale-ui:latest";
       ports = [
         "9899:80"
       ];
     };
 
-    "filerun" = {
-      image = "filerun/filerun";
-      environment = {
-        "FR_DB_HOST" = "localhost";
-        "FR_DB_PORT" = "3306";
-        "FR_DB_NAME" = "filerun";
-        "FR_DB_USER" = "filerun";
-      };
-      ports = ["6000:80"];
-      volumes = [
-        "${vars.configDir}/filerun:/var/www/html"
-        "${vars.dataDir}/files/Filerun:/user-files"
-      ];
-      extraOptions = [
-        "--add-host"
-        "host.docker.internal:host-gateway"
-      ];
-    };
+    # "filerun" = {
+    #   image = "filerun/filerun";
+    #   environment = {
+    #     "FR_DB_HOST" = "localhost";
+    #     "FR_DB_PORT" = "3306";
+    #     "FR_DB_NAME" = "filerun";
+    #     "FR_DB_USER" = "filerun";
+    #   };
+    #   ports = ["6000:80"];
+    #   volumes = [
+    #     "${vars.configDir}/filerun:/var/www/html"
+    #     "${vars.dataDir}/files/Filerun:/user-files"
+    #   ];
+    #   extraOptions = [
+    #     "--add-host"
+    #     "host.docker.internal:host-gateway"
+    #   ];
+    # };
   };
 }

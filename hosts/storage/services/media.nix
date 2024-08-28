@@ -73,7 +73,7 @@ in {
       ];
     };
 
-    "transmission-openvpn" = {
+    transmission-openvpn = {
       image = "haugene/transmission-openvpn";
       environment = {
         PUID = vars.puid;

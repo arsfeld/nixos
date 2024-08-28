@@ -11,7 +11,7 @@
   config = {
     vars = {
       configDir = "/var/data";
-      dataDir = "/mnt/data";
+      dataDir = "/mnt/storage";
       storageDir = "/mnt/storage";
       puid = "5000";
       pgid = "5000";

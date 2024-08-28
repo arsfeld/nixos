@@ -72,6 +72,7 @@ in
           "/tmp"
           "/var/cache"
           "/home/*/.cache"
+          "/run"
         ];
         repository = "/mnt/data/backups/restic";
         passwordFile = "/etc/secrets/restic";
