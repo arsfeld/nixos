@@ -50,6 +50,12 @@ with lib; {
   # systemd.email-notify.mailFrom = "admin@arsfeld.one";
   # systemd.email-notify.mailTo = "arsfeld@gmail.com";
 
+  services.xserver = {
+    enable = true;
+    displayManager.gdm.enable = true;
+    desktopManager.gnome.enable = true;
+  };
+
   systemd.enableEmergencyMode = false;
 
   # services.zfs.autoScrub.enable = true;
