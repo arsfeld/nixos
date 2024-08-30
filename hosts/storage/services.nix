@@ -392,7 +392,7 @@ in {
       };
       volumes = [
         "${vars.dataDir}/files/Immich:/usr/src/app/upload"
-        "${vars.dataDir}/homes/arosenfeld/Photos:/photos"
+        "${vars.dataDir}/homes/arosenfeld/Takeout:/takeout"
       ];
       cmd = ["start.sh" "immich"];
       extraOptions = [
@@ -416,13 +416,12 @@ in {
         cmd = ["start.sh" "microservices"];
         extraOptions = [
           "--add-host=host.docker.internal:host-gateway"
-          "--link=immich-db"
-          "--link=immich-ml"
+          "--link=immich-machine-learning"
           "--device=/dev/dri"
         ];
       };
 
-    immich-ml = {
+    immich-machine-learning = {
       image = "ghcr.io/immich-app/immich-machine-learning:release";
       volumes = [
         "${vars.configDir}/immich/model-cache:/cache"
