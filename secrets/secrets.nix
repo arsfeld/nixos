@@ -19,6 +19,7 @@ in {
   "restic-rest-cloud.age".publicKeys = users ++ [cloud];
   "restic-rest-micro.age".publicKeys = users ++ [micro];
   "transmission-openvpn-pia.age".publicKeys = users ++ [storage];
+  "gluetun-pia.age".publicKeys = users ++ systems;
   "lldap-env.age".publicKeys = users ++ [cloud];
   "dex-clients-tailscale-secret.age".publicKeys = users ++ [cloud];
   "authelia-secrets.age".publicKeys = users ++ [cloud];
