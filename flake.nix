@@ -118,7 +118,7 @@
         in
           with self.nixosProfiles; {
             base = [core.default users.root users.arosenfeld users.media networking.tailscale];
-            network = with networking; [acme blocky mail];
+            network = with networking; [acme mail];
             backups = with backup; [common];
             sites = with sites; [arsfeld-one arsfeld-dev rosenfeld-one];
             storage = with suites; flatten [base core.virt network backups sites];

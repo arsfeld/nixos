@@ -6,7 +6,7 @@
   services.redis = {
     servers = {
       blocky = {
-        enable = true;
+        enable = false;
         user = "blocky";
         settings = {
           "protected-mode" = "no";
@@ -16,7 +16,7 @@
   };
 
   services.blocky = {
-    enable = true;
+    enable = false;
     settings = {
       queryLog.type = "none";
       upstreams = {
