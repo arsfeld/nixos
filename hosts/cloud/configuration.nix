@@ -19,9 +19,9 @@
 
   #boot.kernelPackages = pkgs.linuxPackages_latest;
 
-  services.blocky.settings.customDNS.mapping."arsfeld.one" = "100.118.254.136";
-  services.redis.servers.blocky.bind = "100.66.38.77";
-  services.redis.servers.blocky.port = 6378;
+  #services.blocky.settings.customDNS.mapping."arsfeld.one" = "100.118.254.136";
+  #services.redis.servers.blocky.bind = "100.66.38.77";
+  #services.redis.servers.blocky.port = 6378;
 
   # systemd.email-notify.mailFrom = "admin@arsfeld.one";
   # systemd.email-notify.mailTo = "arsfeld@gmail.com";
