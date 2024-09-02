@@ -227,25 +227,21 @@ in {
     pantheon.elementary-wallpapers
   ];
 
-  environment.gnome.excludePackages =
-    (with pkgs; [
-      gnome-photos
-      gnome-tour
-      gnome-console
-      gnome-terminal
-      gnome-system-monitor
-      geary
-      evince
-      totem
-    ])
-    ++ (with pkgs.gnome; [
-      gnome-music
-      gnome-shell-extensions
-      tali # poker game
-      iagno # go game
-      hitori # sudoku game
-      atomix # puzzle game
-    ]);
+  environment.gnome.excludePackages = with pkgs; [
+    gnome-music
+    gnome-photos
+    gnome-tour
+    gnome-console
+    gnome-terminal
+    gnome-system-monitor
+    geary
+    evince
+    totem
+    tali
+    hitori
+    atomix
+    iagno
+  ];
 
   nixpkgs.overlays = [
     (final: prev: let

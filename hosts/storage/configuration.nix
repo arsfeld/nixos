@@ -45,6 +45,8 @@ with lib; {
   boot.kernelPackages = pkgs.linuxPackages_6_10;
   boot.zfs.package = pkgs.zfs_unstable;
 
+  systemd.services.NetworkManager-wait-online.enable = false;
+
   #boot.kernelParams = ["i915.enable_guc=3"];
 
   # systemd.email-notify.mailFrom = "admin@arsfeld.one";
@@ -53,6 +55,7 @@ with lib; {
   services.xserver = {
     enable = true;
     displayManager.gdm.enable = true;
+    displayManager.gdm.autoSuspend = false;
     desktopManager.gnome.enable = true;
   };
 
