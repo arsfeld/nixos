@@ -1,4 +1,8 @@
-{config, ...}: let
+{
+  config,
+  self,
+  ...
+}: let
   vars = config.vars;
 in {
   services.bazarr = {
@@ -48,7 +52,7 @@ in {
 
   users.users.rslsync.extraGroups = ["nextcloud" "media"];
 
-  age.secrets."transmission-openvpn-pia".file = ../../../secrets/transmission-openvpn-pia.age;
+  age.secrets."transmission-openvpn-pia".file = "${self}/secrets/transmission-openvpn-pia.age";
 
   virtualisation.oci-containers.containers = {
     plex = {
