@@ -398,7 +398,7 @@ in {
       extraOptions = [
         "--add-host=host.docker.internal:host-gateway"
         "--link=immich-db"
-        "--link=immich-ml"
+        "--link=immich-machine-learning"
         "--device=/dev/dri"
       ];
     };
