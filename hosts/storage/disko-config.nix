@@ -36,7 +36,7 @@
                     mountOptions = ["compress=zstd" "noatime"];
                   };
                   "@/home" = {
-                    mountpoint = "/home";
+                    mountpoint = "/home-old";
                     mountOptions = ["compress=zstd"];
                   };
                   "@/nix" = {
