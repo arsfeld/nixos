@@ -31,42 +31,47 @@
       ports = ["2368:2368"];
     };
 
-    gluetun = {
-      image = "qmcgaw/gluetun";
-      environment = {
-        SERVER_REGIONS = "Brazil";
-      };
-      environmentFiles = [
-        config.age.secrets.gluetun-pia.path
-      ];
-      volumes = [
-        "/var/lib/gluetun:/gluetun"
-      ];
-      extraOptions = [
-        "--cap-add"
-        "NET_ADMIN"
-      ];
-    };
+    # gluetun = {
+    #   image = "qmcgaw/gluetun";
+    #   environment = {
+    #     SERVER_REGIONS = "Brazil";
+    #   };
+    #   environmentFiles = [
+    #     config.age.secrets.gluetun-pia.path
+    #   ];
+    #   volumes = [
+    #     "/var/lib/gluetun:/gluetun"
+    #   ];
+    #   extraOptions = [
+    #     "--cap-add"
+    #     "NET_ADMIN"
+    #   ];
+    # };
 
-    ts-gluetun = {
-      image = "ghcr.io/tailscale/tailscale:latest";
-      environment = {
-        TS_HOSTNAME = "pia-br";
-        TS_EXTRA_ARGS = "--advertise-tags=tag:exit --advertise-exit-node";
-        TS_STATE_DIR = "/var/lib/tailscale";
-      };
-      volumes = [
-        "/var/lib/ts-gluetun:/var/lib/tailscale"
-      ];
-      extraOptions = [
-        "--network=container:gluetun"
-      ];
-    };
+    # ts-gluetun = {
+    #   image = "ghcr.io/tailscale/tailscale:latest";
+    #   environment = {
+    #     TS_HOSTNAME = "pia-br";
+    #     TS_EXTRA_ARGS = "--advertise-tags=tag:exit --advertise-exit-node";
+    #     TS_STATE_DIR = "/var/lib/tailscale";
+    #   };
+    #   volumes = [
+    #     "/var/lib/ts-gluetun:/var/lib/tailscale"
+    #   ];
+    #   extraOptions = [
+    #     "--network=container:gluetun"
+    #   ];
+    # };
 
     yarr = {
       image = "arsfeld/yarr:c76ff26bd6dff6137317da2fe912bc44950eb17a";
       volumes = ["/var/lib/yarr:/data"];
       ports = ["7070:7070"];
+    };
+
+    sudo-proxy = {
+      image = "ghcr.io/sussy-code/sudo-proxy:latest";
+      ports = ["3030:3000"];
     };
 
     ladder = {
