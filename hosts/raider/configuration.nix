@@ -43,12 +43,19 @@ in {
 
   services.xserver.enable = true;
 
-  services.xserver.displayManager.gdm.enable = lib.mkDefault true;
+  #services.xserver.displayManager.gdm.enable = lib.mkDefault true;
   services.xserver.desktopManager.gnome.enable = lib.mkDefault true;
   services.udev.packages = with pkgs; [gnome.gnome-settings-daemon];
 
   services.desktopManager.cosmic.enable = true;
-  #services.displayManager.cosmic-greeter.enable = true;
+  services.displayManager.cosmic-greeter.enable = true;
+
+  services.scrutiny = {
+    enable = true;
+    #collector.schedule = "0 0 * * 7";
+    collector.enable = true;
+    settings.web.listen.port = 9998;
+  };
 
   #services.displayManager.defaultSession = "gnome";
 
@@ -73,7 +80,7 @@ in {
 
   services.tailscale.enable = true;
 
-  services.power-profiles-daemon.enable = false;
+  #services.power-profiles-daemon.enable = false;
 
   # Set your time zone.
   time.timeZone = "America/Toronto";
