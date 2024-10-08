@@ -9,7 +9,8 @@
 with lib; let
   domain = "arsfeld.one";
   email = "arsfeld@gmail.com";
-  bypassAuth = ["auth" "transmission" "flaresolverr" "attic" "dns" "search" "immich"];
+  bypassAuth = ["auth" "transmission" "flaresolverr" "attic" "dns" "search" "immich" "sudo-proxy"];
+  cors = ["sudo-proxy"];
   generateHost = cfg: {
     "${cfg.name}.${domain}" = {
       useACMEHost = domain;
@@ -22,6 +23,13 @@ with lib; let
               uri /api/verify?rd=https://auth.${domain}/
               copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
             }
+          ''
+        )
+        + (
+          if builtins.elem cfg.name cors
+          then ""
+          else ''
+            import cors {header.origin}
           ''
         )
         + ''
@@ -43,6 +51,7 @@ with lib; let
       #"auth" = "9099";
       search = 8888;
       metube = 8081;
+      sudo-proxy = 3030;
     };
     storage = {
       code = 3434;
@@ -95,6 +104,27 @@ in {
   };
 
   services.caddy.email = email;
+
+  services.caddy.extraConfig = ''
+    (cors) {
+      @cors_preflight method OPTIONS
+
+      header {
+        Access-Control-Allow-Origin "{header.origin}"
+        Vary Origin
+        Access-Control-Expose-Headers "Authorization"
+        Access-Control-Allow-Credentials "true"
+      }
+
+      handle @cors_preflight {
+        header {
+          Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE"
+          Access-Control-Max-Age "3600"
+        }
+        respond "" 204
+      }
+    }
+  '';
 
   services.caddy.virtualHosts =
     hosts
