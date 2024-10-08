@@ -59,6 +59,8 @@ with lib; {
     desktopManager.gnome.enable = true;
   };
 
+  services.gnome.gnome-remote-desktop.enable = true;
+
   systemd.enableEmergencyMode = false;
 
   # services.zfs.autoScrub.enable = true;
@@ -84,6 +86,7 @@ with lib; {
   nixpkgs.config.packageOverrides = pkgs: {
     vaapiIntel = pkgs.vaapiIntel.override {enableHybridCodec = true;};
   };
+
   hardware.graphics = {
     enable = true;
     extraPackages = with pkgs; [
@@ -92,6 +95,7 @@ with lib; {
       vaapiVdpau
       libvdpau-va-gl
       intel-compute-runtime # OpenCL filter support (hardware tonemapping and subtitle burn-in)
+      vpl-gpu-rt
     ];
   };
 
