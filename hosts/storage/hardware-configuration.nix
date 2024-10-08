@@ -25,6 +25,13 @@
     options = ["bind"];
   };
 
+  fileSystems."/home" = {
+    depends = ["/mnt/storage"];
+    device = "/mnt/storage/homes";
+    fsType = "none";
+    options = ["bind"];
+  };
+
   fileSystems."/mnt/storage" = {
     fsType = "bcachefs";
     device = "/dev/disk/by-uuid/74d26e9d-3e6c-4b33-9f63-d91bf13606b0";
