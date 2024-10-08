@@ -50,6 +50,8 @@ in {
       devbox
       yt-dlp
       waypipe
+      czkawka
+      comma
       (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
       (writeScriptBin "running" (builtins.readFile ./scripts/running))
     ];
