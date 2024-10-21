@@ -10,13 +10,15 @@
     enable = true;
 
     # This adds to the [global] section:
-    extraConfig = ''
-      browseable = yes
-      smb encrypt = required
-      dos charset = cp932
-      unix charset = utf-8
-      display charset = utf-8
-    '';
+    settings = {
+      global = {
+        "browseable" = true;
+        "smb encrypt" = "required";
+        "dos charset" = "cp932";
+        "unix charset" = "utf-8";
+        "display charset" = "utf-8";
+      };
+    };
 
     shares = {
       homes = {
