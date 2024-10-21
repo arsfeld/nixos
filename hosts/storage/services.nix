@@ -23,7 +23,7 @@ in {
     enable = true;
     config = {
       plugins = {
-        "apps.d" = "no";
+        "apps" = "no";
       };
     };
     configDir = {
@@ -394,7 +394,6 @@ in {
         "${vars.dataDir}/files/Immich:/usr/src/app/upload"
         "${vars.dataDir}/homes/arosenfeld/Takeout:/takeout"
       ];
-      cmd = ["start.sh" "immich"];
       extraOptions = [
         "--add-host=host.docker.internal:host-gateway"
         "--link=immich-db"
@@ -406,19 +405,7 @@ in {
     immich-server =
       immich-options
       // {
-        ports = ["${ports.immich}:3001"];
-        cmd = ["start.sh" "immich"];
-      };
-
-    immich-microservices =
-      immich-options
-      // {
-        cmd = ["start.sh" "microservices"];
-        extraOptions = [
-          "--add-host=host.docker.internal:host-gateway"
-          "--link=immich-machine-learning"
-          "--device=/dev/dri"
-        ];
+        ports = ["${ports.immich}:2283"];
       };
 
     immich-machine-learning = {
