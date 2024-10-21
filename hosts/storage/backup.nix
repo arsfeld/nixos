@@ -31,9 +31,9 @@
       #"--progress-interval=1s"
     ];
     paths = [
-      "/mnt/data/homes"
       "/var/lib"
       "/var/data"
+      "/home"
       "/root"
     ];
     exclude = [

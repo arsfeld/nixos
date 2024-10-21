@@ -10,7 +10,7 @@
   services.borgbackup.jobs.hetzner = {
     repo = "ssh://u393920@u393920.your-storagebox.de:23/./backups/storage";
     paths = [
-      "/mnt/data/homes"
+      "/home"
       "/var/lib"
       "/var/data"
       "/root"
