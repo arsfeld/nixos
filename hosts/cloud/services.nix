@@ -78,6 +78,11 @@ in {
           disabled = false;
         }
         {
+          name = "startpage";
+          engine = "startpage";
+          disabled = false;
+        }
+        {
           name = "duckduckgo";
           disabled = true;
         }
