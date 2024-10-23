@@ -9,7 +9,7 @@
 with lib; let
   domain = "arsfeld.one";
   email = "arsfeld@gmail.com";
-  bypassAuth = ["auth" "transmission" "flaresolverr" "attic" "dns" "search" "immich" "sudo-proxy"];
+  bypassAuth = ["auth" "transmission" "flaresolverr" "attic" "dns" "search" "immich" "sudo-proxy" "vault"];
   cors = ["sudo-proxy"];
   generateHost = cfg: {
     "${cfg.name}.${domain}" = {
