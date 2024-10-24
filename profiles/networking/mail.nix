@@ -23,9 +23,9 @@ in {
         auth = true;
         tls = true;
         from = email;
-        host = "email-smtp.ca-central-1.amazonaws.com";
+        host = "smtp.purelymail.com";
         port = 587;
-        user = "AKIAUFCYOD6JNQVAJYO4";
+        user = "alex@rosenfeld.one";
         passwordeval = "cat ${config.age.secrets.smtp_password.path}";
       };
     };

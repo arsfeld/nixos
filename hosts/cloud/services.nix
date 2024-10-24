@@ -241,6 +241,9 @@ in {
       DOMAIN = "https://vault.${mediaDomain}";
       SIGNUPS_ALLOWED = true;
       ROCKET_ADDRESS = "0.0.0.0";
+      USE_SENDMAIL = true;
+      SENDMAIL_COMMAND = "${pkgs.system-sendmail}/bin/sendmail";
+      SMTP_FROM = "admin@rosenfeld.one";
     };
   };
 
