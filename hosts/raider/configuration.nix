@@ -128,7 +128,7 @@ in {
     (nerdfonts.override {fonts = ["FiraCode" "DroidSansMono" "CascadiaCode"];})
 
     noto-fonts
-    noto-fonts-cjk
+    noto-fonts-cjk-sans
     noto-fonts-emoji
     liberation_ttf
     source-han-sans-japanese

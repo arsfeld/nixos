@@ -58,10 +58,12 @@
     extraPackages = with pkgs; [
       vaapiVdpau
       libvdpau-va-gl
-      rocm-opencl-icd
-      rocm-opencl-runtime
       amdvlk
     ];
+  };
+
+  programs.steam = {
+    enable = true;
   };
 
   services.supergfxd.enable = true;
@@ -87,7 +89,7 @@
       distrobox
       firefox
       vscode
-      gnome.gnome-tweaks
+      gnome-tweaks
       plex-media-player
       vim
       plex-mpv-shim
@@ -96,6 +98,7 @@
       nvtopPackages.full
       jamesdsp-pulse
       multiviewer-for-f1
+      woeusb-ng
 
       # Video/Audio data composition framework tools like "gst-inspect", "gst-launch" ...
       gst_all_1.gstreamer
@@ -170,7 +173,7 @@
       (nerdfonts.override {fonts = ["FiraCode" "DroidSansMono" "CascadiaCode"];})
 
       noto-fonts
-      noto-fonts-cjk
+      noto-fonts-cjk-sans
       noto-fonts-emoji
       liberation_ttf
       source-han-sans-japanese
