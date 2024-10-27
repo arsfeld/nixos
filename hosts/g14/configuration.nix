@@ -46,7 +46,7 @@
   services.xserver = {
     enable = true;
     #displayManager.gdm.enable = true;
-    #desktopManager.gnome.enable = true;
+    desktopManager.gnome.enable = true;
   };
 
   services.desktopManager.cosmic.enable = true;
@@ -69,9 +69,9 @@
   services.supergfxd.enable = true;
 
   # Configure keymap in X11
-  services.xserver = {
+  services.xserver.xkb = {
     layout = "us";
-    xkbVariant = "alt-intl";
+    variant = "alt-intl";
   };
 
   # Configure console keymap
@@ -142,25 +142,22 @@
   programs._1password-gui.enable = true;
   programs._1password-gui.polkitPolicyOwners = ["arosenfeld"];
 
-  environment.gnome.excludePackages =
-    (with pkgs; [
-      gnome-photos
-      gnome-tour
-      gnome-console
-      gnome-terminal
-      gnome-system-monitor
-      geary
-      evince
-      totem
-    ])
-    ++ (with pkgs.gnome; [
-      gnome-music
-      gnome-shell-extensions
-      tali # poker game
-      iagno # go game
-      hitori # sudoku game
-      atomix # puzzle game
-    ]);
+  environment.gnome.excludePackages = with pkgs; [
+    gnome-photos
+    gnome-tour
+    gnome-console
+    gnome-terminal
+    gnome-system-monitor
+    geary
+    evince
+    totem
+    gnome-music
+    gnome-shell-extensions
+    tali # poker game
+    iagno # go game
+    hitori # sudoku game
+    atomix # puzzle game
+  ];
 
   fonts = {
     fontconfig = {
