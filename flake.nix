@@ -122,8 +122,8 @@
             backups = with backup; [common];
             sites = with sites; [arsfeld-one arsfeld-dev rosenfeld-one];
             storage = with suites; flatten [base core.virt network backups sites];
-            #micro = with suites; flatten [base network backups];
-            raider = with suites; flatten [base];
+            raider = with suites; flatten [base core.desktop];
+            g14 = with suites; flatten [base core.desktop];
             cloud = with suites; flatten [base core.virt network backups sites];
             core-vm = with suites; flatten [base];
           };

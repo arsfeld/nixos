@@ -5,7 +5,7 @@
   lib,
   ...
 }: {
-  imports = self.nixosSuites.base ++ [./hardware-configuration.nix];
+  imports = self.nixosSuites.g14 ++ [./hardware-configuration.nix];
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
