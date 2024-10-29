@@ -8,6 +8,17 @@
 }: let
   cosmic-idle = pkgs.callPackage ./pkgs/cosmic-idle {};
 in {
+  services.xserver = {
+    enable = true;
+    #displayManager.gdm.enable = true;
+    desktopManager.gnome.enable = true;
+  };
+
+  services.desktopManager.cosmic.enable = true;
+  services.displayManager.cosmic-greeter.enable = true;
+
+  systemd.services.NetworkManager-wait-online.enable = false;
+
   services.flatpak = {
     enable = true;
   };
@@ -29,18 +40,27 @@ in {
     openFirewall = true;
   };
 
-  fonts.packages = with pkgs; [
-    (nerdfonts.override {fonts = ["FiraCode" "DroidSansMono" "CascadiaCode"];})
+  fonts = {
+    fontconfig = {
+      antialias = true;
+      cache32Bit = true;
+      hinting.enable = true;
+      hinting.autohint = true;
+    };
 
-    noto-fonts
-    noto-fonts-cjk-sans
-    noto-fonts-emoji
-    liberation_ttf
-    source-han-sans-japanese
-    source-han-serif-japanese
+    packages = with pkgs; [
+      (nerdfonts.override {fonts = ["FiraCode" "DroidSansMono" "CascadiaCode"];})
 
-    cascadia-code
-  ];
+      noto-fonts
+      noto-fonts-cjk-sans
+      noto-fonts-emoji
+      liberation_ttf
+      source-han-sans-japanese
+      source-han-serif-japanese
+
+      cascadia-code
+    ];
+  };
 
   programs.steam.enable = true;
   programs.steam.gamescopeSession.enable = true;

@@ -92,6 +92,7 @@
   services.openssh.enable = true;
   nixpkgs.config.allowUnfree = true;
   time.timeZone = "America/Toronto";
+  i18n.defaultLocale = "en_CA.UTF-8";
   zramSwap.enable = true;
   networking.firewall.allowedTCPPorts = [22];
   networking.firewall.checkReversePath = "loose";
