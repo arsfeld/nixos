@@ -16,10 +16,11 @@
     treefmt-nix.url = "github:numtide/treefmt-nix";
     attic.url = "github:zhaofengli/attic";
     process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
+    flatpaks.url = "github:GermanBread/declarative-flatpak/stable-v3";
 
     nixos-cosmic = {
       url = "github:lilyinstarlight/nixos-cosmic";
-      inputs.nixpkgs.follows = "nixpkgs";
+      #inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
@@ -83,10 +84,12 @@
         lib = let
           commonModules = [
             inputs.agenix.nixosModules.default
+            inputs.flatpaks.nixosModules.default
             inputs.home-manager.nixosModules.home-manager
             {
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = false;
+              home-manager.backupFileExtension = "bak";
               home-manager.users.arosenfeld = import ./home/home.nix;
             }
             ({

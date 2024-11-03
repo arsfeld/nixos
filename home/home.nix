@@ -184,15 +184,15 @@ in {
     '';
   };
 
-  programs.brave = {
-    enable = true;
-    commandLineArgs = [
-      "--use-gl=angle"
-      "--use-angle=gl"
-      "--ozone-platform=wayland"
-      "--enable-features=Vulkan,DefaultANGLEVulkan,VulkanFromANGLE,VaapiVideoDecoder,VaapiIgnoreDriverChecks"
-    ];
-  };
+  # programs.brave = {
+  #   enable = true;
+  #   commandLineArgs = [
+  #     "--use-gl=angle"
+  #     "--use-angle=gl"
+  #     "--ozone-platform=wayland"
+  #     "--enable-features=Vulkan,DefaultANGLEVulkan,VulkanFromANGLE,VaapiVideoDecoder,VaapiIgnoreDriverChecks"
+  #   ];
+  # };
 
   programs.direnv = {
     enable = true;

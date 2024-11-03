@@ -62,13 +62,28 @@ in {
     ];
   };
 
-  programs.steam.enable = true;
-  programs.steam.gamescopeSession.enable = true;
+  #programs.steam.enable = true;
+  #programs.steam.gamescopeSession.enable = true;
+
+  services.flatpak = {
+    packages = [
+      "flathub:app/com.valvesoftware.Steam//stable"
+      "flathub:app/com.github.tchx84.Flatseal//stable"
+      "flathub:app/com.spotify.Client//stable"
+      "flathub:app/com.visualstudio.code//stable"
+      "flathub:app/tv.plex.PlexDesktop//stable"
+      "flathub:app/org.mozilla.firefox//stable"
+    ];
+    remotes = {
+      "flathub" = "https://dl.flathub.org/repo/flathub.flatpakrepo";
+    };
+  };
 
   environment.systemPackages = with pkgs; [
     cosmic-idle
 
     vscode
+    zed-editor
     vim
     wget
     wineWowPackages.stable
