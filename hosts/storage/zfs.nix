@@ -11,7 +11,7 @@
       enable = true;
       copyKernels = true;
       efiSupport = true;
-      zfsSupport = true;
+      #zfsSupport = true;
       devices = [
         "/dev/disk/by-id/nvme-INTEL_SSDPEKNW512G8_BTNH00850VCA512A"
       ];
