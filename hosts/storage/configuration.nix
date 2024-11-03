@@ -42,8 +42,7 @@ with lib; {
 
   services.earlyoom.enable = true;
 
-  boot.kernelPackages = pkgs.linuxPackages_6_10;
-  boot.zfs.package = pkgs.zfs_unstable;
+  boot.kernelPackages = pkgs.linuxPackages_latest;
 
   systemd.services.NetworkManager-wait-online.enable = false;
 
@@ -52,14 +51,14 @@ with lib; {
   # systemd.email-notify.mailFrom = "admin@arsfeld.one";
   # systemd.email-notify.mailTo = "arsfeld@gmail.com";
 
-  services.xserver = {
-    enable = true;
-    displayManager.gdm.enable = true;
-    displayManager.gdm.autoSuspend = false;
-    desktopManager.gnome.enable = true;
-  };
+  # services.xserver = {
+  #   enable = true;
+  #   displayManager.gdm.enable = true;
+  #   displayManager.gdm.autoSuspend = false;
+  #   desktopManager.gnome.enable = true;
+  # };
 
-  services.gnome.gnome-remote-desktop.enable = true;
+  # services.gnome.gnome-remote-desktop.enable = true;
 
   systemd.enableEmergencyMode = false;
 

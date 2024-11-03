@@ -96,9 +96,13 @@
               config,
               pkgs,
               modulesPath,
+              lib,
               ...
             }: {
               imports = [(modulesPath + "/profiles/base.nix")];
+
+              # Remove zfs
+              boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "ntfs" "reiserfs" "vfat" "xfs" "bcachefs"];
             })
           ];
         in rec {
