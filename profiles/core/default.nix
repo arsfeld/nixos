@@ -60,31 +60,63 @@
   environment.pathsToLink = ["/share/zsh"];
 
   environment.systemPackages = with pkgs; [
-    binutils
-    dosfstools
-    usbutils
-    moreutils
-    git
-    wget
-    vim
-    nano
-    zsh
-    file
-    killall
-    keychain
-    psmisc
+    # From base profile
+    w3m-nographics # needed for the manual anyway
+    testdisk # useful for repairing boot problems
+    ms-sys # for writing Microsoft boot sectors / MBRs
+    efibootmgr
+    efivar
     parted
     gptfdisk
+    ddrescue
+    ccrypt
+    cryptsetup # needed for dm-crypt volumes
+
+    # Some text editors.
+    vim
+
+    # Some networking tools.
+    fuse
+    fuse3
+    sshfs-fuse
+    socat
+    screen
+    tcpdump
+
+    # Hardware-related tools.
+    sdparm
+    hdparm
+    smartmontools # for diagnosing hard disks
+    pciutils
+    usbutils
+    nvme-cli
+
+    # Some compression/archiver tools.
+    unzip
+    zip
+
+    binutils
+    dosfstools
+    duf
+    exiftool
+    ffmpeg
+    file
+    git
+    gptfdisk
     home-manager
+    keychain
+    killall
+    libvirt
+    moreutils
+    nano
+    ncdu_2
+    psmisc
     rclone
     tmux
+    usbutils
+    wget
     zpaq
-    ncdu_2
-    libvirt
-    ffmpeg
-    exiftool
-    #bandwhich
-    duf
+    zsh
   ];
 
   programs.nix-ld.enable = true;

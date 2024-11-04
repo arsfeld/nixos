@@ -92,18 +92,6 @@
               home-manager.backupFileExtension = "bak";
               home-manager.users.arosenfeld = import ./home/home.nix;
             }
-            ({
-              config,
-              pkgs,
-              modulesPath,
-              lib,
-              ...
-            }: {
-              imports = [(modulesPath + "/profiles/base.nix")];
-
-              # Remove zfs
-              boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "ntfs" "reiserfs" "vfat" "xfs" "bcachefs"];
-            })
           ];
         in rec {
           mkLinuxSystem = mods:
@@ -175,6 +163,7 @@
             };
             oci-br = {
               hostname = "oci-br";
+              fastConnection = true;
               profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.oci-br;
             };
             raspi3 = {
