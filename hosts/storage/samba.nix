@@ -27,11 +27,11 @@
         "guest ok" = "no";
         "follow symlinks" = "yes";
         "wide links" = "yes";
-        path = "/mnt/data/homes/%S";
+        path = "/home/%S";
       };
 
       files = {
-        path = "/mnt/data/files";
+        path = "/mnt/storage/files";
         browseable = "yes";
         "read only" = "no";
       };
@@ -43,13 +43,13 @@
       };
 
       media-legacy = {
-        path = "/mnt/data/media";
+        path = "/mnt/storage/media";
         browseable = "yes";
         "read only" = "no";
       };
 
       backups = {
-        path = "/mnt/data/backups";
+        path = "/mnt/storage/backups";
         browseable = "yes";
         "read only" = "no";
       };

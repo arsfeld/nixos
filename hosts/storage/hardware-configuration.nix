@@ -45,6 +45,7 @@
   # };
 
   systemd.services.docker.after = ["mnt-storage.mount"];
+  systemd.services.docker.requires = ["mnt-storage.mount"];
 
   networking.useDHCP = lib.mkDefault true;
 

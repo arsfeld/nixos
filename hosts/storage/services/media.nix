@@ -54,28 +54,32 @@ in {
 
   age.secrets."transmission-openvpn-pia".file = "${self}/secrets/transmission-openvpn-pia.age";
 
+  services.plex = {
+    enable = true;
+  };
+
   virtualisation.oci-containers.containers = {
-    plex = {
-      image = "lscr.io/linuxserver/plex";
-      environment = {
-        PUID = vars.puid;
-        PGID = vars.pgid;
-        TZ = vars.tz;
-        VERSION = "latest";
-      };
-      environmentFiles = [
-        "${vars.configDir}/plex/env"
-      ];
-      volumes = [
-        "${vars.configDir}/plex:/config"
-        "${vars.storageDir}/media:/data"
-      ];
-      extraOptions = [
-        "--device"
-        "/dev/dri:/dev/dri"
-        "--network=host"
-      ];
-    };
+    # plex = {
+    #   image = "lscr.io/linuxserver/plex";
+    #   environment = {
+    #     PUID = vars.puid;
+    #     PGID = vars.pgid;
+    #     TZ = vars.tz;
+    #     VERSION = "latest";
+    #   };
+    #   environmentFiles = [
+    #     "${vars.configDir}/plex/env"
+    #   ];
+    #   volumes = [
+    #     "${vars.configDir}/plex:/config"
+    #     "${vars.storageDir}/media:/data"
+    #   ];
+    #   extraOptions = [
+    #     "--device"
+    #     "/dev/dri:/dev/dri"
+    #     "--network=host"
+    #   ];
+    # };
 
     transmission-openvpn = {
       image = "haugene/transmission-openvpn";
