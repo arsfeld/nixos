@@ -18,7 +18,7 @@
       substituters = [
         "https://nix-community.cachix.org?priority=41" # this is a useful public cache!
         "https://numtide.cachix.org?priority=42" # this is also a useful public cache!
-        "https://attic.arsfeld.one/system"
+        #"https://attic.arsfeld.one/system"
         "https://deploy-rs.cachix.org"
         "https://cosmic.cachix.org/"
         "https://cache.lix.systems/"
