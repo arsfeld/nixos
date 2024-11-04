@@ -146,6 +146,7 @@
           ];
           cloud = self.lib.mkLinuxSystem [./hosts/cloud/configuration.nix];
           raspi3 = self.lib.mkLinuxSystem [./hosts/raspi3/configuration.nix];
+          oci-br = self.lib.mkLinuxSystem [./hosts/oci-br/configuration.nix];
           core = self.lib.mkLinuxSystem [./hosts/core/configuration.nix];
           g14 = self.lib.mkLinuxSystem [
             inputs.nixos-cosmic.nixosModules.default
@@ -171,6 +172,10 @@
               hostname = "cloud";
               remoteBuild = true;
               profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.cloud;
+            };
+            oci-br = {
+              hostname = "oci-br";
+              profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.oci-br;
             };
             raspi3 = {
               hostname = "raspi3";
