@@ -1,4 +1,5 @@
 {
+  self,
   lib,
   config,
   pkgs,
@@ -17,7 +18,16 @@
             -v ${vars.configDir}/plex-track-sync:/app/config \
             ghcr.io/taxel/plextraktsync'';
 in {
-  age.secrets.attic-token.file = ../../secrets/attic-token.age;
+  age.secrets.attic-token.file = "${self}/secrets/attic-token.age";
+
+  age.secrets.tailscale-key.file = "${self}/secrets/tailscale-key.age";
+
+  services.tsnsrv = {
+    enable = true;
+    defaults = {
+      authKeyPath = config.age.secrets.tailscale-key.path;
+    };
+  };
 
   services.netdata = {
     enable = true;

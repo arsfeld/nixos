@@ -17,6 +17,7 @@
     attic.url = "github:zhaofengli/attic";
     process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
     flatpaks.url = "github:GermanBread/declarative-flatpak/stable-v3";
+    tsnsrv.url = "github:boinkor-net/tsnsrv";
 
     nixos-cosmic = {
       url = "github:lilyinstarlight/nixos-cosmic";
@@ -85,6 +86,7 @@
           commonModules = [
             inputs.agenix.nixosModules.default
             inputs.flatpaks.nixosModules.default
+            inputs.tsnsrv.nixosModules.default
             inputs.home-manager.nixosModules.home-manager
             {
               home-manager.useGlobalPkgs = true;

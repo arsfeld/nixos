@@ -1,4 +1,5 @@
 {
+  self,
   config,
   pkgs,
   ...
@@ -7,7 +8,16 @@
   authDomain = "rosenfeld.one";
   autheliaConfig = "arsfeld.one";
 in {
-  age.secrets.dex-clients-tailscale-secret.file = ../../secrets/dex-clients-tailscale-secret.age;
+  age.secrets.tailscale-key.file = "${self}/secrets/tailscale-key.age";
+
+  services.tsnsrv = {
+    enable = true;
+    defaults = {
+      authKeyPath = config.age.secrets.tailscale-key.path;
+    };
+  };
+
+  age.secrets.dex-clients-tailscale-secret.file = "${self}/secrets/dex-clients-tailscale-secret.age";
 
   services.dex = {
     enable = true;
