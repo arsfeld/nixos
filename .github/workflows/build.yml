@@ -53,8 +53,7 @@ jobs:
         script: |
           attic login cloud https://fly-attic.fly.dev/system ${{ secrets.ATTIC_TOKEN }}
           attic use system
-          nix build '.#nixosConfigurations.${{ matrix.machine.host }}.config.system.build.toplevel'
           # Wake up fly machine
-          curl -v https://fly-attic.fly.dev
-          attic push system result
-        
+          attic cache info system || true
+          attic watch-store system &
+          nix build '.#nixosConfigurations.${{ matrix.machine.host }}.config.system.build.toplevel'
