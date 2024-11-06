@@ -11,32 +11,7 @@ with lib; let
   email = "arsfeld@gmail.com";
   bypassAuth = ["auth" "transmission" "flaresolverr" "attic" "dns" "search" "immich" "sudo-proxy" "vault"];
   cors = ["sudo-proxy"];
-  generateHost = cfg: {
-    "${cfg.name}.${domain}" = {
-      useACMEHost = domain;
-      extraConfig =
-        (
-          if builtins.elem cfg.name bypassAuth
-          then ""
-          else ''
-            forward_auth cloud:9099 {
-              uri /api/verify?rd=https://auth.${domain}/
-              copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-            }
-          ''
-        )
-        + (
-          if builtins.elem cfg.name cors
-          then ""
-          else ''
-            import cors {header.origin}
-          ''
-        )
-        + ''
-          reverse_proxy ${cfg.host}:${toString cfg.port}
-        '';
-    };
-  };
+
   services = {
     cloud = {
       vault = 8000;
@@ -96,12 +71,50 @@ with lib; let
       hass = 8123;
     };
   };
+  generateHost = cfg: {
+    "${cfg.name}.${domain}" = {
+      useACMEHost = domain;
+      extraConfig =
+        (
+          if builtins.elem cfg.name bypassAuth
+          then ""
+          else ''
+            forward_auth cloud:9099 {
+              uri /api/verify?rd=https://auth.${domain}/
+              copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+            }
+          ''
+        )
+        + (
+          if builtins.elem cfg.name cors
+          then ""
+          else ''
+            import cors {header.origin}
+          ''
+        )
+        + ''
+          reverse_proxy ${cfg.host}:${toString cfg.port}
+        '';
+    };
+  };
+  generateService = cfg:
+    if (config.networking.hostName == cfg.host)
+    then {
+      "${cfg.name}" = {
+        toURL = "http://127.0.0.1:${toString cfg.port}";
+      };
+    }
+    else {};
   configs = concatLists (mapAttrsToList (host: pairs: mapAttrsToList (name: port: {inherit name port host;}) pairs) services);
+  tsnsrvConfigs = foldl' (acc: host: acc // host) {} (map generateService configs);
+  var = builtins.trace configs configs;
   hosts = foldl' (acc: host: acc // host) {} (map generateHost configs);
 in {
   security.acme.certs."${domain}" = {
     extraDomainNames = ["*.${domain}"];
   };
+
+  services.tsnsrv.services = tsnsrvConfigs;
 
   services.caddy.email = email;
 
