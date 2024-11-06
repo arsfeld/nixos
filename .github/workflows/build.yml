@@ -51,8 +51,8 @@ jobs:
       with:
         flakes-from-devshell: true
         script: |
-          attic login cloud https://attic.arsfeld.one/system ${{ secrets.ATTIC_TOKEN }}
+          attic login cloud https://fly-attic.fly.dev/system ${{ secrets.ATTIC_TOKEN }}
           attic use system
           nix build '.#nixosConfigurations.${{ matrix.machine.host }}.config.system.build.toplevel'
-          attic push system result -j 3
+          attic push system result
         
