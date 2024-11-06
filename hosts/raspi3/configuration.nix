@@ -18,7 +18,44 @@
 
   services.tailscale.enable = true;
 
-  services.octoprint.enable = true;
+  age.secrets.tailscale-key.file = "${self}/secrets/tailscale-key.age";
+
+  services.tsnsrv = {
+    enable = true;
+    defaults = {
+      authKeyPath = config.age.secrets.tailscale-key.path;
+    };
+    services = {
+      octoprint = {
+        toURL = "http://localhost:5000";
+        funnel = true;
+      };
+    };
+  };
+
+  # nixpkgs.overlays = [(self: super: {
+  #   octoprint = super.octoprint.override {
+  #     packageOverrides = pyself: pysuper: {
+  #       octoprint-prettygcode = pyself.buildPythonPackage rec {
+  #         pname = "PrettyGCode";
+  #         version = "1.2.4";
+  #         src = self.fetchFromGitHub {
+  #           owner = "Kragrathea";
+  #           repo = "OctoPrint-PrettyGCode";
+  #           rev = "v${version}";
+  #           sha256 = "sha256-q/B2oEy+D6L66HqmMkvKfboN+z3jhTQZqt86WVhC2vQ=";
+  #         };
+  #         propagatedBuildInputs = [ pysuper.octoprint ];
+  #         doCheck = false;
+  #       };
+  #     };
+  #   };
+  # })];
+
+  services.octoprint = {
+    enable = true;
+    plugins = plugins: with plugins; [themeify stlviewer];
+  };
 
   #virtualisation.podman.dockerSocket.enable = true;
 
