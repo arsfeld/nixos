@@ -11,6 +11,7 @@ with lib; let
   email = "arsfeld@gmail.com";
   bypassAuth = ["auth" "transmission" "flaresolverr" "attic" "dns" "search" "immich" "sudo-proxy" "vault"];
   cors = ["sudo-proxy"];
+  funnels = ["romm" "yarr"];
 
   services = {
     cloud = {
@@ -29,43 +30,44 @@ with lib; let
       sudo-proxy = 3030;
     };
     storage = {
-      code = 3434;
-      resilio = 9000;
-      gitea = 3001;
-      speedtest = 8765;
-      photos = 2342;
-      photoprism = 2342;
-      immich = 15777;
-      duplicati = 8200;
-      radarr = 7878;
-      lidarr = 8686;
-      jackett = 9117;
-      sonarr = 8989;
       bazarr = 6767;
-      overseer = 5055;
-      whisparr = 6969;
+      code = 3434;
+      duplicati = 8200;
+      filerun = 6000;
+      filestash = 8334;
+      flaresolverr = 8191;
+      gitea = 3001;
+      grafana = 2345;
       grocy = 9283;
-      qbittorrent = 8080;
-      transmission = 9091;
-      prowlarr = 9696;
-      stash = 9999;
-      netdata = 19999;
-      remotely = 5000;
-      tautulli = 8181;
+      immich = 15777;
+      jackett = 9117;
       jellyfin = 8096;
       jf = 3831;
+      lidarr = 8686;
+      netdata = 19999;
       nzbhydra2 = 5076;
-      sabnzbd = 8080;
-      grafana = 2345;
-      seafile = 8082;
-      filestash = 8334;
-      filerun = 6000;
+      overseer = 5055;
+      photoprism = 2342;
+      photos = 2342;
+      pinchflat = 8945;
+      prowlarr = 9696;
+      qbittorrent = 8080;
+      radarr = 7878;
+      remotely = 5000;
+      resilio = 9000;
       restic = 8000;
+      romm = 8998;
+      sabnzbd = 8080;
+      scrutiny = 9998;
+      seafile = 8082;
+      sonarr = 8989;
+      speedtest = 8765;
+      stash = 9999;
       stirling = 9284;
       syncthing = 8384;
-      flaresolverr = 8191;
-      scrutiny = 9998;
-      pinchflat = 8945;
+      tautulli = 8181;
+      transmission = 9091;
+      whisparr = 6969;
     };
     r2s = {
       hass = 8123;
@@ -102,12 +104,12 @@ with lib; let
     then {
       "${cfg.name}" = {
         toURL = "http://127.0.0.1:${toString cfg.port}";
+        funnel = builtins.elem cfg.name funnels;
       };
     }
     else {};
   configs = concatLists (mapAttrsToList (host: pairs: mapAttrsToList (name: port: {inherit name port host;}) pairs) services);
   tsnsrvConfigs = foldl' (acc: host: acc // host) {} (map generateService configs);
-  var = builtins.trace configs configs;
   hosts = foldl' (acc: host: acc // host) {} (map generateHost configs);
 in {
   security.acme.certs."${domain}" = {
