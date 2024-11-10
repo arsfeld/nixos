@@ -39,6 +39,7 @@ with lib; let
       gitea = 3001;
       grafana = 2345;
       grocy = 9283;
+      hass = 8123;
       immich = 15777;
       jackett = 9117;
       jellyfin = 8096;
@@ -68,9 +69,6 @@ with lib; let
       tautulli = 8181;
       transmission = 9091;
       whisparr = 6969;
-    };
-    r2s = {
-      hass = 8123;
     };
   };
   generateHost = cfg: {

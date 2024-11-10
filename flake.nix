@@ -136,6 +136,7 @@
           ];
           cloud = self.lib.mkLinuxSystem [./hosts/cloud/configuration.nix];
           cloud-br = self.lib.mkLinuxSystem [./hosts/cloud-br/configuration.nix];
+          r2s = self.lib.mkLinuxSystem [./hosts/r2s/configuration.nix];
           raspi3 = self.lib.mkLinuxSystem [./hosts/raspi3/configuration.nix];
           core = self.lib.mkLinuxSystem [./hosts/core/configuration.nix];
           g14 = self.lib.mkLinuxSystem [
@@ -166,6 +167,11 @@
             cloud-br = {
               hostname = "cloud-br";
               profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.cloud-br;
+            };
+            r2s = {
+              hostname = "r2s";
+              fastConnection = true;
+              profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.r2s;
             };
             raspi3 = {
               hostname = "raspi3";

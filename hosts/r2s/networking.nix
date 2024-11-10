@@ -43,7 +43,8 @@ with import ./helpers.nix;
               DNSOverTLS = true;
               DNSSEC = true;
               IPv6PrivacyExtensions = false;
-              IPForward = true;
+              IPv4Forwarding = true;
+              IPv6Forwarding = true;
             };
             cakeConfig = {
               Bandwidth = "500M";
