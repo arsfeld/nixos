@@ -5,9 +5,7 @@
   lib,
   self,
   ...
-}: let
-  cosmic-idle = pkgs.callPackage ./pkgs/cosmic-idle {};
-in {
+}: {
   services.xserver = {
     enable = true;
     #displayManager.gdm.enable = true;
@@ -164,7 +162,7 @@ in {
     wantedBy = ["graphical-session.target"];
     partOf = ["graphical-session.target"];
     serviceConfig = {
-      ExecStart = "${cosmic-idle}/bin/cosmic-idle";
+      ExecStart = "${pkgs.cosmic-idle}/bin/cosmic-idle";
     };
   };
 
