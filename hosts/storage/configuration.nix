@@ -21,6 +21,7 @@ with lib; {
       ./borg.nix
       ./services/media.nix
       ./services/home.nix
+      ./services/metrics.nix
     ];
 
   networking.hostName = "storage";
