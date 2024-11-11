@@ -166,6 +166,10 @@
     };
   };
 
+  environment.cosmic.excludePackages = with pkgs; [
+    cosmic-term
+  ];
+
   environment.gnome.excludePackages = with pkgs; [
     gnome-music
     gnome-photos
