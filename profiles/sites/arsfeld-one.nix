@@ -9,7 +9,7 @@
 with lib; let
   domain = "arsfeld.one";
   email = "arsfeld@gmail.com";
-  bypassAuth = ["auth" "transmission" "flaresolverr" "attic" "dns" "search" "immich" "sudo-proxy" "vault"];
+  bypassAuth = ["auth" "transmission" "flaresolverr" "attic" "dns" "search" "immich" "sudo-proxy" "vault" "grafana"];
   cors = ["sudo-proxy"];
   funnels = ["romm" "yarr"];
 
@@ -37,7 +37,7 @@ with lib; let
       filestash = 8334;
       flaresolverr = 8191;
       gitea = 3001;
-      grafana = 2345;
+      grafana = 3010;
       grocy = 9283;
       hass = 8123;
       immich = 15777;
