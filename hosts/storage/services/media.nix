@@ -1,9 +1,18 @@
 {
   config,
   self,
+  pkgs,
   ...
 }: let
   vars = config.vars;
+
+  plex-trakt-sync = {interactive ? false}: ''    ${pkgs.docker}/bin/docker run ${
+      if interactive
+      then "-it"
+      else ""
+    } --rm \
+            -v ${vars.configDir}/plex-track-sync:/app/config \
+            ghcr.io/taxel/plextraktsync'';
 in {
   services.bazarr = {
     enable = false;
@@ -30,7 +39,7 @@ in {
   };
 
   services.sabnzbd = {
-    enable = true;
+    enable = false;
     user = vars.user;
     group = vars.group;
   };
@@ -39,6 +48,12 @@ in {
   services.nzbhydra2.enable = true;
 
   services.jellyfin = {
+    enable = false;
+    user = vars.user;
+    group = vars.group;
+  };
+
+  services.tautulli = {
     enable = true;
     user = vars.user;
     group = vars.group;
@@ -53,33 +68,58 @@ in {
   users.users.rslsync.extraGroups = ["nextcloud" "media"];
 
   age.secrets."transmission-openvpn-pia".file = "${self}/secrets/transmission-openvpn-pia.age";
+  age.secrets."qbittorrent-pia".file = "${self}/secrets/qbittorrent-pia.age";
 
   services.plex = {
     enable = true;
   };
 
+  environment.systemPackages = [
+    (pkgs.writeShellScriptBin "plex-trakt-sync" "${(plex-trakt-sync {interactive = true;})} \"$@\"")
+  ];
+
+  systemd = {
+    timers.plex-trakt-sync = {
+      wantedBy = ["timers.target"];
+      partOf = ["simple-timer.service"];
+      timerConfig.OnCalendar = "weekly";
+    };
+    services.plex-trakt-sync = {
+      serviceConfig.Type = "oneshot";
+      script = "${(plex-trakt-sync {})} sync";
+    };
+  };
+
   virtualisation.oci-containers.containers = {
-    # plex = {
-    #   image = "lscr.io/linuxserver/plex";
-    #   environment = {
-    #     PUID = vars.puid;
-    #     PGID = vars.pgid;
-    #     TZ = vars.tz;
-    #     VERSION = "latest";
-    #   };
-    #   environmentFiles = [
-    #     "${vars.configDir}/plex/env"
-    #   ];
-    #   volumes = [
-    #     "${vars.configDir}/plex:/config"
-    #     "${vars.storageDir}/media:/data"
-    #   ];
-    #   extraOptions = [
-    #     "--device"
-    #     "/dev/dri:/dev/dri"
-    #     "--network=host"
-    #   ];
-    # };
+    qbittorrent = {
+      image = "j4ym0/pia-qbittorrent";
+      environment = {
+        UID = vars.puid;
+        GID = vars.pgid;
+        TZ = vars.tz;
+
+        PORT_FORWARDING = "true";
+      };
+      environmentFiles = [
+        config.age.secrets.qbittorrent-pia.path
+      ];
+      ports = ["8999:8888"];
+      volumes = [
+        "${vars.configDir}/qbittorrent-pia:/config"
+        "${vars.dataDir}:${vars.dataDir}"
+        "${vars.storageDir}:${vars.storageDir}"
+      ];
+      extraOptions = [
+        "--cap-add"
+        "NET_ADMIN"
+        "--cap-add"
+        "NET_RAW"
+        "--sysctl"
+        "net.ipv4.conf.all.src_valid_mark=1"
+        "--sysctl"
+        "net.ipv6.conf.all.disable_ipv6=0"
+      ];
+    };
 
     transmission-openvpn = {
       image = "haugene/transmission-openvpn";

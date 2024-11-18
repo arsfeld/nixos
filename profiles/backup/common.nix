@@ -32,9 +32,9 @@
       #"--progress-interval=1s"
     ];
     paths = [
-      "/mnt/data/homes"
       "/var/lib"
       "/var/data"
+      "/home"
       "/root"
     ];
     exclude = [
@@ -46,7 +46,7 @@
       "**/.cache"
       "**/.nix-profile"
     ];
-    rcloneConfigFile = config.age.secrets."rclone-idrive".path;
+    rcloneConfigFile = config.age.secrets."restic-rclone-idrive".path;
     passwordFile = config.age.secrets."restic-password".path;
     timerConfig = {
       OnCalendar = "weekly";
@@ -55,8 +55,8 @@
   };
 in
   with lib; {
-    age.secrets."rclone-idrive".file = ../../secrets/rclone-idrive.age;
-    age.secrets."rclone-idrive".mode = "444";
+    age.secrets."restic-rclone-idrive".file = ../../secrets/rclone-idrive.age;
+    age.secrets."restic-rclone-idrive".mode = "444";
 
     age.secrets."restic-password".file = ../../secrets/restic-password.age;
     age.secrets."restic-password".mode = "444";

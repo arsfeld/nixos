@@ -2,6 +2,18 @@
   vars = config.vars;
 in {
   virtualisation.oci-containers.containers = {
+    homeassistant = {
+      volumes = ["/var/lib/home-assistant:/config"];
+      environment.TZ = "America/Toronto";
+      image = "ghcr.io/home-assistant/home-assistant:stable";
+      extraOptions = [
+        "--network=host"
+        "--privileged"
+        "--label"
+        "io.containers.autoupdate=image"
+      ];
+    };
+
     grocy = {
       image = "lscr.io/linuxserver/grocy:latest";
       environment = {
