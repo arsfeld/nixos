@@ -1,11 +1,10 @@
 {
   config,
-  pkgs,
-  lib,
+  self,
   ...
 }: {
-  age.secrets."borg-passkey".file = ../../secrets/borg-passkey.age;
-  age.secrets."hetzner".file = ../../secrets/hetzner.age;
+  age.secrets."borg-passkey".file = "${self}/secrets/borg-passkey.age";
+  age.secrets."hetzner".file = "${self}/secrets/hetzner.age";
 
   services.borgbackup.jobs.hetzner = {
     repo = "ssh://u393920@u393920.your-storagebox.de:23/./backups/storage";

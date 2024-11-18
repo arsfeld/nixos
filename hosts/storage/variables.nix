@@ -20,6 +20,7 @@
       tz = "America/Toronto";
       email = "arsfeld@gmail.com";
       domain = "arsfeld.one";
+      tsDomain = "bat-boa.ts.net";
     };
   };
 }

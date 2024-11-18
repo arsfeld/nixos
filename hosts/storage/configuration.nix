@@ -13,15 +13,9 @@ with lib; {
       ./disko-config.nix
       ./variables.nix
       ./hardware-configuration.nix
-      ./cloud-sync.nix
       ./users.nix
-      ./samba.nix
-      ./backup.nix
-      ./services.nix
-      ./borg.nix
-      ./services/media.nix
-      ./services/home.nix
-      ./services/metrics.nix
+      ./services
+      ./backup
     ];
 
   networking.hostName = "storage";
@@ -34,8 +28,6 @@ with lib; {
   virtualisation.docker.storageDriver = "overlay2";
 
   boot = {
-    #loader.systemd-boot.enable = true;
-    #loader.efi.canTouchEfiVariables = true;
     binfmt.emulatedSystems = ["aarch64-linux"];
     kernelModules = ["kvm-intel" "ip6_tables"];
     supportedFilesystems = ["bcachefs"];
@@ -52,19 +44,20 @@ with lib; {
   # systemd.email-notify.mailFrom = "admin@arsfeld.one";
   # systemd.email-notify.mailTo = "arsfeld@gmail.com";
 
-  # services.xserver = {
-  #   enable = true;
-  #   displayManager.gdm.enable = true;
-  #   displayManager.gdm.autoSuspend = false;
-  #   desktopManager.gnome.enable = true;
-  # };
+  users.users.caddy.extraGroups = ["acme"];
 
-  # services.gnome.gnome-remote-desktop.enable = true;
+  security.acme = {
+    acceptTerms = true;
+  };
+
+  services.caddy = {
+    enable = true;
+  };
+
+  services.tailscale.permitCertUid = "caddy";
 
   systemd.enableEmergencyMode = false;
 
-  # services.zfs.autoScrub.enable = true;
-  # services.zfs.autoScrub.interval = "monthly";
   services.smartd = {
     enable = true;
     notifications.mail.enable = true;

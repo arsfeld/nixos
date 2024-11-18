@@ -31,6 +31,7 @@ with lib; let
     };
     storage = {
       bazarr = 6767;
+      beszel = 8090;
       code = 3434;
       duplicati = 8200;
       filerun = 6000;
@@ -52,7 +53,8 @@ with lib; let
       photos = 2342;
       pinchflat = 8945;
       prowlarr = 9696;
-      qbittorrent = 8080;
+      plex = 32400;
+      qbittorrent = 8999;
       radarr = 7878;
       remotely = 5000;
       resilio = 9000;
@@ -69,6 +71,7 @@ with lib; let
       tautulli = 8181;
       transmission = 9091;
       whisparr = 6969;
+      www = 8085;
     };
   };
   generateHost = cfg: {
@@ -93,6 +96,7 @@ with lib; let
           ''
         )
         + ''
+          import errors
           reverse_proxy ${cfg.host}:${toString cfg.port}
         '';
     };
@@ -136,6 +140,21 @@ in {
         }
         respond "" 204
       }
+    }
+
+    (errors) {
+      handle_errors {
+        rewrite * /error-pages/l7/{err.status_code}.html
+        reverse_proxy https://tarampampam.github.io {
+          header_up Host {upstream_hostport}
+          replace_status {err.status_code}
+        }
+      }
+    }
+
+    *.${domain} {
+      import errors
+      error 404
     }
   '';
 
