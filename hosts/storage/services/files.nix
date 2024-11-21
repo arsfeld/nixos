@@ -28,17 +28,17 @@ in {
   };
 
   services.nextcloud = {
-    enable = false;
+    enable = true;
     datadir = "${vars.dataDir}/files/Nextcloud";
     hostName = "nextcloud.${vars.domain}";
     maxUploadSize = "10G";
-    package = pkgs.nextcloud28;
+    package = pkgs.nextcloud30;
     appstoreEnable = true;
     autoUpdateApps.enable = true;
     configureRedis = true;
     database.createLocally = true;
     extraApps = {
-      inherit (config.services.nextcloud.package.packages.apps) memories contacts calendar tasks;
+      inherit (config.services.nextcloud.package.packages.apps) memories calendar tasks mail contacts onlyoffice user_oidc;
     };
     extraAppsEnable = true;
     config = {
@@ -48,7 +48,7 @@ in {
     extraOptions = {
       mail_smtpmode = "sendmail";
       mail_sendmailmode = "pipe";
-      trusted_domains = ["storage" "storage.bat-boa.ts.net"];
+      trusted_domains = ["storage" "storage.bat-boa.ts.net" "nextcloud.bat-boa.ts.net"];
       trusted_proxies = ["100.66.83.36"];
       overwriteprotocol = "https";
     };

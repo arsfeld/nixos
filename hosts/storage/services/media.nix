@@ -59,6 +59,21 @@ in {
     group = vars.group;
   };
 
+  services.headphones = {
+    enable = true;
+    user = vars.user;
+    group = vars.group;
+    host = "0.0.0.0";
+    port = 8787;
+  };
+
+  services.bitmagnet = {
+    enable = true;
+  };
+
+  age.secrets."bitmagnet-env".file = "${self}/secrets/bitmagnet-env.age";
+  systemd.services.bitmagnet.serviceConfig.EnvironmentFile = config.age.secrets.bitmagnet-env.path;
+
   services.resilio = {
     enable = true;
     enableWebUI = true;
@@ -78,16 +93,14 @@ in {
     (pkgs.writeShellScriptBin "plex-trakt-sync" "${(plex-trakt-sync {interactive = true;})} \"$@\"")
   ];
 
-  systemd = {
-    timers.plex-trakt-sync = {
-      wantedBy = ["timers.target"];
-      partOf = ["simple-timer.service"];
-      timerConfig.OnCalendar = "weekly";
-    };
-    services.plex-trakt-sync = {
-      serviceConfig.Type = "oneshot";
-      script = "${(plex-trakt-sync {})} sync";
-    };
+  systemd.timers.plex-trakt-sync = {
+    wantedBy = ["timers.target"];
+    partOf = ["simple-timer.service"];
+    timerConfig.OnCalendar = "weekly";
+  };
+  systemd.services.plex-trakt-sync = {
+    serviceConfig.Type = "oneshot";
+    script = "${(plex-trakt-sync {})} sync";
   };
 
   virtualisation.oci-containers.containers = {

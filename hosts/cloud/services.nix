@@ -44,6 +44,7 @@ in {
 
   services.dex = {
     enable = true;
+    environmentFile = config.age.secrets.lldap-env.path;
     settings = {
       # External url
       issuer = "https://${authDomain}";
@@ -69,6 +70,39 @@ in {
           hash = "$2y$10$vTnuL0D2crbZIBOgE3TpK.vD9dzwDDt3c8YxGvTNSaYbvfJf7hWSi";
           username = "admin";
           userID = "1847de6f-4be1-4dac-8de0-acdf57b01952";
+        }
+      ];
+      connectors = [
+        {
+          type = "ldap";
+          id = "ldap";
+          name = "LDAP";
+          config = {
+            host = "cloud.bat-boa.ts.net:3890";
+            insecureNoSSL = true;
+            insecureSkipVerify = true;
+            bindDN = "uid=admin,ou=people,dc=rosenfeld,dc=one";
+            bindPW = "$LLDAP_LDAP_USER_PASS";
+            userSearch = {
+              baseDN = "ou=people,dc=rosenfeld,dc=one";
+              username = "uid";
+              idAttr = "uid";
+              emailAttr = "mail";
+              nameAttr = "displayName";
+              preferredUsernameAttr = "uid";
+            };
+            groupSearch = {
+              baseDN = "ou=groups,dc=rosenfeld,dc=one";
+              filter = "(objectClass=groupOfUniqueNames)";
+              userMatchers = [
+                {
+                  userAttr = "DN";
+                  groupAttr = "member";
+                }
+              ];
+              nameAttr = "cn";
+            };
+          };
         }
       ];
     };
