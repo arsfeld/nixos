@@ -20,11 +20,12 @@ in {
   "restic-rest-micro.age".publicKeys = users ++ [micro];
   "transmission-openvpn-pia.age".publicKeys = users ++ [storage];
   "qbittorrent-pia.age".publicKeys = users ++ [storage];
+  "bitmagnet-env.age".publicKeys = users ++ [storage];
   "gluetun-pia.age".publicKeys = users ++ systems;
   "lldap-env.age".publicKeys = users ++ [cloud];
   "dex-clients-tailscale-secret.age".publicKeys = users ++ [cloud];
   "authelia-secrets.age".publicKeys = users ++ [cloud];
-  "hetzner.age".publicKeys = users ++ systems;
+  "homepage-env.age".publicKeys = users ++ systems;
   "borg-passkey.age".publicKeys = users ++ systems;
   "tailscale-key.age".publicKeys = users ++ systems;
   "attic-server.age".publicKeys = users ++ [cloud];

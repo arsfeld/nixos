@@ -5,6 +5,7 @@
     ./develop.nix
     ./files.nix
     ./home.nix
+    ./homepage.nix
     ./immich.nix
     ./infra.nix
     ./media.nix

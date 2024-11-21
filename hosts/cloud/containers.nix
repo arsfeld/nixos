@@ -31,6 +31,11 @@
       ports = ["2368:2368"];
     };
 
+    whoogle = {
+      image = "benbusby/whoogle-search:latest";
+      ports = ["5000:5000"];
+    };
+
     # gluetun = {
     #   image = "qmcgaw/gluetun";
     #   environment = {

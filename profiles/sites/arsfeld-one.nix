@@ -1,37 +1,49 @@
 {
   lib,
   config,
-  pkgs,
-  nixpkgs,
-  modulesPath,
   ...
 }:
 with lib; let
   domain = "arsfeld.one";
   email = "arsfeld@gmail.com";
-  bypassAuth = ["auth" "transmission" "flaresolverr" "attic" "dns" "search" "immich" "sudo-proxy" "vault" "grafana"];
+  bypassAuth = [
+    "attic"
+    "auth"
+    "auth"
+    "dns"
+    "flaresolverr"
+    "grafana"
+    "immich"
+    "nextcloud"
+    "search"
+    "sudo-proxy"
+    "transmission"
+    "vault"
+  ];
   cors = ["sudo-proxy"];
   funnels = ["romm" "yarr"];
 
   services = {
     cloud = {
-      vault = 8000;
-      yarr = 7070;
+      actual = 5006;
+      attic = 8080;
+      auth = 9099;
       dev = 8000;
+      dns = 4000;
       invidious = 3939;
       ladder = 8766;
-      actual = 5006;
-      users = 17170;
-      dns = 4000;
-      attic = 8080;
-      #"auth" = "9099";
-      search = 8888;
       metube = 8081;
+      search = 8888;
       sudo-proxy = 3030;
+      users = 17170;
+      vault = 8000;
+      yarr = 7070;
+      whoogle = 5000;
     };
     storage = {
       bazarr = 6767;
       beszel = 8090;
+      bitmagnet = 3333;
       code = 3434;
       duplicati = 8200;
       filerun = 6000;
@@ -41,6 +53,7 @@ with lib; let
       grafana = 3010;
       grocy = 9283;
       hass = 8123;
+      headphones = 8787;
       immich = 15777;
       jackett = 9117;
       jellyfin = 8096;
@@ -97,7 +110,13 @@ with lib; let
         )
         + ''
           import errors
-          reverse_proxy ${cfg.host}:${toString cfg.port}
+          reverse_proxy ${cfg.host}:${toString cfg.port} {
+            @error status 404 500 503
+            handle_response @error {
+              error {rp.status_code}
+            }
+          }
+
         '';
     };
   };
@@ -121,6 +140,12 @@ in {
   services.tsnsrv.services = tsnsrvConfigs;
 
   services.caddy.email = email;
+
+  services.caddy.globalConfig = ''
+    servers {
+      max_header_size 5MB
+    }
+  '';
 
   services.caddy.extraConfig = ''
     (cors) {
@@ -156,15 +181,15 @@ in {
       import errors
       error 404
     }
+
+    ${domain} {
+      redir https://www.{host}{uri}
+    }
   '';
 
   services.caddy.virtualHosts =
     hosts
     // {
-      "auth.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = "reverse_proxy cloud:9099";
-      };
       "nextcloud.${domain}" = {
         useACMEHost = domain;
         extraConfig = ''

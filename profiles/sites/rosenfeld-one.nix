@@ -23,7 +23,7 @@ in {
         handle_path /.well-known/webfinger {
           respond `
               {
-                "subject": "acct:alex@rosenfeld.one",
+                "subject": "{query.resource}",
                 "links": [
                   {
                     "rel": "http://openid.net/specs/connect/1.0/issuer",

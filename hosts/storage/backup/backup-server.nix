@@ -1,7 +1,7 @@
 {...}: {
   services.restic.server = {
     enable = true;
-    extraFlags = ["--private-repos"];
-    dataDir = "/mnt/backup/restic-server";
+    extraFlags = ["--no-auth"];
+    dataDir = "/mnt/storage/backups/restic-server";
   };
 }
