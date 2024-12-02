@@ -62,6 +62,8 @@
 
   hardware.steam-hardware.enable = true;
 
+  programs.virt-manager.enable = true;
+
   services.flatpak = {
     packages = [
       "flathub:app/com.valvesoftware.Steam//stable"
