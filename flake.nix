@@ -85,7 +85,7 @@
         lib = let
           commonModules = [
             inputs.agenix.nixosModules.default
-            inputs.flatpaks.nixosModules.default
+            inputs.flatpaks.nixosModules.declarative-flatpak
             inputs.tsnsrv.nixosModules.default
             inputs.home-manager.nixosModules.home-manager
             {
@@ -114,14 +114,14 @@
           suites = self.nixosSuites;
         in
           with self.nixosProfiles; {
-            base = [core.default users.root users.arosenfeld users.media networking.tailscale];
+            base = [core.default core.virt users.root users.arosenfeld users.media networking.tailscale];
             network = with networking; [acme mail];
             backups = with backup; [common];
             sites = with sites; [arsfeld-one arsfeld-dev rosenfeld-one];
-            storage = with suites; flatten [base core.virt network backups sites];
+            storage = with suites; flatten [base network backups sites];
             raider = with suites; flatten [base core.desktop];
             g14 = with suites; flatten [base core.desktop];
-            cloud = with suites; flatten [base core.virt network backups sites];
+            cloud = with suites; flatten [base network backups sites];
             core-vm = with suites; flatten [base];
           };
 

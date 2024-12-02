@@ -27,6 +27,12 @@ with lib; {
 
   virtualisation.docker.storageDriver = "overlay2";
 
+  virtualisation.lxd = {
+    enable = true;
+
+    recommendedSysctlSettings = true;
+  };
+
   boot = {
     binfmt.emulatedSystems = ["aarch64-linux"];
     kernelModules = ["kvm-intel" "ip6_tables"];
