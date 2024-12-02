@@ -21,7 +21,7 @@ with lib; let
     "vault"
   ];
   cors = ["sudo-proxy"];
-  funnels = ["romm" "yarr"];
+  funnels = ["yarr" "jellyfin"];
 
   services = {
     cloud = {
@@ -46,6 +46,7 @@ with lib; let
       bitmagnet = 3333;
       code = 3434;
       duplicati = 8200;
+      fileflows = 19200;
       filerun = 6000;
       filestash = 8334;
       flaresolverr = 8191;
@@ -65,8 +66,8 @@ with lib; let
       photoprism = 2342;
       photos = 2342;
       pinchflat = 8945;
-      prowlarr = 9696;
       plex = 32400;
+      prowlarr = 9696;
       qbittorrent = 8999;
       radarr = 7878;
       remotely = 5000;
@@ -82,6 +83,7 @@ with lib; let
       stirling = 9284;
       syncthing = 8384;
       tautulli = 8181;
+      threadfin = 34400;
       transmission = 9091;
       whisparr = 6969;
       www = 8085;
