@@ -48,7 +48,7 @@ in {
   services.nzbhydra2.enable = true;
 
   services.jellyfin = {
-    enable = false;
+    enable = true;
     user = vars.user;
     group = vars.group;
   };
@@ -239,6 +239,36 @@ in {
       volumes = [
         "${vars.configDir}/pinchflat:/config"
         "${vars.storageDir}/media/Pinchflat:/downloads"
+      ];
+    };
+
+    fileflows = {
+      image = "revenz/fileflows";
+      ports = ["19200:5000"];
+      environment = {
+        TZ = "America/New_York";
+        PUID = vars.puid;
+        PGID = vars.pgid;
+      };
+      extraOptions = [
+        "--device"
+        "/dev/dri:/dev/dri"
+      ];
+      volumes = [
+        "${vars.storageDir}/media:${vars.storageDir}/media"
+        "${vars.configDir}/fileflows:/app/Data"
+        "${vars.configDir}/fileflows/temp:/temp"
+      ];
+    };
+
+    threadfin = {
+      image = "fyb3roptik/threadfin";
+      environment = {
+        TZ = "America/Toronto";
+      };
+      ports = ["34400:34400"];
+      volumes = [
+        "${vars.configDir}/threadfin:/home/threadfin/conf"
       ];
     };
   };
