@@ -47,7 +47,13 @@
   systemd.services.docker.after = ["mnt-storage.mount"];
   systemd.services.docker.requires = ["mnt-storage.mount"];
 
-  networking.useDHCP = lib.mkDefault true;
+  networking.useDHCP = false;
+  networking.bridges = {
+    "br0" = {
+      interfaces = ["enp4s0"];
+    };
+  };
+  networking.interfaces.br0.useDHCP = true;
 
   powerManagement.powertop.enable = true;
 
