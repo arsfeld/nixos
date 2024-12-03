@@ -115,14 +115,15 @@
         in
           with self.nixosProfiles; {
             base = [core.default core.virt users.root users.arosenfeld users.media networking.tailscale];
-            network = with networking; [acme mail];
+            server = with networking; [acme mail];
             backups = with backup; [common];
             sites = with sites; [arsfeld-one arsfeld-dev rosenfeld-one];
-            storage = with suites; flatten [base network backups sites];
+            storage = with suites; flatten [base server backups sites];
             raider = with suites; flatten [base core.desktop];
             g14 = with suites; flatten [base core.desktop];
-            cloud = with suites; flatten [base network backups sites];
+            cloud = with suites; flatten [base server backups sites];
             core-vm = with suites; flatten [base];
+            hpe = with suites; flatten [base];
           };
 
         nixosConfigurations = {
@@ -143,52 +144,13 @@
             inputs.nixos-cosmic.nixosModules.default
             ./hosts/g14/configuration.nix
           ];
+          hpe = self.lib.mkLinuxSystem [
+            inputs.disko.nixosModules.disko
+            ./hosts/hpe/configuration.nix
+          ];
         };
 
-        deploy = {
-          sshUser = "root";
-          autoRollback = false;
-          magicRollback = false;
-          nodes = {
-            storage = {
-              hostname = "storage";
-              profiles.system.path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.storage;
-            };
-            raider = {
-              hostname = "raider-nixos";
-              fastConnection = true;
-              profiles.system.path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.raider;
-            };
-            cloud = {
-              hostname = "cloud";
-              remoteBuild = true;
-              profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.cloud;
-            };
-            cloud-br = {
-              hostname = "cloud-br";
-              profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.cloud-br;
-            };
-            r2s = {
-              hostname = "r2s";
-              fastConnection = true;
-              profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.r2s;
-            };
-            raspi3 = {
-              hostname = "raspi3";
-              fastConnection = true;
-              profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.raspi3;
-            };
-            core = {
-              hostname = "core";
-              profiles.system.path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.core;
-            };
-            g14 = {
-              hostname = "g14";
-              fastConnection = true;
-              profiles.system.path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.g14;
-            };
-          };
-        };
+        deploy = import ./deploy.nix {inherit self inputs;};
 
         packages.aarch64-linux = {
           raspi3 = inputs.nixos-generators.nixosGenerate {

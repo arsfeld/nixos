@@ -1,16 +1,14 @@
-{
-  config,
-  pkgs,
-  ...
-}: {
+{lib, ...}: {
   virtualisation.docker = {
-    enable = true;
-    liveRestore = false;
+    enable = lib.mkDefault true;
     extraOptions = "--registry-mirror=https://mirror.gcr.io";
     autoPrune.enable = true;
+    daemon.settings = {
+      live-restore = true;
+    };
   };
 
   virtualisation.libvirtd.enable = true;
 
-  virtualisation.oci-containers.backend = "docker";
+  virtualisation.oci-containers.backend = lib.mkDefault "docker";
 }
