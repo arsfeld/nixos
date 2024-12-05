@@ -72,8 +72,10 @@ with lib; {
 
   services.avahi = {
     enable = true;
-    publish.enable = true;
-    publish.userServices = true;
+    publish = {
+      enable = true;
+      userServices = true;
+    };
   };
 
   programs.gnupg.agent = {
