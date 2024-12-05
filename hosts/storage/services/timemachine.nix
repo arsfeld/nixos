@@ -9,7 +9,7 @@ in {
   services.netatalk = {
     enable = true;
 
-    volumes = {
+    settings = {
       "Bacon's House Time Machine" = {
         "time machine" = "yes";
         path = "${timeMachineDir}";
@@ -21,6 +21,7 @@ in {
   users.extraUsers.timeMachine = {
     name = "${user}";
     group = "users";
+    isSystemUser = true;
   };
   systemd.services.timeMachineSetup = {
     description = "idempotent directory setup for ${user}'s time machine";
