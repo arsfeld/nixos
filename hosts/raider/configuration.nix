@@ -41,6 +41,12 @@ in {
   #virtualisation.podman.enable = true;
   #virtualisation.podman.dockerCompat = true;
 
+  virtualisation.incus = {
+    enable = true;
+    ui.enable = true;
+  };
+  networking.nftables.enable = true;
+
   services.xserver.enable = true;
 
   services.xserver.desktopManager.gnome.enable = lib.mkDefault true;
