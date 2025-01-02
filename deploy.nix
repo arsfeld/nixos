@@ -25,7 +25,7 @@
       profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.cloud-br;
     };
     r2s = {
-      hostname = "r2s";
+      hostname = "192.168.1.10";
       fastConnection = true;
       profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.r2s;
     };

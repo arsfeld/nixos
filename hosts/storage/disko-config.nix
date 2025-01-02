@@ -1,5 +1,5 @@
 # btrfs/disko-config.nix
-{disk ? "/dev/disk/by-id/nvme-XrayDisk_512GB_SSD_AA000000000000000321", ...}: {
+{disk ? "/dev/disk/by-id/nvme-INTEL_SSDPEKNW512G8_BTNH00850VCA512A", ...}: {
   disko.devices = {
     disk = {
       main = {
@@ -21,11 +21,10 @@
               size = "100%";
               content = {
                 type = "swap";
-                randomEncryption = true;
               };
             };
             root = {
-              end = "-8G";
+              end = "-16G";
               content = {
                 type = "btrfs";
                 extraArgs = ["-f"]; # Override existing partition

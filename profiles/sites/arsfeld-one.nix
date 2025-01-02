@@ -55,6 +55,7 @@ with lib; let
       grocy = 9283;
       hass = 8123;
       headphones = 8787;
+      home = 8085;
       immich = 15777;
       jackett = 9117;
       jellyfin = 8096;

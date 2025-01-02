@@ -3,6 +3,7 @@
   modulesPath,
   self,
   config,
+  inputs,
   ...
 }: {
   imports =
@@ -22,43 +23,47 @@
     permitRootLogin = "yes";
   };
 
+  nixpkgs.overlays = [
+    inputs.eh5.overlays.default
+  ];
+
   networking.hostName = "r2s";
   networking.firewall.enable = false;
 
   age.secrets.tailscale-key.file = "${self}/secrets/tailscale-key.age";
 
-  services.tsnsrv = {
-    enable = true;
-    defaults = {
-      authKeyPath = config.age.secrets.tailscale-key.path;
-    };
-    services = {
-      hass = {
-        toURL = "http://127.0.0.1:8123";
-      };
-    };
-  };
+  # services.tsnsrv = {
+  #   enable = true;
+  #   defaults = {
+  #     authKeyPath = config.age.secrets.tailscale-key.path;
+  #   };
+  #   services = {
+  #     hass = {
+  #       toURL = "http://127.0.0.1:8123";
+  #     };
+  #   };
+  # };
 
-  virtualisation.oci-containers.containers = {
-    watchtower = {
-      image = "containrrr/watchtower";
-      volumes = [
-        "/var/run/docker.sock:/var/run/docker.sock"
-      ];
-    };
+  # virtualisation.oci-containers.containers = {
+  #   watchtower = {
+  #     image = "containrrr/watchtower";
+  #     volumes = [
+  #       "/var/run/docker.sock:/var/run/docker.sock"
+  #     ];
+  #   };
 
-    homeassistant = {
-      volumes = ["/var/lib/home-assistant:/config"];
-      environment.TZ = "America/Toronto";
-      image = "ghcr.io/home-assistant/home-assistant:stable";
-      extraOptions = [
-        "--network=host"
-        "--privileged"
-        "--label"
-        "io.containers.autoupdate=image"
-      ];
-    };
-  };
+  #   homeassistant = {
+  #     volumes = ["/var/lib/home-assistant:/config"];
+  #     environment.TZ = "America/Toronto";
+  #     image = "ghcr.io/home-assistant/home-assistant:stable";
+  #     extraOptions = [
+  #       "--network=host"
+  #       "--privileged"
+  #       "--label"
+  #       "io.containers.autoupdate=image"
+  #     ];
+  #   };
+  # };
 
   # put your own configuration here, for example ssh keys:
   users.extraUsers.root.openssh.authorizedKeys.keys = [

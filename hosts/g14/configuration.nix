@@ -5,7 +5,12 @@
   lib,
   ...
 }: {
-  imports = self.nixosSuites.g14 ++ [./hardware-configuration.nix];
+  imports =
+    self.nixosSuites.g14
+    ++ [
+      ./disko-config.nix
+      ./hardware-configuration.nix
+    ];
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
@@ -13,6 +18,12 @@
   boot.kernelPackages = pkgs.linuxPackages_zen;
 
   networking.hostName = "G14";
+
+  virtualisation.incus = {
+    enable = true;
+    ui.enable = true;
+  };
+  networking.nftables.enable = true;
 
   boot.kernelParams = [
     "zswap.enabled=1"
@@ -34,6 +45,14 @@
 
   services.asusd.enable = true;
   services.asusd.enableUserService = true;
+
+  networking.bridges = {
+    "br0" = {
+      interfaces = ["enp4s0f4u1"];
+    };
+  };
+  networking.useDHCP = false;
+  networking.interfaces.br0.useDHCP = true;
 
   # Configure keymap in X11
   services.xserver.xkb = {

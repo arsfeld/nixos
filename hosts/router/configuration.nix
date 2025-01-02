@@ -54,8 +54,6 @@ with lib; {
     timerConfig.OnCalendar = "weekly";
   };
 
-  services.netdata.enable = true;
-
   nixpkgs.overlays = [
     (self: super: {
       miniupnpd-nftables = super.callPackage ./pkgs/miniupnpd.nix {firewall = "nftables";};

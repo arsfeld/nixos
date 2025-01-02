@@ -46,7 +46,6 @@
       "**/.cache"
       "**/.nix-profile"
     ];
-    rcloneConfigFile = config.age.secrets."restic-rclone-idrive".path;
     passwordFile = config.age.secrets."restic-password".path;
     timerConfig = {
       OnCalendar = "weekly";
@@ -61,27 +60,22 @@ in
     age.secrets."restic-password".file = ../../secrets/restic-password.age;
     age.secrets."restic-password".mode = "444";
 
+    age.secrets."restic-truenas".file = "${self}/secrets/restic-truenas.age";
+
     services.restic.backups = {
-      # nas = {
-      #   paths = ["/var/data"];
-      #   repository = "/mnt/data/backups/restic";
-      #   passwordFile = "/etc/secrets/restic";
-      #   timerConfig = {
-      #     OnCalendar = "daily";
-      #     RandomizedDelaySec = "5h";
-      #   };
-      # };
+      cottage =
+        opts
+        // {
+          initialize = true;
+          repository = "s3:http://cottage:9000/restic";
+          environmentFile = config.age.secrets.restic-truenas.path;
+        };
 
       idrive =
         opts
         // {
+          rcloneConfigFile = config.age.secrets."restic-rclone-idrive".path;
           repository = "rclone:idrive:arosenfeld";
         };
-
-      # local =
-      #   opts
-      #   // {
-      #     repository = "/mnt/backup/restic";
-      #   };
     };
   }

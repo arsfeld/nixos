@@ -8,12 +8,12 @@
 }: {
   services.xserver = {
     enable = true;
-    #displayManager.gdm.enable = true;
+    displayManager.gdm.enable = true;
     desktopManager.gnome.enable = true;
   };
 
-  services.desktopManager.cosmic.enable = true;
-  services.displayManager.cosmic-greeter.enable = true;
+  services.desktopManager.cosmic.enable = false;
+  services.displayManager.cosmic-greeter.enable = false;
 
   systemd.services.NetworkManager-wait-online.enable = false;
 
@@ -47,7 +47,8 @@
     };
 
     packages = with pkgs; [
-      (nerdfonts.override {fonts = ["FiraCode" "DroidSansMono" "CascadiaCode"];})
+      nerd-fonts.fira-code
+      nerd-fonts.droid-sans-mono
 
       noto-fonts
       noto-fonts-cjk-sans
@@ -69,9 +70,11 @@
       "flathub:app/com.valvesoftware.Steam//stable"
       "flathub:app/com.github.tchx84.Flatseal//stable"
       "flathub:app/com.spotify.Client//stable"
-      "flathub:app/com.visualstudio.code//stable"
       "flathub:app/tv.plex.PlexDesktop//stable"
       "flathub:app/org.mozilla.firefox//stable"
+      "flathub:app/com.discordapp.Discord//stable"
+      "flathub:app/org.libreoffice.LibreOffice//stable"
+      "flathub:app/engineer.atlas.Nyxt//stable"
     ];
     remotes = {
       "flathub" = "https://dl.flathub.org/repo/flathub.flatpakrepo";
