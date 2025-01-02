@@ -19,6 +19,14 @@
     flatpaks.url = "github:GermanBread/declarative-flatpak/stable-v3";
     tsnsrv.url = "github:boinkor-net/tsnsrv";
 
+    nix-index-database.url = "github:nix-community/nix-index-database";
+    nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
+
+    eh5 = {
+      url = "github:EHfive/flakes";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     nixos-cosmic = {
       url = "github:lilyinstarlight/nixos-cosmic";
       #inputs.nixpkgs.follows = "nixpkgs";
@@ -87,6 +95,7 @@
             inputs.agenix.nixosModules.default
             inputs.flatpaks.nixosModules.declarative-flatpak
             inputs.tsnsrv.nixosModules.default
+            inputs.nix-index-database.nixosModules.nix-index
             inputs.home-manager.nixosModules.home-manager
             {
               home-manager.useGlobalPkgs = true;
@@ -118,12 +127,13 @@
             server = with networking; [acme mail];
             backups = with backup; [common];
             sites = with sites; [arsfeld-one arsfeld-dev rosenfeld-one];
+
             storage = with suites; flatten [base server backups sites];
             raider = with suites; flatten [base core.desktop];
             g14 = with suites; flatten [base core.desktop];
-            cloud = with suites; flatten [base server backups sites];
-            core-vm = with suites; flatten [base];
-            hpe = with suites; flatten [base];
+            cloud = with suites; flatten [base core.netdata server backups sites];
+            core-vm = with suites; flatten [base core.netdata];
+            hpe = with suites; flatten [base core.netdata];
           };
 
         nixosConfigurations = {
@@ -137,10 +147,14 @@
           ];
           cloud = self.lib.mkLinuxSystem [./hosts/cloud/configuration.nix];
           cloud-br = self.lib.mkLinuxSystem [./hosts/cloud-br/configuration.nix];
-          r2s = self.lib.mkLinuxSystem [./hosts/r2s/configuration.nix];
+          r2s = self.lib.mkLinuxSystem [
+            inputs.eh5.nixosModules.fake-hwclock
+            ./hosts/r2s/configuration.nix
+          ];
           raspi3 = self.lib.mkLinuxSystem [./hosts/raspi3/configuration.nix];
           core = self.lib.mkLinuxSystem [./hosts/core/configuration.nix];
           g14 = self.lib.mkLinuxSystem [
+            inputs.disko.nixosModules.disko
             inputs.nixos-cosmic.nixosModules.default
             ./hosts/g14/configuration.nix
           ];

@@ -47,13 +47,6 @@ in {
   };
   networking.nftables.enable = true;
 
-  services.xserver.enable = true;
-
-  services.xserver.desktopManager.gnome.enable = lib.mkDefault true;
-
-  services.desktopManager.cosmic.enable = true;
-  services.displayManager.cosmic-greeter.enable = true;
-
   boot.kernelPackages = pkgs.linuxPackages_zen;
 
   programs.coolercontrol.enable = true;

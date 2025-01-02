@@ -10,6 +10,7 @@ $git_status\
 $nodejs\
 $rust\
 $nix_shell\
+$docker_context\
 $env_var\
 [](fg:#86BBD8 bg:#33658A)\
 $time\

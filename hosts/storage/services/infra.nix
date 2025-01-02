@@ -1,19 +1,29 @@
 {pkgs, ...}: {
   services.netdata = {
     enable = true;
+    package = pkgs.netdata.override {
+      withCloudUi = true;
+    };
     config = {
+      global = {
+        "memory mode" = "ram";
+        "debug log" = "none";
+        "access log" = "none";
+        "error log" = "syslog";
+      };
       plugins = {
         "apps" = "no";
       };
     };
-    configDir = {
-      "go.d/prometheus.conf" = pkgs.writeText "go.d/prometheus.conf" ''
-        jobs:
-        - name: blocky-dns
-          url: http://127.0.0.1:4000/metrics
-      '';
-    };
   };
+
+  services.netdata.configDir."stream.conf" = pkgs.writeText "stream.conf" ''
+    [387acf23-8aff-4934-bc3a-1c2950e9df58]
+      enabled = yes
+      enable compression = yes
+      default memory mode = dbengine # a good default
+      health enabled by default = auto
+  '';
 
   services.redis.servers.blocky.slaveOf = {
     ip = "100.66.38.77";

@@ -174,29 +174,6 @@ in {
   #   url = "https://github.com/arsfeld/nixos";
   # };
 
-  age.secrets.attic-token.file = ../../secrets/attic-token.age;
-
-  age.secrets.attic-server = {
-    file = ../../secrets/attic-server.age;
-    mode = "444";
-  };
-
-  systemd.services.atticd = {
-    enable = true;
-    description = "Attic Server";
-    serviceConfig = {
-      ExecStart = "${pkgs.attic-server}/bin/atticd -f ${config.age.secrets.attic-server.path} --mode monolithic";
-      User = "atticd";
-      Group = "atticd";
-      DynamicUser = true;
-      ProtectHome = true;
-      StateDirectory = "atticd";
-      ReadWritePaths = ["/var/lib/atticd"];
-    };
-    wantedBy = ["multi-user.target"];
-    after = ["network.target"];
-  };
-
   age.secrets = {
     authelia-secrets = {
       file = ../../secrets/authelia-secrets.age;

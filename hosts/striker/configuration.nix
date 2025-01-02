@@ -98,10 +98,6 @@
     driversi686Linux.amdvlk
   ];
 
-  services.netdata = {
-    enable = true;
-  };
-
   services.avahi.enable = true;
   services.avahi.nssmdns4 = true;
 
@@ -157,10 +153,6 @@
   ];
 
   services.udev.packages = with pkgs; [gnome.gnome-settings-daemon];
-
-  fonts.fonts = with pkgs; [
-    (nerdfonts.override {fonts = ["FiraCode" "CascadiaCode"];})
-  ];
 
   networking.firewall.enable = false;
 

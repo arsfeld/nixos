@@ -51,12 +51,14 @@ in {
       yt-dlp
       waypipe
       czkawka
-      comma
+      devenv
       (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
       (writeScriptBin "running" (builtins.readFile ./scripts/running))
     ];
     sessionPath = ["$HOME/.local/bin"];
   };
+
+  programs.nix-index.enable = true;
 
   # Let Home Manager install and manage itself.
   # programs.home-manager.enable = true;
@@ -83,7 +85,6 @@ in {
         "spectrum"
         "utility"
         "completion"
-        "command-not-found"
         "syntax-highlighting"
       ];
     };
@@ -238,8 +239,6 @@ in {
   programs.bat.enable = true;
   programs.eza.enable = true;
   programs.eza.enableZshIntegration = true;
-
-  programs.command-not-found.enable = true;
 
   # services.syncthing = {
   #   enable = pkgs.stdenv.isLinux;

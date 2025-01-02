@@ -1,10 +1,10 @@
 # btrfs/disko-config.nix
-{disk ? "/dev/disk/by-id/nvme-INTEL_SSDPEKNW512G8_BTNH00850VCA512A", ...}: {
+{...}: {
   disko.devices = {
     disk = {
       main = {
         type = "disk";
-        device = "${disk}";
+        device = "/dev/nvme0n1";
         content = {
           type = "gpt";
           partitions = {
@@ -18,13 +18,13 @@
               };
             };
             swap = {
-              size = "100%";
+              size = "16G";
               content = {
                 type = "swap";
               };
             };
             root = {
-              end = "-16G";
+              size = "100%";
               content = {
                 type = "btrfs";
                 extraArgs = ["-f"]; # Override existing partition
@@ -35,7 +35,7 @@
                     mountOptions = ["compress=zstd" "noatime"];
                   };
                   "@/home" = {
-                    mountpoint = "/home-old";
+                    mountpoint = "/home";
                     mountOptions = ["compress=zstd"];
                   };
                   "@/nix" = {
@@ -50,15 +50,19 @@
                     mountpoint = "/var/log";
                     mountOptions = ["compress=zstd" "noatime"];
                   };
-                  "@/var-data" = {
-                    mountpoint = "/var/data";
-                    mountOptions = ["compress=zstd" "noatime"];
-                  };
                   "@/var-tmp" = {
                     mountpoint = "/var/tmp";
                     mountOptions = ["compress=zstd" "noatime"];
                   };
                 };
+              };
+            };
+            windows = {
+              size = "256G";
+              content = {
+                type = "filesystem";
+                format = "ntfs";
+                extraArgs = ["-Q"];
               };
             };
           };

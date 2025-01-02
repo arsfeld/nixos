@@ -29,8 +29,6 @@
   };
   networking.nftables.enable = true;
 
-  services.netdata.enable = true;
-
   boot = {
     binfmt.emulatedSystems = ["aarch64-linux"];
     kernelModules = ["kvm-intel"];

@@ -6,8 +6,6 @@
   self,
   ...
 }: {
-  age.secrets.attic-netrc.file = "${self}/secrets/attic-netrc.age";
-
   nix = {
     settings = {
       # Enable flakes and new 'nix' command
@@ -31,8 +29,6 @@
         "cosmic.cachix.org-1:Dya9IyXD4xdBehWjrkPv6rtxpmMdRel02smYzA85dPE="
         "cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o="
       ];
-
-      #netrc-file = config.age.secrets.attic-netrc.path;
     };
 
     #registry.nixpkgs.flake = inputs.nixpkgs;
@@ -45,6 +41,8 @@
     # Making legacy nix commands consistent as well, awesome!
     nixPath = lib.mapAttrsToList (key: value: "${key}=${value.to.path}") config.nix.registry;
   };
+
+  programs.nix-index-database.comma.enable = true;
 
   nix.package = pkgs.lix;
 

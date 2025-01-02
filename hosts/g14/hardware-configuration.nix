@@ -21,7 +21,7 @@
 
   boot.kernelParams = ["mem_sleep_default=deep"];
 
-  boot.resumeDevice = "/dev/disk/by-uuid/7d9e8321-3981-44a1-aa72-4491f2b445ef";
+  boot.resumeDevice = "/dev/disk/by-partlabel/disk-main-swap";
 
   services.logind = {
     lidSwitch = "suspend-then-hibernate";
@@ -36,25 +36,11 @@
     HibernateDelaySec=30m
   '';
 
-  fileSystems."/" = {
-    device = "/dev/disk/by-uuid/6a1e52ad-be97-4ff8-9f92-1c929e6de5ad";
-    fsType = "ext4";
-  };
-
-  fileSystems."/boot" = {
-    device = "/dev/disk/by-uuid/BE95-E1D2";
-    fsType = "vfat";
-  };
-
-  swapDevices = [
-    {device = "/dev/disk/by-uuid/7d9e8321-3981-44a1-aa72-4491f2b445ef";}
-  ];
-
   # Enables DHCP on each ethernet and wireless interface. In case of scripted networking
   # (the default) this is the recommended approach. When using systemd-networkd it's
   # still possible to use this option, but it's recommended to use it in conjunction
   # with explicit per-interface declarations with `networking.interfaces.<interface>.useDHCP`.
-  networking.useDHCP = lib.mkDefault true;
+  # networking.useDHCP = lib.mkDefault true;
   # networking.interfaces.wlp2s0.useDHCP = lib.mkDefault true;
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";

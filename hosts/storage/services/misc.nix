@@ -7,8 +7,6 @@
 }: let
   vars = config.vars;
 in {
-  age.secrets.attic-token.file = "${self}/secrets/attic-token.age";
-
   age.secrets.tailscale-key.file = "${self}/secrets/tailscale-key.age";
 
   services.tsnsrv = {

@@ -1,4 +1,8 @@
-{lib, ...}: {
+{
+  lib,
+  pkgs,
+  ...
+}: {
   virtualisation.docker = {
     enable = lib.mkDefault true;
     extraOptions = "--registry-mirror=https://mirror.gcr.io";
@@ -9,6 +13,10 @@
   };
 
   virtualisation.libvirtd.enable = true;
+
+  environment.systemPackages = with pkgs; [
+    virt-manager
+  ];
 
   virtualisation.oci-containers.backend = lib.mkDefault "docker";
 }

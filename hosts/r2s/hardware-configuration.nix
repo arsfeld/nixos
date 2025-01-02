@@ -88,7 +88,7 @@
   systemd.additionalUpstreamSystemUnits = [
     "systemd-time-wait-sync.service"
   ];
-  #services.fake-hwclock.enable = true;
+  services.fake-hwclock.enable = true;
   networking.timeServers = [
     "0.ca.pool.ntp.org"
     "1.ca.pool.ntp.org"
