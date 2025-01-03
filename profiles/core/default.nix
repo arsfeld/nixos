@@ -42,13 +42,12 @@
     nixPath = lib.mapAttrsToList (key: value: "${key}=${value.to.path}") config.nix.registry;
   };
 
-  programs.nix-index-database.comma.enable = true;
-
   nix.package = pkgs.lix;
 
   security.polkit.enable = true;
 
   programs.zsh.enable = true;
+  programs.fish.enable = true;
 
   nix.settings.trusted-users = [
     "root"
