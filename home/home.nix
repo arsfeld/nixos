@@ -24,41 +24,45 @@ in {
     #   else "/Users/arosenfeld";
     stateVersion = "22.05";
     packages = with pkgs; [
-      vim
       btop
-      htop
-      nix
+      bottom
       cachix
-      fortune
-      distrobox
-      fastfetch
-      direnv
-      ruby
-      starship
-      nil
-      kondo
-      fd
-      ripgrep
-      procs
-      du-dust
-      zellij
-      rustup
-      dogdns
-      tldr
-      nvidia-offload
-      nil
-      devbox
-      yt-dlp
-      waypipe
       czkawka
+      devbox
       devenv
+      direnv
+      distrobox
+      dogdns
+      du-dust
+      fastfetch
+      fd
+      fortune
+      glances
+      htop
+      kondo
+      nil
+      nil
+      nix
+      nvidia-offload
+      procs
+      ripgrep
+      ruby
+      rustup
+      starship
+      tldr
+      vim
+      waypipe
+      yt-dlp
+      zellij
       (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
       (writeScriptBin "running" (builtins.readFile ./scripts/running))
     ];
     sessionPath = ["$HOME/.local/bin"];
   };
 
+  # This should be enabled by default, but being explicit here
   programs.nix-index.enable = true;
+  programs.nix-index-database.comma.enable = true;
 
   # Let Home Manager install and manage itself.
   # programs.home-manager.enable = true;
@@ -72,10 +76,15 @@ in {
 
   programs.home-manager.enable = true;
 
+  programs.fish = {
+    enable = true;
+  };
+
   programs.zsh = {
     enable = true;
+    syntaxHighlighting.enable = true;
     prezto = {
-      enable = true;
+      enable = false;
       pmodules = [
         "environment"
         "terminal"
@@ -208,6 +217,7 @@ in {
     enable = true;
     enableZshIntegration = true;
     enableBashIntegration = true;
+    enableFishIntegration = true;
   };
 
   programs.wezterm = {
