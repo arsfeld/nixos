@@ -1,0 +1,11 @@
+[package]
+name = "mrml-wrapper"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mrml = "4.0.1"
+
+[[bin]]
+name = "mrml-wrapper"
+path = "src/main.rs"

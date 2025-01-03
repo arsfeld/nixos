@@ -5,39 +5,26 @@
   ...
 }:
 with lib; let
-  sendmail =
-    pkgs.writeScript "sendmail"
-    ''
-      #!/bin/sh
+  sendEmailEvent = import ../sendEmailEvent.nix {inherit lib pkgs;};
 
-      ${pkgs.system-sendmail}/bin/sendmail -t <<ERRMAIL
-      To: $1
-      From: ${config.systemd.email-notify.mailFrom}
-      Subject: [$(${pkgs.nettools}/bin/hostname)] Status of service $2
-      Content-Transfer-Encoding: 8bit
-      Content-Type: text/plain; charset=UTF-8
+  sendmail = pkgs.writeScript "sendmail" ''
+    #!/bin/sh
 
-      $(systemctl status --full "$2")
+    ${sendEmailEvent {
+      event = "Service Failure";
+      extraContent = ''
+        Failed Service: $1
 
-      ---------------------------
+        Service Status:
+        $(systemctl status --full "$1")
 
-      $(journalctl -u "$2" --reverse --lines=50)
-      ERRMAIL
-    '';
+        Recent Logs:
+        $(journalctl -u "$1" --reverse --lines=50)
+      '';
+    }}
+  '';
 in {
   options = {
-    systemd.email-notify.mailTo = mkOption {
-      type = types.str;
-      default = null;
-      description = "Email address to which the service status will be mailed.";
-    };
-
-    systemd.email-notify.mailFrom = mkOption {
-      type = types.str;
-      default = null;
-      description = "Email address from which the service status will be mailed.";
-    };
-
     systemd.services = mkOption {
       type = with types;
         attrsOf (
@@ -50,10 +37,10 @@ in {
 
   config = {
     systemd.services."email@" = {
-      description = "Sends a status mail via sendmail on service failures.";
+      description = "Sends a status mail via sendEmailEvent on service failures.";
       onFailure = mkForce [];
       serviceConfig = {
-        ExecStart = "${sendmail} ${config.systemd.email-notify.mailTo} %i";
+        ExecStart = "${sendmail} %i";
         Type = "oneshot";
       };
     };

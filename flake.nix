@@ -95,9 +95,12 @@
             inputs.agenix.nixosModules.default
             inputs.flatpaks.nixosModules.declarative-flatpak
             inputs.tsnsrv.nixosModules.default
-            inputs.nix-index-database.nixosModules.nix-index
             inputs.home-manager.nixosModules.home-manager
+            ./common/modules/systemd-email-notify.nix
             {
+              home-manager.sharedModules = [
+                inputs.nix-index-database.hmModules.nix-index
+              ];
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = false;
               home-manager.backupFileExtension = "bak";
