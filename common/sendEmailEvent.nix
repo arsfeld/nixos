@@ -48,13 +48,25 @@
       from mrml import to_html
 
       def get_command_output(command):
-          return subprocess.check_output(command, shell=True).decode('utf-8').strip()
+          try:
+              return subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT).decode('utf-8').strip()
+          except subprocess.CalledProcessError as e:
+              return f"Error executing command: {e.output.decode('utf-8').strip()}"
+          except Exception as e:
+              return f"Unexpected error: {str(e)}"
 
       def send_email_event(event, extra_content=""):
           hostname = socket.gethostname()
           current_date = datetime.datetime.now().isoformat()
           figlet_output = get_command_output(f"${pkgs.figlet}/bin/figlet -f slant '{hostname}'")
-          fastfetch_output = get_command_output("${pkgs.neofetch}/bin/neofetch --stdout")
+          system_info = {
+              "OS": get_command_output("${pkgs.coreutils}/bin/uname -s"),
+              "Kernel": get_command_output("${pkgs.coreutils}/bin/uname -r"),
+              "Uptime": get_command_output("${pkgs.procps}/bin/uptime"),
+              "CPU": get_command_output("${pkgs.util-linux}/bin/lscpu | ${pkgs.gnugrep}/bin/grep 'Model name' | ${pkgs.coreutils}/bin/cut -f 2 -d ':'"),
+              "Memory": get_command_output("${pkgs.procps}/bin/free -h | ${pkgs.gawk}/bin/awk '/^Mem:/ {print $2 \" total, \" $3 \" used, \" $4 \" free\"}'"),
+              "Disk": get_command_output("${pkgs.coreutils}/bin/df -h / | ${pkgs.gawk}/bin/awk 'NR==2 {print $2 \" total, \" $3 \" used, \" $4 \" free\"}'"),
+          }
 
           subject = f"[{hostname}] {event} {current_date}"
 
@@ -68,7 +80,7 @@
                   EVENT=event,
                   HOSTNAME=hostname,
                   CURRENT_DATE=current_date,
-                  FASTFETCH_OUTPUT=fastfetch_output,
+                  SYSTEM_INFO=system_info,
                   EXTRA_CONTENT=extra_content
               )
           except Exception as e:
