@@ -26,9 +26,11 @@
     <mj-section background-color="#ffffff" border-radius="10px">
       <mj-column>
         <mj-text font-size="24px" color="#2c3e50" font-weight="bold">System Information</mj-text>
-        <mj-text font-family="monospace" font-size="12px" background-color="#f8f8f8" padding="25px">
-          <pre>{{FASTFETCH_OUTPUT}}</pre>
-        </mj-text>
+        {% for key, value in SYSTEM_INFO.items() %}
+          <mj-text>
+            <strong>{{ key }}:</strong> {{ value }}
+          </mj-text>
+        {% endfor %}
       </mj-column>
     </mj-section>
 
@@ -43,8 +45,8 @@
         </mj-text>
       </mj-column>
     </mj-section>
+
     <mj-spacer height="20px" />
     {% endif %}
-
   </mj-body>
 </mjml>
