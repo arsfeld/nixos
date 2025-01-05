@@ -4,6 +4,8 @@
   ...
 }:
 with lib; let
+  utils = import ./site-utils.nix {inherit lib;};
+
   domain = "arsfeld.one";
   email = "arsfeld@gmail.com";
   bypassAuth = [
@@ -19,6 +21,7 @@ with lib; let
     "sudo-proxy"
     "transmission"
     "vault"
+    "ollama-api"
   ];
   cors = ["sudo-proxy"];
   funnels = ["yarr" "jellyfin"];
@@ -63,6 +66,8 @@ with lib; let
       lidarr = 8686;
       netdata = 19999;
       nzbhydra2 = 5076;
+      ollama-api = 11434;
+      ollama = 30198;
       overseer = 5055;
       photoprism = 2342;
       photos = 2342;
@@ -90,51 +95,10 @@ with lib; let
       www = 8085;
     };
   };
-  generateHost = cfg: {
-    "${cfg.name}.${domain}" = {
-      useACMEHost = domain;
-      extraConfig =
-        (
-          if builtins.elem cfg.name bypassAuth
-          then ""
-          else ''
-            forward_auth cloud:9099 {
-              uri /api/verify?rd=https://auth.${domain}/
-              copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-            }
-          ''
-        )
-        + (
-          if builtins.elem cfg.name cors
-          then ""
-          else ''
-            import cors {header.origin}
-          ''
-        )
-        + ''
-          import errors
-          reverse_proxy ${cfg.host}:${toString cfg.port} {
-            @error status 404 500 503
-            handle_response @error {
-              error {rp.status_code}
-            }
-          }
 
-        '';
-    };
-  };
-  generateService = cfg:
-    if (config.networking.hostName == cfg.host)
-    then {
-      "${cfg.name}" = {
-        toURL = "http://127.0.0.1:${toString cfg.port}";
-        funnel = builtins.elem cfg.name funnels;
-      };
-    }
-    else {};
-  configs = concatLists (mapAttrsToList (host: pairs: mapAttrsToList (name: port: {inherit name port host;}) pairs) services);
-  tsnsrvConfigs = foldl' (acc: host: acc // host) {} (map generateService configs);
-  hosts = foldl' (acc: host: acc // host) {} (map generateHost configs);
+  configs = utils.generateConfigs services;
+  tsnsrvConfigs = utils.generateTsnsrvConfigs configs funnels config;
+  hosts = utils.generateHosts configs domain bypassAuth cors;
 in {
   security.acme.certs."${domain}" = {
     extraDomainNames = ["*.${domain}"];
@@ -144,51 +108,9 @@ in {
 
   services.caddy.email = email;
 
-  services.caddy.globalConfig = ''
-    servers {
-      max_header_size 5MB
-    }
-  '';
+  services.caddy.globalConfig = utils.generateCaddyGlobalConfig;
 
-  services.caddy.extraConfig = ''
-    (cors) {
-      @cors_preflight method OPTIONS
-
-      header {
-        Access-Control-Allow-Origin "{header.origin}"
-        Vary Origin
-        Access-Control-Expose-Headers "Authorization"
-        Access-Control-Allow-Credentials "true"
-      }
-
-      handle @cors_preflight {
-        header {
-          Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE"
-          Access-Control-Max-Age "3600"
-        }
-        respond "" 204
-      }
-    }
-
-    (errors) {
-      handle_errors {
-        rewrite * /error-pages/l7/{err.status_code}.html
-        reverse_proxy https://tarampampam.github.io {
-          header_up Host {upstream_hostport}
-          replace_status {err.status_code}
-        }
-      }
-    }
-
-    *.${domain} {
-      import errors
-      error 404
-    }
-
-    ${domain} {
-      redir https://www.{host}{uri}
-    }
-  '';
+  services.caddy.extraConfig = utils.generateCaddyExtraConfig domain;
 
   services.caddy.virtualHosts =
     hosts
