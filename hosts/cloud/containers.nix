@@ -68,28 +68,6 @@
     #   ];
     # };
 
-    yarr = {
-      image = "arsfeld/yarr:c76ff26bd6dff6137317da2fe912bc44950eb17a";
-      volumes = ["/var/lib/yarr:/data"];
-      ports = ["7070:7070"];
-    };
-
-    sudo-proxy = {
-      image = "ghcr.io/sussy-code/sudo-proxy:latest";
-      ports = ["3030:3000"];
-    };
-
-    ladder = {
-      image = "ghcr.io/kubero-dev/ladder:latest";
-      ports = ["8766:8080"];
-    };
-
-    actual = {
-      image = "actualbudget/actual-server:latest";
-      ports = ["5006:5006"];
-      volumes = ["/var/lib/actual:/data"];
-    };
-
     metube = {
       image = "ghcr.io/alexta69/metube";
       volumes = ["/var/lib/metube:/downloads"];
