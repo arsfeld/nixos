@@ -7,6 +7,7 @@
     self.nixosSuites.cloud
     ++ [
       ./hardware-configuration.nix
+      ./services
       ./services.nix
       ./containers.nix
     ];
