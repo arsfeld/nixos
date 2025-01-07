@@ -138,11 +138,14 @@ in {
       ui.infinite_scroll = true;
       ui.results_on_new_tab = true;
       ui.query_in_title = true;
+      ui.default_locale = "en";
+      search.autocomplete = "duckduckgo";
+      search.favicon_resolver = "duckduckgo";
       engines = [
         {
           name = "bing";
           engine = "bing";
-          disabled = false;
+          disabled = true;
         }
         {
           name = "startpage";
@@ -152,10 +155,6 @@ in {
         {
           name = "duckduckgo";
           disabled = true;
-        }
-        {
-          name = "1337x";
-          disabled = false;
         }
         {
           name = "qwant";
@@ -186,8 +185,7 @@ in {
     enable = true;
     settings = {
       server = {
-        host = "0.0.0.0";
-        port = 9099;
+        address = "tcp://0.0.0.0:9099";
       };
       authentication_backend = {
         ldap = {
