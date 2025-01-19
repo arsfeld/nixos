@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "nixpkgs/nixpkgs-unstable";
+    nixpkgs.url = "nixpkgs/nixos-unstable";
     nixos-generators.url = "github:nix-community/nixos-generators";
     disko.url = "github:nix-community/disko";
     agenix.url = "github:ryantm/agenix";
@@ -25,11 +25,6 @@
     eh5 = {
       url = "github:EHfive/flakes";
       inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    nixos-cosmic = {
-      url = "github:lilyinstarlight/nixos-cosmic";
-      #inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
@@ -145,7 +140,6 @@
             ./hosts/storage/configuration.nix
           ];
           raider = self.lib.mkLinuxSystem [
-            inputs.nixos-cosmic.nixosModules.default
             ./hosts/raider/configuration.nix
           ];
           cloud = self.lib.mkLinuxSystem [./hosts/cloud/configuration.nix];
@@ -158,7 +152,6 @@
           core = self.lib.mkLinuxSystem [./hosts/core/configuration.nix];
           g14 = self.lib.mkLinuxSystem [
             inputs.disko.nixosModules.disko
-            inputs.nixos-cosmic.nixosModules.default
             ./hosts/g14/configuration.nix
           ];
           hpe = self.lib.mkLinuxSystem [

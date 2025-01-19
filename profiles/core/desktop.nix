@@ -12,8 +12,8 @@
     desktopManager.gnome.enable = true;
   };
 
-  services.desktopManager.cosmic.enable = false;
-  services.displayManager.cosmic-greeter.enable = false;
+  # services.desktopManager.cosmic.enable = false;
+  # services.displayManager.cosmic-greeter.enable = false;
 
   systemd.services.NetworkManager-wait-online.enable = false;
 
@@ -82,8 +82,6 @@
   };
 
   environment.systemPackages = with pkgs; [
-    cosmic-idle
-
     vscode
     zed-editor
     vim
@@ -127,7 +125,7 @@
     ptyxis
 
     gradience
-    gnome-extension-manager
+    #gnome-extension-manager
     gnome-tweaks
     gnomeExtensions.appindicator
     gnomeExtensions.blur-my-shell
@@ -160,18 +158,6 @@
     pantheon.elementary-gtk-theme
     pantheon.elementary-icon-theme
     pantheon.elementary-wallpapers
-  ];
-
-  systemd.user.services.cosmic-idle = {
-    wantedBy = ["graphical-session.target"];
-    partOf = ["graphical-session.target"];
-    serviceConfig = {
-      ExecStart = "${pkgs.cosmic-idle}/bin/cosmic-idle";
-    };
-  };
-
-  environment.cosmic.excludePackages = with pkgs; [
-    cosmic-term
   ];
 
   environment.gnome.excludePackages = with pkgs; [
