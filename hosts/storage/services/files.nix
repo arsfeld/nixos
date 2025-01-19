@@ -18,7 +18,7 @@ in {
   };
 
   services.seafile = {
-    enable = true;
+    enable = false;
     adminEmail = vars.email;
     initialAdminPassword = "password";
     seafileSettings = {
