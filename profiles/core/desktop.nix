@@ -67,22 +67,23 @@
 
   services.flatpak = {
     packages = [
-      "flathub:app/com.valvesoftware.Steam//stable"
-      "flathub:app/com.github.tchx84.Flatseal//stable"
-      "flathub:app/com.spotify.Client//stable"
-      "flathub:app/tv.plex.PlexDesktop//stable"
-      "flathub:app/org.mozilla.firefox//stable"
-      "flathub:app/com.discordapp.Discord//stable"
-      "flathub:app/org.libreoffice.LibreOffice//stable"
-      "flathub:app/engineer.atlas.Nyxt//stable"
+      "com.valvesoftware.Steam"
+      "com.github.tchx84.Flatseal"
+      "com.spotify.Client"
+      "tv.plex.PlexDesktop"
+      "org.mozilla.firefox"
+      "com.discordapp.Discord"
+      "org.libreoffice.LibreOffice"
+      "engineer.atlas.Nyxt"
+      "com.visualstudio.code"
+      "org.videolan.VLC"
+      "com.usebottles.bottles"
+      "net.lutris.Lutris"
+      "app.devsuite.Ptyxis"
     ];
-    remotes = {
-      "flathub" = "https://dl.flathub.org/repo/flathub.flatpakrepo";
-    };
   };
 
   environment.systemPackages = with pkgs; [
-    vscode
     zed-editor
     vim
     wget
@@ -94,17 +95,16 @@
     plex-mpv-shim
     mission-center
     variety
-    bottles
     protonplus
     quickemu
     #quickgui
     multiviewer-for-f1
-    lutris
     #cartridges
     ryujinx
     mupen64plus
     rpcs3
     celluloid
+    ghostty
 
     # Video/Audio data composition framework tools like "gst-inspect", "gst-launch" ...
     gst_all_1.gstreamer
@@ -118,11 +118,6 @@
     gst_all_1.gst-libav
     # Support the Video Audio (Hardware) Acceleration API
     gst_all_1.gst-vaapi
-
-    #virtualboxKvm
-
-    #blackbox-terminal
-    ptyxis
 
     gradience
     #gnome-extension-manager
