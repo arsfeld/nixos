@@ -92,6 +92,9 @@
     unzip
     zip
 
+    # Add terminfo from ghostty
+    ghostty
+
     binutils
     dosfstools
     duf
@@ -100,6 +103,7 @@
     file
     git
     gptfdisk
+    htop
     home-manager
     keychain
     killall
