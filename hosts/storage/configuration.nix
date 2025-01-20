@@ -27,10 +27,8 @@ with lib; {
 
   virtualisation.docker.storageDriver = "overlay2";
 
-  virtualisation.lxd = {
+  virtualisation.incus = {
     enable = true;
-
-    recommendedSysctlSettings = true;
   };
 
   boot = {
