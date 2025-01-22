@@ -58,6 +58,9 @@ in {
       (writeScriptBin "running" (builtins.readFile ./scripts/running))
     ];
     sessionPath = ["$HOME/.local/bin"];
+    shellAliases = {
+      "df" = "df -h -x tmpfs";
+    };
   };
 
   # This should be enabled by default, but being explicit here
