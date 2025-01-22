@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable-small";
     nixos-generators.url = "github:nix-community/nixos-generators";
     disko.url = "github:nix-community/disko";
     agenix.url = "github:ryantm/agenix";
@@ -16,7 +16,7 @@
     treefmt-nix.url = "github:numtide/treefmt-nix";
     attic.url = "github:zhaofengli/attic";
     process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
-    flatpaks.url = "github:GermanBread/declarative-flatpak/stable-v3";
+    nix-flatpak.url = "github:gmodena/nix-flatpak";
     tsnsrv.url = "github:boinkor-net/tsnsrv";
 
     nix-index-database.url = "github:nix-community/nix-index-database";
@@ -88,7 +88,7 @@
         lib = let
           commonModules = [
             inputs.agenix.nixosModules.default
-            inputs.flatpaks.nixosModules.declarative-flatpak
+            inputs.nix-flatpak.nixosModules.nix-flatpak
             inputs.tsnsrv.nixosModules.default
             inputs.home-manager.nixosModules.home-manager
             ./common/modules/systemd-email-notify.nix
