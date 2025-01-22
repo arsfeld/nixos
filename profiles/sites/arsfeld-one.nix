@@ -53,6 +53,7 @@ with lib; let
       filerun = 6000;
       filestash = 8334;
       flaresolverr = 8191;
+      filebrowser = 38080;
       gitea = 3001;
       grafana = 3010;
       grocy = 9283;

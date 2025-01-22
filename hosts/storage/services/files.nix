@@ -15,6 +15,61 @@ in {
   services.syncthing = {
     enable = true;
     guiAddress = "0.0.0.0:8384";
+    group = "media";
+  };
+
+  services.webdav-server-rs = {
+    enable = true;
+    settings = {
+      server.listen = ["0.0.0.0:4918" "[::]:4918"];
+      accounts = {
+        auth-type = "htpasswd.default";
+        acct-type = "unix";
+      };
+      htpasswd.default = {
+        htpasswd = pkgs.writeText "htpasswd" "arosenfeld:$2y$10$vVSREtogLxRBBRcKKcwNq.0mJTMeoQlKUnzI7Lmf4N7I.o7JKI/4u";
+      };
+      location = [
+        {
+          route = ["/public/*path"];
+          directory = "/mnt/files";
+          handler = "filesystem";
+          methods = ["webdav-ro"];
+          autoindex = true;
+          auth = "false";
+        }
+        {
+          route = ["/photosync/*path"];
+          directory = "/mnt/data/files/PhotoSync";
+          handler = "filesystem";
+          methods = ["webdav-rw"];
+          autoindex = true;
+          auth = "true";
+          setuid = true;
+        }
+      ];
+    };
+  };
+
+  services.tsnsrv.services.webdav = {
+    toURL = "http://127.0.0.1:4918";
+    funnel = false;
+  };
+
+  virtualisation.oci-containers.containers = {
+    filebrowser = {
+      image = "filebrowser/filebrowser:s6";
+      volumes = [
+        "${vars.dataDir}/files:/srv"
+        "${vars.configDir}/filebrowser/filebrowser.db:/database/filebrowser.db"
+        "${vars.configDir}/filebrowser/settings.json:/config/settings.json"
+      ];
+      environment = {
+        PUID = toString vars.puid;
+        PGID = toString vars.pgid;
+      };
+      ports = ["38080:80"];
+    };
   };
 
   services.seafile = {
