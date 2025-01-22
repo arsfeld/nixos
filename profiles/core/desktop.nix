@@ -125,6 +125,7 @@
     gnomeExtensions.appindicator
     gnomeExtensions.blur-my-shell
     gnomeExtensions.dash-to-dock
+    gnomeExtensions.wallpaper-slideshow
     gnomeExtensions.gsconnect
     gnomeExtensions.gtile
     gnomeExtensions.xwayland-indicator
