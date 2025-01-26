@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable-small";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     nixos-generators.url = "github:nix-community/nixos-generators";
     disko.url = "github:nix-community/disko";
     agenix.url = "github:ryantm/agenix";
@@ -14,7 +14,6 @@
     devshell.url = "github:numtide/devshell";
     devshell.inputs.nixpkgs.follows = "nixpkgs";
     treefmt-nix.url = "github:numtide/treefmt-nix";
-    attic.url = "github:zhaofengli/attic";
     process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
     nix-flatpak.url = "github:gmodena/nix-flatpak";
     tsnsrv.url = "github:boinkor-net/tsnsrv";
@@ -46,11 +45,10 @@
         system,
         ...
       }: {
-        #packages = {inherit pkgs;}; #import ./pkgs {inherit pkgs;};
         process-compose."default" = {
           settings = {
             processes = {
-              attic-push.command = "attic watch-store oci:system";
+              attic-push.command = "attic watch-store system";
             };
           };
         };
