@@ -4,11 +4,13 @@
   pkgs,
   nixpkgs,
   modulesPath,
+  self,
   ...
 }:
 with lib; let
   domain = "rosenfeld.one";
   email = "arsfeld@gmail.com";
+  ports = (import "${self}/common/services.nix" {}).ports;
 in {
   services.caddy.email = email;
 
@@ -33,12 +35,12 @@ in {
               }
             ` 200
         }
-        reverse_proxy localhost:5556
+        reverse_proxy localhost:${toString ports.dex}
       '';
     };
     "users.${domain}" = {
       useACMEHost = domain;
-      extraConfig = "reverse_proxy localhost:17170";
+      extraConfig = "reverse_proxy localhost:${toString ports.users}";
     };
   };
 }

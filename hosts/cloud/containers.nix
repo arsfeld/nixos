@@ -2,7 +2,9 @@
   config,
   self,
   ...
-}: {
+}: let
+  ports = (import "${self}/common/services.nix" {}).ports;
+in {
   age.secrets."gluetun-pia".file = "${self}/secrets/gluetun-pia.age";
 
   virtualisation.oci-containers.containers = {
@@ -28,12 +30,12 @@
         # mail__auth__user = "admin@arsfeld.one";
         # mail__auth__pass = builtins.readFile config.age.secrets.smtp_password.path;
       };
-      ports = ["2368:2368"];
+      ports = ["${toString ports.ghost}:2368"];
     };
 
     whoogle = {
       image = "benbusby/whoogle-search:latest";
-      ports = ["5000:5000"];
+      ports = ["${toString ports.whoogle}:5000"];
     };
 
     # gluetun = {
@@ -71,7 +73,7 @@
     metube = {
       image = "ghcr.io/alexta69/metube";
       volumes = ["/var/lib/metube:/downloads"];
-      ports = ["8081:8081"];
+      ports = ["${toString ports.metube}:8081"];
     };
   };
 }

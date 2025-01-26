@@ -51,6 +51,18 @@ in {
 
   programs.coolercontrol.enable = true;
 
+  programs = {
+    gamemode.enable = true;
+    gamescope = {
+      enable = true;
+      capSysNice = true;
+    };
+    steam = {
+      enable = true;
+      gamescopeSession.enable = true;
+    };
+  };
+
   #services.power-profiles-daemon.enable = false;
 
   # Set your time zone.

@@ -7,6 +7,7 @@
   mediaDomain = "arsfeld.one";
   authDomain = "rosenfeld.one";
   autheliaConfig = "arsfeld.one";
+  ports = (import "${self}/common/services.nix" {}).ports;
 in {
   age.secrets.tailscale-key.file = "${self}/secrets/tailscale-key.age";
 
@@ -53,7 +54,7 @@ in {
         config.host = "/var/lib/dex/dex.db";
       };
       web = {
-        http = "127.0.0.1:5556";
+        http = "127.0.0.1:${toString ports.dex}";
       };
       enablePasswordDB = true;
       staticClients = [
@@ -130,7 +131,7 @@ in {
     enable = true;
     redisCreateLocally = true;
     settings = {
-      server.port = 8888;
+      server.port = ports.search;
       server.bind_address = "0.0.0.0";
       server.secret_key = "secret-indeed";
       server.method = "GET";
@@ -185,7 +186,7 @@ in {
     enable = true;
     settings = {
       server = {
-        address = "tcp://0.0.0.0:9099";
+        address = "tcp://0.0.0.0:${toString ports.auth}";
       };
       authentication_backend = {
         ldap = {
@@ -283,6 +284,7 @@ in {
       DOMAIN = "https://vault.${mediaDomain}";
       SIGNUPS_ALLOWED = true;
       ROCKET_ADDRESS = "0.0.0.0";
+      ROCKET_PORT = ports.vault;
       USE_SENDMAIL = true;
       SENDMAIL_COMMAND = "${pkgs.system-sendmail}/bin/sendmail";
       SMTP_FROM = "admin@rosenfeld.one";
@@ -291,7 +293,7 @@ in {
 
   services.invidious = {
     enable = false;
-    port = 3939;
+    port = ports.invidious;
     domain = "invidious.${mediaDomain}";
     database.createLocally = true;
     settings = {
