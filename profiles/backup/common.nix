@@ -5,35 +5,11 @@
   self,
   ...
 }: let
-  rustic = pkgs.writeShellApplication {
-    name = "restic";
-    runtimeInputs = [pkgs.rclone];
-    text = ''
-      for v in $(printenv | grep RESTIC_)
-      do
-          export "RUSTIC_''${v#RESTIC_}"
-      done
-      exec ${pkgs.rustic-rs}/bin/rustic "$@"
-    '';
-  };
-  glob = [
-    # very large paths
-    "!/var/lib/docker"
-    "!/var/lib/systemd"
-    "!/var/lib/libvirt"
-
-    "!**/.cache"
-    "!**/.nix-profile"
-  ];
   opts = {
-    #package = rustic;
-    extraBackupArgs = [
-      #"--glob-file=${pkgs.writeText "glob-file" (lib.concatStringsSep "\n" glob)}"
-      #"--progress-interval=1s"
-    ];
     paths = [
       "/var/lib"
       "/var/data"
+      "/mnt/data/files/Immich"
       "/home"
       "/root"
     ];

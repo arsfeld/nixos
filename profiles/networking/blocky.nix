@@ -1,8 +1,11 @@
 {
   lib,
   config,
+  self,
   ...
-}: {
+}: let
+  ports = (import "${self}/common/services.nix" {}).ports;
+in {
   services.redis = {
     servers = {
       blocky = {
@@ -25,7 +28,7 @@
         };
       };
       ports = {
-        http = ":4000";
+        http = ":${toString ports.dns}";
       };
       redis = {
         address = "100.66.38.77:6378";

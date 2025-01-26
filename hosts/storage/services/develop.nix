@@ -1,11 +1,16 @@
-{config, ...}: let
+{
+  config,
+  self,
+  ...
+}: let
   vars = config.vars;
+  ports = (import "${self}/common/services.nix" {}).ports;
 in {
   services.openvscode-server = {
     enable = true;
     user = "arosenfeld";
     host = "0.0.0.0";
-    port = 3434;
+    port = ports.code;
     withoutConnectionToken = true;
   };
 

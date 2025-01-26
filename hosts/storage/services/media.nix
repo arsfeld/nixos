@@ -5,6 +5,7 @@
   ...
 }: let
   vars = config.vars;
+  ports = (import "${self}/common/services.nix" {}).ports;
 
   plex-trakt-sync = {interactive ? false}: ''    ${pkgs.docker}/bin/docker run ${
       if interactive
@@ -18,6 +19,7 @@ in {
     enable = false;
     user = vars.user;
     group = vars.group;
+    listenPort = ports.bazarr;
   };
 
   services.lidarr = {
@@ -44,8 +46,20 @@ in {
     group = vars.group;
   };
 
-  services.prowlarr.enable = true;
-  services.nzbhydra2.enable = true;
+  services.komga = {
+    enable = true;
+    user = vars.user;
+    group = vars.group;
+    settings.server.port = ports.komga;
+  };
+
+  services.prowlarr = {
+    enable = true;
+  };
+
+  services.nzbhydra2 = {
+    enable = true;
+  };
 
   services.jellyfin = {
     enable = true;
@@ -63,8 +77,7 @@ in {
     enable = true;
     user = vars.user;
     group = vars.group;
-    host = "0.0.0.0";
-    port = 8787;
+    port = ports.headphones;
   };
 
   services.bitmagnet = {
