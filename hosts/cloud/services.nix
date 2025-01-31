@@ -119,6 +119,7 @@ in {
       ldap_user_email = "admin@${authDomain}";
       ldap_user_dn = "admin";
       ldap_base_dn = "dc=rosenfeld,dc=one";
+      http_port = ports.users;
     };
     environmentFile = config.age.secrets.lldap-env.path;
   };
