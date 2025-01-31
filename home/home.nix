@@ -42,7 +42,6 @@ in {
       htop
       kondo
       nil
-      nil
       nix
       nvidia-offload
       procs
@@ -51,6 +50,7 @@ in {
       rustup
       starship
       tldr
+      uv
       vim
       waypipe
       yt-dlp

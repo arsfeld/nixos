@@ -85,12 +85,11 @@
 
       flake = {
         lib = let
-          commonModules = [
+          commonModules = inputs.nixpkgs.lib.flatten [
             inputs.agenix.nixosModules.default
             inputs.nix-flatpak.nixosModules.nix-flatpak
             inputs.tsnsrv.nixosModules.default
             inputs.home-manager.nixosModules.home-manager
-            ./common/modules/systemd-email-notify.nix
             {
               home-manager.sharedModules = [
                 inputs.nix-index-database.hmModules.nix-index
@@ -100,6 +99,25 @@
               home-manager.backupFileExtension = "bak";
               home-manager.users.arosenfeld = import ./home/home.nix;
             }
+            {
+              nixpkgs.overlays = [
+                (import ./overlays/python-packages.nix)
+                # Add packages overlay
+                (
+                  final: prev: {
+                    send-email-event = final.callPackage ./packages/send-email-event {inherit final prev;};
+                  }
+                )
+              ];
+            }
+            # Load all modules from the modules directory
+            (let
+              modules = inputs.haumea.lib.load {
+                src = ./modules;
+                loader = inputs.haumea.lib.loaders.path;
+              };
+            in
+              builtins.attrValues modules)
           ];
         in rec {
           mkLinuxSystem = mods:

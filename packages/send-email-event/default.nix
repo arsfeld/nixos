@@ -6,35 +6,7 @@
   pythonEnv = pkgs.python3.withPackages (ps:
     with ps; [
       jinja2
-      (ps.buildPythonPackage rec {
-        pname = "mrml";
-        version = "0.1.15";
-        format = "pyproject";
-
-        src = pkgs.fetchPypi {
-          inherit pname version;
-          sha256 = "sha256-XbYRkJ6tptG0LUYZQAF5UsHjpm9ys2graxDmn1BUz6A=";
-        };
-
-        nativeBuildInputs = [
-          pkgs.cargo
-          pkgs.rustPlatform.cargoSetupHook
-          pkgs.rustc
-        ];
-
-        build-system = [
-          pkgs.rustPlatform.maturinBuildHook
-        ];
-
-        cargoDeps = pkgs.rustPlatform.fetchCargoTarball {
-          inherit src;
-          name = "${pname}-${version}";
-          hash = "sha256-5cEQMCWM473y+se6jWuWr/T9Pg/Q6BuD4ypGF1SBF6M=";
-        };
-
-        doCheck = false;
-        propagatedBuildInputs = [];
-      })
+      mrml
     ]);
 
   sendEmailScript = pkgs.writeTextFile {
@@ -137,9 +109,6 @@
     '';
   };
 in
-  {
-    event,
-    extraContent ? "",
-  }: ''
-    ${pythonEnv}/bin/python ${sendEmailScript} "${event}" "${extraContent}"
+  pkgs.writeScriptBin "send-email-event" ''
+    ${pythonEnv}/bin/python ${sendEmailScript} "$@"
   ''
