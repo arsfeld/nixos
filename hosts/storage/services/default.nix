@@ -1,5 +1,6 @@
 {
   imports = [
+    ./check-stock.nix
     ./cloud-sync.nix
     ./db.nix
     ./develop.nix
