@@ -1,18 +1,43 @@
-{...}: rec {
-  cloud = {
-    auth = 9099;
-    dex = 5556;
-    dns = 4000;
-    invidious = 3939;
-    metube = 8081;
-    search = 8888;
-    users = 17170;
+{...}: let
+  # Generate a stable port number from a string (service name)
+  # Uses SHA-256 hash to generate a number between 1024-65535
+  nameToPort = name: let
+    # Get SHA-256 hash of name and take first 8 chars
+    hash = builtins.substring 0 6 (builtins.hashString "sha256" name);
+    # Convert hex to decimal (base 16)
+    decimal = (builtins.fromTOML "a = 0x${hash}").a;
+    # Scale to port range (1024-65535)
+    portRange = 65535 - 1024;
+    # Implement modulo using division and multiplication
+    remainder = decimal - (portRange * (decimal / portRange));
+    port = 1024 + remainder;
+  in
+    port;
+
+  # Helper function to process a set and replace null values with generated ports
+  processServices = serviceSet:
+    builtins.mapAttrs (
+      name: value:
+        if value == null
+        then nameToPort name
+        else value
+    )
+    serviceSet;
+in rec {
+  cloud = processServices {
+    auth = null;
+    dex = null;
+    dns = null;
+    invidious = null;
+    metube = null;
+    search = null;
+    users = null;
     vault = 8000;
     yarr = 7070;
     whoogle = 5000;
     ghost = 2368;
   };
-  storage = {
+  storage = processServices {
     bazarr = 6767;
     beszel = 8090;
     bitmagnet = 3333;
@@ -34,7 +59,7 @@
     jellyfin = 8096;
     jf = 3831;
     lidarr = 8686;
-    komga = 8085;
+    komga = null;
     netdata = 19999;
     nzbhydra2 = 5076;
     ollama-api = 11434;

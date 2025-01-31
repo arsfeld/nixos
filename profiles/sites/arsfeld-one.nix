@@ -27,7 +27,10 @@ with lib; let
   cors = ["sudo-proxy"];
   funnels = ["yarr" "jellyfin"];
 
-  configs = utils.generateConfigs services;
+  configs = utils.generateConfigs {
+    cloud = services.cloud;
+    storage = services.storage;
+  };
   tsnsrvConfigs = utils.generateTsnsrvConfigs configs funnels config;
   hosts = utils.generateHosts configs domain bypassAuth cors;
 in {
