@@ -5,8 +5,6 @@
   ...
 }:
 with lib; let
-  sendEmailEvent = import ../sendEmailEvent.nix {inherit lib pkgs;};
-
   sendmail = pkgs.writeScript "sendmail" ''
     #!/bin/sh
 
@@ -40,19 +38,16 @@ with lib; let
 
     # Update the timestamp file
     date +%s > "$TIMESTAMP_FILE"
-    ${sendEmailEvent {
-      event = "Service Failure $1 (Failure #$FAILURE_COUNT)";
-      extraContent = ''
-        Failed Service: $1
+    ${pkgs.send-email-event}/bin/send-email-event \
+      --event "Service Failure $1 (Failure #$FAILURE_COUNT)" \
+      --extra-content "Failed Service: $1
         Failure Count: $FAILURE_COUNT
 
         Service Status:
         $(systemctl status --full "$1")
 
         Recent Logs:
-        $(journalctl -u "$1" --reverse --lines=50)
-      '';
-    }}
+        $(journalctl -u "$1" --reverse --lines=50)"
 
     echo 0 > "$FAILURE_COUNT_FILE"
   '';

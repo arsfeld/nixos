@@ -1,52 +1,57 @@
 {
   self,
   inputs,
-}: {
+}: let
+  mkDeploy = {
+    hostname ? null,
+    system ? "x86_64-linux",
+    fastConnection ? false,
+    remoteBuild ? false,
+  }: {
+    inherit hostname fastConnection remoteBuild;
+    profiles.system.path = inputs.deploy-rs.lib.${system}.activate.nixos self.nixosConfigurations.${hostname};
+  };
+in {
   sshUser = "root";
   autoRollback = false;
   magicRollback = false;
   nodes = {
-    storage = {
+    storage = mkDeploy {
       hostname = "storage";
-      profiles.system.path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.storage;
     };
-    raider = {
+    raider = mkDeploy {
       hostname = "raider-nixos";
       fastConnection = true;
-      profiles.system.path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.raider;
     };
-    cloud = {
+    cloud = mkDeploy {
       hostname = "cloud";
+      system = "aarch64-linux";
       remoteBuild = true;
-      profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.cloud;
     };
-    cloud-br = {
+    cloud-br = mkDeploy {
       hostname = "cloud-br";
-      profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.cloud-br;
+      system = "aarch64-linux";
     };
-    r2s = {
+    r2s = mkDeploy {
       hostname = "192.168.1.10";
+      system = "aarch64-linux";
       fastConnection = true;
-      profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.r2s;
     };
-    raspi3 = {
+    raspi3 = mkDeploy {
       hostname = "raspi3";
+      system = "aarch64-linux";
       fastConnection = true;
-      profiles.system.path = inputs.deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.raspi3;
     };
-    core = {
+    core = mkDeploy {
       hostname = "core";
-      profiles.system.path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.core;
     };
-    g14 = {
+    g14 = mkDeploy {
       hostname = "g14";
       fastConnection = true;
-      profiles.system.path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.g14;
     };
-    hpe = {
+    hpe = mkDeploy {
       hostname = "hpe";
       fastConnection = true;
-      profiles.system.path = inputs.deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.hpe;
     };
   };
 }

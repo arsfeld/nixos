@@ -7,7 +7,6 @@
 }:
 with lib; let
   email = "admin@rosenfeld.one";
-  sendEmailEvent = import ../../common/sendEmailEvent.nix {inherit lib pkgs;};
 in {
   age.secrets.smtp_password.file = "${self}/secrets/smtp_password.age";
   age.secrets.smtp_password.mode = "444";
@@ -40,7 +39,7 @@ in {
       Type = "oneshot";
       RemainAfterExit = true;
     };
-    script = sendEmailEvent {event = "just booted";};
+    script = "${pkgs.send-email-event}/bin/send-email-event 'just booted'";
   };
   systemd.services."shutdown-mail-alert" = {
     wantedBy = ["multi-user.target"];
@@ -50,11 +49,11 @@ in {
       RemainAfterExit = true;
     };
     script = "true";
-    preStop = sendEmailEvent {event = "is shutting down";};
+    preStop = "${pkgs.send-email-event}/bin/send-email-event 'is shutting down'";
   };
   systemd.services."weekly-mail-alert" = {
     serviceConfig.Type = "oneshot";
-    script = sendEmailEvent {event = "is still alive";};
+    script = "${pkgs.send-email-event}/bin/send-email-event 'is still alive'";
   };
   systemd.timers."weekly-mail-alert" = {
     wantedBy = ["timers.target"];
