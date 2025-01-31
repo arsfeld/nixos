@@ -77,6 +77,7 @@
         legacyPackages.homeConfigurations.arosenfeld = inputs.home-manager.lib.homeManagerConfiguration {
           inherit pkgs;
           modules = [
+            inputs.nix-index-database.hmModules.nix-index
             ./home/home.nix
           ];
         };

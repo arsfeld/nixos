@@ -2,6 +2,7 @@
   config,
   pkgs,
   lib,
+  inputs,
   ...
 }: let
   inherit (pkgs) stdenv;
@@ -18,10 +19,10 @@ in {
   # paths it should manage.
   home = {
     username = "arosenfeld";
-    # homeDirectory =
-    #   if stdenv.isLinux
-    #   then "/home/arosenfeld"
-    #   else "/Users/arosenfeld";
+    homeDirectory =
+      if stdenv.isLinux
+      then "/home/arosenfeld"
+      else "/Users/arosenfeld";
     stateVersion = "22.05";
     packages = with pkgs; [
       btop
