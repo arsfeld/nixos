@@ -39,8 +39,8 @@ with lib; let
     # Update the timestamp file
     date +%s > "$TIMESTAMP_FILE"
     ${pkgs.send-email-event}/bin/send-email-event \
-      --event "Service Failure $1 (Failure #$FAILURE_COUNT)" \
-      --extra-content "Failed Service: $1
+      "Service Failure $1 (Failure #$FAILURE_COUNT)" \
+      "Failed Service: $1
         Failure Count: $FAILURE_COUNT
 
         Service Status:
