@@ -104,5 +104,15 @@ with lib; {
     "dotnet-sdk-wrapped-6.0.428"
   ];
 
+  services.check-stock = {
+    enable = true;
+    urls.mystery-box-hr1 = {
+      url = "https://frame.work/ca/en/products/framework-mystery-boxes?v=FRANHR0001";
+      timerConfig = {
+        OnCalendar = "hourly";
+      };
+    };
+  };
+
   system.stateVersion = "24.05";
 }

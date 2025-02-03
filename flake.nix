@@ -106,6 +106,7 @@
                 (
                   final: prev: {
                     send-email-event = final.callPackage ./packages/send-email-event {inherit final prev;};
+                    check-stock = final.callPackage ./packages/check-stock {inherit final prev;};
                   }
                 )
               ];

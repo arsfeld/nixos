@@ -1,0 +1,45 @@
+<mjml>
+  <mj-head>
+    <mj-title>{{title}} is Available!</mj-title>
+    <mj-attributes>
+      <mj-all font-family="Arial, sans-serif" />
+      <mj-text font-weight="400" font-size="16px" color="#000000" line-height="24px" />
+    </mj-attributes>
+    <mj-style>
+      .shadow { box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+    </mj-style>
+  </mj-head>
+  <mj-body background-color="#f4f4f4">
+    <mj-section background-color="#ffffff" padding="20px 0">
+      <mj-column>
+        <mj-image src="https://frame.work/favicon.ico" alt="Framework Logo" width="60px" padding-bottom="20px" />
+        <mj-text font-size="24px" font-weight="bold" align="center" color="#333333">
+          {{title}} is Available!
+        </mj-text>
+        <mj-text font-size="18px" align="center" color="#666666" padding-bottom="20px">
+          The item you've been waiting for is now available
+        </mj-text>
+        <mj-button background-color="#0066cc"
+                   color="white"
+                   font-size="16px"
+                   font-weight="bold"
+                   border-radius="6px"
+                   padding="16px 24px"
+                   css-class="shadow"
+                   href="{{url}}">
+          Shop Now
+        </mj-button>
+        <mj-text color="#666666" font-size="14px" align="center" padding-top="20px">
+          Don't wait too long - items may sell out quickly!
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section background-color="#f4f4f4" padding="10px 0">
+      <mj-column>
+        <mj-text color="#666666" font-size="12px" align="center">
+          This is an automated notification from your stock checker
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml> 
