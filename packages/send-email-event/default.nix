@@ -1,8 +1,4 @@
-{
-  lib,
-  pkgs,
-  ...
-}: let
+{pkgs, ...}: let
   pythonEnv = pkgs.python3.withPackages (ps:
     with ps; [
       jinja2
