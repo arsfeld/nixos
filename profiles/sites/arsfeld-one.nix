@@ -12,17 +12,17 @@ with lib; let
   email = "arsfeld@gmail.com";
   bypassAuth = [
     "auth"
-    "auth"
     "dns"
     "flaresolverr"
     "grafana"
     "immich"
     "nextcloud"
+    "ntfy"
+    "ollama-api"
     "search"
     "sudo-proxy"
     "transmission"
     "vault"
-    "ollama-api"
   ];
   cors = ["sudo-proxy"];
   funnels = ["yarr" "jellyfin"];

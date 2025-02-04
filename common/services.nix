@@ -28,14 +28,15 @@ in rec {
     auth = null;
     dex = null;
     dns = null;
+    ghost = 2368;
     invidious = null;
     metube = null;
+    ntfy = null;
     search = null;
     users = null;
     vault = 8000;
-    yarr = 7070;
     whoogle = 5000;
-    ghost = 2368;
+    yarr = 7070;
   };
   storage = processServices {
     bazarr = 6767;

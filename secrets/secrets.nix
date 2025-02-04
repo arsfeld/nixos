@@ -31,4 +31,5 @@ in {
   "smtp_password.age".publicKeys = users ++ systems;
   "tailscale-key.age".publicKeys = users ++ systems;
   "transmission-openvpn-pia.age".publicKeys = users ++ [storage];
+  "ntfy-env.age".publicKeys = users ++ [cloud];
 }
