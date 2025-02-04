@@ -125,6 +125,22 @@ in {
     environmentFile = config.age.secrets.lldap-env.path;
   };
 
+  age.secrets.ntfy-env.file = "${self}/secrets/ntfy-env.age";
+  age.secrets.ntfy-env.mode = "444";
+
+  services.ntfy-sh = {
+    enable = true;
+    settings = {
+      base-url = "https://ntfy.${mediaDomain}";
+      listen-http = ":${toString ports.ntfy}";
+      smtp-sender-addr = "smtp.purelymail.com:587";
+      smtp-sender-user = "alex@rosenfeld.one";
+      smtp-sender-from = "admin@rosenfeld.one";
+    };
+  };
+
+  systemd.services.ntfy-sh.serviceConfig.EnvironmentFile = config.age.secrets.ntfy-env.path;
+
   services.caddy = {
     enable = true;
   };
