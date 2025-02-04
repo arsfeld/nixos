@@ -6,11 +6,14 @@ import logging
 from datetime import datetime
 from mrml import to_html
 import argparse
+import requests
 
 # Configure logging
 log_dir = os.path.expanduser("~/.local/share/check-stock")
 os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, "check-stock.log")
+
+template_path = os.environ.get('EMAIL_TEMPLATE_PATH', 'email-template.mjml')
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,7 +25,36 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def send_notification_email(url, title, template_path='email-template.mjml'):
+def send_notification_ntfy(url, title, server="ntfy.sh"):
+    servers = {
+        "ntfy.sh": "https://ntfy.sh/arsfeld-product-available",
+        "personal": "https://ntfy.arsfeld.one/product-available"
+    }
+    
+    try:
+        # Determine which servers to notify
+        targets = []
+        if server == "both":
+            targets = list(servers.values())
+        else:
+            targets = [servers[server]]
+        
+        # Send notifications
+        for target in targets:
+            response = requests.post(
+                target,
+                data=f"{title} is available!".encode(encoding='utf-8'),
+                headers={"Click": url, "Priority": "high", "Email": "alex@rosenfeld.one"}
+            )
+            server_name = target.split("//")[1].split("/")[0]  # Extract domain from URL
+            logger.info(f"{server_name} response status: {response.status_code}")
+            if response.status_code != 200:
+                logger.error(f"{server_name} error response: {response.text}")
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to send ntfy notification: {e}", exc_info=True)
+
+def send_notification_email(url, title):
     try:
         # Read and render MJML template
         with open(template_path, 'r') as f:
@@ -58,7 +90,7 @@ MIME-Version: 1.0
     except Exception as e:
         logger.error(f"Failed to send email: {e}", exc_info=True)
 
-def check_add_to_bag_button(url, template_path):
+def check_add_to_bag_button(url, ntfy_server):
     logger.info(f"Starting check for URL: {url}")
     with sync_playwright() as p:
         logger.debug("Initializing Playwright")
@@ -80,7 +112,8 @@ def check_add_to_bag_button(url, template_path):
 
             if button.is_visible():
                 logger.info("'Add to bag' button is visible")
-                send_notification_email(url, title, template_path)
+                send_notification_ntfy(url, title, ntfy_server)
+                send_notification_email(url, title)
                 return True
             else:
                 logger.info("'Add to bag' button is present but not visible")
@@ -95,17 +128,17 @@ def check_add_to_bag_button(url, template_path):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        logger.error("No URLs provided. Usage: check-stock.py [-t TEMPLATE] URL1 [URL2 ...]")
+        logger.error("No URLs provided. Usage: check-stock.py URL1 [URL2 ...]")
         sys.exit(1)
 
     parser = argparse.ArgumentParser(description='Check stock availability.')
-    parser.add_argument('-t', '--template', default='email-template.mjml',
-                      help='Path to MJML email template (default: email-template.mjml)')
     parser.add_argument('urls', nargs='+', help='URLs to check')
+    parser.add_argument('--ntfy-server', choices=['ntfy.sh', 'personal', 'both'], 
+                       default='ntfy.sh', help='Choose notification server (default: ntfy.sh)')
     
     args = parser.parse_args()
     logger.info("Starting stock check script")
 
     for url in args.urls:
         logger.info(f"Checking URL: {url}")
-        check_add_to_bag_button(url, args.template) 
+        check_add_to_bag_button(url, args.ntfy_server) 
