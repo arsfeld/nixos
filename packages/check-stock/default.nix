@@ -3,6 +3,7 @@
     with ps; [
       playwright
       mrml
+      requests
       pkgs.msmtp
     ]);
 in
@@ -12,6 +13,7 @@ in
     text = ''
       export PLAYWRIGHT_BROWSERS_PATH=${pkgs.playwright-driver.browsers}
       export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true
-      ${pythonEnv}/bin/python ${./check-stock.py} -t ${./email-template.mjml} "$@"
+      export EMAIL_TEMPLATE_PATH=${./email-template.mjml}
+      ${pythonEnv}/bin/python ${./check-stock.py} "$@"
     '';
   }
