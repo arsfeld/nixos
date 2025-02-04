@@ -14,6 +14,7 @@ in {
   services.tsnsrv = {
     enable = true;
     defaults = {
+      tags = ["tag:service"];
       authKeyPath = config.age.secrets.tailscale-key.path;
     };
   };

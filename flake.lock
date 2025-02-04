@@ -212,11 +212,11 @@
         "nixpkgs-lib": "nixpkgs-lib_2"
       },
       "locked": {
-        "lastModified": 1726153070,
-        "narHash": "sha256-HO4zgY0ekfwO5bX0QH/3kJ/h4KvUDFZg8YpkNwIbg1U=",
+        "lastModified": 1738453229,
+        "narHash": "sha256-7H9XgNiGLKN1G1CgRh0vUL4AheZSYzPm+zmZ7vxbJdo=",
         "owner": "hercules-ci",
         "repo": "flake-parts",
-        "rev": "bcef6817a8b2aa20a5a6dbb19b43e63c5bf8619a",
+        "rev": "32ea77a06711b758da0ad9bd6a844c5740a87abd",
         "type": "github"
       },
       "original": {
@@ -438,14 +438,14 @@
     },
     "nixpkgs-lib_2": {
       "locked": {
-        "lastModified": 1725233747,
-        "narHash": "sha256-Ss8QWLXdr2JCBPcYChJhz4xJm+h/xjl4G0c0XlP6a74=",
+        "lastModified": 1738452942,
+        "narHash": "sha256-vJzFZGaCpnmo7I6i416HaBLpC+hvcURh/BQwROcGIp8=",
         "type": "tarball",
-        "url": "https://github.com/NixOS/nixpkgs/archive/356624c12086a18f2ea2825fed34523d60ccc4e3.tar.gz"
+        "url": "https://github.com/NixOS/nixpkgs/archive/072a6db25e947df2f31aab9eccd0ab75d5b2da11.tar.gz"
       },
       "original": {
         "type": "tarball",
-        "url": "https://github.com/NixOS/nixpkgs/archive/356624c12086a18f2ea2825fed34523d60ccc4e3.tar.gz"
+        "url": "https://github.com/NixOS/nixpkgs/archive/072a6db25e947df2f31aab9eccd0ab75d5b2da11.tar.gz"
       }
     },
     "nixpkgs_2": {
@@ -529,11 +529,11 @@
     },
     "nixpkgs_7": {
       "locked": {
-        "lastModified": 1729850857,
-        "narHash": "sha256-WvLXzNNnnw+qpFOmgaM3JUlNEH+T4s22b5i2oyyCpXE=",
+        "lastModified": 1738422722,
+        "narHash": "sha256-Q4vhtbLYWBUnjWD4iQb003Lt+N5PuURDad1BngGKdUs=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "41dea55321e5a999b17033296ac05fe8a8b5a257",
+        "rev": "102a39bfee444533e6b4e8611d7e92aa39b7bec1",
         "type": "github"
       },
       "original": {
@@ -668,11 +668,11 @@
         "nixpkgs": "nixpkgs_7"
       },
       "locked": {
-        "lastModified": 1736899628,
-        "narHash": "sha256-LIIPfHtF8c2kgFWEXWvR02ZiRBNYnDXvv4BSmoV0guc=",
+        "lastModified": 1738546176,
+        "narHash": "sha256-V29IbR81rwZK6j9EA75N3/JYvu1f4o/dcp7VsY/kut8=",
         "owner": "boinkor-net",
         "repo": "tsnsrv",
-        "rev": "363670cb45481b74922f87d9ce3a050179d62f34",
+        "rev": "ee4ae36064730f5310de9d2cf9c20ec1331a334f",
         "type": "github"
       },
       "original": {
