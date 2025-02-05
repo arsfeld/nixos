@@ -18,6 +18,7 @@
       "/var/lib/docker"
       "/var/lib/systemd"
       "/var/lib/libvirt"
+      "/var/lib/lxcfs"
 
       "**/.cache"
       "**/.nix-profile"
