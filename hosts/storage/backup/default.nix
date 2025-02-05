@@ -1,3 +1,3 @@
 {
-  imports = [./backup-restic.nix ./backup-server.nix];
+  imports = [./backup-server.nix ./backup-rustic.nix];
 }
