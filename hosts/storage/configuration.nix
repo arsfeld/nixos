@@ -22,6 +22,9 @@ with lib; {
   networking.firewall.enable = false;
   nixpkgs.hostPlatform = "x86_64-linux";
 
+  systemd.oomd.enableRootSlice = true;
+  systemd.oomd.enableUserSlices = true;
+
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
