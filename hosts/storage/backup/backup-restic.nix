@@ -13,6 +13,8 @@
         "/home/*/.cache"
         "/home"
         "/run"
+        "/var/lib/docker"
+        "/var/lib/lxcfs"
       ];
       repository = "/mnt/data/backups/restic";
       passwordFile = config.age.secrets."restic-password".path;
