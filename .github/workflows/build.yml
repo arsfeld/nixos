@@ -50,9 +50,27 @@ jobs:
       with:
         flakes-from-devshell: true
         script: |
-          attic login cloud https://fly-attic.fly.dev/system ${{ secrets.ATTIC_TOKEN }}
-          attic use system
+          # Function to retry commands
+          retry() {
+            local max_attempts=3
+            local attempt=1
+            local delay=5
+            
+            until "$@"; do
+              if ((attempt == max_attempts)); then
+                echo "Command '$*' failed after $max_attempts attempts"
+                return 1
+              fi
+              
+              echo "Command '$*' failed, attempt $attempt of $max_attempts. Retrying in ${delay}s..."
+              sleep $delay
+              ((attempt++))
+            done
+          }
+
+          retry attic login cloud https://fly-attic.fly.dev/system ${{ secrets.ATTIC_TOKEN }}
+          retry attic use system
           # Wake up fly machine
-          attic cache info system || true
+          retry attic cache info system
           attic watch-store system &
           nix build '.#nixosConfigurations.${{ matrix.machine.host }}.config.system.build.toplevel'
