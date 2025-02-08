@@ -81,7 +81,7 @@ in {
   };
 
   services.bitmagnet = {
-    enable = true;
+    enable = false;
   };
 
   age.secrets."bitmagnet-env".file = "${self}/secrets/bitmagnet-env.age";
