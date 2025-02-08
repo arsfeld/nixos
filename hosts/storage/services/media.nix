@@ -2,6 +2,7 @@
   config,
   self,
   pkgs,
+  lib,
   ...
 }: let
   vars = config.vars;
@@ -15,26 +16,7 @@
             -v ${vars.configDir}/plex-track-sync:/app/config \
             ghcr.io/taxel/plextraktsync'';
 in {
-  services.bazarr = {
-    enable = false;
-    user = vars.user;
-    group = vars.group;
-    listenPort = ports.bazarr;
-  };
-
   services.lidarr = {
-    enable = true;
-    user = vars.user;
-    group = vars.group;
-  };
-
-  services.radarr = {
-    enable = true;
-    user = vars.user;
-    group = vars.group;
-  };
-
-  services.sonarr = {
     enable = true;
     user = vars.user;
     group = vars.group;
@@ -61,12 +43,6 @@ in {
     enable = true;
   };
 
-  services.jellyfin = {
-    enable = true;
-    user = vars.user;
-    group = vars.group;
-  };
-
   services.tautulli = {
     enable = true;
     user = vars.user;
@@ -84,8 +60,53 @@ in {
     enable = false;
   };
 
-  age.secrets."bitmagnet-env".file = "${self}/secrets/bitmagnet-env.age";
-  systemd.services.bitmagnet.serviceConfig.EnvironmentFile = config.age.secrets.bitmagnet-env.path;
+  services.mediaContainers = {
+    overseerr = {
+      enable = true;
+      listenPort = 5055;
+      exposePort = ports.overseerr;
+    };
+
+    jackett = {
+      enable = true;
+      listenPort = 9117;
+      exposePort = ports.jackett;
+    };
+
+    bazarr = {
+      enable = true;
+      listenPort = 6767;
+      exposePort = ports.bazarr;
+      mediaVolumes = true;
+    };
+
+    radarr = {
+      enable = true;
+      listenPort = 7878;
+      exposePort = ports.radarr;
+      mediaVolumes = true;
+    };
+
+    sonarr = {
+      enable = true;
+      listenPort = 8989;
+      exposePort = ports.sonarr;
+      mediaVolumes = true;
+    };
+
+    pinchflat = {
+      enable = true;
+      imageName = "ghcr.io/kieraneglin/pinchflat:latest";
+      listenPort = 8945;
+      exposePort = ports.pinchflat;
+      volumes = [
+        "${vars.storageDir}/media/Pinchflat:/downloads"
+      ];
+    };
+  };
+
+  #age.secrets."bitmagnet-env".file = "${self}/secrets/bitmagnet-env.age";
+  #systemd.services.bitmagnet.serviceConfig.EnvironmentFile = config.age.secrets.bitmagnet-env.path;
 
   services.resilio = {
     enable = true;
@@ -161,8 +182,8 @@ in {
         TRANSMISSION_RPC_AUTHENTICATION_REQUIRED = "true";
         TRANSMISSION_RPC_USERNAME = "admin";
         TRANSMISSION_RPC_PASSWORD = "{d8fdc58747d7f336a38e1676c9f5ce6b3daee67b3d6a62b1";
-        TRANSMISSION_DOWNLOAD_DIR = "${vars.storageDir}/media/Downloads";
-        TRANSMISSION_INCOMPLETE_DIR = "${vars.storageDir}/media/Downloads/incomplete";
+        TRANSMISSION_DOWNLOAD_DIR = "/media/Downloads";
+        TRANSMISSION_INCOMPLETE_DIR = "/media/Downloads/incomplete";
         TRANSMISSION_SPEED_LIMIT_UP = "1000";
         TRANSMISSION_SPEED_LIMIT_UP_ENABLED = "true";
         WEBPROXY_ENABLED = "true";
@@ -177,6 +198,7 @@ in {
         "${vars.configDir}/transmission-openvpn:/config"
         "${vars.dataDir}:${vars.dataDir}"
         "${vars.storageDir}:${vars.storageDir}"
+        "${vars.storageDir}/media:/media"
       ];
       extraOptions = [
         "--cap-add"
@@ -214,49 +236,9 @@ in {
       ];
     };
 
-    jackett = {
-      image = "ghcr.io/linuxserver/jackett";
-      environment = {
-        PUID = vars.puid;
-        PGID = vars.pgid;
-        TZ = vars.tz;
-      };
-      ports = ["9117:9117"];
-      volumes = [
-        "${vars.configDir}/jackett:/config"
-        "${vars.dataDir}/files:/files"
-        "${vars.storageDir}/media:/media"
-      ];
-    };
-
-    overseerr = {
-      image = "lscr.io/linuxserver/overseerr:latest";
-      environment = {
-        PUID = vars.puid;
-        PGID = vars.pgid;
-        TZ = vars.tz;
-      };
-      ports = ["5055:5055"];
-      volumes = [
-        "${vars.configDir}/overseerr:/config"
-      ];
-    };
-
     flaresolverr = {
       image = "ghcr.io/flaresolverr/flaresolverr:latest";
       ports = ["8191:8191"];
-    };
-
-    pinchflat = {
-      image = "ghcr.io/kieraneglin/pinchflat:latest";
-      environment = {
-        TZ = "America/New_York";
-      };
-      ports = ["8945:8945"];
-      volumes = [
-        "${vars.configDir}/pinchflat:/config"
-        "${vars.storageDir}/media/Pinchflat:/downloads"
-      ];
     };
 
     fileflows = {

@@ -1,18 +1,5 @@
 {...}: let
-  # Generate a stable port number from a string (service name)
-  # Uses SHA-256 hash to generate a number between 1024-65535
-  nameToPort = name: let
-    # Get SHA-256 hash of name and take first 8 chars
-    hash = builtins.substring 0 6 (builtins.hashString "sha256" name);
-    # Convert hex to decimal (base 16)
-    decimal = (builtins.fromTOML "a = 0x${hash}").a;
-    # Scale to port range (1024-65535)
-    portRange = 65535 - 1024;
-    # Implement modulo using division and multiplication
-    remainder = decimal - (portRange * (decimal / portRange));
-    port = 1024 + remainder;
-  in
-    port;
+  nameToPort = import ./nameToPort.nix;
 
   # Helper function to process a set and replace null values with generated ports
   processServices = serviceSet:
@@ -39,7 +26,7 @@ in rec {
     yarr = 7070;
   };
   storage = processServices {
-    bazarr = 6767;
+    bazarr = null;
     beszel = 8090;
     bitmagnet = 3333;
     code = 3434;
@@ -56,7 +43,7 @@ in rec {
     headphones = 8787;
     home = 8085;
     immich = 15777;
-    jackett = 9117;
+    jackett = null;
     jellyfin = 8096;
     jf = 3831;
     lidarr = 8686;
@@ -65,14 +52,14 @@ in rec {
     nzbhydra2 = 5076;
     ollama-api = 11434;
     ollama = 30198;
-    overseer = 5055;
+    overseerr = 5055;
     photoprism = 2342;
     photos = 2342;
-    pinchflat = 8945;
+    pinchflat = null;
     plex = 32400;
     prowlarr = 9696;
     qbittorrent = 8999;
-    radarr = 7878;
+    radarr = null;
     remotely = 5000;
     resilio = 9000;
     restic = 8000;
@@ -80,7 +67,7 @@ in rec {
     sabnzbd = 8080;
     scrutiny = 9998;
     seafile = 8082;
-    sonarr = 8989;
+    sonarr = null;
     speedtest = 8765;
     stash = 9999;
     stirling = 9284;
