@@ -6,24 +6,34 @@
   ...
 }: let
   opts = {
-    paths = [
-      "/var/lib"
-      "/var/data"
-      "/mnt/data/files/Immich"
-      "/home"
-      "/root"
-    ];
-    exclude = [
-      # very large paths
-      "/var/lib/docker"
-      "/var/lib/systemd"
-      "/var/lib/libvirt"
-      "/var/lib/lxcfs"
+    backup = {
+      init = true;
+      snapshots = [
+        {
+          sources = [
+            "/"
+            "/var/lib"
+            "/var/data"
+            "/mnt/data/files/Immich"
+            "/home"
+            "/root"
+          ];
+          globs = [
+            # very large paths
+            "!/var/lib/docker"
+            "!/var/lib/systemd"
+            "!/var/lib/libvirt"
+            "!/var/lib/lxcfs"
+            "!/var/cache"
+            "!/nix"
 
-      "**/.cache"
-      "**/.nix-profile"
-    ];
-    passwordFile = config.age.secrets."restic-password".path;
+            "!**/.cache"
+            "!**/.nix-profile"
+          ];
+          exclude-if-present = [".nobackup" "CACHEDIR.TAG"];
+        }
+      ];
+    };
     timerConfig = {
       OnCalendar = "weekly";
       RandomizedDelaySec = "5h";
@@ -39,20 +49,34 @@ in
 
     age.secrets."restic-truenas".file = "${self}/secrets/restic-truenas.age";
 
-    services.restic.backups = {
-      cottage =
-        opts
-        // {
-          initialize = true;
-          repository = "s3:http://cottage:9000/restic";
-          environmentFile = config.age.secrets.restic-truenas.path;
-        };
+    services.rustic = {
+      enable = true;
+      profiles = {
+        cottage =
+          opts
+          // {
+            repository = {
+              repository = "opendal:s3";
+              options = {
+                bucket = "restic";
+                endpoint = "http://cottage:9000";
+              };
+              password-file = config.age.secrets."restic-password".path;
+            };
+            environmentFile = config.age.secrets.restic-truenas.path;
+          };
 
-      idrive =
-        opts
-        // {
-          rcloneConfigFile = config.age.secrets."restic-rclone-idrive".path;
-          repository = "rclone:idrive:arosenfeld";
-        };
+        idrive =
+          opts
+          // {
+            environment = {
+              RCLONE_CONFIG = config.age.secrets."restic-rclone-idrive".path;
+            };
+            repository = {
+              repository = "opendal:s3";
+              password-file = config.age.secrets."restic-password".path;
+            };
+          };
+      };
     };
   }
