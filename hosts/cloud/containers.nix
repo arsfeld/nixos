@@ -8,13 +8,6 @@ in {
   age.secrets."gluetun-pia".file = "${self}/secrets/gluetun-pia.age";
 
   virtualisation.oci-containers.containers = {
-    watchtower = {
-      image = "containrrr/watchtower";
-      volumes = [
-        "/var/run/docker.sock:/var/run/docker.sock"
-      ];
-    };
-
     ghost = {
       image = "ghost:5";
       volumes = ["/var/lib/ghost/content:/var/lib/ghost/content"];
