@@ -28,6 +28,7 @@ in {
   "restic-rest-cloud.age".publicKeys = users ++ [cloud];
   "restic-rest-micro.age".publicKeys = users ++ [micro];
   "restic-truenas.age".publicKeys = users ++ systems;
+  "idrive-env.age".publicKeys = users ++ systems;
   "smtp_password.age".publicKeys = users ++ systems;
   "tailscale-key.age".publicKeys = users ++ systems;
   "transmission-openvpn-pia.age".publicKeys = users ++ [storage];
