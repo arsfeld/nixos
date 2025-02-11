@@ -14,7 +14,13 @@ with lib; let
       // {
         "rustic/${name}.toml" = {
           source = tomlFormat.generate "${name}.toml" (
-            removeAttrs (builtins.getAttr name config.services.rustic.profiles) ["timerConfig" "environment" "environmentFile"]
+            recursiveUpdate
+            {
+              global = {
+                log-file = "/var/log/rustic/${name}.log";
+              };
+            }
+            (removeAttrs (builtins.getAttr name config.services.rustic.profiles) ["timerConfig" "environment" "environmentFile"])
           );
         };
       }
@@ -26,12 +32,18 @@ with lib; let
     "rustic-${name}"
     {
       description = "Rustic backup service for ${name}";
-      environment = mkIf (profile.environment != null) profile.environment;
+      environment = {
+        RUSTIC_CACHE_DIR = "/var/cache/rustic";
+      } // (if profile.environment == null then {} else profile.environment);
       path = [pkgs.rclone];
       serviceConfig = {
         Type = "oneshot";
+        ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p /var/cache/rustic";
         ExecStart = "${pkgs.rustic}/bin/rustic -P ${name} backup";
         EnvironmentFile = mkIf (profile.environmentFile != null) profile.environmentFile;
+        Nice = 10;
+        IOSchedulingClass = "best-effort";
+        IOSchedulingPriority = 7;
       };
     })
   config.services.rustic.profiles;
@@ -46,6 +58,32 @@ with lib; let
       timerConfig = profile.timerConfig;
     }))
   config.services.rustic.profiles;
+
+  # Create shell scripts for each profile
+  profileScripts = mapAttrs' (name: profile:
+    nameValuePair
+    "rustic-${name}"
+    (pkgs.writeShellScriptBin "rustic-${name}" ''
+      #!${pkgs.bash}/bin/bash
+
+      export RUSTIC_CACHE_DIR="/var/cache/rustic"
+
+      # Load environment file if specified
+      if [ -n "${toString profile.environmentFile}" ]; then
+        set -a
+        source "${toString profile.environmentFile}"
+        set +a
+      fi
+
+      # Load environment variables if specified
+      ${lib.concatStrings (lib.mapAttrsToList (name: value: 
+        "export ${name}=${lib.escapeShellArg value}\n"
+      ) (if profile.environment == null then {} else profile.environment))}
+
+      exec ${pkgs.rustic}/bin/rustic -P ${name} "$@"
+    ''))
+  config.services.rustic.profiles;
+
 in {
   options.services.rustic = {
     enable = mkEnableOption "rustic backup service";
@@ -89,7 +127,7 @@ in {
   };
 
   config = mkIf config.services.rustic.enable {
-    environment.systemPackages = [pkgs.rustic];
+    environment.systemPackages = [pkgs.rustic] ++ (builtins.attrValues profileScripts);
     environment.etc = etcConfigs;
     systemd.services = systemdServices;
     systemd.timers = systemdTimers;
