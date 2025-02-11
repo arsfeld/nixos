@@ -33,4 +33,5 @@ in {
   "tailscale-key.age".publicKeys = users ++ systems;
   "transmission-openvpn-pia.age".publicKeys = users ++ [storage];
   "ntfy-env.age".publicKeys = users ++ [cloud];
+  "finance-tracker-env.age".publicKeys = users ++ [storage];
 }
