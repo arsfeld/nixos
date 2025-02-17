@@ -5,8 +5,6 @@
 }: let
   ports = (import "${self}/common/services.nix" {}).ports;
 in {
-  age.secrets."gluetun-pia".file = "${self}/secrets/gluetun-pia.age";
-
   virtualisation.oci-containers.containers = {
     ghost = {
       image = "ghost:5";
@@ -30,38 +28,6 @@ in {
       image = "benbusby/whoogle-search:latest";
       ports = ["${toString ports.whoogle}:5000"];
     };
-
-    # gluetun = {
-    #   image = "qmcgaw/gluetun";
-    #   environment = {
-    #     SERVER_REGIONS = "Brazil";
-    #   };
-    #   environmentFiles = [
-    #     config.age.secrets.gluetun-pia.path
-    #   ];
-    #   volumes = [
-    #     "/var/lib/gluetun:/gluetun"
-    #   ];
-    #   extraOptions = [
-    #     "--cap-add"
-    #     "NET_ADMIN"
-    #   ];
-    # };
-
-    # ts-gluetun = {
-    #   image = "ghcr.io/tailscale/tailscale:latest";
-    #   environment = {
-    #     TS_HOSTNAME = "pia-br";
-    #     TS_EXTRA_ARGS = "--advertise-tags=tag:exit --advertise-exit-node";
-    #     TS_STATE_DIR = "/var/lib/tailscale";
-    #   };
-    #   volumes = [
-    #     "/var/lib/ts-gluetun:/var/lib/tailscale"
-    #   ];
-    #   extraOptions = [
-    #     "--network=container:gluetun"
-    #   ];
-    # };
 
     metube = {
       image = "ghcr.io/alexta69/metube";
