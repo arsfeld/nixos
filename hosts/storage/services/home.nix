@@ -1,6 +1,7 @@
 {
   self,
   config,
+  pkgs,
   ...
 }: let
   vars = config.vars;
@@ -9,19 +10,25 @@ in {
     file = "${self}/secrets/finance-tracker-env.age";
   };
 
-  virtualisation.oci-containers.containers = {
-    finance-tracker = {
-      image = "ghcr.io/arsfeld/finance-tracker:latest";
-      volumes = [
-        "${vars.configDir}/finance-tracker:/app/data"
-      ];
-      ports = ["5150:5150"];
-      cmd = ["start" "--server-and-worker"];
-      environmentFiles = [
-        config.age.secrets."finance-tracker-env".path
-      ];
+  systemd.services.finance-tracker = {
+    serviceConfig = {
+      ExecStartPre = "${pkgs.docker}/bin/docker pull ghcr.io/arsfeld/finance-tracker:latest";
+      ExecStart = ''${pkgs.docker}/bin/docker run \
+        --env-file ${config.age.secrets."finance-tracker-env".path} \
+        --rm ghcr.io/arsfeld/finance-tracker:latest'';
     };
+  };
 
+  systemd.timers.finance-tracker = {
+    wantedBy = ["timers.target"];
+    partOf = ["finance-tracker.service"];
+    timerConfig = {
+      OnCalendar = "Tue,Sun *-*-* 01,17:00:00";
+      Persistent = true;
+    };
+  };
+
+  virtualisation.oci-containers.containers = {
     homeassistant = {
       volumes = ["/var/lib/home-assistant:/config"];
       environment.TZ = "America/Toronto";
