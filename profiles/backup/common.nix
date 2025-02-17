@@ -16,7 +16,6 @@
           sources = [
             "/var/lib"
             "/var/data"
-            "/mnt/data/files/Immich"
             "/home"
             "/root"
           ];

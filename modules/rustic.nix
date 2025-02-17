@@ -7,6 +7,9 @@
 with lib; let
   tomlFormat = pkgs.formats.toml {};
 
+  logDir = config.services.rustic.logDir;
+  cacheDir = config.services.rustic.cacheDir; 
+
   # Create the etc configurations
   etcConfigs = builtins.foldl' (
     acc: name:
@@ -17,7 +20,7 @@ with lib; let
             recursiveUpdate
             {
               global = {
-                log-file = "/var/log/rustic/${name}.log";
+                log-file = "${logDir}/${name}.log";
               };
             }
             (removeAttrs (builtins.getAttr name config.services.rustic.profiles) ["timerConfig" "environment" "environmentFile"])
@@ -33,12 +36,11 @@ with lib; let
     {
       description = "Rustic backup service for ${name}";
       environment = {
-        RUSTIC_CACHE_DIR = "/var/cache/rustic";
+        RUSTIC_CACHE_DIR = cacheDir;
       } // (if profile.environment == null then {} else profile.environment);
       path = [pkgs.rclone];
       serviceConfig = {
         Type = "oneshot";
-        ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p /var/cache/rustic";
         ExecStart = "${pkgs.rustic}/bin/rustic -P ${name} backup";
         EnvironmentFile = mkIf (profile.environmentFile != null) profile.environmentFile;
         Nice = 10;
@@ -88,6 +90,18 @@ in {
   options.services.rustic = {
     enable = mkEnableOption "rustic backup service";
 
+    logDir = mkOption {
+      type = types.str;
+      default = "/var/log/rustic";
+      description = "Directory for Rustic log files";
+    };  
+
+    cacheDir = mkOption {
+      type = types.str;
+      default = "/var/cache/rustic";
+      description = "Directory for Rustic cache files";
+    };
+
     profiles = mkOption {
       type = types.attrsOf (types.submodule {
         freeformType = types.attrs;
@@ -131,5 +145,9 @@ in {
     environment.etc = etcConfigs;
     systemd.services = systemdServices;
     systemd.timers = systemdTimers;
+    systemd.tmpfiles.rules = [
+      "d ${logDir} 0755 root root -"
+      "d ${cacheDir} 0755 root root -"
+    ];
   };
 }
