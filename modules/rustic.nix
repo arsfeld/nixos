@@ -8,7 +8,7 @@ with lib; let
   tomlFormat = pkgs.formats.toml {};
 
   logDir = config.services.rustic.logDir;
-  cacheDir = config.services.rustic.cacheDir; 
+  cacheDir = config.services.rustic.cacheDir;
 
   # Create the etc configurations
   etcConfigs = builtins.foldl' (
@@ -35,9 +35,15 @@ with lib; let
     "rustic-${name}"
     {
       description = "Rustic backup service for ${name}";
-      environment = {
-        RUSTIC_CACHE_DIR = cacheDir;
-      } // (if profile.environment == null then {} else profile.environment);
+      environment =
+        {
+          RUSTIC_CACHE_DIR = cacheDir;
+        }
+        // (
+          if profile.environment == null
+          then {}
+          else profile.environment
+        );
       path = [pkgs.rclone];
       serviceConfig = {
         Type = "oneshot";
@@ -78,14 +84,17 @@ with lib; let
       fi
 
       # Load environment variables if specified
-      ${lib.concatStrings (lib.mapAttrsToList (name: value: 
-        "export ${name}=${lib.escapeShellArg value}\n"
-      ) (if profile.environment == null then {} else profile.environment))}
+      ${lib.concatStrings (lib.mapAttrsToList (
+          name: value: "export ${name}=${lib.escapeShellArg value}\n"
+        ) (
+          if profile.environment == null
+          then {}
+          else profile.environment
+        ))}
 
       exec ${pkgs.rustic}/bin/rustic -P ${name} "$@"
     ''))
   config.services.rustic.profiles;
-
 in {
   options.services.rustic = {
     enable = mkEnableOption "rustic backup service";
@@ -94,7 +103,7 @@ in {
       type = types.str;
       default = "/var/log/rustic";
       description = "Directory for Rustic log files";
-    };  
+    };
 
     cacheDir = mkOption {
       type = types.str;

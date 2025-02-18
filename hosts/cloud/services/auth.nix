@@ -1,4 +1,9 @@
-{ self, config, pkgs, ... }: let
+{
+  self,
+  config,
+  pkgs,
+  ...
+}: let
   domains = import "${self}/common/domains.nix";
   ports = (import "${self}/common/services.nix" {}).ports;
   autheliaConfig = domains.mediaDomain;
@@ -183,4 +188,4 @@ in {
     port = 0;
     unixSocketPerm = 600;
   };
-} 
+}

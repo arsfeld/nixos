@@ -1,10 +1,10 @@
 {
   lib,
   config,
-  pkgs,
   self,
   ...
-}: let
+}:
+with lib; let
   opts = {
     repository = {
       password-file = config.age.secrets."restic-password".path;
@@ -41,8 +41,12 @@
       RandomizedDelaySec = "5h";
     };
   };
-in
-  with lib; {
+in {
+  options.constellation.backup = {
+    enable = mkEnableOption "Common backup configuration";
+  };
+
+  config = mkIf config.constellation.backup.enable {
     age.secrets."restic-password".file = "${self}/secrets/restic-password.age";
     age.secrets."restic-truenas".file = "${self}/secrets/restic-truenas.age";
     age.secrets."idrive-env".file = "${self}/secrets/idrive-env.age";
@@ -80,4 +84,5 @@ in
           };
       };
     };
-  }
+  };
+}

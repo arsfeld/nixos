@@ -1,4 +1,9 @@
-{ self, config, pkgs, ... }: {
+{
+  self,
+  config,
+  pkgs,
+  ...
+}: {
   age.secrets.github-runner-token.file = "${self}/secrets/github-runner-token.age";
 
   # For vscode
@@ -19,4 +24,4 @@
   #   tokenFile = config.age.secrets.github-runner-token.path;
   #   url = "https://github.com/arsfeld/nixos";
   # };
-} 
+}

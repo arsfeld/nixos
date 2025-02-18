@@ -16,6 +16,10 @@
     binfmt.emulatedSystems = ["x86_64-linux"];
   };
 
+  constellation.backup.enable = true;
+
+  mediaServices.enable = true;
+
   nixpkgs.hostPlatform = "aarch64-linux";
 
   #boot.kernelPackages = pkgs.linuxPackages_latest;

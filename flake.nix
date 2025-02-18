@@ -102,23 +102,42 @@
             {
               nixpkgs.overlays = [
                 (import ./overlays/python-packages.nix)
+                # This should work, but it doesn't
+                # (
+                #   final: prev: let
+                #   packages =  (inputs.haumea.lib.load {
+                #     src = ./packages;
+                #     loader = inputs.haumea.lib.loaders.callPackage;
+                #     transformer = inputs.haumea.lib.transformers.liftDefault;
+                #   }); in prev // builtins.trace packages packages
+                # )
                 # Add packages overlay
                 (
-                  final: prev: {
-                    send-email-event = final.callPackage ./packages/send-email-event {};
-                    check-stock = final.callPackage ./packages/check-stock {};
-                  }
+                  final: prev: let
+                    packages = {
+                      send-email-event = final.callPackage ./packages/send-email-event {};
+                      check-stock = final.callPackage ./packages/check-stock {};
+                    };
+                  in
+                    prev // builtins.trace packages packages
                 )
               ];
             }
             # Load all modules from the modules directory
             (let
+              getAllValues = set: let
+                recurse = value:
+                  if builtins.isAttrs value
+                  then builtins.concatLists (map recurse (builtins.attrValues value))
+                  else [value];
+              in
+                recurse set;
               modules = inputs.haumea.lib.load {
                 src = ./modules;
                 loader = inputs.haumea.lib.loaders.path;
               };
             in
-              builtins.attrValues modules)
+              getAllValues modules)
           ];
         in rec {
           mkLinuxSystem = mods:
@@ -139,17 +158,14 @@
           suites = self.nixosSuites;
         in
           with self.nixosProfiles; {
-            base = [core.default core.virt users.root users.arosenfeld users.media networking.tailscale];
-            server = with networking; [acme mail];
-            backups = with backup; [common];
             sites = with sites; [arsfeld-one arsfeld-dev rosenfeld-one];
 
-            storage = with suites; flatten [base server backups sites];
-            raider = with suites; flatten [base core.desktop];
-            g14 = with suites; flatten [base core.desktop];
-            cloud = with suites; flatten [base core.netdata server backups sites];
-            core-vm = with suites; flatten [base core.netdata];
-            hpe = with suites; flatten [base core.netdata];
+            storage = with suites; flatten [sites];
+            raider = with suites; flatten [core.desktop];
+            g14 = with suites; flatten [core.desktop];
+            cloud = with suites; flatten [core.netdata sites];
+            core-vm = with suites; flatten [core.netdata];
+            hpe = with suites; flatten [core.netdata];
           };
 
         nixosConfigurations = {

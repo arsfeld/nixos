@@ -4,7 +4,7 @@
   lib,
   ...
 }: let
-  vars = config.vars;
+  vars = config.mediaServices;
   ports = (import "${self}/common/services.nix" {}).ports;
   nameToPort = import "${self}/common/nameToPort.nix";
 in {
@@ -70,8 +70,8 @@ in {
                 else container.imageName;
               environment =
                 {
-                  PUID = vars.puid;
-                  PGID = vars.pgid;
+                  PUID = toString vars.puid;
+                  PGID = toString vars.pgid;
                   TZ = vars.tz;
                 }
                 // container.extraEnv;

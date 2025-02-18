@@ -4,7 +4,7 @@
   pkgs,
   ...
 }: let
-  vars = config.vars;
+  vars = config.mediaServices;
 in {
   age.secrets."finance-tracker-env" = {
     file = "${self}/secrets/finance-tracker-env.age";
@@ -13,9 +13,9 @@ in {
   systemd.services.finance-tracker = {
     serviceConfig = {
       ExecStartPre = "${pkgs.docker}/bin/docker pull ghcr.io/arsfeld/finance-tracker:latest";
-      ExecStart = ''${pkgs.docker}/bin/docker run \
-        --env-file ${config.age.secrets."finance-tracker-env".path} \
-        --rm ghcr.io/arsfeld/finance-tracker:latest'';
+      ExecStart = ''        ${pkgs.docker}/bin/docker run \
+                --env-file ${config.age.secrets."finance-tracker-env".path} \
+                --rm ghcr.io/arsfeld/finance-tracker:latest'';
     };
   };
 
@@ -44,8 +44,8 @@ in {
     grocy = {
       image = "lscr.io/linuxserver/grocy:latest";
       environment = {
-        PUID = vars.puid;
-        PGID = vars.pgid;
+        PUID = toString vars.puid;
+        PGID = toString vars.pgid;
         TZ = vars.tz;
       };
       volumes = [
