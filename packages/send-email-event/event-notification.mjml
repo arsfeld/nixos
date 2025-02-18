@@ -41,7 +41,7 @@
       <mj-column>
         <mj-text font-size="24px" color="#2c3e50" font-weight="bold">Additional Information</mj-text>
         <mj-text font-family="monospace" font-size="12px" background-color="#f8f8f8" padding="10px">
-          <pre>{{EXTRA_CONTENT}}</pre>
+          <pre>{{EXTRA_CONTENT | safe}}</pre>
         </mj-text>
       </mj-column>
     </mj-section>
