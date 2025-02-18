@@ -161,20 +161,13 @@
             sites = with sites; [arsfeld-one arsfeld-dev rosenfeld-one];
 
             storage = with suites; flatten [sites];
-            raider = with suites; flatten [core.desktop];
-            g14 = with suites; flatten [core.desktop];
-            cloud = with suites; flatten [core.netdata sites];
-            core-vm = with suites; flatten [core.netdata];
-            hpe = with suites; flatten [core.netdata];
+            cloud = with suites; flatten [sites];
           };
 
         nixosConfigurations = {
           storage = self.lib.mkLinuxSystem [
             inputs.disko.nixosModules.disko
             ./hosts/storage/configuration.nix
-          ];
-          raider = self.lib.mkLinuxSystem [
-            ./hosts/raider/configuration.nix
           ];
           cloud = self.lib.mkLinuxSystem [./hosts/cloud/configuration.nix];
           cloud-br = self.lib.mkLinuxSystem [./hosts/cloud-br/configuration.nix];
@@ -184,10 +177,6 @@
           ];
           raspi3 = self.lib.mkLinuxSystem [./hosts/raspi3/configuration.nix];
           core = self.lib.mkLinuxSystem [./hosts/core/configuration.nix];
-          g14 = self.lib.mkLinuxSystem [
-            inputs.disko.nixosModules.disko
-            ./hosts/g14/configuration.nix
-          ];
           hpe = self.lib.mkLinuxSystem [
             inputs.disko.nixosModules.disko
             ./hosts/hpe/configuration.nix

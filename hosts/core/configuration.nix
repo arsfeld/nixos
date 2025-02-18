@@ -4,11 +4,9 @@
   config,
   ...
 }: {
-  imports =
-    self.nixosSuites.core-vm
-    ++ [
-      ./hardware-configuration.nix
-    ];
+  imports = [
+    ./hardware-configuration.nix
+  ];
 
   nixpkgs.hostPlatform = "x86_64-linux";
 
