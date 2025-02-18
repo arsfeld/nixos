@@ -6,15 +6,13 @@
   inputs,
   ...
 }: {
-  imports =
-    self.nixosSuites.base
-    ++ [
-      ./hardware-configuration.nix
-      (import ./networking.nix {
-        internalInterface = "enu1"; # or w/e ethernet interface you want to connect your raspberry pi to
-        externalInterface = "end0"; # or w/e interface you get your internet connection to your pc
-      })
-    ];
+  imports = [
+    ./hardware-configuration.nix
+    (import ./networking.nix {
+      internalInterface = "enu1"; # or w/e ethernet interface you want to connect your raspberry pi to
+      externalInterface = "end0"; # or w/e interface you get your internet connection to your pc
+    })
+  ];
 
   nixpkgs.hostPlatform = "aarch64-linux";
 

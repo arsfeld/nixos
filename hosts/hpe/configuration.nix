@@ -5,12 +5,10 @@
   lib,
   ...
 }: {
-  imports =
-    self.nixosSuites.core-vm
-    ++ [
-      ./disko-config.nix
-      ./hardware-configuration.nix
-    ];
+  imports = [
+    ./disko-config.nix
+    ./hardware-configuration.nix
+  ];
 
   nixpkgs.hostPlatform = "x86_64-linux";
 

@@ -5,12 +5,10 @@
   lib,
   ...
 }: {
-  imports =
-    self.nixosSuites.g14
-    ++ [
-      ./disko-config.nix
-      ./hardware-configuration.nix
-    ];
+  imports = [
+    ./disko-config.nix
+    ./hardware-configuration.nix
+  ];
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;

@@ -5,11 +5,9 @@
   inputs,
   ...
 }: {
-  imports =
-    self.nixosSuites.base
-    ++ [
-      ./hardware-configuration.nix
-    ];
+  imports = [
+    ./hardware-configuration.nix
+  ];
 
   nixpkgs.hostPlatform = "aarch64-linux";
 

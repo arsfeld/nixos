@@ -1,9 +1,7 @@
 {self, ...}: {
-  imports =
-    self.nixosSuites.base
-    ++ [
-      ./hardware-configuration.nix
-    ];
+  imports = [
+    ./hardware-configuration.nix
+  ];
 
   boot.kernel.sysctl = {
     "net.ipv4.conf.all.forwarding" = true;
