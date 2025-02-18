@@ -1,4 +1,9 @@
-{ self, config, pkgs, ... }: let
+{
+  self,
+  config,
+  pkgs,
+  ...
+}: let
   mediaDomain = "arsfeld.one";
   ports = (import "${self}/common/services.nix" {}).ports;
 in {
@@ -14,4 +19,4 @@ in {
       SMTP_FROM = "admin@rosenfeld.one";
     };
   };
-} 
+}

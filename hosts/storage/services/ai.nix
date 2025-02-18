@@ -3,9 +3,7 @@
   pkgs,
   lib,
   ...
-}: let
-  vars = config.vars;
-in {
+}: {
   # services.ollama = {
   #   enable = true;
   #   loadModels = ["llama3.1"];
@@ -65,7 +63,7 @@ in {
       ollama = {
         image = "ollama/ollama:latest";
         volumes = [
-          "${vars.configDir}/ollama:/root/.ollama"
+          "${config.mediaServices.configDir}/ollama:/root/.ollama"
         ];
         ports = ["11434:11434"];
         extraOptions = ["--network=ai"];

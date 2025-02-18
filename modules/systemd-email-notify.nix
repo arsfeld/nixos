@@ -38,16 +38,20 @@ with lib; let
 
     # Update the timestamp file
     date +%s > "$TIMESTAMP_FILE"
+
+    export EMAIL_TO=${config.systemdEmailNotify.toEmail}
+    export EMAIL_FROM=${config.systemdEmailNotify.fromEmail}
+
     ${pkgs.send-email-event}/bin/send-email-event \
       "Service Failure $1 (Failure #$FAILURE_COUNT)" \
       "Failed Service: $1
         Failure Count: $FAILURE_COUNT
 
         Service Status:
-        $(systemctl status --full "$1")
+        $(SYSTEMD_COLORS=1 systemctl status --full "$1" | ${pkgs.aha}/bin/aha -n)
 
         Recent Logs:
-        $(journalctl -u "$1" --reverse --lines=50)"
+        $(SYSTEMD_COLORS=1 journalctl -u "$1" --reverse --lines=50 -b | ${pkgs.aha}/bin/aha -n)"
 
     echo 0 > "$FAILURE_COUNT_FILE"
   '';
@@ -60,6 +64,16 @@ in {
             config.onFailure = ["email@%n.service"];
           }
         );
+    };
+
+    systemdEmailNotify.toEmail = mkOption {
+      type = types.str;
+      default = config.constellation.email.toEmail;
+    };
+
+    systemdEmailNotify.fromEmail = mkOption {
+      type = types.str;
+      default = config.constellation.email.fromEmail;
     };
   };
 

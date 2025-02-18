@@ -3,7 +3,7 @@
   self,
   ...
 }: let
-  vars = config.vars;
+  vars = config.mediaServices;
   ports = (import "${self}/common/services.nix" {}).ports;
 in {
   services.openvscode-server = {

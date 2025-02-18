@@ -5,7 +5,7 @@
   lib,
   ...
 }: let
-  vars = config.vars;
+  vars = config.mediaServices;
   ports = (import "${self}/common/services.nix" {}).ports;
 
   plex-trakt-sync = {interactive ? false}: ''    ${pkgs.docker}/bin/docker run ${
@@ -141,8 +141,8 @@ in {
     qbittorrent = {
       image = "j4ym0/pia-qbittorrent";
       environment = {
-        UID = vars.puid;
-        GID = vars.pgid;
+        UID = toString vars.puid;
+        GID = toString vars.pgid;
         TZ = vars.tz;
 
         PORT_FORWARDING = "true";
@@ -173,8 +173,8 @@ in {
     transmission-openvpn = {
       image = "haugene/transmission-openvpn";
       environment = {
-        PUID = vars.puid;
-        PGID = vars.pgid;
+        PUID = toString vars.puid;
+        PGID = toString vars.pgid;
         TZ = vars.tz;
 
         LOCAL_NETWORK = "192.168.1.0/24,192.168.2.0/24,100.64.0.0/10";
@@ -246,8 +246,8 @@ in {
       ports = ["19200:5000"];
       environment = {
         TZ = "America/New_York";
-        PUID = vars.puid;
-        PGID = vars.pgid;
+        PUID = toString vars.puid;
+        PGID = toString vars.pgid;
       };
       extraOptions = [
         "--device"

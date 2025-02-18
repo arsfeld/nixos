@@ -1,4 +1,9 @@
-{ self, config, pkgs, ... }: let
+{
+  self,
+  config,
+  pkgs,
+  ...
+}: let
   mediaDomain = "arsfeld.one";
   ports = (import "${self}/common/services.nix" {}).ports;
 in {
@@ -68,4 +73,4 @@ in {
       db.user = "invidious";
     };
   };
-} 
+}

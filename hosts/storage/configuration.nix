@@ -11,12 +11,17 @@ with lib; {
     self.nixosSuites.storage
     ++ [
       ./disko-config.nix
-      ./variables.nix
       ./hardware-configuration.nix
       ./users.nix
       ./services
       ./backup
     ];
+
+  constellation.backup.enable = true;
+  # We're the netdata server, not a client.
+  constellation.netdataClient.enable = false;
+
+  mediaServices.enable = true;
 
   networking.hostName = "storage";
   networking.firewall.enable = false;
