@@ -103,6 +103,18 @@ in {
         "${vars.storageDir}/media/Pinchflat:/downloads"
       ];
     };
+
+    plex = {
+      enable = true;
+      extraEnv = {
+        VERSION = "latest";
+      };
+      mediaVolumes = true;
+      extraOptions = [
+        "--network=host"
+        "--device=/dev/dri:/dev/dri"
+      ];
+    };
   };
 
   #age.secrets."bitmagnet-env".file = "${self}/secrets/bitmagnet-env.age";
@@ -118,10 +130,6 @@ in {
 
   age.secrets."transmission-openvpn-pia".file = "${self}/secrets/transmission-openvpn-pia.age";
   age.secrets."qbittorrent-pia".file = "${self}/secrets/qbittorrent-pia.age";
-
-  services.plex = {
-    enable = true;
-  };
 
   environment.systemPackages = [
     (pkgs.writeShellScriptBin "plex-trakt-sync" "${(plex-trakt-sync {interactive = true;})} \"$@\"")
