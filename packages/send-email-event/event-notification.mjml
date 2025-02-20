@@ -1,31 +1,36 @@
 <mjml>
   <mj-head>
     <mj-title>System Event Notification</mj-title>
-    <mj-font name="Arial" href="https://fonts.googleapis.com/css?family=Arial" />
+    <mj-preview>{{EVENT}}</mj-preview>
+    <mj-font name="Raleway" href="https://fonts.googleapis.com/css?family=Raleway" />
+    <mj-font name="monospace" href="https://fonts.googleapis.com/css?family=Source+Code+Pro" />
+    <mj-attributes>
+      <mj-all font-family="Raleway" />
+    </mj-attributes>
   </mj-head>
-  <mj-body background-color="#f0f0f0">
+  <mj-body background-color="#ffbaba">
+    <mj-hero
+      border-radius="10px"
+      mode="fluid-height"
+      background-width="600px"
+      background-height="200px"
+      background-url=
+          "https://picsum.photos/seed/picsum/600/300"
+      background-color="#2a3448">
+      <!-- From https://inkpx.com/templates/ewe/cake-color-3d-text -->
+      <mj-image src="https://raw.githubusercontent.com/arsfeld/nixos/refs/heads/master/packages/send-email-event/images/{{HOSTNAME}}.png" />
+    </mj-hero>
+
     <mj-section>
-      <mj-column>
-        <mj-text font-family="monospace" font-size="12px" color="#333333" align="center">
-          <pre>{{FIGLET_OUTPUT}}</pre>
-        </mj-text>
-      </mj-column>
+        <mj-column>
+            <mj-divider border-width="1px" border-style="dashed" border-color="lightgrey" />
+        </mj-column>
     </mj-section>
 
-    <mj-section background-color="#ffffff" border-radius="10px">
-      <mj-column>
-        <mj-text font-size="24px" color="#2c3e50" font-weight="bold">Event Details</mj-text>
-        <mj-text><strong>Event:</strong> {{EVENT}}</mj-text>
-        <mj-text><strong>Hostname:</strong> {{HOSTNAME}}</mj-text>
-        <mj-text><strong>Date:</strong> {{CURRENT_DATE}}</mj-text>
-      </mj-column>
-    </mj-section>
 
-    <mj-spacer height="20px" />
-
-    <mj-section background-color="#ffffff" border-radius="10px">
+    <mj-section background-color="#ffffff" border-radius="10px" padding="20px 0">
       <mj-column>
-        <mj-text font-size="24px" color="#2c3e50" font-weight="bold">System Information</mj-text>
+        <mj-text font-size="24px" color="#2c3e50" font-weight="bold">{{ EVENT }} in {{ HOSTNAME }} on {{ CURRENT_DATE }}</mj-text>
         {% for key, value in SYSTEM_INFO.items() %}
           <mj-text>
             <strong>{{ key }}:</strong> {{ value }}
@@ -34,10 +39,14 @@
       </mj-column>
     </mj-section>
 
-    <mj-spacer height="20px" />
+    <mj-section>
+        <mj-column>
+            <mj-divider border-width="1px" border-style="dashed" border-color="lightgrey" />
+        </mj-column>
+    </mj-section>
 
     {% if EXTRA_CONTENT %}
-    <mj-section background-color="#ffffff" border-radius="10px">
+    <mj-section full-width="full-width" background-color="#ffffff" border-radius="10px">
       <mj-column>
         <mj-text font-size="24px" color="#2c3e50" font-weight="bold">Additional Information</mj-text>
         <mj-text font-family="monospace" font-size="12px" background-color="#f8f8f8" padding="10px">
@@ -45,8 +54,6 @@
         </mj-text>
       </mj-column>
     </mj-section>
-
-    <mj-spacer height="20px" />
-    {% endif %}
+    {% endif %} 
   </mj-body>
 </mjml>
