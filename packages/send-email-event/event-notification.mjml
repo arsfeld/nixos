@@ -8,13 +8,13 @@
       <mj-all font-family="Montserrat, sans-serif" />
     </mj-attributes>
   </mj-head>
-  <mj-body background-color="#f0f0f0">
+  <mj-body background-color="#f0f0f0" width="800px">
     <mj-hero
       border-radius="10px"
       mode="fluid-height"
-      background-width="600px"
-      background-height="200px"
-      background-url="https://picsum.photos/seed/picsum/600/300">
+      background-width="800px"
+      background-height="300px"
+      background-url="https://picsum.photos/800/300?blur">
       <!-- From https://inkpx.com/templates/ewe/cake-color-3d-text -->
       <mj-image src="https://raw.githubusercontent.com/arsfeld/nixos/refs/heads/master/packages/send-email-event/images/{{HOSTNAME}}.png" />
     </mj-hero>
