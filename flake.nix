@@ -119,7 +119,7 @@
                       check-stock = final.callPackage ./packages/check-stock {};
                     };
                   in
-                    prev // builtins.trace packages packages
+                    prev // packages
                 )
               ];
             }

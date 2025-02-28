@@ -23,11 +23,13 @@ final: prev: {
             final.rustPlatform.maturinBuildHook
           ];
 
-          cargoDeps = final.rustPlatform.fetchCargoTarball {
+          cargoDeps = final.rustPlatform.fetchCargoVendor {
             inherit src;
             name = "${pname}-${version}";
-            hash = "sha256-5cEQMCWM473y+se6jWuWr/T9Pg/Q6BuD4ypGF1SBF6M=";
+            hash = "sha256-g2d6NRGrjNIdG5KLSeGUaZU8JsevxJo98i+pGU/HU0E=";
           };
+
+          useFetchCargoVendor = true;
 
           doCheck = false;
           propagatedBuildInputs = [];
