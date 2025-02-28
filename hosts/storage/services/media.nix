@@ -163,6 +163,7 @@ in {
         "${vars.configDir}/qbittorrent-pia:/config"
         "${vars.dataDir}:${vars.dataDir}"
         "${vars.storageDir}:${vars.storageDir}"
+        "${vars.storageDir}/media:/media"
       ];
       extraOptions = [
         "--cap-add"
@@ -209,16 +210,7 @@ in {
         "${vars.storageDir}/media:/media"
       ];
       extraOptions = [
-        "--cap-add"
-        "NET_ADMIN"
-        "--cap-add"
-        "NET_RAW"
-        "--device"
-        "/dev/net/tun"
-        "--sysctl"
-        "net.ipv4.conf.all.src_valid_mark=1"
-        "--sysctl"
-        "net.ipv6.conf.all.disable_ipv6=0"
+        "--privileged"
       ];
     };
 
