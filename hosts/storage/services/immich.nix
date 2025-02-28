@@ -5,7 +5,7 @@
   pkgs,
   ...
 }: let
-  vars = config.mediaServices;
+  vars = config.mediaConfig;
 in {
   services.immich = {
     enable = true;

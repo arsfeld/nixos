@@ -4,7 +4,7 @@
   lib,
   ...
 }: let
-  vars = config.mediaServices;
+  vars = config.mediaConfig;
   ports = (import "${self}/common/services.nix" {}).ports;
   nameToPort = import "${self}/common/nameToPort.nix";
 in {

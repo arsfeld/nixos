@@ -12,6 +12,7 @@ with lib; let
   email = "arsfeld@gmail.com";
   bypassAuth = [
     "auth"
+    "autobrr"
     "dns"
     "flaresolverr"
     "grafana"
