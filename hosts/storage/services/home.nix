@@ -4,7 +4,7 @@
   pkgs,
   ...
 }: let
-  vars = config.mediaServices;
+  vars = config.mediaConfig;
 in {
   age.secrets."finance-tracker-env" = {
     file = "${self}/secrets/finance-tracker-env.age";

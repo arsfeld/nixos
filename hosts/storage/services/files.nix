@@ -3,7 +3,7 @@
   pkgs,
   ...
 }: let
-  vars = config.mediaServices;
+  vars = config.mediaConfig;
 in {
   users.users.syncthing.extraGroups = ["nextcloud" "media"];
 

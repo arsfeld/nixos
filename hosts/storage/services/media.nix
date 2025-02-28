@@ -5,7 +5,7 @@
   lib,
   ...
 }: let
-  vars = config.mediaServices;
+  vars = config.mediaConfig;
   ports = (import "${self}/common/services.nix" {}).ports;
 
   plex-trakt-sync = {interactive ? false}: ''    ${pkgs.docker}/bin/docker run ${
@@ -92,6 +92,13 @@ in {
       listenPort = 8989;
       exposePort = ports.sonarr;
       mediaVolumes = true;
+    };
+
+    autobrr = {
+      enable = true;
+      imageName = "ghcr.io/autobrr/autobrr:latest";
+      listenPort = 7474;
+      exposePort = ports.autobrr;
     };
 
     pinchflat = {

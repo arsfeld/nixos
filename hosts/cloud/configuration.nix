@@ -18,7 +18,7 @@
 
   constellation.backup.enable = true;
 
-  mediaServices.enable = true;
+  mediaConfig.enable = true;
 
   nixpkgs.hostPlatform = "aarch64-linux";
 

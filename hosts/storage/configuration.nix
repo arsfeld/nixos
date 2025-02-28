@@ -21,7 +21,7 @@ with lib; {
   # We're the netdata server, not a client.
   constellation.netdataClient.enable = false;
 
-  mediaServices.enable = true;
+  mediaConfig.enable = true;
 
   networking.hostName = "storage";
   networking.firewall.enable = false;

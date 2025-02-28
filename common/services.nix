@@ -26,6 +26,7 @@ in rec {
     yarr = 7070;
   };
   storage = processServices {
+    autobrr = null;
     bazarr = null;
     beszel = 8090;
     bitmagnet = 3333;

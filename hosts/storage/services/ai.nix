@@ -14,7 +14,6 @@
   # };
 
   virtualisation.oci-containers = {
-    backend = "docker";
     containers = {
       postgres = {
         image = "postgres:16-alpine";
@@ -63,7 +62,7 @@
       ollama = {
         image = "ollama/ollama:latest";
         volumes = [
-          "${config.mediaServices.configDir}/ollama:/root/.ollama"
+          "${config.mediaConfig.configDir}/ollama:/root/.ollama"
         ];
         ports = ["11434:11434"];
         extraOptions = ["--network=ai"];
