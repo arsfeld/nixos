@@ -25,7 +25,7 @@ in {
     wantedBy = ["timers.target"];
     partOf = ["finance-tracker.service"];
     timerConfig = {
-      OnCalendar = "Tue,Sun *-*-* 01,17:00:00";
+      OnCalendar = "*-*-* 17:00:00";
       Persistent = true;
     };
   };
