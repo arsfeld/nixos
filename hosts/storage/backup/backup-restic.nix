@@ -14,6 +14,7 @@
         "/home"
         "/run"
         "/var/lib/docker"
+        "/var/lib/containers"
         "/var/lib/lxcfs"
       ];
       repository = "/mnt/data/backups/restic";

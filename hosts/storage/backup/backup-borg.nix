@@ -17,6 +17,7 @@
     exclude = [
       # very large paths
       "/var/lib/docker"
+      "/var/lib/containers"
       "/var/lib/systemd"
       "/var/lib/libvirt"
 

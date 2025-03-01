@@ -8,7 +8,7 @@
   vars = config.mediaConfig;
   ports = (import "${self}/common/services.nix" {}).ports;
 
-  plex-trakt-sync = {interactive ? false}: ''    ${pkgs.docker}/bin/docker run ${
+  plex-trakt-sync = {interactive ? false}: ''${pkgs.podman}/bin/podman run ${
       if interactive
       then "-it"
       else ""
@@ -173,16 +173,7 @@ in {
         "${vars.storageDir}/media:/media"
       ];
       extraOptions = [
-        "--cap-add"
-        "NET_ADMIN"
-        "--cap-add"
-        "NET_RAW"
-        "--device"
-        "/dev/net/tun"
-        "--sysctl"
-        "net.ipv4.conf.all.src_valid_mark=1"
-        "--sysctl"
-        "net.ipv6.conf.all.disable_ipv6=0"
+        "--privileged"
       ];
     };
 

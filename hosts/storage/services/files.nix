@@ -132,7 +132,7 @@ in {
     after = ["postgresql.service"];
   };
 
-  systemd.services."docker-immich" = {
+  systemd.services."podman-immich" = {
     requires = ["postgresql.service"];
     after = ["postgresql.service"];
   };
