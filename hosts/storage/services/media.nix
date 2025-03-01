@@ -8,13 +8,13 @@
   vars = config.mediaConfig;
   ports = (import "${self}/common/services.nix" {}).ports;
 
-  plex-trakt-sync = {interactive ? false}: ''${pkgs.podman}/bin/podman run ${
+  plex-trakt-sync = {interactive ? false}: ''    ${pkgs.podman}/bin/podman run ${
       if interactive
       then "-it"
       else ""
     } --rm \
-            -v ${vars.configDir}/plex-track-sync:/app/config \
-            ghcr.io/taxel/plextraktsync'';
+                -v ${vars.configDir}/plex-track-sync:/app/config \
+                ghcr.io/taxel/plextraktsync'';
 in {
   services.lidarr = {
     enable = true;
