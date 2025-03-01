@@ -22,6 +22,7 @@ with lib; let
           globs = [
             # very large paths
             "!/var/lib/docker"
+            "!/var/lib/containers"
             "!/var/lib/systemd"
             "!/var/lib/libvirt"
             "!/var/lib/lxcfs"

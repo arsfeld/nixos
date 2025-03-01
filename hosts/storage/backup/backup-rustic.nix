@@ -31,6 +31,7 @@
               "!/home"
               "!/run"
               "!/var/lib/docker"
+              "!/var/lib/containers"
               "!/var/lib/lxcfs"
             ];
             exclude-if-present = [".nobackup" "CACHEDIR.TAG"];

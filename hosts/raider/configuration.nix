@@ -38,9 +38,6 @@ in {
   # Remove zfs
   boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "ntfs" "reiserfs" "vfat" "xfs" "bcachefs"];
 
-  #virtualisation.podman.enable = true;
-  #virtualisation.podman.dockerCompat = true;
-
   virtualisation.incus = {
     enable = true;
     ui.enable = true;

@@ -12,8 +12,8 @@ in {
 
   systemd.services.finance-tracker = {
     serviceConfig = {
-      ExecStartPre = "${pkgs.docker}/bin/docker pull ghcr.io/arsfeld/finance-tracker:latest";
-      ExecStart = ''        ${pkgs.docker}/bin/docker run \
+      ExecStartPre = "${pkgs.podman}/bin/podman pull ghcr.io/arsfeld/finance-tracker:latest";
+      ExecStart = ''${pkgs.podman}/bin/podman run \
                 --env XDG_CACHE_HOME=/app/data/cache \
                 --volume ${vars.configDir}/finance-tracker:/app/data \
                 --env-file ${config.age.secrets."finance-tracker-env".path} \

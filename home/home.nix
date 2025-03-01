@@ -230,7 +230,7 @@ in {
   };
 
   programs.zellij = {
-    enable = true;
+    enable = false;
     settings = {
       theme = "catppuccin-macchiato";
       #mouse_mode = false;
