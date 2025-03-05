@@ -5,19 +5,34 @@
   ...
 }: let
   vars = config.mediaConfig;
+  cacheDir = "/var/cache/finance-tracker";
 in {
   age.secrets."finance-tracker-env" = {
     file = "${self}/secrets/finance-tracker-env.age";
   };
 
   systemd.services.finance-tracker = {
+    description = "Finance Tracker Service";
+    after = ["network-online.target"];
+    wants = ["network-online.target"];
+    environment = {
+      XDG_CACHE_HOME = cacheDir;
+    };
+
     serviceConfig = {
-      ExecStartPre = "${pkgs.podman}/bin/podman pull ghcr.io/arsfeld/finance-tracker:latest";
-      ExecStart = ''        ${pkgs.podman}/bin/podman run \
-                        --env XDG_CACHE_HOME=/app/data/cache \
-                        --volume ${vars.configDir}/finance-tracker:/app/data \
-                        --env-file ${config.age.secrets."finance-tracker-env".path} \
-                        --rm ghcr.io/arsfeld/finance-tracker:latest'';
+      Type = "oneshot";
+      User = "root";
+      ExecStartPre = [
+        (pkgs.writeShellScript "finance-tracker-pre.sh" ''
+          ${pkgs.coreutils}/bin/mkdir -p ${cacheDir}/bin &&
+          ${pkgs.curl}/bin/curl -L -z "${cacheDir}/bin/finance-tracker" \
+            -o "${cacheDir}/bin/finance-tracker" \
+            "https://getbin.io/arsfeld/finance-tracker?os=linux" &&
+          ${pkgs.coreutils}/bin/chmod +x "${cacheDir}/bin/finance-tracker"
+        '')
+      ];
+      ExecStart = "${cacheDir}/bin/finance-tracker";
+      EnvironmentFile = "${config.age.secrets."finance-tracker-env".path}";
     };
   };
 
