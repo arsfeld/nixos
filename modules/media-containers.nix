@@ -5,7 +5,7 @@
   ...
 }: let
   vars = config.mediaConfig;
-  ports = (import "${self}/common/services.nix" {}).ports;
+  ports = config.mediaServices.ports;
   nameToPort = import "${self}/common/nameToPort.nix";
 in {
   options.services.mediaContainers = lib.mkOption {

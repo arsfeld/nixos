@@ -7,19 +7,18 @@ args @ {
   ...
 }:
 with lib; {
-  imports =
-    self.nixosSuites.storage
-    ++ [
-      ./disko-config.nix
-      ./hardware-configuration.nix
-      ./users.nix
-      ./services
-      ./backup
-    ];
+  imports = [
+    ./disko-config.nix
+    ./hardware-configuration.nix
+    ./users.nix
+    ./services
+    ./backup
+  ];
 
   constellation.backup.enable = true;
   # We're the netdata server, not a client.
   constellation.netdataClient.enable = false;
+  constellation.services.enable = true;
 
   mediaConfig.enable = true;
 

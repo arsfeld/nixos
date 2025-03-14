@@ -3,20 +3,23 @@
   self,
   ...
 }: {
-  imports =
-    self.nixosSuites.cloud
-    ++ [
-      ./hardware-configuration.nix
-      ./services
-      ./services.nix
-      ./containers.nix
-    ];
+  imports = [
+    ./hardware-configuration.nix
+    ./services
+    ./services.nix
+    ./containers.nix
+  ];
+
+  constellation.sites.arsfeld-dev.enable = true;
+  constellation.sites.rosenfeld-blog.enable = true;
+  constellation.sites.rosenfeld-one.enable = true;
 
   boot = {
     binfmt.emulatedSystems = ["x86_64-linux"];
   };
 
   constellation.backup.enable = true;
+  constellation.services.enable = true;
 
   mediaConfig.enable = true;
 

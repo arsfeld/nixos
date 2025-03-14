@@ -4,8 +4,8 @@
   pkgs,
   ...
 }: let
-  mediaDomain = "arsfeld.one";
-  ports = (import "${self}/common/services.nix" {}).ports;
+  mediaDomain = config.mediaConfig.domain;
+  ports = config.mediaServices.ports;
 in {
   services.vaultwarden = {
     enable = true;

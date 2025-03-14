@@ -148,22 +148,6 @@
             };
         };
 
-        nixosProfiles = inputs.haumea.lib.load {
-          src = ./profiles;
-          loader = inputs.haumea.lib.loaders.path;
-        };
-
-        nixosSuites = let
-          flatten = inputs.nixpkgs.lib.flatten;
-          suites = self.nixosSuites;
-        in
-          with self.nixosProfiles; {
-            sites = with sites; [arsfeld-one arsfeld-dev rosenfeld-one];
-
-            storage = with suites; flatten [sites];
-            cloud = with suites; flatten [sites];
-          };
-
         nixosConfigurations = {
           storage = self.lib.mkLinuxSystem [
             inputs.disko.nixosModules.disko

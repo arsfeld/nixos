@@ -1,8 +1,9 @@
 {
   lib,
-  self,
+  config,
 }: let
-  ports = (import "${self}/common/services.nix" {}).ports;
+  authHost = config.mediaServices.authHost;
+  authPort = config.mediaServices.authPort;
 in
   with lib; rec {
     generateHost = domain: bypassAuth: cors: cfg: {
@@ -13,7 +14,7 @@ in
             if builtins.elem cfg.name bypassAuth
             then ""
             else ''
-              forward_auth cloud.bat-boa.ts.net:${toString ports.auth} {
+              forward_auth ${authHost}:${toString authPort} {
                 uri /api/verify?rd=https://auth.${domain}/
                 copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
               }
@@ -39,7 +40,7 @@ in
       };
     };
 
-    generateService = config: funnels: cfg:
+    generateTsnsrvService = funnels: cfg:
       if (config.networking.hostName == cfg.host)
       then {
         "${cfg.name}" = {
@@ -52,8 +53,8 @@ in
     generateConfigs = services:
       concatLists (mapAttrsToList (host: pairs: mapAttrsToList (name: port: {inherit name port host;}) pairs) services);
 
-    generateTsnsrvConfigs = configs: funnels: config:
-      foldl' (acc: host: acc // host) {} (map (generateService config funnels) configs);
+    generateTsnsrvConfigs = configs: funnels:
+      foldl' (acc: host: acc // host) {} (map (generateTsnsrvService funnels) configs);
 
     generateHosts = configs: domain: bypassAuth: cors:
       foldl' (acc: host: acc // host) {} (map (generateHost domain bypassAuth cors) configs);

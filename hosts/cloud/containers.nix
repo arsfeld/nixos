@@ -3,7 +3,7 @@
   self,
   ...
 }: let
-  ports = (import "${self}/common/services.nix" {}).ports;
+  ports = config.mediaServices.ports;
 in {
   virtualisation.oci-containers.containers = {
     ghost = {

@@ -6,7 +6,7 @@
   ...
 }: let
   vars = config.mediaConfig;
-  ports = (import "${self}/common/services.nix" {}).ports;
+  ports = config.mediaServices.ports;
 
   plex-trakt-sync = {interactive ? false}: ''    ${pkgs.podman}/bin/podman run ${
       if interactive
