@@ -15,39 +15,24 @@
 
   virtualisation.oci-containers = {
     containers = {
-      postgres = {
-        image = "postgres:16-alpine";
-        environment = {
-          POSTGRES_USER = "n8n";
-          POSTGRES_PASSWORD = "password"; # Consider using a secret
-          POSTGRES_DB = "n8n";
-        };
-        volumes = [
-          "postgres_storage:/var/lib/postgresql/data"
-        ];
-        extraOptions = ["--network=ai"];
-      };
-
       n8n = {
         image = "n8nio/n8n:latest";
         environment = {
-          DB_TYPE = "postgresdb";
-          DB_POSTGRESDB_HOST = "postgres";
-          DB_POSTGRESDB_USER = "n8n";
-          DB_POSTGRESDB_PASSWORD = "password"; # Should match postgres password
           N8N_DIAGNOSTICS_ENABLED = "false";
           N8N_PERSONALIZATION_ENABLED = "false";
+          N8N_HOST = "n8n.${config.mediaConfig.domain}";
+          WEBHOOK_URL = "https://n8n.${config.mediaConfig.domain}/";
           OLLAMA_HOST = "ollama:11434";
           # Add N8N_ENCRYPTION_KEY and N8N_USER_MANAGEMENT_JWT_SECRET as needed
         };
         volumes = [
-          "n8n_storage:/home/node/.n8n"
-          "./n8n/backup:/backup"
-          "./shared:/data/shared"
+          "${config.mediaConfig.configDir}/n8n/n8n_storage:/home/node/.n8n"
+          "${config.mediaConfig.configDir}/n8n/backup:/backup"
+          "${config.mediaConfig.configDir}/n8n/shared:/data/shared"
         ];
+        # user = "${config.mediaConfig.user}:${config.mediaConfig.group}";
         ports = ["5678:5678"];
         extraOptions = ["--network=ai"];
-        dependsOn = ["postgres"];
       };
 
       qdrant = {
@@ -71,14 +56,16 @@
   };
 
   # Create the docker network
-  systemd.services.create-docker-network = {
-    description = "Create Docker Network";
-    after = ["docker.service"];
+  systemd.services.create-podman-ai-network = {
+    description = "Create Podman AI Network";
+    after = ["podman.service"];
     wantedBy = ["multi-user.target"];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = "${pkgs.docker}/bin/docker network create ai || true";
+      ExecStart = pkgs.writeShellScript "create-podman-ai-network" ''
+        ${pkgs.podman}/bin/podman network create ai || true
+      '';
     };
   };
 }

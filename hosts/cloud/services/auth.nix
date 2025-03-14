@@ -5,7 +5,7 @@
   ...
 }: let
   domains = import "${self}/common/domains.nix";
-  ports = (import "${self}/common/services.nix" {}).ports;
+  ports = config.mediaServices.ports;
   autheliaConfig = domains.mediaDomain;
   inherit (domains) mediaDomain authDomain;
 in {

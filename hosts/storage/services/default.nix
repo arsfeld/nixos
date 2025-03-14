@@ -1,5 +1,6 @@
 {
   imports = [
+    ./ai.nix
     ./cloud-sync.nix
     ./db.nix
     ./develop.nix

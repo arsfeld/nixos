@@ -5,7 +5,7 @@
   self,
   ...
 }: let
-  ports = (import "${self}/common/services.nix" {}).ports;
+  ports = config.mediaServices.ports;
   yarr-overlay = final: prev: {
     yarr = prev.buildGoModule rec {
       pname = "yarr";

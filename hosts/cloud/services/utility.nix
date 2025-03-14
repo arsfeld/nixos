@@ -4,8 +4,8 @@
   pkgs,
   ...
 }: let
-  mediaDomain = "arsfeld.one";
-  ports = (import "${self}/common/services.nix" {}).ports;
+  mediaDomain = config.mediaConfig.domain;
+  ports = config.mediaServices.ports;
 in {
   age.secrets.ntfy-env.file = "${self}/secrets/ntfy-env.age";
   age.secrets.ntfy-env.mode = "444";

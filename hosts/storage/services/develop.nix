@@ -4,7 +4,7 @@
   ...
 }: let
   vars = config.mediaConfig;
-  ports = (import "${self}/common/services.nix" {}).ports;
+  ports = config.mediaServices.ports;
 in {
   services.openvscode-server = {
     enable = true;

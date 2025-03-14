@@ -14,7 +14,7 @@ with lib; {
     };
   };
 
-  config = {
+  config = lib.mkIf config.constellation.common.enable {
     nix = {
       settings = {
         # Enable flakes and new 'nix' command
