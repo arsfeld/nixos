@@ -5,8 +5,8 @@
   lib,
   ...
 }: let
-  vars = config.mediaConfig;
-  ports = config.mediaServices.ports;
+  vars = config.media.config;
+  ports = config.media.gateway.ports;
 
   plex-trakt-sync = {interactive ? false}: ''    ${pkgs.podman}/bin/podman run ${
       if interactive
@@ -60,70 +60,6 @@ in {
     enable = false;
   };
 
-  services.mediaContainers = {
-    overseerr = {
-      enable = true;
-      listenPort = 5055;
-      exposePort = ports.overseerr;
-    };
-
-    jackett = {
-      enable = true;
-      listenPort = 9117;
-      exposePort = ports.jackett;
-    };
-
-    bazarr = {
-      enable = true;
-      listenPort = 6767;
-      exposePort = ports.bazarr;
-      mediaVolumes = true;
-    };
-
-    radarr = {
-      enable = true;
-      listenPort = 7878;
-      exposePort = ports.radarr;
-      mediaVolumes = true;
-    };
-
-    sonarr = {
-      enable = true;
-      listenPort = 8989;
-      exposePort = ports.sonarr;
-      mediaVolumes = true;
-    };
-
-    autobrr = {
-      enable = true;
-      imageName = "ghcr.io/autobrr/autobrr:latest";
-      listenPort = 7474;
-      exposePort = ports.autobrr;
-    };
-
-    pinchflat = {
-      enable = true;
-      imageName = "ghcr.io/kieraneglin/pinchflat:latest";
-      listenPort = 8945;
-      exposePort = ports.pinchflat;
-      volumes = [
-        "${vars.storageDir}/media/Pinchflat:/downloads"
-      ];
-    };
-
-    plex = {
-      enable = true;
-      extraEnv = {
-        VERSION = "latest";
-      };
-      mediaVolumes = true;
-      extraOptions = [
-        "--network=host"
-        "--device=/dev/dri:/dev/dri"
-      ];
-    };
-  };
-
   #age.secrets."bitmagnet-env".file = "${self}/secrets/bitmagnet-env.age";
   #systemd.services.bitmagnet.serviceConfig.EnvironmentFile = config.age.secrets.bitmagnet-env.path;
 
@@ -153,29 +89,29 @@ in {
   };
 
   virtualisation.oci-containers.containers = {
-    qbittorrent = {
-      image = "j4ym0/pia-qbittorrent";
-      environment = {
-        UID = toString vars.puid;
-        GID = toString vars.pgid;
-        TZ = vars.tz;
+    # qbittorrent = {
+    #   image = "j4ym0/pia-qbittorrent";
+    #   environment = {
+    #     UID = toString vars.puid;
+    #     GID = toString vars.pgid;
+    #     TZ = vars.tz;
 
-        PORT_FORWARDING = "true";
-      };
-      environmentFiles = [
-        config.age.secrets.qbittorrent-pia.path
-      ];
-      ports = ["8999:8888"];
-      volumes = [
-        "${vars.configDir}/qbittorrent-pia:/config"
-        "${vars.dataDir}:${vars.dataDir}"
-        "${vars.storageDir}:${vars.storageDir}"
-        "${vars.storageDir}/media:/media"
-      ];
-      extraOptions = [
-        "--privileged"
-      ];
-    };
+    #     PORT_FORWARDING = "true";
+    #   };
+    #   environmentFiles = [
+    #     config.age.secrets.qbittorrent-pia.path
+    #   ];
+    #   ports = ["8999:8888"];
+    #   volumes = [
+    #     "${vars.configDir}/qbittorrent-pia:/config"
+    #     "${vars.dataDir}:${vars.dataDir}"
+    #     "${vars.storageDir}:${vars.storageDir}"
+    #     "${vars.storageDir}/media:/media"
+    #   ];
+    #   extraOptions = [
+    #     "--privileged"
+    #   ];
+    # };
 
     transmission-openvpn = {
       image = "haugene/transmission-openvpn";
@@ -220,25 +156,6 @@ in {
       ];
     };
 
-    stash = {
-      image = "stashapp/stash:latest";
-      #ports = ["9999:9999"];
-      volumes = [
-        "${vars.configDir}/stash:/root/.stash"
-        "${vars.storageDir}/media:/data"
-      ];
-      extraOptions = [
-        "--device"
-        "/dev/dri:/dev/dri"
-        "--network=host"
-      ];
-    };
-
-    flaresolverr = {
-      image = "ghcr.io/flaresolverr/flaresolverr:latest";
-      ports = ["8191:8191"];
-    };
-
     fileflows = {
       image = "revenz/fileflows";
       ports = ["19200:5000"];
@@ -258,15 +175,15 @@ in {
       ];
     };
 
-    threadfin = {
-      image = "fyb3roptik/threadfin";
-      environment = {
-        TZ = "America/Toronto";
-      };
-      ports = ["34400:34400"];
-      volumes = [
-        "${vars.configDir}/threadfin:/home/threadfin/conf"
-      ];
-    };
+    # threadfin = {
+    #   image = "fyb3roptik/threadfin";
+    #   environment = {
+    #     TZ = "America/Toronto";
+    #   };
+    #   ports = ["34400:34400"];
+    #   volumes = [
+    #     "${vars.configDir}/threadfin:/home/threadfin/conf"
+    #   ];
+    # };
   };
 }

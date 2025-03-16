@@ -4,15 +4,16 @@
   config,
   ...
 }: let
-  utils = import "${self}/common/site-utils.nix" {inherit config lib;};
-  domain = config.mediaServices.domain;
-  configs = utils.generateConfigs config.mediaServices.services;
-  tsnsrvConfigs = utils.generateTsnsrvConfigs configs config.mediaServices.funnels;
-  hosts = utils.generateHosts configs domain config.mediaServices.bypassAuth config.mediaServices.cors;
+  utils = import "${self}/modules/media/__utils.nix" {inherit config lib;};
+  cfg = config.media.gateway;
+  domain = cfg.domain;
+  configs = utils.generateConfigs cfg.services;
+  tsnsrvConfigs = utils.generateTsnsrvConfigs configs cfg.funnels;
+  hosts = utils.generateHosts configs domain cfg.bypassAuth cfg.cors;
 in
   with lib; {
-    options.mediaServices = {
-      enable = mkEnableOption "media services";
+    options.media.gateway = {
+      enable = mkEnableOption "media gateway";
 
       services = mkOption {
         type = types.attrsOf types.attrs;
@@ -74,27 +75,27 @@ in
 
       domain = mkOption {
         type = types.str;
-        default = config.mediaConfig.domain;
+        default = config.media.config.domain;
         description = "Domain to use for the media services";
         example = "media.example.com";
       };
 
       email = mkOption {
         type = types.str;
-        default = config.mediaConfig.email;
+        default = config.media.config.email;
         description = "Email to use for the media services";
         example = "media@example.com";
       };
     };
 
-    config = lib.mkIf config.mediaServices.enable {
+    config = lib.mkIf cfg.enable {
       security.acme.certs."${domain}" = {
         extraDomainNames = ["*.${domain}"];
       };
 
       services.tsnsrv.services = tsnsrvConfigs;
 
-      services.caddy.email = config.mediaServices.email;
+      services.caddy.email = cfg.email;
 
       services.caddy.globalConfig = utils.generateCaddyGlobalConfig;
 

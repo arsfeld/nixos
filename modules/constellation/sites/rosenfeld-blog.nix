@@ -4,7 +4,7 @@
   ...
 }:
 with lib; let
-  domain = "arosenfeld.blog";
+  domain = "rosenfeld.blog";
 in {
   options.constellation.sites.rosenfeld-blog = {
     enable = lib.mkEnableOption "rosenfeld-blog";

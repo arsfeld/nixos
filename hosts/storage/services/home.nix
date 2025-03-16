@@ -4,7 +4,7 @@
   pkgs,
   ...
 }: let
-  vars = config.mediaConfig;
+  vars = config.media.config;
   cacheDir = "/var/cache/finance-tracker";
 in {
   age.secrets."finance-tracker-env" = {

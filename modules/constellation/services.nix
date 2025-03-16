@@ -21,7 +21,6 @@
       auth = null;
       dex = null;
       dns = null;
-      ghost = 2368;
       invidious = null;
       metube = null;
       ntfy = null;
@@ -32,8 +31,6 @@
       yarr = 7070;
     };
     storage = processServices {
-      autobrr = null;
-      bazarr = null;
       beszel = 8090;
       bitmagnet = 3333;
       code = 3434;
@@ -41,7 +38,6 @@
       fileflows = 19200;
       filerun = 6000;
       filestash = 8334;
-      flaresolverr = 8191;
       filebrowser = 38080;
       gitea = 3001;
       grafana = 3010;
@@ -50,7 +46,6 @@
       headphones = 8787;
       home = 8085;
       immich = 15777;
-      jackett = null;
       jellyfin = 8096;
       jf = 3831;
       lidarr = 8686;
@@ -60,14 +55,11 @@
       nzbhydra2 = 5076;
       ollama-api = 11434;
       ollama = 30198;
-      overseerr = 5055;
       photoprism = 2342;
       photos = 2342;
-      pinchflat = null;
       plex = 32400;
       prowlarr = 9696;
       qbittorrent = 8999;
-      radarr = null;
       remotely = 5000;
       resilio = 9000;
       restic = 8000;
@@ -75,7 +67,6 @@
       sabnzbd = 8080;
       scrutiny = 9998;
       seafile = 8082;
-      sonarr = null;
       speedtest = 8765;
       stash = 9999;
       stirling = 9284;
@@ -94,7 +85,7 @@ in {
   };
 
   config = lib.mkIf config.constellation.services.enable {
-    mediaServices = {
+    media.gateway = {
       enable = true;
 
       authHost = "cloud.bat-boa.ts.net";
@@ -110,6 +101,7 @@ in {
         "dns"
         "flaresolverr"
         "grafana"
+        "ghost"
         "immich"
         "nextcloud"
         "ntfy"

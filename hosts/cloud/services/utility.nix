@@ -4,8 +4,8 @@
   pkgs,
   ...
 }: let
-  mediaDomain = config.mediaConfig.domain;
-  ports = config.mediaServices.ports;
+  mediaDomain = config.media.config.domain;
+  ports = config.media.gateway.ports;
 in {
   age.secrets.ntfy-env.file = "${self}/secrets/ntfy-env.age";
   age.secrets.ntfy-env.mode = "444";

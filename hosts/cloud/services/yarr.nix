@@ -5,7 +5,7 @@
   self,
   ...
 }: let
-  ports = config.mediaServices.ports;
+  ports = config.media.gateway.ports;
   yarr-overlay = final: prev: {
     yarr = prev.buildGoModule rec {
       pname = "yarr";

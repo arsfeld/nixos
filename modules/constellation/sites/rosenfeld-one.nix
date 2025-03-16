@@ -6,7 +6,7 @@
 }:
 with lib; let
   domain = "rosenfeld.one";
-  ports = config.mediaServices.ports;
+  ports = config.media.gateway.ports;
 in {
   options.constellation.sites.rosenfeld-one = {
     enable = lib.mkEnableOption "rosenfeld-one";

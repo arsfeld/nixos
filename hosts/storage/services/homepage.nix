@@ -5,7 +5,7 @@
   pkgs,
   ...
 }: let
-  vars = config.mediaConfig;
+  vars = config.media.config;
 in {
   age.secrets.homepage-env.file = "${self}/secrets/homepage-env.age";
 

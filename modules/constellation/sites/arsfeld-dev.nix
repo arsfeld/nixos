@@ -8,6 +8,7 @@
 }:
 with lib; let
   domain = "arsfeld.dev";
+  ports = config.media.gateway.ports;
 in {
   options.constellation.sites.arsfeld-dev = {
     enable = lib.mkEnableOption "arsfeld-dev";
@@ -25,7 +26,7 @@ in {
       };
       "blog.${domain}" = {
         useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:2368";
+        extraConfig = "reverse_proxy localhost:${toString ports.ghost}";
       };
     };
   };
