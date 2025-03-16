@@ -4,8 +4,8 @@
   pkgs,
   ...
 }: let
-  mediaDomain = config.mediaConfig.domain;
-  ports = config.mediaServices.ports;
+  mediaDomain = config.media.config.domain;
+  ports = config.media.gateway.ports;
 in {
   services.vaultwarden = {
     enable = true;

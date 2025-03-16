@@ -3,8 +3,8 @@
   self,
   ...
 }: let
-  vars = config.mediaConfig;
-  ports = config.mediaServices.ports;
+  vars = config.media.config;
+  ports = config.media.gateway.ports;
 in {
   services.openvscode-server = {
     enable = true;

@@ -11,7 +11,6 @@
   ];
 
   constellation.sites.arsfeld-dev.enable = true;
-  constellation.sites.rosenfeld-blog.enable = true;
   constellation.sites.rosenfeld-one.enable = true;
 
   boot = {
@@ -20,8 +19,9 @@
 
   constellation.backup.enable = true;
   constellation.services.enable = true;
+  constellation.media.enable = true;
 
-  mediaConfig.enable = true;
+  media.config.enable = true;
 
   nixpkgs.hostPlatform = "aarch64-linux";
 

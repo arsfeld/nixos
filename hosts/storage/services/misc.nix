@@ -5,7 +5,7 @@
   pkgs,
   ...
 }: let
-  vars = config.mediaConfig;
+  vars = config.media.config;
 in {
   age.secrets.tailscale-key.file = "${self}/secrets/tailscale-key.age";
 

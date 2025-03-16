@@ -4,8 +4,10 @@
   lib,
   self,
   ...
-}: {
-  options.mediaConfig = with lib; {
+}: let
+  cfg = config.media.config;
+in {
+  options.media.config = with lib; {
     enable = mkEnableOption "Media config";
 
     configDir = mkOption {
@@ -64,17 +66,17 @@
     };
   };
 
-  config = lib.mkIf config.mediaConfig.enable {
-    users.users.${config.mediaConfig.user} = {
-      name = config.mediaConfig.user;
-      group = config.mediaConfig.group;
-      uid = config.mediaConfig.puid;
+  config = lib.mkIf cfg.enable {
+    users.users.${cfg.user} = {
+      name = cfg.user;
+      group = cfg.group;
+      uid = cfg.puid;
       isSystemUser = true;
     };
 
-    users.groups.${config.mediaConfig.group} = {
-      name = config.mediaConfig.group;
-      gid = config.mediaConfig.pgid;
+    users.groups.${cfg.group} = {
+      name = cfg.group;
+      gid = cfg.pgid;
     };
 
     age.secrets.cloudflare = {
@@ -86,7 +88,7 @@
     security.acme.acceptTerms = true;
 
     security.acme.defaults = {
-      email = config.mediaConfig.email;
+      email = cfg.email;
       dnsResolver = "1.1.1.1:53";
       dnsProvider = "cloudflare";
       credentialsFile = config.age.secrets.cloudflare.path;

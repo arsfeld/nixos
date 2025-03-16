@@ -4,7 +4,7 @@
   self,
   ...
 }: let
-  ports = config.mediaServices.ports;
+  ports = config.media.gateway.ports;
 in {
   options.blocky = {
     enable = lib.mkEnableOption "blocky";

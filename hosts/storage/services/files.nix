@@ -3,7 +3,7 @@
   pkgs,
   ...
 }: let
-  vars = config.mediaConfig;
+  vars = config.media.config;
 in {
   users.users.syncthing.extraGroups = ["nextcloud" "media"];
 
@@ -32,7 +32,7 @@ in {
       location = [
         {
           route = ["/public/*path"];
-          directory = "/mnt/files";
+          directory = "/mnt/data/files";
           handler = "filesystem";
           methods = ["webdav-ro"];
           autoindex = true;
