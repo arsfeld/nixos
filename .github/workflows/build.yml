@@ -18,14 +18,30 @@ jobs:
             platform: aarch64-linux
           - host: storage
             platform: x86-64-linux
-          - host: raider
-            platform: x86-64-linux
 
     steps:
-    - name: Free Disk Space
-      uses: jlumbroso/free-disk-space@main
-      with:
-        tool-cache: true
+    - name: Free up disk space
+      run: |
+        # Display initial disk space
+        echo "Disk space before cleanup:"
+        df -h
+        
+        # Remove unnecessary large packages
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache/CodeQL
+        
+        # Clean apt cache
+        sudo apt clean
+        sudo apt autoremove --yes
+        
+        # Remove Docker images
+        docker image prune --all --force
+        
+        # Display disk space after cleanup
+        echo "Disk space after cleanup:"
+        df -h
     - uses: actions/checkout@v4
     # We only run this if we are building an aarch64-linux system
     - if: matrix.machine.platform == 'aarch64-linux'
@@ -36,7 +52,7 @@ jobs:
         oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
         oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
         tags: tag:ci
-        version: 1.68.2
+        version: 1.80.2
     - name: Install Nix
       uses: DeterminateSystems/nix-installer-action@main
       with:
