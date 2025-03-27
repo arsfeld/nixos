@@ -57,15 +57,6 @@ in {
     };
   };
 
-  systemd.timers.finance-tracker = {
-    wantedBy = ["timers.target"];
-    partOf = ["finance-tracker.service"];
-    timerConfig = {
-      OnCalendar = "*-*-* 17:00:00";
-      Persistent = true;
-    };
-  };
-
   virtualisation.oci-containers.containers = {
     homeassistant = {
       volumes = ["/var/lib/home-assistant:/config"];
