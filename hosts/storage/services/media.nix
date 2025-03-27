@@ -142,6 +142,7 @@ in {
         "${vars.dataDir}:${vars.dataDir}"
         "${vars.storageDir}:${vars.storageDir}"
         "${vars.storageDir}/media:/media"
+        "${vars.storageDir}/files:/files"
       ];
       extraOptions = [
         "--privileged"
