@@ -150,7 +150,7 @@ jobs:
           
           # Build the system
           echo "Building for ${{ matrix.machine.host }}..."
-          deploy --remote-build=false --skip-checks --targets ".${{ matrix.machine.host }}" --boot
+          deploy --remote-build=false --skip-checks --targets ".#${{ matrix.machine.host }}" --boot
           
           # Ensure we know if the build succeeded
           echo "::notice::Build succeeded for ${{ matrix.machine.host }}"
