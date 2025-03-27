@@ -1,0 +1,21 @@
+name: "CI"
+
+on:
+  pull_request:
+  push:
+    branches: 
+      - main
+      - master
+
+# Prevent multiple workflow runs executing at the same time
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      caller: ${{ github.workflow }}
+      build_all: true
+    secrets: inherit
