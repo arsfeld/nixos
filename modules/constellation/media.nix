@@ -74,6 +74,13 @@ in {
           exposePort = 8191;
           configDir = null;
         };
+
+        kavita = {
+          listenPort = 5000;
+          volumes = [
+            "${vars.storageDir}/media/Manga:/data"
+          ];
+        };
       };
 
       cloudServices = {
