@@ -4,65 +4,23 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-  workflow_call:
-    inputs:
-      caller:
-        required: false
-        type: string
-        description: "Name of the calling workflow (for logging)"
-        default: "direct"
-      host:
-        required: false
-        type: string
-        description: "Single host to build for (if building just one machine)"
-        default: ""
-      platform:
-        required: false
-        type: string
-        description: "Platform architecture for single host build"
-        default: ""
-      build_all:
-        required: false
-        type: boolean
-        description: "Whether to build all machines in the matrix"
-        default: true
-    outputs:
-      matrix:
-        description: "Machine matrix for builds (when used as a matrix provider)"
-        value: ${{ jobs.get-matrix.outputs.matrix }}
-    secrets:
-      TS_OAUTH_CLIENT_ID:
-        required: false
-      TS_OAUTH_SECRET:
-        required: false
-      ATTIC_TOKEN:
-        required: false
 
 jobs:
-  # Job that provides the matrix definition
-  get-matrix:
+  # Job that builds all machines
+  build-matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        machine:
+          - host: cloud
+            platform: aarch64-linux
+          - host: raspi3
+            platform: aarch64-linux
+          - host: storage
+            platform: x86-64-linux
+    
+    name: Build ${{ matrix.machine.host }}
     runs-on: ubuntu-latest
-    if: inputs.build_all == true
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - name: Set Matrix
-        id: set-matrix
-        run: |
-          cat << EOF >> $GITHUB_OUTPUT
-          matrix={
-            "machine": [
-              {"host": "cloud", "platform": "aarch64-linux"},
-              {"host": "raspi3", "platform": "aarch64-linux"},
-              {"host": "storage", "platform": "x86-64-linux"}
-            ]
-          }
-          EOF
-
-  # Job that builds a single machine
-  build-single:
-    runs-on: ubuntu-latest
-    if: inputs.host != '' && inputs.platform != '' && inputs.build_all == false
     timeout-minutes: 60
     permissions:
       contents: read
@@ -98,7 +56,7 @@ jobs:
         fetch-depth: 1
     
     - name: Setup QEMU for aarch64
-      if: inputs.platform == 'aarch64-linux'
+      if: matrix.machine.platform == 'aarch64-linux'
       uses: docker/setup-qemu-action@v3
     
     - name: Setup Tailscale
@@ -179,28 +137,8 @@ jobs:
           attic_pid=$!
           
           # Build the system
-          echo "Building for ${{ inputs.host }}..."
-          deploy --remote-build=false --skip-checks --targets ${{ inputs.host }} --boot
+          echo "Building for ${{ matrix.machine.host }}..."
+          deploy --remote-build=false --skip-checks --targets ${{ matrix.machine.host }} --boot
           
           # Ensure we know if the build succeeded
-          echo "::notice::Build succeeded for ${{ inputs.host }}"
-
-  # Job that builds all machines
-  build-matrix:
-    needs: get-matrix
-    if: inputs.build_all == true
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.get-matrix.outputs.matrix) }}
-    
-    name: Build ${{ matrix.machine.host }}
-    uses: ./.github/workflows/build.yml
-    with:
-      caller: ${{ inputs.caller }}
-      host: ${{ matrix.machine.host }}
-      platform: ${{ matrix.machine.platform }}
-      build_all: false
-    secrets:
-      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-      TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
-      ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+          echo "::notice::Build succeeded for ${{ matrix.machine.host }}"
