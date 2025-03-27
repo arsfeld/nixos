@@ -1,0 +1,113 @@
+name: "Daily Update"
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Run at midnight UTC daily
+  workflow_dispatch: # Allow manual triggering
+
+# Prevent multiple workflow runs executing at the same time
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15 # Prevent hanging jobs
+    permissions:
+      contents: read
+    outputs:
+      has_changes: ${{ steps.check_changes.outputs.has_changes }}
+      flake_lock: ${{ steps.check_changes.outputs.flake_lock }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Full history for accurate diff
+    
+    - name: Install Nix
+      uses: DeterminateSystems/nix-installer-action@v9
+      with:
+        extra-conf: |
+          fallback = true
+          http-connections = 128
+          max-substitution-jobs = 128
+          extra-platforms = aarch64-linux i686-linux
+    
+    - name: Setup Nix cache
+      uses: DeterminateSystems/magic-nix-cache-action@v3
+    
+    - name: Update flake and check for changes
+      id: check_changes
+      uses: workflow/nix-shell-action@v3.3.0
+      with:
+        flakes-from-devshell: true
+        script: |
+          set -euo pipefail
+          
+          # Update flake inputs
+          echo "Updating flake inputs..."
+          nix flake update
+          
+          # Check if there are any changes
+          if git diff --quiet; then
+            echo "No updates available"
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          
+          # Store the flake.lock content
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          echo "flake_lock<<EOF" >> "$GITHUB_OUTPUT"
+          cat flake.lock >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: update
+    if: needs.update.outputs.has_changes == 'true'
+    uses: ./.github/workflows/build.yml
+    with:
+      caller: ${{ github.workflow }}
+      build_all: true
+    secrets: inherit
+
+  commit:
+    needs: [update, build]
+    if: needs.update.outputs.has_changes == 'true' && success()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # Needed for pushing changes
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        token: ${{ secrets.GITHUB_TOKEN }} # Use token for authentication
+    
+    - name: Commit and push changes
+      run: |
+        set -euo pipefail
+        
+        # Write the flake.lock content
+        echo "${{ needs.update.outputs.flake_lock }}" > flake.lock
+        
+        # Ensure flake.lock exists
+        if [ ! -f flake.lock ]; then
+          echo "::error::Failed to create flake.lock file"
+          exit 1
+        fi
+        
+        # Commit and push changes
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        git add flake.lock
+        git commit -m "chore: update flake inputs [skip ci]"
+        
+        # Push with error handling
+        if ! git push; then
+          echo "::error::Failed to push changes, possibly due to concurrent updates"
+          exit 1
+        fi
+        
+        echo "::notice::Successfully updated flake.lock file" 
