@@ -11,6 +11,27 @@ in {
     file = "${self}/secrets/finance-tracker-env.age";
   };
 
+  # Enable and configure Kestra
+  services.kestra = {
+    enable = true;
+
+    # Database configuration
+    database = {
+      createLocally = true; # Create PostgreSQL database on this host
+      host = "localhost"; # Use localhost since we're creating the database locally
+      name = "kestra"; # Database name
+      username = "kestra"; # Database username
+      password = "kestra"; # Database password - consider using a more secure password
+    };
+
+    # Kestra configuration (optional - these are the defaults)
+    port = 8080;
+    adminPort = 8081;
+    basicAuth = false;
+    basicAuthUsername = "admin@localhost.dev";
+    basicAuthPassword = "kestra";
+  };
+
   systemd.services.finance-tracker = {
     description = "Finance Tracker Service";
     after = ["network-online.target"];
