@@ -17,40 +17,40 @@ in {
   magicRollback = false;
   nodes = {
     storage = mkDeploy {
-      hostname = "storage";
+      hostname = "storage.bat-boa.ts.net";
     };
     raider = mkDeploy {
-      hostname = "raider-nixos";
+      hostname = "raider-nixos.bat-boa.ts.net";
       fastConnection = true;
     };
     cloud = mkDeploy {
-      hostname = "cloud";
+      hostname = "cloud.bat-boa.ts.net";
       system = "aarch64-linux";
       remoteBuild = true;
     };
     cloud-br = mkDeploy {
-      hostname = "cloud-br";
+      hostname = "cloud-br.bat-boa.ts.net";
       system = "aarch64-linux";
     };
     r2s = mkDeploy {
-      hostname = "192.168.1.10";
+      hostname = "r2s.bat-boa.ts.net";
       system = "aarch64-linux";
       fastConnection = true;
     };
     raspi3 = mkDeploy {
-      hostname = "raspi3";
+      hostname = "raspi3.bat-boa.ts.net";
       system = "aarch64-linux";
       fastConnection = true;
     };
     core = mkDeploy {
-      hostname = "core";
+      hostname = "core.bat-boa.ts.net";
     };
     g14 = mkDeploy {
-      hostname = "g14";
+      hostname = "g14.bat-boa.ts.net";
       fastConnection = true;
     };
     hpe = mkDeploy {
-      hostname = "hpe";
+      hostname = "hpe.bat-boa.ts.net";
       fastConnection = true;
     };
   };
