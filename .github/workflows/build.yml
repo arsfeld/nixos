@@ -39,7 +39,7 @@ jobs:
         set -euo pipefail
         
         # Display initial disk space
-        echo "Disk space before cleanup:"
+        echo "📚 Disk space before cleanup:"
         df -h
         
         # Remove unnecessary large packages
@@ -56,7 +56,7 @@ jobs:
         docker image prune --all --force
         
         # Display disk space after cleanup
-        echo "Disk space after cleanup:"
+        echo "📚 Disk space after cleanup:"
         df -h
     
     - name: Checkout repository
@@ -100,7 +100,7 @@ jobs:
           
           # If flake_lock input is provided, use it
           if [ -n "${{ inputs.flake_lock || '' }}" ]; then
-            echo "Using provided flake.lock content"
+            echo "🛠️ Using provided flake.lock content"
             echo '${{ inputs.flake_lock }}' > flake.lock
           fi
           
@@ -113,11 +113,11 @@ jobs:
             
             until timeout $timeout "$@"; do
               if ((attempt == max_attempts)); then
-                echo "Command '$*' failed after $max_attempts attempts"
+                echo "🐛 Command '$*' failed after $max_attempts attempts"
                 return 1
               fi
               
-              echo "Command '$*' failed, attempt $attempt of $max_attempts. Retrying in ${delay}s..."
+              echo "⏪ Command '$*' failed, attempt $attempt of $max_attempts. Retrying in ${delay}s..."
               sleep $delay
               ((attempt++))
             done
@@ -125,7 +125,7 @@ jobs:
 
           # Check if required secrets exist
           if [ -z "${{ secrets.ATTIC_TOKEN }}" ]; then
-            echo "::error::ATTIC_TOKEN secret is not set"
+            echo "::error::🐛 ATTIC_TOKEN secret is not set"
             exit 1
           fi
 
@@ -134,7 +134,7 @@ jobs:
           retry attic use system
           
           # Wake up fly machine
-          echo "Waking up Fly machine..."
+          echo "✨ Waking up Fly machine..."
           retry attic cache info system
           
           # Setup SSH for Tailscale hosts
@@ -147,19 +147,21 @@ jobs:
           attic_pid=""
           function cleanup {
             if [ -n "$attic_pid" ]; then
-              echo "Cleaning up attic watch-store process ($attic_pid)"
+              echo "🧹 Cleaning up attic watch-store process ($attic_pid)"
               kill $attic_pid || true
             fi
           }
           trap cleanup EXIT
           
-          echo "Starting Attic watch-store..."
+          echo "✨ Starting Attic watch-store..."
           attic watch-store system &
           attic_pid=$!
           
           # Build the system
-          echo "Building for ${{ matrix.machine.host }}..."
-          deploy --remote-build=false --skip-checks --targets ".#${{ matrix.machine.host }}" --${{ inputs.activation_mode }}
+          echo "🛠️ Building for ${{ matrix.machine.host }}..."
+          deploy --remote-build=false --skip-checks \
+            --targets ".#${{ matrix.machine.host }}" \
+            --${{ inputs.activation_mode || 'boot' }}
           
           # Ensure we know if the build succeeded
-          echo "::notice::Build succeeded for ${{ matrix.machine.host }}"
+          echo "::notice::🚀 Build succeeded for ${{ matrix.machine.host }}"
