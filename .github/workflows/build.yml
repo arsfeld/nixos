@@ -10,6 +10,11 @@ on:
         description: "Content of flake.lock file"
         required: false
         type: string
+      activation_mode:
+        description: "Activation mode (boot or dry-activate)"
+        required: false
+        type: string
+        default: "boot"
 
 jobs:
   # Job that builds all machines
@@ -150,7 +155,7 @@ jobs:
           
           # Build the system
           echo "Building for ${{ matrix.machine.host }}..."
-          deploy --remote-build=false --skip-checks --targets ".#${{ matrix.machine.host }}" --boot
+          deploy --remote-build=false --skip-checks --targets ".#${{ matrix.machine.host }}" --${{ inputs.activation_mode }}
           
           # Ensure we know if the build succeeded
           echo "::notice::Build succeeded for ${{ matrix.machine.host }}"
