@@ -145,10 +145,12 @@ in {
       createDir = path: "d ${path} 0775 ${vars.user} ${vars.group} -";
       getVolumeDir = volume: builtins.head (builtins.split ":" volume);
     in
-      mapAttrsToList (name: container: 
-        (optional (container.configDir != null) (createDir "${vars.configDir}/${name}"))
-        ++ (map (volume: createDir (getVolumeDir volume)) container.volumes)
-      ) deployedContainers;
+      flatten (
+        mapAttrsToList (name: container: 
+          (optional (container.configDir != null) (createDir "${vars.configDir}/${name}"))
+          ++ (map (volume: createDir (getVolumeDir volume)) container.volumes)
+        ) deployedContainers
+      );
 
     virtualisation.oci-containers.containers = mkMerge (
       mapAttrsToList (
