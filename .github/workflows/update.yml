@@ -68,6 +68,7 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       flake_lock: ${{ needs.update.outputs.flake_lock }}
+      activation_mode: "dry-activate"
     secrets: inherit
 
   commit:
