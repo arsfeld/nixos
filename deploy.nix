@@ -9,7 +9,7 @@
     remoteBuild ? false,
   }: {
     inherit hostname fastConnection remoteBuild;
-    profiles.system.path = inputs.deploy-rs.lib.${system}.activate.nixos self.nixosConfigurations.${hostname};
+    profiles.system.path = inputs.deploy-rs.lib.${system}.activate.nixos self.nixosConfigurations.${builtins.head (builtins.split "\\." hostname)};
   };
 in {
   sshUser = "root";
