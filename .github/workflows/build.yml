@@ -137,6 +137,12 @@ jobs:
           echo "Waking up Fly machine..."
           retry attic cache info system
           
+          # Setup SSH for Tailscale hosts
+          mkdir -p ~/.ssh
+          echo "StrictHostKeyChecking no" >> ~/.ssh/config
+          echo "UserKnownHostsFile /dev/null" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
+          
           # Start Attic watch-store in background with proper process management
           attic_pid=""
           function cleanup {
