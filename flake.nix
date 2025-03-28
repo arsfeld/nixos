@@ -11,10 +11,10 @@
     deploy-rs.inputs.nixpkgs.follows = "nixpkgs";
     flake-parts.url = "github:hercules-ci/flake-parts";
     haumea.url = "github:nix-community/haumea";
+    devenv.url = "github:cachix/devenv";
     devshell.url = "github:numtide/devshell";
     devshell.inputs.nixpkgs.follows = "nixpkgs";
     treefmt-nix.url = "github:numtide/treefmt-nix";
-    process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
     nix-flatpak.url = "github:gmodena/nix-flatpak";
     tsnsrv.url = "github:boinkor-net/tsnsrv";
 
@@ -30,9 +30,7 @@
   outputs = {self, ...} @ inputs:
     inputs.flake-parts.lib.mkFlake {inherit inputs;} ({moduleWithSystem, ...}: {
       imports = [
-        inputs.devshell.flakeModule
-        #inputs.treefmt-nix.flakeModule
-        inputs.process-compose-flake.flakeModule
+        inputs.devenv.flakeModule
       ];
 
       systems = ["x86_64-linux" "aarch64-linux"];
@@ -45,32 +43,10 @@
         system,
         ...
       }: {
-        process-compose."default" = {
-          settings = {
-            processes = {
-              attic-push.command = "attic watch-store system";
-            };
-          };
-        };
-
-        # treefmt = {
-        #   programs.alejandra.enable = true;
-        #   flakeFormatter = true;
-        #   projectRootFile = "flake.nix";
-        # };
-
-        devshells.default = {pkgs, ...}: {
-          commands = [
-            {package = inputs'.agenix.packages.default;}
-            {package = inputs'.disko.packages.default;}
-          ];
-          packages = [
-            pkgs.lix
-            pkgs.just
-            pkgs.attic-client
-            pkgs.alejandra
-            pkgs.deploy-rs
-            pkgs.colmena
+        devShells.default = inputs.devenv.lib.mkShell {
+          inherit inputs pkgs;
+          modules = [
+            ./devenv.nix
           ];
         };
 

@@ -2,7 +2,7 @@ name: "Weekly Update"
 
 on:
   schedule:
-    - cron: '0 0 * * 0'  # Run at midnight UTC weekly
+    - cron: "0 0 * * 0" # Run at midnight UTC weekly
   workflow_dispatch: # Allow manual triggering
 
 # Prevent multiple workflow runs executing at the same time
@@ -20,29 +20,18 @@ jobs:
       has_changes: ${{ steps.check_changes.outputs.has_changes }}
       flake_lock: ${{ steps.check_changes.outputs.flake_lock }}
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0 # Full history for accurate diff
-    
-    - name: Install Nix
-      uses: DeterminateSystems/nix-installer-action@v9
-      with:
-        extra-conf: |
-          fallback = true
-          http-connections = 128
-          max-substitution-jobs = 128
-          extra-platforms = aarch64-linux i686-linux
-    
-    - name: Setup Nix cache
-      uses: DeterminateSystems/magic-nix-cache-action@v3
-    
-    - name: Update flake and check for changes
-      id: check_changes
-      uses: workflow/nix-shell-action@v3.3.0
-      with:
-        flakes-from-devshell: true
-        script: |
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for accurate diff
+      - uses: cachix/install-nix-action@v26
+      - uses: cachix/cachix-action@v14
+        with:
+          name: devenv
+      - name: Update flake and check for changes
+        id: check_changes
+        shell: devenv shell bash -- -e {0}
+        run: |
           set -euo pipefail
           # Update flake inputs
           echo "🔄 Updating flake inputs..."
@@ -76,38 +65,38 @@ jobs:
     permissions:
       contents: write # Needed for pushing changes
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 1
-        token: ${{ secrets.GITHUB_TOKEN }} # Use token for authentication
-    
-    - name: Commit and push changes
-      run: |
-        set -euo pipefail
-        
-        # Write the flake.lock content (decoding from base64)
-        echo "${{ needs.update.outputs.flake_lock }}" | base64 -d > flake.lock
-        
-        # Ensure flake.lock exists
-        if [ ! -f flake.lock ]; then
-          echo "::error::❌ Failed to create flake.lock file"
-          exit 1
-        fi
-        
-        # Commit and push changes
-        git config --global user.name 'github-actions[bot]'
-        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-        git add flake.lock
-        git commit -m "🧹 chore: update flake inputs"
-        
-        # Push with error handling
-        if ! git push; then
-          echo "::error::❌ Failed to push changes, possibly due to concurrent updates"
-          exit 1
-        fi
-        
-        echo "::notice::✅ Successfully updated flake.lock file"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }} # Use token for authentication
+
+      - name: Commit and push changes
+        run: |
+          set -euo pipefail
+
+          # Write the flake.lock content (decoding from base64)
+          echo "${{ needs.update.outputs.flake_lock }}" | base64 -d > flake.lock
+
+          # Ensure flake.lock exists
+          if [ ! -f flake.lock ]; then
+            echo "::error::❌ Failed to create flake.lock file"
+            exit 1
+          fi
+
+          # Commit and push changes
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add flake.lock
+          git commit -m "🧹 chore: update flake inputs"
+
+          # Push with error handling
+          if ! git push; then
+            echo "::error::❌ Failed to push changes, possibly due to concurrent updates"
+            exit 1
+          fi
+
+          echo "::notice::✅ Successfully updated flake.lock file"
 
   build-boot:
     needs: commit
@@ -115,4 +104,4 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       activation_mode: "boot"
-    secrets: inherit 
+    secrets: inherit
