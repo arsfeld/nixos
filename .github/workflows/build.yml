@@ -27,83 +27,80 @@ jobs:
             platform: aarch64-linux
           - host: storage
             platform: x86-64-linux
-    
+
     name: Build ${{ matrix.machine.host }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
       contents: read
     steps:
-    - name: Free up disk space
-      run: |
-        set -euo pipefail
-        
-        # Display initial disk space
-        echo "📚 Disk space before cleanup:"
-        df -h
-        
-        # Remove unnecessary large packages
-        sudo rm -rf /usr/share/dotnet
-        sudo rm -rf /usr/local/lib/android
-        sudo rm -rf /opt/ghc
-        sudo rm -rf /opt/hostedtoolcache/CodeQL
-        
-        # Clean apt cache
-        sudo apt clean
-        sudo apt autoremove --yes
-        
-        # Remove Docker images
-        docker image prune --all --force
-        
-        # Display disk space after cleanup
-        echo "📚 Disk space after cleanup:"
-        df -h
-    
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 1
-    
-    - name: Setup QEMU for aarch64
-      if: matrix.machine.platform == 'aarch64-linux'
-      uses: docker/setup-qemu-action@v3
-    
-    - name: Setup Tailscale
-      id: tailscale
-      uses: tailscale/github-action@v2
-      with:
-        oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-        oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-        tags: tag:ci
-        version: 1.82.0
-      timeout-minutes: 2
-    
-    - name: Install Nix
-      uses: DeterminateSystems/nix-installer-action@v9
-      with:
-        extra-conf: |
-          fallback = true
-          http-connections = 128
-          max-substitution-jobs = 128
-          extra-platforms = aarch64-linux i686-linux
-    
-    - name: Setup Nix cache
-      uses: DeterminateSystems/magic-nix-cache-action@v3
-    
-    - name: Build system
-      id: build_system
-      uses: workflow/nix-shell-action@v3.3.0
-      with:
-        flakes-from-devshell: true
-        script: |
+      - name: Free up disk space
+        run: |
           set -euo pipefail
-          
+
+          # Display initial disk space
+          echo "📚 Disk space before cleanup:"
+          df -h
+
+          # Remove unnecessary large packages
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+
+          # Clean apt cache
+          sudo apt clean
+          sudo apt autoremove --yes
+
+          # Remove Docker images
+          docker image prune --all --force
+
+          # Display disk space after cleanup
+          echo "📚 Disk space after cleanup:"
+          df -h
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup QEMU for aarch64
+        if: matrix.machine.platform == 'aarch64-linux'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Tailscale
+        id: tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          version: 1.82.0
+        timeout-minutes: 2
+
+      - uses: cachix/install-nix-action@v26
+        with:
+          extra_nix_config: extra-platforms = aarch64-linux i686-linux
+      
+      - uses: cachix/cachix-action@v14
+        with:
+          name: devenv
+
+      - name: Install devenv.sh
+        run: nix profile install nixpkgs#devenv
+
+      - name: Build system
+        id: build_system
+        shell: devenv shell bash -- -e {0}
+        run: |
+          set -euo pipefail
+
           # If flake_lock input is provided, use it
           if [ -n "${{ inputs.flake_lock || '' }}" ]; then
             echo "🛠️ Using provided flake.lock content"
             echo '${{ inputs.flake_lock }}' | base64 -d > flake.lock
           fi
-          
+
           # Function to retry commands with timeout
           retry() {
             local max_attempts=3
@@ -132,17 +129,17 @@ jobs:
           # Login to Attic and build
           retry attic login cloud https://fly-attic.fly.dev/system ${{ secrets.ATTIC_TOKEN }}
           retry attic use system
-          
+
           # Wake up fly machine
           echo "✨ Waking up Fly machine..."
           retry attic cache info system
-          
+
           # Setup SSH for Tailscale hosts
           mkdir -p ~/.ssh
           echo "StrictHostKeyChecking no" >> ~/.ssh/config
           echo "UserKnownHostsFile /dev/null" >> ~/.ssh/config
           chmod 600 ~/.ssh/config
-          
+
           # Start Attic watch-store in background with proper process management
           attic_pid=""
           function cleanup {
@@ -152,16 +149,16 @@ jobs:
             fi
           }
           trap cleanup EXIT
-          
+
           echo "✨ Starting Attic watch-store..."
           attic watch-store system &
           attic_pid=$!
-          
+
           # Build the system
           echo "🛠️ Building for ${{ matrix.machine.host }}..."
           deploy --remote-build=false --skip-checks \
             --targets ".#${{ matrix.machine.host }}" \
             --${{ inputs.activation_mode || 'boot' }}
-          
+
           # Ensure we know if the build succeeded
           echo "::notice::🚀 Build succeeded for ${{ matrix.machine.host }}"
