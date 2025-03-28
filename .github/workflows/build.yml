@@ -101,7 +101,7 @@ jobs:
           # If flake_lock input is provided, use it
           if [ -n "${{ inputs.flake_lock || '' }}" ]; then
             echo "🛠️ Using provided flake.lock content"
-            echo '${{ inputs.flake_lock }}' > flake.lock
+            echo '${{ inputs.flake_lock }}' | base64 -d > flake.lock
           fi
           
           # Function to retry commands with timeout
