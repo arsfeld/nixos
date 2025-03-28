@@ -17,27 +17,21 @@ with lib; let
     pkgs.writeShellScriptBin "sync-${provider}-reconnect" ''
       ${pkgs.rclone}/bin/rclone config --config ${configFile} reconnect ${provider}:
     '';
-  timers = builtins.foldl' (x: y: x // y) {} (builtins.attrValues (builtins.mapAttrs (provider: folder: {
-      "sync-${provider}" = {
-        wantedBy = ["timers.target"];
-        partOf = ["sync-${provider}.service"];
-        timerConfig.OnCalendar = "weekly";
-        timerConfig.RandomizedDelaySec = "120m";
-      };
-    })
-    providers));
-  services = builtins.foldl' (x: y: x // y) {} (builtins.attrValues (builtins.mapAttrs (provider: folder: {
-      "sync-${provider}" = {
-        serviceConfig.Type = "oneshot";
-        serviceConfig.User = "arosenfeld";
-        script = ''
-          ${pkgs.rclone}/bin/rclone sync ${rcloneOptions} ${provider}: "${homeDir}/${folder}"
-        '';
-      };
-    })
-    providers));
+  mkService = provider: folder: {
+    serviceConfig.Type = "oneshot";
+    serviceConfig.User = "arosenfeld";
+    script = ''
+      ${pkgs.rclone}/bin/rclone sync ${rcloneOptions} ${provider}: "${homeDir}/${folder}"
+    '';
+  };
+  mkTimer = provider: {
+    wantedBy = ["timers.target"];
+    partOf = ["sync-${provider}.service"];
+    timerConfig.OnCalendar = "weekly";
+    timerConfig.RandomizedDelaySec = "120m";
+  };
 in {
-  systemd.timers = timers;
-  systemd.services = services;
-  environment.systemPackages = with pkgs; (mapAttrsToList mkSyncWrapper providers);
+  systemd.timers = mapAttrs' (provider: _: nameValuePair "sync-${provider}" (mkTimer provider)) providers;
+  systemd.services = mapAttrs' (provider: folder: nameValuePair "sync-${provider}" (mkService provider folder)) providers;
+  environment.systemPackages = mapAttrsToList mkSyncWrapper providers;
 }
