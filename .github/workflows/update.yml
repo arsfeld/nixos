@@ -56,7 +56,7 @@ jobs:
           # Store the flake.lock content
           echo "has_changes=true" >> "$GITHUB_OUTPUT"
           echo "flake_lock<<EOF" >> "$GITHUB_OUTPUT"
-          cat flake.lock >> "$GITHUB_OUTPUT"
+          cat flake.lock | base64 >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
   build:
@@ -86,8 +86,8 @@ jobs:
       run: |
         set -euo pipefail
         
-        # Write the flake.lock content
-        echo "${{ needs.update.outputs.flake_lock }}" > flake.lock
+        # Write the flake.lock content (decoding from base64)
+        echo "${{ needs.update.outputs.flake_lock }}" | base64 -d > flake.lock
         
         # Ensure flake.lock exists
         if [ ! -f flake.lock ]; then
