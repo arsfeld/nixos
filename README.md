@@ -1,5 +1,20 @@
 # 🚀 My NixOS Configuration
 
+<!-- System -->
+[![NixOS](https://img.shields.io/badge/NixOS-Unstable-blue.svg)](https://nixos.org)
+[![Flakes](https://img.shields.io/badge/Flakes-Enabled-blue.svg)](https://nixos.wiki/wiki/Flakes)
+[![Home Manager](https://img.shields.io/badge/Home%20Manager-Enabled-blue.svg)](https://github.com/nix-community/home-manager)
+[![deploy-rs](https://img.shields.io/badge/deploy--rs-Enabled-blue.svg)](https://github.com/serokell/deploy-rs)
+
+<!-- Status -->
+[![Build](https://github.com/arsfeld/nixos/actions/workflows/build.yml/badge.svg)](https://github.com/arsfeld/nixos/actions/workflows/build.yml)
+[![Last Commit](https://img.shields.io/github/last-commit/arsfeld/nixos)](https://github.com/arsfeld/nixos/commits/main)
+
+<!-- Repository Info -->
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Repo Size](https://img.shields.io/github/repo-size/arsfeld/nixos)](https://github.com/arsfeld/nixos)
+[![Systems](https://img.shields.io/badge/Systems-7-blue.svg)](https://github.com/arsfeld/nixos#-whats-inside)
+
 Welcome to my personal NixOS configuration repo! This is where I manage all my NixOS systems using the power of Nix flakes. ✨
 
 ## 🖥️ What's Inside
