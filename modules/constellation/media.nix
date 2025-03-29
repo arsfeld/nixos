@@ -38,6 +38,10 @@ in {
           mediaVolumes = true;
         };
 
+        prowlarr = {
+          listenPort = 9696;
+        };
+
         autobrr = {
           image = "ghcr.io/autobrr/autobrr:latest";
           listenPort = 7474;

@@ -52,13 +52,11 @@
       komga = null;
       n8n = 5678;
       netdata = 19999;
-      nzbhydra2 = 5076;
       ollama-api = 11434;
       ollama = 30198;
       photoprism = 2342;
       photos = 2342;
       plex = 32400;
-      prowlarr = 9696;
       qbittorrent = 8999;
       remotely = 5000;
       resilio = 9000;
