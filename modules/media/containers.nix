@@ -2,6 +2,7 @@
   self,
   config,
   lib,
+  pkgs,
   ...
 }:
 with lib; let
@@ -107,13 +108,13 @@ in {
       # Define ports first so we can reference them in services
       ports =
         mapAttrs
-        (
-          name: container:
+          (
+            name: container:
             if container.exposePort != null
-            then container.exposePort
+                  then container.exposePort
             else nameToPort name
-        )
-        exposedContainers;
+          )
+          exposedContainers;
 
       services = let
         # Build a nested attribute set for each enabled container with a listenPort
@@ -152,6 +153,19 @@ in {
         ) deployedContainers
       );
 
+    # Create services.json with debug information
+    environment.etc."services.json".source = let
+      debugInfo = mapAttrs (name: container: {
+        listenPort = container.listenPort;
+        exposePort = if container.exposePort != null
+          then container.exposePort
+          else nameToPort name;
+        portMapping = "${toString (if container.exposePort != null
+          then container.exposePort
+          else nameToPort name)}:${toString container.listenPort}";
+      }) exposedContainers;
+    in pkgs.writeText "services.json" (builtins.toJSON debugInfo);
+
     virtualisation.oci-containers.containers = mkMerge (
       mapAttrsToList (
         name: container:
@@ -166,7 +180,7 @@ in {
                 }
                 // container.environment;
               ports = let
-                exposePort = container.exposePort or config.media.gateway.ports.${name} or (nameToPort name);
+                exposePort = if container.exposePort == null || container.exposePort == "" then config.media.gateway.ports.${name} or (nameToPort name) else container.exposePort;
                 portMapping = "${toString exposePort}:${toString container.listenPort}";
               in
                 optional (container.listenPort != null) portMapping;
