@@ -6,7 +6,7 @@
 }:
 with lib; let
   domain = "rosenfeld.one";
-  ports = config.media.gateway.ports;
+  services = config.media.gateway.services;
 in {
   options.constellation.sites.rosenfeld-one = {
     enable = lib.mkEnableOption "rosenfeld-one";
@@ -34,12 +34,12 @@ in {
                 }
               ` 200
           }
-          reverse_proxy localhost:${toString ports.dex}
+          reverse_proxy localhost:${toString services.dex.port}
         '';
       };
       "users.${domain}" = {
         useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:${toString ports.users}";
+        extraConfig = "reverse_proxy localhost:${toString services.users.port}";
       };
     };
   };

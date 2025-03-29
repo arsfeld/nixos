@@ -4,7 +4,7 @@
   self,
   ...
 }: let
-  ports = config.media.gateway.ports;
+  services = config.media.gateway.services;
 in {
   options.blocky = {
     enable = lib.mkEnableOption "blocky";
@@ -33,7 +33,7 @@ in {
           };
         };
         ports = {
-          http = ":${toString ports.dns}";
+          http = ":${toString services.dns.port}";
         };
         redis = {
           address = "100.66.38.77:6378";

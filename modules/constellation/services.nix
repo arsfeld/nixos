@@ -3,21 +3,10 @@
   lib,
   config,
   ...
-}: let
-  nameToPort = import "${self}/common/nameToPort.nix";
-
-  # Helper function to process a set and replace null values with generated ports
-  processServices = serviceSet:
-    builtins.mapAttrs (
-      name: value:
-        if value == null
-        then nameToPort name
-        else value
-    )
-    serviceSet;
-
+}:
+with lib; let
   services = {
-    cloud = processServices {
+    cloud = {
       auth = null;
       dex = null;
       dns = null;
@@ -30,7 +19,7 @@
       whoogle = 5000;
       yarr = 7070;
     };
-    storage = processServices {
+    storage = {
       beszel = 8090;
       bitmagnet = 3333;
       code = 3434;
@@ -77,6 +66,28 @@
       windmill = 8001;
     };
   };
+
+  # generateServices: Transforms nested service definitions into a flat list of configs
+  # Input: generateServices { storage = { jellyfin = null; }; cloud = { yarr = 8096; } }
+  # Output: {"jellyfin" = { name = "jellyfin"; host = "storage"; }; "yarr" = { name = "yarr"; host = "cloud"; port = 8096; }}
+  generateServices = services:
+    listToAttrs (builtins.concatMap
+      (host:
+        builtins.map
+        (name: {
+          inherit name;
+          value =
+            {
+              inherit name host;
+            }
+            // (
+              if services.${host}.${name} != null
+              then {port = services.${host}.${name};}
+              else {}
+            );
+        })
+        (builtins.attrNames services.${host}))
+      (builtins.attrNames services));
 in {
   options.constellation.services = {
     enable = lib.mkEnableOption "constellation services";
@@ -87,11 +98,9 @@ in {
       enable = true;
 
       authHost = "cloud.bat-boa.ts.net";
-      authPort = services.cloud.auth;
+      authPort = builtins.trace "services: ${builtins.toJSON config.media.gateway.services}" config.media.gateway.services.auth.port;
 
-      services = services;
-
-      ports = services.cloud // services.storage;
+      services = generateServices services;
 
       bypassAuth = [
         "auth"

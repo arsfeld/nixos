@@ -5,7 +5,7 @@
   ...
 }: let
   domains = import "${self}/common/domains.nix";
-  ports = config.media.gateway.ports;
+  services = config.media.gateway.services;
   autheliaConfig = domains.mediaDomain;
   inherit (domains) mediaDomain authDomain;
 in {
@@ -26,7 +26,7 @@ in {
         config.host = "/var/lib/dex/dex.db";
       };
       web = {
-        http = "127.0.0.1:${toString ports.dex}";
+        http = "127.0.0.1:${toString services.dex.port}";
       };
       enablePasswordDB = true;
       staticClients = [
@@ -88,7 +88,7 @@ in {
       ldap_user_email = "admin@${authDomain}";
       ldap_user_dn = "admin";
       ldap_base_dn = "dc=rosenfeld,dc=one";
-      http_port = ports.users;
+      http_port = services.users.port;
     };
     environmentFile = config.age.secrets.lldap-env.path;
   };
@@ -97,7 +97,7 @@ in {
     enable = true;
     settings = {
       server = {
-        address = "tcp://0.0.0.0:${toString ports.auth}";
+        address = "tcp://0.0.0.0:${toString services.auth.port}";
       };
       authentication_backend = {
         ldap = {

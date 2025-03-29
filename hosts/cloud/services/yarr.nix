@@ -5,7 +5,7 @@
   self,
   ...
 }: let
-  ports = config.media.gateway.ports;
+  services = config.media.gateway.services;
   yarr-overlay = final: prev: {
     yarr = prev.buildGoModule rec {
       pname = "yarr";
@@ -55,7 +55,7 @@ in {
       Type = "simple";
       User = "yarr";
       Group = "yarr";
-      ExecStart = "${pkgs.yarr}/bin/yarr -addr 0.0.0.0:${toString ports.yarr} -db /var/lib/yarr/yarr.db";
+      ExecStart = "${pkgs.yarr}/bin/yarr -addr 0.0.0.0:${toString services.yarr.port} -db /var/lib/yarr/yarr.db";
       Restart = "on-failure";
       RestartSec = "5s";
       WorkingDirectory = "/var/lib/yarr";

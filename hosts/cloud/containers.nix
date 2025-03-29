@@ -3,18 +3,18 @@
   self,
   ...
 }: let
-  ports = config.media.gateway.ports;
+  services = config.media.gateway.services;
 in {
   virtualisation.oci-containers.containers = {
     whoogle = {
       image = "benbusby/whoogle-search:latest";
-      ports = ["${toString ports.whoogle}:5000"];
+      ports = ["${toString services.whoogle.port}:5000"];
     };
 
     metube = {
       image = "ghcr.io/alexta69/metube";
       volumes = ["/var/lib/metube:/downloads"];
-      ports = ["${toString ports.metube}:8081"];
+      ports = ["${toString services.metube.port}:8081"];
     };
   };
 }
