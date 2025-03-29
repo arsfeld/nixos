@@ -9,13 +9,13 @@
   yarr-overlay = final: prev: {
     yarr = prev.buildGoModule rec {
       pname = "yarr";
-      version = "2.4-dev";
+      version = "2.5";
       subPackages = ["cmd/yarr"];
       src = pkgs.fetchFromGitHub {
         owner = "nkanaev";
-        repo = "yarr";
-        rev = "5254df53dc6d6e69b4f043e8d232d05b16ceb548";
-        sha256 = "sha256-mJpiSdCNAYpgSLPXg7EO4LIwb8VWS7J2R1xRQrXbtQM=";
+        repo = pname;
+        rev = "v${version}";
+        sha256 = "sha256-yII0KV4AKIS1Tfhvj588O631JDArnr0/30rNynTSwzk=";
       };
 
       vendorHash = null;
