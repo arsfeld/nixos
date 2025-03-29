@@ -1,0 +1,58 @@
+name: "Format Nix Code"
+
+on:
+  push:
+    branches:
+      - master
+
+# Prevent multiple workflow runs executing at the same time
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # Needed for pushing changes
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for accurate diff
+
+      - uses: cachix/install-nix-action@v26
+      - uses: cachix/cachix-action@v14
+        with:
+          name: devenv
+
+      - name: Install alejandra
+        run: nix profile install nixpkgs#alejandra
+
+      - name: Format Nix files
+        run: |
+          set -euo pipefail
+          # Run alejandra on all .nix files
+          alejandra .
+          # Check if there are any changes
+          if git diff --quiet; then
+            echo "✨ No formatting changes needed"
+            exit 0
+          fi
+
+      - name: Commit and push changes
+        run: |
+          set -euo pipefail
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add .
+          git commit -m "💎 style: format nix files with alejandra"
+
+          # Push with error handling
+          if ! git push; then
+            echo "::error::❌ Failed to push changes, possibly due to concurrent updates"
+            exit 1
+          fi
+
+          echo "::notice::✅ Successfully formatted and committed Nix files" 
