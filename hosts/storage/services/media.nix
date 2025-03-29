@@ -22,25 +22,11 @@ in {
     group = vars.group;
   };
 
-  services.sabnzbd = {
-    enable = false;
-    user = vars.user;
-    group = vars.group;
-  };
-
   services.komga = {
     enable = true;
     user = vars.user;
     group = vars.group;
     settings.server.port = ports.komga;
-  };
-
-  services.prowlarr = {
-    enable = true;
-  };
-
-  services.nzbhydra2 = {
-    enable = true;
   };
 
   services.tautulli = {
