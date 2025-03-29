@@ -6,7 +6,7 @@
   ...
 }: let
   vars = config.media.config;
-  ports = config.media.gateway.ports;
+  services = config.media.gateway.services;
 
   plex-trakt-sync = {interactive ? false}: ''    ${pkgs.podman}/bin/podman run ${
       if interactive
@@ -26,7 +26,7 @@ in {
     enable = true;
     user = vars.user;
     group = vars.group;
-    settings.server.port = ports.komga;
+    settings.server.port = services.komga.port;
   };
 
   services.tautulli = {
@@ -39,7 +39,7 @@ in {
     enable = true;
     user = vars.user;
     group = vars.group;
-    port = ports.headphones;
+    port = services.headphones.port;
   };
 
   services.bitmagnet = {

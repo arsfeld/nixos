@@ -1,14 +1,9 @@
 {
   lib,
   config,
-  pkgs,
-  nixpkgs,
-  modulesPath,
   ...
-}:
-with lib; let
+}: let
   domain = "arsfeld.dev";
-  ports = config.media.gateway.ports;
 in {
   options.constellation.sites.arsfeld-dev = {
     enable = lib.mkEnableOption "arsfeld-dev";
@@ -26,7 +21,7 @@ in {
       };
       "blog.${domain}" = {
         useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:${toString ports.ghost}";
+        extraConfig = "reverse_proxy localhost:${toString config.media.gateway.services.ghost.port}";
       };
     };
   };

@@ -105,41 +105,13 @@ in {
   config = mkIf (cfg != {}) {
     media.gateway = {
       enable = mkDefault (length (attrValues exposedContainers) > 0);
-      # Define ports first so we can reference them in services
-      ports =
-        mapAttrs
-          (
-            name: container:
-            if container.exposePort != null
-                  then container.exposePort
-            else nameToPort name
-          )
-          exposedContainers;
 
-      services = let
-        # Build a nested attribute set for each enabled container with a listenPort
-        containerServices =
-          mapAttrs
-          (
-            name: container: {
-              ${container.host} = {
-                ${name} = config.media.gateway.ports.${name};
-              };
-            }
-          )
-          exposedContainers;
-
-        # Merge all container entries by host
-        mergedByHost =
-          foldl
-          (
-            acc: container:
-              recursiveUpdate acc container
-          )
-          {}
-          (attrValues containerServices);
-      in
-        mergedByHost;
+      services =
+        mapAttrs (name: container: {
+          host = container.host;
+          port = mkIf (container.exposePort != null) container.exposePort;
+        })
+        exposedContainers;
     };
 
     systemd.tmpfiles.rules = let
@@ -147,24 +119,32 @@ in {
       getVolumeDir = volume: builtins.head (builtins.split ":" volume);
     in
       flatten (
-        mapAttrsToList (name: container: 
-          (optional (container.configDir != null) (createDir "${vars.configDir}/${name}"))
-          ++ (map (volume: createDir (getVolumeDir volume)) container.volumes)
-        ) deployedContainers
+        mapAttrsToList (
+          name: container:
+            (optional (container.configDir != null) (createDir "${vars.configDir}/${name}"))
+            ++ (map (volume: createDir (getVolumeDir volume)) container.volumes)
+        )
+        deployedContainers
       );
 
     # Create services.json with debug information
     environment.etc."services.json".source = let
-      debugInfo = mapAttrs (name: container: {
-        listenPort = container.listenPort;
-        exposePort = if container.exposePort != null
-          then container.exposePort
-          else nameToPort name;
-        portMapping = "${toString (if container.exposePort != null
-          then container.exposePort
-          else nameToPort name)}:${toString container.listenPort}";
-      }) exposedContainers;
-    in pkgs.writeText "services.json" (builtins.toJSON debugInfo);
+      debugInfo =
+        mapAttrs (name: container: {
+          listenPort = container.listenPort;
+          exposePort =
+            if container.exposePort != null
+            then container.exposePort
+            else nameToPort name;
+          portMapping = "${toString (
+            if container.exposePort != null
+            then container.exposePort
+            else nameToPort name
+          )}:${toString container.listenPort}";
+        })
+        exposedContainers;
+    in
+      pkgs.writeText "services.json" (builtins.toJSON debugInfo);
 
     virtualisation.oci-containers.containers = mkMerge (
       mapAttrsToList (
@@ -180,7 +160,7 @@ in {
                 }
                 // container.environment;
               ports = let
-                exposePort = if container.exposePort == null || container.exposePort == "" then config.media.gateway.ports.${name} or (nameToPort name) else container.exposePort;
+                exposePort = config.media.gateway.services.${name}.port;
                 portMapping = "${toString exposePort}:${toString container.listenPort}";
               in
                 optional (container.listenPort != null) portMapping;

@@ -4,7 +4,6 @@
   ...
 }: let
   cfg = config.constellation.media;
-  ports = config.media.gateway.ports;
   vars = config.media.config;
 in {
   options.constellation.media = {

@@ -5,7 +5,7 @@
   ...
 }: let
   mediaDomain = config.media.config.domain;
-  ports = config.media.gateway.ports;
+  services = config.media.gateway.services;
 in {
   services.vaultwarden = {
     enable = true;
@@ -13,7 +13,7 @@ in {
       DOMAIN = "https://vault.${mediaDomain}";
       SIGNUPS_ALLOWED = true;
       ROCKET_ADDRESS = "0.0.0.0";
-      ROCKET_PORT = ports.vault;
+      ROCKET_PORT = services.vault.port;
       USE_SENDMAIL = true;
       SENDMAIL_COMMAND = "${pkgs.system-sendmail}/bin/sendmail";
       SMTP_FROM = "admin@rosenfeld.one";

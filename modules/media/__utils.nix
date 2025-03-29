@@ -12,25 +12,17 @@ in
     generateHost = domain: bypassAuth: cors: cfg: {
       "${cfg.name}.${domain}" = {
         useACMEHost = domain;
-        extraConfig =
-          (
-            if builtins.elem cfg.name bypassAuth
-            then ""
-            else ''
-              forward_auth ${authHost}:${toString authPort} {
-                uri /api/verify?rd=https://auth.${domain}/
-                copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-              }
-            ''
-          )
-          + (
-            if builtins.elem cfg.name cors
-            then ""
-            else ''
-              import cors {header.origin}
-            ''
-          )
-          + ''
+        extraConfig = let
+          authConfig = optionalString (!builtins.elem cfg.name bypassAuth) ''
+            forward_auth ${authHost}:${toString authPort} {
+              uri /api/verify?rd=https://auth.${domain}/
+              copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+            }
+          '';
+          corsConfig = optionalString (!builtins.elem cfg.name cors) ''
+            import cors {header.origin}
+          '';
+          proxyConfig = ''
             import errors
             reverse_proxy ${cfg.host}:${toString cfg.port} {
               @error status 404 500 503
@@ -38,8 +30,12 @@ in
                 error {rp.status_code}
               }
             }
-
           '';
+        in ''
+          ${authConfig}
+          ${corsConfig}
+          ${proxyConfig}
+        '';
       };
     };
 
@@ -47,32 +43,24 @@ in
     # Input: generateTsnsrvService ["api"] { name = "api"; host = "localhost"; port = 3000; }
     # Output: { "api" = { toURL = "http://127.0.0.1:3000"; funnel = true; }; }
     generateTsnsrvService = funnels: cfg:
-      if (config.networking.hostName == cfg.host)
-      then {
+      optionalAttrs (config.networking.hostName == cfg.host) {
         "${cfg.name}" = {
           toURL = "http://127.0.0.1:${toString cfg.port}";
           funnel = builtins.elem cfg.name funnels;
         };
-      }
-      else {};
-
-    # generateConfigs: Transforms nested service definitions into a flat list of configs
-    # Input: generateConfigs { server1 = { app = 8080; api = 3000; }; }
-    # Output: [{ name = "app"; port = 8080; host = "server1"; } { name = "api"; port = 3000; host = "server1"; }]
-    generateConfigs = services:
-      concatLists (mapAttrsToList (host: pairs: mapAttrsToList (name: port: {inherit name port host;}) pairs) services);
+      };
 
     # generateTsnsrvConfigs: Creates tsnsrv service configurations from a list of configs
-    # Input: generateTsnsrvConfigs [{ name = "api"; host = "localhost"; port = 3000; }] ["api"]
+    # Input: generateTsnsrvConfigs {"api": { name = "api"; host = "localhost"; port = 3000; }} ["api"]
     # Output: { "api" = { toURL = "http://127.0.0.1:3000"; funnel = true; }; }
     generateTsnsrvConfigs = configs: funnels:
-      foldl' (acc: host: acc // host) {} (map (generateTsnsrvService funnels) configs);
+      builtins.foldl' (acc: cfg: acc // (generateTsnsrvService funnels cfg)) {} (builtins.attrValues configs);
 
     # generateHosts: Creates Caddy virtual host configurations from a list of configs
-    # Input: generateHosts [{ name = "app"; host = "server1"; port = 8080; }] "example.com" [] []
+    # Input: generateHosts {"app": { name = "app"; host = "server1"; port = 8080; }} "example.com" [] []
     # Output: { "app.example.com" = { useACMEHost = "example.com"; extraConfig = "..."; }; }
     generateHosts = configs: domain: bypassAuth: cors:
-      foldl' (acc: host: acc // host) {} (map (generateHost domain bypassAuth cors) configs);
+      builtins.foldl' (acc: cfg: acc // (generateHost domain bypassAuth cors cfg)) {} (builtins.attrValues configs);
 
     # generateCaddyGlobalConfig: Returns Caddy global server settings
     # Input: generateCaddyGlobalConfig

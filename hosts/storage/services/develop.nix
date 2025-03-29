@@ -4,13 +4,13 @@
   ...
 }: let
   vars = config.media.config;
-  ports = config.media.gateway.ports;
+  services = config.media.gateway.services;
 in {
   services.openvscode-server = {
     enable = true;
     user = "arosenfeld";
     host = "0.0.0.0";
-    port = ports.code;
+    port = services.code.port;
     withoutConnectionToken = true;
   };
 
