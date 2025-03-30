@@ -127,7 +127,6 @@ in {
       authPort = builtins.trace "services: ${builtins.toJSON config.media.gateway.services}" config.media.gateway.services.auth.port;
 
       services = generateServices services;
-
     };
   };
 }
