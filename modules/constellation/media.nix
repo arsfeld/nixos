@@ -11,8 +11,6 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
-    media.gateway.insecureTls = ["nextcloud"];
-
     media.containers = let
       storageServices = {
         nextcloud = {
@@ -20,6 +18,9 @@ in {
           volumes = [
             "${vars.storageDir}/files/Nextcloud:/data"
           ];
+          settings = {
+            insecureTls = true;
+          };
         };
 
         overseerr = {

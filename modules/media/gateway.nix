@@ -12,14 +12,10 @@ with lib; let
   domain = cfg.domain;
   tsnsrvConfigs = utils.generateTsnsrvConfigs {
     services = cfg.services;
-    funnels = cfg.funnels;
   };
   hosts = utils.generateHosts {
     services = cfg.services;
     domain = domain;
-    bypassAuth = cfg.bypassAuth;
-    insecureTls = cfg.insecureTls;
-    cors = cfg.cors;
   };
 in {
   options.media.gateway = mkOption {
@@ -60,6 +56,11 @@ in {
                 default = nameToPort config.name;
                 description = "Port to use for the media services";
               };
+              settings = mkOption {
+                type = utils.gatewayConfig;
+                default = {};
+                description = "Extra settings for the media gateway";
+              };
             };
           }));
         };
@@ -76,34 +77,6 @@ in {
           default = 443;
           description = "Port to use for the media services";
           example = 443;
-        };
-
-        funnels = mkOption {
-          type = types.listOf types.str;
-          default = [];
-          description = "Funnel services to enable using tsnsrv";
-          example = ["jellyfin" "yarr"];
-        };
-
-        bypassAuth = mkOption {
-          type = types.listOf types.str;
-          default = [];
-          description = "Services to bypass authentication";
-          example = ["jellyfin" "yarr"];
-        };
-
-        insecureTls = mkOption {
-          type = types.listOf types.str;
-          default = [];
-          description = "Services to allow insecure TLS";
-          example = ["jellyfin" "yarr"];
-        };
-
-        cors = mkOption {
-          type = types.listOf types.str;
-          default = [];
-          description = "Services to allow CORS";
-          example = ["jellyfin" "yarr"];
         };
 
         domain = mkOption {
