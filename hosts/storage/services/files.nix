@@ -83,11 +83,11 @@ in {
   };
 
   services.nextcloud = {
-    enable = true;
+    enable = false;
     datadir = "${vars.dataDir}/files/Nextcloud";
     hostName = "nextcloud.${vars.domain}";
     maxUploadSize = "10G";
-    package = pkgs.nextcloud30;
+    package = pkgs.nextcloud31;
     appstoreEnable = true;
     autoUpdateApps.enable = true;
     configureRedis = true;
