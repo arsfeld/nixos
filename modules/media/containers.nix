@@ -8,6 +8,7 @@
 with lib; let
   _config = config;
   vars = config.media.config;
+  utils = import "${self}/modules/media/__utils.nix" {inherit config lib;};
   nameToPort = import "${self}/common/nameToPort.nix";
   cfg = config.media.containers;
   exposedContainers =
@@ -97,6 +98,11 @@ in {
           default = _config.networking.hostName;
           description = "Host to use for the container";
         };
+        settings = mkOption {
+          type = utils.gatewayConfig;
+          default = {};
+          description = "Extra settings for the media gateway";
+        };
       };
     }));
     default = {};
@@ -111,6 +117,7 @@ in {
         mapAttrs (name: container: {
           host = container.host;
           port = mkIf (container.exposePort != null) container.exposePort;
+          settings = container.settings;
         })
         exposedContainers;
     };

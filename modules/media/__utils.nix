@@ -1,41 +1,63 @@
 {
   lib,
   config,
-}: let
+}: with lib; let
   authHost = config.media.gateway.authHost;
   authPort = config.media.gateway.authPort;
 in
   with lib; rec {
+    gatewayConfig = types.submodule {
+      options = {
+        cors = mkOption {
+          type = types.bool;
+          default = false;
+          description = "Enable CORS for the media service";
+        };
+        insecureTls = mkOption {
+          type = types.bool;
+          default = false;
+          description = "Enable insecure TLS for the media service";
+        };
+        bypassAuth = mkOption {
+          type = types.bool;
+          default = false;
+          description = "Bypass authentication for the media service";
+        };
+        funnel = mkOption {
+          type = types.bool;
+          default = false;
+          description = "Enable funnel for the media service";
+        };
+      };
+    };
+
     # generateHost: Creates a Caddy virtual host configuration
-    # Input: generateHost { domain = "example.com"; bypassAuth = ["public"]; insecureTls = ["insecure"]; cors = ["api"]; cfg = { name = "app"; host = "server1"; port = 8080; }; }
+    # Input: generateHost { domain = "example.com"; cfg = { name = "app"; host = "server1"; port = 8080; settings = {}; }; }
     # Output: { "app.example.com" = { useACMEHost = "example.com"; extraConfig = "..."; }; }
     generateHost = {
       domain,
-      bypassAuth,
-      insecureTls,
-      cors,
       cfg,
     }: {
       "${cfg.name}.${domain}" = {
         useACMEHost = domain;
         extraConfig = let
-          authConfig = optionalString (!builtins.elem cfg.name bypassAuth) ''
+          authConfig = optionalString (cfg.settings.bypassAuth) ''
             forward_auth ${authHost}:${toString authPort} {
               uri /api/verify?rd=https://auth.${domain}/
               copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
             }
           '';
           protocol =
-            if builtins.elem cfg.name insecureTls
+            if cfg.settings.insecureTls
             then "https"
             else "http";
-          insecureTlsConfig = optionalString (builtins.elem cfg.name insecureTls) ''
+          insecureTlsConfig = optionalString (cfg.settings.insecureTls) ''
             transport http {
                 tls
                 tls_insecure_skip_verify
             }
           '';
-          corsConfig = optionalString (!builtins.elem cfg.name cors) ''
+          corsConfig = optionalString (cfg.settings.cors) ''
             import cors {header.origin}
           '';
           proxyConfig = ''
@@ -60,13 +82,12 @@ in
     # Input: generateTsnsrvService { funnels = ["api"]; cfg = { name = "api"; host = "localhost"; port = 3000; }; }
     # Output: { "api" = { toURL = "http://127.0.0.1:3000"; funnel = true; }; }
     generateTsnsrvService = {
-      funnels,
       cfg,
     }:
       optionalAttrs (config.networking.hostName == cfg.host) {
         "${cfg.name}" = {
           toURL = "http://127.0.0.1:${toString cfg.port}";
-          funnel = builtins.elem cfg.name funnels;
+          funnel = cfg.settings.funnel;
         };
       };
 
@@ -75,12 +96,10 @@ in
     # Output: { "api" = { toURL = "http://127.0.0.1:3000"; funnel = true; }; }
     generateTsnsrvConfigs = {
       services,
-      funnels,
     }:
       builtins.foldl' (acc: cfg:
         acc
         // (generateTsnsrvService {
-          funnels = funnels;
           cfg = cfg;
         })) {} (builtins.attrValues services);
 
@@ -90,17 +109,11 @@ in
     generateHosts = {
       services,
       domain,
-      bypassAuth,
-      insecureTls,
-      cors,
     }:
       builtins.foldl' (acc: cfg:
         acc
         // (generateHost {
           domain = domain;
-          bypassAuth = bypassAuth;
-          insecureTls = insecureTls;
-          cors = cors;
           cfg = cfg;
         })) {} (builtins.attrValues services);
 

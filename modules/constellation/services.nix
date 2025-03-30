@@ -67,6 +67,27 @@ with lib; let
     };
   };
 
+  bypassAuth = [
+    "auth"
+    "autobrr"
+    "dns"
+    "flaresolverr"
+    "grafana"
+    "ghost"
+    "immich"
+    "nextcloud"
+    "ntfy"
+    "ollama-api"
+    "search"
+    "sudo-proxy"
+    "transmission"
+    "vault"
+  ];
+
+  cors = ["sudo-proxy"];
+
+  funnels = ["yarr" "jellyfin"];
+
   # generateServices: Transforms nested service definitions into a flat list of configs
   # Input: generateServices { storage = { jellyfin = null; }; cloud = { yarr = 8096; } }
   # Output: {"jellyfin" = { name = "jellyfin"; host = "storage"; }; "yarr" = { name = "yarr"; host = "cloud"; port = 8096; }}
@@ -79,6 +100,11 @@ with lib; let
           value =
             {
               inherit name host;
+              settings = {
+                bypassAuth = builtins.elem name bypassAuth;
+                cors = builtins.elem name cors;
+                funnel = builtins.elem name funnels;
+              };
             }
             // (
               if services.${host}.${name} != null
@@ -102,26 +128,6 @@ in {
 
       services = generateServices services;
 
-      bypassAuth = [
-        "auth"
-        "autobrr"
-        "dns"
-        "flaresolverr"
-        "grafana"
-        "ghost"
-        "immich"
-        "nextcloud"
-        "ntfy"
-        "ollama-api"
-        "search"
-        "sudo-proxy"
-        "transmission"
-        "vault"
-      ];
-
-      cors = ["sudo-proxy"];
-
-      funnels = ["yarr" "jellyfin"];
     };
   };
 }
