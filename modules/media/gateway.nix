@@ -10,8 +10,17 @@ with lib; let
   cfg = config.media.gateway;
   _config = config;
   domain = cfg.domain;
-  tsnsrvConfigs = utils.generateTsnsrvConfigs cfg.services cfg.funnels;
-  hosts = utils.generateHosts cfg.services domain cfg.bypassAuth cfg.cors;
+  tsnsrvConfigs = utils.generateTsnsrvConfigs {
+    services = cfg.services;
+    funnels = cfg.funnels;
+  };
+  hosts = utils.generateHosts {
+    services = cfg.services;
+    domain = domain;
+    bypassAuth = cfg.bypassAuth;
+    insecureTls = cfg.insecureTls;
+    cors = cfg.cors;
+  };
 in {
   options.media.gateway = mkOption {
     type = types.submodule ({config, ...}: {
@@ -83,6 +92,13 @@ in {
           example = ["jellyfin" "yarr"];
         };
 
+        insecureTls = mkOption {
+          type = types.listOf types.str;
+          default = [];
+          description = "Services to allow insecure TLS";
+          example = ["jellyfin" "yarr"];
+        };
+
         cors = mkOption {
           type = types.listOf types.str;
           default = [];
@@ -120,18 +136,6 @@ in {
 
     services.caddy.extraConfig = utils.generateCaddyExtraConfig domain;
 
-    services.caddy.virtualHosts =
-      hosts
-      // {
-        "nextcloud.${domain}" = {
-          useACMEHost = domain;
-          extraConfig = ''
-            rewrite /.well-known/carddav /remote.php/dav
-            rewrite /.well-known/caldav /remote.php/dav
-
-            reverse_proxy storage:8099
-          '';
-        };
-      };
+    services.caddy.virtualHosts = hosts;
   };
 }
