@@ -11,9 +11,17 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
+    media.gateway.insecureTls = ["nextcloud"];
+
     media.containers = let
-      # Define storage services
       storageServices = {
+        nextcloud = {
+          listenPort = 443;
+          volumes = [
+            "${vars.storageDir}/files/Nextcloud:/data"
+          ];
+        };
+
         overseerr = {
           listenPort = 5055;
         };
