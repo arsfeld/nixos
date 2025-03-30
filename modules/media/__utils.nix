@@ -1,7 +1,8 @@
 {
   lib,
   config,
-}: with lib; let
+}:
+with lib; let
   authHost = config.media.gateway.authHost;
   authPort = config.media.gateway.authPort;
 in
@@ -81,9 +82,7 @@ in
     # generateTsnsrvService: Creates a tsnsrv service configuration if the service is on the current host
     # Input: generateTsnsrvService { funnels = ["api"]; cfg = { name = "api"; host = "localhost"; port = 3000; }; }
     # Output: { "api" = { toURL = "http://127.0.0.1:3000"; funnel = true; }; }
-    generateTsnsrvService = {
-      cfg,
-    }:
+    generateTsnsrvService = {cfg}:
       optionalAttrs (config.networking.hostName == cfg.host) {
         "${cfg.name}" = {
           toURL = "http://127.0.0.1:${toString cfg.port}";
@@ -94,9 +93,7 @@ in
     # generateTsnsrvConfigs: Creates tsnsrv service configurations from a list of configs
     # Input: generateTsnsrvConfigs { configs = {"api": { name = "api"; host = "localhost"; port = 3000; }}; funnels = ["api"]; }
     # Output: { "api" = { toURL = "http://127.0.0.1:3000"; funnel = true; }; }
-    generateTsnsrvConfigs = {
-      services,
-    }:
+    generateTsnsrvConfigs = {services}:
       builtins.foldl' (acc: cfg:
         acc
         // (generateTsnsrvService {
