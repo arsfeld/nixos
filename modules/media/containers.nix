@@ -6,6 +6,7 @@
   ...
 }:
 with lib; let
+  _config = config;
   vars = config.media.config;
   nameToPort = import "${self}/common/nameToPort.nix";
   cfg = config.media.containers;
@@ -93,7 +94,7 @@ in {
         };
         host = mkOption {
           type = types.str;
-          default = config.networking.hostName;
+          default = _config.networking.hostName;
           description = "Host to use for the container";
         };
       };

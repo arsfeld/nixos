@@ -7,9 +7,15 @@
 in
   with lib; rec {
     # generateHost: Creates a Caddy virtual host configuration
-    # Input: generateHost "example.com" ["public"] ["api"] { name = "app"; host = "server1"; port = 8080; }
+    # Input: generateHost { domain = "example.com"; bypassAuth = ["public"]; insecureTls = ["insecure"]; cors = ["api"]; cfg = { name = "app"; host = "server1"; port = 8080; }; }
     # Output: { "app.example.com" = { useACMEHost = "example.com"; extraConfig = "..."; }; }
-    generateHost = domain: bypassAuth: cors: cfg: {
+    generateHost = {
+      domain,
+      bypassAuth,
+      insecureTls,
+      cors,
+      cfg,
+    }: {
       "${cfg.name}.${domain}" = {
         useACMEHost = domain;
         extraConfig = let
@@ -19,12 +25,23 @@ in
               copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
             }
           '';
+          protocol =
+            if builtins.elem cfg.name insecureTls
+            then "https"
+            else "http";
+          insecureTlsConfig = optionalString (builtins.elem cfg.name insecureTls) ''
+            transport http {
+                tls
+                tls_insecure_skip_verify
+            }
+          '';
           corsConfig = optionalString (!builtins.elem cfg.name cors) ''
             import cors {header.origin}
           '';
           proxyConfig = ''
             import errors
-            reverse_proxy ${cfg.host}:${toString cfg.port} {
+            reverse_proxy ${protocol}://${cfg.host}:${toString cfg.port} {
+              ${insecureTlsConfig}
               @error status 404 500 503
               handle_response @error {
                 error {rp.status_code}
@@ -40,9 +57,12 @@ in
     };
 
     # generateTsnsrvService: Creates a tsnsrv service configuration if the service is on the current host
-    # Input: generateTsnsrvService ["api"] { name = "api"; host = "localhost"; port = 3000; }
+    # Input: generateTsnsrvService { funnels = ["api"]; cfg = { name = "api"; host = "localhost"; port = 3000; }; }
     # Output: { "api" = { toURL = "http://127.0.0.1:3000"; funnel = true; }; }
-    generateTsnsrvService = funnels: cfg:
+    generateTsnsrvService = {
+      funnels,
+      cfg,
+    }:
       optionalAttrs (config.networking.hostName == cfg.host) {
         "${cfg.name}" = {
           toURL = "http://127.0.0.1:${toString cfg.port}";
@@ -51,16 +71,38 @@ in
       };
 
     # generateTsnsrvConfigs: Creates tsnsrv service configurations from a list of configs
-    # Input: generateTsnsrvConfigs {"api": { name = "api"; host = "localhost"; port = 3000; }} ["api"]
+    # Input: generateTsnsrvConfigs { configs = {"api": { name = "api"; host = "localhost"; port = 3000; }}; funnels = ["api"]; }
     # Output: { "api" = { toURL = "http://127.0.0.1:3000"; funnel = true; }; }
-    generateTsnsrvConfigs = configs: funnels:
-      builtins.foldl' (acc: cfg: acc // (generateTsnsrvService funnels cfg)) {} (builtins.attrValues configs);
+    generateTsnsrvConfigs = {
+      services,
+      funnels,
+    }:
+      builtins.foldl' (acc: cfg:
+        acc
+        // (generateTsnsrvService {
+          funnels = funnels;
+          cfg = cfg;
+        })) {} (builtins.attrValues services);
 
     # generateHosts: Creates Caddy virtual host configurations from a list of configs
-    # Input: generateHosts {"app": { name = "app"; host = "server1"; port = 8080; }} "example.com" [] []
+    # Input: generateHosts { services = {"app": { name = "app"; host = "server1"; port = 8080; }}; domain = "example.com"; bypassAuth = []; insecureTls = []; cors = []; }
     # Output: { "app.example.com" = { useACMEHost = "example.com"; extraConfig = "..."; }; }
-    generateHosts = configs: domain: bypassAuth: cors:
-      builtins.foldl' (acc: cfg: acc // (generateHost domain bypassAuth cors cfg)) {} (builtins.attrValues configs);
+    generateHosts = {
+      services,
+      domain,
+      bypassAuth,
+      insecureTls,
+      cors,
+    }:
+      builtins.foldl' (acc: cfg:
+        acc
+        // (generateHost {
+          domain = domain;
+          bypassAuth = bypassAuth;
+          insecureTls = insecureTls;
+          cors = cors;
+          cfg = cfg;
+        })) {} (builtins.attrValues services);
 
     # generateCaddyGlobalConfig: Returns Caddy global server settings
     # Input: generateCaddyGlobalConfig
