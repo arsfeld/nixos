@@ -135,6 +135,20 @@ in {
         deployedContainers
       );
 
+    # Add systemd dependencies for services with mediaVolumes enabled
+    systemd.services = mkMerge (
+      mapAttrsToList (
+        name: container:
+          mkIf (container.enable && container.mediaVolumes) {
+            "podman-${name}" = {
+              after = ["mnt-storage.mount"];
+              requires = ["mnt-storage.mount"];
+            };
+          }
+      )
+      deployedContainers
+    );
+
     # Create services.json with debug information
     environment.etc."services.json".source = let
       debugInfo =
