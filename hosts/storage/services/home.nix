@@ -6,9 +6,46 @@
 }: let
   vars = config.media.config;
   cacheDir = "/var/cache/finance-tracker";
+  financeTrackerScript = pkgs.writeShellApplication {
+    name = "finance-tracker";
+    runtimeInputs = [ pkgs.podman ];
+    text = ''
+      exec podman run \
+        --rm \
+        --pull newer \
+        --volume "${cacheDir}:${cacheDir}" \
+        --env XDG_CACHE_HOME="${cacheDir}" \
+        --env-file "${config.age.secrets."finance-tracker-env".path}" \
+        ghcr.io/arsfeld/finance-tracker:latest "$@"
+    '';
+  };
 in {
   age.secrets."finance-tracker-env" = {
     file = "${self}/secrets/finance-tracker-env.age";
+  };
+
+  # Create the finance-tracker script
+  environment.systemPackages = [
+    financeTrackerScript
+  ];
+
+  # Systemd service and timer for finance-tracker
+  systemd.services.finance-tracker = {
+    description = "Finance Tracker Service";
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${financeTrackerScript}/bin/finance-tracker";
+    };
+  };
+
+  systemd.timers.finance-tracker = {
+    description = "Finance Tracker Timer";
+    wantedBy = ["timers.target"];
+    timerConfig = {
+      OnCalendar = "*-*-* */48"; # Run every 2 days
+      Persistent = true; # Run if missed
+      RandomizedDelaySec = "1h"; # Random delay up to 1 hour
+    };
   };
 
   # Enable and configure Kestra
@@ -30,31 +67,6 @@ in {
     basicAuth = false;
     basicAuthUsername = "admin@localhost.dev";
     basicAuthPassword = "kestra";
-  };
-
-  systemd.services.finance-tracker = {
-    description = "Finance Tracker Service";
-    after = ["network-online.target"];
-    wants = ["network-online.target"];
-    environment = {
-      XDG_CACHE_HOME = cacheDir;
-    };
-
-    serviceConfig = {
-      Type = "oneshot";
-      User = "root";
-      ExecStartPre = [
-        (pkgs.writeShellScript "finance-tracker-pre.sh" ''
-          ${pkgs.coreutils}/bin/mkdir -p ${cacheDir}/bin &&
-          ${pkgs.curl}/bin/curl -L -z "${cacheDir}/bin/finance-tracker" \
-            -o "${cacheDir}/bin/finance-tracker" \
-            "https://getbin.io/arsfeld/finance-tracker?os=linux" &&
-          ${pkgs.coreutils}/bin/chmod +x "${cacheDir}/bin/finance-tracker"
-        '')
-      ];
-      ExecStart = "${cacheDir}/bin/finance-tracker";
-      EnvironmentFile = "${config.age.secrets."finance-tracker-env".path}";
-    };
   };
 
   virtualisation.oci-containers.containers = {
