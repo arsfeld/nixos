@@ -8,7 +8,7 @@
   cacheDir = "/var/cache/finance-tracker";
   financeTrackerScript = pkgs.writeShellApplication {
     name = "finance-tracker";
-    runtimeInputs = [ pkgs.podman ];
+    runtimeInputs = [pkgs.podman];
     text = ''
       exec podman run \
         --rm \
