@@ -124,7 +124,7 @@ in {
       enable = true;
 
       authHost = "cloud.bat-boa.ts.net";
-      authPort = builtins.trace "services: ${builtins.toJSON config.media.gateway.services}" config.media.gateway.services.auth.port;
+      authPort = config.media.gateway.services.auth.port;
 
       services = generateServices services;
     };
