@@ -17,4 +17,9 @@ in {
       storageTemplate.enabled = true;
     };
   };
+
+  systemd.services.immich-server = {
+    after = ["mnt-storage.mount"];
+    requires = ["mnt-storage.mount"];
+  };
 }
