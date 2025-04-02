@@ -45,7 +45,7 @@ with lib; {
 
   services.earlyoom.enable = true;
 
-  boot.kernelPackages = pkgs.linuxPackages_latest;
+  boot.kernelPackages = pkgs.linuxPackages_6_12;
 
   systemd.services.NetworkManager-wait-online.enable = false;
 
