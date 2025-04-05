@@ -218,7 +218,7 @@ in {
   };
 
   programs.starship = {
-    enable = true;
+    enable = false;
     enableZshIntegration = true;
     enableBashIntegration = true;
     enableFishIntegration = true;
@@ -314,7 +314,7 @@ in {
     };
   };
 
-  programs.zsh.shellAliases = {
-    cat = "${pkgs.bat}/bin/bat";
-  };
+  # programs.zsh.shellAliases = {
+  #   cat = "${pkgs.bat}/bin/bat";
+  # };
 }
