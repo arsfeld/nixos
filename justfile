@@ -1,16 +1,20 @@
 fmt: 
     nix fmt
 
-args := "--skip-checks --remote-build"
+args := "--skip-checks"
 
-boot +HOST: 
-    deploy {{ args }} --boot --targets .#{{HOST}}
+boot +TARGETS: 
+    #!/usr/bin/env bash
+    set -euo pipefail # Enable strict error handling
+    targets_formatted=$(printf ".#%s " {{ TARGETS }})
+    deploy {{ args }} --boot --targets ${targets_formatted% }
 
 deploy *TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail # Enable strict error handling
     targets_formatted=$(printf ".#%s " {{ TARGETS }})
-    deploy {{ args }} --targets "${targets_formatted% }"
+    echo "Deploying to targets: ${targets_formatted% }"
+    deploy {{ args }} --targets ${targets_formatted% }
 
 build HOST:
     nix build '.#nixosConfigurations.{{ HOST }}.config.system.build.toplevel'
