@@ -64,6 +64,7 @@ with lib; let
       whisparr = 6969;
       www = 8085;
       windmill = 8001;
+      yarr-dev = 7070;
     };
   };
 
@@ -86,7 +87,7 @@ with lib; let
 
   cors = ["sudo-proxy"];
 
-  funnels = ["yarr" "jellyfin"];
+  funnels = ["yarr" "jellyfin" "yarr-dev"];
 
   # generateServices: Transforms nested service definitions into a flat list of configs
   # Input: generateServices { storage = { jellyfin = null; }; cloud = { yarr = 8096; } }
