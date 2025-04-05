@@ -42,7 +42,7 @@ in
       "${cfg.name}.${domain}" = {
         useACMEHost = domain;
         extraConfig = let
-          authConfig = optionalString (cfg.settings.bypassAuth) ''
+          authConfig = optionalString (!cfg.settings.bypassAuth) ''
             forward_auth ${authHost}:${toString authPort} {
               uri /api/verify?rd=https://auth.${domain}/
               copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
