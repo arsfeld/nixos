@@ -62,6 +62,12 @@ in {
     shellAliases = {
       "df" = "df -h -x tmpfs";
     };
+
+    shell = {
+      enableBashIntegration = true;
+      enableFishIntegration = true;
+      enableZshIntegration = true;
+    };
   };
 
   # This should be enabled by default, but being explicit here
@@ -217,10 +223,15 @@ in {
     enable = true;
   };
 
+  programs.oh-my-posh = {
+    enable = true;
+    useTheme = "atomic";
+  };
+
   programs.starship = {
     enable = false;
     enableZshIntegration = true;
-    enableBashIntegration = true;
+    enableBashIntegration = false;
     enableFishIntegration = true;
   };
 
