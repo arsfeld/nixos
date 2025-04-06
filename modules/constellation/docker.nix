@@ -3,7 +3,9 @@
   lib,
   pkgs,
   ...
-}: {
+}: let
+  toml = pkgs.formats.toml {};
+in {
   options.constellation.docker = {
     enable = lib.mkOption {
       type = lib.types.bool;
@@ -26,12 +28,25 @@
       autoPrune.enable = true;
     };
 
-    virtualisation.containers.registries.search = [
-      "ghcr.io"
-      "mirror.gcr.io"
-      "docker.io"
-      "quay.io"
+    environment.systemPackages = with pkgs; [
+      podman-compose
     ];
+
+    virtualisation.containers.registries.search = ["docker.io"];
+
+    environment.etc."containers/registry.conf".source = toml.generate "registry.conf" {
+      registry = [
+        {
+          prefix = "docker.io";
+          location = "registry-1.docker.io";
+          mirror = [
+            {
+              location = "mirror.gcr.io";
+            }
+          ];
+        }
+      ];
+    };
 
     virtualisation.oci-containers.backend = lib.mkDefault "podman";
 
