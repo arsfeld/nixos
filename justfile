@@ -1,20 +1,22 @@
-fmt: 
+fmt:
     nix fmt
 
 args := "--skip-checks"
 
-boot +TARGETS: 
+# Private recipe to format targets with .# prefix
+_format-targets +TARGETS:
     #!/usr/bin/env bash
-    set -euo pipefail # Enable strict error handling
-    targets_formatted=$(printf ".#%s " {{ TARGETS }})
-    deploy {{ args }} --boot --targets ${targets_formatted% }
+    printf ".#%s " {{ TARGETS }} | sed 's/ $//'
 
-deploy *TARGETS:
+boot +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail # Enable strict error handling
-    targets_formatted=$(printf ".#%s " {{ TARGETS }})
-    echo "Deploying to targets: ${targets_formatted% }"
-    deploy {{ args }} --targets ${targets_formatted% }
+    deploy {{ args }} --boot --targets $(just _format-targets {{ TARGETS }})
+
+deploy +TARGETS:
+    #!/usr/bin/env bash
+    set -euo pipefail # Enable strict error handling
+    deploy {{ args }} --targets $(just _format-targets {{ TARGETS }})
 
 build HOST:
     nix build '.#nixosConfigurations.{{ HOST }}.config.system.build.toplevel'
@@ -46,7 +48,7 @@ r2s:
     # --- Build Nix Artefacts ---
     echo "Building NixOS SD image..."
     nix build --impure --expr "(import <nixpkgs/nixos> { system = \"$TARGET_ARCH\"; configuration = $SD_IMAGE_CONFIG; }).config.system.build.sdImage" --out-link "$TMPDIR/sd-image-result"
-    
+
     echo "Building U-Boot..."
     nix build "$UBOOT_FLAKE_REF" --out-link "$TMPDIR/uboot-result"
 
