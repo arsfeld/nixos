@@ -42,7 +42,7 @@ in {
     description = "Finance Tracker Timer";
     wantedBy = ["timers.target"];
     timerConfig = {
-      OnCalendar = "*-*-* */48"; # Run every 2 days
+      OnCalendar = "*-*-1/2 17:00:00";
       Persistent = true; # Run if missed
       RandomizedDelaySec = "1h"; # Random delay up to 1 hour
     };
