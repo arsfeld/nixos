@@ -55,6 +55,10 @@ in {
       waypipe
       yt-dlp
       zellij
+
+      pnpm
+      nodejs
+
       (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
       (writeScriptBin "running" (builtins.readFile ./scripts/running))
     ];
