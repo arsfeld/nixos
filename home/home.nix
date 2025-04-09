@@ -225,7 +225,7 @@ in {
 
   programs.oh-my-posh = {
     enable = true;
-    useTheme = "atomic";
+    settings = builtins.fromJSON (builtins.unsafeDiscardStringContext (builtins.readFile ./files/oh-my-posh.omp.json));
   };
 
   programs.starship = {
