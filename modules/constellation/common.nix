@@ -53,13 +53,13 @@ with lib; {
 
     services.avahi = {
       enable = true;
-      nssmdns4 = true;  # Required for .local resolution via nsswitch
+      nssmdns4 = true; # Required for .local resolution via nsswitch
       publish = {
         enable = true;
         addresses = true;
         workstation = true;
-        domain = true;  # Optional: publishes domain info
-        hinfo = true;   # Optional: publishes hardware/OS details
+        domain = true; # Optional: publishes domain info
+        hinfo = true; # Optional: publishes hardware/OS details
       };
     };
 
