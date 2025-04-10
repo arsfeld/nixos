@@ -58,6 +58,7 @@ in {
 
       pnpm
       nodejs
+      supabase-cli
 
       (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
       (writeScriptBin "running" (builtins.readFile ./scripts/running))
