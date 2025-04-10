@@ -12,20 +12,14 @@
 
   nixpkgs.hostPlatform = "x86_64-linux";
 
-  virtualisation.oci-containers.backend = "podman";
-  virtualisation.docker.enable = false;
-
-  virtualisation.podman = {
-    enable = true;
-    dockerCompat = true;
-    dockerSocket.enable = true;
-  };
+  virtualisation.oci-containers.backend = "docker";
+  virtualisation.docker.enable = true;
 
   virtualisation.incus = {
     enable = true;
     ui.enable = true;
   };
-  networking.nftables.enable = true;
+  #networking.nftables.enable = true;
 
   boot = {
     binfmt.emulatedSystems = ["aarch64-linux"];

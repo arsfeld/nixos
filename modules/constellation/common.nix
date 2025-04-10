@@ -51,6 +51,18 @@ with lib; {
       nixPath = lib.mapAttrsToList (key: value: "${key}=${value.to.path}") config.nix.registry;
     };
 
+    services.avahi = {
+      enable = true;
+      nssmdns4 = true;  # Required for .local resolution via nsswitch
+      publish = {
+        enable = true;
+        addresses = true;
+        workstation = true;
+        domain = true;  # Optional: publishes domain info
+        hinfo = true;   # Optional: publishes hardware/OS details
+      };
+    };
+
     nix.package = pkgs.lix;
 
     security.polkit.enable = true;
@@ -144,6 +156,7 @@ with lib; {
     services.tailscale.enable = true;
 
     networking.firewall = {
+      enable = mkDefault true;
       checkReversePath = "loose";
       trustedInterfaces = ["tailscale0"];
     };

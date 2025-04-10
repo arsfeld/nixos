@@ -10,6 +10,7 @@
     ./containers.nix
   ];
 
+  constellation.podman.enable = true;
   constellation.sites.arsfeld-dev.enable = true;
   constellation.sites.rosenfeld-one.enable = true;
 

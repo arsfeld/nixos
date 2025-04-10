@@ -6,14 +6,11 @@
 }: let
   toml = pkgs.formats.toml {};
 in {
-  options.constellation.docker = {
-    enable = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-    };
+  options.constellation.podman = {
+    enable = lib.mkEnableOption "podman";
   };
 
-  config = lib.mkIf config.constellation.docker.enable {
+  config = lib.mkIf config.constellation.podman.enable {
     virtualisation.podman = {
       enable = lib.mkDefault true;
 
@@ -50,7 +47,7 @@ in {
 
     virtualisation.oci-containers.backend = lib.mkDefault "podman";
 
-    systemd.timers."docker-image-pull" = {
+    systemd.timers."podman-image-pull" = {
       wantedBy = ["timers.target"];
       timerConfig = {
         OnCalendar = "daily";
@@ -60,7 +57,7 @@ in {
 
     systemd.services."podman-image-pull" = {
       script = ''
-        # Wait for docker to be available
+        # Wait for podman to be available
         while ! ${pkgs.podman}/bin/podman info >/dev/null 2>&1; do
           sleep 1
         done

@@ -50,7 +50,7 @@ in {
 
   # Enable and configure Kestra
   services.kestra = {
-    enable = true;
+    enable = false;
 
     # Database configuration
     database = {

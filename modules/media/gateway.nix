@@ -18,82 +18,78 @@ with lib; let
     domain = domain;
   };
 in {
-  options.media.gateway = mkOption {
-    type = types.submodule ({config, ...}: {
-      options = {
-        enable = mkEnableOption "media gateway";
+  options.media.gateway = {
+    enable = mkEnableOption "media gateway";
 
-        services = mkOption {
-          default = {};
-          description = "Services to expose to the gateway";
-          example = {
-            jellyfin = {
-              host = "storage";
-              port = 8096;
-            };
-          };
-          type = types.attrsOf (types.submodule ({config, ...}: {
-            options = {
-              enable = mkOption {
-                type = types.bool;
-                default = true;
-                description = "Enable the media service";
-              };
-              name = mkOption {
-                type = types.str;
-                default = config._module.args.name;
-                description = "Name of the media service";
-                example = "jellyfin";
-              };
-              host = mkOption {
-                type = types.str;
-                default = _config.networking.hostName;
-                description = "Host to use for the media services";
-                example = "storage";
-              };
-              port = mkOption {
-                type = types.int;
-                default = nameToPort config.name;
-                description = "Port to use for the media services";
-              };
-              settings = mkOption {
-                type = utils.gatewayConfig;
-                default = {};
-                description = "Extra settings for the media gateway";
-              };
-            };
-          }));
-        };
-
-        authHost = mkOption {
-          type = types.str;
-          default = "cloud.bat-boa.ts.net";
-          description = "Host to use for the media services";
-          example = "media.example.com";
-        };
-
-        authPort = mkOption {
-          type = types.int;
-          default = 443;
-          description = "Port to use for the media services";
-          example = 443;
-        };
-
-        domain = mkOption {
-          type = types.str;
-          default = _config.media.config.domain;
-          description = "Domain to use for the media services";
-          example = "media.example.com";
-        };
-
-        email = mkOption {
-          type = types.str;
-          default = _config.media.config.email;
-          description = "Email to use for the media services";
-          example = "media@example.com";
+    services = mkOption {
+      default = {};
+      description = "Services to expose to the gateway";
+      example = {
+        jellyfin = {
+          host = "storage";
+          port = 8096;
         };
       };
-    });
+      type = types.attrsOf (types.submodule ({config, ...}: {
+        options = {
+          enable = mkOption {
+            type = types.bool;
+            default = true;
+            description = "Enable the media service";
+          };
+          name = mkOption {
+            type = types.str;
+            default = config._module.args.name;
+            description = "Name of the media service";
+            example = "jellyfin";
+          };
+          host = mkOption {
+            type = types.str;
+            default = _config.networking.hostName;
+            description = "Host to use for the media services";
+            example = "storage";
+          };
+          port = mkOption {
+            type = types.int;
+            default = nameToPort config.name;
+            description = "Port to use for the media services";
+          };
+          settings = mkOption {
+            type = utils.gatewayConfig;
+            default = {};
+            description = "Extra settings for the media gateway";
+          };
+        };
+      }));
+    };
+
+    authHost = mkOption {
+      type = types.str;
+      default = "cloud.bat-boa.ts.net";
+      description = "Host to use for the media services";
+      example = "media.example.com";
+    };
+
+    authPort = mkOption {
+      type = types.int;
+      default = 443;
+      description = "Port to use for the media services";
+      example = 443;
+    };
+
+    domain = mkOption {
+      type = types.str;
+      default = _config.media.config.domain;
+      description = "Domain to use for the media services";
+      example = "media.example.com";
+    };
+
+    email = mkOption {
+      type = types.str;
+      default = _config.media.config.email;
+      description = "Email to use for the media services";
+      example = "media@example.com";
+    };
   };
 
   config = lib.mkIf cfg.enable {
