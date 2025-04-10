@@ -20,6 +20,7 @@ with lib; {
   constellation.netdataClient.enable = false;
   constellation.services.enable = true;
   constellation.media.enable = true;
+  constellation.podman.enable = true;
 
   media.config.enable = true;
 
