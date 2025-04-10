@@ -127,6 +127,10 @@ in {
         eval "$(/opt/homebrew/bin/brew shellenv)"
       fi
 
+      if [[ -s /home/linuxbrew/.linuxbrew/bin/brew ]]; then
+        eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+      fi
+
       if [[ -s $HOME/.cargo/env ]]; then
         source $HOME/.cargo/env
       fi
