@@ -25,8 +25,22 @@
               "macos": "\uf179"
             },
             "style": "diamond",
-            "template": " {{.Icon}}{{if .WSL}} (WSL){{end}}\u2800",
+            "template": "{{.Icon}}{{if .WSL}} (WSL){{end}}\u2800",
             "type": "os"
+          },
+          {
+            "background": "p:plum",
+            "foreground": "p:white",
+            "leading_diamond": "\ue0b6",
+            "properties": {
+              "windows": "\ue62a",
+              "linux": "\uf17c",
+              "ubuntu": "\uf31b",
+              "macos": "\uf179"
+            },
+            "style": "diamond",
+            "template": "{{ .HostName }} ",
+            "type": "session"
           },
           {
             "background": "p:blush",
