@@ -60,7 +60,7 @@ in {
       nodejs
       supabase-cli
 
-      (python3.withPackages(ps: with ps; [ llm llm-gemini ]))
+      (python3.withPackages (ps: with ps; [llm llm-gemini]))
 
       (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
       (writeScriptBin "running" (builtins.readFile ./scripts/running))
