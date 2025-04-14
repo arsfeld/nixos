@@ -99,9 +99,21 @@ in {
 
   programs.zsh = {
     enable = true;
-    syntaxHighlighting.enable = true;
-    enableVteIntegration = true;
-    autosuggestion.enable = true;
+
+    prezto = {
+      enable = true;
+      pmodules = [
+        "environment"
+        "terminal"
+        "editor"
+        "history"
+        "directory"
+        "spectrum"
+        "utility"
+        "completion"
+        "syntax-highlighting"
+      ];
+    };
 
     initExtraFirst = ''
       # nix daemon
