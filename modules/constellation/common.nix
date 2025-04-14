@@ -156,7 +156,6 @@ with lib; {
     services.tailscale.enable = true;
 
     networking.firewall = {
-      enable = mkDefault true;
       checkReversePath = "loose";
       trustedInterfaces = ["tailscale0"];
     };
