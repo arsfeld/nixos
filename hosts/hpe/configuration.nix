@@ -19,7 +19,7 @@
     enable = true;
     ui.enable = true;
   };
-  #networking.nftables.enable = true;
+  networking.nftables.enable = true;
 
   boot = {
     binfmt.emulatedSystems = ["aarch64-linux"];
@@ -37,6 +37,9 @@
   #     prefixLength = 24;
   #   }
   # ];
+
+  systemd.network.enable = true;
+  networking.useNetworkd = true;
 
   networking.bridges = {
     "br0" = {
