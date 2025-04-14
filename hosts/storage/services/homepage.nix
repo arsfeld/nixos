@@ -9,6 +9,10 @@
 in {
   age.secrets.homepage-env.file = "${self}/secrets/homepage-env.age";
 
+  systemd.services.homepage-dashboard.environment = {
+    HOMEPAGE_ALLOWED_HOSTS = "home.${vars.domain}";
+  };
+
   services.homepage-dashboard = {
     enable = true;
     listenPort = 8085;
