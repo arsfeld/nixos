@@ -16,6 +16,11 @@ in {
 
       # Create a `docker` alias for podman, to use it as a drop-in replacement
       dockerCompat = true;
+      networkSocket.enable = true;
+      networkSocket.server = "ghostunnel";
+      networkSocket.tls.cacert = "/var/lib/tailscale/certs/${config.networking.hostName}.bat-boa.ts.net.crt";
+      networkSocket.tls.cert = "/var/lib/tailscale/certs/${config.networking.hostName}.bat-boa.ts.net.crt";
+      networkSocket.tls.key = "/var/lib/tailscale/certs/${config.networking.hostName}.bat-boa.ts.net.key";
 
       # Required for containers under podman-compose to be able to talk to each other.
       defaultNetwork.settings.dns_enabled = true;
