@@ -41,7 +41,9 @@
         nftables
       ];
     }
-    .${firewall};
+    .${
+      firewall
+    };
 in
   stdenv.mkDerivation rec {
     pname = "miniupnpd";
