@@ -69,7 +69,7 @@ in {
     };
 
     shell = {
-      enableBashIntegration = true;
+      enableBashIntegration = false;
       enableFishIntegration = true;
       enableZshIntegration = true;
     };
@@ -98,20 +98,8 @@ in {
   programs.zsh = {
     enable = true;
     syntaxHighlighting.enable = true;
-    prezto = {
-      enable = false;
-      pmodules = [
-        "environment"
-        "terminal"
-        "editor"
-        "history"
-        "directory"
-        "spectrum"
-        "utility"
-        "completion"
-        "syntax-highlighting"
-      ];
-    };
+    enableVteIntegration = true;
+    autosuggestion.enable = true;
 
     initExtraFirst = ''
       # nix daemon
