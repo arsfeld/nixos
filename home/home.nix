@@ -55,11 +55,7 @@ in {
       waypipe
       yt-dlp
       zellij
-
-      pnpm
-      nodejs
-      supabase-cli
-
+      
       (python3.withPackages (ps: with ps; [llm llm-gemini]))
 
       (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
