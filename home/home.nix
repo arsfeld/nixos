@@ -55,7 +55,7 @@ in {
       waypipe
       yt-dlp
       zellij
-      
+
       (python3.withPackages (ps: with ps; [llm llm-gemini]))
 
       (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
