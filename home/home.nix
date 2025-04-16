@@ -61,7 +61,13 @@ in {
       (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
       (writeScriptBin "running" (builtins.readFile ./scripts/running))
     ];
-    sessionPath = ["$HOME/.local/bin"];
+    sessionPath = [
+      "$HOME/.local/bin"
+      "$HOME/.local/share/pnpm"
+    ];
+    sessionVariables = {
+      PNPM_HOME = "$HOME/.local/share/pnpm";
+    };
     shellAliases = {
       "df" = "df -h -x tmpfs";
     };
