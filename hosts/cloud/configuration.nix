@@ -37,7 +37,12 @@
 
   boot.tmp.cleanOnBoot = true;
   networking.hostName = "cloud";
-  networking.firewall.enable = true;
+
+  networking.firewall = {
+    enable = true;
+    allowedTCPPorts = [22 80 443];
+  };
+
   # This should be overriden by tailscale at some point
   networking.nameservers = ["1.1.1.1" "9.9.9.9"];
 
