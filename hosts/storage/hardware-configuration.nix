@@ -38,6 +38,12 @@
     options = ["compression=zstd" "nofail"];
   };
 
+  fileSystems."/mnt/hangar" = {
+    fsType = "btrfs";
+    device = "/dev/disk/by-uuid/ea000485-e078-48ed-9987-0b2d5dcd4099";
+    options = ["compress=zstd" "nofail"];
+  };
+
   # systemd.services.mount-storage = {
   #   description = "mount storage";
   #   script = "/run/current-system/sw/bin/mount /mnt/storage || true";
