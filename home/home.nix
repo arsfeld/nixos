@@ -73,7 +73,7 @@ in {
     };
 
     shell = {
-      enableBashIntegration = false;
+      enableBashIntegration = true;
       enableFishIntegration = true;
       enableZshIntegration = true;
     };
@@ -245,18 +245,18 @@ in {
 
   programs.zoxide = {
     enable = true;
+    enableBashIntegration = false;
   };
 
   programs.oh-my-posh = {
     enable = true;
+    enableBashIntegration = false;
     settings = builtins.fromJSON (builtins.unsafeDiscardStringContext (builtins.readFile ./files/oh-my-posh.omp.json));
   };
 
   programs.starship = {
     enable = false;
-    enableZshIntegration = true;
     enableBashIntegration = false;
-    enableFishIntegration = true;
   };
 
   programs.wezterm = {
@@ -275,19 +275,21 @@ in {
 
   programs.keychain = mkIf stdenv.isLinux {
     enable = true;
-    enableZshIntegration = true;
+    enableBashIntegration = false;
     inheritType = "any-once";
     keys = ["id_ed25519"];
   };
 
   programs.fzf = {
     enable = true;
-    enableZshIntegration = true;
+    enableBashIntegration = false;
   };
 
-  programs.bat.enable = true;
+  # TODO: conflicts with Cursor
+  # programs.bat.enable = true;
+  
   programs.eza.enable = true;
-  programs.eza.enableZshIntegration = true;
+  programs.eza.enableBashIntegration = false;
 
   # services.syncthing = {
   #   enable = pkgs.stdenv.isLinux;
@@ -298,6 +300,7 @@ in {
     flags = [
       "--disable-up-arrow"
     ];
+    enableBashIntegration = false;
   };
 
   programs.mangohud = {
