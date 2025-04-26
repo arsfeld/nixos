@@ -287,7 +287,7 @@ in {
 
   # TODO: conflicts with Cursor
   # programs.bat.enable = true;
-  
+
   programs.eza.enable = true;
   programs.eza.enableBashIntegration = false;
 
