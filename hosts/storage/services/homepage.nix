@@ -232,10 +232,6 @@
 in {
   age.secrets.homepage-env.file = "${self}/secrets/homepage-env.age";
 
-  systemd.services.homepage-dashboard.environment = {
-    HOMEPAGE_ALLOWED_HOSTS = "home.${vars.domain}";
-  };
-
   systemd.services.homepage-dashboard.serviceConfig = {
     SupplementaryGroups = "podman";
   };
@@ -249,6 +245,7 @@ in {
         socket = "/run/podman/podman.sock";
       };
     };
+    allowedHosts = "home.${vars.domain}";
     widgets = [
       {
         resources = {
