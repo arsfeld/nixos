@@ -4,14 +4,14 @@
   ...
 }: let
   vars = config.media.config;
-  services = config.media.gateway.services;
 in {
-  services.openvscode-server = {
+  services.code-server = {
     enable = true;
     user = "arosenfeld";
     host = "0.0.0.0";
-    port = services.code.port;
-    withoutConnectionToken = true;
+    port = 4444;
+    auth = "none";
+    proxyDomain = "code.${vars.domain}";
   };
 
   services.gitea = {
