@@ -33,7 +33,7 @@
         inputs.devenv.flakeModule
       ];
 
-      systems = ["x86_64-linux" "aarch64-linux"];
+      systems = ["x86_64-linux" "aarch64-linux" "aarch64-darwin"];
 
       perSystem = {
         config,
@@ -50,7 +50,7 @@
           ];
         };
 
-        legacyPackages.homeConfigurations.arosenfeld = inputs.home-manager.lib.homeManagerConfiguration {
+        homeConfigurations.arosenfeld = inputs.home-manager.lib.homeManagerConfiguration {
           inherit pkgs;
           modules = [
             inputs.nix-index-database.hmModules.nix-index
