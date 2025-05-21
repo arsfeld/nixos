@@ -15,13 +15,13 @@
     exec "$@"
   '';
 
-  linuxOnlyPkgs = with pkgs; optionals stdenv.isLinux [
-    distrobox
-    nvidia-offload
-    waypipe
-    nix
-  ];
-
+  linuxOnlyPkgs = with pkgs;
+    optionals stdenv.isLinux [
+      distrobox
+      nvidia-offload
+      waypipe
+      nix
+    ];
 in {
   # Home Manager needs a bit of information about you and the
   # paths it should manage.
@@ -32,39 +32,41 @@ in {
       then "/home/arosenfeld"
       else "/Users/arosenfeld";
     stateVersion = "22.05";
-    packages = with pkgs; [
-      btop
-      bottom
-      cachix
-      czkawka
-      devbox
-      devenv
-      direnv
-      dogdns
-      du-dust
-      fastfetch
-      fd
-      fortune
-      glances
-      htop
-      kondo
-      nil
-      procs
-      ripgrep
-      ruby
-      rustup
-      starship
-      tldr
-      uv
-      vim
-      yt-dlp
-      zellij
+    packages = with pkgs;
+      [
+        btop
+        bottom
+        cachix
+        czkawka
+        devbox
+        devenv
+        direnv
+        dogdns
+        du-dust
+        fastfetch
+        fd
+        fortune
+        glances
+        htop
+        kondo
+        nil
+        procs
+        ripgrep
+        ruby
+        rustup
+        starship
+        tldr
+        uv
+        vim
+        yt-dlp
+        zellij
 
-      (python3.withPackages (ps: with ps; [llm llm-gemini]))
+        (python3.withPackages (ps: with ps; [llm llm-gemini]))
 
-      (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
-      (writeScriptBin "running" (builtins.readFile ./scripts/running))
-    ] ++ linuxOnlyPkgs; # Added linuxOnlyPkgs
+        (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
+        (writeScriptBin "running" (builtins.readFile ./scripts/running))
+      ]
+      ++ linuxOnlyPkgs; # Added linuxOnlyPkgs
     sessionPath = [
       "$HOME/.local/bin"
       "$HOME/.local/share/pnpm"
