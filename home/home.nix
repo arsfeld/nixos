@@ -6,7 +6,7 @@
   ...
 }: let
   inherit (pkgs) stdenv;
-  inherit (lib) mkIf;
+  inherit (lib) mkIf optionals mkBefore; # Added mkBefore
   nvidia-offload = pkgs.writeShellScriptBin "nvidia-offload" ''
     export __NV_PRIME_RENDER_OFFLOAD=1
     export __NV_PRIME_RENDER_OFFLOAD_PROVIDER=NVIDIA-G0
@@ -14,6 +14,14 @@
     export __VK_LAYER_NV_optimus=NVIDIA_only
     exec "$@"
   '';
+
+  linuxOnlyPkgs = with pkgs; optionals stdenv.isLinux [
+    distrobox
+    nvidia-offload
+    waypipe
+    nix
+  ];
+
 in {
   # Home Manager needs a bit of information about you and the
   # paths it should manage.
@@ -32,7 +40,6 @@ in {
       devbox
       devenv
       direnv
-      distrobox
       dogdns
       du-dust
       fastfetch
@@ -42,8 +49,6 @@ in {
       htop
       kondo
       nil
-      nix
-      nvidia-offload
       procs
       ripgrep
       ruby
@@ -52,7 +57,6 @@ in {
       tldr
       uv
       vim
-      waypipe
       yt-dlp
       zellij
 
@@ -60,7 +64,7 @@ in {
 
       (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
       (writeScriptBin "running" (builtins.readFile ./scripts/running))
-    ];
+    ] ++ linuxOnlyPkgs; # Added linuxOnlyPkgs
     sessionPath = [
       "$HOME/.local/bin"
       "$HOME/.local/share/pnpm"
@@ -128,7 +132,7 @@ in {
       ];
     };
 
-    initExtraFirst = ''
+    initContent = mkBefore ''
       # nix daemon
       if [[ -s /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh ]]; then
           source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
@@ -303,7 +307,7 @@ in {
     enableBashIntegration = false;
   };
 
-  programs.mangohud = {
+  programs.mangohud = mkIf stdenv.isLinux {
     enable = true;
     enableSessionWide = false;
     settings = {
