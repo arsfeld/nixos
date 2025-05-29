@@ -23,6 +23,11 @@
       nix
     ];
 in {
+  nixpkgs.config = {
+    allowUnfree = true;
+    android_sdk.accept_license = true;
+  };
+
   # Home Manager needs a bit of information about you and the
   # paths it should manage.
   home = {
@@ -34,10 +39,12 @@ in {
     stateVersion = "22.05";
     packages = with pkgs;
       [
+        android-tools
         btop
         bottom
         cachix
         czkawka
+        deno
         devbox
         devenv
         direnv
@@ -49,6 +56,7 @@ in {
         glances
         htop
         kondo
+        kotlin
         nil
         procs
         ripgrep
