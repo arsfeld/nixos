@@ -6,11 +6,53 @@ The storage server is the primary workhorse of the infrastructure, hosting most 
 
 ## Hardware Specifications
 
-The storage server is a custom-built system optimized for:
-- High-capacity storage with RAID arrays
-- GPU acceleration for media transcoding
-- Sufficient RAM for multiple services
-- 10Gb networking for fast data access
+### System Overview
+- **Motherboard**: Intel 13th Gen Raptor Lake B760-M D5
+- **CPU**: Intel Core i5-13400 (6P+4E cores, 16 threads @ 4.5GHz)
+- **RAM**: 32GB DDR5 (2x16GB) @ 4800/5600MHz mixed
+- **GPU**: Intel UHD Graphics 730 (integrated)
+- **Network**: Realtek RTL8125 2.5GbE
+- **Storage Controller**: LSI SAS HBA (mpt3sas)
+- **Power**: Standard ATX PSU
+
+### Detailed Specifications
+
+#### Processor
+- **Model**: Intel Core i5-13400 (Raptor Lake)
+- **Architecture**: 6 Performance + 4 Efficiency cores
+- **Threads**: 16 total
+- **Base Clock**: 2.5GHz (E-cores) / 2.5GHz (P-cores)
+- **Boost Clock**: 4.6GHz (P-cores)
+- **Cache**: 
+  - L1: 448KB (192KB data + 128KB instruction + 256KB E-core)
+  - L2: 9MB (5MB P-cores + 4MB E-cores)
+  - L3: 24MB shared
+- **Features**: Intel Quick Sync, AES-NI, VT-x, VT-d
+
+#### Memory
+- **Slot 0**: 16GB DDR5-4800 (Patriot PSD516G480081)
+- **Slot 1**: 16GB DDR5-5600 (Patriot 5600 Series)
+- **Configuration**: Dual-channel, mixed speeds (runs at 4800MHz)
+- **Total**: 32GB ECC-capable (but not ECC memory)
+
+#### Storage
+- **Boot Drive**: Intel 660p 512GB NVMe (SSDPEKNW512G8)
+  - M.2 2280 form factor
+  - PCIe 3.0 x4
+  - ~3.5GB/s read, ~1.6GB/s write
+- **Cache Drive**: XrayDisk 512GB NVMe
+  - M.2 2280 form factor
+  - Used for ZFS L2ARC/SLOG
+- **HDD Array**: Via LSI SAS HBA
+  - Supports up to 8 SATA/SAS drives
+  - Currently configured for RAID-Z2
+
+#### Networking
+- **Primary**: Realtek RTL8125BG 2.5GbE
+  - Full 2.5Gbps link established
+  - Jumbo frames support
+  - Wake-on-LAN capable
+- **Future**: 10GbE upgrade planned
 
 ## System Configuration
 
@@ -26,20 +68,32 @@ The storage server is a custom-built system optimized for:
 ### Storage Layout
 
 ```
+/                      # Btrfs on Intel 660p NVMe (512GB)
+├── /boot             # EFI System Partition (500MB FAT16)
+├── /nix              # Nix store (Btrfs subvolume)
+├── /var/lib          # Service data (Btrfs subvolume)
+└── /home             # User homes (Btrfs subvolume)
+
 /mnt/
-├── data/              # Service persistent data
+├── data/              # Service persistent data (HDD array)
 │   ├── plex/         # Plex configuration
 │   ├── jellyfin/     # Jellyfin configuration
 │   ├── nextcloud/    # Nextcloud data
 │   └── ...
-├── media/             # Media library
+├── media/             # Media library (HDD array)
 │   ├── movies/       # Movie collection
 │   ├── tv/           # TV shows
 │   ├── music/        # Music library
 │   └── books/        # eBooks/audiobooks
-├── backups/           # Local backup storage
-└── tank/              # ZFS pool (if applicable)
+├── hangar/           # Fast NVMe storage (XrayDisk 512GB)
+│   └── vms/          # Virtual machine images
+└── backups/          # Local backup storage (HDD)
 ```
+
+### Filesystem Configuration
+- **Boot/System**: Btrfs with zstd:3 compression, snapshots
+- **Bulk Storage**: ZFS RAID-Z2 for data integrity
+- **VM Storage**: Btrfs on dedicated NVMe for performance
 
 ### Enabled Modules
 
@@ -174,9 +228,15 @@ services.rustic.backups = {
 ## Performance Optimization
 
 ### Hardware Acceleration
-- **GPU**: Used for Plex/Jellyfin transcoding
-- **Quick Sync**: Intel hardware encoding
-- **NVENC**: NVIDIA encoding (if available)
+- **Intel Quick Sync**: Hardware video encoding/decoding
+  - H.264, H.265/HEVC, VP9, AV1 decode
+  - Used by Plex/Jellyfin for transcoding
+  - Minimal CPU usage during transcoding
+- **CPU Features**: 
+  - AVX2 for optimized workloads
+  - AES-NI for encryption acceleration
+  - P-cores handle intensive tasks
+  - E-cores handle background services
 
 ### Storage Optimization
 - **ZFS**: Advanced filesystem with snapshots
