@@ -110,4 +110,5 @@ nav:
     - Adding a Service: guides/new-service.md
     - Managing Secrets: guides/secrets.md
     - Deployment: guides/deployment.md
+    - Kubernetes Migration: guides/k8s-migration.md
   - Roadmap: roadmap.md
