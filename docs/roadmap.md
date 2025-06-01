@@ -132,11 +132,12 @@ This document outlines potential improvements, known issues, and future plans fo
 
 #### Kubernetes Migration
 - **Current State**: Podman containers
-- **Proposed**: Optional K8s deployment
+- **Proposed**: Optional K3s deployment
 - **Benefits**:
   - Better orchestration
   - Horizontal scaling
   - Industry standard tooling
+- **Guide**: See [Kubernetes Migration Guide](../guides/k8s-migration.md) for detailed analysis
 
 ## Technical Debt
 
