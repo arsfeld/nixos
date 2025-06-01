@@ -42,10 +42,10 @@ The storage server is the primary workhorse of the infrastructure, hosting most 
   - ~3.5GB/s read, ~1.6GB/s write
 - **Cache Drive**: XrayDisk 512GB NVMe
   - M.2 2280 form factor
-  - Used for ZFS L2ARC/SLOG
+  - Used for fast cache and VM storage
 - **HDD Array**: Via LSI SAS HBA
   - Supports up to 8 SATA/SAS drives
-  - Currently configured for RAID-Z2
+  - Currently configured with bcachefs redundancy
 
 #### Networking
 - **Primary**: Realtek RTL8125BG 2.5GbE
@@ -286,8 +286,8 @@ systemctl status podman-<service>
 # Check disk usage
 df -h
 
-# ZFS pool status
-zpool status
+# Bcachefs filesystem status
+bcachefs fs show
 
 # SMART status
 smartctl -a /dev/sdX
@@ -335,8 +335,8 @@ graph TD
 
 ### Data Protection
 - Encrypted backups
-- ZFS snapshots for quick recovery
-- RAID for hardware failure protection
+- Bcachefs snapshots for quick recovery
+- Bcachefs redundancy for hardware failure protection
 
 ### Container Security
 - Rootless Podman containers

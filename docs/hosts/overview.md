@@ -140,7 +140,7 @@ Others: 5% of services
 ### Redundancy Strategy
 1. **Network**: Router + R2S for failover
 2. **Services**: Critical services on multiple hosts
-3. **Storage**: RAID arrays with backup
+3. **Storage**: Bcachefs redundancy with backup
 4. **Power**: UPS protection for servers
 
 ### Failover Procedures
