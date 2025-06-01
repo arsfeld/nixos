@@ -3,16 +3,13 @@ fmt:
 
 # Documentation commands
 docs-serve:
-    uv run mkdocs serve --dev-addr 127.0.0.1:8000
+    devenv shell -- mkdocs serve --dev-addr 127.0.0.1:8000
 
 docs-build:
-    uv run mkdocs build --strict
+    devenv shell -- mkdocs build
 
 docs-deploy:
-    uv run mkdocs gh-deploy --force
-
-docs-install:
-    uv pip install -r requirements.txt
+    devenv shell -- mkdocs gh-deploy --force
 
 args := "--skip-checks"
 

@@ -60,9 +60,6 @@ devenv.local.nix
 site/
 .cache/
 
-# Python/uv
-.venv/
+# Python
 __pycache__/
 *.pyc
-.python-version
-uv.lock
