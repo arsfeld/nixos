@@ -1,0 +1,113 @@
+site_name: NixOS Infrastructure Documentation
+site_url: https://arsfeld.github.io/nixos/
+site_description: Comprehensive documentation for personal NixOS infrastructure
+site_author: arsfeld
+
+repo_url: https://github.com/arsfeld/nixos
+repo_name: arsfeld/nixos
+edit_uri: edit/master/docs/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotate
+    - content.code.copy
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - mermaid2:
+      arguments:
+        theme: 'dark'
+  - awesome-pages
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.arithmatex:
+      generic: true
+  - footnotes
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/arsfeld
+  version:
+    provider: mike
+
+nav:
+  - Home: index.md
+  - Architecture:
+    - Overview: architecture/overview.md
+    - Authentication System: architecture/authentication.md
+    - Service Architecture: architecture/services.md
+    - Network Design: architecture/network.md
+    - Backup Strategy: architecture/backup.md
+  - Modules:
+    - Constellation Modules: modules/constellation.md
+    - Media Stack: modules/media.md
+    - Desktop Configuration: modules/desktop.md
+    - Custom Modules: modules/custom.md
+  - Hosts:
+    - Overview: hosts/overview.md
+    - Storage Server: hosts/storage.md
+    - Cloud Server: hosts/cloud.md
+    - Router: hosts/router.md
+    - Desktop Systems: hosts/desktop.md
+    - Embedded Devices: hosts/embedded.md
+  - Services:
+    - Service Catalog: services/catalog.md
+    - Media Services: services/media.md
+    - Infrastructure: services/infrastructure.md
+    - Development Tools: services/development.md
+    - Authentication: services/authentication.md
+  - Guides:
+    - Getting Started: guides/getting-started.md
+    - Adding a New Host: guides/new-host.md
+    - Adding a Service: guides/new-service.md
+    - Managing Secrets: guides/secrets.md
+    - Deployment: guides/deployment.md
+  - Roadmap: roadmap.md
