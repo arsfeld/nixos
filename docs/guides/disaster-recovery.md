@@ -21,6 +21,21 @@ REMOTE_BACKUP="rclone:idrive:/nixos-backup"
 REPO="https://github.com/arsfeld/nixos.git"
 ```
 
+### Host Disk Configuration
+```bash
+# Hosts using disko (automated partitioning)
+DISKO_HOSTS="storage hpe g14 router"
+
+# Default devices for disko hosts
+# storage: /dev/nvme0n1 (or check disko-config.nix)
+# hpe: /dev/sda
+# g14: check disko-config.nix
+# router: /dev/nvme0n1
+
+# Hosts requiring manual partitioning
+MANUAL_HOSTS="cloud raider striker core micro raspi3 r2s"
+```
+
 ## Scenario 1: Storage Server Failure
 
 The storage server hosts most services. Recovery priority is critical.
@@ -35,8 +50,28 @@ dd if=latest-nixos-minimal-x86_64-linux.iso of=/dev/sdX bs=4M status=progress
 ```
 
 #### Partition New Disk
+
+For hosts with disko configuration (storage, hpe, g14, router):
+
 ```bash
-# Create partitions
+# Clone repository to get disko config
+git clone $REPO /tmp/nixos-config
+
+# For storage server (adjust device name as needed)
+nix run github:nix-community/disko -- \
+  --mode disko \
+  --flake /tmp/nixos-config#storage \
+  /dev/nvme0n1
+
+# For other disko-enabled hosts
+# hpe: /dev/sda
+# g14: check disko-config.nix for device
+# router: /dev/nvme0n1
+```
+
+For hosts without disko configuration:
+```bash
+# Create partitions manually
 parted /dev/nvme0n1 -- mklabel gpt
 parted /dev/nvme0n1 -- mkpart ESP fat32 1MiB 512MiB
 parted /dev/nvme0n1 -- mkpart primary 512MiB -16GiB
@@ -54,7 +89,7 @@ mkdir -p /mnt/boot
 mount /dev/nvme0n1p1 /mnt/boot
 swapon /dev/nvme0n1p3
 
-# Create Btrfs subvolumes
+# Create Btrfs subvolumes (if using Btrfs)
 btrfs subvolume create /mnt/@
 btrfs subvolume create /mnt/@home
 btrfs subvolume create /mnt/@nix
@@ -83,15 +118,19 @@ ip route add default via 192.168.1.1
 # Install git and age
 nix-env -iA nixos.git nixos.age
 
-# Clone configuration
+# For non-disko hosts, clone to /mnt
 cd /mnt
 git clone $REPO
 
-# Copy hardware configuration
+# For non-disko hosts only: generate hardware config
 nixos-generate-config --root /mnt
 cp /mnt/etc/nixos/hardware-configuration.nix /mnt/nixos/hosts/storage/
 
 # Install NixOS
+# For disko hosts (storage, hpe, g14, router):
+nixos-install --flake /tmp/nixos-config#storage --no-root-passwd
+
+# For non-disko hosts:
 nixos-install --flake /mnt/nixos#storage --no-root-passwd
 
 # Set root password
@@ -268,17 +307,21 @@ systemctl restart dhcpcd
 
 ```bash
 # Boot NixOS installer
-# Partition disk (single partition is fine for router)
-parted /dev/sda -- mklabel gpt
-parted /dev/sda -- mkpart primary ext4 1MiB 100%
-mkfs.ext4 -L nixos /dev/sda1
+# Router uses disko configuration
 
-# Mount and install
-mount /dev/sda1 /mnt
-git clone $REPO /mnt/nixos
-nixos-install --flake /mnt/nixos#router
+# Clone repository
+git clone $REPO /tmp/nixos-config
 
-# Configure network interfaces
+# Run disko to partition (usually /dev/nvme0n1 for router)
+nix run github:nix-community/disko -- \
+  --mode disko \
+  --flake /tmp/nixos-config#router \
+  /dev/nvme0n1
+
+# Install NixOS
+nixos-install --flake /tmp/nixos-config#router
+
+# Configure network interfaces if needed
 # Edit /mnt/nixos/hosts/router/network.nix with correct interface names
 ```
 
