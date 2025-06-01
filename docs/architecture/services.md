@@ -260,7 +260,7 @@ Services backed up weekly:
 - Failover via health checks
 
 ### Data Redundancy
-- RAID storage arrays
+- Bcachefs redundant storage
 - Off-site backup copies
 - Database replication
 

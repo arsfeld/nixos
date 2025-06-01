@@ -168,8 +168,8 @@ Dedicated server tasks:
   # Hardware monitoring
   services.freeipmi.enable = true;
   
-  # RAID configuration
-  boot.initrd.kernelModules = [ "raid1" ];
+  # Storage configuration
+  boot.initrd.kernelModules = [ "bcachefs" ];
   
   # ECC memory monitoring
   hardware.rasdaemon.enable = true;
