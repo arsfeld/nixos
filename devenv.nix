@@ -16,7 +16,7 @@
     disko
     inputs.agenix.packages."${pkgs.stdenv.system}".default
     inputs.disko.packages."${pkgs.stdenv.system}".default
-    
+
     # MkDocs and dependencies
     python3Packages.mkdocs
     python3Packages.mkdocs-material
