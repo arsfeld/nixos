@@ -50,7 +50,7 @@ graph TB
 - **Network**: 192.168.1.0/24 (typical home network)
 - **Gateway**: Router at 192.168.1.1
 - **DHCP**: Managed by router for client devices
-- **Speed**: 1Gb/10Gb Ethernet depending on device
+- **Speed**: 2.5Gb Ethernet throughout the network
 
 #### VLAN Segmentation (Future)
 ```

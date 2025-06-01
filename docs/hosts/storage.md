@@ -52,7 +52,7 @@ The storage server is the primary workhorse of the infrastructure, hosting most 
   - Full 2.5Gbps link established
   - Jumbo frames support
   - Wake-on-LAN capable
-- **Future**: 10GbE upgrade planned
+- **Speed**: 2.5GbE throughout home network
 
 ## System Configuration
 
@@ -75,25 +75,28 @@ The storage server is the primary workhorse of the infrastructure, hosting most 
 └── /home             # User homes (Btrfs subvolume)
 
 /mnt/
-├── data/              # Service persistent data (HDD array)
-│   ├── plex/         # Plex configuration
-│   ├── jellyfin/     # Jellyfin configuration
-│   ├── nextcloud/    # Nextcloud data
-│   └── ...
-├── media/             # Media library (HDD array)
-│   ├── movies/       # Movie collection
-│   ├── tv/           # TV shows
-│   ├── music/        # Music library
-│   └── books/        # eBooks/audiobooks
-├── hangar/           # Fast NVMe storage (XrayDisk 512GB)
-│   └── vms/          # Virtual machine images
-└── backups/          # Local backup storage (HDD)
+├── data/              # Bcachefs array - main data storage
+│   ├── media/        # Media library
+│   │   ├── movies/   # Movie collection
+│   │   ├── tv/       # TV shows
+│   │   ├── music/    # Music library
+│   │   └── books/    # eBooks/audiobooks
+│   ├── files/        # Service persistent data
+│   │   ├── plex/     # Plex configuration
+│   │   ├── jellyfin/ # Jellyfin configuration
+│   │   ├── nextcloud/# Nextcloud data
+│   │   └── ...
+│   └── backup/       # Local backup storage
+├── storage/          # Bind mount to /mnt/data (historical)
+└── hangar/           # Fast NVMe storage (XrayDisk 512GB)
+    └── vms/          # Virtual machine images
 ```
 
 ### Filesystem Configuration
 - **Boot/System**: Btrfs with zstd:3 compression, snapshots
-- **Bulk Storage**: ZFS RAID-Z2 for data integrity
+- **Bulk Storage**: Bcachefs for data integrity and performance
 - **VM Storage**: Btrfs on dedicated NVMe for performance
+- **Bind Mount**: `/mnt/storage` → `/mnt/data` for backwards compatibility
 
 ### Enabled Modules
 
@@ -239,9 +242,9 @@ services.rustic.backups = {
   - E-cores handle background services
 
 ### Storage Optimization
-- **ZFS**: Advanced filesystem with snapshots
-- **SSD Cache**: Fast access to frequently used data
-- **RAID**: Redundancy for data protection
+- **Bcachefs**: Modern CoW filesystem with built-in compression and checksums
+- **SSD Cache**: NVMe drives for system and frequently accessed data
+- **Data Integrity**: Bcachefs provides checksumming and self-healing
 
 ### Service Optimization
 - **Container limits**: Resource constraints per service

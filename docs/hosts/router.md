@@ -395,7 +395,7 @@ services.logrotate = {
 ## Future Improvements
 
 ### Planned Upgrades
-1. **10Gb Upgrade**: For faster internal network
+1. **2.5Gb Optimization**: Maximize current network performance
 2. **Redundancy**: Secondary router for failover
 3. **IDS Enhancement**: Deep packet inspection
 4. **VPN Mesh**: Site-to-site connections

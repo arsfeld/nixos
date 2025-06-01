@@ -372,7 +372,7 @@ sudo nix-collect-garbage -d
 ### Hardware Upgrades
 - **Raider**: External GPU dock
 - **G14**: RAM upgrade to 32GB
-- **Striker**: Add 10Gb networking
+- **Striker**: Optimize 2.5Gb networking
 
 ### Software Improvements
 - Implement Hyprland for Wayland
