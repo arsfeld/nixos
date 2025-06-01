@@ -1,6 +1,19 @@
 fmt:
     nix fmt
 
+# Documentation commands
+docs-serve:
+    uv run mkdocs serve --dev-addr 127.0.0.1:8000
+
+docs-build:
+    uv run mkdocs build --strict
+
+docs-deploy:
+    uv run mkdocs gh-deploy --force
+
+docs-install:
+    uv pip install -r requirements.txt
+
 args := "--skip-checks"
 
 # Private recipe to format targets with .# prefix

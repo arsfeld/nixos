@@ -55,3 +55,14 @@ devenv.local.nix
 
 # pre-commit
 .pre-commit-config.yaml
+
+# MkDocs
+site/
+.cache/
+
+# Python/uv
+.venv/
+__pycache__/
+*.pyc
+.python-version
+uv.lock
