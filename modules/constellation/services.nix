@@ -88,8 +88,8 @@ with lib; let
   cors = ["sudo-proxy"];
 
   funnels = [
-    "yarr" 
-    "jellyfin" 
+    "yarr"
+    "jellyfin"
     "yarr-dev"
     "plex"
     "immich"
