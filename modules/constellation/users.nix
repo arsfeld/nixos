@@ -23,7 +23,7 @@
 
     users.users.arosenfeld = {
       isNormalUser = true;
-      shell = pkgs.zsh;
+      shell = pkgs.fish;
       description = "Alexandre Rosenfeld";
       extraGroups = ["users" "wheel" "docker" "lxd" "media" "libvirtd" "networkmanager" "incus-admin" "podman"];
       openssh.authorizedKeys.keys = [
