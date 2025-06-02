@@ -891,11 +891,11 @@
         "nixpkgs": "nixpkgs_10"
       },
       "locked": {
-        "lastModified": 1748821226,
-        "narHash": "sha256-atLXMqbCLvtxNFSIzyqPoFmc9fWliuZ8c1cnDkoLqC8=",
+        "lastModified": 1748825861,
+        "narHash": "sha256-vh3lwPwk4k98P0cGwU3pmi18hiVNWOHd4HnTo+boKYM=",
         "owner": "arsfeld",
         "repo": "tsnsrv",
-        "rev": "33a3542643d329dabd826b41b1a87732f993b395",
+        "rev": "3cbe36dae9b2ccab98833cec691e05cc787a126b",
         "type": "github"
       },
       "original": {

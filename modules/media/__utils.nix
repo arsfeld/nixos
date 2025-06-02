@@ -92,6 +92,7 @@ in
           // (optionalAttrs (!cfg.settings.bypassAuth) {
             authURL = "https://${authHost}:${toString authPort}";
             authPath = "/api/verify?rd=https://auth.${config.media.gateway.domain}/";
+            authBypassForTailnet = true;
             authCopyHeaders = {
               "Remote-User" = "Remote-User";
               "Remote-Groups" = "Remote-Groups";
