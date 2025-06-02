@@ -87,7 +87,41 @@ with lib; let
 
   cors = ["sudo-proxy"];
 
-  funnels = ["yarr" "jellyfin" "yarr-dev"];
+  funnels = [
+    "yarr" 
+    "jellyfin" 
+    "yarr-dev"
+    "plex"
+    "immich"
+    "photos"
+    "photoprism"
+    "home"
+    "hass"
+    "grocy"
+    "ntfy"
+    "gitea"
+    "code"
+    "n8n"
+    "netdata"
+    "grafana"
+    "filebrowser"
+    "filerun"
+    "filestash"
+    "seafile"
+    "syncthing"
+    "resilio"
+    "search"
+    "invidious"
+    "whoogle"
+    "romm"
+    "komga"
+    "stirling"
+    "windmill"
+    "beszel"
+    "speedtest"
+    "scrutiny"
+    "stash"
+  ];
 
   # generateServices: Transforms nested service definitions into a flat list of configs
   # Input: generateServices { storage = { jellyfin = null; }; cloud = { yarr = 8096; } }

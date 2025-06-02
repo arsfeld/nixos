@@ -87,7 +87,16 @@ in
         "${cfg.name}" = {
           toURL = "http://127.0.0.1:${toString cfg.port}";
           funnel = cfg.settings.funnel;
-        };
+        } // (optionalAttrs (!cfg.settings.bypassAuth) {
+          authURL = "https://${authHost}:${toString authPort}";
+          authPath = "/api/verify?rd=https://auth.${config.media.gateway.domain}/";
+          authCopyHeaders = {
+            "Remote-User" = "Remote-User";
+            "Remote-Groups" = "Remote-Groups";
+            "Remote-Name" = "Remote-Name";
+            "Remote-Email" = "Remote-Email";
+          };
+        });
       };
 
     # generateTsnsrvConfigs: Creates tsnsrv service configurations from a list of configs
