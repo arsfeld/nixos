@@ -47,11 +47,11 @@
       files = {
         path = "/mnt/storage/files";
       };
-      
+
       media = {
         path = "/mnt/storage/media";
       };
-      
+
       backups = {
         path = "/mnt/storage/backups";
       };
