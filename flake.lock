@@ -640,11 +640,11 @@
     },
     "nixpkgs_10": {
       "locked": {
-        "lastModified": 1744868846,
-        "narHash": "sha256-5RJTdUHDmj12Qsv7XOhuospjAjATNiTMElplWnJE9Hs=",
+        "lastModified": 1747958103,
+        "narHash": "sha256-qmmFCrfBwSHoWw7cVK4Aj+fns+c54EBP8cGqp/yK410=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "ebe4301cbd8f81c4f8d3244b3632338bbeb6d49c",
+        "rev": "fe51d34885f7b5e3e7b59572796e1bcb427eccb1",
         "type": "github"
       },
       "original": {
@@ -891,15 +891,15 @@
         "nixpkgs": "nixpkgs_10"
       },
       "locked": {
-        "lastModified": 1745423256,
-        "narHash": "sha256-oiPaYP2nqEQZxsCnqiSyJN0LXESBj8fg2V68Wrp8jkg=",
-        "owner": "boinkor-net",
+        "lastModified": 1748821226,
+        "narHash": "sha256-atLXMqbCLvtxNFSIzyqPoFmc9fWliuZ8c1cnDkoLqC8=",
+        "owner": "arsfeld",
         "repo": "tsnsrv",
-        "rev": "5a5d202cc063305a2036e3318a47b16b67c73fc2",
+        "rev": "33a3542643d329dabd826b41b1a87732f993b395",
         "type": "github"
       },
       "original": {
-        "owner": "boinkor-net",
+        "owner": "arsfeld",
         "repo": "tsnsrv",
         "type": "github"
       }
