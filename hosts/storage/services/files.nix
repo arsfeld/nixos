@@ -100,7 +100,7 @@ in {
       dbtype = "pgsql";
       adminpassFile = "/etc/secrets/nextcloud";
     };
-    extraOptions = {
+    settings = {
       mail_smtpmode = "sendmail";
       mail_sendmailmode = "pipe";
       trusted_domains = ["storage" "storage.bat-boa.ts.net" "nextcloud.bat-boa.ts.net"];
@@ -110,7 +110,7 @@ in {
     phpOptions = {
       "opcache.interned_strings_buffer" = "23";
     };
-    extraOptions.enabledPreviewProviders = [
+    settings.enabledPreviewProviders = [
       "OC\\Preview\\BMP"
       "OC\\Preview\\GIF"
       "OC\\Preview\\JPEG"

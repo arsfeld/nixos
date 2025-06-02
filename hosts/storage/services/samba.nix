@@ -35,9 +35,7 @@
         "fruit:copyfile" = "no";
         "fruit:model" = "MacSamba";
       };
-    };
 
-    shares = {
       homes = {
         browseable = "no"; # note: each home will be browseable; the "homes" share will not.
         "guest ok" = "no";
@@ -46,9 +44,17 @@
         path = "/home/%S";
       };
 
-      files.path = "/mnt/storage/files";
-      media.path = "/mnt/storage/media";
-      backups.path = "/mnt/storage/backups";
+      files = {
+        path = "/mnt/storage/files";
+      };
+      
+      media = {
+        path = "/mnt/storage/media";
+      };
+      
+      backups = {
+        path = "/mnt/storage/backups";
+      };
 
       "Time Capsule" = {
         path = "/mnt/storage/backups/Time Machine";
