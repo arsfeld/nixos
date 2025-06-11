@@ -9,8 +9,8 @@ author = "Alex Rosenfeld"
 default_language = "en"
 compile_sass = true
 minify_html = true
-generate_feed = true
-feed_filename = "rss.xml"
+generate_feeds = true
+feed_filenames = ["rss.xml"]
 
 # Theme configuration
 theme = "hermit_zola"
@@ -39,20 +39,11 @@ twitter = "alexrosenfeld10"
 # google_analytics = "G-XXXXXXXXXX"
 
 # Menu items
-[[extra.menu]]
-name = "Posts"
-url = "/posts/"
-weight = 10
-
-[[extra.menu]]
-name = "About"
-url = "/about/"
-weight = 20
-
-[[extra.menu]]
-name = "GitHub"
-url = "https://github.com/arsfeld/nixos"
-weight = 30
+hermit_menu = [
+    { link = "/posts", name = "Posts" },
+    { link = "/about", name = "About" },
+    { link = "https://github.com/arsfeld/nixos", name = "GitHub" }
+]
 
 # Taxonomies
 [[taxonomies]]

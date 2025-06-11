@@ -1,10 +1,13 @@
 +++
 title = "Back to Ext4 from Btrfs"
 date = 2010-12-27
-description = "After using Btrfs on both my work and home machines, I’m switching back to ext4. I actually like Btrfs and I wish I could keep using it, but I had two major issues.
-
-
-The first one and this was enough for me to switch back to ext4, Google Chrome startup time was almost 10 times slower. At first I didn’t realize it was Btrfs causing this, but after some investigation, it’s noticeable how fragmentation affects some applications using Btrfs. I actually switched my work machine to ext4 after I found"
+description = "After using Btrfs on both my work and home machines, I’m switching back to ext4. I actually like Btrfs and I wish I could keep using it, but I had two major issues.   The first one and this was enough"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++
 
+<p>After using Btrfs on both my work and home machines, I&#8217;m switching back to ext4. I actually like Btrfs and I wish I could keep using it, but I had two major issues.</p>
+<p>The first one and this was enough for me to switch back to ext4, Google Chrome startup time was almost 10 times slower. At first I didn&#8217;t realize it was Btrfs causing this, but after some <a href="http://comments.gmane.org/gmane.comp.file-systems.btrfs/7304">investigation</a>, it&#8217;s noticeable how fragmentation affects some applications using Btrfs. I actually switched my work machine to ext4 after I found I could not use the virtual machines I had anymore, because it kept reading the disk for hours at anything I did in the virtual machine (in the end they could not even boot anymore). Btrfs is not always slower, or at least not noticeable, but for a few scenarios that can cause fragmentation, they really do make Btrfs unusable for me.</p>
+<p>The second one might just be a misunderstanding of my part, but I read manuals and wikis and could not find an answer. I started with one 150GB partition at work and had another 150GB partition if I wanted to easily switch back to ext4. Then I wanted to test adding multiple devices to Btrfs, which it makes really easy, and added the other partition to the first and did a balance operation, so data was distributed between them. What I did not realize, is that by doing that it created a RAID 1 with my partitions. As far as I know, RAID 1 with two partitions in the same drive are just useless, it just duplicates data between both partitions. After reading more manuals, I learned that on creation time you can control the RAID level, but I found no way to do it afterwards. And the worst of it, I found no way to degrade back to RAID 0, so I found no way to remove the second partition from the filesystem, which means I ended up with 300GB of space being used as 150GB.</p>
+<p>And another issue I had, it was not always obvious how much disk space I had free. In some places it indicated 300GB, others 150GB. And in my home machine I even had an out of free space error when it indicated I had 6GB free.</p>
+<p>Despite its powerful features, I could not justify the problems I had. Actually, I was not using snapshots and sobvolumes as much as I expected. I believe this may change as more tools are written to take advantage of these features.</p>
+<p>I knew well before I started using it that it&#8217;s not production ready or even finished yet. Btrfs is definitely a step in the right direction and I hope I can try using it again in some time. It even managed not to lose any of my data despite me poking with stuff I did not understand.</p>

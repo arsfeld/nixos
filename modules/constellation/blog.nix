@@ -10,10 +10,10 @@ with lib; let
 
   # Theme configuration
   themeRepo = pkgs.fetchFromGitHub {
-    owner = "ejmg";
+    owner = "VersBinarii";
     repo = "hermit_zola";
-    rev = "42c2c47ce25c4e0b9a2ec9fda6e6b17bf0c5c8a0";
-    sha256 = "sha256-Z8iIIWr/pZq6X6lsWo3xXDJbF2UOpP5/HDQ6GWL7ey8=";
+    rev = "94faef2295e2a64190a0e0f6760920ab54924847";
+    sha256 = "sha256-nv9X8gECfXJo9j/o0ZJz5gcDTc8tcjlKUXdNRS1gB+A=";
   };
 
   # Build the Zola site at build time
@@ -24,10 +24,14 @@ with lib; let
     nativeBuildInputs = [pkgs.zola];
 
     configurePhase = ''
-      # Copy theme
+      # Copy theme to a writable location
       mkdir -p themes/hermit_zola
       cp -r ${themeRepo}/* themes/hermit_zola/
-
+      chmod -R u+w themes/hermit_zola
+      
+      # Fix deprecated feed_filename usage in theme
+      find themes/hermit_zola -name "*.html" -type f -exec sed -i 's/config\.feed_filename/config.feed_filenames[0]/g' {} \;
+      
       # Ensure we have all required directories
       mkdir -p static/images
       mkdir -p content/posts

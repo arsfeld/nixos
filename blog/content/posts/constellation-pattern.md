@@ -1,11 +1,11 @@
 +++
 title = "The Constellation Pattern: Composable Infrastructure with NixOS"
-date = 2024-03-15
+date = 2025-06-11
 description = "A modular system for managing multiple NixOS machines that eliminates configuration duplication while maintaining flexibility"
 tags = ["nixos", "infrastructure", "self-hosting", "constellation-pattern"]
 +++
 
-![NixOS Constellation Pattern - A network of connected nodes representing modular infrastructure](constellation-pattern-hero.png)
+![NixOS Constellation Pattern - A network of connected nodes representing modular infrastructure](/images/constellation-pattern-hero.png)
 
 Managing multiple NixOS machines quickly becomes unwieldy when you copy-paste configurations between hosts. You end up with duplicated code, inconsistent settings, and the nightmare of keeping everything in sync. After running a fleet of 10+ NixOS machines ranging from ARM routers to x86 servers, I developed what I call the "Constellation Pattern" - a modular system that eliminates configuration duplication while maintaining the flexibility to customize each host.
 
@@ -13,7 +13,7 @@ Managing multiple NixOS machines quickly becomes unwieldy when you copy-paste co
 
 ## The Problem with Traditional NixOS Multi-Host Management
 
-![Configuration drift and copy-paste problems in traditional NixOS setups](nixos-problems.png)
+![Configuration drift and copy-paste problems in traditional NixOS setups](/images/nixos-problems.png)
 
 Most NixOS configurations start simple. You have one machine, one `configuration.nix`, and life is good. But as you add more hosts, you face several challenges:
 
@@ -53,7 +53,7 @@ Here's what a typical problematic setup looks like:
 
 ## Enter the Constellation Pattern
 
-![Constellation pattern architecture showing modular, composable infrastructure](constellation-architecture.png)
+![Constellation pattern architecture showing modular, composable infrastructure](/images/constellation-architecture.png)
 
 The Constellation Pattern solves this by creating **opt-in feature modules** that can be selectively enabled on any host. Instead of copying configuration, you compose your hosts from a set of reusable, well-tested modules.
 

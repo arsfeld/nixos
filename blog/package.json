@@ -6,6 +6,7 @@
     "export-ghost": "node scripts/ghost-to-zola.js"
   },
   "dependencies": {
-    "jsonwebtoken": "^9.0.0"
+    "jsonwebtoken": "^9.0.0",
+    "turndown": "^7.1.2"
   }
 }
