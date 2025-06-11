@@ -28,10 +28,10 @@ with lib; let
       mkdir -p themes/hermit_zola
       cp -r ${themeRepo}/* themes/hermit_zola/
       chmod -R u+w themes/hermit_zola
-      
+
       # Fix deprecated feed_filename usage in theme
       find themes/hermit_zola -name "*.html" -type f -exec sed -i 's/config\.feed_filename/config.feed_filenames[0]/g' {} \;
-      
+
       # Ensure we have all required directories
       mkdir -p static/images
       mkdir -p content/posts
