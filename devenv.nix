@@ -14,6 +14,7 @@
     deploy-rs
     colmena
     disko
+    openssl
     inputs.agenix.packages."${pkgs.stdenv.system}".default
     inputs.disko.packages."${pkgs.stdenv.system}".default
 
