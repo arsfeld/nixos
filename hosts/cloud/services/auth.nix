@@ -99,6 +99,9 @@ in {
       server = {
         address = "tcp://0.0.0.0:${toString services.auth.port}";
       };
+      log = {
+        level = "debug";
+      };
       authentication_backend = {
         ldap = {
           implementation = "custom";
