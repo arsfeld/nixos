@@ -13,6 +13,36 @@ docs-deploy:
 
 args := "--skip-checks"
 
+# Supabase management commands
+supabase-create INSTANCE:
+    modules/supabase/scripts/create-instance {{INSTANCE}}
+
+supabase-delete INSTANCE:
+    modules/supabase/scripts/delete-instance {{INSTANCE}}
+
+supabase-update-secret INSTANCE SECRET:
+    modules/supabase/scripts/update-secret {{INSTANCE}} {{SECRET}}
+
+supabase-status:
+    #!/usr/bin/env bash
+    echo "=== Supabase Instances ==="
+    for instance in /var/lib/supabase-*; do
+        if [ -d "$instance" ]; then
+            name=$(basename "$instance" | sed 's/supabase-//')
+            echo "Instance: $name"
+            if systemctl is-active --quiet "supabase-$name"; then
+                echo "  Status: Running"
+                echo "  Port: $(grep -o '${toString port}' "$instance/docker-compose.yml" 2>/dev/null || echo "Unknown")"
+            else
+                echo "  Status: Stopped"
+            fi
+            echo
+        fi
+    done
+
+supabase-info:
+    modules/supabase/scripts/info
+
 # Private recipe to format targets with .# prefix
 _format-targets +TARGETS:
     #!/usr/bin/env bash
