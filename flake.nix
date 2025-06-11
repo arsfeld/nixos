@@ -55,6 +55,13 @@
           modules = [
             inputs.nix-index-database.hmModules.nix-index
             ./home/home.nix
+            {
+              # Specific to standalone home-manager
+              nixpkgs.config = {
+                allowUnfree = true;
+                android_sdk.accept_license = true;
+              };
+            }
           ];
         };
       };
@@ -115,7 +122,7 @@
             in
               getAllValues modules)
           ];
-        in rec {
+        in {
           mkLinuxSystem = mods:
             inputs.nixpkgs.lib.nixosSystem {
               # Arguments to pass to all modules.
