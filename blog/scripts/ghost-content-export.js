@@ -3,9 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 
-// Configuration
+// Configuration - using Content API instead of Admin API
 const GHOST_URL = 'https://blog.arsfeld.dev';
-const GHOST_ADMIN_API_KEY = process.env.GHOST_ADMIN_API_KEY; // Format: id:secret
 const OUTPUT_DIR = path.join(__dirname, '..', 'content', 'posts');
 
 // Improved HTML to Markdown converter
@@ -83,18 +82,6 @@ function htmlToMarkdown(html) {
     .trim();
 }
 
-// Generate JWT token for Ghost Admin API
-function generateToken(apiKey) {
-  const jwt = require('jsonwebtoken');
-  const [id, secret] = apiKey.split(':');
-  return jwt.sign({}, Buffer.from(secret, 'hex'), {
-    keyid: id,
-    algorithm: 'HS256',
-    expiresIn: '5m',
-    audience: '/admin/'
-  });
-}
-
 // Create URL-friendly slug
 function createSlug(title) {
   return title
@@ -106,25 +93,18 @@ function createSlug(title) {
     .substring(0, 100); // Limit length
 }
 
-// Fetch posts from Ghost
+// Fetch posts using Content API (public, no auth needed)
 async function fetchPosts() {
-  const token = generateToken(GHOST_ADMIN_API_KEY);
-  
   try {
-    // Simplified API request - remove problematic parameters
-    const response = await fetch(`${GHOST_URL}/ghost/api/admin/posts/?limit=all&include=tags`, {
-      headers: {
-        'Authorization': `Ghost ${token}`
-      }
-    });
+    // Using Content API - no authentication needed, but limited fields
+    const response = await fetch(`${GHOST_URL}/ghost/api/content/posts/?limit=all&include=tags&formats=html`);
 
     if (response.ok) {
       const result = await response.json();
+      console.log(`Found ${result.posts.length} posts via Content API`);
       return result.posts;
     } else {
-      const errorText = await response.text();
-      console.error(`Failed to fetch posts: ${response.status} ${response.statusText}`);
-      console.error(`Error details: ${errorText}`);
+      console.error(`Failed to fetch posts: ${response.statusText}`);
       return [];
     }
   } catch (error) {
@@ -156,54 +136,20 @@ tags = [${tags.map(tag => `"${tag.replace(/"/g, '\\"')}"`).join(', ')}]
 `;
 
   // Convert HTML content to markdown
-  // Prefer HTML format, fall back to mobiledoc if needed
-  let content = '';
-  if (post.html) {
-    content = htmlToMarkdown(post.html);
-  } else if (post.mobiledoc) {
-    // For mobiledoc, we'll try to extract text content
-    try {
-      const mobiledoc = typeof post.mobiledoc === 'string' ? JSON.parse(post.mobiledoc) : post.mobiledoc;
-      // Basic mobiledoc to markdown conversion - this is simplified
-      if (mobiledoc.sections && mobiledoc.sections.length > 0) {
-        content = mobiledoc.sections
-          .map(section => {
-            if (section[0] === 1 && section[2] && section[2][0] && section[2][0][0]) {
-              return section[2][0][0][3] || ''; // Extract text content
-            }
-            return '';
-          })
-          .filter(text => text.trim())
-          .join('\n\n');
-      }
-    } catch (e) {
-      console.warn(`Failed to parse mobiledoc for ${post.title}: ${e.message}`);
-      content = post.plaintext || '';
-    }
-  } else {
-    content = post.plaintext || '';
-  }
+  const content = htmlToMarkdown(post.html || '');
   
   return frontmatter + content;
 }
 
 // Main function
 async function main() {
-  if (!GHOST_ADMIN_API_KEY) {
-    console.error('GHOST_ADMIN_API_KEY environment variable is required');
-    console.error('Get it from Ghost Admin -> Settings -> Integrations');
-    process.exit(1);
-  }
-
-  console.log('Fetching posts from Ghost...');
+  console.log('Fetching posts from Ghost Content API...');
   const posts = await fetchPosts();
   
   if (posts.length === 0) {
-    console.log('No posts found or failed to fetch posts');
+    console.log('No posts found');
     return;
   }
-
-  console.log(`Found ${posts.length} posts`);
 
   // Ensure output directory exists
   if (!fs.existsSync(OUTPUT_DIR)) {
@@ -218,9 +164,11 @@ async function main() {
     // Debug: log post content info
     console.log(`\nProcessing: ${post.title}`);
     console.log(`HTML length: ${post.html ? post.html.length : 'none'}`);
-    console.log(`Plaintext length: ${post.plaintext ? post.plaintext.length : 'none'}`);
     if (post.html && post.html.includes('<code>')) {
       console.log(`Contains code blocks: Yes`);
+    }
+    if (post.html && post.html.includes('<pre>')) {
+      console.log(`Contains pre blocks: Yes`);
     }
     
     const markdownContent = convertPost(post);
@@ -229,7 +177,7 @@ async function main() {
     console.log(`Exported: ${post.title} -> ${filename}`);
   }
 
-  console.log(`Export complete! Files saved to ${OUTPUT_DIR}`);
+  console.log(`\nExport complete! Files saved to ${OUTPUT_DIR}`);
 }
 
 if (require.main === module) {

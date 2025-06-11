@@ -1,10 +1,13 @@
 +++
 title = "DACP in Rhythmbox: Week 2"
 date = 2010-06-07
-description = "Last week there was the inclusion of libdmapsharing in Rhythmbox (by the way, for all of you alpha testing Ubuntu, DAAP isn’t working in Rhythmbox because they haven’t included libdmapsharing in Ubuntu yet). So now I’m just a git pull and git merge away from following Rhythmbox master, which makes my job much easier.
-
-
-Last week didn’t see much work from me, I was mostly fixing some bugs and some bad decisions. But I noticed I never showed screenshots of my work here. Because I love screenshots,"
+description = "Last week there was the inclusion of libdmapsharing in Rhythmbox (by the way, for all of you alpha testing Ubuntu, DAAP isn’t working in Rhythmbox because they haven’t included libdmapsharing in Ubunt"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++
 
+<p>Last week there was the <a href="https://bugzilla.gnome.org/show_bug.cgi?id=566852" target="_blank" rel="noopener">inclusion of libdmapsharing</a> in Rhythmbox (by the way, for all of you alpha testing Ubuntu, DAAP isn&#8217;t working in Rhythmbox because they haven&#8217;t included libdmapsharing in Ubuntu yet). So now I&#8217;m just a git pull and git merge away from following Rhythmbox master, which makes my job much easier.</p>
+<p>Last week didn&#8217;t see much work from me, I was mostly fixing some bugs and some bad decisions. But I noticed I never showed screenshots of my work here. Because I love screenshots, here they are.</p>
+<p>First you open your Remote application in iPhone, iPod Touch or Android device (note that on Android there is no passcode):</p><figure class="kg-card kg-image-card"><img src="__GHOST_URL__/content/images/2023/07/2010-10-32-13.jpg" class="kg-image" alt loading="lazy" width="320" height="480"></figure><!--kg-card-begin: markdown--><p>Then in Rhythmbox, you type the passcode shown in your Remote. This allows Rhythmbox to pair with your Remote:</p>
+<!--kg-card-end: markdown--><figure class="kg-card kg-image-card"><img src="__GHOST_URL__/content/images/2023/07/screenshot_rhythmbox.png" class="kg-image" alt loading="lazy" width="864" height="627" srcset="__GHOST_URL__/content/images/size/w600/2023/07/screenshot_rhythmbox.png 600w, __GHOST_URL__/content/images/2023/07/screenshot_rhythmbox.png 864w" sizes="(min-width: 720px) 720px"></figure><!--kg-card-begin: markdown--><p>Then Rhythmbox magically appears at your Remote list of libraries:</p>
+<!--kg-card-end: markdown--><figure class="kg-card kg-image-card"><img src="__GHOST_URL__/content/images/2023/07/iphone.jpg" class="kg-image" alt loading="lazy" width="320" height="480"></figure><p>&#8220;DACP on Rhythmbox&#8221; will become your library&#8217;s name over time. And of course, this doesn&#8217;t fully work yet, because Rhythmbox segfaults when the iPhone tries to connect. Well, what did you expected for about two weeks of work? I was pretty excited already when I saw my iPhone on the list of devices in Rhythmbox (by the way, I think I will create a new group called Remotes, I just didn&#8217;t find out how yet).</p>
+<p>Stay tuned for more later.</p>

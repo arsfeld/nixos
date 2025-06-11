@@ -1,13 +1,13 @@
 +++
 title = "Self-hosting with NixOS"
-date = 2023-07-26
-description = "Let's try this blogging thing again, this time with a twist, self-hosting it! What is self-host?
-
-💡Self-hosting is the practice of hosting and managing applications on your own server(s) instead of consuming from SaaSS providers
-
-I won't go into the details of why you would do this, suffice to say once I went into the rabbit-hole of self-hosting, it's hard to get out of it.
-
-My current obsession is with NixOS. It's a reproducible Linux distribution like none other. Instead of installing a syste"
+date = 2023-07-27
+description = "Let's try this blogging thing again, this time with a twist, self-hosting it! What is self-host?  💡Self-hosting is the practice of hosting and managing applications on your own server(s) instead of c"
 tags = []
 +++
 
+<p>Let's try this blogging thing again, this time with a twist, self-hosting it! What is self-host? </p><div class="kg-card kg-callout-card kg-callout-card-grey"><div class="kg-callout-emoji">💡</div><div class="kg-callout-text"><b>Self-hosting is the practice of hosting and managing applications on your own server(s) instead of consuming from SaaSS providers</b></div></div><p>I won't go into the details of why you would do this, suffice to say once I went into the rabbit-hole of self-hosting, it's hard to get out of it.</p><p>My current obsession is with NixOS. It's a reproducible Linux distribution like none other. Instead of installing a system, typing a few commands to update packages, install a few others and tediously edit some configuration files (and hope you remember what you did), you can describe your whole system in code and it'll apply it atomically for you. So far I've converted several systems to NixOS:</p><!--kg-card-begin: markdown--><ol>
+<li>My NAS (which over time saw Ubuntu, FreeNAS, TrueNAS, Debian, etc)</li>
+<li>A few cloud servers (more on this later)</li>
+<li>And recently, my Linux router (I might do a whole post about this)</li>
+</ol>
+<!--kg-card-end: markdown--><p>At first I've switched my main work laptop to it and it wasn't a very good experience, so many tools wouldn't run in the especialized environment that Nix provides. Instead I switched back to Pop!_OS (great distro btw) and eventually was able to convert my NAS. It wasn't always a smooth experience, NixOS has a steep learning curve and I've rolled back to a regular Linux distro many times until it finally stuck.</p><p>The one thing I haven't been able to do consistently with NixOS is gaming. Proton has done wonders for Linux gaming in general, but there's still some holes which makes me keep a Windows workstation around just in case.</p><p>Back to self-hosting this blog. I've been exposing a few services online with a mix of a free Oracle Cloud VM and <a href="https://tailscale.com/">Tailscale</a>. This gives me a public IPv4 on which I can attach a domain to, which with Caddy and it's automatic Let's Encrypt certificates allows me to have a secure way to access any of my internal services. </p><p>So all the infrastructure was already in place (and it might deserve a deep dive later), all I had to do was run one more Docker container, this time it's <a href="https://ghost.org/docs/install/docker/">Ghost</a>.</p><p>So yeah, I'm self-hosting my own blog, with a declarative Linux system. The future is here!</p>

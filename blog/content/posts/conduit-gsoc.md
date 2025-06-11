@@ -1,11 +1,16 @@
 +++
 title = "Conduit GSoC"
 date = 2009-08-26
-description = "Google Summer of Code is over and I still didnt blogged about the new interface for Conduit I wrote. Well, going back to university and doing multiple things at once can really slow things down.
-
-
-
-Ok, so this is not final but I think it’s an improvement over the old UI. The thing is, I was tired of owner-drawn widgets and I was tired of right-clicking things at the canvas (users didn’t even know that thing in the middle was the canvas). And the new UI gives me a reason to use all the work I did"
+description = "Google Summer of Code is over and I still didnt blogged about the new interface for Conduit I wrote. Well, going back to university and doing multiple things at once can really slow things down.    Ok"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++
 
+<p>Google Summer of Code is over and I still didnt blogged about the new interface for Conduit I wrote. Well, going back to university and doing multiple things at once can really slow things down.</p>
+<figure id="attachment_33" aria-describedby="caption-attachment-33" style="width: 426px" class="wp-caption aligncenter"><img decoding="async" loading="lazy" class="size-full wp-image-33" title="New UI - Screenshot 1" src="__GHOST_URL__/content/images/wordpress/2009/08/screenshot-conduit-0-3-17-development-version-running-uninstalled-2.png" alt="This shows the new UI with some conduits at the left" width="426" height="319" srcset="__GHOST_URL__/content/images/wordpress/2009/08/screenshot-conduit-0-3-17-development-version-running-uninstalled-2.png 802w, __GHOST_URL__/content/images/wordpress/2009/08/screenshot-conduit-0-3-17-development-version-running-uninstalled-2-300x225.png 300w, __GHOST_URL__/content/images/wordpress/2009/08/screenshot-conduit-0-3-17-development-version-running-uninstalled-2-768x576.png 768w" sizes="(max-width: 426px) 100vw, 426px" /><figcaption id="caption-attachment-33" class="wp-caption-text">This shows the new UI with some conduits at the left</figcaption></figure>
+<p>Ok, so this is not final but I think it&#8217;s an improvement over <a href="http://conduit-project.org/attachment/wiki/Screenshots/Conduit-0.3.13-some.png?format=raw" target="_blank" rel="noopener">the old UI</a>. The thing is, I was tired of owner-drawn widgets and I was tired of right-clicking things at the canvas (users didn&#8217;t even know that thing in the middle was the canvas). And the new UI gives me a reason to use all the work I did to rebuild the configuration system (see why dialogs was not enough?).</p>
+<p>What I still don&#8217;t like about it, is that it&#8217;s hard to get an overview of the conduit. Sinks are usually hidden so you don&#8217;t even know they are there sometimes. I was thinking about adding a button to hide and show the configuration, but I think that is confusing and not HIG-friendly.</p>
+<p>Another thing I&#8217;m unsure about is tabs. Everyone has tabs nowadays, do why not Conduit?</p>
+<figure id="attachment_34" aria-describedby="caption-attachment-34" style="width: 426px" class="wp-caption aligncenter"><img decoding="async" loading="lazy" class="size-full wp-image-34" title="Conduit Screenshot 2" src="__GHOST_URL__/content/images/wordpress/2009/08/screenshot-conduit-0-3-17-development-version-running-uninstalled-1.png" alt="New UI with tabs" width="426" height="518" srcset="__GHOST_URL__/content/images/wordpress/2009/08/screenshot-conduit-0-3-17-development-version-running-uninstalled-1.png 553w, __GHOST_URL__/content/images/wordpress/2009/08/screenshot-conduit-0-3-17-development-version-running-uninstalled-1-247x300.png 247w" sizes="(max-width: 426px) 100vw, 426px" /><figcaption id="caption-attachment-34" class="wp-caption-text">New UI with tabs</figcaption></figure>
+<p>Hm, I don&#8217;t like that, it does look better but it&#8217;s rather confusing.</p>
+<p>I do like design, but I&#8217;m not very good at it. Anyone interested in giving me some tips? Maybe someone could draw those Mac-looking mockups, that would be great!</p>
+<p>Btw, thanks a lot John Carr and John Stowers for giving me the opportunity to work on this Summer of Code.</p>
