@@ -118,7 +118,7 @@ in {
         #     database__client = "sqlite3";
         #     database__connection__filename = "/var/lib/ghost/content/data/ghost.db";
         #     database__useNullAsDefault = "true";
-        #     
+        #
         #     # Email configuration for Ghost admin authentication (matches constellation.email)
         #     mail__transport = "SMTP";
         #     mail__from = "admin@rosenfeld.one";
@@ -127,10 +127,10 @@ in {
         #     mail__options__secure = "false";
         #     mail__options__auth__user = "alex@rosenfeld.one";
         #     mail__options__auth__pass = "$SMTP_PASSWORD";
-        #     
+        #
         #     # Session configuration for admin authentication
         #     auth__session__secret = "$GHOST_SESSION_SECRET";
-        #     
+        #
         #     # Disable staff device verification
         #     security__staffDeviceVerification = "false";
         #   };

@@ -32,29 +32,29 @@
   constellation.supabase = {
     enable = true;
     defaultDomain = "arsfeld.dev";
-    
+
     instances = {
       finaro = {
         enable = true;
         subdomain = "finaro-api";
-        port = 8080;  # Explicit port since we'll handle routing manually
+        port = 8080; # Explicit port since we'll handle routing manually
         jwtSecret = "supabase-finaro-jwt";
         anonKey = "supabase-finaro-anon";
         serviceKey = "supabase-finaro-service";
         dbPassword = "supabase-finaro-dbpass";
-        
+
         storage = {
           enable = true;
           bucket = "finaro-storage";
         };
-        
+
         services = {
           realtime = true;
           auth = true;
           restApi = true;
           storage = true;
         };
-        
+
         logLevel = "info";
       };
     };
