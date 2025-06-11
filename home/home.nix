@@ -23,11 +23,6 @@
       nix
     ];
 in {
-  nixpkgs.config = {
-    allowUnfree = true;
-    android_sdk.accept_license = true;
-  };
-
   # Home Manager needs a bit of information about you and the
   # paths it should manage.
   home = {
@@ -44,6 +39,7 @@ in {
         bottom
         cachix
         czkawka
+        claude-code
         deno
         devbox
         devenv
@@ -96,9 +92,6 @@ in {
   # This should be enabled by default, but being explicit here
   programs.nix-index.enable = true;
   programs.nix-index-database.comma.enable = true;
-
-  # Let Home Manager install and manage itself.
-  # programs.home-manager.enable = true;
 
   programs.java.enable = true;
 
@@ -292,7 +285,6 @@ in {
   programs.keychain = mkIf stdenv.isLinux {
     enable = true;
     enableBashIntegration = false;
-    inheritType = "any-once";
     keys = ["id_ed25519"];
   };
 
