@@ -1,0 +1,60 @@
+# Zola configuration for arsfeld.dev blog
+
+base_url = "https://blog.arsfeld.dev"
+title = "Alex Rosenfeld - NixOS & Self-Hosting"
+description = "Technical blog about NixOS configurations, self-hosting, and infrastructure automation"
+author = "Alex Rosenfeld"
+
+# Language and locale
+default_language = "en"
+compile_sass = true
+minify_html = true
+generate_feed = true
+feed_filename = "rss.xml"
+
+# Theme configuration
+theme = "hermit_zola"
+
+# Build settings
+build_search_index = true
+
+[markdown]
+highlight_code = true
+highlight_theme = "base16-ocean-dark"
+external_links_target_blank = true
+external_links_no_follow = true
+external_links_no_referrer = true
+smart_punctuation = true
+
+[extra]
+# Hermit theme specific settings
+home_subtitle = "NixOS configurations, self-hosting guides, and infrastructure patterns"
+
+# Social links
+author_email = "alex@rosenfeld.one"
+github = "arsfeld"
+twitter = "alexrosenfeld10"
+
+# Analytics (optional)
+# google_analytics = "G-XXXXXXXXXX"
+
+# Menu items
+[[extra.menu]]
+name = "Posts"
+url = "/posts/"
+weight = 10
+
+[[extra.menu]]
+name = "About"
+url = "/about/"
+weight = 20
+
+[[extra.menu]]
+name = "GitHub"
+url = "https://github.com/arsfeld/nixos"
+weight = 30
+
+# Taxonomies
+[[taxonomies]]
+name = "tags"
+feed = true

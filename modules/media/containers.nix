@@ -63,6 +63,11 @@ in {
           default = {};
           description = "Additional environment variables";
         };
+        environmentFiles = mkOption {
+          type = types.listOf types.str;
+          default = [];
+          description = "Environment files to load (e.g., for secrets)";
+        };
         extraOptions = mkOption {
           type = types.listOf types.str;
           default = [];
@@ -181,6 +186,7 @@ in {
                   TZ = vars.tz;
                 }
                 // container.environment;
+              environmentFiles = container.environmentFiles;
               ports = let
                 exposePort = config.media.gateway.services.${name}.port;
                 portMapping = "${toString exposePort}:${toString container.listenPort}";

@@ -1,6 +1,8 @@
 {
   config,
   lib,
+  self,
+  pkgs,
   ...
 }: let
   cfg = config.constellation.media;
@@ -11,6 +13,16 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
+    # Configure agenix environment files for Ghost (disabled for Zola migration)
+    # age.secrets.ghost-smtp-env = lib.mkIf (builtins.any (host: host == config.networking.hostName) ["cloud"]) {
+    #   file = "${self}/secrets/ghost-smtp-env.age";
+    #   mode = "444";
+    # };
+    # age.secrets.ghost-session-env = lib.mkIf (builtins.any (host: host == config.networking.hostName) ["cloud"]) {
+    #   file = "${self}/secrets/ghost-session-env.age";
+    #   mode = "444";
+    # };
+
     media.containers = let
       storageServices = {
         nextcloud = {
@@ -96,18 +108,38 @@ in {
       };
 
       cloudServices = {
-        ghost = {
-          image = "ghost:5";
-          volumes = ["/var/lib/ghost/content:/var/lib/ghost/content"];
-          configDir = null;
-          environment = {
-            url = "https://blog.arsfeld.dev";
-            database__client = "sqlite3";
-            database__connection__filename = "/var/lib/ghost/content/data/ghost.db";
-            database__useNullAsDefault = "true";
-          };
-          listenPort = 2368;
-        };
+        # Ghost disabled in favor of Zola static site
+        # ghost = {
+        #   image = "ghost:5";
+        #   volumes = ["/var/lib/ghost/content:/var/lib/ghost/content"];
+        #   configDir = null;
+        #   environment = {
+        #     url = "https://blog.arsfeld.dev";
+        #     database__client = "sqlite3";
+        #     database__connection__filename = "/var/lib/ghost/content/data/ghost.db";
+        #     database__useNullAsDefault = "true";
+        #     
+        #     # Email configuration for Ghost admin authentication (matches constellation.email)
+        #     mail__transport = "SMTP";
+        #     mail__from = "admin@rosenfeld.one";
+        #     mail__options__host = "smtp.purelymail.com";
+        #     mail__options__port = "587";
+        #     mail__options__secure = "false";
+        #     mail__options__auth__user = "alex@rosenfeld.one";
+        #     mail__options__auth__pass = "$SMTP_PASSWORD";
+        #     
+        #     # Session configuration for admin authentication
+        #     auth__session__secret = "$GHOST_SESSION_SECRET";
+        #     
+        #     # Disable staff device verification
+        #     security__staffDeviceVerification = "false";
+        #   };
+        #   listenPort = 2368;
+        #   environmentFiles = [
+        #     config.age.secrets.ghost-smtp-env.path
+        #     config.age.secrets.ghost-session-env.path
+        #   ];
+        # };
       };
 
       # Apply the storage host to all services
