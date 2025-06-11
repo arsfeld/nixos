@@ -90,7 +90,7 @@ in
             funnel = cfg.settings.funnel;
           }
           // (optionalAttrs (!cfg.settings.bypassAuth) {
-            authURL = "https://${authHost}:${toString authPort}";
+            authURL = "http://${authHost}:${toString authPort}";
             authPath = "/api/verify?rd=https://auth.${config.media.gateway.domain}/";
             authBypassForTailnet = true;
             authCopyHeaders = {
