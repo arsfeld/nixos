@@ -19,10 +19,7 @@ in {
         useACMEHost = domain;
         extraConfig = "redir https://blog.${domain}";
       };
-      "blog.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:${toString config.media.gateway.services.ghost.port}";
-      };
+      # blog.${domain} is now handled directly by constellation.blog module
     } // lib.optionalAttrs (config.constellation.supabase.enable or false) (
       lib.mapAttrs' (name: instanceCfg: {
         name = "${instanceCfg.subdomain}.${domain}";

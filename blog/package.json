@@ -1,0 +1,11 @@
+{
+  "name": "zola-blog-scripts",
+  "version": "1.0.0",
+  "description": "Scripts for managing the Zola blog",
+  "scripts": {
+    "export-ghost": "node scripts/ghost-to-zola.js"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.0"
+  }
+}

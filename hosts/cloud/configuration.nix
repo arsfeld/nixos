@@ -8,12 +8,15 @@
     ./services
     ./services.nix
     ./containers.nix
-    ../../modules/supabase
   ];
 
   constellation.podman.enable = true;
   constellation.sites.arsfeld-dev.enable = true;
   constellation.sites.rosenfeld-one.enable = true;
+  constellation.blog = {
+    enable = true;
+    domain = "blog.arsfeld.dev";
+  };
 
   boot = {
     binfmt.emulatedSystems = ["x86_64-linux"];
@@ -38,13 +41,7 @@
         jwtSecret = "supabase-finaro-jwt";
         anonKey = "supabase-finaro-anon";
         serviceKey = "supabase-finaro-service";
-        databaseUrl = "supabase-finaro-db";
-        
-        database = {
-          name = "supabase_finaro";
-          user = "supabase_finaro";
-          createDatabase = true;
-        };
+        dbPassword = "supabase-finaro-dbpass";
         
         storage = {
           enable = true;
