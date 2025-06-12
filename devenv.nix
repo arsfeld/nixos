@@ -15,6 +15,7 @@
     colmena
     disko
     openssl
+    jq
     inputs.agenix.packages."${pkgs.stdenv.system}".default
     inputs.disko.packages."${pkgs.stdenv.system}".default
 

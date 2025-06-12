@@ -1,0 +1,87 @@
+# Image Prompts Configuration
+# Structure: post_id -> prompt_id -> prompt details
+
+# Post styles define the visual personality for each blog post
+post_styles:
+  managing-homelab-with-nixos:
+    description: "Clean isometric tech illustration with translucent materials, glass-like surfaces, modern blue aesthetic, flowing data connections, professional 3D rendered style"
+    personality: "Professional and polished, emphasizing clarity and modern infrastructure"
+    
+  constellation-pattern:
+    description: "Abstract technical diagrams with geometric patterns, dark space backgrounds, glowing connections, blue and purple accent colors, constellation-inspired, clean minimal style"
+    personality: "Technical and sophisticated, emphasizing interconnection and modularity"
+    
+  self-hosting-with-nixos:
+    description: "Warm home office aesthetic mixed with clean tech elements, cozy lighting with modern touches, translucent materials, blue and green color scheme"
+    personality: "Welcoming and practical, emphasizing home comfort with technical capability"
+
+# Image prompts organized by post
+prompts:
+  managing-homelab-with-nixos:
+    hero:
+      id: "nixos-homelab-hero"
+      base_prompt: "Isometric server infrastructure with NixOS snowflake branding"
+      aspect_ratio: "16:9"
+      priority: 1
+      
+    transformation:
+      id: "ubuntu-to-nixos-transformation"
+      base_prompt: "Split screen: chaotic tangled cables vs clean organized servers"
+      aspect_ratio: "16:9"
+      priority: 2
+      
+    infrastructure:
+      id: "nixos-infrastructure-overview"
+      base_prompt: "Server rack with translucent materials and flowing data connections"
+      aspect_ratio: "16:9"
+      priority: 3
+      
+    cicd:
+      id: "nixos-github-actions"
+      base_prompt: "Code flowing through automated pipelines to servers"
+      aspect_ratio: "16:9"
+      priority: 4
+
+  constellation-pattern:
+    hero:
+      id: "constellation-pattern-hero"
+      base_prompt: "Network constellation of glowing interconnected nodes in space"
+      aspect_ratio: "16:9"
+      priority: 1
+      
+    architecture:
+      id: "constellation-architecture"
+      base_prompt: "Modular building blocks stacking and connecting together"
+      aspect_ratio: "16:9"
+      priority: 2
+      
+    problems:
+      id: "configuration-drift-problems"
+      base_prompt: "Multiple server nodes drifting apart with broken connections"
+      aspect_ratio: "16:9"
+      priority: 3
+      
+    modules:
+      id: "constellation-modules"
+      base_prompt: "Modular components that mix and match flexibly"
+      aspect_ratio: "16:9"
+      priority: 4
+
+  self-hosting-with-nixos:
+    hero:
+      id: "self-hosting-hero"
+      base_prompt: "Cozy home office with futuristic server setup and dashboards"
+      aspect_ratio: "16:9"
+      priority: 1
+      
+    services:
+      id: "self-hosted-services"
+      base_prompt: "Floating interconnected service icons in technical style"
+      aspect_ratio: "16:9"
+      priority: 2
+      
+    security:
+      id: "nixos-security"
+      base_prompt: "Layered security shields protecting network infrastructure"
+      aspect_ratio: "16:9"
+      priority: 3
