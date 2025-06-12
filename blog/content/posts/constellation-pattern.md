@@ -13,7 +13,7 @@ Managing multiple NixOS machines quickly becomes unwieldy when you copy-paste co
 
 ## The Problem with Traditional NixOS Multi-Host Management
 
-![Configuration drift and copy-paste problems in traditional NixOS setups](/images/nixos-problems.png)
+![Configuration drift and copy-paste problems in traditional NixOS setups](/images/configuration-drift-problems.png)
 
 Most NixOS configurations start simple. You have one machine, one `configuration.nix`, and life is good. But as you add more hosts, you face several challenges:
 

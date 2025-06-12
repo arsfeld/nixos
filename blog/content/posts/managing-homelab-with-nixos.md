@@ -5,6 +5,8 @@ description = "How I transformed my homelab from a fragile Ubuntu setup to a dec
 tags = ["nixos", "homelab", "self-hosting", "infrastructure", "devops"]
 +++
 
+![Modern NixOS homelab infrastructure with storage and cloud servers connected by network flows](/images/nixos-homelab-hero.png)
+
 After years of managing services across multiple Ubuntu servers, I finally hit my breaking point. Docker Compose files scattered everywhere, manual package updates breaking production services at 2 AM, and the constant fear of "did I document how I set this up?" It was time for a change. Enter NixOS - a declarative Linux distribution that transformed my homelab from a house of cards into a reproducible, version-controlled infrastructure.
 
 ## The Ubuntu Problem
@@ -17,6 +19,8 @@ Picture this: You're running 30+ services across multiple hosts. Your main serve
 - That one service that requires a specific kernel module you compiled 6 months ago
 
 The breaking point came when a routine `apt upgrade` on my main server broke PostgreSQL, which cascaded into breaking Gitea, which meant I couldn't access my infrastructure documentation. While fixing it at 3 AM, I realized I was solving the wrong problem. The issue wasn't the broken package - it was the entire approach.
+
+![Transformation from chaotic Ubuntu server setup to clean organized NixOS infrastructure](/images/ubuntu-to-nixos-transformation.png)
 
 ## Enter NixOS: Infrastructure as Code, But Actually
 
@@ -37,7 +41,7 @@ Deploy it with `nixos-rebuild switch`. Made a mistake? Roll back instantly with 
 
 ## My Infrastructure Evolution
 
-Today, my homelab runs entirely on NixOS, managed through a single Git repository. Let me introduce the main players:
+Today, my homelab runs entirely on NixOS, managed through a [single Git repository](https://github.com/arsfeld/nixos). In fact, the blog you're reading right now is hosted on this very infrastructure, built and deployed through the same NixOS configuration. Let me introduce the main players:
 
 ### Storage: The Workhorse
 
@@ -91,6 +95,8 @@ jobs:
 
 Push to main, grab coffee, and watch your infrastructure update itself. If something breaks? The old configuration is still running until the new one successfully builds.
 
+![Automated deployment pipeline flowing from GitHub to NixOS servers](/images/nixos-github-actions.png)
+
 ## Why Not [Insert Solution Here]?
 
 The homelab world is full of solutions, each with its own philosophy:
@@ -123,3 +129,5 @@ But for a technical user who wants reproducible infrastructure? The tradeoffs ar
 In my next post, I'll dive into the Constellation Pattern - how I structure my NixOS configurations to share code between hosts while maintaining flexibility. We'll look at real examples from my repository and how to build your own modular NixOS infrastructure.
 
 For now, if you're tired of the "pets vs cattle" debate and want infrastructure that's more like "robots that configure themselves," give NixOS a look. Your future self at 3 AM will thank you.
+
+Want to see how it all works? Check out my [NixOS configuration on GitHub](https://github.com/arsfeld/nixos) - everything from this blog's deployment to my entire homelab is there.
