@@ -165,76 +165,29 @@ Key principles:
 - **Override Capability**: Hosts can still override specific settings when needed
 - **Dependency Declaration**: Modules can reference other constellation modules
 
-## Advanced Pattern: Service Discovery and Gateway Integration
+## Real-World Example: Mixing Containers and Native Services
 
-The most sophisticated part of my constellation system is the `constellation.services` module, which automatically creates a service mesh across all hosts:
+The true power of the Constellation Pattern emerges when modules orchestrate both container-based and native NixOS services seamlessly. This hybrid approach lets you choose the best deployment method for each service while maintaining a unified gateway and service discovery system.
 
-```nix
-# modules/constellation/services.nix
-# Source: https://github.com/arsfeld/nixos/blob/master/modules/constellation/services.nix
-let
-  services = {
-    cloud = {
-      vault = 8000;
-      yarr = 7070;
-      whoogle = 5000;
-    };
-    storage = {
-      jellyfin = 8096;
-      immich = 15777;
-      grafana = 3010;
-      gitea = 3001;
-      # ... 30+ more services
-    };
-  };
+### Why the Hybrid Approach?
 
-  # Transform service definitions into gateway configuration
-  generateServices = services:
-    listToAttrs (builtins.concatMap
-      (host:
-        builtins.map
-        (name: {
-          inherit name;
-          value = {
-            inherit name host;
-            port = services.${host}.${name};
-            settings = {
-              bypassAuth = builtins.elem name bypassAuth;
-              funnel = builtins.elem name funnels;
-            };
-          };
-        })
-        (builtins.attrNames services.${host}))
-      (builtins.attrNames services));
-in {
-  config = lib.mkIf config.constellation.services.enable {
-    media.gateway = {
-      enable = true;
-      services = generateServices services;
-    };
-  };
-}
-```
+My `constellation.media` module runs the *arr stack (Sonarr, Radarr, Prowlarr) as containers because:
+- NixOS modules for these services weren't updated frequently enough
+- Container images provide consistent configuration across updates
+- The *arr ecosystem expects certain behaviors that containers handle better
 
-This creates several powerful capabilities:
+Meanwhile, services deeply integrated with NixOS (like PostgreSQL databases, Grafana, or Gitea) run as native services for better system integration.
 
-1. **Automatic Service Registration**: Adding a new service is just adding one line to the services definition
-2. **Cross-Host Discovery**: Services automatically know how to reach services on other hosts  
-3. **Gateway Integration**: Caddy reverse proxy rules are automatically generated
-4. **Authentication Rules**: Services can opt into or out of authentication automatically
-
-## Real-World Example: The Media Constellation
-
-My `constellation.media` module shows how to handle complex multi-service deployments:
+### The Media Constellation in Action
 
 ```nix
 # modules/constellation/media.nix
-# Source: https://github.com/arsfeld/nixos/blob/master/modules/constellation/media.nix
+# Container-based services with automatic deployment
 {
   config = lib.mkIf cfg.enable {
     media.containers = let
       storageServices = {
-        # The full *arr stack
+        # The full *arr stack as containers
         prowlarr = { listenPort = 9696; };
         sonarr = { 
           listenPort = 8989;
@@ -251,38 +204,54 @@ My `constellation.media` module shows how to handle complex multi-service deploy
           network = "host";
           devices = ["/dev/dri:/dev/dri"];  # Intel GPU passthrough
         };
-        
-        # Download clients
-        autobrr = {
-          image = "ghcr.io/autobrr/autobrr:latest";
-          listenPort = 7474;
-        };
-      };
-
-      cloudServices = {
-        ghost = {
-          image = "ghost:5";
-          environment = {
-            url = "https://blog.arsfeld.dev";
-            database__client = "sqlite3";
-          };
-          listenPort = 2368;
-        };
       };
     in
-      # Automatically assign host labels  
-      lib.mapAttrs (addHost "storage") storageServices 
-      // lib.mapAttrs (addHost "cloud") cloudServices;
+      lib.mapAttrs (addHost "storage") storageServices;
   };
 }
+
+# modules/constellation/services.nix
+# Native NixOS services registered for gateway routing
+let
+  services = {
+    storage = {
+      # Native services get simple port registration
+      grafana = 3010;
+      gitea = 3001;
+      postgresql = 5432;
+      # Container services just need their exposed port
+      jellyfin = 8096;
+      immich = 15777;
+      sonarr = 8989;
+      radarr = 7878;
+    };
+  };
 ```
 
-The genius of this approach:
+### Unified Gateway System
 
-- **Hardware Affinity**: GPU-dependent services automatically deploy to the `storage` host with Intel graphics
-- **Resource Optimization**: Lightweight services can run on the ARM `cloud` host  
-- **Automatic Networking**: All services automatically get proper networking and service discovery
-- **Volume Management**: Media services automatically get the right volume mounts
+Both container and native services register with the same gateway system:
+
+```nix
+# All services - container or native - get automatic:
+# - Reverse proxy configuration (https://service.domain.com)
+# - Service discovery across hosts
+# - Authentication rules
+# - Health monitoring
+
+media.gateway = {
+  enable = true;
+  services = generateServices services;  # Works for both types!
+};
+```
+
+The beauty of this approach:
+- **Use containers when they make sense**: For services with complex dependencies or frequent updates
+- **Use native when better**: For NixOS-integrated services or those needing deep system access
+- **Same gateway for everything**: Users don't know or care how services are deployed
+- **Flexible migration**: Start with native, move to containers (or vice versa) without changing the gateway configuration
+
+This flexibility is where the constellation system truly shines - it doesn't force you into one deployment model but lets you choose the best tool for each job while maintaining a cohesive system.
 
 ## Benefits of the Constellation Pattern
 
@@ -310,17 +279,36 @@ After running this pattern for over a year across 10+ hosts, the benefits are su
 
 **vs. Docker Compose**: Better hardware integration, atomic updates, and cross-host service discovery built-in.
 
-## Getting Started
+## How It All Ties Together: Automatic Module Loading with Haumea
 
-To implement the Constellation Pattern in your own NixOS setup:
+The magic that makes the Constellation Pattern truly effortless is [haumea](https://github.com/nix-community/haumea), a library that automatically loads all files as NixOS modules. Instead of manually importing each module file, haumea discovers and loads them for you:
 
-1. **Create a `modules/constellation/` directory** in your configuration repo
-2. **Start with `common.nix`** - move shared configuration from your hosts into this module  
-3. **Identify feature groups** - what logical groupings of services do you have?
-4. **Create feature modules** - one module per major capability (media, backup, monitoring, etc.)
-5. **Refactor your hosts** - replace duplicated configuration with module enables
-6. **Add service discovery** - implement a gateway pattern for automatic service registration
+```nix
+# flake.nix
+# Source: https://github.com/arsfeld/nixos/blob/master/flake.nix
+let
+  modules = inputs.haumea.lib.load {
+    src = ./modules;
+    loader = inputs.haumea.lib.loaders.path;
+  };
+in
+  getAllValues modules  # Flattens nested module structure
+```
 
-The Constellation Pattern has transformed how I manage my self-hosted infrastructure. What started as a mess of copy-pasted configurations is now a clean, maintainable system that scales from a single Raspberry Pi to a full server fleet.
+This means:
+- **Zero Import Boilerplate**: Drop a new `.nix` file in `modules/` and it's automatically available
+- **Nested Organization**: Create subdirectories like `constellation/` for logical grouping
+- **Instant Recognition**: New constellation modules are immediately available to all hosts
+- **Clean Flake**: Your `flake.nix` stays minimal and focused
 
-In the next post, we'll dive into multi-architecture fleet management and how to handle cross-compilation for ARM devices seamlessly within this pattern.
+Combined with the constellation pattern, this creates a self-organizing module system where adding new capabilities is as simple as creating a file in the right directory.
+
+## Advanced Patterns: A Glimpse into the Future
+
+The Constellation Pattern enables sophisticated infrastructure patterns that would be complex to implement otherwise. Multi-host service meshes, automatic service discovery, hardware-aware deployments, and declarative secret distribution all become straightforward.
+
+In a future post, we'll explore these advanced patterns in detail, showing how constellation modules can orchestrate complex multi-host deployments, handle cross-host dependencies, and create self-healing infrastructure - all while maintaining the simplicity of enabling a single option.
+
+## Conclusion
+
+The Constellation Pattern has transformed how I manage my self-hosted infrastructure. What started as a mess of copy-pasted configurations is now a clean, maintainable system that scales from a single Raspberry Pi to a full server fleet. By combining opt-in modules with automatic loading via haumea, the pattern achieves both flexibility and simplicity - the holy grail of infrastructure management.
