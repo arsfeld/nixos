@@ -8,6 +8,7 @@
   vars = config.media.config;
 in {
   age.secrets.tailscale-key.file = "${self}/secrets/tailscale-key.age";
+  age.secrets.romm-env.file = "${self}/secrets/romm-env.age";
 
   services.tsnsrv = {
     enable = true;
@@ -24,11 +25,10 @@ in {
         DB_HOST = "host.docker.internal";
         DB_NAME = "romm";
         DB_USER = "romm";
-        DB_PASSWD = "romm";
-        ROMM_AUTH_SECRET_KEY = "e7abdbee368a0178b33b137ec3150f24159bfd4276bc8f108d8cdd53a272e09c";
-        IGDB_CLIENT_ID = "431mhk3exr6trvypsub1tqgdy9jt30";
-        IGDB_CLIENT_SECRET = "8cva1t36mily92d34aghg19a8gzd4i";
       };
+      environmentFiles = [
+        config.age.secrets.romm-env.path
+      ];
       volumes = [
         "${vars.configDir}/romm/resources:/romm/resources" # Resources fetched from IGDB (covers, screenshots, etc.)
         "${vars.configDir}/romm/redis:/redis-data" # Cached data for background tasks

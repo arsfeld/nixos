@@ -42,4 +42,5 @@ in {
   "ghost-session-secret.age".publicKeys = users ++ [cloud];
   "ghost-smtp-env.age".publicKeys = users ++ [cloud];
   "ghost-session-env.age".publicKeys = users ++ [cloud];
+  "romm-env.age".publicKeys = users ++ [storage];
 }
