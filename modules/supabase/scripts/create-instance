@@ -33,7 +33,7 @@ log_error() {
 
 # Check dependencies
 check_dependencies() {
-    local deps=("agenix" "openssl")
+    local deps=("agenix" "openssl" "jq")
     for dep in "${deps[@]}"; do
         if ! command -v "$dep" &> /dev/null; then
             log_error "Required dependency '$dep' not found"
@@ -44,34 +44,173 @@ check_dependencies() {
 
 # Generate JWT secret
 generate_jwt_secret() {
-    openssl rand -base64 32
+    # Generate at least 32 characters for security
+    openssl rand -base64 48 | tr -d '\n='
+}
+
+# Generate secure password
+generate_password() {
+    openssl rand -base64 32 | tr -d '\n='
 }
 
 # Generate Supabase API key
 generate_api_key() {
-    local payload='{"role":"'"$1"'","iss":"supabase"}'
-    local secret="$2"
+    local role="$1"
+    local jwt_secret="$2"
     
-    # Create a simple JWT manually (for demo - in production use proper JWT library)
+    # Create JWT payload
+    local iat=$(date +%s)
+    local exp=$((iat + 365 * 24 * 60 * 60)) # 1 year from now
+    
     local header='{"alg":"HS256","typ":"JWT"}'
-    local header_b64=$(echo -n "$header" | base64 -w 0 | tr -d '=')
-    local payload_b64=$(echo -n "$payload" | base64 -w 0 | tr -d '=')
-    local signature=$(echo -n "${header_b64}.${payload_b64}" | openssl dgst -sha256 -hmac "$secret" -binary | base64 -w 0 | tr -d '=')
+    local payload=$(jq -c -n \
+        --arg role "$role" \
+        --arg iss "supabase" \
+        --argjson iat "$iat" \
+        --argjson exp "$exp" \
+        '{"role": $role, "iss": $iss, "iat": $iat, "exp": $exp}')
+    
+    # Base64 encode header and payload
+    local header_b64=$(echo -n "$header" | base64 -w 0 | tr -d '=' | tr '+/' '-_')
+    local payload_b64=$(echo -n "$payload" | base64 -w 0 | tr -d '=' | tr '+/' '-_')
+    
+    # Create signature
+    local signature=$(echo -n "${header_b64}.${payload_b64}" | openssl dgst -sha256 -hmac "$jwt_secret" -binary | base64 -w 0 | tr -d '=' | tr '+/' '-_')
     
     echo "${header_b64}.${payload_b64}.${signature}"
 }
 
-# Generate database URL
-generate_database_url() {
+# Generate complete .env file content
+generate_env_file() {
     local instance="$1"
-    local password=$(openssl rand -base64 16 | tr -d '=')
-    echo "postgresql://supabase_${instance}:${password}@localhost:5432/supabase_${instance}"
+    local jwt_secret="$2"
+    local anon_key="$3"
+    local service_key="$4"
+    local postgres_password="$5"
+    
+    cat <<EOF
+############
+# Secrets
+# Generated for Supabase instance: ${instance}
+############
+
+POSTGRES_PASSWORD=${postgres_password}
+JWT_SECRET=${jwt_secret}
+ANON_KEY=${anon_key}
+SERVICE_ROLE_KEY=${service_key}
+DASHBOARD_USERNAME=supabase
+DASHBOARD_PASSWORD=$(generate_password)
+SECRET_KEY_BASE=$(generate_password)
+VAULT_ENC_KEY=$(generate_password)
+
+############
+# Database - You can change these to any PostgreSQL database that has logical replication enabled.
+############
+
+POSTGRES_HOST=db
+POSTGRES_DB=postgres
+POSTGRES_PORT=5432
+# default user is postgres
+
+############
+# Supavisor -- Database pooler
+############
+POOLER_PROXY_PORT_TRANSACTION=6543
+POOLER_DEFAULT_POOL_SIZE=20
+POOLER_MAX_CLIENT_CONN=100
+POOLER_TENANT_ID=${instance}
+
+############
+# API Proxy - Configuration for the Kong Reverse proxy.
+############
+
+KONG_HTTP_PORT=8000
+KONG_HTTPS_PORT=8443
+
+############
+# API - Configuration for PostgREST.
+############
+
+PGRST_DB_SCHEMAS=public,storage,graphql_public
+
+############
+# Auth - Configuration for the GoTrue authentication server.
+############
+
+## General
+SITE_URL=https://${instance}.example.com
+ADDITIONAL_REDIRECT_URLS=
+JWT_EXPIRY=3600
+DISABLE_SIGNUP=false
+API_EXTERNAL_URL=https://${instance}.example.com
+
+## Mailer Config
+MAILER_URLPATHS_CONFIRMATION="/auth/v1/verify"
+MAILER_URLPATHS_INVITE="/auth/v1/verify"
+MAILER_URLPATHS_RECOVERY="/auth/v1/verify"
+MAILER_URLPATHS_EMAIL_CHANGE="/auth/v1/verify"
+
+## Email auth
+ENABLE_EMAIL_SIGNUP=true
+ENABLE_EMAIL_AUTOCONFIRM=false
+SMTP_ADMIN_EMAIL=admin@example.com
+SMTP_HOST=supabase-mail
+SMTP_PORT=2500
+SMTP_USER=fake_mail_user
+SMTP_PASS=fake_mail_password
+SMTP_SENDER_NAME=fake_sender
+ENABLE_ANONYMOUS_USERS=false
+
+## Phone auth
+ENABLE_PHONE_SIGNUP=true
+ENABLE_PHONE_AUTOCONFIRM=true
+
+############
+# Studio - Configuration for the Dashboard
+############
+
+STUDIO_DEFAULT_ORGANIZATION=${instance}
+STUDIO_DEFAULT_PROJECT=${instance}
+
+STUDIO_PORT=3000
+# replace if you intend to use Studio outside of localhost
+SUPABASE_PUBLIC_URL=https://${instance}.example.com
+
+# Enable webp support
+IMGPROXY_ENABLE_WEBP_DETECTION=true
+
+# Add your OpenAI API key to enable SQL Editor Assistant
+OPENAI_API_KEY=
+
+############
+# Functions - Configuration for Functions
+############
+# NOTE: VERIFY_JWT applies to all functions. Per-function VERIFY_JWT is not supported yet.
+FUNCTIONS_VERIFY_JWT=false
+
+############
+# Logs - Configuration for Analytics
+# Please refer to https://supabase.com/docs/reference/self-hosting-analytics/introduction
+############
+
+# Change vector.toml sinks to reflect this change
+# these cannot be the same value
+LOGFLARE_PUBLIC_ACCESS_TOKEN=$(generate_password)
+LOGFLARE_PRIVATE_ACCESS_TOKEN=$(generate_password)
+
+# Docker socket location - this value will differ depending on your OS
+DOCKER_SOCKET_LOCATION=/var/run/docker.sock
+
+# Google Cloud Project details
+GOOGLE_PROJECT_ID=
+GOOGLE_PROJECT_NUMBER=
+EOF
 }
 
 # Create secret file
 create_secret_file() {
     local secret_name="$1"
-    local secret_value="$2"
+    local secret_content="$2"
     
     local secret_file="${SECRETS_DIR}/${secret_name}.age"
     
@@ -83,11 +222,11 @@ create_secret_file() {
     
     # Create temporary file with secret
     local temp_file=$(mktemp)
-    echo -n "$secret_value" > "$temp_file"
+    echo -n "$secret_content" > "$temp_file"
     
     # Use agenix to encrypt the secret
     cd "$SECRETS_DIR"
-    agenix -e "${secret_name}.age" <<< "$secret_value"
+    agenix -e "${secret_name}.age" < "$temp_file"
     
     # Clean up
     rm "$temp_file"
@@ -130,37 +269,32 @@ main() {
     # Check dependencies
     check_dependencies
     
-    # Generate secrets
+    # Generate core secrets
     log_info "Generating secrets..."
     local jwt_secret=$(generate_jwt_secret)
     local anon_key=$(generate_api_key "anon" "$jwt_secret")
     local service_key=$(generate_api_key "service_role" "$jwt_secret")
-    local db_password=$(openssl rand -base64 32 | tr -d '\n')
+    local postgres_password=$(generate_password)
     
-    # Define secret names
-    local jwt_secret_name="supabase-${instance}-jwt"
-    local anon_key_name="supabase-${instance}-anon"
-    local service_key_name="supabase-${instance}-service"
-    local db_password_name="supabase-${instance}-dbpass"
+    # Generate complete .env file
+    log_info "Generating .env file..."
+    local env_content=$(generate_env_file "$instance" "$jwt_secret" "$anon_key" "$service_key" "$postgres_password")
+    
+    # Define secret name for the env file
+    local env_secret_name="supabase-${instance}-env"
     
     # Determine hosts (default to cloud)
     local hosts="cloud"
     
-    # Add secrets to secrets.nix
-    log_info "Adding secrets to secrets.nix..."
-    add_secret_to_nix "$jwt_secret_name" "$hosts"
-    add_secret_to_nix "$anon_key_name" "$hosts"
-    add_secret_to_nix "$service_key_name" "$hosts"
-    add_secret_to_nix "$db_password_name" "$hosts"
+    # Add secret to secrets.nix
+    log_info "Adding secret to secrets.nix..."
+    add_secret_to_nix "$env_secret_name" "$hosts"
     
-    # Create secret files
-    log_info "Creating encrypted secret files..."
-    create_secret_file "$jwt_secret_name" "JWT_SECRET=$jwt_secret"
-    create_secret_file "$anon_key_name" "SUPABASE_ANON_KEY=$anon_key"
-    create_secret_file "$service_key_name" "SUPABASE_SERVICE_KEY=$service_key"
-    create_secret_file "$db_password_name" "DB_PASSWORD=$db_password"
+    # Create encrypted secret file
+    log_info "Creating encrypted .env file..."
+    create_secret_file "$env_secret_name" "$env_content"
     
-    log_success "Supabase instance '$instance' secrets created successfully!"
+    log_success "Supabase instance '$instance' created successfully!"
     
     echo
     echo "Next steps:"
@@ -168,21 +302,21 @@ main() {
     echo "   constellation.supabase.instances.${instance} = {"
     echo "     enable = true;"
     echo "     subdomain = \"${instance}\";"
-    echo "     jwtSecret = \"${jwt_secret_name}\";"
-    echo "     anonKey = \"${anon_key_name}\";"
-    echo "     serviceKey = \"${service_key_name}\";"
-    echo "     dbPassword = \"${db_password_name}\";"
+    echo "     envFile = \"${env_secret_name}\";"
     echo "     storage.bucket = \"supabase-${instance}-storage\";"
     echo "   };"
     echo
-    echo "2. Deploy the configuration:"
+    echo "2. Update the domain references in the .env file using:"
+    echo "   ./update-secret ${instance}"
+    echo
+    echo "3. Deploy the configuration:"
     echo "   just deploy <hostname>"
     echo
-    echo "API Keys (encrypted in secrets):"
-    echo "  JWT Secret: ${jwt_secret_name}"
-    echo "  Anon Key: ${anon_key_name}"
-    echo "  Service Key: ${service_key_name}"
-    echo "  DB Password: ${db_password_name}"
+    echo "Important values (stored encrypted in ${env_secret_name}):"
+    echo "  JWT Secret: ${jwt_secret:0:10}..."
+    echo "  Anon Key: ${anon_key:0:20}..."
+    echo "  Service Key: ${service_key:0:20}..."
+    echo "  DB Password: ${postgres_password:0:10}..."
 }
 
 main "$@"

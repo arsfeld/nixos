@@ -34,13 +34,9 @@ in {
   "transmission-openvpn-pia.age".publicKeys = users ++ [storage];
   "ntfy-env.age".publicKeys = users ++ [cloud];
   "finance-tracker-env.age".publicKeys = users ++ [storage];
-  "supabase-finaro-jwt.age".publicKeys = users ++ [cloud];
-  "supabase-finaro-anon.age".publicKeys = users ++ [cloud];
-  "supabase-finaro-service.age".publicKeys = users ++ [cloud];
-  "supabase-finaro-db.age".publicKeys = users ++ [cloud];
-  "supabase-finaro-dbpass.age".publicKeys = users ++ [cloud];
   "ghost-session-secret.age".publicKeys = users ++ [cloud];
   "ghost-smtp-env.age".publicKeys = users ++ [cloud];
   "ghost-session-env.age".publicKeys = users ++ [cloud];
   "romm-env.age".publicKeys = users ++ [storage];
+  "supabase-finaro-env.age".publicKeys = users ++ [cloud];
 }
