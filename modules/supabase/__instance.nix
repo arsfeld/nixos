@@ -4,244 +4,105 @@
   pkgs,
 }:
 with lib; let
-  # Kong configuration file
-  kongConfig = pkgs.writeText "kong.yml" (builtins.readFile ./files/kong.yml);
-
-  # Generate Docker Compose configuration using Nix syntax
-  generateDockerCompose = name: instanceCfg: config: let
+  # Generate environment file for instance
+  generateEnvFile = name: instanceCfg: config: let
     port =
       if instanceCfg.port > 0
       then instanceCfg.port
       else (8000 + (stringLength name));
     domain = config.constellation.supabase.defaultDomain;
+  in ''
+    # Instance-specific configuration
+    INSTANCE_NAME=${name}
+    INSTANCE_PORT=${toString port}
+    
+    # Public URLs
+    SUPABASE_PUBLIC_URL=https://${instanceCfg.subdomain}.${domain}
+    API_EXTERNAL_URL=https://${instanceCfg.subdomain}.${domain}
+    
+    # Ports
+    KONG_HTTP_PORT=${toString port}
+    STUDIO_PORT=${toString (port + 1)}
+    ANALYTICS_PORT=${toString (port + 2)}
+    POSTGRES_PORT=${toString (port + 3)}
+    
+    # Studio configuration
+    STUDIO_DEFAULT_ORGANIZATION=${instanceCfg.subdomain}
+    STUDIO_DEFAULT_PROJECT=${instanceCfg.subdomain}
+    
+    # Logging
+    GOTRUE_LOG_LEVEL=${instanceCfg.logLevel}
+    PGRST_LOG_LEVEL=${instanceCfg.logLevel}
+    
+    # Storage
+    GLOBAL_S3_BUCKET=${instanceCfg.storage.bucket}
+    
+    # Site URL for Auth
+    GOTRUE_SITE_URL=https://${instanceCfg.subdomain}.${domain}
+    SITE_URL=https://${instanceCfg.subdomain}.${domain}
+    
+    # Postgres configuration
+    POSTGRES_DB=postgres
+    
+    # Analytics tokens (these should be randomized per instance in production)
+    LOGFLARE_PUBLIC_ACCESS_TOKEN=your-super-secret-and-long-logflare-key-public
+    LOGFLARE_PRIVATE_ACCESS_TOKEN=your-super-secret-and-long-logflare-key-private
+    
+    # Container prefix
+    COMPOSE_PROJECT_NAME=supabase-${name}
+  '';
 
-    # Define each service as a Nix attribute set (without mkIf)
-    kongService = {
-      image = "kong:2.8.1";
-      restart = "unless-stopped";
-      ports = ["${toString port}:8000"];
-      environment = {
-        KONG_DATABASE = "off";
-        KONG_DECLARATIVE_CONFIG = "/var/lib/kong/kong.yml";
-        KONG_DNS_ORDER = "LAST,A,CNAME";
-        KONG_PLUGINS = "request-transformer,cors,key-auth,acl";
-        SUPABASE_ANON_KEY = "\${SUPABASE_ANON_KEY}";
-      };
-      volumes = ["./kong.yml:/var/lib/kong/kong.yml:ro"];
-    };
-
-    authService = {
-      image = "supabase/gotrue:v2.174.0";
-      depends_on = ["db"];
-      restart = "unless-stopped";
-      environment = {
-        GOTRUE_API_HOST = "0.0.0.0";
-        GOTRUE_API_PORT = "9999";
-        GOTRUE_DB_DRIVER = "postgres";
-        GOTRUE_DB_DATABASE_URL = "postgres://supabase_auth_admin:\${DB_PASSWORD}@db:5432/postgres";
-        GOTRUE_LOG_LEVEL = instanceCfg.logLevel;
-        GOTRUE_SITE_URL = "https://${instanceCfg.subdomain}.${domain}";
-        GOTRUE_URI_ALLOW_LIST = "*";
-        GOTRUE_JWT_EXP = "3600";
-        GOTRUE_JWT_DEFAULT_GROUP_NAME = "authenticated";
-        GOTRUE_JWT_SECRET = "\${JWT_SECRET}";
-        API_EXTERNAL_URL = "https://${instanceCfg.subdomain}.${domain}";
-      };
-    };
-
-    restService = {
-      image = "postgrest/postgrest:v12.2.12";
-      depends_on = ["db"];
-      restart = "unless-stopped";
-      environment = {
-        PGRST_DB_URI = "postgres://authenticator:\${DB_PASSWORD}@db:5432/postgres";
-        PGRST_DB_SCHEMAS = "public,storage,graphql_public";
-        PGRST_DB_ANON_ROLE = "anon";
-        PGRST_LOG_LEVEL = instanceCfg.logLevel;
-        PGRST_JWT_SECRET = "\${JWT_SECRET}";
-      };
-    };
-
-    realtimeService = {
-      image = "supabase/realtime:v2.34.47";
-      depends_on = ["db"];
-      restart = "unless-stopped";
-      environment = {
-        PORT = "4000";
-        DB_HOST = "db";
-        DB_PORT = "5432";
-        DB_USER = "supabase_realtime_admin";
-        DB_PASSWORD = "\${DB_PASSWORD}";
-        DB_NAME = "postgres";
-        DB_AFTER_CONNECT_QUERY = "SET search_path TO _realtime";
-        DB_ENC_KEY = "supabaserealtime";
-        FLY_ALLOC_ID = "fly123";
-        FLY_APP_NAME = "realtime";
-        SECRET_KEY_BASE = "UpNVntn3cDxHJpq99YMc1T1AQgQpc8kfYTuRgBiYa15BLrx8etQoXz3gZv1/u2oq";
-        JWT_SECRET = "\${JWT_SECRET}";
-        RLIMIT_NOFILE = "1048576";
-      };
-      command = [
-        "sh"
-        "-c"
-        "/app/bin/realtime eval Realtime.Release.migrate && /app/bin/realtime start"
-      ];
-    };
-
-    storageService = {
-      image = "supabase/storage-api:v1.23.0";
-      depends_on = ["db" "rest"];
-      restart = "unless-stopped";
-      environment = {
-        POSTGREST_URL = "http://rest:3000";
-        DATABASE_URL = "postgres://supabase_storage_admin:\${DB_PASSWORD}@db:5432/postgres";
-        PGOPTIONS = "-c search_path=storage,public";
-        FILE_SIZE_LIMIT = "52428800";
-        STORAGE_BACKEND = "file";
-        FILE_STORAGE_BACKEND_PATH = "/var/lib/storage";
-        TENANT_ID = "stub";
-        REGION = "stub";
-        GLOBAL_S3_BUCKET = instanceCfg.storage.bucket;
-        SUPABASE_ANON_KEY = "\${SUPABASE_ANON_KEY}";
-        SUPABASE_SERVICE_KEY = "\${SUPABASE_SERVICE_KEY}";
-        PGRST_JWT_SECRET = "\${JWT_SECRET}";
-      };
-      volumes = ["./storage:/var/lib/storage"];
-    };
-
-    studioService = {
-      image = "supabase/studio:2025.06.02-sha-8f2993d";
-      restart = "unless-stopped";
-      ports = ["${toString (port + 1)}:3000"];
-      environment = {
-        STUDIO_PG_META_URL = "http://meta:8080";
-        DEFAULT_ORGANIZATION_NAME = instanceCfg.subdomain;
-        DEFAULT_PROJECT_NAME = instanceCfg.subdomain;
-        SUPABASE_URL = "http://kong:8000";
-        SUPABASE_PUBLIC_URL = "https://${instanceCfg.subdomain}.${domain}";
-        SUPABASE_ANON_KEY = "\${SUPABASE_ANON_KEY}";
-        SUPABASE_SERVICE_KEY = "\${SUPABASE_SERVICE_KEY}";
-      };
-    };
-
-    metaService = {
-      image = "supabase/postgres-meta:v0.89.3";
-      depends_on = ["db"];
-      restart = "unless-stopped";
-      environment = {
-        PG_META_PORT = "8080";
-        PG_META_DB_HOST = "db";
-        PG_META_DB_PORT = "5432";
-        PG_META_DB_NAME = "postgres";
-        PG_META_DB_USER = "postgres";
-        PG_META_DB_PASSWORD = "\${DB_PASSWORD}";
-      };
-    };
-
-    imgproxyService = {
-      image = "darthsim/imgproxy:v3.8.0";
-      restart = "unless-stopped";
-      environment = {
-        IMGPROXY_BIND = "0.0.0.0:5001";
-        IMGPROXY_LOCAL_FILESYSTEM_ROOT = "/";
-        IMGPROXY_USE_ETAG = "true";
-        IMGPROXY_ENABLE_WEBP_DETECTION = "true";
-      };
-      volumes = ["./storage:/var/lib/storage:ro"];
-    };
-
-    analyticsService = {
-      image = "supabase/logflare:1.14.2";
-      restart = "unless-stopped";
-      depends_on = ["db"];
-      environment = {
-        LOGFLARE_NODE_HOST = "127.0.0.1";
-        DB_USERNAME = "postgres";
-        DB_PASSWORD = "\${DB_PASSWORD}";
-        DB_DATABASE = "postgres";
-        DB_HOSTNAME = "db";
-        DB_PORT = "5432";
-        LOGFLARE_API_KEY = "your-super-secret-and-long-logflare-key";
-        LOGFLARE_SINGLE_TENANT = "true";
-        LOGFLARE_SUPABASE_MODE = "true";
-        LOGFLARE_MIN_CLUSTER_SIZE = "1";
-      };
-      ports = ["${toString (port + 2)}:4000"];
-    };
-
-    dbService = {
-      image = "supabase/postgres:15.8.1.060";
-      command = [
-        "postgres"
-        "-c"
-        "config_file=/etc/postgresql/postgresql.conf"
-        "-c"
-        "log_min_messages=fatal"
-      ];
-      restart = "unless-stopped";
-      ports = ["${toString (port + 3)}:5432"];
-      environment = {
-        POSTGRES_HOST = "/var/run/postgresql";
-        PGPORT = "5432";
-        POSTGRES_PORT = "5432";
-        PGDATABASE = "postgres";
-        POSTGRES_DB = "postgres";
-        POSTGRES_USER = "postgres";
-        POSTGRES_PASSWORD = "\${DB_PASSWORD}";
-        JWT_EXP = "3600";
-        JWT_SECRET = "\${JWT_SECRET}";
-      };
-      volumes = [
-        "./db/data:/var/lib/postgresql/data"
-        "./db/init:/docker-entrypoint-initdb.d"
-      ];
-    };
-
-    # Filter services based on configuration (apply conditionals here)
-    enabledServices =
-      lib.filterAttrs (
-        name: service:
-          if name == "kong"
-          then instanceCfg.services.restApi
-          else if name == "auth"
-          then instanceCfg.services.auth
-          else if name == "rest"
-          then instanceCfg.services.restApi
-          else if name == "realtime"
-          then instanceCfg.services.realtime
-          else if name == "storage"
-          then instanceCfg.services.storage
-          else true # Enable db, studio, meta, imgproxy, analytics by default
-      ) {
-        db = dbService;
-        kong = kongService;
-        auth = authService;
-        rest = restService;
-        realtime = realtimeService;
-        storage = storageService;
-        studio = studioService;
-        meta = metaService;
-        imgproxy = imgproxyService;
-        analytics = analyticsService;
-      };
-
-    # Compose configuration as Nix attribute set
-    composeConfig = {
-      version = "3.8";
-      services = enabledServices;
-      networks.default = {
-        name = "supabase-${name}";
-      };
-    };
-  in
-    lib.generators.toYAML {} composeConfig;
+  # Generate tmpfiles rules for an instance
+  generateTmpfilesRules = name: instanceCfg: config: let
+    baseDir = "/var/lib/supabase-${name}";
+    # Create .env file in the store
+    envFile = pkgs.writeText "supabase-${name}.env" (generateEnvFile name instanceCfg config);
+  in [
+    # Create base directory structure
+    "d ${baseDir} 0755 root root -"
+    "d ${baseDir}/volumes 0755 root root -"
+    "d ${baseDir}/volumes/storage 0777 root root -"
+    "d ${baseDir}/volumes/db 0755 root root -"
+    "d ${baseDir}/volumes/db/data 0777 root root -"
+    "d ${baseDir}/volumes/db/init 0755 root root -"
+    "d ${baseDir}/volumes/functions 0755 root root -"
+    "d ${baseDir}/volumes/functions/hello 0755 root root -"
+    "d ${baseDir}/volumes/functions/main 0755 root root -"
+    "d ${baseDir}/volumes/logs 0755 root root -"
+    
+    # Copy docker-compose.yml
+    "L+ ${baseDir}/docker-compose.yml - - - - ${./files/docker-compose.yml}"
+    
+    # Copy kong.yml (environment variables will be substituted by Kong at runtime)
+    "L+ ${baseDir}/kong.yml - - - - ${./files/volumes/api/kong.yml}"
+    
+    # Copy function files
+    "L+ ${baseDir}/volumes/functions/hello/index.ts - - - - ${./files/functions/hello/index.ts}"
+    "L+ ${baseDir}/volumes/functions/main/index.ts - - - - ${./files/functions/main/index.ts}"
+    
+    # Copy database initialization files
+    "L+ ${baseDir}/volumes/db/logs.sql - - - - ${./files/volumes/db/logs.sql}"
+    "L+ ${baseDir}/volumes/db/pooler.sql - - - - ${./files/volumes/db/pooler.sql}"
+    "L+ ${baseDir}/volumes/db/realtime.sql - - - - ${./files/volumes/db/realtime.sql}"
+    "L+ ${baseDir}/volumes/db/webhooks.sql - - - - ${./files/volumes/db/webhooks.sql}"
+    "L+ ${baseDir}/volumes/db/_supabase.sql - - - - ${./files/volumes/db/_supabase.sql}"
+    "L+ ${baseDir}/volumes/db/init/data.sql - - - - ${./files/volumes/db/init/data.sql}"
+    
+    # Note: vector.yml must be copied as a real file in ExecStartPre, as Docker cannot mount symlinks
+    
+    # Copy .env file
+    "L+ ${baseDir}/.env - - - - ${envFile}"
+  ];
 in {
+  inherit generateTmpfilesRules;
+  
   # Generate systemd service for an instance
   generateService = name: instanceCfg: config: let
-    dockerComposeContent = generateDockerCompose name instanceCfg config;
+    containerBackend = config.constellation.supabase.containerBackend;
+    containerService = "${containerBackend}.service";
   in {
     description = "Supabase instance: ${name}";
-    after = ["network.target" "postgresql.service" "podman.service"];
+    after = ["network.target" "postgresql.service" containerService];
     wants = ["postgresql.service"];
     wantedBy = ["multi-user.target"];
 
@@ -253,54 +114,68 @@ in {
       StateDirectory = "supabase-${name}";
       StateDirectoryMode = "0755";
 
-      # Load all secret files as environment variables
-      EnvironmentFile = [
-        config.age.secrets.${instanceCfg.jwtSecret}.path
-        config.age.secrets.${instanceCfg.anonKey}.path
-        config.age.secrets.${instanceCfg.serviceKey}.path
-        config.age.secrets.${instanceCfg.dbPassword}.path
-      ];
+      # Load the complete .env file as environment variables
+      EnvironmentFile = config.age.secrets.${instanceCfg.envFile}.path;
 
-      # Use podman-compose to manage the Supabase stack
+      # Use docker-compose to manage the Supabase stack
       ExecStartPre = [
-        # Generate docker-compose file and copy configuration files
-        "${pkgs.writeShellScript "generate-compose-${name}" ''
-          # Create directory structure
-          mkdir -p /var/lib/supabase-${name}/{storage,db/data,db/init}
-
-          # Generate docker-compose.yml
-          cat > /var/lib/supabase-${name}/docker-compose.yml << 'EOF'
-          ${dockerComposeContent}
-          EOF
-
-          # Copy Kong configuration (remove directory if it exists, then copy file)
-          rm -rf /var/lib/supabase-${name}/kong.yml
-          cp ${kongConfig} /var/lib/supabase-${name}/kong.yml
-          chmod 644 /var/lib/supabase-${name}/kong.yml
-
-          # Set proper permissions for container storage
-          chown -R root:root /var/lib/supabase-${name}
-          chmod -R 755 /var/lib/supabase-${name}
-          chmod 755 /var/lib/supabase-${name}/storage /var/lib/supabase-${name}/db/data
+        # Copy vector.yml as a real file (Docker cannot mount symlinks)
+        "${pkgs.writeShellScript "setup-vector-${name}" ''
+          # Remove existing symlink if present
+          rm -f /var/lib/supabase-${name}/volumes/logs/vector.yml
+          # Copy as a real file
+          cp ${./files/volumes/logs/vector.yml} /var/lib/supabase-${name}/volumes/logs/vector.yml
+          chmod 644 /var/lib/supabase-${name}/volumes/logs/vector.yml
         ''}"
         # Pull images
         "${pkgs.writeShellScript "pull-images-${name}" ''
-          export PATH=${lib.makeBinPath [pkgs.podman pkgs.podman-compose]}:$PATH
-          export STORAGE_DRIVER=overlay
-          ${pkgs.podman-compose}/bin/podman-compose -f /var/lib/supabase-${name}/docker-compose.yml pull
+          export PATH=${lib.makeBinPath [pkgs.${containerBackend} pkgs.docker-compose]}:$PATH
+          ${
+            if containerBackend == "podman" 
+            then "export DOCKER_HOST=unix:///run/podman/podman.sock"
+            else ""
+          }
+          cd /var/lib/supabase-${name}
+          # Source both .env files for docker-compose
+          set -a
+          source .env
+          source ${config.age.secrets.${instanceCfg.envFile}.path}
+          # Kong expects these specific variable names
+          export SUPABASE_ANON_KEY="$ANON_KEY"
+          export SUPABASE_SERVICE_KEY="$SERVICE_ROLE_KEY"
+          set +a
+          ${pkgs.docker-compose}/bin/docker-compose pull
         ''}"
       ];
 
       ExecStart = "${pkgs.writeShellScript "start-supabase-${name}" ''
-        export PATH=${lib.makeBinPath [pkgs.podman pkgs.podman-compose]}:$PATH
+        export PATH=${lib.makeBinPath [pkgs.${containerBackend} pkgs.docker-compose]}:$PATH
+        ${
+          if containerBackend == "podman" 
+          then "export DOCKER_HOST=unix:///run/podman/podman.sock"
+          else ""
+        }
         # Ensure environment variables are available for docker-compose interpolation
         cd /var/lib/supabase-${name}
-        ${pkgs.podman-compose}/bin/podman-compose -f docker-compose.yml up
+        # Source the .env files for docker-compose
+        set -a
+        source .env
+        source ${config.age.secrets.${instanceCfg.envFile}.path}
+        # Kong expects these specific variable names
+        export SUPABASE_ANON_KEY="$ANON_KEY"
+        export SUPABASE_SERVICE_KEY="$SERVICE_ROLE_KEY"
+        set +a
+        ${pkgs.docker-compose}/bin/docker-compose -f docker-compose.yml up
       ''}";
       ExecStop = "${pkgs.writeShellScript "stop-supabase-${name}" ''
-        export PATH=${lib.makeBinPath [pkgs.podman pkgs.podman-compose]}:$PATH
+        export PATH=${lib.makeBinPath [pkgs.${containerBackend} pkgs.docker-compose]}:$PATH
+        ${
+          if containerBackend == "podman" 
+          then "export DOCKER_HOST=unix:///run/podman/podman.sock"
+          else ""
+        }
         cd /var/lib/supabase-${name}
-        ${pkgs.podman-compose}/bin/podman-compose -f docker-compose.yml down
+        ${pkgs.docker-compose}/bin/docker-compose -f docker-compose.yml down
       ''}";
 
       Restart = "always";
@@ -311,7 +186,7 @@ in {
       ProtectSystem = false;
       ProtectHome = false;
       PrivateTmp = false;
-      ReadWritePaths = ["/var/lib/supabase-${name}" "/var/lib/containers" "/run/user" "/tmp"];
+      ReadWritePaths = ["/var/lib/supabase-${name}" "/var/lib/containers" "/run/${containerBackend}" "/tmp"];
     };
   };
 }

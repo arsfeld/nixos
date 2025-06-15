@@ -20,6 +20,12 @@ in {
   options.constellation.supabase = {
     enable = mkEnableOption "Supabase instances";
 
+    containerBackend = mkOption {
+      type = types.enum ["podman" "docker"];
+      default = config.virtualisation.oci-containers.backend;
+      description = "Container backend to use (podman or docker)";
+    };
+
     defaultDomain = mkOption {
       type = types.str;
       default = config.media.config.domain or "localhost";
@@ -53,29 +59,11 @@ in {
             description = "Log level for this instance";
           };
 
-          # Secret references (agenix secret names)
-          jwtSecret = mkOption {
+          # Secret reference (agenix secret name for .env file)
+          envFile = mkOption {
             type = types.str;
-            description = "Name of agenix secret containing JWT secret";
-            example = "supabase-prod-jwt";
-          };
-
-          anonKey = mkOption {
-            type = types.str;
-            description = "Name of agenix secret containing anon key";
-            example = "supabase-prod-anon";
-          };
-
-          serviceKey = mkOption {
-            type = types.str;
-            description = "Name of agenix secret containing service key";
-            example = "supabase-prod-service";
-          };
-
-          dbPassword = mkOption {
-            type = types.str;
-            description = "Name of agenix secret containing database password";
-            example = "supabase-prod-dbpass";
+            description = "Name of agenix secret containing the complete .env file";
+            example = "supabase-prod-env";
           };
 
           # Storage configuration
@@ -144,6 +132,13 @@ in {
     # Generate systemd services for each instance
     systemd.services = utils.generateSystemdServices cfg.instances instanceUtils;
 
+    # Generate tmpfiles rules for all instances
+    systemd.tmpfiles.rules = flatten (
+      mapAttrsToList (name: instanceCfg:
+        if instanceCfg.enable then instanceUtils.generateTmpfilesRules name instanceCfg config else []
+      ) cfg.instances
+    );
+
     # Generate users and groups for instances
     users = utils.generateUsers cfg.instances;
 
@@ -153,17 +148,19 @@ in {
     # Open firewall ports for instances
     networking.firewall.allowedTCPPorts = utils.getInstancePorts cfg.instances;
 
-    # Enable podman for container management
-    virtualisation.podman = {
-      enable = true;
-      dockerCompat = true;
-      defaultNetwork.settings.dns_enabled = true;
+    # Container backend is handled by constellation.podman or constellation.docker module
+    # Enable socket for docker-compose compatibility
+    systemd.sockets = mkIf (cfg.containerBackend == "podman") {
+      podman = {
+        enable = true;
+        wantedBy = ["sockets.target"];
+      };
     };
 
     # Environment packages
     environment.systemPackages = with pkgs; [
       postgresql_17_jit
-      podman-compose
+      docker-compose
       jq
     ];
   };

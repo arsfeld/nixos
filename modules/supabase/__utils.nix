@@ -14,25 +14,10 @@ in {
   generateSecrets = instances: let
     enabledInstances = filterAttrs (name: cfg: cfg.enable) instances;
     secretsForInstance = name: instanceCfg: {
-      ${instanceCfg.jwtSecret} = {
-        file = "${self}/secrets/${instanceCfg.jwtSecret}.age";
+      ${instanceCfg.envFile} = {
+        file = "${self}/secrets/${instanceCfg.envFile}.age";
         mode = "400";
-        owner = "supabase-${name}";
-      };
-      ${instanceCfg.anonKey} = {
-        file = "${self}/secrets/${instanceCfg.anonKey}.age";
-        mode = "400";
-        owner = "supabase-${name}";
-      };
-      ${instanceCfg.serviceKey} = {
-        file = "${self}/secrets/${instanceCfg.serviceKey}.age";
-        mode = "400";
-        owner = "supabase-${name}";
-      };
-      ${instanceCfg.dbPassword} = {
-        file = "${self}/secrets/${instanceCfg.dbPassword}.age";
-        mode = "400";
-        owner = "root"; # Database password needs to be readable by root for docker
+        owner = "root"; # Needs to be readable by root for docker
       };
     };
   in
@@ -92,13 +77,15 @@ in {
   # Generate users and groups for instances
   generateUsers = instances: let
     enabledInstances = filterAttrs (name: cfg: cfg.enable) instances;
+    containerBackend = config.constellation.supabase.containerBackend;
+    containerGroup = if containerBackend == "docker" then "docker" else "podman";
     users =
       mapAttrs' (name: instanceCfg: {
         name = "supabase-${name}";
         value = {
           isSystemUser = true;
           group = "supabase-${name}";
-          extraGroups = ["podman"];
+          extraGroups = [containerGroup];
           home = "/var/lib/supabase-${name}";
           createHome = true;
         };

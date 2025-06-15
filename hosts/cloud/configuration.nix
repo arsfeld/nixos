@@ -10,7 +10,7 @@
     ./containers.nix
   ];
 
-  constellation.podman.enable = true;
+  constellation.docker.enable = true;
   constellation.sites.arsfeld-dev.enable = true;
   constellation.sites.rosenfeld-one.enable = true;
   constellation.blog = {
@@ -38,10 +38,7 @@
         enable = true;
         subdomain = "finaro-api";
         port = 8080; # Explicit port since we'll handle routing manually
-        jwtSecret = "supabase-finaro-jwt";
-        anonKey = "supabase-finaro-anon";
-        serviceKey = "supabase-finaro-service";
-        dbPassword = "supabase-finaro-dbpass";
+        envFile = "supabase-finaro-env";
 
         storage = {
           enable = true;
