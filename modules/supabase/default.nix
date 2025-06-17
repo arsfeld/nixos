@@ -134,9 +134,13 @@ in {
 
     # Generate tmpfiles rules for all instances
     systemd.tmpfiles.rules = flatten (
-      mapAttrsToList (name: instanceCfg:
-        if instanceCfg.enable then instanceUtils.generateTmpfilesRules name instanceCfg config else []
-      ) cfg.instances
+      mapAttrsToList (
+        name: instanceCfg:
+          if instanceCfg.enable
+          then instanceUtils.generateTmpfilesRules name instanceCfg config
+          else []
+      )
+      cfg.instances
     );
 
     # Generate users and groups for instances

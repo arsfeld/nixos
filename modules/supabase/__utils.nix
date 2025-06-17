@@ -78,7 +78,10 @@ in {
   generateUsers = instances: let
     enabledInstances = filterAttrs (name: cfg: cfg.enable) instances;
     containerBackend = config.constellation.supabase.containerBackend;
-    containerGroup = if containerBackend == "docker" then "docker" else "podman";
+    containerGroup =
+      if containerBackend == "docker"
+      then "docker"
+      else "podman";
     users =
       mapAttrs' (name: instanceCfg: {
         name = "supabase-${name}";
