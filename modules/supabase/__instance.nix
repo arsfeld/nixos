@@ -15,39 +15,39 @@ with lib; let
     # Instance-specific configuration
     INSTANCE_NAME=${name}
     INSTANCE_PORT=${toString port}
-    
+
     # Public URLs
     SUPABASE_PUBLIC_URL=https://${instanceCfg.subdomain}.${domain}
     API_EXTERNAL_URL=https://${instanceCfg.subdomain}.${domain}
-    
+
     # Ports
     KONG_HTTP_PORT=${toString port}
     STUDIO_PORT=${toString (port + 1)}
     ANALYTICS_PORT=${toString (port + 2)}
     POSTGRES_PORT=${toString (port + 3)}
-    
+
     # Studio configuration
     STUDIO_DEFAULT_ORGANIZATION=${instanceCfg.subdomain}
     STUDIO_DEFAULT_PROJECT=${instanceCfg.subdomain}
-    
+
     # Logging
     GOTRUE_LOG_LEVEL=${instanceCfg.logLevel}
     PGRST_LOG_LEVEL=${instanceCfg.logLevel}
-    
+
     # Storage
     GLOBAL_S3_BUCKET=${instanceCfg.storage.bucket}
-    
+
     # Site URL for Auth
     GOTRUE_SITE_URL=https://${instanceCfg.subdomain}.${domain}
     SITE_URL=https://${instanceCfg.subdomain}.${domain}
-    
+
     # Postgres configuration
     POSTGRES_DB=postgres
-    
+
     # Analytics tokens (these should be randomized per instance in production)
     LOGFLARE_PUBLIC_ACCESS_TOKEN=your-super-secret-and-long-logflare-key-public
     LOGFLARE_PRIVATE_ACCESS_TOKEN=your-super-secret-and-long-logflare-key-private
-    
+
     # Container prefix
     COMPOSE_PROJECT_NAME=supabase-${name}
   '';
@@ -69,17 +69,17 @@ with lib; let
     "d ${baseDir}/volumes/functions/hello 0755 root root -"
     "d ${baseDir}/volumes/functions/main 0755 root root -"
     "d ${baseDir}/volumes/logs 0755 root root -"
-    
+
     # Copy docker-compose.yml
     "L+ ${baseDir}/docker-compose.yml - - - - ${./files/docker-compose.yml}"
-    
+
     # Copy kong.yml (environment variables will be substituted by Kong at runtime)
     "L+ ${baseDir}/kong.yml - - - - ${./files/volumes/api/kong.yml}"
-    
+
     # Copy function files
     "L+ ${baseDir}/volumes/functions/hello/index.ts - - - - ${./files/functions/hello/index.ts}"
     "L+ ${baseDir}/volumes/functions/main/index.ts - - - - ${./files/functions/main/index.ts}"
-    
+
     # Copy database initialization files
     "L+ ${baseDir}/volumes/db/logs.sql - - - - ${./files/volumes/db/logs.sql}"
     "L+ ${baseDir}/volumes/db/pooler.sql - - - - ${./files/volumes/db/pooler.sql}"
@@ -87,15 +87,15 @@ with lib; let
     "L+ ${baseDir}/volumes/db/webhooks.sql - - - - ${./files/volumes/db/webhooks.sql}"
     "L+ ${baseDir}/volumes/db/_supabase.sql - - - - ${./files/volumes/db/_supabase.sql}"
     "L+ ${baseDir}/volumes/db/init/data.sql - - - - ${./files/volumes/db/init/data.sql}"
-    
+
     # Note: vector.yml must be copied as a real file in ExecStartPre, as Docker cannot mount symlinks
-    
+
     # Copy .env file
     "L+ ${baseDir}/.env - - - - ${envFile}"
   ];
 in {
   inherit generateTmpfilesRules;
-  
+
   # Generate systemd service for an instance
   generateService = name: instanceCfg: config: let
     containerBackend = config.constellation.supabase.containerBackend;
@@ -131,7 +131,7 @@ in {
         "${pkgs.writeShellScript "pull-images-${name}" ''
           export PATH=${lib.makeBinPath [pkgs.${containerBackend} pkgs.docker-compose]}:$PATH
           ${
-            if containerBackend == "podman" 
+            if containerBackend == "podman"
             then "export DOCKER_HOST=unix:///run/podman/podman.sock"
             else ""
           }
@@ -151,7 +151,7 @@ in {
       ExecStart = "${pkgs.writeShellScript "start-supabase-${name}" ''
         export PATH=${lib.makeBinPath [pkgs.${containerBackend} pkgs.docker-compose]}:$PATH
         ${
-          if containerBackend == "podman" 
+          if containerBackend == "podman"
           then "export DOCKER_HOST=unix:///run/podman/podman.sock"
           else ""
         }
@@ -170,7 +170,7 @@ in {
       ExecStop = "${pkgs.writeShellScript "stop-supabase-${name}" ''
         export PATH=${lib.makeBinPath [pkgs.${containerBackend} pkgs.docker-compose]}:$PATH
         ${
-          if containerBackend == "podman" 
+          if containerBackend == "podman"
           then "export DOCKER_HOST=unix:///run/podman/podman.sock"
           else ""
         }
