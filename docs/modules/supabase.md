@@ -1,371 +1,254 @@
-# Supabase Module
+# Dynamic Supabase Instance Management
 
 ## Overview
 
-The Supabase module provides a generic, scalable way to host multiple Supabase instances on a single host. It integrates with the existing constellation architecture, gateway system, and agenix secret management to provide a streamlined deployment experience.
+This document outlines a new approach for managing Supabase instances dynamically on NixOS hosts, moving away from the current static NixOS module approach to a more flexible system that allows creating and managing instances at runtime.
+
+## Goals
+
+1. Remove Supabase configuration from NixOS repository
+2. Enable dynamic creation/deletion of Supabase instances
+3. Manage instances directly on the host system
+4. Automatically configure Caddy reverse proxy for new instances
+5. Maintain security through proper secret management
 
 ## Architecture
 
-### Module Structure
+### Components
+
+1. **Supabase Manager TUI** (`/usr/local/bin/supabase-manager`)
+   - Terminal UI application written in Python
+   - Self-contained with uv inline dependencies
+   - Downloads Supabase Docker files from GitHub
+   - Creates instance directories
+   - Generates and manages secrets
+   - Configures Docker Compose
+   - Manages instance lifecycle
+   - Real-time monitoring and logs
+
+2. **Instance Storage** (`/var/lib/supabase/instances/`)
+   - Each instance gets its own directory
+   - Contains docker-compose.yml and configuration
+   - Stores instance-specific secrets
+
+3. **Caddy Integration**
+   - Dynamic configuration directory watched by Caddy
+   - Per-instance Caddyfile snippets
+   - Automatic SSL with wildcard certificates
+
+4. **State Management** (`/var/lib/supabase/state.json`)
+   - Tracks all instances
+   - Stores metadata (creation date, URLs, etc.)
+   - Used for listing and management
+
+### Directory Structure
+
 ```
-modules/supabase/
-├── default.nix          # Main module configuration
-├── instance.nix         # Individual instance configuration
-├── secrets.nix          # Secret management automation
-└── scripts/
-    ├── create-instance   # Instance creation script
-    ├── update-secret     # Secret update script
-    └── delete-instance   # Instance cleanup script
+/var/lib/supabase/
+├── instances/
+│   ├── project1/
+│   │   ├── docker-compose.yml
+│   │   ├── .env
+│   │   ├── volumes/
+│   │   └── kong.yml
+│   └── project2/
+│       └── ...
+├── caddy/
+│   ├── project1.conf
+│   └── project2.conf
+├── state.json
+└── templates/
+    └── (cached Supabase files)
 ```
-
-### Key Components
-
-1. **Multi-Instance Management**: Support for multiple Supabase instances per host
-2. **Gateway Integration**: Automatic subdomain routing via media gateway
-3. **Secret Automation**: Automated secret generation and management
-4. **Database Isolation**: Separate PostgreSQL databases per instance
-5. **Configuration Templates**: Pre-configured settings for common use cases
-
-## Configuration
-
-### Basic Usage
-
-```nix
-# hosts/cloud/configuration.nix
-{
-  imports = [ ../../modules/supabase ];
-  
-  constellation.supabase.enable = true;
-  
-  constellation.supabase.instances = {
-    # Production instance
-    prod = {
-      enable = true;
-      subdomain = "supabase";           # supabase.rosenfeld.one
-      jwtSecret = "supabase-prod-jwt";  # Reference to agenix secret
-      anonKey = "supabase-prod-anon";   # Reference to agenix secret
-      serviceKey = "supabase-prod-service"; # Reference to agenix secret
-      databaseUrl = "supabase-prod-db"; # Reference to agenix secret
-    };
-    
-    # Development instance
-    dev = {
-      enable = true;
-      subdomain = "supabase-dev";       # supabase-dev.rosenfeld.one
-      jwtSecret = "supabase-dev-jwt";
-      anonKey = "supabase-dev-anon";
-      serviceKey = "supabase-dev-service";
-      databaseUrl = "supabase-dev-db";
-    };
-  };
-}
-```
-
-### Instance Options
-
-Each instance supports the following configuration:
-
-```nix
-{
-  enable = true;                    # Enable this instance
-  subdomain = "supabase";          # Subdomain for gateway routing
-  
-  # Secret references (agenix secret names)
-  jwtSecret = "supabase-jwt";      # JWT secret for authentication
-  anonKey = "supabase-anon";       # Anonymous API key
-  serviceKey = "supabase-service"; # Service role API key
-  databaseUrl = "supabase-db";     # PostgreSQL connection string
-  
-  # Optional configuration
-  port = 8000;                     # Custom port (auto-assigned if not specified)
-  logLevel = "info";               # Log level (debug, info, warn, error)
-  
-  # Database configuration
-  database = {
-    name = "supabase_prod";        # Database name (defaults to instance name)
-    user = "supabase";             # Database user
-    createDatabase = true;         # Auto-create database
-  };
-  
-  # Storage configuration
-  storage = {
-    enable = true;                 # Enable storage service
-    bucket = "supabase-storage";   # Default storage bucket
-  };
-  
-  # Additional services
-  services = {
-    realtime = true;               # Enable realtime subscriptions
-    auth = true;                   # Enable authentication service
-    restApi = true;                # Enable REST API
-    storage = true;                # Enable storage service
-  };
-}
-```
-
-## Secret Management
-
-### Automated Secret Generation
-
-The module provides scripts to automate secret management:
-
-```bash
-# Create a new instance with auto-generated secrets
-just supabase-create prod
-
-# Update secrets for an existing instance
-just supabase-update-secret prod jwt
-
-# Rotate all secrets for an instance
-just supabase-rotate-secrets prod
-```
-
-### Secret Structure
-
-Each instance requires four secrets:
-
-1. **JWT Secret**: Used for signing JWT tokens
-2. **Anon Key**: Public API key for client-side access
-3. **Service Key**: Server-side API key with elevated permissions
-4. **Database URL**: PostgreSQL connection string
-
-### Agenix Integration
-
-Secrets are automatically added to `secrets/secrets.nix`:
-
-```nix
-{
-  # Supabase secrets
-  "supabase-prod-jwt.age".publicKeys = users ++ [cloud];
-  "supabase-prod-anon.age".publicKeys = users ++ [cloud];
-  "supabase-prod-service.age".publicKeys = users ++ [cloud];
-  "supabase-prod-db.age".publicKeys = users ++ [cloud];
-  
-  "supabase-dev-jwt.age".publicKeys = users ++ [cloud];
-  "supabase-dev-anon.age".publicKeys = users ++ [cloud];
-  "supabase-dev-service.age".publicKeys = users ++ [cloud];
-  "supabase-dev-db.age".publicKeys = users ++ [cloud];
-}
-```
-
-## Gateway Integration
-
-### Automatic Routing
-
-The module automatically registers instances with the media gateway:
-
-```nix
-# Automatically generated gateway configuration
-media.gateway.services = {
-  supabase-prod = {
-    enable = true;
-    host = "127.0.0.1";
-    port = 8000;
-    subdomain = "supabase";
-    settings = {
-      reverse_proxy = true;
-      websocket_support = true;
-    };
-  };
-  
-  supabase-dev = {
-    enable = true;
-    host = "127.0.0.1";
-    port = 8001;
-    subdomain = "supabase-dev";
-    settings = {
-      reverse_proxy = true;
-      websocket_support = true;
-    };
-  };
-};
-```
-
-### SSL/TLS Configuration
-
-SSL certificates are automatically managed through the gateway's ACME integration.
-
-## Database Management
-
-### PostgreSQL Integration
-
-Each instance gets its own PostgreSQL database:
-
-```nix
-services.postgresql = {
-  enable = true;
-  databases = [
-    "supabase_prod"
-    "supabase_dev"
-  ];
-  
-  users = [
-    {
-      name = "supabase_prod";
-      database = "supabase_prod";
-      passwordFile = "/path/to/secret";
-    }
-    {
-      name = "supabase_dev";
-      database = "supabase_dev";
-      passwordFile = "/path/to/secret";
-    }
-  ];
-};
-```
-
-### Database Isolation
-
-Each instance operates with:
-- Separate database
-- Separate user account
-- Isolated permissions
-- Independent backups
-
-## Automation Scripts
-
-### Just Commands
-
-Add to `justfile`:
-
-```bash
-# Supabase management commands
-supabase-create INSTANCE:
-    scripts/supabase/create-instance {{INSTANCE}}
-
-supabase-delete INSTANCE:
-    scripts/supabase/delete-instance {{INSTANCE}}
-
-supabase-update-secret INSTANCE SECRET:
-    scripts/supabase/update-secret {{INSTANCE}} {{SECRET}}
-
-supabase-rotate-secrets INSTANCE:
-    scripts/supabase/rotate-secrets {{INSTANCE}}
-
-supabase-status:
-    scripts/supabase/status
-```
-
-### Script Functionality
-
-1. **create-instance**: 
-   - Generates all required secrets
-   - Updates agenix configuration
-   - Creates database
-   - Encrypts and stores secrets
-   - Updates NixOS configuration
-
-2. **update-secret**:
-   - Regenerates specific secret
-   - Re-encrypts with agenix
-   - Triggers configuration rebuild
-
-3. **delete-instance**:
-   - Removes secrets from agenix
-   - Drops database
-   - Cleans up configuration
-
-4. **rotate-secrets**:
-   - Regenerates all secrets for an instance
-   - Maintains service continuity
 
 ## Implementation Plan
 
-### Phase 1: Core Module
-- [x] Analyze existing patterns
-- [x] Design module structure
-- [ ] Implement basic module (`modules/supabase/default.nix`)
-- [ ] Create instance configuration (`modules/supabase/instance.nix`)
+### Phase 1: Terminal UI Application
 
-### Phase 2: Secret Management
-- [ ] Implement secret generation scripts
-- [ ] Create agenix integration (`modules/supabase/secrets.nix`)
-- [ ] Add just commands to justfile
+1. **Technology Stack**:
+   - Python with uv for dependency management
+   - Rich/Textual for terminal UI
+   - Click for CLI framework
+   - Docker SDK for container management
+   - Shebang script with inline dependencies
 
-### Phase 3: Gateway Integration
-- [ ] Integrate with media gateway
-- [ ] Add automatic service registration
-- [ ] Configure SSL/TLS handling
+2. **UI Features**:
+   - **Dashboard View**:
+     - List all instances with status indicators
+     - Show resource usage (CPU, memory, disk)
+     - Quick actions (start/stop/restart)
+   - **Instance Detail View**:
+     - Container status for all services
+     - Real-time logs viewer
+     - Environment variables editor
+     - Database connection info
+     - API endpoints and keys
+   - **Create Instance Wizard**:
+     - Name validation
+     - Advanced options (custom ports, resource limits)
+     - Secret generation preview
+   - **Monitoring View**:
+     - Resource graphs
+     - Request metrics
+     - Error logs
 
-### Phase 4: Database Management
-- [ ] Implement PostgreSQL integration
-- [ ] Add database creation/management
-- [ ] Configure backup integration
+3. **Script Header Example**:
+   ```python
+   #!/usr/bin/env -S uv run --quiet --script
+   # /// script
+   # dependencies = [
+   #   "textual>=0.47.0",
+   #   "docker>=7.0.0",
+   #   "rich>=13.0.0",
+   #   "httpx>=0.25.0",
+   #   "pyyaml>=6.0",
+   # ]
+   # ///
+   ```
 
-### Phase 5: Testing & Documentation
-- [ ] Test with cloud host
-- [ ] Create usage examples
-- [ ] Document troubleshooting
+### Phase 2: NixOS Integration
 
-## Usage Examples
+1. **Minimal NixOS Module** (`modules/supabase-dynamic.nix`):
+   ```nix
+   {
+     # Install docker and docker-compose
+     virtualisation.docker.enable = true;
+     
+     # Install management script
+     environment.systemPackages = [ supabase-manager ];
+     
+     # Create required directories
+     systemd.tmpfiles.rules = [
+       "d /var/lib/supabase 0755 root root -"
+       "d /var/lib/supabase/instances 0755 root root -"
+       "d /var/lib/supabase/caddy 0755 root root -"
+     ];
+     
+     # Configure Caddy to watch dynamic config
+     services.caddy = {
+       enable = true;
+       extraConfig = ''
+         import /var/lib/supabase/caddy/*.conf
+       '';
+     };
+   }
+   ```
 
-### Creating a New Instance
+2. **Systemd Services**:
+   - Service to ensure instances start on boot
+   - Timer for periodic updates/maintenance
 
-```bash
-# Create production instance
-just supabase-create prod
+### Phase 3: Caddy Configuration
 
-# This will:
-# 1. Generate JWT secret, anon key, service key, and database URL
-# 2. Encrypt secrets with agenix
-# 3. Update secrets.nix
-# 4. Create PostgreSQL database
-# 5. Update configuration to enable the instance
+Each instance gets a Caddy config file using flat subdomain structure:
+```
+project1.arsfeld.dev {
+  reverse_proxy localhost:8000
+}
+
+project1-studio.arsfeld.dev {
+  reverse_proxy localhost:3000
+}
+
+project1-mail.arsfeld.dev {
+  reverse_proxy localhost:54324
+}
 ```
 
-### Updating Configuration
+### Phase 4: Secret Management
 
-```nix
-# Add to hosts/cloud/configuration.nix
-constellation.supabase.instances.prod = {
-  enable = true;
-  subdomain = "api";  # Change subdomain
-  logLevel = "debug"; # Enable debug logging
-  
-  # Enable additional services
-  services.realtime = true;
-  services.storage = true;
-};
-```
+1. Generate secrets on instance creation:
+   - JWT secret
+   - Anon key
+   - Service role key
+   - Database password
+   - Dashboard password
 
-### Accessing the Instance
+2. Store secrets in:
+   - Instance `.env` file (for Docker)
+   - Encrypted backup for disaster recovery
 
-After deployment:
-- Web Interface: `https://supabase.rosenfeld.one`
-- API Endpoint: `https://supabase.rosenfeld.one/rest/v1/`
-- Realtime: `wss://supabase.rosenfeld.one/realtime/v1/websocket`
+## Domain Strategy
+
+Using `*.arsfeld.dev` wildcard certificate, we'll use a flat subdomain hierarchy:
+- API: `project1.arsfeld.dev`
+- Studio: `project1-studio.arsfeld.dev`
+- Inbucket: `project1-mail.arsfeld.dev`
+
+This works perfectly with the wildcard certificate and keeps URLs simple.
+
+## Advantages
+
+- **Flexibility**: Add/remove instances without rebuilding NixOS
+- **Speed**: No need to deploy entire system for changes
+- **Isolation**: Each instance completely independent
+- **Simplicity**: Fewer NixOS abstractions
+- **Portability**: Easier to move instances between hosts
 
 ## Security Considerations
 
-1. **Secret Rotation**: Regular rotation of JWT secrets and API keys
-2. **Database Isolation**: Each instance has isolated database access
-3. **Network Security**: Services bound to localhost, exposed via gateway
-4. **Access Control**: Integration with Authelia for admin access
-5. **Backup Security**: Encrypted backups of databases and secrets
+1. **File Permissions**: Restrict access to instance directories
+2. **Network Isolation**: Use Docker networks per instance
+3. **Secret Rotation**: Built-in secret rotation capability
+4. **Audit Logging**: Log all management operations
+5. **Backup Encryption**: Encrypt all backups
 
-## Troubleshooting
-
-### Common Issues
-
-1. **Secret Decryption Errors**: Ensure host key is in secrets.nix
-2. **Database Connection**: Check PostgreSQL service status
-3. **Gateway Routing**: Verify subdomain configuration
-4. **Port Conflicts**: Use automatic port assignment
-
-### Debug Commands
+## Example Usage
 
 ```bash
-# Check service status
-systemctl status supabase-prod
+# Launch the TUI
+supabase-manager
 
-# View logs
-journalctl -u supabase-prod -f
-
-# Test database connection
-psql -h localhost -U supabase_prod -d supabase_prod
-
-# Verify secrets
-agenix -d secrets/supabase-prod-jwt.age
+# Direct CLI commands (bypasses TUI)
+supabase-manager create myproject
+supabase-manager list
+supabase-manager delete myproject
 ```
 
-This plan provides a comprehensive approach to implementing a generic, scalable Supabase module that integrates seamlessly with the existing NixOS constellation architecture.
+### TUI Navigation
+
+1. **Main Dashboard**:
+   ```
+   ┌─ Supabase Manager ─────────────────────────────┐
+   │ Instances (3)                      [+] Create  │
+   ├────────────────────────────────────────────────┤
+   │ ● project1    Running   CPU: 12%  MEM: 512MB  │
+   │ ● project2    Running   CPU: 8%   MEM: 384MB  │
+   │ ○ project3    Stopped   CPU: 0%   MEM: 0MB    │
+   └────────────────────────────────────────────────┘
+   [Enter] Details  [S] Start/Stop  [D] Delete  [Q] Quit
+   ```
+
+2. **Instance Details**:
+   ```
+   ┌─ project1 ─────────────────────────────────────┐
+   │ Status: Running                                │
+   │ Created: 2025-01-15 10:30                      │
+   │                                                │
+   │ URLs:                                          │
+   │   API:    https://project1.arsfeld.dev         │
+   │   Studio: https://project1-studio.arsfeld.dev  │
+   │   Mail:   https://project1-mail.arsfeld.dev    │
+   │                                                │
+   │ Containers:                                    │
+   │   ✓ project1-db         (postgres:15)          │
+   │   ✓ project1-kong       (kong:2.8)             │
+   │   ✓ project1-auth       (supabase/gotrue)      │
+   │   ✓ project1-realtime   (supabase/realtime)    │
+   │   ✓ project1-rest       (postgrest/postgrest)  │
+   │   ✓ project1-storage    (supabase/storage-api) │
+   │                                                │
+   │ [L] Logs  [E] Environment  [R] Restart  [B] Back │
+   └────────────────────────────────────────────────┘
+   ```
+
+## Future Enhancements
+
+1. Monitoring integration with Prometheus/Grafana
+2. Automated backups to S3/B2
+3. Multi-host support
+4. Resource limits per instance
+5. Usage metrics and billing
+6. Instance templates for common configurations
+7. Database migration tools
+8. SSL certificate management per instance
