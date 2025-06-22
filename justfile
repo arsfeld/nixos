@@ -58,6 +58,11 @@ deploy +TARGETS:
     set -euo pipefail # Enable strict error handling
     deploy {{ args }} --targets $(just _format-targets {{ TARGETS }})
 
+trace +TARGETS:
+    #!/usr/bin/env bash
+    set -euo pipefail # Enable strict error handling
+    deploy {{ args }} --targets $(just _format-targets {{ TARGETS }}) -- --show-trace
+
 build HOST:
     nix build '.#nixosConfigurations.{{ HOST }}.config.system.build.toplevel'
     attic push system result

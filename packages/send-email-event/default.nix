@@ -1,6 +1,5 @@
 {
   pkgs,
-  config,
   ...
 }: let
   pythonEnv = pkgs.python3.withPackages (ps: [

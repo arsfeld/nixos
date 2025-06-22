@@ -6,7 +6,7 @@
   ...
 }:
 with lib; let
-  sendEmailEvent = "${pkgs.send-email-event}/bin/send-email-event --email-from ${config.constellation.email.fromEmail} --email-to ${config.constellation.email.toEmail}";
+  sendEmailEvent = "${lib.getExe pkgs.send-email-event} --email-from ${config.constellation.email.fromEmail} --email-to ${config.constellation.email.toEmail}";
 in {
   options.constellation.email = with lib; {
     enable = mkOption {
