@@ -1,7 +1,4 @@
-{
-  pkgs,
-  ...
-}: let
+{pkgs, ...}: let
   pythonEnv = pkgs.python3.withPackages (ps: [
     ps.jinja2
     ps.mrml

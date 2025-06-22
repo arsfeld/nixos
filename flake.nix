@@ -149,7 +149,7 @@
             r2s.system = "aarch64-linux";
             raspi3.system = "aarch64-linux";
           };
-          
+
           mkDeploy = hostName: overrides: let
             defaults = {
               hostname = "${hostName}.bat-boa.ts.net";
