@@ -14,8 +14,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 EMAIL_TEMPLATE = os.environ.get(
-    "EMAIL_TEMPLATE", 
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "event-notification.mjml")
+    "EMAIL_TEMPLATE",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "event-notification.mjml"),
 )
 
 

@@ -7,15 +7,16 @@
 }: {
   # https://devenv.sh/packages/
   packages = with pkgs; [
-    git
-    just
-    attic-client
     alejandra
-    deploy-rs
+    attic-client
+    black
     colmena
+    deploy-rs
     disko
-    openssl
+    git
     jq
+    just
+    openssl
     inputs.agenix.packages."${pkgs.stdenv.system}".default
     inputs.disko.packages."${pkgs.stdenv.system}".default
 
