@@ -28,33 +28,10 @@
 
   media.config.enable = true;
 
-  # Supabase instances
-  constellation.supabase = {
+  # Enable dynamic Supabase management
+  services.supabase = {
     enable = true;
-    defaultDomain = "arsfeld.dev";
-
-    instances = {
-      finaro = {
-        enable = true;
-        subdomain = "finaro-api";
-        port = 8080; # Explicit port since we'll handle routing manually
-        envFile = "supabase-finaro-env";
-
-        storage = {
-          enable = true;
-          bucket = "finaro-storage";
-        };
-
-        services = {
-          realtime = true;
-          auth = true;
-          restApi = true;
-          storage = true;
-        };
-
-        logLevel = "info";
-      };
-    };
+    domain = "arsfeld.dev";
   };
 
   nixpkgs.hostPlatform = "aarch64-linux";
