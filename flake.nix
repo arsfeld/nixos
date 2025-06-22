@@ -1,30 +1,29 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    nixos-generators.url = "github:nix-community/nixos-generators";
-    disko.url = "github:nix-community/disko";
-    agenix.url = "github:ryantm/agenix";
-    home-manager.url = "github:nix-community/home-manager";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05"; # Core nixpkgs - stable 25.05
+    nixos-generators.url = "github:nix-community/nixos-generators"; # System image generators (ISO, SD card, etc.)
+    nixos-generators.inputs.nixpkgs.follows = "nixpkgs";
+    disko.url = "github:nix-community/disko"; # Declarative disk partitioning
+    disko.inputs.nixpkgs.follows = "nixpkgs";
+    agenix.url = "github:ryantm/agenix"; # Age-based secret management
+    agenix.inputs.nixpkgs.follows = "nixpkgs";
+    home-manager.url = "github:nix-community/home-manager/release-25.05"; # User environment management
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
-    nixos-hardware.url = "github:NixOS/nixos-hardware/master";
-    deploy-rs.url = "github:serokell/deploy-rs";
+    deploy-rs.url = "github:serokell/deploy-rs"; # Remote deployment tool
     deploy-rs.inputs.nixpkgs.follows = "nixpkgs";
-    flake-parts.url = "github:hercules-ci/flake-parts";
-    haumea.url = "github:nix-community/haumea";
-    devenv.url = "github:cachix/devenv";
-    devshell.url = "github:numtide/devshell";
-    devshell.inputs.nixpkgs.follows = "nixpkgs";
-    treefmt-nix.url = "github:numtide/treefmt-nix";
-    nix-flatpak.url = "github:gmodena/nix-flatpak";
-    tsnsrv.url = "github:arsfeld/tsnsrv";
-
-    nix-index-database.url = "github:nix-community/nix-index-database";
+    flake-parts.url = "github:hercules-ci/flake-parts"; # Flake framework for modular development
+    flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
+    haumea.url = "github:nix-community/haumea"; # File tree loader for Nix
+    haumea.inputs.nixpkgs.follows = "nixpkgs";
+    devenv.url = "github:cachix/devenv"; # Development environment manager
+    devenv.inputs.nixpkgs.follows = "nixpkgs";
+    nix-flatpak.url = "github:gmodena/nix-flatpak"; # Flatpak support for NixOS
+    tsnsrv.url = "github:arsfeld/tsnsrv"; # Tailscale name server
+    tsnsrv.inputs.nixpkgs.follows = "nixpkgs";
+    nix-index-database.url = "github:nix-community/nix-index-database"; # Faster command-not-found
     nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
-
-    eh5 = {
-      url = "github:EHfive/flakes";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    eh5.url = "github:EHfive/flakes"; # EH5's flake collection (fake-hwclock module)
+    eh5.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = {self, ...} @ inputs:
@@ -85,21 +84,16 @@
             {
               nixpkgs.overlays = [
                 (import ./overlays/python-packages.nix)
-                # This should work, but it doesn't
-                # (
-                #   final: prev: let
-                #   packages =  (inputs.haumea.lib.load {
-                #     src = ./packages;
-                #     loader = inputs.haumea.lib.loaders.callPackage;
-                #     transformer = inputs.haumea.lib.transformers.liftDefault;
-                #   }); in prev // builtins.trace packages packages
-                # )
-                # Add packages overlay
+                # Load packages from ./packages directory using haumea
                 (
                   final: prev: let
-                    packages = {
-                      send-email-event = final.callPackage ./packages/send-email-event {};
-                      check-stock = final.callPackage ./packages/check-stock {};
+                    packages = inputs.haumea.lib.load {
+                      src = ./packages;
+                      loader = inputs.haumea.lib.loaders.callPackage;
+                      transformer = inputs.haumea.lib.transformers.liftDefault;
+                      inputs = {
+                        inherit (final) lib pkgs;
+                      };
                     };
                   in
                     prev // packages
@@ -137,20 +131,43 @@
             ./hosts/storage/configuration.nix
           ];
           cloud = self.lib.mkLinuxSystem [./hosts/cloud/configuration.nix];
-          cloud-br = self.lib.mkLinuxSystem [./hosts/cloud-br/configuration.nix];
           r2s = self.lib.mkLinuxSystem [
             inputs.eh5.nixosModules.fake-hwclock
             ./hosts/r2s/configuration.nix
           ];
           raspi3 = self.lib.mkLinuxSystem [./hosts/raspi3/configuration.nix];
-          core = self.lib.mkLinuxSystem [./hosts/core/configuration.nix];
-          hpe = self.lib.mkLinuxSystem [
-            inputs.disko.nixosModules.disko
-            ./hosts/hpe/configuration.nix
-          ];
         };
 
-        deploy = import ./deploy.nix {inherit self inputs;};
+        deploy = let
+          # Host-specific deployment overrides (only specify what differs from defaults)
+          deployOverrides = {
+            storage = {}; # Use all defaults
+            cloud = {
+              system = "aarch64-linux";
+              remoteBuild = true;
+            };
+            r2s.system = "aarch64-linux";
+            raspi3.system = "aarch64-linux";
+          };
+          
+          mkDeploy = hostName: overrides: let
+            defaults = {
+              hostname = "${hostName}.bat-boa.ts.net";
+              system = "x86_64-linux";
+              fastConnection = true;
+              remoteBuild = false;
+            };
+            config = defaults // overrides;
+          in {
+            inherit (config) hostname fastConnection remoteBuild;
+            profiles.system.path = inputs.deploy-rs.lib.${config.system}.activate.nixos self.nixosConfigurations.${hostName};
+          };
+        in {
+          sshUser = "root";
+          autoRollback = false;
+          magicRollback = false;
+          nodes = builtins.mapAttrs mkDeploy deployOverrides;
+        };
 
         packages.aarch64-linux = {
           raspi3 = inputs.nixos-generators.nixosGenerate {
@@ -164,13 +181,5 @@
 
         checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) inputs.deploy-rs.lib;
       };
-
-      # r2s = {...}: {
-      #   nixpkgs.system = "aarch64-linux";
-      #   imports = [
-      #     ./common/modules/fake-hwclock.nix
-      #     ./hosts/r2s/configuration.nix
-      #   ];
-      # };
     });
 }
