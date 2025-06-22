@@ -1,12 +1,12 @@
 {
   self,
   config,
-  pkgs,
   ...
 }: {
   imports = [
     ./services/auth.nix
     ./services/development.nix
+    ./services/rustdesk.nix
     ./services/utility.nix
     ./services/vault.nix
   ];
