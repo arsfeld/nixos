@@ -6,6 +6,8 @@
   imports = [
     ./services/auth.nix
     ./services/development.nix
+    ./services/mosquitto.nix
+    ./services/owntracks.nix
     ./services/rustdesk.nix
     ./services/utility.nix
     ./services/vault.nix
