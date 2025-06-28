@@ -11,7 +11,10 @@ with lib; let
       dns = null;
       invidious = null;
       metube = null;
+      mqtt = 1883;
       ntfy = null;
+      owntracks = 8083;
+      owntracks-ui = 8084;
       search = null;
       users = null;
       vault = 8000;
@@ -75,9 +78,12 @@ with lib; let
     "grafana"
     "ghost"
     "immich"
+    "mqtt"
     "nextcloud"
     "ntfy"
     "ollama-api"
+    "owntracks"
+    "owntracks-ui"
     "search"
     "sudo-proxy"
     "transmission"
@@ -106,6 +112,9 @@ with lib; let
     "filebrowser"
     "filerun"
     "filestash"
+    "mqtt"
+    "owntracks"
+    "owntracks-ui"
     "seafile"
     "syncthing"
     "resilio"

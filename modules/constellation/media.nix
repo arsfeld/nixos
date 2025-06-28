@@ -140,6 +140,8 @@ in {
         #     config.age.secrets.ghost-session-env.path
         #   ];
         # };
+        
+        # OwnTracks handled by hosts/cloud/services/owntracks.nix
       };
 
       # Apply the storage host to all services
