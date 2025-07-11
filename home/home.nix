@@ -46,6 +46,7 @@ in {
         direnv
         dogdns
         du-dust
+        just
         fastfetch
         fd
         fortune
@@ -71,13 +72,18 @@ in {
         (writeScriptBin "running" (builtins.readFile ./scripts/running))
       ]
       ++ linuxOnlyPkgs; # Added linuxOnlyPkgs
+    sessionVariables = {
+      PNPM_HOME = "$HOME/.local/share/pnpm";
+    } // (if stdenv.isDarwin then {
+      ANDROID_HOME = "$HOME/Library/Android/sdk";
+    } else {});
     sessionPath = [
       "$HOME/.local/bin"
       "$HOME/.local/share/pnpm"
-    ];
-    sessionVariables = {
-      PNPM_HOME = "$HOME/.local/share/pnpm";
-    };
+    ] ++ (if stdenv.isDarwin then [
+      "$HOME/Library/Android/sdk/emulator"
+      "$HOME/Library/Android/sdk/platform-tools"
+    ] else []);
     shellAliases = {
       "df" = "df -h -x tmpfs";
     };
