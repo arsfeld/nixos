@@ -39,7 +39,6 @@ in {
         bottom
         cachix
         czkawka
-        claude-code
         deno
         devbox
         devenv
@@ -50,6 +49,7 @@ in {
         fastfetch
         fd
         fortune
+        git-lfs
         glances
         htop
         kondo
