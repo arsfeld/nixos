@@ -1,3 +1,19 @@
+# Constellation backup module
+#
+# This module provides automated backup configuration using Rustic (Restic-compatible
+# backup tool). It sets up scheduled backups to multiple destinations including
+# local S3-compatible storage and cloud providers.
+#
+# Key features:
+# - Automated weekly backups with randomized scheduling to prevent load spikes
+# - Multiple backup profiles (cottage S3, iDrive cloud storage)
+# - Intelligent exclusion of cache directories and large system paths
+# - Encrypted backups using age-encrypted passwords
+# - Automatic snapshot initialization
+#
+# The module backs up critical system directories (/var/lib, /var/data, /home, /root)
+# while excluding temporary files, caches, and container storage to optimize
+# backup size and performance.
 {
   lib,
   config,
@@ -44,7 +60,15 @@ with lib; let
   };
 in {
   options.constellation.backup = {
-    enable = mkEnableOption "Common backup configuration";
+    enable = mkOption {
+      type = types.bool;
+      description = ''
+        Enable automated backup configuration using Rustic.
+        This sets up scheduled backups to multiple destinations with
+        intelligent file exclusions and encrypted storage.
+      '';
+      default = false;
+    };
   };
 
   config = mkIf config.constellation.backup.enable {

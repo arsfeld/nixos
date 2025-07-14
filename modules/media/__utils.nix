@@ -1,3 +1,18 @@
+# Media gateway utility functions
+#
+# This module provides shared utility functions and types for the media gateway
+# system. It includes helpers for generating Caddy configurations, tsnsrv service
+# definitions, and common configuration patterns.
+#
+# Key components:
+# - Gateway configuration type with auth, CORS, and TLS options
+# - Caddy virtual host generation with authentication integration
+# - tsnsrv service configuration for Tailscale access
+# - CORS and error page handling snippets
+# - Domain wildcard and redirect configurations
+#
+# These utilities ensure consistent configuration across all media services
+# with proper authentication, security headers, and error handling.
 {
   lib,
   config,
@@ -12,22 +27,34 @@ in
         cors = mkOption {
           type = types.bool;
           default = false;
-          description = "Enable CORS for the media service";
+          description = ''
+            Enable Cross-Origin Resource Sharing (CORS) headers for this service.
+            Required for web applications that need to access the service from different domains.
+          '';
         };
         insecureTls = mkOption {
           type = types.bool;
           default = false;
-          description = "Enable insecure TLS for the media service";
+          description = ''
+            Skip TLS certificate verification when proxying to this service.
+            Only use for services with self-signed certificates in development.
+          '';
         };
         bypassAuth = mkOption {
           type = types.bool;
           default = false;
-          description = "Bypass authentication for the media service";
+          description = ''
+            Bypass authentication checks for this service.
+            WARNING: This makes the service publicly accessible without authentication.
+          '';
         };
         funnel = mkOption {
           type = types.bool;
           default = false;
-          description = "Enable funnel for the media service";
+          description = ''
+            Enable Tailscale Funnel for this service, making it accessible
+            from the public internet through Tailscale's edge servers.
+          '';
         };
       };
     };

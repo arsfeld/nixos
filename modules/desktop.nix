@@ -1,3 +1,19 @@
+# Desktop environment configuration module
+#
+# This module provides a complete desktop environment setup with GNOME as the
+# primary desktop environment. It includes graphics drivers, printing support,
+# fonts, gaming tools, and a curated set of applications.
+#
+# Features:
+# - GNOME desktop environment with GDM display manager
+# - Hardware acceleration support with 32-bit compatibility
+# - Flatpak integration with pre-configured applications
+# - Gaming support (Steam, Wine, emulators, game launchers)
+# - Multimedia codecs via GStreamer plugins
+# - Printing support with HP and Samsung drivers
+# - Curated font collection for international support
+# - GNOME extensions and theming options
+# - Virtual machine management tools
 {
   inputs,
   config,
@@ -7,7 +23,7 @@
   ...
 }: {
   options.desktop = {
-    enable = lib.mkEnableOption "desktop";
+    enable = lib.mkEnableOption "full desktop environment with GNOME and essential applications";
   };
 
   config = lib.mkIf config.desktop.enable {

@@ -1,3 +1,21 @@
+# Constellation common configuration module
+#
+# This module provides baseline configuration shared across all Constellation hosts.
+# It establishes fundamental system settings, tools, and services that form the
+# foundation of a functional NixOS system.
+#
+# Key features:
+# - Nix flakes and experimental features configuration
+# - Binary cache setup (nixos-community, numtide, deploy-rs, etc.)
+# - Essential system packages and utilities
+# - Network discovery via Avahi/mDNS
+# - SSH and Tailscale for remote access
+# - Automatic garbage collection
+# - Common firewall and security settings
+# - Hardware support and firmware
+#
+# This module is typically enabled on all hosts to ensure consistent base
+# functionality across the infrastructure.
 {
   inputs,
   config,
@@ -9,7 +27,10 @@ with lib; {
   options.constellation.common = {
     enable = mkOption {
       type = types.bool;
-      description = "Enable common configuration";
+      description = ''
+        Enable common baseline configuration for Constellation hosts.
+        This includes essential packages, services, and system settings.
+      '';
       default = true;
     };
   };

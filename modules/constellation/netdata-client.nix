@@ -1,3 +1,20 @@
+# Constellation Netdata client module
+#
+# This module configures Netdata as a streaming client that sends metrics to
+# a central Netdata parent node. It's designed for lightweight metric collection
+# on satellite hosts without local storage or web interface.
+#
+# Key features:
+# - Streaming-only mode (no local data retention)
+# - Minimal resource usage (memory mode: none)
+# - Web interface disabled to reduce attack surface
+# - Automatic streaming to the storage host parent node
+# - Real-time metrics collection and forwarding
+#
+# This configuration is ideal for edge nodes, embedded devices, and systems
+# where you want monitoring without the overhead of local metric storage.
+# All metrics are streamed to the central storage host for aggregation and
+# visualization.
 {
   pkgs,
   lib,
@@ -8,6 +25,11 @@
     enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
+      description = ''
+        Enable Netdata in streaming client mode.
+        This collects system metrics and streams them to the central
+        Netdata parent node without local storage or web interface.
+      '';
     };
   };
 

@@ -1,3 +1,23 @@
+# Kestra workflow orchestration module
+#
+# This module configures Kestra, an open-source workflow orchestration platform.
+# It provides a declarative way to build, run, schedule, and monitor complex pipelines.
+#
+# Features:
+# - PostgreSQL database backend (local or remote)
+# - Web UI and admin interface on configurable ports
+# - Optional basic authentication
+# - Container-based deployment using Podman
+# - Persistent storage for workflows and data
+# - Docker socket access for Docker-based tasks
+#
+# Example usage:
+#   services.kestra = {
+#     enable = true;
+#     database.createLocally = true;
+#     basicAuth = true;
+#     basicAuthPassword = "secure-password";
+#   };
 {
   config,
   lib,
@@ -56,7 +76,7 @@ in {
     port = lib.mkOption {
       type = lib.types.port;
       default = 8080;
-      description = "Port for the Kestra UI";
+      description = "Port for the Kestra web UI";
     };
 
     adminPort = lib.mkOption {
@@ -68,19 +88,27 @@ in {
     basicAuth = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Enable basic authentication";
+      description = ''
+        Enable basic authentication for the Kestra web interface.
+        When enabled, users must authenticate with username and password.
+      '';
     };
 
     basicAuthUsername = lib.mkOption {
       type = lib.types.str;
       default = "admin@localhost.dev";
-      description = "Basic auth username (must be a valid email address)";
+      description = ''
+        Username for basic authentication. Must be a valid email address format.
+      '';
     };
 
     basicAuthPassword = lib.mkOption {
       type = lib.types.str;
       default = "kestra";
-      description = "Basic auth password";
+      description = ''
+        Password for basic authentication.
+        Consider using a secrets management solution for production deployments.
+      '';
     };
   };
 

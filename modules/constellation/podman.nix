@@ -1,3 +1,22 @@
+# Constellation Podman module
+#
+# This module provides Podman as a Docker-compatible container runtime with
+# automated image management. Podman offers rootless containers and enhanced
+# security compared to Docker while maintaining compatibility.
+#
+# Key features:
+# - Docker compatibility layer (docker command alias)
+# - Podman Compose for multi-container applications
+# - DNS-enabled default network for inter-container communication
+# - Docker socket compatibility for tools expecting Docker API
+# - Automatic pruning of unused images and containers
+# - Registry mirror configuration for faster pulls
+# - Daily automated image updates with smart container restarts
+# - Rootless operation capability for enhanced security
+#
+# The module includes the same automated update functionality as the Docker
+# module, checking daily for new images and restarting containers only when
+# updates are available.
 {
   config,
   lib,
@@ -7,7 +26,15 @@
   toml = pkgs.formats.toml {};
 in {
   options.constellation.podman = {
-    enable = lib.mkEnableOption "podman";
+    enable = lib.mkOption {
+      type = lib.types.bool;
+      description = ''
+        Enable Podman container runtime with Docker compatibility.
+        This provides a more secure, rootless alternative to Docker
+        while maintaining full compatibility with Docker workflows.
+      '';
+      default = false;
+    };
   };
 
   config = lib.mkIf config.constellation.podman.enable {

@@ -1,3 +1,20 @@
+# Constellation Docker module
+#
+# This module provides Docker container runtime configuration with automated
+# image management and updates. It includes Docker Compose support and automatic
+# container updates for OCI containers defined in the configuration.
+#
+# Key features:
+# - Docker daemon with automatic pruning of unused resources
+# - Docker Compose for multi-container applications
+# - Registry mirror configuration for faster pulls
+# - Daily automated image updates with container restarts
+# - Smart update detection - only restarts containers when new images are available
+# - Systemd integration for container lifecycle management
+#
+# The module automatically tracks all containers defined via the NixOS
+# virtualisation.oci-containers interface and keeps them updated with the
+# latest available images.
 {
   config,
   lib,
@@ -5,7 +22,15 @@
   ...
 }: {
   options.constellation.docker = {
-    enable = lib.mkEnableOption "docker";
+    enable = lib.mkOption {
+      type = lib.types.bool;
+      description = ''
+        Enable Docker container runtime with automated image updates.
+        This includes Docker Compose support and daily image pull checks
+        for all configured OCI containers.
+      '';
+      default = false;
+    };
   };
 
   config = lib.mkIf config.constellation.docker.enable {
