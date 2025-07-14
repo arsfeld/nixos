@@ -1,3 +1,24 @@
+# Systemd email notification module
+#
+# This module provides automatic email notifications for systemd service failures.
+# It integrates with systemd's onFailure mechanism to send detailed failure reports
+# including service status and recent logs.
+#
+# Features:
+# - Automatic email on service failure
+# - Rate limiting to prevent notification spam (1 hour cooldown)
+# - Failure count tracking
+# - HTML-formatted service status and logs
+# - Integration with constellation email configuration
+#
+# The module automatically adds onFailure handlers to all systemd services,
+# ensuring comprehensive monitoring coverage across the system.
+#
+# Example usage:
+#   systemdEmailNotify = {
+#     toEmail = "admin@example.com";
+#     fromEmail = "noreply@example.com";
+#   };
 {
   config,
   lib,
@@ -69,11 +90,19 @@ in {
     systemdEmailNotify.toEmail = mkOption {
       type = types.str;
       default = config.constellation.email.toEmail;
+      description = ''
+        Email address to send service failure notifications to.
+        Defaults to the constellation email configuration if available.
+      '';
     };
 
     systemdEmailNotify.fromEmail = mkOption {
       type = types.str;
       default = config.constellation.email.fromEmail;
+      description = ''
+        Email address to use as the sender for service failure notifications.
+        Defaults to the constellation email configuration if available.
+      '';
     };
   };
 

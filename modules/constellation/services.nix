@@ -1,3 +1,23 @@
+# Constellation services gateway module
+#
+# This module manages the service registry and gateway configuration for all
+# Constellation services. It provides a centralized definition of services,
+# their ports, authentication requirements, and routing rules.
+#
+# Key features:
+# - Centralized service registry with host assignments and ports
+# - Authentication bypass configuration for services with built-in auth
+# - CORS support for services requiring cross-origin requests
+# - Tailscale Funnel configuration for public access to select services
+# - Automatic gateway configuration generation
+# - Service discovery and routing across multiple hosts
+#
+# Services are organized by host:
+# - Cloud host: Public-facing services (auth, DNS, messaging, etc.)
+# - Storage host: Media servers, home automation, development tools
+#
+# The module integrates with the media.gateway system to provide unified
+# access control and routing for all services through a single entry point.
 {
   lib,
   config,
@@ -159,7 +179,15 @@ with lib; let
       (builtins.attrNames services));
 in {
   options.constellation.services = {
-    enable = lib.mkEnableOption "constellation services";
+    enable = lib.mkOption {
+      type = lib.types.bool;
+      description = ''
+        Enable the Constellation services gateway configuration.
+        This sets up service discovery, routing, and authentication
+        for all services across the infrastructure.
+      '';
+      default = false;
+    };
   };
 
   config = lib.mkIf config.constellation.services.enable {

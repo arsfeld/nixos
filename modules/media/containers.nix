@@ -1,3 +1,20 @@
+# Media containers module
+#
+# This module provides a unified interface for managing containerized media services.
+# It abstracts away the complexity of container configuration, networking, and
+# integration with the gateway system.
+#
+# Key features:
+# - Declarative container configuration with sensible defaults
+# - Automatic port assignment based on service names
+# - Gateway integration for authentication and routing
+# - Support for hardware acceleration (GPU passthrough)
+# - Volume management with proper permissions
+# - Environment variable and secrets handling
+# - Automatic container updates via watchtower
+#
+# Containers can be distributed across multiple hosts and are automatically
+# exposed through the gateway with proper authentication and SSL termination.
 {
   self,
   config,
@@ -31,77 +48,124 @@ in {
         enable = mkOption {
           type = lib.types.bool;
           default = true;
-          description = "Enable media container";
+          description = ''
+            Whether to enable this media container.
+            Disabled containers are completely removed from the system.
+          '';
         };
         name = mkOption {
           type = types.str;
           default = config._module.args.name;
-          description = "Name of the container";
+          description = ''
+            Name of the container. Used for service naming, DNS entries,
+            and container identification. Defaults to the attribute name.
+          '';
         };
         listenPort = mkOption {
           type = types.nullOr types.int;
           default = null;
-          description = "Port the container listens on";
+          description = ''
+            Port the container's service listens on internally.
+            If null, the container won't be exposed through the gateway.
+          '';
         };
         exposePort = mkOption {
           type = types.nullOr types.int;
           default = null;
-          description = "Port to expose to the host";
+          description = ''
+            Port to expose on the host system.
+            If null, defaults to listenPort. Use a different value to avoid conflicts.
+          '';
         };
         image = mkOption {
           type = types.str;
           default = "ghcr.io/linuxserver/${config.name}";
-          description = "Docker image name (defaults to ghcr.io/linuxserver/<name>)";
+          description = ''
+            Docker image to use for this container.
+            Defaults to the LinuxServer.io image for the service name.
+          '';
         };
         volumes = mkOption {
           type = types.listOf types.str;
           default = [];
-          description = "Additional volumes to mount";
+          description = ''
+            Additional volumes to mount in the container.
+            Format: "host_path:container_path:options"
+          '';
         };
         environment = mkOption {
           type = types.attrs;
           default = {};
-          description = "Additional environment variables";
+          description = ''
+            Additional environment variables to pass to the container.
+            These are merged with the default media service environment.
+          '';
         };
         environmentFiles = mkOption {
           type = types.listOf types.str;
           default = [];
-          description = "Environment files to load (e.g., for secrets)";
+          description = ''
+            List of files containing environment variables to load.
+            Useful for passing secrets without exposing them in the configuration.
+          '';
         };
         extraOptions = mkOption {
           type = types.listOf types.str;
           default = [];
-          description = "Additional docker run options";
+          description = ''
+            Additional options to pass to the container runtime.
+            For example: ["--gpus=all"] for GPU support.
+          '';
         };
         configDir = mkOption {
           type = types.nullOr types.str;
           default = "/config";
-          description = "Container config directory";
+          description = ''
+            Path inside the container where configuration files are stored.
+            This directory will be mapped to a host volume for persistence.
+          '';
         };
         mediaVolumes = mkOption {
           type = types.bool;
           default = false;
-          description = "Mount media volumes";
+          description = ''
+            Whether to mount standard media directories (downloads, movies, tv, etc.)
+            into the container. Useful for media servers and download clients.
+          '';
         };
         network = mkOption {
           type = types.nullOr types.str;
           default = null;
-          description = "Network to use for the container";
+          description = ''
+            Docker network to attach the container to.
+            If null, uses the default bridge network.
+          '';
         };
         privileged = mkOption {
           type = types.bool;
           default = false;
-          description = "Run the container in privileged mode";
+          description = ''
+            Run the container with extended privileges.
+            Required for some containers that need low-level system access.
+            WARNING: Use with caution as it reduces container isolation.
+          '';
         };
         devices = mkOption {
           type = types.listOf types.str;
           default = [];
-          description = "Devices to use for the container";
+          description = ''
+            List of host devices to pass through to the container.
+            Format: "/dev/device:/dev/device:rwm"
+            Commonly used for GPU or hardware transcoding devices.
+          '';
         };
         host = mkOption {
           type = types.str;
           default = _config.networking.hostName;
-          description = "Host to use for the container";
+          description = ''
+            Hostname where this container should be deployed.
+            Defaults to the current host. Use to distribute containers across multiple machines.
+          '';
         };
         settings = mkOption {
           type = utils.gatewayConfig;

@@ -1,3 +1,26 @@
+# Supabase dynamic instance management module
+#
+# This module provides infrastructure for managing multiple Supabase instances
+# dynamically. It sets up the necessary services, users, and directories to
+# run isolated Supabase deployments with Docker Compose.
+#
+# Features:
+# - Dynamic instance creation and management
+# - Automatic Caddy reverse proxy configuration
+# - Docker Compose orchestration
+# - Periodic maintenance tasks
+# - Centralized logging and data storage
+# - Multi-instance support with domain-based routing
+#
+# The module works in conjunction with the supabase-manager package to provide
+# CLI tools for instance lifecycle management.
+#
+# Example usage:
+#   services.supabase = {
+#     enable = true;
+#     domain = "mycompany.dev";
+#     dataDir = "/data/supabase";
+#   };
 {
   config,
   lib,
@@ -13,25 +36,40 @@ in {
     domain = mkOption {
       type = types.str;
       default = "arsfeld.dev";
-      description = "Base domain for Supabase instances";
+      description = ''
+        Base domain for Supabase instances. Each instance will be accessible
+        at <instance-name>.<domain> with subdomains for different services
+        (e.g., api.<instance-name>.<domain>, studio.<instance-name>.<domain>).
+      '';
     };
 
     dataDir = mkOption {
       type = types.path;
       default = "/var/lib/supabase";
-      description = "Directory for Supabase instance data";
+      description = ''
+        Root directory for all Supabase instance data, including:
+        - Instance configurations and docker-compose files
+        - PostgreSQL data volumes
+        - Caddy configurations
+        - Logs and temporary files
+      '';
     };
 
     user = mkOption {
       type = types.str;
       default = "supabase";
-      description = "User to run Supabase instances";
+      description = ''
+        System user that will own and run Supabase instances.
+        This user will be added to the docker group automatically.
+      '';
     };
 
     group = mkOption {
       type = types.str;
       default = "supabase";
-      description = "Group for Supabase instances";
+      description = ''
+        System group for Supabase instance files and processes.
+      '';
     };
   };
 

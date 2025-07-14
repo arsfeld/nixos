@@ -1,3 +1,19 @@
+# Constellation email notification module
+#
+# This module provides email notification capabilities for system events using
+# msmtp as the mail transfer agent. It sends automated alerts for important
+# system lifecycle events to keep administrators informed about system status.
+#
+# Key features:
+# - Boot notifications when system starts up
+# - Shutdown notifications before system powers off
+# - Weekly heartbeat emails to confirm system is operational
+# - SMTP authentication with encrypted password storage
+# - Configurable sender and recipient addresses
+# - Integration with PurelyMail SMTP service
+#
+# The module helps monitor system availability and detect unexpected reboots
+# or prolonged downtime by sending regular status updates.
 {
   lib,
   pkgs,
@@ -12,16 +28,31 @@ in {
     enable = mkOption {
       type = types.bool;
       default = true;
+      description = ''
+        Enable email notifications for system events.
+        This will send emails on boot, shutdown, and weekly heartbeats
+        to monitor system availability.
+      '';
     };
 
     fromEmail = mkOption {
       type = types.str;
       default = "admin@rosenfeld.one";
+      description = ''
+        The email address to send notifications from.
+        This should be a valid address configured in your SMTP service.
+      '';
+      example = "noreply@example.com";
     };
 
     toEmail = mkOption {
       type = types.str;
       default = "alex@rosenfeld.one";
+      description = ''
+        The email address to send notifications to.
+        This is where all system alerts will be delivered.
+      '';
+      example = "admin@example.com";
     };
   };
 

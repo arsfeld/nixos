@@ -1,3 +1,30 @@
+# Rustic backup service module
+#
+# This module provides a declarative interface for configuring Rustic, a fast,
+# encrypted, and deduplicated backup tool compatible with restic repositories.
+#
+# Features:
+# - Multiple backup profiles with independent configurations
+# - Automatic systemd service and timer generation
+# - Environment variable and secrets file support
+# - TOML configuration generation
+# - Per-profile shell scripts for manual execution
+# - Centralized logging and caching
+# - Nice and IO scheduling for background operation
+#
+# Example usage:
+#   services.rustic = {
+#     enable = true;
+#     profiles = {
+#       home = {
+#         repository = "/backup/home";
+#         sources = [{ source = "/home"; }];
+#         keep = { daily = 7; weekly = 4; monthly = 12; };
+#         timerConfig = { OnCalendar = "daily"; };
+#         environmentFile = "/run/secrets/rustic-home";
+#       };
+#     };
+#   };
 {
   config,
   lib,
@@ -97,18 +124,24 @@ with lib; let
   config.services.rustic.profiles;
 in {
   options.services.rustic = {
-    enable = mkEnableOption "rustic backup service";
+    enable = mkEnableOption "Rustic backup service";
 
     logDir = mkOption {
       type = types.str;
       default = "/var/log/rustic";
-      description = "Directory for Rustic log files";
+      description = ''
+        Directory where Rustic will store log files.
+        One log file will be created per backup profile.
+      '';
     };
 
     cacheDir = mkOption {
       type = types.str;
       default = "/var/cache/rustic";
-      description = "Directory for Rustic cache files";
+      description = ''
+        Directory where Rustic will store cache files for improved performance.
+        This cache is shared across all backup profiles.
+      '';
     };
 
     profiles = mkOption {
@@ -118,7 +151,11 @@ in {
           timerConfig = mkOption {
             type = types.nullOr types.attrs;
             default = null;
-            description = "Systemd timer configuration for this backup profile";
+            description = ''
+              Systemd timer configuration for automatic backup scheduling.
+              If null, the backup must be triggered manually.
+              See {manpage}`systemd.timer(5)` for available options.
+            '';
             example = literalExpression ''
               {
                 OnCalendar = "daily";
@@ -129,7 +166,11 @@ in {
           environment = mkOption {
             type = types.nullOr (types.attrsOf types.str);
             default = null;
-            description = "Environment variables for the backup service";
+            description = ''
+              Environment variables to set for this backup profile.
+              Useful for passing repository passwords and cloud credentials.
+              For sensitive data, prefer using environmentFile instead.
+            '';
             example = literalExpression ''
               {
                 RUSTIC_PASSWORD = "mysecret";
@@ -139,13 +180,27 @@ in {
           environmentFile = mkOption {
             type = types.nullOr types.str;
             default = null;
-            description = "Environment file for the backup service";
+            description = ''
+              Path to a file containing environment variables for this backup profile.
+              The file should contain KEY=value pairs, one per line.
+              This is the recommended way to pass sensitive data like passwords.
+            '';
             example = "/run/secrets/rustic-env";
           };
         };
       });
       default = {};
-      description = "Rustic backup profiles";
+      description = ''
+        Attribute set of Rustic backup profiles. Each profile generates:
+        - A systemd service (rustic-<name>)
+        - An optional systemd timer for automatic backups
+        - A TOML configuration file in /etc/rustic/
+        - A shell script for manual execution
+
+        Profile attributes are passed directly to the Rustic TOML configuration,
+        except for timerConfig, environment, and environmentFile which control
+        the systemd integration.
+      '';
     };
   };
 

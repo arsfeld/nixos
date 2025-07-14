@@ -1,3 +1,23 @@
+# Constellation media server module
+#
+# This module configures a comprehensive media server stack including download
+# automation, media organization, and streaming services. It uses containerized
+# services for isolation and easy management.
+#
+# Key features:
+# - Plex media server with hardware transcoding support
+# - Automated media acquisition (*arr stack: Radarr, Sonarr, Bazarr, Prowlarr)
+# - Download management (Autobrr, Pinchflat for YouTube)
+# - Content discovery (Overseerr, Jackett, Flaresolverr)
+# - Additional media services (Kavita for manga/comics, Stash)
+# - Nextcloud for file storage and sharing
+#
+# Services are distributed across hosts:
+# - Storage host: Media services, download automation, Plex
+# - Cloud host: Public-facing services (formerly Ghost blog)
+#
+# All services are configured with appropriate volume mounts for persistent
+# storage and media access, with hardware acceleration where supported.
 {
   config,
   lib,
@@ -9,7 +29,15 @@
   vars = config.media.config;
 in {
   options.constellation.media = {
-    enable = lib.mkEnableOption "media";
+    enable = lib.mkOption {
+      type = lib.types.bool;
+      description = ''
+        Enable the comprehensive media server stack.
+        This includes Plex, the *arr suite, download automation,
+        and various media management services.
+      '';
+      default = false;
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -140,7 +168,7 @@ in {
         #     config.age.secrets.ghost-session-env.path
         #   ];
         # };
-        
+
         # OwnTracks handled by hosts/cloud/services/owntracks.nix
       };
 

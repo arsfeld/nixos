@@ -1,3 +1,17 @@
+# Blocky DNS server module
+#
+# This module configures Blocky, a fast and lightweight DNS proxy with ad-blocking
+# capabilities. It provides DNS services with upstream resolvers, caching, and
+# filtering for ads and tracking domains.
+#
+# Key features:
+# - Ad blocking using Steven Black's hosts list
+# - DNS caching with Redis backend for persistence
+# - Custom DNS mappings for local domains
+# - Prometheus metrics exposure
+# - Tailscale integration with .ts.net domain rewrites
+#
+# The module integrates with the media gateway services when enabled.
 {
   lib,
   config,
@@ -7,7 +21,7 @@
   services = config.media.gateway.services;
 in {
   options.blocky = {
-    enable = lib.mkEnableOption "blocky";
+    enable = lib.mkEnableOption "Blocky DNS server with ad-blocking capabilities";
   };
 
   config = lib.mkIf config.blocky.enable {

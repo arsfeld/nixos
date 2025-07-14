@@ -1,3 +1,21 @@
+# Constellation users module
+#
+# This module manages user accounts and authentication across all Constellation
+# hosts. It provides consistent user configuration, SSH key management, and
+# privilege settings.
+#
+# Key features:
+# - Primary user account with administrative privileges
+# - SSH key-based authentication for secure remote access
+# - Passwordless sudo for wheel group members
+# - Group memberships for container runtimes and services
+# - Fish shell as default for better interactive experience
+# - Consistent UID/GID assignments across hosts
+#
+# Security considerations:
+# - SSH password authentication is typically disabled system-wide
+# - All administrative access requires SSH key authentication
+# - User has access to container runtimes for service management
 {
   config,
   pkgs,
@@ -8,6 +26,11 @@
     enable = mkOption {
       type = types.bool;
       default = true;
+      description = ''
+        Enable standard user configuration for Constellation hosts.
+        This creates the primary administrative user account with
+        appropriate permissions and SSH access.
+      '';
     };
   };
 

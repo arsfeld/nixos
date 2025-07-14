@@ -1,3 +1,25 @@
+# Stock availability monitoring service
+#
+# This module provides a service for monitoring product availability on websites.
+# It's designed to check stock status of items (e.g., Framework laptop components)
+# by periodically fetching URLs and checking for availability indicators.
+#
+# Features:
+# - Multiple URL monitoring with individual timer configurations
+# - Configurable check intervals per URL
+# - Automatic systemd service and timer generation
+# - Convenience command to check all configured URLs at once
+#
+# Example usage:
+#   services.check-stock = {
+#     enable = true;
+#     urls = {
+#       framework-battery = {
+#         url = "https://frame.work/products/battery";
+#         timerConfig = { OnCalendar = "hourly"; };
+#       };
+#     };
+#   };
 {
   config,
   lib,
@@ -20,12 +42,21 @@ with lib; let
       };
       url = mkOption {
         type = types.str;
-        description = "URL to monitor for stock";
+        description = "URL to monitor for stock availability";
       };
       timerConfig = mkOption {
         type = types.attrs;
         default = {OnCalendar = "hourly";};
-        description = "Systemd timer configuration";
+        description = ''
+          Systemd timer configuration for scheduling stock checks.
+          See {manpage}`systemd.timer(5)` for available options.
+        '';
+        example = literalExpression ''
+          {
+            OnCalendar = "daily";
+            Persistent = true;
+          }
+        '';
       };
     };
   };
@@ -55,12 +86,27 @@ with lib; let
   };
 in {
   options.services.check-stock = {
-    enable = mkEnableOption "Framework stock checker service";
+    enable = mkEnableOption "stock availability monitoring service";
 
     urls = mkOption {
       type = types.attrsOf (types.submodule urlOpts);
       default = {};
-      description = "URLs to monitor for stock availability";
+      description = ''
+        URLs to monitor for stock availability. Each URL will have its own
+        systemd service and timer generated automatically.
+      '';
+      example = literalExpression ''
+        {
+          framework-battery = {
+            url = "https://frame.work/products/battery";
+            timerConfig = { OnCalendar = "hourly"; };
+          };
+          framework-mainboard = {
+            url = "https://frame.work/products/mainboard";
+            timerConfig = { OnCalendar = "*:0/30"; };  # Every 30 minutes
+          };
+        }
+      '';
     };
   };
 
