@@ -6,6 +6,7 @@
 }: let
   netConfig = config.router.network;
   network = "${netConfig.prefix}.0/${toString netConfig.cidr}";
+  routerIp = "${netConfig.prefix}.1";
 in {
   # UPnP/NAT-PMP server
   services.miniupnpd = {
@@ -28,7 +29,9 @@ in {
       # Write lease file for monitoring
       lease_file=/var/lib/miniupnpd/upnp.leases
       # Enable port for status queries
-      presentation_url=http://192.168.1.1:2189/
+      presentation_url=http://${routerIp}:2189/
+      # Force HTTP port
+      http_port=2189
     '';
   };
 
