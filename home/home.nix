@@ -111,7 +111,7 @@ in {
   programs.nix-index.enable = true;
   programs.nix-index-database.comma.enable = true;
 
-  programs.java.enable = true;
+  # programs.java.enable = true;
 
   xdg.configFile."starship.toml" = {
     source = ./files/starship.toml;
