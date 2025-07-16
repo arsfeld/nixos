@@ -1,36 +1,46 @@
-{disks ? ["/dev/nvme0n1"], ...}: {
-  disk = {
-    nvme0n1 = {
-      device = builtins.elemAt disks 0;
-      type = "disk";
-      content = {
-        type = "table";
-        format = "gpt";
-        partitions = [
-          {
-            name = "ESP";
-            start = "1MiB";
-            end = "500MiB";
-            bootable = true;
-            content = {
-              type = "filesystem";
-              format = "vfat";
-              mountpoint = "/boot";
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}: {
+  disko.devices = {
+    disk = {
+      nvme0n1 = {
+        device = "/dev/nvme0n1";
+        type = "disk";
+        content = {
+          type = "gpt";
+          partitions = {
+            ESP = {
+              size = "500M";
+              type = "EF00";
+              content = {
+                type = "filesystem";
+                format = "vfat";
+                mountpoint = "/boot";
+                mountOptions = [
+                  "defaults"
+                ];
+              };
             };
-          }
-          {
-            name = "root";
-            start = "500MiB";
-            end = "100%";
-            part-type = "primary";
-            bootable = true;
-            content = {
-              type = "filesystem";
-              format = "xfs";
-              mountpoint = "/";
+            root = {
+              size = "100%";
+              content = {
+                type = "filesystem";
+                format = "f2fs";
+                mountpoint = "/";
+                mountOptions = [
+                  "compress_algorithm=zstd"
+                  "compress_extension=*"
+                  "noatime"
+                  "background_gc=on"
+                  "discard"
+                ];
+              };
             };
-          }
-        ];
+          };
+        };
       };
     };
   };

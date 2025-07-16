@@ -137,3 +137,99 @@ r2s:
     echo "  tar -c -I 'xz -9 -T0' -f '$ARCHIVE_NAME' '$FINAL_ZST_PATH'"
 
 # The trap ensures TMPDIR is cleaned up automatically
+
+# Router testing commands
+router-test:
+    nix build .#checks.x86_64-linux.router-test -L
+
+router-test-production:
+    nix build .#checks.x86_64-linux.router-test-production -L
+
+# Install router configuration to a running NixOS system via SSH using nixos-anywhere
+install-router TARGET_HOST:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    echo "Installing router configuration to {{ TARGET_HOST }} using nixos-anywhere..."
+    echo "This will:"
+    echo "  1. Connect to the target host via SSH"
+    echo "  2. Partition and format the disk using disko"
+    echo "  3. Install NixOS with the router configuration"
+    echo ""
+    echo "Prerequisites:"
+    echo "  - Target host must be booted into NixOS installer ISO"
+    echo "  - SSH access as root must be enabled"
+    echo "  - Network connectivity must be working"
+    echo ""
+    read -p "Continue? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Aborted."
+        exit 1
+    fi
+    
+    # Install using nixos-anywhere
+    nix run github:nix-community/nixos-anywhere -- \
+        --flake .#router \
+        root@{{ TARGET_HOST }}
+    
+    echo ""
+    echo "Installation complete! The system should automatically reboot."
+    echo "After reboot, you can deploy updates with: just deploy router"
+    echo ""
+    echo "First steps after installation:"
+    echo "  1. Configure network interfaces in /etc/nixos/interfaces.nix"
+    echo "  2. Set up Tailscale: tailscale up"
+    echo "  3. Monitor services: systemctl status"
+
+# Generate hardware configuration for router
+router-hardware-config TARGET_HOST:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    echo "Generating hardware configuration for router at {{ TARGET_HOST }}..."
+    
+    # Generate hardware config on the target
+    ssh root@{{ TARGET_HOST }} nixos-generate-config --show-hardware-config > hosts/router/hardware-configuration.nix
+    
+    echo "Hardware configuration saved to hosts/router/hardware-configuration.nix"
+    echo "Review the file and commit it to the repository."
+
+# List network interfaces on router in Nix configuration format
+router-interfaces TARGET_HOST:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    ssh root@{{ TARGET_HOST }} bash << 'EOF'
+        # Get all physical interfaces
+        interfaces=()
+        for iface in $(ls /sys/class/net/ | sort); do
+            if [[ -d "/sys/class/net/$iface/device" ]]; then
+                mac=$(cat "/sys/class/net/$iface/address" 2>/dev/null || echo "unknown")
+                carrier=$(cat "/sys/class/net/$iface/carrier" 2>/dev/null || echo "0")
+                link_status="DOWN"
+                [[ "$carrier" == "1" ]] && link_status="UP"
+                interfaces+=("$iface|$mac|$link_status")
+            fi
+        done
+        
+        # Output in the desired format
+        echo "  router.interfaces = {"
+        
+        i=0
+        for entry in "${interfaces[@]}"; do
+            IFS='|' read -r iface mac link <<< "$entry"
+            
+            case $i in
+                0) echo "    wan = \"$iface\";    # WAN interface (MAC: $mac, Link: $link)" ;;
+                1) echo "    lan1 = \"$iface\";   # First LAN port (MAC: $mac, Link: $link)" ;;
+                2) echo "    lan2 = \"$iface\";   # Second LAN port (MAC: $mac, Link: $link)" ;;
+                3) echo "    lan3 = \"$iface\";   # Third LAN port (MAC: $mac, Link: $link)" ;;
+                *) echo "    # Extra interface: $iface (MAC: $mac, Link: $link)" ;;
+            esac
+            
+            ((i++))
+        done
+        
+        echo "  };"
+    EOF

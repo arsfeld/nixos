@@ -38,10 +38,6 @@
 
     systemd.services.NetworkManager-wait-online.enable = false;
 
-    services.flatpak = {
-      enable = true;
-    };
-
     hardware.graphics = {
       enable = true;
       enable32Bit = true;
@@ -87,6 +83,7 @@
     programs.virt-manager.enable = true;
 
     services.flatpak = {
+      enable = true;
       packages = [
         "com.valvesoftware.Steam"
         "com.github.tchx84.Flatseal"
