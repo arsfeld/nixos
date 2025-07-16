@@ -5,14 +5,14 @@
 }: {
   # Install and configure owntracks-recorder with podman (simpler than OCI-containers)
   virtualisation.podman.enable = true;
-  
+
   # Add the systemd services for owntracks-recorder and owntracks-frontend
   systemd.services.owntracks-recorder = {
     description = "OwnTracks Recorder";
     after = ["network.target" "mosquitto.service"];
     requires = ["mosquitto.service"];
     wantedBy = ["multi-user.target"];
-    
+
     serviceConfig = {
       ExecStartPre = [
         "${pkgs.podman}/bin/podman pull owntracks/recorder:latest"
@@ -36,13 +36,13 @@
       TimeoutStopSec = "1min";
     };
   };
-  
+
   systemd.services.owntracks-frontend = {
     description = "OwnTracks Frontend";
     after = ["network.target" "owntracks-recorder.service"];
     requires = ["owntracks-recorder.service"];
     wantedBy = ["multi-user.target"];
-    
+
     serviceConfig = {
       ExecStartPre = [
         "${pkgs.podman}/bin/podman pull owntracks/frontend:latest"
@@ -62,7 +62,7 @@
       TimeoutStopSec = "1min";
     };
   };
-  
+
   # Create necessary directories for OwnTracks
   system.activationScripts.owntracks-dirs = {
     text = ''
@@ -71,10 +71,10 @@
     '';
     deps = [];
   };
-  
+
   # Open firewall ports for OwnTracks services
   networking.firewall.allowedTCPPorts = [
-    8083  # OwnTracks Recorder HTTP API
-    8084  # OwnTracks Frontend
+    8083 # OwnTracks Recorder HTTP API
+    8084 # OwnTracks Frontend
   ];
 }
