@@ -96,6 +96,7 @@ in {
   services.authelia.instances."${autheliaConfig}" = {
     enable = true;
     settings = {
+      theme = "auto";
       server = {
         address = "tcp://0.0.0.0:${toString services.auth.port}";
       };
