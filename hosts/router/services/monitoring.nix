@@ -285,7 +285,7 @@ in {
             # Ensure we always have values
             forward_rules=''${forward_rules:-0}
             nat_rules=''${nat_rules:-0}
-            
+
             echo "$forward_rules $nat_rules"
           }
 
@@ -527,7 +527,7 @@ in {
           name = "Router Dashboards";
           folder = "Router";
           type = "file";
-          options.path = pkgs.writeTextDir "router-metrics.json" (builtins.toJSON (import ../dashboards { inherit lib pkgs; }));
+          options.path = pkgs.writeTextDir "router-metrics.json" (builtins.toJSON (import ../dashboards {inherit lib pkgs;}));
         }
       ];
     };
