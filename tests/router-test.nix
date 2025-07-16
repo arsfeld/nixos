@@ -417,55 +417,55 @@
         # Find miniupnpd configuration file
         config_files = router.execute("find /etc -name '*miniupnpd*' -type f 2>/dev/null || echo 'No config files found'")[1]
         print(f"MiniUPnPd config files found: {config_files}")
-        
+
         # Check systemd service configuration
         service_status = router.succeed("systemctl show miniupnpd --property=ExecStart")
         print(f"MiniUPnPd service config: {service_status}")
-        
+
         # Check runtime configuration via systemctl
         if "ExecStart" in service_status:
             print("✓ MiniUPnPd service properly configured")
-        
+
         # Get actual configuration from running process
         ps_output = router.succeed("ps aux | grep miniupnpd | grep -v grep || echo 'process info'")
         print(f"MiniUPnPd process: {ps_output}")
-        
+
         # Verify nftables rules for UPnP
         nft_output = router.succeed("nft list table ip nat")
         print("NAT table contents:")
         print(nft_output)
-        
+
         # Check that UPnP chain exists
         router.succeed("nft list chain ip nat miniupnpd || echo 'UPnP chain not found (may be created on demand)'")
 
     with subtest("UPnP network connectivity"):
         # Test UDP port 1900 is accessible for SSDP
         router.succeed("ss -ulnp | grep ':1900' || echo 'SSDP port accessible'")
-        
+
         # Check basic SSDP functionality (simplified)
         router.succeed("systemctl is-active miniupnpd")
         print("✓ UPnP SSDP service is running and accessible")
 
-    with subtest("UPnP security and limits"):        
+    with subtest("UPnP security and limits"):
         # Test port mapping limits with a few test mappings
         client1_ip = client1.succeed("ip -4 addr show eth1 | grep inet | awk '{print $2}' | cut -d'/' -f1").strip()
-        
+
         # Add a couple test mappings to verify functionality
         test_ports = [8081, 8082]
         successful_mappings = 0
-        
+
         for port in test_ports:
             result = client1.execute(f"upnpc -a {client1_ip} 9090 {port} TCP")
             if result[0] == 0:
                 successful_mappings += 1
             print(f"Test mapping {port}: exit_code={result[0]}")
-        
+
         print(f"✓ Successfully created {successful_mappings}/{len(test_ports)} test port mappings")
-        
+
         # Clean up test mappings
         for port in test_ports:
             client1.execute(f"upnpc -d {port} TCP")
-            
+
         print("UPnP security and limits testing completed")
 
 
