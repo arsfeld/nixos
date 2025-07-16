@@ -149,7 +149,6 @@ with lib; {
       home-manager
       keychain
       killall
-      libvirt
       moreutils
       nano
       ncdu_2
@@ -161,8 +160,6 @@ with lib; {
       zpaq
       zsh
     ];
-
-    virtualisation.libvirtd.enable = true;
 
     programs.nix-ld.enable = true;
 

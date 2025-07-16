@@ -271,17 +271,145 @@ services.fail2ban = {
 
 ## Monitoring
 
+### 📊 Prometheus & Grafana Stack
+
+Complete monitoring solution with metrics collection and visualization:
+
+```nix
+services.prometheus = {
+  enable = true;
+  port = 9090;
+  
+  # Scrape configuration
+  scrapeConfigs = [
+    {
+      job_name = "node";
+      static_configs = [{ targets = [ "localhost:9100" ]; }];
+    }
+    {
+      job_name = "blocky";
+      static_configs = [{ targets = [ "localhost:4000" ]; }];
+    }
+  ];
+  
+  # Rules for alerting
+  rules = [
+    # System alerts (CPU, memory, disk, temperature)
+    # Network alerts (interface down, high bandwidth usage)
+    # Service alerts (DNS failures, high packet drops)
+  ];
+};
+
+services.grafana = {
+  enable = true;
+  port = 3000;
+  
+  # Dashboard configuration
+  provision.dashboards.settings.providers = [
+    {
+      name = "router";
+      path = "/etc/grafana/dashboards";
+    }
+  ];
+};
+```
+
+### 📈 Speed Testing
+
+Automated daily internet speed tests with historical tracking:
+
+```nix
+systemd.services.speedtest = {
+  description = "Internet speed test";
+  serviceConfig = {
+    Type = "oneshot";
+    ExecStart = pkgs.writeScript "speedtest-runner" ''
+      #!/bin/bash
+      # Run speedtest and export metrics to Prometheus
+      RESULT=$(speedtest-cli --json 2>/dev/null || echo '{}')
+      
+      # Extract metrics and write to textfile collector
+      echo "# HELP speedtest_download_mbps Download speed in Mbps" > /var/lib/prometheus/node-exporter/speedtest.prom
+      echo "# TYPE speedtest_download_mbps gauge" >> /var/lib/prometheus/node-exporter/speedtest.prom
+      echo "speedtest_download_mbps $(echo "$RESULT" | jq -r '.download // 0' | awk '{print $1/1000000}')" >> /var/lib/prometheus/node-exporter/speedtest.prom
+      
+      echo "# HELP speedtest_upload_mbps Upload speed in Mbps" >> /var/lib/prometheus/node-exporter/speedtest.prom
+      echo "# TYPE speedtest_upload_mbps gauge" >> /var/lib/prometheus/node-exporter/speedtest.prom
+      echo "speedtest_upload_mbps $(echo "$RESULT" | jq -r '.upload // 0' | awk '{print $1/1000000}')" >> /var/lib/prometheus/node-exporter/speedtest.prom
+      
+      echo "# HELP speedtest_ping_ms Ping latency in milliseconds" >> /var/lib/prometheus/node-exporter/speedtest.prom
+      echo "# TYPE speedtest_ping_ms gauge" >> /var/lib/prometheus/node-exporter/speedtest.prom
+      echo "speedtest_ping_ms $(echo "$RESULT" | jq -r '.ping // 0')" >> /var/lib/prometheus/node-exporter/speedtest.prom
+    '';
+  };
+};
+
+systemd.timers.speedtest = {
+  description = "Daily internet speed test";
+  wantedBy = [ "timers.target" ];
+  timerConfig = {
+    OnCalendar = "daily";
+    Persistent = true;
+    RandomizedDelaySec = 3600;
+  };
+};
+```
+
+### 📱 Alerting with ntfy
+
+Push notifications for critical alerts with actionable buttons:
+
+```nix
+router.alerting = {
+  enable = true;
+  
+  # Push notifications to mobile
+  ntfyUrl = "https://ntfy.sh/your-router-topic";
+  
+  # Email notifications
+  emailConfig.enable = true;
+  
+  # Alert thresholds
+  thresholds = {
+    diskUsagePercent = 80;
+    temperatureCelsius = 70;
+    bandwidthMbps = 2000;
+    cpuUsagePercent = 90;
+    memoryUsagePercent = 85;
+  };
+};
+```
+
 ### Network Statistics
 - Interface bandwidth usage
 - Connection tracking
 - DNS query statistics
 - Firewall hit counts
+- Internet speed trends
+- Client traffic patterns
 
-### Alerts
-- WAN connection failure
-- High CPU/memory usage
-- Unusual traffic patterns
-- Failed login attempts
+### Alert Types
+- **Critical**: Network interface down, service failures
+- **Warning**: High resource usage, temperature alerts
+- **Info**: New client connections, speed test results
+
+### Notification Features
+- **Mobile Push**: Instant alerts via ntfy app
+- **Email**: Detailed alert summaries
+- **Action Buttons**: Direct links to silence alerts, view dashboards
+- **Smart Grouping**: Reduces notification spam
+
+### Monitoring Access
+- **Grafana**: `http://router.bat-boa.ts.net:3000`
+  - Username: admin
+  - Password: (configured via secrets)
+  - Dashboards: Router metrics, speed tests, alerts
+- **Prometheus**: `http://router.bat-boa.ts.net:9090`
+  - Query interface and targets
+  - Alert rule management
+- **Alertmanager**: `http://router.bat-boa.ts.net:9093`
+  - Active alerts and silences
+  - Notification routing
 
 ## Backup Configuration
 
@@ -346,6 +474,12 @@ iftop -i wan0
 
 # Check connections
 ss -s
+
+# Check speed test results
+curl -s http://localhost:9090/api/v1/query?query=speedtest_download_mbps | jq '.data.result[0].value[1]'
+
+# View Grafana dashboards
+curl -s http://localhost:3000/api/dashboards/home
 ```
 
 #### VPN Issues
@@ -357,6 +491,28 @@ wg show
 nft list ruleset | grep 51820
 ```
 
+#### Monitoring Issues
+```bash
+# Check Prometheus status
+systemctl status prometheus
+curl -s http://localhost:9090/api/v1/query?query=up
+
+# Check Grafana status
+systemctl status grafana
+curl -s http://localhost:3000/api/health
+
+# Check ntfy webhook
+systemctl status ntfy-webhook-proxy
+journalctl -u ntfy-webhook-proxy -f
+
+# Test alerting
+curl -X POST http://localhost:9095 -H "Content-Type: application/json" -d '{"alerts":[{"status":"firing","labels":{"alertname":"TestAlert","severity":"warning"},"annotations":{"summary":"Test alert"}}]}'
+
+# Check speed test timer
+systemctl list-timers speedtest
+journalctl -u speedtest --since "1 day ago"
+```
+
 ## Maintenance
 
 ### Regular Tasks
@@ -364,6 +520,9 @@ nft list ruleset | grep 51820
 - Monthly security updates
 - Quarterly firmware updates
 - Annual hardware cleaning
+- Monthly Grafana dashboard review
+- Weekly alert threshold validation
+- Daily speed test result review
 
 ### Log Rotation
 ```nix

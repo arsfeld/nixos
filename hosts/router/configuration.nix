@@ -1,64 +1,160 @@
-args @ {
-  modulesPath,
+{
+  config,
   lib,
   pkgs,
   ...
-}:
-with lib; {
+}: {
   imports = [
-    ../../common/users.nix
-    (modulesPath + "/installer/scan/not-detected.nix")
-    # https://github.com/NixOS/nixpkgs/pull/239028
-    ./miniupnpd-nftables.nix
+    ./disk-config.nix
+    ./hardware-configuration.nix
+    ./interfaces.nix
     ./network.nix
+    ./services.nix
+    ./traffic-shaping.nix
+    ./alerting.nix
+    ./ntfy-webhook.nix
   ];
 
-  nix.settings.experimental-features = ["nix-command" "flakes"];
-
-  boot.initrd.availableKernelModules = ["xhci_pci" "ahci" "nvme"];
-  disko.devices = import ./disk-config.nix {
-    lib = pkgs.lib;
-  };
+  # Boot configuration
   boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+  boot.loader.systemd-boot.configurationLimit = 2; # Keep only 2 generations
+
+  # Enable IP forwarding and connection tracking
+  boot.kernel.sysctl = {
+    "net.ipv4.conf.all.forwarding" = true;
+    "net.ipv6.conf.all.forwarding" = false;
+    "net.netfilter.nf_conntrack_acct" = true;
+  };
+
+  boot.kernelModules = ["nf_conntrack"];
+
+  # Basic networking
+  networking = {
+    hostName = "router";
+    useDHCP = false;
+    useNetworkd = true;
+    firewall.enable = false;
+    nat.enable = false;
+  };
+
+  # System packages - minimal set for router functionality
+  environment.systemPackages = with pkgs; [
+    vim # Keep for editing
+    conntrack-tools # Required for client tracking
+    jq # Required for parsing nftables output
+    speedtest-cli # Required for speed testing
+    bc # Required for speed test calculations
+    gawk # Required for speed test parsing
+  ];
+
+  # Enable SSH
   services.openssh.enable = true;
-  services.cockpit.enable = true;
-  services.ntopng.enable = true;
-  services.ntopng.httpPort = 3333;
-  services.fail2ban.enable = true;
-  services.fail2ban.ignoreIP = ["192.168.0.0/16"];
 
-  virtualisation.podman.enable = true;
-  virtualisation.podman.dockerSocket.enable = true;
+  # Garbage collection to save disk space
+  nix.gc = {
+    automatic = true;
+    dates = lib.mkForce "weekly"; # Override common module's schedule
+    options = lib.mkForce "--delete-older-than 7d"; # Override common module's 30d
+  };
 
-  virtualisation.oci-containers = {
-    backend = "podman";
-    containers = {
-      homeassistant = {
-        volumes = ["/etc/home-assistant:/config"];
-        environment.TZ = "America/Toronto";
-        image = "ghcr.io/home-assistant/home-assistant:stable";
-        extraOptions = [
-          "--network=host"
-          "--privileged"
-          "--label"
-          "io.containers.autoupdate=image"
-        ];
-      };
+  # Optimize nix store regularly
+  nix.optimise.automatic = true;
+
+  # Additional Nix settings to minimize disk usage
+  nix.settings = {
+    auto-optimise-store = true;
+    min-free = 100 * 1024 * 1024; # 100MB minimum free space
+    max-free = 500 * 1024 * 1024; # 500MB maximum free space
+  };
+
+  # Limit journal size
+  services.journald.extraConfig = ''
+    SystemMaxUse=100M
+    SystemKeepFree=50M
+    MaxRetentionSec=7day
+  '';
+
+  # Minimize documentation
+  documentation.enable = false;
+  documentation.nixos.enable = false;
+  documentation.man.enable = false;
+  documentation.info.enable = false;
+  documentation.doc.enable = false;
+
+  # Disable virtualization to save disk space
+  constellation.virtualization.enable = false;
+
+  # System state version
+  system.stateVersion = "24.05";
+
+  # Email configuration using constellation module
+  constellation.email = {
+    enable = true;
+    fromEmail = "router-alerts@rosenfeld.one";
+    toEmail = "alex@rosenfeld.one"; # Change to your email
+  };
+
+  # Traffic shaping configuration
+  router.trafficShaping = {
+    enable = true;
+
+    # WAN shaping - set to 90% of 2.5G symmetric fiber
+    wanShaping = {
+      bandwidth = 2250; # Upload bandwidth in Mbit/s (90% of 2500)
+      ingressBandwidth = 2250; # Download bandwidth in Mbit/s (90% of 2500)
+      overhead = "ethernet"; # Fiber uses ethernet framing
+      nat = true;
+      wash = false; # No need to wash DSCP on fiber
+      ackFilter = true; # Still useful for TCP optimization
+      flowMode = "triple-isolate"; # Best isolation between flows
+      rttMode = "metro"; # Fiber typically has low latency
+    };
+
+    # LAN shaping (optional - usually not needed)
+    lanShaping = {
+      enable = false;
+      bandwidth = 1000;
+      flowMode = "flows";
+      rttMode = "lan";
+    };
+
+    # Traffic classification
+    classification = {
+      enable = true;
+      customRules = ''
+        # Add custom classification rules here
+        # Example: Prioritize specific game server
+        # ip daddr 192.168.10.50 udp dport 25565 ip dscp set cs4
+      '';
+    };
+
+    # QoS monitoring
+    monitoring.enable = true; # Enable QoS monitoring
+  };
+
+  # Alerting configuration
+  router.alerting = {
+    enable = true;
+
+    # Email notifications using constellation email module
+    emailConfig = {
+      enable = true; # Uses constellation email configuration
+    };
+
+    # Webhook notifications (Discord, Slack, etc)
+    # webhookUrl = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL";
+
+    # ntfy.sh push notifications (mobile app)
+    ntfyUrl = "https://ntfy.sh/arsfeld-router";
+
+    # Alert thresholds
+    thresholds = {
+      diskUsagePercent = 80; # Alert when disk usage exceeds 80%
+      temperatureCelsius = 70; # Alert when temperature exceeds 70°C
+      bandwidthMbps = 2000; # Alert when client uses >2Gbps
+      cpuUsagePercent = 90; # Alert when CPU usage exceeds 90%
+      memoryUsagePercent = 85; # Alert when memory usage exceeds 85%
     };
   };
-
-  systemd.timers.podman-auto-update = {
-    description = "Podman auto-update timer";
-    partOf = ["podman-auto-update.service"];
-    wantedBy = ["timers.target"];
-    timerConfig.OnCalendar = "weekly";
-  };
-
-  nixpkgs.overlays = [
-    (self: super: {
-      miniupnpd-nftables = super.callPackage ./pkgs/miniupnpd.nix {firewall = "nftables";};
-    })
-  ];
-
-  system.stateVersion = "23.05";
 }

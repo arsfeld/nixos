@@ -116,32 +116,110 @@
             in
               getAllValues modules)
           ];
+          baseModules = inputs.nixpkgs.lib.flatten [
+            inputs.agenix.nixosModules.default
+            inputs.nix-flatpak.nixosModules.nix-flatpak
+            inputs.tsnsrv.nixosModules.default
+            {
+              nixpkgs.overlays = [
+                (import ./overlays/python-packages.nix)
+                # Load packages from ./packages directory using haumea
+                (
+                  final: prev: let
+                    packages = inputs.haumea.lib.load {
+                      src = ./packages;
+                      loader = inputs.haumea.lib.loaders.callPackage;
+                      transformer = inputs.haumea.lib.transformers.liftDefault;
+                      inputs = {
+                        inherit (final) lib pkgs;
+                      };
+                    };
+                  in
+                    prev // packages
+                )
+              ];
+            }
+            # Load all modules from the modules directory
+            (let
+              getAllValues = set: let
+                recurse = value:
+                  if builtins.isAttrs value
+                  then builtins.concatLists (map recurse (builtins.attrValues value))
+                  else [value];
+              in
+                recurse set;
+              modules = inputs.haumea.lib.load {
+                src = ./modules;
+                loader = inputs.haumea.lib.loaders.path;
+              };
+            in
+              getAllValues modules)
+          ];
+
+          homeManagerModules = [
+            inputs.home-manager.nixosModules.home-manager
+            {
+              home-manager.sharedModules = [
+                inputs.nix-index-database.hmModules.nix-index
+              ];
+              home-manager.useGlobalPkgs = true;
+              home-manager.useUserPackages = false;
+              home-manager.backupFileExtension = "bak";
+              home-manager.users.arosenfeld = import ./home/home.nix;
+            }
+          ];
         in {
-          mkLinuxSystem = mods:
+          mkLinuxSystem = {
+            mods,
+            includeHomeManager ? true,
+          }:
             inputs.nixpkgs.lib.nixosSystem {
               # Arguments to pass to all modules.
               specialArgs = {inherit self inputs;};
-              modules = commonModules ++ mods;
+              modules =
+                baseModules
+                ++ (
+                  if includeHomeManager
+                  then homeManagerModules
+                  else []
+                )
+                ++ mods;
             };
         };
 
         nixosConfigurations = {
-          storage = self.lib.mkLinuxSystem [
-            inputs.disko.nixosModules.disko
-            ./hosts/storage/configuration.nix
-          ];
-          cloud = self.lib.mkLinuxSystem [./hosts/cloud/configuration.nix];
-          r2s = self.lib.mkLinuxSystem [
-            inputs.eh5.nixosModules.fake-hwclock
-            ./hosts/r2s/configuration.nix
-          ];
-          raspi3 = self.lib.mkLinuxSystem [./hosts/raspi3/configuration.nix];
+          storage = self.lib.mkLinuxSystem {
+            mods = [
+              inputs.disko.nixosModules.disko
+              ./hosts/storage/configuration.nix
+            ];
+          };
+          cloud = self.lib.mkLinuxSystem {
+            mods = [./hosts/cloud/configuration.nix];
+          };
+          router = self.lib.mkLinuxSystem {
+            includeHomeManager = false;
+            mods = [
+              inputs.disko.nixosModules.disko
+              ./hosts/router/configuration.nix
+            ];
+          };
+          r2s = self.lib.mkLinuxSystem {
+            mods = [
+              inputs.eh5.nixosModules.fake-hwclock
+              ./hosts/r2s/configuration.nix
+            ];
+          };
+          raspi3 = self.lib.mkLinuxSystem {
+            mods = [./hosts/raspi3/configuration.nix];
+          };
         };
 
         deploy = let
           # Host-specific deployment overrides (only specify what differs from defaults)
           deployOverrides = {
             storage = {}; # Use all defaults
+            router = {}; # Use all defaults
             cloud = {
               system = "aarch64-linux";
               remoteBuild = true;
@@ -179,7 +257,33 @@
           };
         };
 
-        checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) inputs.deploy-rs.lib;
+        checks =
+          builtins.mapAttrs (
+            system: deployLib:
+              deployLib.deployChecks self.deploy
+              // {
+                router-test = inputs.nixpkgs.legacyPackages.${system}.nixosTest (import ./tests/router-test.nix {inherit self inputs;});
+                router-test-production = inputs.nixpkgs.legacyPackages.${system}.nixosTest (import ./tests/router-test-production.nix);
+              }
+          )
+          inputs.deploy-rs.lib;
+
+        # Router testing configurations
+        nixosConfigurations.router-test = inputs.nixpkgs.lib.nixosSystem {
+          specialArgs = {inherit self inputs;};
+          modules = [
+            ./tests/router-container-test.nix
+          ];
+        };
+
+        # Testing configurations and packages
+        packages.x86_64-linux = {
+          # Add r2s image from above to ensure we have all the entries
+          inherit (self.packages.aarch64-linux) raspi3;
+
+          # Router QEMU test
+          router-test = inputs.nixpkgs.legacyPackages.x86_64-linux.callPackage ./tests/router-qemu-test.nix {};
+        };
       };
     });
 }
