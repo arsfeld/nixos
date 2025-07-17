@@ -44,10 +44,10 @@ in {
       # Conditional forwarding for special domains
       conditional = {
         mapping = {
-          "lan" = routerIp; # Handle all .lan queries locally
+          # Don't use conditional forwarding for .lan - Blocky will handle it via customDNS and hostsFile
           "bat-boa.ts.net" = "100.100.100.100";
           "100.in-addr.arpa" = "100.100.100.100";
-          "${netConfig.prefix}.in-addr.arpa" = routerIp; # Reverse DNS for local network
+          # Don't forward local reverse DNS - Blocky handles it via hostsFile
         };
       };
       blocking = {

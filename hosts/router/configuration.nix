@@ -84,6 +84,7 @@
 
   # Disable virtualization to save disk space
   constellation.virtualization.enable = false;
+  constellation.netdataClient.enable = false;
 
   # System state version
   system.stateVersion = "24.05";
