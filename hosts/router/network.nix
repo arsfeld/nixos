@@ -63,10 +63,10 @@ in {
           chain forward {
             type filter hook forward priority 0; policy drop;
 
-            ct state established,related accept
-
-            # Jump to client traffic accounting
+            # Jump to client traffic accounting (before conntrack to count all traffic)
             jump CLIENT_TRAFFIC
+
+            ct state established,related accept
 
             # Allow LAN to WAN
             iifname "br-lan" oifname "${interfaces.wan}" accept
