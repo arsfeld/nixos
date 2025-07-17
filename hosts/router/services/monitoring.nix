@@ -140,7 +140,7 @@ in {
           # Function to get client name
           get_client_name() {
             local ip="$1"
-            
+
             # Check the generated hosts file first
             if [ -f /var/lib/dnsmasq/dhcp-hosts ]; then
               local hostname=$(${pkgs.gawk}/bin/awk -v ip="$ip" '$1 == ip {print $2; exit}' /var/lib/dnsmasq/dhcp-hosts 2>/dev/null)
@@ -151,7 +151,7 @@ in {
                 return
               fi
             fi
-            
+
             # Fallback: check dnsmasq lease file directly
             if [ -f /var/lib/dnsmasq/dnsmasq.leases ]; then
               hostname=$(${pkgs.gawk}/bin/awk -v ip="$ip" '$3 == ip && $4 != "*" {print $4; exit}' /var/lib/dnsmasq/dnsmasq.leases 2>/dev/null)
@@ -160,7 +160,7 @@ in {
                 return
               fi
             fi
-            
+
             echo ""
           }
 

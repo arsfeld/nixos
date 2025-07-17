@@ -54,7 +54,6 @@ in {
         '';
       };
 
-
       # Tailscale hostname access with HTTPS
       "router.bat-boa.ts.net" = {
         extraConfig = ''
@@ -122,16 +121,16 @@ in {
   # Open firewall ports for Caddy (only on LAN interface)
   networking.firewall.interfaces.br-lan = {
     allowedTCPPorts = [
-      80   # HTTP
-      443  # HTTPS
+      80 # HTTP
+      443 # HTTPS
     ];
   };
 
   # Allow HTTPS on Tailscale interface for certificate validation
   networking.firewall.interfaces.tailscale0 = {
     allowedTCPPorts = [
-      80   # HTTP (for ACME challenges)
-      443  # HTTPS
+      80 # HTTP (for ACME challenges)
+      443 # HTTPS
     ];
   };
 
