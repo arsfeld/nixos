@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Router Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        h1 {
+            font-size: 3rem;
+            font-weight: 300;
+            letter-spacing: -1px;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #4a9eff 0%, #00d4ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: #888;
+            font-weight: 300;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 32px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #4a9eff 0%, #00d4ff 100%);
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .card:hover::before {
+            transform: translateX(0);
+        }
+
+        .card h2 {
+            font-size: 1.5rem;
+            margin-bottom: 12px;
+            font-weight: 400;
+            color: #fff;
+        }
+
+        .card p {
+            color: #aaa;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .card a {
+            display: inline-flex;
+            align-items: center;
+            color: #4a9eff;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .card a:hover {
+            color: #00d4ff;
+        }
+
+        .card a svg {
+            margin-left: 8px;
+            transition: transform 0.2s ease;
+        }
+
+        .card a:hover svg {
+            transform: translateX(4px);
+        }
+
+        .status {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            width: 12px;
+            height: 12px;
+            background: #4ade80;
+            border-radius: 50%;
+            box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.2);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.2);
+            }
+            50% {
+                box-shadow: 0 0 0 8px rgba(74, 222, 128, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.2);
+            }
+        }
+
+        .info {
+            text-align: center;
+            margin-top: 60px;
+            padding-top: 40px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .info p {
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .info .ip {
+            font-family: 'Courier New', monospace;
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+            .subtitle {
+                font-size: 1rem;
+            }
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Router Dashboard</h1>
+            <p class="subtitle">Network Services & Monitoring</p>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <div class="status"></div>
+                <h2>Grafana</h2>
+                <p>Beautiful metrics visualization and monitoring dashboards for all router services.</p>
+                <a href="/grafana">
+                    Open Dashboard
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </a>
+            </div>
+
+            <div class="card">
+                <div class="status"></div>
+                <h2>Prometheus</h2>
+                <p>Time-series database collecting metrics from all services and network devices.</p>
+                <a href="/prometheus">
+                    Query Metrics
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </a>
+            </div>
+
+            <div class="card">
+                <div class="status"></div>
+                <h2>Alertmanager</h2>
+                <p>Handles alerts from Prometheus and routes them to the appropriate notification channels.</p>
+                <a href="/alertmanager">
+                    View Alerts
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </a>
+            </div>
+
+            <div class="card">
+                <div class="status"></div>
+                <h2>Loki</h2>
+                <p>Log aggregation system collecting logs from all services. Access logs through Grafana's Explore feature.</p>
+                <a href="/grafana/explore?orgId=1&left=%7B%22datasource%22:%22Loki%22%7D">
+                    Browse Logs in Grafana
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </a>
+            </div>
+
+            <div class="card">
+                <div class="status"></div>
+                <h2>System Logs</h2>
+                <p>All system and service logs are collected by Promtail and stored in Loki for analysis.</p>
+                <a href="/grafana/explore?orgId=1&left=%7B%22datasource%22:%22Loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22expr%22:%22%7Bjob%3D%5C%22systemd-journal%5C%22%7D%22%7D%5D%7D">
+                    View System Logs
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </a>
+            </div>
+
+            <div class="card">
+                <div class="status"></div>
+                <h2>Blocky DNS</h2>
+                <p>Fast and lightweight DNS proxy with ad-blocking and custom filtering rules.</p>
+                <a href="/blocky">
+                    DNS Stats
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </a>
+            </div>
+        </div>
+
+        <div class="info">
+            <p>Router Services Dashboard</p>
+            <p class="ip">{{.RemoteIP}} • {{.Host}}</p>
+        </div>
+    </div>
+</body>
+</html>
