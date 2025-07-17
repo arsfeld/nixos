@@ -145,16 +145,16 @@ router-test:
 router-test-production:
     nix build .#checks.x86_64-linux.router-test-production -L
 
-# Install router configuration to a running NixOS system via SSH using nixos-anywhere
-install-router TARGET_HOST:
+# Install any host configuration to a running NixOS system via SSH using nixos-anywhere
+install HOST TARGET_IP:
     #!/usr/bin/env bash
     set -euo pipefail
     
-    echo "Installing router configuration to {{ TARGET_HOST }} using nixos-anywhere..."
+    echo "Installing {{ HOST }} configuration to {{ TARGET_IP }} using nixos-anywhere..."
     echo "This will:"
     echo "  1. Connect to the target host via SSH"
     echo "  2. Partition and format the disk using disko"
-    echo "  3. Install NixOS with the router configuration"
+    echo "  3. Install NixOS with the {{ HOST }} configuration"
     echo ""
     echo "Prerequisites:"
     echo "  - Target host must be booted into NixOS installer ISO"
@@ -170,29 +170,32 @@ install-router TARGET_HOST:
     
     # Install using nixos-anywhere
     nix run github:nix-community/nixos-anywhere -- \
-        --flake .#router \
-        root@{{ TARGET_HOST }}
+        --flake .#{{ HOST }} \
+        root@{{ TARGET_IP }}
     
     echo ""
     echo "Installation complete! The system should automatically reboot."
-    echo "After reboot, you can deploy updates with: just deploy router"
+    echo "After reboot, you can deploy updates with: just deploy {{ HOST }}"
     echo ""
     echo "First steps after installation:"
-    echo "  1. Configure network interfaces in /etc/nixos/interfaces.nix"
-    echo "  2. Set up Tailscale: tailscale up"
-    echo "  3. Monitor services: systemctl status"
+    echo "  1. Set up Tailscale: tailscale up"
+    echo "  2. Monitor services: systemctl status"
+    echo "  3. Check host-specific configuration"
 
-# Generate hardware configuration for router
-router-hardware-config TARGET_HOST:
+# Generate hardware configuration for any host
+hardware-config HOST TARGET_HOST:
     #!/usr/bin/env bash
     set -euo pipefail
     
-    echo "Generating hardware configuration for router at {{ TARGET_HOST }}..."
+    echo "Generating hardware configuration for {{ HOST }} at {{ TARGET_HOST }}..."
+    
+    # Create host directory if it doesn't exist
+    mkdir -p hosts/{{ HOST }}
     
     # Generate hardware config on the target
-    ssh root@{{ TARGET_HOST }} nixos-generate-config --show-hardware-config > hosts/router/hardware-configuration.nix
+    ssh root@{{ TARGET_HOST }} nixos-generate-config --show-hardware-config > hosts/{{ HOST }}/hardware-configuration.nix
     
-    echo "Hardware configuration saved to hosts/router/hardware-configuration.nix"
+    echo "Hardware configuration saved to hosts/{{ HOST }}/hardware-configuration.nix"
     echo "Review the file and commit it to the repository."
 
 # List network interfaces on router in Nix configuration format
