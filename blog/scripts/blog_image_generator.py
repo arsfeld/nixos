@@ -40,7 +40,7 @@ console = Console()
 PROJECT_ID = "gen-lang-client-0826920246"
 LOCATION_ID = "us-central1"
 API_ENDPOINT = "us-central1-aiplatform.googleapis.com"
-MODEL_ID = "imagen-4.0-generate-preview-05-20"
+MODEL_ID = "imagen-3.0-generate-001"  # Using newer Imagen 3 for better quality
 
 DEFAULT_OUTPUT_DIR = Path("../static/images/generated")
 PROMPTS_FILE = Path("image-prompts.yaml")
@@ -127,19 +127,13 @@ class ImageGenerator:
         console.print(f"Prompt: {full_prompt}")
         console.print(f"Samples: {sample_count}")
 
-        # Prepare request
+        # Prepare request - simplified format for imagegeneration@002
         request_data = {
             "instances": [{"prompt": full_prompt}],
             "parameters": {
-                "aspectRatio": aspect_ratio,
                 "sampleCount": sample_count,
-                "negativePrompt": "text, watermark, logo, signature, low quality, blurry, people, faces",
-                "enhancePrompt": True,
-                "personGeneration": "dont_allow",
-                "safetySetting": "block_some",
-                "addWatermark": False,
-                "includeRaiReason": True,
-                "language": "auto",
+                "aspectRatio": aspect_ratio,
+                "negativePrompt": "text, watermark, logo, signature, low quality, blurry, people, faces, pixelated, artifacts, noise, distorted, amateur, ugly, bad composition, oversaturated, cartoon, anime, painting, sketch, drawing",
             },
         }
 
@@ -164,6 +158,15 @@ class ImageGenerator:
                     url, headers=headers, json=request_data, timeout=120
                 )
                 response.raise_for_status()
+            except requests.exceptions.HTTPError as e:
+                console.print(f"[red]API request failed: {e}[/red]")
+                try:
+                    error_data = response.json()
+                    if "error" in error_data:
+                        console.print(f"[red]Error details: {error_data['error']}[/red]")
+                except:
+                    console.print(f"[red]Response text: {response.text}[/red]")
+                raise typer.Exit(1)
             except requests.exceptions.RequestException as e:
                 console.print(f"[red]API request failed: {e}[/red]")
                 raise typer.Exit(1)
@@ -173,6 +176,8 @@ class ImageGenerator:
         # Check for API errors
         if "error" in response_data:
             console.print(f"[red]API Error: {response_data['error']}[/red]")
+            if "message" in response_data["error"]:
+                console.print(f"[red]Message: {response_data['error']['message']}[/red]")
             raise typer.Exit(1)
 
         # Save response for debugging
