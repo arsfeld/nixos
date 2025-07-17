@@ -290,6 +290,10 @@ services.prometheus = {
       job_name = "blocky";
       static_configs = [{ targets = [ "localhost:4000" ]; }];
     }
+    {
+      job_name = "network-metrics";
+      static_configs = [{ targets = [ "localhost:9101" ]; }];
+    }
   ];
   
   # Rules for alerting
@@ -523,6 +527,36 @@ router.alerting = {
 - Firewall hit counts
 - Internet speed trends
 - Client traffic patterns
+
+### 📊 Network Metrics Exporter
+
+Custom Prometheus exporter for per-client network monitoring:
+
+```nix
+services.network-metrics-exporter = {
+  enable = true;
+  port = 9101;
+  
+  # Features:
+  # - Real-time per-client bandwidth monitoring
+  # - Persistent client name caching
+  # - Connection tracking per client
+  # - Online/offline status tracking
+  # - Traffic rate calculations in bits per second
+  
+  # Metrics exposed:
+  # - client_traffic_bytes: Total traffic counters
+  # - client_traffic_rate_bps: Real-time bandwidth usage
+  # - client_active_connections: Connection count per client
+  # - client_status: Online/offline status
+};
+```
+
+The exporter collects metrics from:
+- nftables traffic accounting rules
+- conntrack connection tracking
+- dnsmasq DHCP leases
+- ARP table for client detection
 
 ### Alert Types
 - **Critical**: Network interface down, service failures

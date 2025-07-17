@@ -2,6 +2,35 @@
 
 This document outlines the implementation tasks for adding power consumption, Tailscale, and WAN health metrics to the router monitoring system.
 
+## Completed Implementations
+
+### ✅ Network Metrics Exporter (formerly client-metrics-exporter)
+
+**Status**: Completed and deployed
+
+**Features Implemented**:
+- Real-time per-client bandwidth monitoring with 2-second updates
+- Persistent client name caching that survives DHCP lease expiration
+- Active connection tracking per client
+- Online/offline status monitoring via ARP table
+- Direct rate calculation in the exporter (no Prometheus time windows needed)
+
+**Metrics Available**:
+```
+client_traffic_bytes{direction="rx|tx",ip="192.168.10.x",client="hostname"}
+client_traffic_rate_bps{direction="rx|tx",ip="192.168.10.x",client="hostname"}
+client_active_connections{ip="192.168.10.x",client="hostname"}
+client_status{ip="192.168.10.x",client="hostname"} # 1=online, 0=offline
+```
+
+**Implementation Details**:
+- Written in Go for efficiency
+- Updates every 2 seconds for near real-time monitoring
+- Caches client names in `/var/lib/network-metrics-exporter/client-names.cache`
+- Reads from nftables traffic accounting rules
+- Uses conntrack for connection counting
+- Monitors dnsmasq DHCP leases and ARP table
+
 ## Priority Metrics Implementation
 
 ### 1. Power Consumption Metrics
