@@ -50,6 +50,35 @@ cd /home/arosenfeld/Projects/nixos/blog/scripts
 
 After generation, review the images in `../static/images/generated/` and move the best ones to `../static/images/` with the correct names expected by the blog posts.
 
+### For "NixOS Router Journey" post:
+
+```bash
+cd /home/arosenfeld/Projects/nixos/blog/scripts
+
+# Generate all images for the router series
+./blog_image_generator.py generate nixos-router-journey --count 2
+
+# Or generate specific images:
+# Hero image
+./blog_image_generator.py generate nixos-router-journey hero --count 3
+
+# Network flow visualization
+./blog_image_generator.py generate nixos-router-journey network-flow --count 3
+
+# Architecture diagram
+./blog_image_generator.py generate nixos-router-journey architecture --count 3
+
+# Testing visualization
+./blog_image_generator.py generate nixos-router-journey testing --count 3
+
+# Monitoring dashboard
+./blog_image_generator.py generate nixos-router-journey monitoring --count 3
+```
+
+## 3. Move Selected Images
+
+After generation, review the images in `../static/images/generated/` and move the best ones to `../static/images/` with the correct names expected by the blog posts.
+
 ## 4. Update Blog Posts
 
 The blog posts are already configured to reference these image names:
@@ -58,5 +87,10 @@ The blog posts are already configured to reference these image names:
 - `/images/constellation-pattern-hero.png`
 - `/images/constellation-architecture.png`
 - `/images/nixos-problems.png`
+- `/images/nixos-router-hero.png`
+- `/images/router-network-flow.png`
+- `/images/router-architecture-diagram.png`
+- `/images/router-testing-visualization.png`
+- `/images/router-monitoring-dashboard.png`
 
 Make sure the final image names match these references.

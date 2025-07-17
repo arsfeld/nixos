@@ -14,6 +14,10 @@ post_styles:
   self-hosting-with-nixos:
     description: "Warm home office aesthetic mixed with clean tech elements, cozy lighting with modern touches, translucent materials, blue and green color scheme"
     personality: "Welcoming and practical, emphasizing home comfort with technical capability"
+    
+  nixos-router-journey:
+    description: "Ultra high quality, 8k resolution, professional photography and technical illustration, crisp clean lines, perfect focus, studio lighting, minimalist modern design, blue and orange color palette, white background, highly detailed"
+    personality: "Technical precision with photorealistic quality, clean and professional presentation"
 
 # Image prompts organized by post
 prompts:
@@ -85,3 +89,64 @@ prompts:
       base_prompt: "Layered security shields protecting network infrastructure"
       aspect_ratio: "16:9"
       priority: 3
+
+  nixos-router-journey:
+    hero:
+      id: "nixos-router-hero"
+      base_prompt: "Photo-realistic Intel N5105 mini PC router with 4 ethernet ports, soft blue LED glow on ports, minimalist desk setup, shallow depth of field, product photography style, no text"
+      aspect_ratio: "16:9"
+      priority: 1
+      
+    network-flow:
+      id: "router-network-flow"
+      base_prompt: "Clean visualization of home network topology: fiber modem icon connecting to router icon, then branching to server icon, TV icon, and laptop icon, blue and orange connection lines showing data flow, minimal flat design, no text or labels"
+      aspect_ratio: "16:9"
+      priority: 2
+      
+    architecture:
+      id: "router-architecture-diagram"
+      base_prompt: "Technical diagram showing router internals: single input port to firewall shield icon, then to bridge icon with 3 output ports, clean flowchart style with blue boxes and orange connection arrows, minimal design, no text labels"
+      aspect_ratio: "16:9"
+      priority: 3
+      
+    testing:
+      id: "router-testing-visualization"
+      base_prompt: "Split screen: left shows dark code editor window, right shows green checkmark icons in a vertical list, clean minimal UI, blue and green accent colors, no text"
+      aspect_ratio: "16:9"
+      priority: 4
+      
+    monitoring:
+      id: "router-monitoring-dashboard"
+      base_prompt: "Dashboard interface showing network bandwidth line graph, pie chart, and bar charts, dark theme with blue and orange data visualization, realistic monitoring interface, no text or numbers"
+      aspect_ratio: "16:9"
+      priority: 5
+      
+    dns-blocking:
+      id: "router-dns-blocking"
+      base_prompt: "Visualization of DNS filtering: dots flowing through funnel, some dots blocked by shield icon, others passing through, blue dots for allowed, orange dots for blocked, minimal flat design, no text"
+      aspect_ratio: "16:9"
+      priority: 6
+      
+    qos-cake:
+      id: "router-qos-bufferbloat"
+      base_prompt: "Before/after comparison: left shows jagged spiky line graph, right shows smooth flowing line graph, streaming and video icons below, blue and orange lines, clean data visualization, no text or numbers"
+      aspect_ratio: "16:9"
+      priority: 7
+      
+    hardware:
+      id: "router-hardware-specs"
+      base_prompt: "Exploded view of mini PC components: CPU chip, network cards, RAM module, heatsink fins, clean technical illustration, blue and gray color scheme, no text labels"
+      aspect_ratio: "16:9"
+      priority: 8
+      
+    upnp:
+      id: "router-upnp-gaming"
+      base_prompt: "Media streaming setup with server icon, router icon in middle with glowing ports, arrows showing connection paths, blue and green success indicator lights, clean illustration, no text"
+      aspect_ratio: "16:9"
+      priority: 9
+      
+    tailscale:
+      id: "router-vpn-access"
+      base_prompt: "Home network represented as glowing bubble connected via secure tunnel line to laptop icon in coffee shop setting, blue secure connection, orange home network glow, minimal illustration, no text"
+      aspect_ratio: "16:9"
+      priority: 10
