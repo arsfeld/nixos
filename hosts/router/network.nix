@@ -25,7 +25,7 @@ in {
     network = lib.mkOption {
       type = lib.types.attrs;
       default = {
-        prefix = "192.168.10";
+        prefix = "10.1.1";
         cidr = 24;
       };
       description = "Network configuration for LAN";
