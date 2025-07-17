@@ -98,7 +98,7 @@ in {
           # Function to discover clients
           discover_clients() {
             # Method 1: ARP table
-            ${pkgs.iproute2}/bin/ip neigh show | grep 'br-lan' | grep -E '${netConfig.prefix}\.[0-9]+' | awk '{print $1}' | sort -u
+            ${pkgs.iproute2}/bin/ip neigh show | grep 'br-lan' | grep -E '${netConfig.prefix}\.[0-9]+' | ${pkgs.gawk}/bin/awk '{print $1}' | sort -u
 
             # Method 2: Active connections
             ${pkgs.conntrack-tools}/bin/conntrack -L 2>/dev/null | grep -oE '${netConfig.prefix}\.[0-9]+' | sort -u || true
@@ -133,55 +133,34 @@ in {
     serviceConfig = {
       Type = "simple";
       ExecStart = let
-        # Client name mappings will be populated from DHCP leases
-        # Only include known static mappings here
-        clientNames = ''
-          declare -A CLIENT_NAMES=(
-            ["${netConfig.prefix}.5"]="storage"
-          )
-        '';
-
         script = pkgs.writeScript "export-client-traffic" ''
           #!${pkgs.bash}/bin/bash
           set -e
 
-          ${clientNames}
-
-          # Function to get client name (from DHCP leases or static mappings)
+          # Function to get client name
           get_client_name() {
             local ip="$1"
-
-            # Check static mappings first
-            if [ -n "''${CLIENT_NAMES[$ip]}" ]; then
-              echo "''${CLIENT_NAMES[$ip]}"
-              return
+            
+            # Check the generated hosts file first
+            if [ -f /var/lib/dnsmasq/dhcp-hosts ]; then
+              local hostname=$(${pkgs.gawk}/bin/awk -v ip="$ip" '$1 == ip {print $2; exit}' /var/lib/dnsmasq/dhcp-hosts 2>/dev/null)
+              if [ -n "$hostname" ]; then
+                # Remove .lan suffix if present
+                hostname=''${hostname%.lan}
+                echo "$hostname"
+                return
+              fi
             fi
-
-            # Check DHCP leases file
-            if [ -f /var/lib/dhcp/dhcpd.leases ]; then
-              # Look for hostname in DHCP leases
-              local hostname=$(awk -v ip="$ip" '
-                $1 == "lease" && $2 == ip {found=1}
-                found && $1 == "client-hostname" {gsub(/[";]/, "", $2); print $2; exit}
-                $1 == "}" {found=0}
-              ' /var/lib/dhcp/dhcpd.leases 2>/dev/null)
-
+            
+            # Fallback: check dnsmasq lease file directly
+            if [ -f /var/lib/dnsmasq/dnsmasq.leases ]; then
+              hostname=$(${pkgs.gawk}/bin/awk -v ip="$ip" '$3 == ip && $4 != "*" {print $4; exit}' /var/lib/dnsmasq/dnsmasq.leases 2>/dev/null)
               if [ -n "$hostname" ]; then
                 echo "$hostname"
                 return
               fi
             fi
-
-            # Check kea DHCP leases
-            if [ -f /var/lib/kea/dhcp4.leases ]; then
-              local hostname=$(${pkgs.jq}/bin/jq -r --arg ip "$ip" '.[] | select(.address == $ip) | .hostname // empty' /var/lib/kea/dhcp4.leases 2>/dev/null | head -1)
-              if [ -n "$hostname" ]; then
-                echo "$hostname"
-                return
-              fi
-            fi
-
-            # No name found
+            
             echo ""
           }
 
@@ -517,7 +496,7 @@ in {
         {
           name = "Prometheus";
           type = "prometheus";
-          url = "http://localhost:9090";
+          url = "http://localhost:9090/prometheus";
           isDefault = true;
         }
       ];

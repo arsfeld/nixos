@@ -53,15 +53,10 @@
           active_index_directory = "/var/lib/loki/boltdb-shipper-active";
           cache_location = "/var/lib/loki/boltdb-shipper-cache";
           cache_ttl = "24h";
-          shared_store = "filesystem";
         };
         filesystem = {
           directory = "/var/lib/loki/chunks";
         };
-      };
-
-      chunk_store_config = {
-        max_look_back_period = "168h"; # 7 days
       };
 
       table_manager = {
@@ -70,27 +65,24 @@
       };
 
       limits_config = {
-        enforce_metric_name = false;
         reject_old_samples = true;
         reject_old_samples_max_age = "168h";
         retention_period = "168h"; # 7 days
         max_entries_limit_per_query = 5000;
         max_query_length = "168h";
         max_query_parallelism = 16;
+        allow_structured_metadata = false; # Required for schema v11
       };
 
       compactor = {
         working_directory = "/var/lib/loki/compactor";
-        shared_store = "filesystem";
         compaction_interval = "10m";
-        retention_enabled = true;
-        retention_delete_delay = "2h";
-        retention_delete_worker_count = 10;
+        retention_enabled = false; # Disable until we configure delete-request-store
       };
     };
   };
 
-  # Promtail - Log shipper
+  # Promtail - Log shipper with fixed selectors
   services.promtail = {
     enable = true;
     configuration = {
@@ -139,180 +131,6 @@
             }
           ];
           pipeline_stages = [
-            # Parse miniupnpd logs
-            {
-              match = {
-                selector = "{unit=\"miniupnpd.service\"}";
-                stages = [
-                  {
-                    regex = {
-                      expression = "(?P<timestamp>\\w+ \\d+ \\d+:\\d+:\\d+) .* (?P<action>addentry|delentry): (?P<protocol>\\w+) (?P<ext_port>\\d+) (?P<client_ip>[\\d.]+):(?P<int_port>\\d+)";
-                    };
-                  }
-                  {
-                    labels = {
-                      action = "";
-                      protocol = "";
-                      client_ip = "";
-                    };
-                  }
-                  {
-                    metrics = {
-                      upnp_port_mappings_total = {
-                        type = "Counter";
-                        description = "Total UPnP port mappings";
-                        source = "action";
-                        config = {
-                          action = "inc";
-                          match_all = true;
-                        };
-                      };
-                    };
-                  }
-                ];
-              };
-            }
-            # Parse blocky DNS logs
-            {
-              match = {
-                selector = "{unit=\"blocky.service\"}";
-                stages = [
-                  {
-                    regex = {
-                      expression = "query: (?P<query_type>\\w+) (?P<domain>[^ ]+) from (?P<client>[\\d.:]+)";
-                    };
-                  }
-                  {
-                    labels = {
-                      query_type = "";
-                      client = "";
-                    };
-                  }
-                  {
-                    metrics = {
-                      dns_queries_total = {
-                        type = "Counter";
-                        description = "Total DNS queries";
-                        source = "query_type";
-                        config = {
-                          action = "inc";
-                          match_all = true;
-                        };
-                      };
-                    };
-                  }
-                ];
-              };
-            }
-            # Parse blocked domains
-            {
-              match = {
-                selector = "{unit=\"blocky.service\"}";
-                stages = [
-                  {
-                    regex = {
-                      expression = "blocked (?P<blocked_domain>[^ ]+) for client (?P<client>[\\d.:]+)";
-                    };
-                  }
-                  {
-                    labels = {
-                      blocked_domain = "";
-                      client = "";
-                    };
-                  }
-                  {
-                    metrics = {
-                      dns_blocked_total = {
-                        type = "Counter";
-                        description = "Total blocked DNS queries";
-                        source = "blocked_domain";
-                        config = {
-                          action = "inc";
-                          match_all = true;
-                        };
-                      };
-                    };
-                  }
-                ];
-              };
-            }
-            # Parse nftables logs
-            {
-              match = {
-                selector = "{unit=\"nftables.service\"}";
-                stages = [
-                  {
-                    regex = {
-                      expression = "\\[(?P<action>ACCEPT|DROP|REJECT)\\] IN=(?P<in_interface>\\w+)? OUT=(?P<out_interface>\\w+)? SRC=(?P<src_ip>[\\d.]+) DST=(?P<dst_ip>[\\d.]+)";
-                    };
-                  }
-                  {
-                    labels = {
-                      action = "";
-                      in_interface = "";
-                      out_interface = "";
-                    };
-                  }
-                ];
-              };
-            }
-            # Parse DHCP logs
-            {
-              match = {
-                selector = "{unit~=\"dhcpd.service|kea-dhcp4.service\"}";
-                stages = [
-                  {
-                    regex = {
-                      expression = "(?P<action>DHCPOFFER|DHCPACK|DHCPNAK) on (?P<ip>[\\d.]+) to (?P<mac>[\\w:]+) \\((?P<hostname>[^)]+)\\)";
-                    };
-                  }
-                  {
-                    labels = {
-                      action = "";
-                      ip = "";
-                      hostname = "";
-                    };
-                  }
-                ];
-              };
-            }
-            # Parse Tailscale logs
-            {
-              match = {
-                selector = "{unit=\"tailscaled.service\"}";
-                stages = [
-                  {
-                    regex = {
-                      expression = "(?P<peer_name>[^:]+): (?P<action>connected|disconnected)";
-                    };
-                  }
-                  {
-                    labels = {
-                      peer_name = "";
-                      action = "";
-                    };
-                  }
-                ];
-              };
-            }
-            # Parse speed test logs
-            {
-              match = {
-                selector = "{unit=\"speedtest.service\"}";
-                stages = [
-                  {
-                    regex = {
-                      expression = "Download=(?P<download>[\\d.]+) Mbps, Upload=(?P<upload>[\\d.]+) Mbps, Ping=(?P<ping>[\\d.]+) ms";
-                    };
-                  }
-                  {
-                    labels = {
-                      test_type = "speedtest";
-                    };
-                  }
-                ];
-              };
-            }
             # Drop verbose/debug logs to save space
             {
               drop = {

@@ -314,6 +314,142 @@ services.grafana = {
 };
 ```
 
+### 📋 Log Aggregation (Loki + Promtail)
+
+Lightweight log collection integrated with Grafana:
+
+```nix
+services.loki = {
+  enable = true;
+  configuration = {
+    auth_enabled = false;
+    
+    server = {
+      http_listen_port = 3100;
+      grpc_listen_port = 9096;
+    };
+    
+    ingester = {
+      lifecycler = {
+        address = "127.0.0.1";
+        ring = {
+          kvstore.store = "inmemory";
+          replication_factor = 1;
+        };
+      };
+      chunk_idle_period = "5m";
+      chunk_retain_period = "30s";
+      max_chunk_age = "1h";
+    };
+    
+    schema_config.configs = [{
+      from = "2023-01-01";
+      store = "boltdb-shipper";
+      object_store = "filesystem";
+      schema = "v11";
+      index = {
+        prefix = "index_";
+        period = "24h";
+      };
+    }];
+    
+    storage_config = {
+      boltdb_shipper = {
+        active_index_directory = "/var/lib/loki/boltdb-shipper-active";
+        cache_location = "/var/lib/loki/boltdb-shipper-cache";
+        shared_store = "filesystem";
+      };
+      filesystem.directory = "/var/lib/loki/chunks";
+    };
+    
+    limits_config = {
+      retention_period = "168h"; # 7 days
+      retention_delete_delay = "2h";
+      retention_delete_worker_count = 10;
+    };
+  };
+};
+
+services.promtail = {
+  enable = true;
+  configuration = {
+    server = {
+      http_listen_port = 9080;
+      grpc_listen_port = 0;
+    };
+    
+    clients = [
+      {
+        url = "http://localhost:3100/loki/api/v1/push";
+      }
+    ];
+    
+    scrape_configs = [
+      {
+        job_name = "journal";
+        journal = {
+          max_age = "12h";
+          labels = {
+            job = "systemd-journal";
+            host = "router";
+          };
+        };
+        relabel_configs = [
+          {
+            source_labels = [ "__journal__systemd_unit" ];
+            target_label = "unit";
+          }
+          {
+            source_labels = [ "__journal_priority_keyword" ];
+            target_label = "level";
+          }
+        ];
+        pipeline_stages = [
+          {
+            match = {
+              selector = "{unit=\"miniupnpd.service\"}";
+              stages = [
+                {
+                  regex = {
+                    expression = "addentry: (?P<protocol>\\w+) (?P<client_ip>[\\d.]+) (?P<port>\\d+)";
+                  };
+                }
+                {
+                  labels = {
+                    protocol = "";
+                    client_ip = "";
+                    port = "";
+                  };
+                }
+              ];
+            };
+          }
+          {
+            match = {
+              selector = "{unit=\"blocky.service\"}";
+              stages = [
+                {
+                  regex = {
+                    expression = "query: (?P<query_type>\\w+) (?P<domain>[^ ]+) from (?P<client>[\\d.]+)";
+                  };
+                }
+                {
+                  labels = {
+                    query_type = "";
+                    domain = "";
+                    client = "";
+                  };
+                }
+              ];
+            };
+          }
+        ];
+      }
+    ];
+  };
+};
+```
+
 ### 📈 Speed Testing
 
 Automated daily internet speed tests with historical tracking:
@@ -403,13 +539,20 @@ router.alerting = {
 - **Grafana**: `http://router.bat-boa.ts.net:3000`
   - Username: admin
   - Password: (configured via secrets)
-  - Dashboards: Router metrics, speed tests, alerts
+  - Dashboards: Router metrics, speed tests, alerts, logs
+  - Loki datasource for log queries
 - **Prometheus**: `http://router.bat-boa.ts.net:9090`
   - Query interface and targets
   - Alert rule management
 - **Alertmanager**: `http://router.bat-boa.ts.net:9093`
   - Active alerts and silences
   - Notification routing
+- **Loki**: `http://router.bat-boa.ts.net:3100`
+  - Log aggregation API
+  - Query endpoint for logs
+- **Promtail**: `http://router.bat-boa.ts.net:9080`
+  - Log shipper metrics
+  - Scrape targets status
 
 ## Backup Configuration
 
