@@ -28,7 +28,7 @@ From your development machine:
 
 ```bash
 # Install to the target host (replace IP_ADDRESS with actual IP)
-just install-router IP_ADDRESS
+just install router IP_ADDRESS
 ```
 
 This command will:
@@ -37,6 +37,9 @@ This command will:
 - Install NixOS with the router configuration
 - Reboot the system automatically
 
+> **Note**: The `just install` command is generic and can be used for any host in the flake.
+> For example: `just install storage 192.168.1.50` or `just install cloud 10.0.0.100`
+
 ### 2. Post-Installation Setup
 
 After the system reboots:
@@ -44,7 +47,7 @@ After the system reboots:
 #### Generate Hardware Configuration
 ```bash
 # Generate hardware-specific configuration
-just router-hardware-config router.local
+just hardware-config router router.local
 
 # Review and commit the generated file
 git add hosts/router/hardware-configuration.nix

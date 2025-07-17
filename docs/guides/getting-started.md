@@ -127,6 +127,31 @@ Modules encapsulate functionality:
 
 ## Common Tasks
 
+### Installing a New Host
+
+Install NixOS on a new machine using nixos-anywhere:
+```bash
+# Boot target machine from NixOS installer ISO
+# Enable SSH: systemctl start sshd
+# Set root password: passwd
+
+# From your development machine:
+just install <hostname> <target-ip>
+
+# Examples:
+just install router 192.168.1.1
+just install storage 10.0.0.50
+just install cloud 192.168.100.25
+```
+
+After installation, generate hardware configuration:
+```bash
+just hardware-config <hostname> <target-host>
+
+# Example:
+just hardware-config storage storage.local
+```
+
 ### Building a Configuration
 
 Test build without deploying:
