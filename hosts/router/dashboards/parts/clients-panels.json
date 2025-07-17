@@ -4,285 +4,6 @@
       "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "align": "left",
-            "displayMode": "auto"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": 0
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Status"
-            },
-            "properties": [
-              {
-                "id": "custom.displayMode",
-                "value": "color-background-solid"
-              },
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "0": {
-                        "text": "Offline",
-                        "color": "red",
-                        "index": 0
-                      },
-                      "1": {
-                        "text": "Online",
-                        "color": "green",
-                        "index": 1
-                      }
-                    }
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Name"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 150
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "IP Address"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 120
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Device"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 200
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Download"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "binBps"
-              },
-              {
-                "id": "custom.displayMode",
-                "value": "color-text"
-              },
-              {
-                "id": "decimals",
-                "value": 2
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Upload"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "binBps"
-              },
-              {
-                "id": "custom.displayMode",
-                "value": "color-text"
-              },
-              {
-                "id": "decimals",
-                "value": 2
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Total Traffic"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "binBps"
-              },
-              {
-                "id": "custom.displayMode",
-                "value": "color-background"
-              },
-              {
-                "id": "decimals",
-                "value": 2
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 12,
-        "w": 8,
-        "x": 0,
-        "y": 1
-      },
-      "id": 20,
-      "options": {
-        "showHeader": true,
-        "sortBy": [
-          {
-            "desc": true,
-            "displayName": "Status"
-          }
-        ]
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "expr": "client_status",
-          "format": "table",
-          "instant": true,
-          "refId": "A"
-        },
-        {
-          "expr": "rate(client_traffic_bytes_total{direction=\"rx\"}[5m]) * 8",
-          "format": "table",
-          "instant": true,
-          "refId": "B"
-        },
-        {
-          "expr": "rate(client_traffic_bytes_total{direction=\"tx\"}[5m]) * 8",
-          "format": "table",
-          "instant": true,
-          "refId": "C"
-        }
-      ],
-      "title": "Client Status",
-      "transformations": [
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "groupBy",
-          "options": {
-            "fields": {
-              "Value #A": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              },
-              "Value #B": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              },
-              "Value #C": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              },
-              "description": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "ip": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "name": {
-                "aggregations": [],
-                "operation": "groupby"
-              }
-            }
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "__name__": true,
-              "job": true,
-              "instance": true,
-              "direction": true
-            },
-            "indexByName": {
-              "Value #A (lastNotNull)": 3,
-              "name": 0,
-              "ip": 1,
-              "description": 2,
-              "Value #B (lastNotNull)": 4,
-              "Value #C (lastNotNull)": 5
-            },
-            "renameByName": {
-              "Value #A (lastNotNull)": "Status",
-              "Value #B (lastNotNull)": "Download",
-              "Value #C (lastNotNull)": "Upload",
-              "ip": "IP Address",
-              "name": "Name",
-              "description": "Device"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "mode": "reduceRow",
-            "reduce": {
-              "reducer": "sum",
-              "include": [
-                "Download",
-                "Upload"
-              ]
-            },
-            "alias": "Total Traffic"
-          }
-        }
-      ],
-      "type": "table"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
           "color": {
             "mode": "thresholds"
           },
@@ -324,7 +45,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "count(count by (ip) (client_active_connections))",
+          "expr": "count(count by (ip) (client_active_connections{job=\"network-metrics\"}))",
           "refId": "A"
         }
       ],
@@ -385,14 +106,14 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "topk(10, rate(client_traffic_bytes_total{direction=\"rx\"}[5m]) * 8)",
+          "expr": "topk(10, client_traffic_rate_bps{job=\"network-metrics\",direction=\"rx\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "",
           "refId": "A"
         },
         {
-          "expr": "topk(10, rate(client_traffic_bytes_total{direction=\"tx\"}[5m]) * 8)",
+          "expr": "topk(10, client_traffic_rate_bps{job=\"network-metrics\",direction=\"tx\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -495,8 +216,8 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "rate(client_traffic_bytes_total{direction=\"rx\"}[5m]) * 8",
-          "legendFormat": "{{ip}}",
+          "expr": "client_traffic_rate_bps{job=\"network-metrics\",direction=\"rx\"}",
+          "legendFormat": "{{client}} ({{ip}})",
           "refId": "A"
         }
       ],
@@ -566,7 +287,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "client_active_connections",
+          "expr": "client_active_connections{job=\"network-metrics\"}",
           "format": "table",
           "instant": true,
           "refId": "A"
@@ -592,6 +313,489 @@
         }
       ],
       "type": "table"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "binBps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 22
+      },
+      "id": 21,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "expr": "client_traffic_rate_bps{job=\"network-metrics\",direction=\"rx\"}",
+          "legendFormat": "{{client}} ({{ip}}) - Download",
+          "refId": "A"
+        }
+      ],
+      "title": "Real-time Client Bandwidth",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10485760
+              },
+              {
+                "color": "orange",
+                "value": 104857600
+              },
+              {
+                "color": "red",
+                "value": 524288000
+              }
+            ]
+          },
+          "unit": "binBps"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Current DL Rate"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Current UL Rate"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Max DL Rate"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-text"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Max UL Rate"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-text"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total Bytes DL"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "decbytes"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total Bytes UL"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "decbytes"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "id": 22,
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Current DL Rate"
+          }
+        ]
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "expr": "client_traffic_rate_bps{job=\"network-metrics\",direction=\"rx\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        },
+        {
+          "expr": "client_traffic_rate_bps{job=\"network-metrics\",direction=\"tx\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "B"
+        },
+        {
+          "expr": "max_over_time(client_traffic_rate_bps{job=\"network-metrics\",direction=\"rx\"}[1h])",
+          "format": "table",
+          "instant": true,
+          "refId": "C"
+        },
+        {
+          "expr": "max_over_time(client_traffic_rate_bps{job=\"network-metrics\",direction=\"tx\"}[1h])",
+          "format": "table",
+          "instant": true,
+          "refId": "D"
+        },
+        {
+          "expr": "client_traffic_bytes{job=\"network-metrics\",direction=\"rx\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "E"
+        },
+        {
+          "expr": "client_traffic_bytes{job=\"network-metrics\",direction=\"tx\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "F"
+        }
+      ],
+      "title": "Client Bandwidth Analysis",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Value #A": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "aggregate"
+              },
+              "Value #B": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "aggregate"
+              },
+              "Value #C": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "aggregate"
+              },
+              "Value #D": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "aggregate"
+              },
+              "Value #E": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "aggregate"
+              },
+              "Value #F": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "aggregate"
+              },
+              "ip": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "client": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "direction": true
+            },
+            "indexByName": {
+              "client": 0,
+              "ip": 1,
+              "Value #A (lastNotNull)": 2,
+              "Value #B (lastNotNull)": 3,
+              "Value #C (lastNotNull)": 4,
+              "Value #D (lastNotNull)": 5,
+              "Value #E (lastNotNull)": 6,
+              "Value #F (lastNotNull)": 7
+            },
+            "renameByName": {
+              "Value #A (lastNotNull)": "Current DL Rate",
+              "Value #B (lastNotNull)": "Current UL Rate",
+              "Value #C (lastNotNull)": "Max DL Rate",
+              "Value #D (lastNotNull)": "Max UL Rate",
+              "Value #E (lastNotNull)": "Total Bytes DL",
+              "Value #F (lastNotNull)": "Total Bytes UL",
+              "ip": "IP Address",
+              "client": "Name"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 2500,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1000
+              },
+              {
+                "color": "orange",
+                "value": 2000
+              },
+              {
+                "color": "red",
+                "value": 2400
+              }
+            ]
+          },
+          "unit": "Mbps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      },
+      "id": 23,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "expr": "sum(client_traffic_rate_bps{job=\"network-metrics\",direction=\"rx\"}) / 1e6",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Download Bandwidth (Mbps)",
+      "type": "gauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 2500,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 500
+              },
+              {
+                "color": "orange",
+                "value": 1000
+              },
+              {
+                "color": "red",
+                "value": 2000
+              }
+            ]
+          },
+          "unit": "Mbps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 44
+      },
+      "id": 24,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "expr": "sum(client_traffic_rate_bps{job=\"network-metrics\",direction=\"tx\"}) / 1e6",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Upload Bandwidth (Mbps)",
+      "type": "gauge"
     }
   ]
 }
