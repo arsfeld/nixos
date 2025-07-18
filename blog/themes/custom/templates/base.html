@@ -28,11 +28,11 @@
     {% endif %}
     
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="{{ get_url(path="main.css") }}">
+    <link rel="stylesheet" href="{{ get_url(path="main.css") }}?v={{ now() | date(format="%s") }}">
     
     <!-- Syntax highlighting -->
     {% if config.extra.syntax_theme %}
-    <link rel="stylesheet" href="{{ get_url(path="css/syntax-theme.css") }}">
+    <link rel="stylesheet" href="{{ get_url(path="css/syntax-theme.css") }}?v={{ now() | date(format="%s") }}">
     {% endif %}
     
     <!-- RSS Feed -->
@@ -105,7 +105,7 @@
     </div>
     
     <!-- Scripts -->
-    <script src="{{ get_url(path="main.js") }}"></script>
+    <script src="{{ get_url(path="main.js") }}?v={{ now() | date(format="%s") }}"></script>
     {% block extra_scripts %}{% endblock extra_scripts %}
 </body>
 </html>

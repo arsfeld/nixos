@@ -113,20 +113,17 @@ code {
   font-family: var(--font-family-code);
   font-size: 0.875em;
   padding: 0.2em 0.4em;
-  background-color: var(--color-code-bg);
-  color: var(--color-code-text);
   border-radius: 3px;
 }
 
 pre {
   overflow-x: auto;
   padding: var(--spacing-md);
-  background-color: var(--color-code-bg);
   border-radius: 6px;
+  border: 1px solid var(--color-border);
   
   code {
     padding: 0;
-    background-color: transparent;
   }
 }
 
@@ -384,43 +381,6 @@ pre {
   }
 }
 
-// Table of contents
-.table-of-contents {
-  background-color: var(--color-code-bg);
-  padding: var(--spacing-lg);
-  border-radius: 6px;
-  margin-bottom: var(--spacing-xl);
-  
-  h2 {
-    margin-top: 0;
-    font-size: 1.125rem;
-  }
-  
-  ul {
-    list-style: none;
-    padding-left: 0;
-    
-    ul {
-      padding-left: var(--spacing-lg);
-    }
-  }
-  
-  a {
-    color: var(--color-text);
-    display: block;
-    padding: var(--spacing-xs) 0;
-    
-    &:hover {
-      color: var(--color-accent);
-      text-decoration: none;
-    }
-    
-    &.active {
-      color: var(--color-accent);
-      font-weight: 600;
-    }
-  }
-}
 
 // Share buttons
 .share-buttons {

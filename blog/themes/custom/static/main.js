@@ -84,37 +84,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// Table of contents highlighting
-if (document.querySelector('.table-of-contents')) {
-  const tocLinks = document.querySelectorAll('.table-of-contents a');
-  const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
-  
-  // Highlight active section in ToC
-  const observerOptions = {
-    rootMargin: '-80px 0px -70% 0px'
-  };
-  
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      const id = entry.target.getAttribute('id');
-      const tocLink = document.querySelector(`.table-of-contents a[href="#${id}"]`);
-      
-      if (tocLink) {
-        if (entry.intersectionRatio > 0) {
-          tocLink.classList.add('active');
-        } else {
-          tocLink.classList.remove('active');
-        }
-      }
-    });
-  }, observerOptions);
-  
-  headings.forEach(heading => {
-    if (heading.getAttribute('id')) {
-      observer.observe(heading);
-    }
-  });
-}
 
 // Reading progress indicator
 const progressBar = document.createElement('div');

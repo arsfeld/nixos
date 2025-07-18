@@ -1,5 +1,5 @@
 +++
-title = "From Ubuntu Chaos to NixOS Zen: Managing a Multi-Host Homelab"
+title = "Managing a Multi-Host Homelab with NixOS"
 date = 2025-06-10
 description = "How I transformed my homelab from a fragile Ubuntu setup to a declarative NixOS infrastructure with automated deployments"
 tags = ["nixos", "homelab", "self-hosting", "infrastructure", "devops"]
