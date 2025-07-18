@@ -44,6 +44,17 @@ Specifications:
 - Power: ~10-15W typical consumption
 ```
 
+### Alternative: ARM-based SBCs
+
+I've also used the NanoPi R2S (ARM-based SBC) as a router, and while my [NixOS configuration still supports it](https://github.com/arsfeld/nixos/tree/master/hosts/r2s), I don't recommend it for beginners:
+
+- **Installation is more complex** - requires building custom images
+- **Limited performance** - struggles with QoS, monitoring, and multiple services
+- **Feature trade-offs** - you'll need to carefully choose which features to enable
+- **Maintenance overhead** - ARM support in NixOS requires more manual work
+
+For a first NixOS router, stick with x86_64 hardware for the best experience.
+
 ### Where to Buy
 - **AliExpress**: Best prices, 2-4 week shipping
   - Search for "N5105 mini PC 4 LAN"
@@ -262,12 +273,12 @@ Congratulations! You now have a working NixOS router. It's basic, but it's yours
 - **Part 4: UPnP for Gaming** - Automatic port forwarding done right
 - **Part 5: Eliminate Bufferbloat** - CAKE QoS for smooth performance
 
-The complete configuration for this series is available in my [nixos-config repository](https://github.com/arosenfeld/nixos-config). Feel free to explore and adapt it to your needs.
+The complete configuration for this series is available in my [nixos-config repository](https://github.com/arsfeld/nixos). Feel free to explore and adapt it to your needs.
 
 ## Resources
 
 - [NixOS Manual - Networking](https://nixos.org/manual/nixos/stable/#sec-networking)
-- [My Router Configuration](https://github.com/arosenfeld/nixos-config/tree/master/hosts/router)
+- [My Router Configuration](https://github.com/arsfeld/nixos/tree/master/hosts/router)
 - [NixOS Discourse - Networking Topics](https://discourse.nixos.org/c/help/networking/23)
 
-Have questions or run into issues? Feel free to open an issue on the [repository](https://github.com/arosenfeld/nixos-config/issues) or reach out on the NixOS forums!
+Have questions or run into issues? Feel free to open an issue on the [repository](https://github.com/arsfeld/nixos/issues) or reach out on the NixOS forums!
