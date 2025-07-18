@@ -58,75 +58,37 @@ in {
     # Secrets
     age.secrets.plausible-secret-key = {
       file = ../../secrets/plausible-secret-key.age;
-      owner = "root";
-      group = "root";
+      owner = "plausible";
+      group = "plausible";
     };
 
     age.secrets.plausible-smtp-password = {
       file = ../../secrets/plausible-smtp-password.age;
-      owner = "root";
-      group = "root";
+      owner = "plausible";
+      group = "plausible";
     };
 
-    # PostgreSQL for Plausible metadata
-    services.postgresql = {
+    # Use the native NixOS Plausible service
+    services.plausible = {
       enable = true;
-      ensureDatabases = ["plausible"];
-      ensureUsers = [
-        {
-          name = "plausible";
-          ensureDBOwnership = true;
-        }
-      ];
-    };
 
-    # ClickHouse for event data
-    services.clickhouse = {
-      enable = true;
-    };
-
-    # Create environment file for secrets
-    systemd.services.plausible-env = {
-      description = "Create Plausible environment file";
-      before = ["podman-plausible.service"];
-      wantedBy = ["podman-plausible.service"];
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
+      server = {
+        baseUrl = "https://${cfg.domain}";
+        disableRegistration = false; # Temporarily enable to create admin user
+        port = 8100; # Avoid conflict with Vaultwarden on 8000
+        secretKeybaseFile = config.age.secrets.plausible-secret-key.path;
       };
-      script = ''
-        mkdir -p /run/plausible
-        cat > /run/plausible/env <<EOF
-        SECRET_KEY_BASE=$(cat ${config.age.secrets.plausible-secret-key.path})
-        SMTP_USER_PWD=$(cat ${config.age.secrets.plausible-smtp-password.path})
-        EOF
-        chmod 600 /run/plausible/env
-      '';
-    };
 
-    # Plausible container
-    virtualisation.oci-containers.containers.plausible = {
-      image = "plausible/analytics:v2.1";
-      environment = {
-        DISABLE_REGISTRATION = "true";
-        BASE_URL = "https://${cfg.domain}";
-        DATABASE_URL = "postgres://plausible:plausible@localhost/plausible";
-        CLICKHOUSE_DATABASE_URL = "http://localhost:8123/plausible_events_db";
-        MAILER_ADAPTER = "Bamboo.SMTPAdapter";
-        SMTP_HOST_ADDR = cfg.smtp.host;
-        SMTP_HOST_PORT = toString cfg.smtp.port;
-        SMTP_USER_NAME = cfg.smtp.username;
-        SMTP_HOST_SSL_ENABLED = toString cfg.smtp.ssl;
-        MAILER_EMAIL = cfg.smtp.fromEmail;
+      mail = {
+        email = cfg.smtp.fromEmail;
+        smtp = {
+          hostAddr = cfg.smtp.host;
+          hostPort = cfg.smtp.port;
+          enableSSL = cfg.smtp.ssl;
+          user = cfg.smtp.username;
+          passwordFile = config.age.secrets.plausible-smtp-password.path;
+        };
       };
-      environmentFiles = ["/run/plausible/env"];
-      ports = ["127.0.0.1:8000:8000"];
-      extraOptions = [
-        "--network=host"
-      ];
-      volumes = [
-        "/var/lib/plausible:/var/lib/plausible"
-      ];
     };
 
     # Caddy reverse proxy
@@ -143,7 +105,7 @@ in {
           Permissions-Policy "geolocation=(), microphone=(), camera=()"
         }
 
-        reverse_proxy localhost:8000 {
+        reverse_proxy localhost:8100 {
           header_up X-Real-IP {remote_host}
           header_up X-Forwarded-For {remote_host}
           header_up X-Forwarded-Proto {scheme}
@@ -162,11 +124,5 @@ in {
 
     # Note: Plausible data in /var/lib/plausible will be automatically backed up
     # by the constellation.backup module when enabled, as it backs up all of /var/lib
-
-    # Systemd service ordering
-    systemd.services."podman-plausible" = {
-      after = ["postgresql.service" "clickhouse.service" "plausible-env.service"];
-      requires = ["postgresql.service" "clickhouse.service" "plausible-env.service"];
-    };
   };
 }
