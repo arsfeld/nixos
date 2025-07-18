@@ -18,6 +18,10 @@ post_styles:
   nixos-router-journey:
     description: "Ultra high quality, 8k resolution, professional photography and technical illustration, crisp clean lines, perfect focus, studio lighting, minimalist modern design, blue and orange color palette, white background, highly detailed"
     personality: "Technical precision with photorealistic quality, clean and professional presentation"
+    
+  nixos-router-getting-started:
+    description: "Futuristic tech transformation style, glowing neon blue network connections, modern gradient backgrounds, clean 3D renders, dramatic lighting with blue and purple highlights, high-tech aesthetic"
+    personality: "Exciting and transformative, emphasizing the journey from hardware to powerful router"
 
 # Image prompts organized by post
 prompts:
@@ -150,3 +154,28 @@ prompts:
       base_prompt: "Home network represented as glowing bubble connected via secure tunnel line to laptop icon in coffee shop setting, blue secure connection, orange home network glow, minimal illustration, no text"
       aspect_ratio: "16:9"
       priority: 10
+
+  nixos-router-getting-started:
+    hero:
+      id: "nixos-router-getting-started"
+      base_prompt: "Futuristic mini PC transforming into network router, glowing ethernet ports with neon blue light trails, network cables forming connection patterns, dramatic transformation effect, dark gradient background with blue and purple highlights, 3D render style, no text"
+      aspect_ratio: "16:9"
+      priority: 1
+      
+    hardware-selection:
+      id: "router-hardware-selection"
+      base_prompt: "Three mini PCs in ascending size and price, glowing price tags floating above, network ports highlighted in blue, clean product comparison layout, gradient background, modern tech showcase style, no text"
+      aspect_ratio: "16:9"
+      priority: 2
+      
+    installation:
+      id: "nixos-installation-process"
+      base_prompt: "USB drive with glowing NixOS snowflake logo inserting into mini PC, installation progress visualization with flowing data streams, blue and white color scheme, clean technical illustration, no text"
+      aspect_ratio: "16:9"
+      priority: 3
+      
+    configuration:
+      id: "router-configuration-code"
+      base_prompt: "Holographic code editor floating above mini PC router, glowing configuration lines connecting to network ports, futuristic AR interface, blue syntax highlighting effect, dark background, no actual code text"
+      aspect_ratio: "16:9"
+      priority: 4

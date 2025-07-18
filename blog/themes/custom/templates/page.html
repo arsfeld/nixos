@@ -47,34 +47,6 @@
     </div>
     {% endif %}
     
-    {% if config.extra.show_table_of_contents and page.toc %}
-    <aside class="table-of-contents">
-        <h2>Table of Contents</h2>
-        <ul>
-            {% for h1 in page.toc %}
-            <li>
-                <a href="{{ h1.permalink | safe }}">{{ h1.title }}</a>
-                {% if h1.children %}
-                <ul>
-                    {% for h2 in h1.children %}
-                    <li>
-                        <a href="{{ h2.permalink | safe }}">{{ h2.title }}</a>
-                        {% if h2.children and config.extra.toc_depth >= 3 %}
-                        <ul>
-                            {% for h3 in h2.children %}
-                            <li><a href="{{ h3.permalink | safe }}">{{ h3.title }}</a></li>
-                            {% endfor %}
-                        </ul>
-                        {% endif %}
-                    </li>
-                    {% endfor %}
-                </ul>
-                {% endif %}
-            </li>
-            {% endfor %}
-        </ul>
-    </aside>
-    {% endif %}
     
     <div class="post-content">
         {{ page.content | safe }}

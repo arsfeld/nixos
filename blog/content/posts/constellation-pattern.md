@@ -1,5 +1,5 @@
 +++
-title = "The Constellation Pattern: Composable Infrastructure with NixOS"
+title = "Simplifying NixOS Configurations with Reusable Modules"
 date = 2025-06-11
 description = "A modular system for managing multiple NixOS machines that eliminates configuration duplication while maintaining flexibility"
 tags = ["nixos", "infrastructure", "self-hosting", "constellation-pattern"]

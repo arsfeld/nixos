@@ -155,7 +155,9 @@ The dashboard shows real-time metrics including CPU usage, memory utilization, d
 
 ## What's Next?
 
-This is just the beginning of my NixOS router journey. The full configuration demonstrates many advanced features including comprehensive testing, network architecture with bridging and VLANs, DNS with ad blocking, QoS with CAKE for bufferbloat mitigation, monitoring with Prometheus and Grafana, VPN integration, and dynamic port forwarding.
+This is just the beginning of my NixOS router journey. If you're interested in building your own NixOS router, check out my [step-by-step getting started guide](/posts/nixos-router-getting-started/) that walks through hardware selection and basic setup.
+
+The full configuration demonstrates many advanced features including comprehensive testing, network architecture with bridging and VLANs, DNS with ad blocking, QoS with CAKE for bufferbloat mitigation, monitoring with Prometheus and Grafana, VPN integration, and dynamic port forwarding.
 
 The full configuration is available on [GitHub](https://github.com/arsfeld/nixos/tree/0ef5f6f7f22809a16f9f742d8418dd11cd0ea04e/hosts/router). The [main configuration file](https://github.com/arsfeld/nixos/tree/0ef5f6f7f22809a16f9f742d8418dd11cd0ea04e/hosts/router/configuration.nix) ties everything together. For details on how I manage NixOS across multiple hosts in my homelab, see my post on [Managing a Homelab with NixOS](https://blog.arsfeld.dev/posts/managing-homelab-with-nixos/).
 
