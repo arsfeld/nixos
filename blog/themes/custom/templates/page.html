@@ -30,6 +30,15 @@
             <span class="separator">•</span>
             <span>{{ page.word_count }} words</span>
             {% endif %}
+            
+            <!-- AI Image Disclaimer -->
+            <span class="separator">•</span>
+            <a href="https://github.com/arsfeld/nixos/blob/master/blog/scripts/image-prompts.yaml" target="_blank" class="ai-disclaimer-inline">
+                <svg class="disclaimer-icon" width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 0a8 8 0 100 16A8 8 0 008 0zM7 3h2v6H7V3zm0 8h2v2H7v-2z"/>
+                </svg>
+                <span>May contain AI images</span>
+            </a>
         </div>
         
         {% if page.taxonomies.tags %}
@@ -46,7 +55,6 @@
         <img src="{{ get_url(path=page.extra.image) }}" alt="{{ page.title }}" loading="lazy">
     </div>
     {% endif %}
-    
     
     <div class="post-content">
         {{ page.content | safe }}
