@@ -48,20 +48,64 @@ This repo contains configurations for multiple machines:
 nix develop
 ```
 
-### Deploying
+### Deployment
+
+This repository uses [just](https://github.com/casey/just) as a task runner for common operations. Here are the main deployment commands:
+
+#### Remote Installation with nixos-anywhere
+
+For fresh installations on new hardware using [nixos-anywhere](https://github.com/nix-community/nixos-anywhere) and [disko](https://github.com/nix-community/disko):
 
 ```bash
-# Deploy a specific system
-deploy --remote-build=false --skip-checks --targets ".#hostname" --boot
+# Install NixOS on a target machine (requires NixOS installer ISO booted)
+just install <hostname> <target-ip>
 
-# Or use the CI pipeline for building
+# Example: Install router configuration
+just install router 192.168.1.100
+```
+
+This will:
+1. Connect to the target via SSH (must be booted into NixOS installer)
+2. Partition and format disks using the host's disko configuration
+3. Install NixOS with the specified host configuration
+4. Automatically reboot into the new system
+
+#### Regular Deployments
+
+For updating existing systems using [deploy-rs](https://github.com/serokell/deploy-rs):
+
+```bash
+# Deploy configuration changes
+just deploy <hostname>
+
+# Deploy with boot activation (for kernel/bootloader changes)
+just boot <hostname>
+
+# Deploy multiple hosts
+just deploy router storage cloud
+
+# Build locally and push to binary cache
+just build <hostname>
+```
+
+#### Helper Commands
+
+```bash
+# Generate hardware configuration from a running system
+just hardware-config <hostname> <target-host>
+
+# List network interfaces on a router (useful for initial setup)
+just router-interfaces <target-host>
 ```
 
 ### Building SD Images
 
 ```bash
-# For Raspberry Pi
+# For Raspberry Pi 3
 nix build .#packages.aarch64-linux.raspi3
+
+# For NanoPi R2S (includes U-Boot)
+just r2s
 ```
 
 ## 📚 Structure
