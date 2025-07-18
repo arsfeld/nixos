@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="section-content">
+    <h1 class="section-title">{{ section.title }}</h1>
+    
+    {% if section.content %}
+    <div class="section-description">
+        {{ section.content | safe }}
+    </div>
+    {% endif %}
+    
+    <div class="post-list">
+        {% for page in section.pages %}
+        <article class="post-preview">
+            <header class="post-header">
+                <h2 class="post-title">
+                    <a href="{{ page.permalink }}">{{ page.title }}</a>
+                </h2>
+                <div class="post-meta">
+                    <time datetime="{{ page.date }}">{{ page.date | date(format="%B %d, %Y") }}</time>
+                    {% if config.extra.show_reading_time and page.reading_time %}
+                    <span class="separator">•</span>
+                    <span>{{ page.reading_time }} min read</span>
+                    {% endif %}
+                </div>
+            </header>
+            
+            {% if page.description %}
+            <div class="post-excerpt">
+                {{ page.description }}
+            </div>
+            {% endif %}
+            
+            {% if page.taxonomies.tags %}
+            <div class="post-tags">
+                {% for tag in page.taxonomies.tags %}
+                <a href="{{ get_taxonomy_url(kind="tags", name=tag) }}" class="tag">#{{ tag }}</a>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </article>
+        {% endfor %}
+    </div>
+    
+    <!-- Pagination -->
+    {% if paginator %}
+    <nav class="pagination">
+        {% if paginator.previous %}
+        <a href="{{ paginator.previous }}" class="pagination-prev">← Previous</a>
+        {% endif %}
+        
+        <span class="pagination-info">
+            Page {{ paginator.current_index }} of {{ paginator.number_pagers }}
+        </span>
+        
+        {% if paginator.next %}
+        <a href="{{ paginator.next }}" class="pagination-next">Next →</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+</div>
+{% endblock content %}

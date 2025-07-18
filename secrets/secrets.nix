@@ -10,7 +10,7 @@ let
   g14 = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMiYsUOYKV9yWD262A4b2X4x/umbw5HrCBkyNexctEgz root@G14";
   hpe = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBioA7Y9FOdvgXG7C4/UhH2R6kzK2eZn0P6T/90nwCQQ root@hpe";
   r2s = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH1YUqHzxqtu512agJVUBNbTOWOad9/k0REig4RjEhdN root@nixos";
-  router = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPyR6xIJoMdeGikM8RrXfieIquSrIUPRRGsJCrGlBtbt root@router";
+  router = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA8n1XWNmEvEHAMxqAljnkFkfMZrOYeZ16BYtnzG9fop root@router";
   systems = [storage micro cloud raspi3 core g14 hpe r2s router];
 in {
   "authelia-secrets.age".publicKeys = users ++ [cloud];
@@ -38,4 +38,6 @@ in {
   "ghost-smtp-env.age".publicKeys = users ++ [cloud];
   "ghost-session-env.age".publicKeys = users ++ [cloud];
   "romm-env.age".publicKeys = users ++ [storage];
+  "plausible-secret-key.age".publicKeys = users ++ [cloud];
+  "plausible-smtp-password.age".publicKeys = users ++ [cloud];
 }

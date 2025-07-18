@@ -236,3 +236,222 @@ router-interfaces TARGET_HOST:
         
         echo "  };"
     EOF
+
+# Secret management commands
+secret-generate NAME LENGTH="64":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    # Check if agenix is available
+    if ! command -v agenix &> /dev/null; then
+        echo "Error: agenix command not found. Please enter the development shell with 'nix develop'"
+        exit 1
+    fi
+    
+    echo "Generating {{ LENGTH }}-character key for {{ NAME }}..."
+    
+    # Generate the key
+    key=$(openssl rand -base64 {{ LENGTH }} | tr -d '\n=' | head -c {{ LENGTH }})
+    
+    # Save to temporary file
+    echo "$key" > "/tmp/{{ NAME }}.txt"
+    
+    # Encrypt with agenix (run from secrets directory)
+    echo "Encrypting {{ NAME }}..."
+    cd secrets && agenix -e "{{ NAME }}.age" < "/tmp/{{ NAME }}.txt"
+    rm -f "/tmp/{{ NAME }}.txt"
+    
+    echo "✓ Key generated and encrypted to secrets/{{ NAME }}.age"
+    echo "Don't forget to add it to secrets/secrets.nix!"
+
+secret-copy SOURCE DEST:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    if ! command -v agenix &> /dev/null; then
+        echo "Error: agenix command not found. Please enter the development shell with 'nix develop'"
+        exit 1
+    fi
+    
+    if [ ! -f "secrets/{{ SOURCE }}" ]; then
+        echo "Error: Source secret secrets/{{ SOURCE }} not found"
+        exit 1
+    fi
+    
+    echo "Copying secret from {{ SOURCE }} to {{ DEST }}..."
+    
+    # Create temporary file
+    temp_file=$(mktemp)
+    trap "rm -f $temp_file" EXIT
+    
+    # Decrypt source (run from secrets directory)
+    cd secrets && agenix -d "{{ SOURCE }}" > "$temp_file"
+    
+    # Re-encrypt to destination
+    agenix -e "{{ DEST }}" < "$temp_file"
+    
+    echo "✓ Secret copied to secrets/{{ DEST }}"
+    echo "Don't forget to add it to secrets/secrets.nix with appropriate publicKeys!"
+
+secret-show NAME:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    if ! command -v agenix &> /dev/null; then
+        echo "Error: agenix command not found. Please enter the development shell with 'nix develop'"
+        exit 1
+    fi
+    
+    if [ ! -f "secrets/{{ NAME }}" ]; then
+        echo "Error: Secret secrets/{{ NAME }} not found"
+        exit 1
+    fi
+    
+    echo "⚠️  WARNING: This will display the secret in plain text!"
+    read -p "Are you sure you want to continue? (yes/no): " confirm
+    
+    if [ "$confirm" != "yes" ]; then
+        echo "Aborted."
+        exit 0
+    fi
+    
+    echo "Decrypting {{ NAME }}..."
+    echo "--- BEGIN SECRET ---"
+    cd secrets && agenix -d "{{ NAME }}"
+    echo -e "\n--- END SECRET ---"
+
+secret-list:
+    #!/usr/bin/env bash
+    echo "Available secrets:"
+    if [ -d "secrets" ]; then
+        ls -la secrets/*.age 2>/dev/null | awk '{print "  " $9}' | sed 's|secrets/||g' || echo "  No secrets found"
+    else
+        echo "Error: secrets directory not found"
+    fi
+
+# Build and serve the blog locally for testing
+blog-serve PORT="8000":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    # Try to get local IP address
+    LOCAL_IP=$(ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '127.0.0.1' | head -n1 || echo "localhost")
+    
+    echo "Building and serving blog on http://0.0.0.0:{{ PORT }}"
+    echo "Blog will be accessible at:"
+    echo "  - http://localhost:{{ PORT }}"
+    if [ "$LOCAL_IP" != "localhost" ]; then
+        echo "  - http://${LOCAL_IP}:{{ PORT }}"
+    fi
+    
+    echo "Press Ctrl+C to stop the server"
+    
+    # Use the local IP as the base URL so assets load correctly from remote hosts
+    cd blog && nix run 'nixpkgs#zola' -- serve --interface 0.0.0.0 --port {{ PORT }} --base-url "http://${LOCAL_IP}"
+
+# Build the blog without serving
+blog-build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    echo "Building blog..."
+    cd blog && nix run 'nixpkgs#zola' -- build
+    echo "✓ Blog built successfully in blog/public/"
+
+# Check the blog for issues
+blog-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    echo "Checking blog for issues..."
+    cd blog && nix run 'nixpkgs#zola' -- check
+    echo "✓ Blog check completed"
+
+# Setup Plausible Analytics secrets
+plausible-setup:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    # Colors for output
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    NC='\033[0m' # No Color
+    
+    echo -e "${GREEN}Setting up Plausible Analytics secrets...${NC}"
+    
+    # Check if agenix is available
+    if ! command -v agenix &> /dev/null; then
+        echo -e "${RED}Error: agenix command not found. Please enter the development shell with 'nix develop'${NC}"
+        exit 1
+    fi
+    
+    # Save the original directory
+    ORIG_DIR=$(pwd)
+    
+    # Generate SECRET_KEY_BASE
+    echo -e "${YELLOW}Generating SECRET_KEY_BASE...${NC}"
+    SECRET_KEY=$(openssl rand -base64 64 | tr -d '\n=')
+    echo "SECRET_KEY_BASE=${SECRET_KEY}" > /tmp/plausible-secret-key.txt
+    
+    # Encrypt the secret key
+    echo -e "${YELLOW}Encrypting SECRET_KEY_BASE...${NC}"
+    cd "$ORIG_DIR/secrets" && agenix -e plausible-secret-key.age < /tmp/plausible-secret-key.txt
+    rm -f /tmp/plausible-secret-key.txt
+    
+    echo -e "${GREEN}✓ SECRET_KEY_BASE generated and encrypted${NC}"
+    
+    # Handle SMTP password
+    echo -e "${YELLOW}Setting up SMTP password...${NC}"
+    echo -e "Do you want to:"
+    echo -e "1) Reuse the existing system SMTP password (smtp_password.age)"
+    echo -e "2) Enter a new SMTP password for Plausible"
+    read -p "Choose option (1 or 2): " choice
+    
+    case $choice in
+        1)
+            # Reuse existing SMTP password
+            echo -e "${YELLOW}Decrypting existing SMTP password...${NC}"
+            
+            # Create a temporary file for the decrypted password
+            TEMP_SMTP=$(mktemp)
+            trap "rm -f ${TEMP_SMTP}" EXIT
+            
+            # Decrypt the existing SMTP password
+            cd "$ORIG_DIR/secrets" && agenix -d smtp_password.age > "${TEMP_SMTP}"
+            
+            # Format it for Plausible's environment variable
+            echo "SMTP_USER_PWD=$(cat ${TEMP_SMTP})" > /tmp/plausible-smtp-password.txt
+            
+            # Encrypt for Plausible
+            cd "$ORIG_DIR/secrets" && agenix -e plausible-smtp-password.age < /tmp/plausible-smtp-password.txt
+            rm -f /tmp/plausible-smtp-password.txt
+            
+            echo -e "${GREEN}✓ Existing SMTP password reused for Plausible${NC}"
+            ;;
+        2)
+            # Get new SMTP password
+            echo -e "${YELLOW}Enter the SMTP password for Plausible:${NC}"
+            read -s smtp_password
+            echo
+            
+            # Create the environment variable file
+            echo "SMTP_USER_PWD=${smtp_password}" > /tmp/plausible-smtp-password.txt
+            
+            # Encrypt the SMTP password
+            cd "$ORIG_DIR/secrets" && agenix -e plausible-smtp-password.age < /tmp/plausible-smtp-password.txt
+            rm -f /tmp/plausible-smtp-password.txt
+            
+            echo -e "${GREEN}✓ New SMTP password encrypted for Plausible${NC}"
+            ;;
+        *)
+            echo -e "${RED}Invalid option. Exiting.${NC}"
+            exit 1
+            ;;
+    esac
+    
+    echo -e "${GREEN}✅ All Plausible secrets have been set up successfully!${NC}"
+    echo -e "${YELLOW}Next steps:${NC}"
+    echo -e "1. Commit the new secret files: git add secrets/plausible-*.age"
+    echo -e "2. Deploy to the cloud host: just deploy cloud"
+    echo -e "3. Visit https://plausible.arsfeld.dev to create your admin account"

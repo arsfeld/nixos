@@ -201,7 +201,7 @@ in
       }
 
       ${domain} {
-        redir https://www.{host}{uri}
+        redir https://www.${domain}{uri}
       }
     '';
   }
