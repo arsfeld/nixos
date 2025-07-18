@@ -12,6 +12,44 @@ in {
   imports = [
     "${self}/packages/network-metrics-exporter/module.nix"
   ];
+  
+  # Grafana for visualization
+  services.grafana = {
+    enable = true;
+    settings = {
+      server = {
+        http_addr = "0.0.0.0";
+        http_port = 3000;
+      };
+      security = {
+        admin_user = "admin";
+        admin_password = "admin";
+      };
+    };
+
+    provision = {
+      enable = true;
+
+      datasources.settings.datasources = [
+        {
+          name = "Prometheus";
+          type = "prometheus";
+          url = "http://localhost:9090/prometheus";
+          isDefault = true;
+        }
+      ];
+
+      dashboards.settings.providers = [
+        {
+          name = "Router Dashboards";
+          folder = "Router";
+          type = "file";
+          options.path = pkgs.writeTextDir "router-metrics.json" (builtins.toJSON (import ../dashboards {inherit lib pkgs;}));
+        }
+      ];
+    };
+  };
+
   # Prometheus for metrics collection
   services.prometheus = {
     enable = true;
@@ -288,11 +326,7 @@ in {
       receivers:
       - name: 'ntfy'
         webhook_configs:
-        - url: '${config.router.alerting.ntfyUrl}/publish'
-          http_config:
-            basic_auth:
-              username: ''${config.router.alerting.ntfyUsername}''
-              password: ''${config.router.alerting.ntfyPassword}''
+        - url: '${config.router.alerting.ntfyUrl}'
           send_resolved: true
     '';
   };
@@ -301,4 +335,11 @@ in {
   systemd.tmpfiles.rules = [
     "d /var/lib/prometheus-node-exporter-text-files 0755 root root -"
   ];
+
+  # Open firewall port for Grafana (internal access only)
+  networking.firewall.interfaces.br-lan = {
+    allowedTCPPorts = [
+      3000 # Grafana
+    ];
+  };
 }
