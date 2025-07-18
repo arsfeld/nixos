@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}
+<title>{{ page.title }} | {{ config.title }}</title>
+{% endblock title %}
+
+{% block body_class %}post-page{% endblock body_class %}
+
+{% block content %}
+<article class="post">
+    <header class="post-header">
+        <h1 class="post-title">{{ page.title }}</h1>
+        
+        <div class="post-meta">
+            {% if page.date %}
+            <time datetime="{{ page.date }}">{{ page.date | date(format="%B %d, %Y") }}</time>
+            {% endif %}
+            
+            {% if page.updated %}
+            <span class="separator">•</span>
+            <span>Updated: <time datetime="{{ page.updated }}">{{ page.updated | date(format="%B %d, %Y") }}</time></span>
+            {% endif %}
+            
+            {% if config.extra.show_reading_time and page.reading_time %}
+            <span class="separator">•</span>
+            <span>{{ page.reading_time }} min read</span>
+            {% endif %}
+            
+            {% if config.extra.show_word_count and page.word_count %}
+            <span class="separator">•</span>
+            <span>{{ page.word_count }} words</span>
+            {% endif %}
+        </div>
+        
+        {% if page.taxonomies.tags %}
+        <div class="post-tags">
+            {% for tag in page.taxonomies.tags %}
+            <a href="{{ get_taxonomy_url(kind="tags", name=tag) }}" class="tag">#{{ tag }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </header>
+    
+    {% if page.extra.image %}
+    <div class="post-image">
+        <img src="{{ get_url(path=page.extra.image) }}" alt="{{ page.title }}" loading="lazy">
+    </div>
+    {% endif %}
+    
+    {% if config.extra.show_table_of_contents and page.toc %}
+    <aside class="table-of-contents">
+        <h2>Table of Contents</h2>
+        <ul>
+            {% for h1 in page.toc %}
+            <li>
+                <a href="{{ h1.permalink | safe }}">{{ h1.title }}</a>
+                {% if h1.children %}
+                <ul>
+                    {% for h2 in h1.children %}
+                    <li>
+                        <a href="{{ h2.permalink | safe }}">{{ h2.title }}</a>
+                        {% if h2.children and config.extra.toc_depth >= 3 %}
+                        <ul>
+                            {% for h3 in h2.children %}
+                            <li><a href="{{ h3.permalink | safe }}">{{ h3.title }}</a></li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+    </aside>
+    {% endif %}
+    
+    <div class="post-content">
+        {{ page.content | safe }}
+    </div>
+    
+    <footer class="post-footer">
+        <!-- Author bio -->
+        {% if page.extra.author_bio %}
+        <div class="author-bio">
+            <h3>About the Author</h3>
+            <p>{{ page.extra.author_bio }}</p>
+        </div>
+        {% endif %}
+        
+        
+        <!-- Related posts -->
+        {% if config.extra.enable_related_posts %}
+        <div class="related-posts">
+            <h3>Related Posts</h3>
+            <!-- This would need custom logic to find related posts based on tags -->
+        </div>
+        {% endif %}
+    </footer>
+</article>
+
+<!-- Navigation between posts -->
+<nav class="post-navigation">
+    {% if page.earlier %}
+    <a href="{{ page.earlier.permalink }}" class="nav-prev">
+        ← {{ page.earlier.title }}
+    </a>
+    {% endif %}
+    
+    {% if page.later %}
+    <a href="{{ page.later.permalink }}" class="nav-next">
+        {{ page.later.title }} →
+    </a>
+    {% endif %}
+</nav>
+{% endblock content %}

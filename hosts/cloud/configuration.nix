@@ -17,6 +17,12 @@
     enable = true;
     domain = "blog.arsfeld.dev";
   };
+  
+  # Enable self-hosted Plausible Analytics
+  constellation.plausible = {
+    enable = true;
+    domain = "plausible.arsfeld.dev";
+  };
 
   boot = {
     binfmt.emulatedSystems = ["x86_64-linux"];
@@ -69,4 +75,6 @@
   security.acme.certs."arsfeld.dev" = {
     extraDomainNames = ["*.arsfeld.dev"];
   };
+  
+  # Plausible will use the wildcard certificate above
 }

@@ -1,7 +1,7 @@
 # Zola configuration for arsfeld.dev blog
 
 base_url = "https://blog.arsfeld.dev"
-title = "Alex Rosenfeld - NixOS & Self-Hosting"
+title = "Alex Rosenfeld"
 description = "Technical blog about NixOS configurations, self-hosting, and infrastructure automation"
 author = "Alex Rosenfeld"
 
@@ -13,7 +13,7 @@ generate_feeds = true
 feed_filenames = ["rss.xml"]
 
 # Theme configuration
-theme = "hermit_zola"
+theme = "custom"
 
 # Build settings
 build_search_index = true
@@ -27,22 +27,32 @@ external_links_no_referrer = true
 smart_punctuation = true
 
 [extra]
-# Hermit theme specific settings
+# Theme settings
 home_subtitle = "NixOS configurations, self-hosting guides, and infrastructure patterns"
 
+# Analytics - Self-hosted Plausible
+enable_plausible = true
+plausible_domain = "arsfeld.dev"
+plausible_api = "https://plausible.arsfeld.dev"
+
 # Social links
-author_email = "alex@rosenfeld.one"
-github = "arsfeld"
-twitter = "alexrosenfeld10"
+social_links = [
+    { name = "GitHub", url = "https://github.com/arsfeld" },
+    { name = "Twitter", url = "https://twitter.com/alexrosenfeld10" },
+    { name = "Email", url = "mailto:alex@rosenfeld.one" }
+]
 
-# Analytics (optional)
-# google_analytics = "G-XXXXXXXXXX"
+# Theme customization
+color_scheme = "auto"
+accent_color = "#0066cc"
+show_reading_time = true
+show_table_of_contents = true
+enable_related_posts = true
 
-# Menu items
-hermit_menu = [
-    { link = "/posts", name = "Posts" },
-    { link = "/about", name = "About" },
-    { link = "https://github.com/arsfeld/nixos", name = "GitHub" }
+# Featured projects for homepage
+featured_projects = [
+    { name = "NixOS Config", description = "Personal NixOS configuration for multiple machines", url = "https://github.com/arsfeld/nixos" },
+    { name = "Self-Hosting Guide", description = "Comprehensive guide to self-hosting with NixOS", url = "/posts/self-hosting-nixos" }
 ]
 
 # Taxonomies

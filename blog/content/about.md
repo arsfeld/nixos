@@ -1,6 +1,8 @@
 +++
 title = "About"
 template = "page.html"
+path = "about"
+date = 2023-01-01
 +++
 
 # About Alexandre Rosenfeld

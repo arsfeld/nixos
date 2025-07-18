@@ -1,0 +1,47 @@
+name = "custom"
+description = "Custom flexible blog theme for arsfeld.dev"
+license = "MIT"
+homepage = "https://arsfeld.dev"
+min_version = "0.17.0"
+
+[author]
+name = "Alexandre Rosenfeld"
+homepage = "https://arsfeld.dev"
+
+[extra]
+# Theme configuration
+enable_search = true
+enable_rss = true
+enable_sitemap = true
+enable_robots_txt = true
+
+# Analytics
+enable_plausible = true
+plausible_domain = "arsfeld.dev"
+plausible_api = "https://plausible.arsfeld.dev"
+
+# Social links
+social_links = [
+  { name = "github", url = "https://github.com/arsfeld" },
+  { name = "twitter", url = "https://twitter.com/arsfeld" },
+  { name = "mastodon", url = "https://hachyderm.io/@arsfeld" },
+  { name = "linkedin", url = "https://linkedin.com/in/arsfeld" }
+]
+
+# Theme customization
+color_scheme = "auto" # auto, light, dark
+accent_color = "#0066cc"
+font_family = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+code_font = "'JetBrains Mono', 'Fira Code', Consolas, monospace"
+
+# Layout options
+show_reading_time = true
+show_word_count = false
+show_table_of_contents = true
+toc_depth = 3
+
+# Features
+enable_comments = false
+enable_newsletter = false
+enable_related_posts = true
+related_posts_count = 3

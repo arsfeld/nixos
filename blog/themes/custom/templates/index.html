@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="home-content">
+    <!-- Hero section -->
+    <section class="hero">
+        <h1 class="hero-title">{{ section.title | default(value=config.title) }}</h1>
+        {% if section.content %}
+        <div class="hero-description">
+            {{ section.content | safe }}
+        </div>
+        {% endif %}
+    </section>
+    
+    <!-- Recent posts -->
+    <section class="recent-posts">
+        <h2>Recent Posts</h2>
+        
+        <div class="post-list">
+            {% set posts = get_section(path="posts/_index.md") %}
+            {% for page in posts.pages | slice(end=5) %}
+            <article class="post-preview">
+                <header class="post-header">
+                    <h3 class="post-title">
+                        <a href="{{ page.permalink }}">{{ page.title }}</a>
+                    </h3>
+                    <div class="post-meta">
+                        <time datetime="{{ page.date }}">{{ page.date | date(format="%B %d, %Y") }}</time>
+                        {% if config.extra.show_reading_time and page.reading_time %}
+                        <span class="separator">•</span>
+                        <span>{{ page.reading_time }} min read</span>
+                        {% endif %}
+                    </div>
+                </header>
+                
+                {% if page.description %}
+                <div class="post-excerpt">
+                    {{ page.description }}
+                </div>
+                {% endif %}
+                
+                {% if page.taxonomies.tags %}
+                <div class="post-tags">
+                    {% for tag in page.taxonomies.tags %}
+                    <a href="{{ get_taxonomy_url(kind="tags", name=tag) }}" class="tag">#{{ tag }}</a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </article>
+            {% endfor %}
+        </div>
+        
+        <div class="more-posts">
+            <a href="{{ get_url(path="posts") }}" class="button">View all posts →</a>
+        </div>
+    </section>
+    
+    <!-- Featured projects or additional content -->
+    {% if section.extra.featured_projects %}
+    <section class="featured-projects">
+        <h2>Featured Projects</h2>
+        <div class="project-grid">
+            {% for project in section.extra.featured_projects %}
+            <div class="project-card">
+                <h3>{{ project.name }}</h3>
+                <p>{{ project.description }}</p>
+                <a href="{{ project.url }}" class="project-link">Learn more →</a>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</div>
+{% endblock content %}

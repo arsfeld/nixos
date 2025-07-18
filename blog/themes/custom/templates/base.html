@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="{{ config.default_language | default(value="en") }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    
+    {% block title %}
+    <title>{% if page.title %}{{ page.title }} | {% endif %}{{ config.title }}</title>
+    {% endblock title %}
+    
+    <meta name="description" content="{% if page.description %}{{ page.description }}{% else %}{{ config.description }}{% endif %}">
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="{% if page %}article{% else %}website{% endif %}">
+    <meta property="og:title" content="{% if page.title %}{{ page.title }}{% else %}{{ config.title }}{% endif %}">
+    <meta property="og:description" content="{% if page.description %}{{ page.description }}{% else %}{{ config.description }}{% endif %}">
+    <meta property="og:url" content="{{ current_url }}">
+    {% if page.extra.image %}
+    <meta property="og:image" content="{{ get_url(path=page.extra.image) }}">
+    {% endif %}
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{% if page.title %}{{ page.title }}{% else %}{{ config.title }}{% endif %}">
+    <meta name="twitter:description" content="{% if page.description %}{{ page.description }}{% else %}{{ config.description }}{% endif %}">
+    {% if page.extra.image %}
+    <meta name="twitter:image" content="{{ get_url(path=page.extra.image) }}">
+    {% endif %}
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="{{ get_url(path="main.css") }}">
+    
+    <!-- Syntax highlighting -->
+    {% if config.extra.syntax_theme %}
+    <link rel="stylesheet" href="{{ get_url(path="css/syntax-theme.css") }}">
+    {% endif %}
+    
+    <!-- RSS Feed -->
+    <link rel="alternate" type="application/rss+xml" title="{{ config.title }}" href="{{ get_url(path="rss.xml", trailing_slash=false) }}">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ get_url(path="favicon.ico") }}">
+    
+    <!-- Custom CSS -->
+    {% block extra_head %}{% endblock extra_head %}
+    
+    <!-- Plausible Analytics -->
+    {% if config.extra.enable_plausible and config.extra.plausible_domain and not config.mode == "serve" %}
+    <script defer data-domain="{{ config.extra.plausible_domain }}" src="{{ config.extra.plausible_api | default(value="https://plausible.io") }}/js/script.js"></script>
+    {% endif %}
+</head>
+<body class="{% block body_class %}{% endblock body_class %}">
+    <div class="container">
+        <!-- Header -->
+        <header class="site-header">
+            <nav class="site-nav">
+                <a href="{{ get_url(path="/") }}" class="site-title">{{ config.title }}</a>
+                
+                <div class="nav-links">
+                    <a href="{{ get_url(path="/") }}">Home</a>
+                    <a href="{{ get_url(path="/posts") }}">Posts</a>
+                    <a href="{{ get_url(path="/tags") }}">Tags</a>
+                    <a href="{{ get_url(path="/about") }}">About</a>
+                    {% if config.extra.enable_search %}
+                    <a href="{{ get_url(path="/search") }}">Search</a>
+                    {% endif %}
+                </div>
+                
+                <!-- Theme toggle -->
+                <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+                    <svg class="icon-sun" viewBox="0 0 24 24" width="20" height="20">
+                        <path d="M12 17.5C14.7614 17.5 17 15.2614 17 12.5C17 9.73858 14.7614 7.5 12 7.5C9.23858 7.5 7 9.73858 7 12.5C7 15.2614 9.23858 17.5 12 17.5Z"/>
+                        <path d="M12 1V5M12 19V23M4.22 4.22L6.34 6.34M17.66 17.66L19.78 19.78M1 12H5M19 12H23M4.22 19.78L6.34 17.66M17.66 6.34L19.78 4.22"/>
+                    </svg>
+                    <svg class="icon-moon" viewBox="0 0 24 24" width="20" height="20">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                </button>
+            </nav>
+        </header>
+        
+        <!-- Main content -->
+        <main class="site-main">
+            {% block content %}{% endblock content %}
+        </main>
+        
+        <!-- Footer -->
+        <footer class="site-footer">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <p>&copy; {{ now() | date(format="%Y") }} {{ config.title }}. All rights reserved.</p>
+                </div>
+                
+                {% if config.extra.social_links %}
+                <div class="footer-section social-links">
+                    {% for link in config.extra.social_links %}
+                    <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ link.name }}">
+                        {{ link.name }}
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </footer>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="{{ get_url(path="main.js") }}"></script>
+    {% block extra_scripts %}{% endblock extra_scripts %}
+</body>
+</html>

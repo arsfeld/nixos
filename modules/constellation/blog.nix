@@ -6,11 +6,12 @@
 #
 # Key features:
 # - Static site generation with Zola at build time
-# - Hermit theme integration with automatic deprecation fixes
+# - Custom theme with flexible layout and styling
 # - Caddy web server with proper caching and security headers
 # - ACME/Let's Encrypt SSL certificate support
 # - Compression with zstd and gzip
 # - SPA-style routing support
+# - Integration with self-hosted Plausible Analytics
 #
 # The blog content is expected to be in the /blog directory of the repository,
 # and the built site is served from the specified domain.
@@ -24,30 +25,15 @@
 with lib; let
   cfg = config.constellation.blog;
 
-  # Theme configuration
-  themeRepo = pkgs.fetchFromGitHub {
-    owner = "VersBinarii";
-    repo = "hermit_zola";
-    rev = "94faef2295e2a64190a0e0f6760920ab54924847";
-    sha256 = "sha256-nv9X8gECfXJo9j/o0ZJz5gcDTc8tcjlKUXdNRS1gB+A=";
-  };
-
   # Build the Zola site at build time
   builtSite = pkgs.stdenv.mkDerivation {
     name = "zola-blog-site";
     src = self + "/blog";
 
-    nativeBuildInputs = [pkgs.zola];
+    nativeBuildInputs = [pkgs.zola pkgs.sass];
 
     configurePhase = ''
-      # Copy theme to a writable location
-      mkdir -p themes/hermit_zola
-      cp -r ${themeRepo}/* themes/hermit_zola/
-      chmod -R u+w themes/hermit_zola
-
-      # Fix deprecated feed_filename usage in theme
-      find themes/hermit_zola -name "*.html" -type f -exec sed -i 's/config\.feed_filename/config.feed_filenames[0]/g' {} \;
-
+      # The custom theme is already in the blog directory
       # Ensure we have all required directories
       mkdir -p static/images
       mkdir -p content/posts
