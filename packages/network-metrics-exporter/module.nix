@@ -1,8 +1,10 @@
-{ config, lib, pkgs, ... }:
-
-with lib;
-
-let
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+with lib; let
   cfg = config.services.network-metrics-exporter;
 in {
   options.services.network-metrics-exporter = {
@@ -65,15 +67,15 @@ in {
     ];
 
     # Open firewall if requested
-    networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [ cfg.port ];
+    networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [cfg.port];
 
     # Client traffic tracker service (optional)
     systemd.services.client-traffic-tracker = mkIf cfg.enableNftablesIntegration {
       description = "Track per-client network traffic";
-      after = [ "network-online.target" "nftables.service" ];
-      wants = [ "network-online.target" ];
-      wantedBy = [ "multi-user.target" ];
-      
+      after = ["network-online.target" "nftables.service"];
+      wants = ["network-online.target"];
+      wantedBy = ["multi-user.target"];
+
       serviceConfig = {
         Type = "simple";
         Restart = "always";
@@ -135,7 +137,7 @@ in {
           '';
         in "${script}";
       };
-      
+
       path = with pkgs; [
         nftables
         conntrack-tools
@@ -147,8 +149,8 @@ in {
     # Main exporter service
     systemd.services.network-metrics-exporter = {
       description = "Network Metrics Exporter";
-      wantedBy = [ "multi-user.target" ];
-      after = [ "network.target" ] ++ (optional cfg.enableNftablesIntegration "client-traffic-tracker.service");
+      wantedBy = ["multi-user.target"];
+      after = ["network.target"] ++ (optional cfg.enableNftablesIntegration "client-traffic-tracker.service");
       wants = optional cfg.enableNftablesIntegration "client-traffic-tracker.service";
 
       serviceConfig = {
@@ -164,11 +166,11 @@ in {
         ProtectSystem = "strict";
         ProtectHome = true;
         ReadOnlyPaths = "/";
-        ReadWritePaths = [ "/var/lib/dnsmasq" "/var/lib/network-metrics-exporter" ];
+        ReadWritePaths = ["/var/lib/dnsmasq" "/var/lib/network-metrics-exporter"];
         StateDirectory = "network-metrics-exporter";
-        
+
         # Required capabilities for network operations
-        AmbientCapabilities = [ "CAP_NET_ADMIN" "CAP_NET_RAW" ];
+        AmbientCapabilities = ["CAP_NET_ADMIN" "CAP_NET_RAW"];
         NoNewPrivileges = true;
       };
 

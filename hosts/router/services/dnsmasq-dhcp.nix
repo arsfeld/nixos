@@ -7,11 +7,11 @@
   netConfig = config.router.network;
   network = "${netConfig.prefix}.0/${toString netConfig.cidr}";
   routerIp = "${netConfig.prefix}.1";
-  
+
   # File paths
-  staticHostsFile = "/etc/dnsmasq/static-hosts";  # Contains static entries + dynamic header
+  staticHostsFile = "/etc/dnsmasq/static-hosts"; # Contains static entries + dynamic header
   dhcpHostsFile = "/var/lib/dnsmasq/dhcp-hosts";
-  
+
   # Static IP assignments
   staticHosts = {
     router = {
@@ -54,15 +54,16 @@ in {
         "option:router,${routerIp}"
         "option:dns-server,${routerIp}" # Points to Blocky on the router
       ];
-      
+
       # Static DHCP leases from our centralized list
-      dhcp-host = lib.flatten (lib.mapAttrsToList (name: host:
-        if host.mac != null then
-          "${host.mac},${name},${host.ip}"
-        else
-          []
-      ) staticHosts);
-      
+      dhcp-host = lib.flatten (lib.mapAttrsToList (
+          name: host:
+            if host.mac != null
+            then "${host.mac},${name},${host.ip}"
+            else []
+        )
+        staticHosts);
+
       # Domain configuration
       domain = "lan";
       local = "/lan/";
@@ -77,7 +78,7 @@ in {
 
       # Don't use /etc/hosts
       no-hosts = true;
-      
+
       # Use dhcp-script to update hosts file on DHCP events
       dhcp-script = let
         dhcpScript = pkgs.writeScript "dnsmasq-dhcp-script" ''
@@ -87,22 +88,22 @@ in {
           # $2 = MAC address
           # $3 = IP address
           # $4 = hostname (if provided by client)
-          
+
           HOSTS_FILE="${dhcpHostsFile}"
           HOSTS_LOCK="/var/lib/dnsmasq/.hosts.lock"
           STATIC_HOSTS="${staticHostsFile}"
-          
+
           # Use flock for atomic updates
           (
             flock -x 200
-            
+
             case "$1" in
               add|old)
                 if [ -n "$4" ] && [ "$4" != "*" ]; then
                   # Remove any existing entry for this IP
                   grep -v "^$3 " "$HOSTS_FILE" 2>/dev/null > "$HOSTS_FILE.tmp" || true
                   mv -f "$HOSTS_FILE.tmp" "$HOSTS_FILE"
-                  
+
                   # Add new entry
                   echo "$3 $4 $4.lan" >> "$HOSTS_FILE"
                 fi
@@ -113,35 +114,36 @@ in {
                 mv -f "$HOSTS_FILE.tmp" "$HOSTS_FILE"
                 ;;
             esac
-            
+
             # Regenerate complete hosts file
             # Copy static hosts (which already includes the "# Dynamic DHCP leases" header)
             cat "$STATIC_HOSTS" > "$HOSTS_FILE.new"
-            
+
             # Add all current dynamic entries (skip comments and empty lines)
             if [ -f "$HOSTS_FILE" ]; then
               grep -v "^#" "$HOSTS_FILE" 2>/dev/null | grep -v "^$" | sort -u >> "$HOSTS_FILE.new" || true
             fi
-            
+
             # Atomic replace
             mv -f "$HOSTS_FILE.new" "$HOSTS_FILE"
-            
+
           ) 200>"$HOSTS_LOCK"
         '';
       in "${dhcpScript}";
     };
   };
-  
+
   # Create static hosts file with dynamic header
   environment.etc."dnsmasq/static-hosts".text = ''
     # Static hosts
-    ${lib.concatStringsSep "\n" (lib.mapAttrsToList (name: host:
-      "${host.ip} ${lib.concatStringsSep " " host.aliases}"
-    ) staticHosts)}
-    
+    ${lib.concatStringsSep "\n" (lib.mapAttrsToList (
+        name: host: "${host.ip} ${lib.concatStringsSep " " host.aliases}"
+      )
+      staticHosts)}
+
     # Dynamic DHCP leases
   '';
-  
+
   # Update Blocky to read the hosts file
   services.blocky.settings = {
     # Add hosts file as additional source at the top level
@@ -160,11 +162,14 @@ in {
     customDNS = {
       customTTL = "1h";
       filterUnmappedTypes = true;
-      mapping = lib.mkMerge (lib.flatten (lib.mapAttrsToList (name: host:
-        map (alias: {
-          "${alias}" = host.ip;
-        }) host.aliases
-      ) staticHosts));
+      mapping = lib.mkMerge (lib.flatten (lib.mapAttrsToList (
+          name: host:
+            map (alias: {
+              "${alias}" = host.ip;
+            })
+            host.aliases
+        )
+        staticHosts));
     };
   };
 
@@ -173,7 +178,7 @@ in {
     after = ["network-online.target" "sys-subsystem-net-devices-br\\x2dlan.device"];
     wants = ["network-online.target"];
   };
-  
+
   # Create required directories and files
   systemd.tmpfiles.rules = [
     "d /var/lib/dnsmasq 0755 dnsmasq root -"
