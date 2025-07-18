@@ -20,6 +20,19 @@ in {
         dns = 53;
         http = 4000;
       };
+      # Bootstrap DNS to resolve blocklist URLs during startup
+      bootstrapDns = [
+        {
+          upstream = "9.9.9.9";
+          ips = ["9.9.9.9"];
+        }
+        {
+          upstream = "1.1.1.1";
+          ips = ["1.1.1.1"];
+        }
+      ];
+      # Force IPv4 only for downloads
+      connectIPVersion = "v4";
       upstreams = {
         groups = {
           default = [
@@ -54,10 +67,28 @@ in {
         denylists = {
           ads = [
             "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+            "https://someonewhocares.org/hosts/zero/hosts"
+            "https://raw.githubusercontent.com/bigdargon/hostsVN/master/hosts"
+          ];
+          tracking = [
+            "https://raw.githubusercontent.com/crazy-max/WindowsSpyBlocker/master/data/hosts/spy.txt"
+            "https://hostfiles.frogeye.fr/firstparty-trackers-hosts.txt"
+            "https://raw.githubusercontent.com/neodevpro/neodevhost/master/host"
+          ];
+          telemetry = [
+            "https://raw.githubusercontent.com/crazy-max/WindowsSpyBlocker/master/data/hosts/spy.txt"
+            "https://raw.githubusercontent.com/Perflyst/PiHoleBlocklist/master/android-tracking.txt"
+            "https://raw.githubusercontent.com/Perflyst/PiHoleBlocklist/master/AmazonFireTV.txt"
+            "https://raw.githubusercontent.com/0Zinc/easylists-for-pihole/master/easyprivacy.txt"
+            "https://v.firebog.net/hosts/Prigent-Ads.txt"
+          ];
+          malware = [
+            "https://urlhaus.abuse.ch/downloads/hostfile/"
+            "https://gitlab.com/quidsup/notrack-blocklists/raw/master/notrack-malware.txt"
           ];
         };
         clientGroupsBlock = {
-          default = ["ads"];
+          default = ["ads" "tracking" "telemetry" "malware"];
         };
       };
       # Enable Prometheus metrics
@@ -70,7 +101,11 @@ in {
 
   # Make sure Blocky starts after network is ready
   systemd.services.blocky = {
-    after = ["network-online.target"];
+    after = ["network-online.target" "nftables.service"];
     wants = ["network-online.target"];
+    # Add a small delay to ensure network is fully ready
+    serviceConfig = {
+      ExecStartPre = "${pkgs.coreutils}/bin/sleep 5";
+    };
   };
 }

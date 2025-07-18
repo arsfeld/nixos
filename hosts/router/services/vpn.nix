@@ -23,7 +23,7 @@ in {
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = "${pkgs.tailscale}/bin/tailscale up --advertise-routes=${network} --accept-routes";
+      ExecStart = "${pkgs.tailscale}/bin/tailscale up --ssh --advertise-routes=${network} --accept-routes";
     };
   };
 }

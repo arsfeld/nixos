@@ -198,7 +198,6 @@
             mods = [./hosts/cloud/configuration.nix];
           };
           router = self.lib.mkLinuxSystem {
-            includeHomeManager = false;
             mods = [
               inputs.disko.nixosModules.disko
               ./hosts/router/configuration.nix
