@@ -52,6 +52,9 @@ in {
           # Static entries
           "storage.lan" = "${netConfig.prefix}.5";
           "storage" = "${netConfig.prefix}.5";
+          # Redirect arsfeld.one and subdomains to storage via Tailscale
+          "arsfeld.one" = "100.118.254.136";
+          "*.arsfeld.one" = "100.118.254.136";
         };
       };
       # Conditional forwarding for special domains
