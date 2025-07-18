@@ -91,6 +91,32 @@ sudo dd if=nixos-24.11.iso of=/dev/sdX bs=4M status=progress
 nixos-generate-config --root /mnt
 ```
 
+### Advanced Installation Method
+
+For advanced users, I use [disko](https://github.com/nix-community/disko) for declarative disk partitioning and [nix-anywhere](https://github.com/nix-community/nix-anywhere) for remote installations:
+
+- **Disko configuration**: [hosts/router/disk-config.nix](https://github.com/arsfeld/nixos/blob/master/hosts/router/disk-config.nix) - Declaratively defines disk layout
+- **Remote deployment**: Can install NixOS on a target machine over SSH without physical access
+
+This approach allows for:
+- Reproducible disk partitioning
+- Automated remote installations
+- Zero-touch deployments
+
+I've automated these tasks in my [justfile](https://github.com/arsfeld/nixos/blob/master/justfile):
+```bash
+# Install router configuration on new hardware
+just install router 192.168.1.100
+
+# Deploy updates to existing router
+just deploy router
+
+# List network interfaces for configuration
+just router-interfaces router.local
+```
+
+See my [deployment documentation](https://github.com/arsfeld/nixos#deployment) for detailed examples.
+
 ### Identify Your Network Interfaces
 
 Before configuring the router, identify your NICs:
