@@ -8,7 +8,7 @@ tags = ["nixos", "networking", "homelab", "router"]
 
 ![NixOS Router Setup](/images/nixos-router-hero.png)
 
-**TL;DR**: Built a NixOS-based router on a $150 Intel N5105 mini PC that handles 2.5Gbps fiber with advanced QoS, monitoring, and declarative configuration. After experiences with pfSense and OPNsense, NixOS with comprehensive testing provides the control and reliability I was seeking. Check out the [full router configuration](https://github.com/arsfeld/nixos/tree/master/hosts/router).
+**TL;DR**: Built a NixOS-based router on a $150 Intel N5105 mini PC that handles 2.5Gbps fiber with advanced QoS, monitoring, and declarative configuration. After experiences with pfSense and OPNsense, NixOS with comprehensive testing provides the control and reliability I was seeking. Check out the [full router configuration](https://github.com/arsfeld/nixos/tree/0ef5f6f7f22809a16f9f742d8418dd11cd0ea04e/hosts/router).
 
 ## Motivation
 
@@ -61,7 +61,7 @@ The test coverage includes:
 - Firewall rule testing
 - UPnP functionality checks
 
-See the [complete test suite](https://github.com/arsfeld/nixos/blob/master/tests/router-test.nix) that validates the entire configuration.
+See the [complete test suite](https://github.com/arsfeld/nixos/blob/0ef5f6f7f22809a16f9f742d8418dd11cd0ea04e/tests/router-test.nix) that validates the entire configuration.
 
 This testing infrastructure enables confident deployment. Changes are validated before reaching production, ensuring network stability.
 
@@ -91,7 +91,7 @@ services.blocky = {
 };
 ```
 
-See the [full DNS configuration](https://github.com/arsfeld/nixos/tree/master/hosts/router/dns.nix) for complete setup including conditional forwarding for Tailscale.
+See the [full DNS configuration](https://github.com/arsfeld/nixos/tree/0ef5f6f7f22809a16f9f742d8418dd11cd0ea04e/hosts/router/services/dns.nix) for complete setup including conditional forwarding for Tailscale.
 
 **Atomic Updates**: Updates either work completely or roll back. No more half-applied configs that break networking.
 
@@ -133,11 +133,11 @@ Here's what I ended up with:
 
 **Software Stack**:
 - NixOS for the base system
-- [nftables for firewall](https://github.com/arsfeld/nixos/tree/master/hosts/router/networking.nix)
-- [Blocky for DNS with ad blocking](https://github.com/arsfeld/nixos/tree/master/hosts/router/dns.nix)
-- [miniupnpd for UPnP/NAT-PMP](https://github.com/arsfeld/nixos/tree/master/hosts/router/upnp.nix)
-- [CAKE for QoS and bufferbloat mitigation](https://github.com/arsfeld/nixos/tree/master/hosts/router/qos.nix)
-- [Prometheus + Grafana for monitoring](https://github.com/arsfeld/nixos/tree/master/hosts/router/monitoring.nix)
+- [nftables for firewall](https://github.com/arsfeld/nixos/tree/0ef5f6f7f22809a16f9f742d8418dd11cd0ea04e/hosts/router/network.nix)
+- [Blocky for DNS with ad blocking](https://github.com/arsfeld/nixos/tree/0ef5f6f7f22809a16f9f742d8418dd11cd0ea04e/hosts/router/services/dns.nix)
+- [miniupnpd for UPnP/NAT-PMP](https://github.com/arsfeld/nixos/tree/0ef5f6f7f22809a16f9f742d8418dd11cd0ea04e/hosts/router/services/upnp.nix)
+- [CAKE for QoS and bufferbloat mitigation](https://github.com/arsfeld/nixos/tree/0ef5f6f7f22809a16f9f742d8418dd11cd0ea04e/hosts/router/traffic-shaping.nix)
+- [Prometheus + Grafana for monitoring](https://github.com/arsfeld/nixos/tree/0ef5f6f7f22809a16f9f742d8418dd11cd0ea04e/hosts/router/services/monitoring.nix)
 - Tailscale for remote access
 
 **Performance**: 
@@ -145,21 +145,19 @@ Here's what I ended up with:
 - Full IDS/IPS at line rate
 - 50+ days uptime (only reboots for kernel updates)
 
+## Monitoring Dashboard
+
+With Prometheus and Grafana, I have complete visibility into my network's performance:
+
+![Grafana Router Dashboard](/images/grafana.png)
+
+The dashboard shows real-time metrics including CPU usage, memory utilization, disk I/O, network traffic per interface, DNS query statistics, client bandwidth analysis, and QoS performance metrics.
+
 ## What's Next?
 
-This is just the beginning. In the upcoming posts, I'll dive deep into:
+This is just the beginning of my NixOS router journey. The full configuration demonstrates many advanced features including comprehensive testing, network architecture with bridging and VLANs, DNS with ad blocking, QoS with CAKE for bufferbloat mitigation, monitoring with Prometheus and Grafana, VPN integration, and dynamic port forwarding.
 
-1. **[Testing Your Router](#)** - How to build a [test suite](https://github.com/arsfeld/nixos/blob/master/tests/router-test.nix) that gives you deployment confidence
-2. **[Network Architecture](#)** - [Bridging, VLANs, and firewall design](https://github.com/arsfeld/nixos/tree/master/hosts/router/networking.nix)
-3. **[DNS Done Right](#)** - [Ad blocking, local domains, and split-horizon DNS](https://github.com/arsfeld/nixos/tree/master/hosts/router/dns.nix)
-4. **[Advanced QoS](#)** - [Taming bufferbloat with CAKE](https://github.com/arsfeld/nixos/tree/master/hosts/router/qos.nix)
-5. **[Comprehensive Monitoring](#)** - [Know *everything* about your network](https://github.com/arsfeld/nixos/tree/master/hosts/router/monitoring.nix)
-6. **[VPN Integration](#)** - Tailscale subnet routing
-7. **[Dynamic Port Forwarding](#)** - [UPnP that actually works](https://github.com/arsfeld/nixos/tree/master/hosts/router/upnp.nix)
-8. **[Performance Tuning](#)** - Getting the most from your hardware
-9. **[Lessons Learned](#)** - Mistakes made and future plans
-
-The full configuration is available on [GitHub](https://github.com/arsfeld/nixos/tree/master/hosts/router). The [main configuration file](https://github.com/arsfeld/nixos/tree/master/hosts/router/configuration.nix) ties everything together. For details on how I manage NixOS across multiple hosts in my homelab, see my post on [Managing a Homelab with NixOS](https://blog.arsfeld.dev/posts/managing-homelab-with-nixos/).
+The full configuration is available on [GitHub](https://github.com/arsfeld/nixos/tree/0ef5f6f7f22809a16f9f742d8418dd11cd0ea04e/hosts/router). The [main configuration file](https://github.com/arsfeld/nixos/tree/0ef5f6f7f22809a16f9f742d8418dd11cd0ea04e/hosts/router/configuration.nix) ties everything together. For details on how I manage NixOS across multiple hosts in my homelab, see my post on [Managing a Homelab with NixOS](https://blog.arsfeld.dev/posts/managing-homelab-with-nixos/).
 
 ## Conclusion
 
