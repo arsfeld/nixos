@@ -40,4 +40,5 @@ in {
   "romm-env.age".publicKeys = users ++ [storage];
   "plausible-secret-key.age".publicKeys = users ++ [cloud];
   "plausible-smtp-password.age".publicKeys = users ++ [cloud];
+  "google-api-key.age".publicKeys = users ++ systems;
 }

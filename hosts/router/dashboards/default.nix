@@ -12,7 +12,7 @@
   clientPanels = (builtins.fromJSON (builtins.readFile ./parts/clients-panels.json)).panels;
   dnsPanels = (builtins.fromJSON (builtins.readFile ./parts/dns-panels.json)).panels;
   qosPanels = (builtins.fromJSON (builtins.readFile ./parts/qos-panels.json)).panels;
-  upnpPanels = (builtins.fromJSON (builtins.readFile ./parts/upnp-panels.json)).panels;
+  natpmpPanels = (builtins.fromJSON (builtins.readFile ./parts/natpmp-panels.json)).panels;
   speedtestPanels = (builtins.fromJSON (builtins.readFile ./parts/speedtest-panels.json)).panels;
   uncategorizedPanels = (builtins.fromJSON (builtins.readFile ./parts/uncategorized-panels.json)).panels;
 
@@ -184,22 +184,22 @@
     qosPanelsRepositioned = organizePanelsInGrid (qosY + 1) 3 qosPanels;
     qosSectionHeight = sectionHeight qosPanelsRepositioned + 2;
 
-    # UPnP Section
-    upnpY = qosY + qosSectionHeight;
-    upnpRow = createRow {
-      title = "UPnP / Port Forwarding";
-      y = upnpY;
-      id = 105;
+    # NAT-PMP Section
+    natpmpY = qosY + qosSectionHeight;
+    natpmpRow = createRow {
+      title = "NAT-PMP Server";
+      y = natpmpY;
+      id = 106;
     };
-    upnpPanelsRepositioned = organizePanelsInGrid (upnpY + 1) 2 upnpPanels;
-    upnpSectionHeight = sectionHeight upnpPanelsRepositioned + 2;
+    natpmpPanelsRepositioned = repositionPanels (natpmpY + 1) natpmpPanels;
+    natpmpSectionHeight = sectionHeight natpmpPanelsRepositioned + 2;
 
     # Internet Speed Test Section
-    speedY = upnpY + upnpSectionHeight;
+    speedY = natpmpY + natpmpSectionHeight;
     speedRow = createRow {
       title = "Internet Speed Test";
       y = speedY;
-      id = 106;
+      id = 107;
     };
     speedPanelsRepositioned = organizePanelsInGrid (speedY + 1) 2 speedtestPanels;
     speedSectionHeight = sectionHeight speedPanelsRepositioned + 2;
@@ -209,7 +209,7 @@
     otherRow = createRow {
       title = "Other Metrics";
       y = otherY;
-      id = 107;
+      id = 108;
     };
     otherPanelsRepositioned =
       if uncategorizedPanels != []
@@ -227,8 +227,8 @@
     ++ dnsPanelsRepositioned
     ++ [qosRow]
     ++ qosPanelsRepositioned
-    ++ [upnpRow]
-    ++ upnpPanelsRepositioned
+    ++ [natpmpRow]
+    ++ natpmpPanelsRepositioned
     ++ [speedRow]
     ++ speedPanelsRepositioned
     ++ (

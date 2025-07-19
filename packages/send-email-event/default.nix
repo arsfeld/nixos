@@ -1,10 +1,15 @@
 {pkgs, ...}: let
   pythonEnv = pkgs.python3.withPackages (ps: [
     ps.jinja2
-    ps.mrml
   ]);
-in
-  pkgs.writeShellApplication {
+  
+  # Python environment for LLM analysis
+  pythonEnvLLM = pkgs.python3.withPackages (ps: [
+    ps.google-generativeai
+  ]);
+  
+  # Main send-email-event script
+  sendEmailEvent = pkgs.writeShellApplication {
     name = "send-email-event";
     runtimeInputs = [
       pkgs.aha
@@ -17,8 +22,22 @@ in
       pkgs.msmtp
     ];
     text = ''
-      export EMAIL_TEMPLATE=${./event-notification.mjml}
+      export EMAIL_TEMPLATE=${./event-notification.html}
 
       ${pythonEnv}/bin/python ${./send-email.py} "$@"
     '';
+  };
+  
+  # LLM analysis script
+  analyzeWithLLM = pkgs.writeShellApplication {
+    name = "analyze-with-llm";
+    runtimeInputs = [];
+    text = ''
+      ${pythonEnvLLM}/bin/python ${./analyze-with-llm.py} "$@"
+    '';
+  };
+in
+  pkgs.symlinkJoin {
+    name = "send-email-event";
+    paths = [ sendEmailEvent analyzeWithLLM ];
   }

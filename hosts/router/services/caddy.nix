@@ -43,6 +43,12 @@ in {
             reverse_proxy localhost:4000
           }
 
+          # SigNoz - Observability platform
+          handle /signoz* {
+            uri strip_prefix /signoz
+            reverse_proxy localhost:3302
+          }
+
           # Default landing page with template
           handle / {
             templates
@@ -77,6 +83,12 @@ in {
 
           handle /blocky* {
             reverse_proxy localhost:4000
+          }
+
+          # SigNoz - Observability platform
+          handle /signoz* {
+            uri strip_prefix /signoz
+            reverse_proxy localhost:3302
           }
 
           # Default landing page with template

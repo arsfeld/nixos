@@ -1,11 +1,10 @@
-#! /usr/bin/env -S uv run --no-project --python 3.12 --with jinja2 --with mrml python
+#! /usr/bin/env -S uv run --no-project --python 3.12 --with jinja2 python
 
 import subprocess
 import datetime
 import os
 import socket
 from jinja2 import Template
-from mrml import to_html
 import logging
 import argparse
 from textwrap import dedent
@@ -15,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 EMAIL_TEMPLATE = os.environ.get(
     "EMAIL_TEMPLATE",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "event-notification.mjml"),
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "event-notification.html"),
 )
 
 
@@ -54,11 +53,11 @@ def send_email_event(event, extra_content="", email_from=None, email_to=None):
     subject = f"[{hostname}] {event} {current_date}"
 
     with open(EMAIL_TEMPLATE, "r") as f:
-        mjml_template = f.read()
+        html_template = f.read()
 
     try:
-        template = Template(mjml_template)
-        mjml_content = template.render(
+        template = Template(html_template)
+        html_content = template.render(
             FIGLET_OUTPUT=figlet_output,
             EVENT=event,
             HOSTNAME=hostname,
@@ -67,17 +66,7 @@ def send_email_event(event, extra_content="", email_from=None, email_to=None):
             EXTRA_CONTENT=extra_content,
         )
     except Exception as e:
-        logger.error(f"Error generating MJML content: {e}")
-        mjml_content = "<mjml><mj-body><mj-section><mj-column><mj-text>Failed to generate MJML content. Please check the system logs for more information.</mj-text></mj-column></mj-section></mj-body></mjml>"
-
-    # Convert MJML to HTML using Python
-    try:
-        html_content = to_html(mjml_content)
-    except Exception as e:
-        logger.error(
-            f"Error: MJML conversion failed. Sending plain text email instead. Error: {e}"
-        )
-        logger.error(f"Content: {mjml_content}")
+        logger.error(f"Error generating HTML content: {e}")
         html_content = f"""
         <html>
         <body>

@@ -2,15 +2,17 @@
   config,
   lib,
   pkgs,
-  self,
+  self ? null,
   ...
 }: let
   netConfig = config.router.network;
   network = "${netConfig.prefix}.0/${toString netConfig.cidr}";
   routerIp = "${netConfig.prefix}.1";
 in {
-  imports = [
+  imports = if self != null then [
     "${self}/packages/network-metrics-exporter/module.nix"
+  ] else [
+    ../../../packages/network-metrics-exporter/module.nix
   ];
 
   # Grafana for visualization
@@ -80,6 +82,14 @@ in {
           }
         ];
       }
+      {
+        job_name = "natpmp";
+        static_configs = [
+          {
+            targets = ["localhost:9333"];
+          }
+        ];
+      }
     ];
   };
 
@@ -123,12 +133,13 @@ in {
     trafficInterface = "br-lan";
   };
 
-  # UPnP metrics exporter
+  # UPnP metrics exporter - disabled since we're using natpmp-server
   systemd.services.upnp-metrics-exporter = {
+    enable = false;
     description = "Export UPnP metrics for Prometheus";
     after = ["miniupnpd.service" "prometheus-node-exporter.service"];
     wants = ["miniupnpd.service"];
-    wantedBy = ["multi-user.target"];
+    wantedBy = [];
     serviceConfig = {
       Type = "simple";
       ExecStart = let
