@@ -117,6 +117,36 @@ just r2s
 - `secrets/` - Encrypted secrets (via agenix)
 - `overlays/` - Nixpkgs overlays
 
+## 📦 Custom Packages
+
+This repository includes several custom packages that are automatically loaded via Haumea and exposed in the flake outputs:
+
+### Monitoring & Observability
+- **signoz-query-service** - SigNoz backend query service for traces, logs, and metrics
+- **signoz-frontend** - SigNoz web UI for observability platform
+- **signoz-clickhouse-schema** - ClickHouse database schema initialization for SigNoz
+- **signoz-otel-collector** - OpenTelemetry collector configuration for SigNoz
+- **network-metrics-exporter** - Custom Prometheus exporter for network metrics
+
+### Network Services
+- **natpmp-server** - NAT-PMP server implementation in Go for port forwarding
+- **supabase-manager** - Python tool for managing Supabase instances
+
+### Utilities
+- **check-stock** - Stock availability checker with email notifications
+- **send-email-event** - Email notification service for system events
+
+### Building Custom Packages
+
+```bash
+# Build a specific package
+nix build .#signoz-frontend
+nix build .#natpmp-server
+
+# List all custom packages
+nix flake show | grep packages
+```
+
 ## 🔧 Tooling
 
 This project uses:

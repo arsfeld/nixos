@@ -63,16 +63,57 @@ with lib; let
     export EMAIL_TO=${config.systemdEmailNotify.toEmail}
     export EMAIL_FROM=${config.systemdEmailNotify.fromEmail}
 
+    # Capture logs and status to temporary files for LLM analysis
+    LOG_FILE=$(mktemp)
+    STATUS_FILE=$(mktemp)
+    
+    SYSTEMD_COLORS=1 journalctl -u "$1" --reverse --lines=50 -b > "$LOG_FILE"
+    SYSTEMD_COLORS=1 systemctl status --full "$1" > "$STATUS_FILE"
+    
+    # Perform LLM analysis if enabled and API key is available
+    LLM_ANALYSIS=""
+    if [ "${config.systemdEmailNotify.enableLLMAnalysis}" = "true" ]; then
+      # Handle both direct API key and agenix secret file
+      if [ -f "${config.systemdEmailNotify.googleApiKey}" ]; then
+        # It's a file path (agenix secret)
+        export GOOGLE_API_KEY=$(cat "${config.systemdEmailNotify.googleApiKey}")
+      elif [ -n "${config.systemdEmailNotify.googleApiKey}" ]; then
+        # It's a direct API key
+        export GOOGLE_API_KEY="${config.systemdEmailNotify.googleApiKey}"
+      fi
+      
+      if [ -n "$GOOGLE_API_KEY" ]; then
+        LLM_ANALYSIS=$(${pkgs.send-email-event}/bin/analyze-with-llm "$1" "$LOG_FILE" "$STATUS_FILE" 2>/dev/null || echo "")
+        
+        if [ -n "$LLM_ANALYSIS" ]; then
+        LLM_ANALYSIS="
+        
+        <h3>AI Analysis</h3>
+        <div style='background-color: #f0f4ff; border: 1px solid #4a90e2; border-radius: 8px; padding: 16px; margin: 16px 0;'>
+        <pre style='white-space: pre-wrap; font-family: monospace;'>$LLM_ANALYSIS</pre>
+        </div>"
+        fi
+      fi
+    fi
+    
+    # Convert logs to HTML
+    LOG_HTML=$(cat "$LOG_FILE" | ${pkgs.aha}/bin/aha -n)
+    STATUS_HTML=$(cat "$STATUS_FILE" | ${pkgs.aha}/bin/aha -n)
+    
+    # Clean up temp files
+    rm -f "$LOG_FILE" "$STATUS_FILE"
+
     ${pkgs.send-email-event}/bin/send-email-event \
       "Service Failure $1 (Failure #$FAILURE_COUNT)" \
       "Failed Service: $1
         Failure Count: $FAILURE_COUNT
+        $LLM_ANALYSIS
 
         Service Status:
-        $(SYSTEMD_COLORS=1 systemctl status --full "$1" | ${pkgs.aha}/bin/aha -n)
+        $STATUS_HTML
 
         Recent Logs:
-        $(SYSTEMD_COLORS=1 journalctl -u "$1" --reverse --lines=50 -b | ${pkgs.aha}/bin/aha -n)"
+        $LOG_HTML"
 
     echo 0 > "$FAILURE_COUNT_FILE"
   '';
@@ -102,6 +143,24 @@ in {
       description = ''
         Email address to use as the sender for service failure notifications.
         Defaults to the constellation email configuration if available.
+      '';
+    };
+
+    systemdEmailNotify.enableLLMAnalysis = mkOption {
+      type = types.bool;
+      default = false;
+      description = ''
+        Enable AI-powered analysis of service failures using Google's Gemini API.
+        Requires googleApiKey to be set.
+      '';
+    };
+
+    systemdEmailNotify.googleApiKey = mkOption {
+      type = types.str;
+      default = "";
+      description = ''
+        Google API key for Gemini AI analysis.
+        Get your free API key from https://aistudio.google.com/apikey
       '';
     };
   };

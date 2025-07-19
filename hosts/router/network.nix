@@ -67,6 +67,9 @@ in {
             jump CLIENT_TRAFFIC
 
             ct state established,related accept
+            
+            # Accept traffic that has been DNAT'd (for NAT-PMP and miniupnpd)
+            ct status dnat accept
 
             # Allow LAN to WAN
             iifname "br-lan" oifname "${interfaces.wan}" accept
@@ -100,6 +103,13 @@ in {
           }
         }
 
+        # Separate filter table for NAT-PMP
+        table ip filter {
+          chain NATPMP_FORWARD {
+            type filter hook forward priority filter; policy accept;
+          }
+        }
+        
         table ip nat {
           chain prerouting {
             type nat hook prerouting priority -100;
@@ -114,6 +124,11 @@ in {
 
           # Chain for miniupnpd DNAT rules
           chain MINIUPNPD {
+          }
+          
+          # Chain for NAT-PMP DNAT rules
+          chain NATPMP_DNAT {
+            type nat hook prerouting priority dstnat; policy accept;
           }
         }
       '';

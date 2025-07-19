@@ -49,6 +49,13 @@
           ];
         };
 
+        # Expose packages loaded via haumea
+        packages = inputs.haumea.lib.load {
+          src = ./packages;
+          loader = inputs.haumea.lib.loaders.callPackage;
+          transformer = inputs.haumea.lib.transformers.liftDefault;
+        };
+
         legacyPackages.homeConfigurations.arosenfeld = inputs.home-manager.lib.homeManagerConfiguration {
           inherit pkgs;
           modules = [
@@ -67,6 +74,19 @@
 
       flake = {
         lib = let
+          # Define packages loading function once
+          loadPackages = pkgs: 
+            let
+              loaded = inputs.haumea.lib.load {
+                src = ./packages;
+                loader = inputs.haumea.lib.loaders.callPackage;
+                inputs = { inherit pkgs; };
+              };
+            in
+              builtins.mapAttrs (name: value: 
+                if value ? default then value.default else value
+              ) loaded;
+          
           commonModules = inputs.nixpkgs.lib.flatten [
             inputs.agenix.nixosModules.default
             inputs.nix-flatpak.nixosModules.nix-flatpak
@@ -85,19 +105,7 @@
               nixpkgs.overlays = [
                 (import ./overlays/python-packages.nix)
                 # Load packages from ./packages directory using haumea
-                (
-                  final: prev: let
-                    packages = inputs.haumea.lib.load {
-                      src = ./packages;
-                      loader = inputs.haumea.lib.loaders.callPackage;
-                      transformer = inputs.haumea.lib.transformers.liftDefault;
-                      inputs = {
-                        inherit (final) lib pkgs;
-                      };
-                    };
-                  in
-                    prev // packages
-                )
+                (final: prev: loadPackages final)
               ];
             }
             # Load all modules from the modules directory
@@ -124,19 +132,7 @@
               nixpkgs.overlays = [
                 (import ./overlays/python-packages.nix)
                 # Load packages from ./packages directory using haumea
-                (
-                  final: prev: let
-                    packages = inputs.haumea.lib.load {
-                      src = ./packages;
-                      loader = inputs.haumea.lib.loaders.callPackage;
-                      transformer = inputs.haumea.lib.transformers.liftDefault;
-                      inputs = {
-                        inherit (final) lib pkgs;
-                      };
-                    };
-                  in
-                    prev // packages
-                )
+                (final: prev: loadPackages final)
               ];
             }
             # Load all modules from the modules directory

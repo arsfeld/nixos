@@ -8,9 +8,9 @@
   network = "${netConfig.prefix}.0/${toString netConfig.cidr}";
   routerIp = "${netConfig.prefix}.1";
 in {
-  # UPnP/NAT-PMP server
+  # UPnP/NAT-PMP server - disabled in favor of custom natpmp-server
   services.miniupnpd = {
-    enable = true;
+    enable = false;
     externalInterface = config.router.interfaces.wan;
     internalIPs = ["br-lan"];
     natpmp = true;
