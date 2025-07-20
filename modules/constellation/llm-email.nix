@@ -1,5 +1,8 @@
 # Constellation LLM-powered email notification module
 #
+# WARNING: This feature is EXPERIMENTAL and NOT production ready!
+# Email notifications with LLM analysis may not be sent reliably.
+#
 # This module enhances the email notification system with AI-powered crash log
 # analysis using Google's Gemini API. When enabled alongside the base email
 # module, it provides intelligent insights for system failures.
@@ -13,6 +16,10 @@
 #
 # The module automatically enables systemd-email-notify with LLM analysis
 # when both email notifications and this module are enabled.
+#
+# KNOWN ISSUES:
+# - Email delivery with LLM analysis is not yet reliable
+# - Further testing and debugging required
 {
   lib,
   pkgs,
@@ -21,6 +28,9 @@
   ...
 }:
 with lib; {
+  # Import the systemd email notification module at the top level
+  imports = [ ../systemd-email-notify.nix ];
+
   options.constellation.llmEmail = {
     enable = mkOption {
       type = types.bool;
@@ -45,9 +55,6 @@ with lib; {
   };
 
   config = lib.mkIf (config.constellation.email.enable && config.constellation.llmEmail.enable) {
-    # Import the systemd email notification module
-    imports = [ ../systemd-email-notify.nix ];
-
     # Configure the agenix secret for Google API key
     age.secrets.google-api-key = {
       file = config.constellation.llmEmail.googleApiKeyFile;

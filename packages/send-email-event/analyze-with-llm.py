@@ -22,23 +22,32 @@ def analyze_crash_log(service_name, log_content, service_status):
         model = genai.GenerativeModel('gemini-2.5-flash')
         
         prompt = dedent(f"""
-        You are a system administrator assistant analyzing a systemd service failure.
+        You are a system administrator assistant analyzing a systemd service failure on a NixOS system.
         
-        Service Name: {service_name}
+        Context: This is a personal NixOS configuration repository (github.com/arsfeld/nixos) with:
+        - Host configurations in /hosts/HOSTNAME/configuration.nix
+        - Service definitions in /hosts/HOSTNAME/services.nix
+        - Reusable modules in /modules/constellation/
+        - Package definitions in /packages/
+        - Services often run in Podman containers
         
-        Service Status:
-        {service_status}
+        Service: {service_name}
+        Status: {service_status}
+        Logs: {log_content}
         
-        Recent Logs (last 50 lines):
-        {log_content}
+        Analyze and provide ONLY:
+        1. ISSUE: What failed (1-2 sentences, no markdown)
+        2. CAUSE: Most likely root cause (1 sentence)
+        3. FIX: NixOS-specific resolution steps referencing actual config files (2-3 bullet points)
         
-        Please provide a concise analysis with:
-        1. A brief summary of what went wrong (2-3 sentences)
-        2. The likely root cause
-        3. 2-3 specific steps to resolve the issue
-        
-        Format your response in a clear, structured way suitable for an email notification.
-        Keep the total response under 300 words.
+        Rules:
+        - Be concise and technical
+        - NO greetings, subjects, or signatures
+        - NO markdown formatting (no **, `, etc.)
+        - Use plain text only
+        - Start directly with "ISSUE:" 
+        - Maximum 150 words total
+        - Reference specific config files when suggesting fixes
         """)
         
         response = model.generate_content(prompt)
