@@ -85,6 +85,9 @@
   # Disable virtualization to save disk space
   constellation.virtualization.enable = false;
   constellation.netdataClient.enable = false;
+  
+  # Enable Podman for containerized services
+  constellation.podman.enable = true;
 
   # System state version
   system.stateVersion = "24.05";
@@ -95,6 +98,9 @@
     fromEmail = "router-alerts@rosenfeld.one";
     toEmail = "alex@rosenfeld.one"; # Change to your email
   };
+
+  # Enable LLM-powered crash log analysis
+  constellation.llmEmail.enable = true;
 
   # Traffic shaping configuration
   router.trafficShaping = {
