@@ -1,14 +1,24 @@
-# LLM-Powered Crash Log Analysis
+# LLM-Powered Crash Log Analysis (EXPERIMENTAL - NOT PRODUCTION READY)
+
+**⚠️ WARNING: This feature is currently under development and NOT ready for production use. Email notifications with LLM analysis may not be sent reliably.**
 
 This guide explains how to enable AI-powered analysis of systemd service failures in your NixOS configuration.
 
 ## Overview
 
-When enabled, the system will automatically analyze crash logs using Google's Gemini AI and include intelligent insights in failure notification emails. The analysis includes:
+When enabled and working correctly, the system will automatically analyze crash logs using Google's Gemini AI and include intelligent insights in failure notification emails. The analysis includes:
 
 - Brief summary of what went wrong
 - Likely root cause identification
 - Specific steps to resolve the issue
+
+## Current Status
+
+- ✅ Infrastructure is in place
+- ✅ Google API key integration via agenix
+- ✅ LLM analysis module created
+- ❌ Email delivery with LLM analysis is not yet reliable
+- ❌ Further testing and debugging required
 
 ## Setup Instructions
 
@@ -155,6 +165,12 @@ This will automatically:
 
 The module expects the Google API key to be encrypted at `secrets/google-api-key.age`.
 
+## Known Issues
+
+1. **Email Delivery**: The integration between systemd failure notifications and LLM analysis is not yet working reliably
+2. **Rate Limiting**: Services that fail frequently may not send emails due to rate limiting
+3. **Service Dependencies**: Some services may fail to trigger email notifications properly
+
 ## Troubleshooting
 
 ### API Key Not Working
@@ -163,6 +179,7 @@ The module expects the Google API key to be encrypted at `secrets/google-api-key
 - Verify your Google Cloud project has the Generative AI API enabled
 
 ### No Analysis in Email
+- **This is a known issue** - LLM analysis may not appear in emails even when configured correctly
 - Check if `enableLLMAnalysis` is set to `true`
 - Look for errors in the system journal: `journalctl -u email@*.service`
 - Ensure the `google-generativeai` Python package is available
@@ -170,3 +187,11 @@ The module expects the Google API key to be encrypted at `secrets/google-api-key
 ### Rate Limiting
 - The email system has a 1-hour cooldown between notifications for the same service
 - This prevents spam and excessive API usage
+
+## Development Status
+
+This feature is under active development. Current tasks include:
+- Debugging email delivery issues
+- Improving integration with systemd notifications
+- Testing with various failure scenarios
+- Ensuring reliable LLM API calls
