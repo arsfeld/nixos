@@ -36,8 +36,19 @@
       ${pythonEnvLLM}/bin/python ${./analyze-with-llm.py} "$@"
     '';
   };
+  
+  # GitHub issue creation script
+  createGitHubIssue = pkgs.writeShellApplication {
+    name = "create-github-issue";
+    runtimeInputs = [
+      pkgs.gh
+    ];
+    text = ''
+      ${pythonEnv}/bin/python ${./create-github-issue.py} "$@"
+    '';
+  };
 in
   pkgs.symlinkJoin {
     name = "send-email-event";
-    paths = [ sendEmailEvent analyzeWithLLM ];
+    paths = [ sendEmailEvent analyzeWithLLM createGitHubIssue ];
   }

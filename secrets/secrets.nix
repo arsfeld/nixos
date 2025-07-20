@@ -41,4 +41,5 @@ in {
   "plausible-secret-key.age".publicKeys = users ++ [cloud];
   "plausible-smtp-password.age".publicKeys = users ++ [cloud];
   "google-api-key.age".publicKeys = users ++ systems;
+  "github-token.age".publicKeys = users ++ systems;
 }
