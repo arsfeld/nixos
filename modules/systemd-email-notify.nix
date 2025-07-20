@@ -10,6 +10,7 @@
 # - Failure count tracking
 # - HTML-formatted service status and logs
 # - Integration with constellation email configuration
+# - Optional GitHub issue creation with duplicate detection
 #
 # The module automatically adds onFailure handlers to all systemd services,
 # ensuring comprehensive monitoring coverage across the system.
@@ -18,6 +19,11 @@
 #   systemdEmailNotify = {
 #     toEmail = "admin@example.com";
 #     fromEmail = "noreply@example.com";
+#     enableLLMAnalysis = true;
+#     googleApiKey = config.age.secrets.google-api-key.path;
+#     enableGitHubIssues = true;
+#     gitHubRepo = "owner/repo";
+#     gitHubUpdateInterval = 24;
 #   };
 {
   config,
@@ -72,7 +78,7 @@ with lib; let
     
     # Perform LLM analysis if enabled and API key is available
     LLM_ANALYSIS=""
-    if [ "${config.systemdEmailNotify.enableLLMAnalysis}" = "true" ]; then
+    if [ "${toString config.systemdEmailNotify.enableLLMAnalysis}" = "1" ]; then
       # Handle both direct API key and agenix secret file
       if [ -f "${config.systemdEmailNotify.googleApiKey}" ]; then
         # It's a file path (agenix secret)
@@ -88,9 +94,9 @@ with lib; let
         if [ -n "$LLM_ANALYSIS" ]; then
         LLM_ANALYSIS="
         
-        <h3>AI Analysis</h3>
+        <h3 style='color: #1f2937; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Arial, sans-serif;'>AI Analysis</h3>
         <div style='background-color: #f0f4ff; border: 1px solid #4a90e2; border-radius: 8px; padding: 16px; margin: 16px 0;'>
-        <pre style='white-space: pre-wrap; font-family: monospace;'>$LLM_ANALYSIS</pre>
+        <pre style='white-space: pre-wrap; font-family: monospace; color: #1f2937; margin: 0;'>$LLM_ANALYSIS</pre>
         </div>"
         fi
       fi
@@ -99,6 +105,27 @@ with lib; let
     # Convert logs to HTML
     LOG_HTML=$(cat "$LOG_FILE" | ${pkgs.aha}/bin/aha -n)
     STATUS_HTML=$(cat "$STATUS_FILE" | ${pkgs.aha}/bin/aha -n)
+    
+    # Create GitHub issue if enabled
+    if [ "${toString config.systemdEmailNotify.enableGitHubIssues}" = "1" ] && [ -n "${config.systemdEmailNotify.gitHubRepo}" ]; then
+      LLM_FILE=""
+      if [ -n "$LLM_ANALYSIS" ]; then
+        LLM_FILE=$(mktemp)
+        echo "$LLM_ANALYSIS" | sed 's/<[^>]*>//g' > "$LLM_FILE"
+      fi
+      
+      ${pkgs.send-email-event}/bin/create-github-issue \
+        --repo "${config.systemdEmailNotify.gitHubRepo}" \
+        --service "$1" \
+        --hostname "$(hostname)" \
+        --status "$STATUS_FILE" \
+        --journal "$LOG_FILE" \
+        --failure-count "$FAILURE_COUNT" \
+        ${optionalString (config.systemdEmailNotify.enableLLMAnalysis) "--llm-analysis \"$LLM_FILE\""} \
+        --update-interval ${toString config.systemdEmailNotify.gitHubUpdateInterval} || true
+      
+      [ -n "$LLM_FILE" ] && rm -f "$LLM_FILE"
+    fi
     
     # Clean up temp files
     rm -f "$LOG_FILE" "$STATUS_FILE"
@@ -161,6 +188,34 @@ in {
       description = ''
         Google API key for Gemini AI analysis.
         Get your free API key from https://aistudio.google.com/apikey
+      '';
+    };
+
+    systemdEmailNotify.enableGitHubIssues = mkOption {
+      type = types.bool;
+      default = false;
+      description = ''
+        Enable automatic GitHub issue creation for service failures.
+        Requires gitHubRepo to be set and gh CLI to be authenticated.
+      '';
+    };
+
+    systemdEmailNotify.gitHubRepo = mkOption {
+      type = types.str;
+      default = "";
+      description = ''
+        GitHub repository (owner/repo) where issues should be created.
+        Example: "arsfeld/nixos"
+      '';
+    };
+
+    systemdEmailNotify.gitHubUpdateInterval = mkOption {
+      type = types.int;
+      default = 24;
+      description = ''
+        Hours before creating a new issue instead of updating an existing one.
+        If a service fails multiple times within this interval, the existing
+        issue will be updated with comments instead of creating duplicates.
       '';
     };
   };
