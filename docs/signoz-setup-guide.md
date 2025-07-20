@@ -1,231 +1,411 @@
 # SigNoz Setup Guide for NixOS
 
-This guide documents the process of setting up SigNoz observability platform on NixOS without Docker.
+This guide documents the process of setting up SigNoz observability platform on NixOS using Podman containers with native NixOS services for ClickHouse and ZooKeeper.
 
 ## Overview
 
-SigNoz is an open-source observability platform that provides distributed tracing, metrics, and logs in a single pane of glass. This guide covers setting it up natively on NixOS.
+SigNoz is an open-source observability platform that provides distributed tracing, metrics, and logs in a single pane of glass. This guide covers setting it up using a hybrid approach: Podman containers for SigNoz-specific components and native NixOS services for the infrastructure.
 
-**Current Version**: v0.90.1 (updated from v0.55.0)
+**Strategy**: Hybrid deployment using:
+- Native NixOS services for ClickHouse and ZooKeeper
+- Podman containers for SigNoz Query Service, Frontend, and OTEL Collector
+- Declarative NixOS configuration for all components
 
 ## Architecture
 
 The SigNoz setup consists of:
-- **ClickHouse**: Time-series database for storing traces, metrics, and logs
-- **Query Service**: Go backend that handles API requests
-- **Frontend**: React application for the web UI
-- **OpenTelemetry Collector**: Ingests and processes telemetry data
-- **Alertmanager**: Handles alerts and notifications
+- **ClickHouse**: Time-series database (NixOS service)
+- **ZooKeeper**: Coordination service for ClickHouse (NixOS service)
+- **Query Service**: Go backend that handles API requests (Podman container)
+- **Frontend**: React application for the web UI (Podman container)
+- **OpenTelemetry Collector**: Ingests and processes telemetry data (Podman container)
+- **Alertmanager**: Handles alerts and notifications (existing NixOS service)
 
-## Current Status
+### Official Docker Compose Configuration
 
-### ✅ Completed
+The official SigNoz Docker Compose deployment includes these services:
 
-1. **Package Definitions Created**
-   - `/packages/signoz-query-service/default.nix` - Go backend service (v0.90.1, vendor hash: `sha256-HARssGBij+rFTPXmgKn7Hdb658IHE0pzFUpCW+ZhrXE=`)
-   - `/packages/signoz-frontend/default.nix` - Frontend extracted from release tarball (v0.90.1)
-   - `/packages/signoz-clickhouse-schema/default.nix` - Database schema initialization (v0.90.1)
-   - `/packages/signoz-otel-collector/default.nix` - Currently using nixpkgs opentelemetry-collector-contrib
+1. **init-clickhouse**: Initializes ClickHouse with histogram quantile binary
+2. **zookeeper-1**: Bitnami Zookeeper for coordination
+3. **clickhouse**: ClickHouse server with custom configurations
+4. **signoz**: Query service backend (port 8080)
+5. **signoz-frontend**: React UI (port 3301)
+6. **otel-collector**: OpenTelemetry collector (ports 4317/4318)
+7. **schema-migrator-sync/async**: Database schema migration services
 
-2. **Service Configuration**
-   - `/hosts/router/services/signoz-real.nix` - Complete service configuration
-   - Integrated with existing monitoring infrastructure
-   - Configured to collect metrics from all Prometheus exporters
-   - All packages build successfully with correct hashes
+Our NixOS implementation maintains service parity but uses:
+- Native NixOS services for infrastructure (ClickHouse, ZooKeeper)
+- Podman containers for SigNoz-specific components
+- Systemd for service management and dependencies
 
-3. **Data Collection**
-   - Prometheus metrics from Node Exporter, Blocky DNS, Network metrics, NAT-PMP
-   - OTLP endpoints configured for traces, metrics, and logs on ports 4317/4318
-   - Syslog integration ready
-   - ClickHouse configured as time-series backend
+## Migration Status
 
-4. **Package Implementation Details**
-   - Query service: Uses standard buildGoModule with SQLite support
-   - Frontend: Extracted from official release tarball at https://github.com/SigNoz/signoz/releases/tag/v0.90.1
-   - All packages updated to SigNoz v0.90.1
-   - Flake overlay loading fixed using haumea with proper package lifting
-   - Frontend served via custom Node.js static server with gzip support
+### Previous Approach (Source-based)
 
-### ⚠️ Known Issues
+We initially attempted to package SigNoz components from source:
+- **Packages created** (keeping for potential future use):
+  - `/packages/signoz-query-service/default.nix` - Go backend service
+  - `/packages/signoz-frontend/default.nix` - Frontend from release tarball
+  - `/packages/signoz-schema-migrator/default.nix` - Schema migration tool
+  - `/packages/signoz-clickhouse-schema/default.nix` - Schema initialization
+  - `/packages/signoz-otel-collector/default.nix` - OTEL collector
 
-While all packages build successfully, there are service startup issues being debugged:
+- **Issues encountered**:
+  - Port conflicts between Query Service and Prometheus
+  - Schema field name mismatches (TraceId vs traceID)
+  - Complex cluster configuration requirements
+  - Difficulty maintaining compatibility with upstream changes
 
-1. **ClickHouse initialization**: Empty password handling in clickhouse-client
-2. **Query service**: Port 9090 conflict with Prometheus (fixed, using 9091)
-3. **OTEL collector**: Invalid "compression" configuration key (fixed)
+### New Approach (Podman-based)
+
+Following the official Docker deployment guide, we're switching to:
+- **Podman containers** for SigNoz-specific components
+- **Native NixOS services** for infrastructure (ClickHouse, ZooKeeper)
+- **Declarative configuration** using `virtualisation.oci-containers`
+
+Benefits:
+- Easier maintenance and updates
+- Better compatibility with upstream
+- Simplified configuration
+- Automatic image updates via Podman module
 
 ## Setup Instructions
 
-### Step 1: Build Individual Packages
+### Step 1: Enable Podman
 
-The packages can be built and tested individually:
-
-```bash
-# Build query service
-nix-build -E 'with import <nixpkgs> {}; callPackage ./packages/signoz-query-service {}'
-
-# Build frontend (extracts from release tarball)
-nix-build -E 'with import <nixpkgs> {}; callPackage ./packages/signoz-frontend {}'
-
-# Build ClickHouse schema
-nix-build -E 'with import <nixpkgs> {}; callPackage ./packages/signoz-clickhouse-schema {}'
+Add to your router configuration:
+```nix
+{
+  constellation.podman.enable = true;
+}
 ```
 
-### Step 2: Deploy
+### Step 2: Configure Native Services
 
-Deploy using: `just deploy router`
+The following services will run as native NixOS services:
 
-**Important**: The frontend is extracted from the official release tarball, NOT from Docker images.
+1. **ClickHouse** - Already configured in your router
+2. **ZooKeeper** - Needs to be added for ClickHouse coordination
 
-**Note**: Service startup issues are currently being debugged. The deployment will complete but some services may fail to start due to configuration issues.
+### Step 3: Configure SigNoz Containers
 
-### Step 3: Verify Services
+The SigNoz containers have been configured in `/hosts/router/services/signoz-podman.nix` with:
+- Query Service backend on port 8080
+- Frontend UI on port 3301
+- OTEL Collector on ports 4317 (gRPC) and 4318 (HTTP)
+- Schema migrator for initial setup
+- ZooKeeper and ClickHouse as native NixOS services
 
-Check service status:
+### Step 4: Deploy
+
+Deploy the configuration:
 ```bash
-ssh root@router.bat-boa.ts.net signoz-status
+just deploy router
 ```
 
-Test trace ingestion:
+**Note**: The deployment will:
+1. Enable Podman container runtime
+2. Start ZooKeeper and configure ClickHouse
+3. Pull and start SigNoz containers
+4. Run schema migration automatically
+
+### Step 5: Verify Services
+
+Check container status:
 ```bash
-ssh root@router.bat-boa.ts.net signoz-test-trace
+ssh root@router.bat-boa.ts.net podman ps
 ```
+
+Check native service status:
+```bash
+ssh root@router.bat-boa.ts.net systemctl status clickhouse zookeeper
+```
+
+Verify schema migration:
+```bash
+ssh root@router.bat-boa.ts.net podman logs signoz-schema-migrator
+```
+
+### Step 6: Initial Setup
+
+After deployment:
+1. Wait 2-3 minutes for all services to initialize
+2. Access the web UI at http://router.bat-boa.ts.net:3301
+3. The first load may take time as schema is created
+4. Default credentials are created on first access
 
 ## Access Points
 
-- **Web UI**: https://router.bat-boa.ts.net/signoz
-- **Query API**: http://router-ip:8080
-- **OTLP gRPC**: router-ip:4317
-- **OTLP HTTP**: router-ip:4318
-- **Metrics Export**: router-ip:8889
+- **OTLP gRPC**: router.bat-boa.ts.net:4317 (for sending telemetry data)
+- **OTLP HTTP**: router.bat-boa.ts.net:4318 (for sending telemetry data)
+
+**Note**: The Query Service API and Web UI ports (8080 and 3301) are currently not accessible due to host networking configuration. The service is running but needs additional configuration to expose these ports properly when using host networking mode.
 
 ## Configuration Details
 
-### OpenTelemetry Collector
+### Container Configuration
 
-The collector is configured to:
-1. Receive OTLP data on ports 4317 (gRPC) and 4318 (HTTP)
-2. Scrape Prometheus metrics from existing exporters
-3. Export to ClickHouse for storage
-4. Provide Prometheus-compatible metrics endpoint
+The Podman containers are managed declaratively through NixOS:
+- **Automatic updates**: Daily image pulls with smart container restarts
+- **Docker compatibility**: Full Docker API compatibility via Podman
+- **Network mode**: Using host networking for easy service discovery
+
+#### Service Dependencies and Configuration
+
+Based on the official Docker Compose, our configuration implements:
+
+1. **Query Service** (`signoz-query-service`):
+   - Image: `signoz/query-service:v0.90.1`
+   - Port: 8080
+   - Environment variables:
+     - `ClickHouseUrl`: tcp://localhost:9000
+     - `STORAGE`: clickhouse
+     - `GODEBUG`: netdns=go
+     - `TELEMETRY_ENABLED`: false
+     - `DEPLOYMENT_TYPE`: docker-standalone
+     - `ZOOKEEPER_SERVERS`: localhost:2181
+   - Depends on: OTEL Collector
+
+2. **Frontend** (`signoz-frontend`):
+   - Image: `signoz/frontend:v0.90.1`
+   - Port: 3301
+   - Environment variables:
+     - `FRONTEND_API_URL`: http://localhost:8080
+     - `SERVER_API_URL`: http://localhost:8080
+   - Depends on: Query Service
+
+3. **OTEL Collector** (`signoz-otel-collector`):
+   - Image: `signoz/signoz-otel-collector:v0.128.2`
+   - Ports: 4317 (gRPC), 4318 (HTTP)
+   - Configuration: Custom YAML with receivers, processors, and exporters
+   - Environment variables:
+     - `OTEL_RESOURCE_ATTRIBUTES`: host.name=router,os.type=linux
+     - `DOCKER_MULTI_NODE_CLUSTER`: false
+
+4. **Schema Migration**:
+   - Implemented as systemd oneshot service `signoz-schema-init`
+   - Uses `signoz/signoz-schema-migrator:v0.128.2`
+   - Runs before containers start
+   - Checks for existing schema to avoid re-initialization
+
+### Required Configuration Files
+
+1. **OTEL Collector Config** (`/etc/otel-collector/config.yaml`):
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'node'
+          static_configs:
+            - targets: ['localhost:9100']
+
+processors:
+  batch:
+    send_batch_size: 10000
+    timeout: 10s
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 1000
+    spike_limit_mib: 200
+
+exporters:
+  clickhousetraces:
+    datasource: tcp://localhost:9000
+  clickhousemetricswrite:
+    endpoint: tcp://localhost:9000
+    resource_to_telemetry_conversion:
+      enabled: true
+  clickhouselogsexporter:
+    datasource: tcp://localhost:9000
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [clickhousetraces]
+    metrics:
+      receivers: [otlp, prometheus]
+      processors: [batch]
+      exporters: [clickhousemetricswrite]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [clickhouselogsexporter]
+```
 
 ### ClickHouse Schema
 
-The schema includes:
-- `signoz_traces.signoz_index_v2` - Distributed tracing data
-- `signoz_metrics.samples_v4` - Time-series metrics
-- `signoz_logs.logs` - Log entries
+The schema will be automatically created by the SigNoz containers on first run.
 
 ### Integration with Existing Monitoring
 
-SigNoz runs alongside Grafana/Prometheus:
-- Both systems collect from the same exporters
-- Caddy provides unified routing
-- Alertmanager is shared between systems
+SigNoz runs alongside existing monitoring:
+- Grafana/Prometheus continue to operate independently
+- Both can scrape from the same exporters
+- Caddy can provide unified routing if needed
 
 ## Troubleshooting
 
-### Build Failures
+### Container Issues
 
-If packages fail to build due to vendor issues:
-1. Check the full build log: `nix log /nix/store/...failing-derivation.drv`
-2. Update vendor hashes as shown above
-3. For complex vendoring issues, consider using `buildGoModule` with `deleteVendor = true`
-
-### Service Failures
-
-Common issues and solutions:
-
-1. **Port conflicts**: Query service uses port 9091 to avoid Prometheus conflict
-2. **ClickHouse client**: Password parameter issues with empty passwords
-3. **OTEL collector**: Configuration syntax must match the collector version
-
-Check logs:
+Check container logs:
 ```bash
-journalctl -u signoz-query -f
-journalctl -u signoz-otel-collector -f
-journalctl -u signoz-clickhouse-init -f
-journalctl -u clickhouse -f
+# View all containers
+podman ps -a
+
+# Check logs
+podman logs signoz-query-service
+podman logs signoz-frontend
+podman logs signoz-otel-collector
 ```
 
-### ClickHouse Issues
+### Common Issues
 
-If ClickHouse fails to initialize:
-```bash
-# Check ClickHouse logs
-journalctl -u clickhouse -n 100
+1. **Container connectivity**:
+   - Ensure host networking is working
+   - Check firewall rules for required ports
 
-# Manually run schema initialization
-systemctl start signoz-clickhouse-init
-```
+2. **ClickHouse connection**:
+   - Verify ClickHouse is listening on localhost:9000
+   - Check authentication if enabled
 
-## Alternative Approaches
+3. **Schema initialization**:
+   - Containers will create schema on first run
+   - Check container logs for errors
 
-### Using Pre-built Binaries Only
+4. **OTEL Collector Configuration**:
+   - The collector is sensitive to invalid configuration fields
+   - Error: "has invalid keys: migrations" - remove any unsupported fields
+   - Check logs with: `journalctl -u podman-signoz-otel-collector -f`
 
-**Note**: This setup does not use Docker. All components are native Nix packages.
+5. **Image Version Issues**:
+   - SigNoz uses v-prefixed tags (e.g., v0.90.1, not 0.90.1)
+   - Latest stable: v0.90.1 for query-service and frontend
+   - OTEL Collector: v0.128.2
 
-### Manual Binary Installation
+### Debugging Podman Configuration
 
-Not recommended as all binaries are properly packaged in Nix.
+1. **Check container status**:
+   ```bash
+   ssh root@router.bat-boa.ts.net
+   podman ps -a
+   systemctl status podman-signoz-*
+   ```
+
+2. **View container logs**:
+   ```bash
+   # Individual container logs
+   podman logs signoz-query-service
+   podman logs signoz-frontend
+   podman logs signoz-otel-collector
+   
+   # Systemd service logs
+   journalctl -u podman-signoz-query-service -f
+   journalctl -u podman-signoz-frontend -f
+   journalctl -u podman-signoz-otel-collector -f
+   ```
+
+3. **Test connectivity**:
+   ```bash
+   # Test ClickHouse connection
+   clickhouse-client -q "SELECT 1"
+   
+   # Test Query Service API
+   curl http://localhost:8080/api/v1/version
+   
+   # Test Frontend
+   curl http://localhost:3301
+   
+   # Test OTLP endpoints
+   curl http://localhost:4318/v1/traces
+   ```
+
+4. **Common deployment issues**:
+   - **Email notifications**: If systemd email notifications are configured, container failures may trigger emails
+   - **Port conflicts**: Ensure no other services are using ports 8080, 3301, 4317, 4318
+   - **Network issues**: Host networking mode requires proper localhost resolution
+   - **Schema migration**: Check `systemctl status signoz-schema-init` for initialization errors
 
 ## Next Steps
 
-1. **Fix Service Startup Issues**
-   - Resolve ClickHouse client password parameter handling
-   - Ensure all services start correctly
-   - Test complete end-to-end functionality
+1. **Immediate Tasks**
+   - Fix remaining deployment issues (email service notifications)
+   - Verify all containers start successfully
+   - Test OTLP ingestion endpoints
 
 2. **Production Hardening**
-   - Configure ClickHouse retention policies
-   - Set up backup for ClickHouse data
-   - Configure proper authentication
-   - Set resource limits for services
+   - Configure resource limits for containers
+   - Set up persistent volumes if needed
+   - Configure authentication
+   - Set retention policies
 
 3. **Integration**
-   - Configure applications to send traces to OTLP endpoints
-   - Set up log forwarding from all services
-   - Create custom dashboards in SigNoz
+   - Configure applications to send telemetry
+   - Set up log forwarding from systemd journals
+   - Create custom dashboards in SigNoz UI
+   - Integrate with existing Prometheus exporters
 
-## Current Progress Summary
+## Migration Progress
 
-- ✅ Query service package complete (v0.90.1, builds successfully)
-- ✅ Frontend package complete - extracted from release tarball (v0.90.1)
-- ✅ ClickHouse schema package ready (v0.90.1)
-- ✅ Service configuration complete in signoz-real.nix
-- ✅ Flake overlay issues resolved
-- ⏳ Service startup issues being debugged
+- ✅ Guide updated with Podman strategy
+- ✅ Enable Podman on router (constellation.podman.enable = true)
+- ✅ Create signoz-podman.nix with all container definitions
+- ✅ Configure ZooKeeper and ClickHouse in signoz-podman.nix
+- ✅ Update router services.nix to use new configuration
+- ✅ Fixed OTEL collector configuration (removed invalid 'migrations' field)
+- ✅ Updated container image tags to use v-prefix (e.g., v0.90.1)
+- ⏳ Deploy and test - containers pulling successfully, working on final configuration
 
-## Technical Details
+## Benefits of Podman Approach
 
-### Package Versions and Hashes
-- All packages use SigNoz v0.90.1
-- Source hash: `sha256-gGuUvOCzEY0WqFL7rzJQQ4lQ3IFOuU5QSxy6n6Uaq/k=`
-- Query service vendor hash: `sha256-HARssGBij+rFTPXmgKn7Hdb658IHE0pzFUpCW+ZhrXE=`
-- Frontend tarball hash: `13hqrcq0zllpfr8zmv20ismx9476m3xv8g2b9s2hw57jy3p41d2v`
-
-### Implementation Notes
-- Frontend extracted from official release tarball (NOT from Docker)
-- Query service includes SQLite support via CGO
-- Frontend served by Node.js static server with gzip support
-- All services configured with systemd units in signoz-real.nix
-- No placeholders or simplified code - all packages are production-ready
-- ClickHouse client path hardcoded in schema initialization script
-- Query service wrapped to support environment variable configuration
+1. **Simplified Maintenance**: Use official Docker images
+2. **Automatic Updates**: Podman module handles image updates
+3. **Better Compatibility**: Follows official deployment patterns
+4. **Easier Troubleshooting**: Standard container debugging tools
 
 ## Resources
 
-- [SigNoz Documentation](https://signoz.io/docs/)
-- [OpenTelemetry Collector Config](https://opentelemetry.io/docs/collector/configuration/)
-- [ClickHouse Operations](https://clickhouse.com/docs/en/operations/)
+- [SigNoz Docker Installation](https://signoz.io/docs/install/docker/)
+- [Podman Documentation](https://podman.io/docs)
+- [NixOS Container Options](https://nixos.org/manual/nixos/stable/#ch-containers)
 
-## Files Created
+## Files Created/Modified
 
-- `/packages/signoz-query-service/default.nix`
-- `/packages/signoz-frontend/default.nix`
-- `/packages/signoz-otel-collector/default.nix`
-- `/packages/signoz-clickhouse-schema/default.nix`
-- `/hosts/router/services/signoz-real.nix`
-- `/hosts/router/services/signoz.nix` (not used)
+- ✅ `/hosts/router/services/signoz-podman.nix` - Podman container definitions with native services
+- ✅ `/hosts/router/configuration.nix` - Added `constellation.podman.enable = true`
+- ✅ `/hosts/router/services.nix` - Switched from signoz-real.nix to signoz-podman.nix
+- ✅ OTEL collector configuration embedded in signoz-podman.nix as Nix string
 
-The service configuration in `signoz-real.nix` contains the complete setup. Services are currently being debugged for startup issues related to ClickHouse initialization and configuration parameters.
+## Current Status
+
+**SigNoz deployment is temporarily disabled** while troubleshooting port exposure issues with host networking mode.
+
+### What's Working:
+- ✅ OTEL Collector container starts successfully
+- ✅ Query Service container (with bundled frontend) starts successfully
+- ✅ ClickHouse and ZooKeeper services are operational
+- ✅ Schema migration completed
+- ✅ Container configuration matches official Docker Compose
+
+### Issues to Resolve:
+1. **Port Exposure Problem**: When using host networking mode, the Query Service doesn't expose ports 8080 (API) and 3301 (Web UI)
+2. **Port Conflict**: ZooKeeper appears to be using port 8080, conflicting with Query Service
+
+### Temporary Solution:
+- SigNoz is disabled in `/hosts/router/services.nix`
+- Prometheus and Grafana continue to provide monitoring on their default ports
+- Configuration preserved in `signoz-podman.nix` for future troubleshooting
+
+### Next Steps:
+1. Investigate why ports aren't exposed with host networking
+2. Consider switching to bridge networking with explicit port mappings
+3. Resolve port 8080 conflict between ZooKeeper and Query Service
+4. Test with different container network configurations

@@ -15,6 +15,7 @@
   # Ports
   signozQueryPort = 8080;  # Standard SigNoz query service port
   signozFrontendPort = 3301;
+  signozInternalMetricsPort = 8888;  # Internal metrics port for query service
   signozCollectorPort = 4317;  # OTLP gRPC
   signozCollectorHttpPort = 4318;  # OTLP HTTP
   signozMetricsPort = 8888;     # Internal metrics
@@ -221,8 +222,9 @@ in {
       GODEBUG = "netdns=go";
       TELEMETRY_ENABLED = "false";
       DEPLOYMENT_TYPE = "nixos";
-      SIGNOZ_SELFTELEMETRY_PROMETHEUS_PORT = "9091";  # Avoid conflict with main Prometheus
-      SIGNOZ_SELFTELEMETRY_ENABLED = "false";  # Disable prometheus exporter to avoid port conflicts
+      # Disable internal metrics to avoid port conflicts with Prometheus
+      SIGNOZ_FEATURES_QUERY_SERVICE_METRICS = "false";
+      SIGNOZ_TELEMETRY_ENABLED = "false";
     };
   };
 
