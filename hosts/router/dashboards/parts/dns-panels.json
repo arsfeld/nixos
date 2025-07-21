@@ -155,8 +155,8 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "increase(blocky_query_total{type!=\"\"}[30s])",
-          "legendFormat": "{{type}}",
+          "expr": "sum by (question_type) (rate(blocky_query_total[5m])) * 60",
+          "legendFormat": "{{question_type}}",
           "refId": "A"
         }
       ],
@@ -167,32 +167,88 @@
       "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
           },
           "mappings": [],
-          "max": 100,
-          "min": 0,
           "thresholds": {
-            "mode": "percentage",
+            "mode": "absolute",
             "steps": [
               {
-                "color": "red",
+                "color": "green",
                 "value": null
               },
               {
                 "color": "yellow",
-                "value": 70
+                "value": 20
               },
               {
-                "color": "green",
-                "value": 85
+                "color": "red",
+                "value": 50
               }
             ]
           },
           "unit": "percent"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Block Rate"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Success Rate"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 80
+                    },
+                    {
+                      "color": "green",
+                      "value": 95
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -202,26 +258,54 @@
       },
       "id": 12,
       "options": {
-        "orientation": "auto",
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
+        "showHeader": true
       },
       "pluginVersion": "8.0.0",
       "targets": [
         {
           "expr": "(1 - (rate(blocky_response_total{response_type=\"BLOCKED\"}[5m]) / rate(blocky_response_total[5m]))) * 100",
+          "format": "table",
+          "instant": true,
           "refId": "A"
+        },
+        {
+          "expr": "(rate(blocky_response_total{response_type=\"BLOCKED\"}[5m]) / rate(blocky_response_total[5m])) * 100",
+          "format": "table",
+          "instant": true,
+          "refId": "B"
+        },
+        {
+          "expr": "rate(blocky_query_total[5m]) * 60",
+          "format": "table",
+          "instant": true,
+          "refId": "C"
         }
       ],
-      "title": "DNS Success Rate",
-      "type": "gauge"
+      "title": "DNS Success Metrics",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true
+            },
+            "indexByName": {},
+            "renameByName": {
+              "Value #A": "Success Rate",
+              "Value #B": "Block Rate",
+              "Value #C": "Queries/min"
+            }
+          }
+        }
+      ],
+      "type": "table"
     },
     {
       "datasource": "Prometheus",
@@ -342,6 +426,92 @@
       ],
       "title": "Blocklist Age",
       "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Blocked Count"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "lcd-gauge"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 30
+      },
+      "id": 13,
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Blocked Count"
+          }
+        ]
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "expr": "topk(10, sum by (reason) (increase(blocky_response_total{response_type=\"BLOCKED\"}[24h])))",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Top Blocked Reasons (24h)",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true
+            },
+            "renameByName": {
+              "reason": "Blocked Reason",
+              "Value": "Blocked Count"
+            }
+          }
+        }
+      ],
+      "type": "table"
     }
   ]
 }

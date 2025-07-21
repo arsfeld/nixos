@@ -1,20 +1,84 @@
 {
+  config,
   lib,
   pkgs,
   ...
 }: let
-  # Read all dashboard parts
-  baseDashboard = builtins.fromJSON (builtins.readFile ./parts/base.json);
+  # Get WAN interface name from config
+  wanInterface = config.router.interfaces.wan;
+  
+  # Function to read JSON file with optional placeholder replacement
+  readJsonFile = file: needsReplacement: let
+    content = builtins.readFile file;
+    processed = if needsReplacement 
+      then builtins.replaceStrings ["{{WAN_INTERFACE}}"] [wanInterface] content
+      else content;
+  in
+    builtins.fromJSON processed;
 
-  # Panel categories
-  systemPanels = (builtins.fromJSON (builtins.readFile ./parts/system-panels.json)).panels;
-  networkInterfacePanels = (builtins.fromJSON (builtins.readFile ./parts/network-interfaces-panels.json)).panels;
-  clientPanels = (builtins.fromJSON (builtins.readFile ./parts/clients-panels.json)).panels;
-  dnsPanels = (builtins.fromJSON (builtins.readFile ./parts/dns-panels.json)).panels;
-  qosPanels = (builtins.fromJSON (builtins.readFile ./parts/qos-panels.json)).panels;
-  natpmpPanels = (builtins.fromJSON (builtins.readFile ./parts/natpmp-panels.json)).panels;
-  speedtestPanels = (builtins.fromJSON (builtins.readFile ./parts/speedtest-panels.json)).panels;
-  uncategorizedPanels = (builtins.fromJSON (builtins.readFile ./parts/uncategorized-panels.json)).panels;
+  # Read base dashboard
+  baseDashboard = readJsonFile ./parts/base.json false;
+
+  # Define panel sections configuration
+  panelSections = [
+    {
+      title = "System Overview";
+      id = 100;
+      file = ./parts/system-panels.json;
+      panelsPerRow = 4;
+      needsReplacement = false;
+    }
+    {
+      title = "Network Interfaces";
+      id = 101;
+      file = ./parts/network-interfaces-panels.json;
+      panelsPerRow = 2;
+      needsReplacement = true;
+    }
+    {
+      title = "Client Traffic";
+      id = 102;
+      file = ./parts/clients-panels.json;
+      panelsPerRow = 2;
+      needsReplacement = false;
+    }
+    {
+      title = "DNS";
+      id = 103;
+      file = ./parts/dns-panels.json;
+      panelsPerRow = 3;
+      needsReplacement = false;
+    }
+    {
+      title = "QoS / Traffic Shaping";
+      id = 104;
+      file = ./parts/qos-panels.json;
+      panelsPerRow = 3;
+      needsReplacement = false;
+    }
+    {
+      title = "NAT-PMP Server";
+      id = 106;
+      file = ./parts/natpmp-panels.json;
+      panelsPerRow = 3;
+      needsReplacement = false;
+    }
+    {
+      title = "Internet Speed Test";
+      id = 107;
+      file = ./parts/speedtest-panels.json;
+      panelsPerRow = 2;
+      needsReplacement = false;
+    }
+    {
+      title = "Network Statistics";
+      id = 108;
+      file = ./parts/uncategorized-panels.json;
+      panelsPerRow = 2;
+      needsReplacement = false;
+      optional = true;
+    }
+  ];
 
   # Helper to create a row/section header
   createRow = {
@@ -37,205 +101,69 @@
     type = "row";
   };
 
-  # Helper to reposition panels starting at a specific Y position
-  repositionPanels = startY: panels: let
-    # Calculate cumulative Y positions based on panel heights
-    calculatePositions = panels: currentY:
-      if panels == []
-      then []
-      else let
-        panel = builtins.head panels;
-        remainingPanels = builtins.tail panels;
-
-        # Update panel with new Y position
-        updatedPanel =
-          panel
-          // {
-            gridPos = panel.gridPos // {y = currentY;};
-          };
-
-        # Calculate next Y position (current Y + panel height)
-        nextY = currentY + (panel.gridPos.h or 8);
-
-        # Check if we need to start a new row based on X position
-        needsNewRow = (panel.gridPos.x or 0) == 0 && remainingPanels != [];
-        actualNextY =
-          if needsNewRow
-          then nextY
-          else currentY;
-      in
-        [updatedPanel] ++ calculatePositions remainingPanels actualNextY;
-  in
-    calculatePositions panels startY;
-
   # Helper to organize panels in a grid layout
   organizePanelsInGrid = startY: panelsPerRow: panels: let
-    # Standard panel dimensions
     panelWidth = 24 / panelsPerRow;
     panelHeight = 8;
-
-    # Arrange panels in grid
-    arrangePanels = panels: row: col:
-      if panels == []
-      then []
-      else let
-        panel = builtins.head panels;
-        remainingPanels = builtins.tail panels;
-
-        # Calculate position
-        x = col * panelWidth;
-        y = startY + (row * panelHeight);
-
-        # Update panel position
-        updatedPanel =
-          panel
-          // {
-            gridPos = {
-              h = panelHeight;
-              w = panelWidth;
-              x = x;
-              y = y;
-            };
-          };
-
-        # Calculate next position
-        nextCol =
-          if col + 1 >= panelsPerRow
-          then 0
-          else col + 1;
-        nextRow =
-          if col + 1 >= panelsPerRow
-          then row + 1
-          else row;
-      in
-        [updatedPanel] ++ arrangePanels remainingPanels nextRow nextCol;
   in
-    arrangePanels panels 0 0;
+    lib.imap0 (i: panel: 
+      panel // {
+        gridPos = {
+          h = panelHeight;
+          w = panelWidth;
+          x = (lib.mod i panelsPerRow) * panelWidth;
+          y = startY + (i / panelsPerRow) * panelHeight;
+        };
+      }
+    ) panels;
 
   # Calculate the height of a panel section
   sectionHeight = panels:
     if panels == []
     then 1
-    else let
-      maxY =
-        lib.foldl' (
-          max: panel: let
-            panelBottom = (panel.gridPos.y or 0) + (panel.gridPos.h or 8);
-          in
-            if panelBottom > max
-            then panelBottom
-            else max
-        )
-        0
-        panels;
-    in
-      maxY;
+    else lib.foldl' lib.max 0 (map (panel: 
+      (panel.gridPos.y or 0) + (panel.gridPos.h or 8)
+    ) panels);
 
-  # Build dashboard sections with proper spacing
+  # Build dashboard sections dynamically
   buildSections = let
-    currentY = 0;
-
-    # System Overview Section
-    systemRow = createRow {
-      title = "System Overview";
-      y = currentY;
-      id = 100;
-    };
-    systemPanelsRepositioned = organizePanelsInGrid (currentY + 1) 4 systemPanels;
-    systemSectionHeight = sectionHeight systemPanelsRepositioned + 2;
-
-    # Network Interfaces Section
-    networkY = currentY + systemSectionHeight;
-    networkRow = createRow {
-      title = "Network Interfaces";
-      y = networkY;
-      id = 101;
-    };
-    networkPanelsRepositioned = organizePanelsInGrid (networkY + 1) 2 networkInterfacePanels;
-    networkSectionHeight = sectionHeight networkPanelsRepositioned + 2;
-
-    # Client Traffic Section
-    clientY = networkY + networkSectionHeight;
-    clientRow = createRow {
-      title = "Client Traffic";
-      y = clientY;
-      id = 102;
-    };
-    clientPanelsRepositioned = organizePanelsInGrid (clientY + 1) 2 clientPanels;
-    clientSectionHeight = sectionHeight clientPanelsRepositioned + 2;
-
-    # DNS Section
-    dnsY = clientY + clientSectionHeight;
-    dnsRow = createRow {
-      title = "DNS";
-      y = dnsY;
-      id = 103;
-    };
-    dnsPanelsRepositioned = organizePanelsInGrid (dnsY + 1) 3 dnsPanels;
-    dnsSectionHeight = sectionHeight dnsPanelsRepositioned + 2;
-
-    # QoS/Traffic Shaping Section
-    qosY = dnsY + dnsSectionHeight;
-    qosRow = createRow {
-      title = "QoS / Traffic Shaping";
-      y = qosY;
-      id = 104;
-    };
-    qosPanelsRepositioned = organizePanelsInGrid (qosY + 1) 3 qosPanels;
-    qosSectionHeight = sectionHeight qosPanelsRepositioned + 2;
-
-    # NAT-PMP Section
-    natpmpY = qosY + qosSectionHeight;
-    natpmpRow = createRow {
-      title = "NAT-PMP Server";
-      y = natpmpY;
-      id = 106;
-    };
-    natpmpPanelsRepositioned = repositionPanels (natpmpY + 1) natpmpPanels;
-    natpmpSectionHeight = sectionHeight natpmpPanelsRepositioned + 2;
-
-    # Internet Speed Test Section
-    speedY = natpmpY + natpmpSectionHeight;
-    speedRow = createRow {
-      title = "Internet Speed Test";
-      y = speedY;
-      id = 107;
-    };
-    speedPanelsRepositioned = organizePanelsInGrid (speedY + 1) 2 speedtestPanels;
-    speedSectionHeight = sectionHeight speedPanelsRepositioned + 2;
-
-    # Other Metrics Section (if any uncategorized panels exist)
-    otherY = speedY + speedSectionHeight;
-    otherRow = createRow {
-      title = "Other Metrics";
-      y = otherY;
-      id = 108;
-    };
-    otherPanelsRepositioned =
-      if uncategorizedPanels != []
-      then organizePanelsInGrid (otherY + 1) 3 uncategorizedPanels
-      else [];
+    # Process each section and accumulate Y position
+    processSections = sections: currentY: processedSections:
+      if sections == []
+      then processedSections
+      else let
+        section = builtins.head sections;
+        remainingSections = builtins.tail sections;
+        
+        # Read panels for this section
+        panels = (readJsonFile section.file section.needsReplacement).panels;
+        
+        # Skip optional empty sections
+        skipSection = section.optional or false && panels == [];
+        
+        # Create row and positioned panels
+        row = createRow {
+          inherit (section) title id;
+          y = currentY;
+        };
+        
+        positionedPanels = if skipSection 
+          then []
+          else organizePanelsInGrid (currentY + 1) section.panelsPerRow panels;
+        
+        # Calculate next Y position
+        nextY = if skipSection
+          then currentY
+          else currentY + sectionHeight positionedPanels + 2;
+        
+        # Accumulate results
+        newProcessed = if skipSection
+          then processedSections
+          else processedSections ++ [row] ++ positionedPanels;
+      in
+        processSections remainingSections nextY newProcessed;
   in
-    # Combine all sections
-    [systemRow]
-    ++ systemPanelsRepositioned
-    ++ [networkRow]
-    ++ networkPanelsRepositioned
-    ++ [clientRow]
-    ++ clientPanelsRepositioned
-    ++ [dnsRow]
-    ++ dnsPanelsRepositioned
-    ++ [qosRow]
-    ++ qosPanelsRepositioned
-    ++ [natpmpRow]
-    ++ natpmpPanelsRepositioned
-    ++ [speedRow]
-    ++ speedPanelsRepositioned
-    ++ (
-      if uncategorizedPanels != []
-      then [otherRow] ++ otherPanelsRepositioned
-      else []
-    );
+    processSections panelSections 0 [];
 in
   # Combine base dashboard with organized panels
   baseDashboard

@@ -6,111 +6,77 @@
 }: let
   netConfig = config.router.network;
   routerIp = "${netConfig.prefix}.1";
+  
+  # Shared routing configuration for both internal IP and Tailscale access
+  routerRoutes = ''
+    # Grafana - Monitoring dashboards
+    handle /grafana* {
+      reverse_proxy localhost:3000
+    }
+
+    # Prometheus - Metrics database
+    handle /prometheus* {
+      reverse_proxy localhost:9090
+    }
+
+    # Alertmanager - Alert management
+    handle /alertmanager* {
+      reverse_proxy localhost:9093
+    }
+
+    # Blocky DNS API
+    handle /blocky* {
+      reverse_proxy localhost:4000
+    }
+
+    # Router dashboard
+    handle /dashboard* {
+      reverse_proxy localhost:8080
+    }
+
+    # Default landing page with template
+    handle / {
+      templates
+      file_server {
+        root /etc/caddy
+        index dashboard.html
+      }
+    }
+  '';
 in {
   # Dashboard template file
   environment.etc."caddy/dashboard.html".source = ./dashboard.html;
 
-  # Caddy reverse proxy
+  # Caddy reverse proxy - internal access only (no WAN/public access)
   services.caddy = {
     enable = true;
 
     # Virtual host configuration
     virtualHosts = {
+      # Internal IP access (HTTP only)
       "http://${routerIp}" = {
         extraConfig = ''
-          # Restrict all routes to internal network only
-          @blocked not remote_ip ${netConfig.prefix}.0/${toString netConfig.cidr} 127.0.0.1
+          # Restrict to internal network and Tailscale only
+          @blocked not remote_ip ${netConfig.prefix}.0/${toString netConfig.cidr} 100.64.0.0/10 127.0.0.1
           respond @blocked "Access denied" 403
 
-          # Grafana - Monitoring dashboards
-          handle /grafana* {
-            reverse_proxy localhost:3000
-          }
-
-          # Prometheus - Metrics database
-          handle /prometheus* {
-            reverse_proxy localhost:9090
-          }
-
-          # Alertmanager - Alert management
-          handle /alertmanager* {
-            reverse_proxy localhost:9093
-          }
-
-
-          # Blocky DNS API
-          handle /blocky* {
-            reverse_proxy localhost:4000
-          }
-
-          # SigNoz - Observability platform
-          handle /signoz* {
-            uri strip_prefix /signoz
-            reverse_proxy localhost:3302
-          }
-
-          # Default landing page with template
-          handle / {
-            templates
-            file_server {
-              root /etc/caddy
-              index dashboard.html
-            }
-          }
+          ${routerRoutes}
         '';
       };
 
-      # Tailscale hostname access with HTTPS
+      # Tailscale hostname access (HTTPS with automatic certificates)
       "router.bat-boa.ts.net" = {
         extraConfig = ''
-          # Allow Tailscale network
-          @blocked not remote_ip 100.64.0.0/10 ${netConfig.prefix}.0/${toString netConfig.cidr} 127.0.0.1
+          # Restrict to internal network and Tailscale only
+          @blocked not remote_ip ${netConfig.prefix}.0/${toString netConfig.cidr} 100.64.0.0/10 127.0.0.1
           respond @blocked "Access denied" 403
 
-          # Same routing as main host
-          handle /grafana* {
-            reverse_proxy localhost:3000
-          }
-
-          handle /prometheus* {
-            reverse_proxy localhost:9090
-          }
-
-          handle /alertmanager* {
-            reverse_proxy localhost:9093
-          }
-
-
-          handle /blocky* {
-            reverse_proxy localhost:4000
-          }
-
-          # SigNoz - Observability platform
-          handle /signoz* {
-            uri strip_prefix /signoz
-            reverse_proxy localhost:3302
-          }
-
-          # Default landing page with template
-          handle / {
-            templates
-            file_server {
-              root /etc/caddy
-              index dashboard.html
-            }
-          }
+          ${routerRoutes}
         '';
       };
     };
   };
 
-  # Update Grafana configuration to work behind reverse proxy
-  services.grafana.settings = lib.mkIf config.services.grafana.enable {
-    server = {
-      root_url = "/grafana/";
-      serve_from_sub_path = true;
-    };
-  };
 
   # Update Prometheus configuration for reverse proxy
   services.prometheus = lib.mkMerge [
@@ -145,7 +111,7 @@ in {
       443 # HTTPS
     ];
   };
-
+  
   # Allow Caddy to access Tailscale certificates
   services.tailscale.permitCertUid = "caddy";
 }

@@ -166,7 +166,7 @@ in {
         ProtectSystem = "strict";
         ProtectHome = true;
         ReadOnlyPaths = "/";
-        ReadWritePaths = ["/var/lib/dnsmasq" "/var/lib/network-metrics-exporter"];
+        ReadWritePaths = ["/var/lib/network-metrics-exporter"];
         StateDirectory = "network-metrics-exporter";
 
         # Required capabilities for network operations
@@ -177,6 +177,7 @@ in {
       environment = {
         METRICS_PORT = toString cfg.port;
         UPDATE_INTERVAL = toString cfg.updateInterval;
+        WAN_INTERFACE = config.router.interfaces.wan or "";
       };
 
       path = with pkgs; [
