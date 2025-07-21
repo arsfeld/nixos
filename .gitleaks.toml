@@ -1,0 +1,62 @@
+# Gitleaks configuration for NixOS repository
+
+[extend]
+# Use the default gitleaks configuration as base
+useDefault = true
+
+[allowlist]
+description = "Allowlisted files and paths"
+
+# Ignore encrypted age files (these are properly encrypted)
+paths = [
+    '''secrets/.*\.age$''',
+    '''\.gitleaks\.toml$''',
+    '''flake\.lock$''',  # Nix flake lock files contain hashes, not secrets
+    '''docs/.*\.md$''',  # Documentation files
+    '''result.*''',      # Nix build results
+    '''\.direnv/.*''',   # Direnv cache
+    '''gitleaks-report\.json$''',  # Gitleaks own report file
+    '''current-leaks\.json$''',  # Temporary report files
+    '''.*\.ghost\..*\.json$''',  # Ghost export files (blog backups)
+]
+
+# Additional patterns to ignore
+regexTarget = "match"
+regexes = [
+    # Ignore age encrypted content patterns
+    '''age-encryption\.org/v1''',
+    '''-----BEGIN AGE ENCRYPTED FILE-----''',
+    '''-----END AGE ENCRYPTED FILE-----''',
+    
+    # Ignore Nix store paths and hashes
+    '''/nix/store/[a-z0-9]{32}-''',
+    '''sha256-[A-Za-z0-9+/=]{43,44}''',
+    '''[a-z0-9]{52}''',  # Nix hashes
+    
+    # Ignore example/template secrets in documentation
+    '''example\.com''',
+    '''EXAMPLE_SECRET''',
+    '''placeholder''',
+    '''your-.*-here''',
+    '''<your-.*>''',
+    
+    # Ignore UUID patterns
+    '''[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}''',
+]
+
+[[rules]]
+# Custom rule to detect unencrypted secret-like patterns in Nix files
+id = "nix-hardcoded-secret"
+description = "Detects potential hardcoded secrets in Nix files"
+regex = '''(?i)(password|secret|token|key|apikey|api_key|auth|credential)\s*=\s*"[^"]{8,}"'''
+path = '''\.nix$'''
+entropy = 3.5
+
+# Disable the overly sensitive base64 rule - it causes too many false positives
+# [[rules]]
+# id = "base64-secret"
+# description = "Detects potential base64 encoded secrets"
+# regex = '''(?:[A-Za-z0-9+/]{4}){8,}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?'''
+# entropy = 4.5
+# secretGroup = 0
+# keywords = ["secret", "token", "password", "key"]
