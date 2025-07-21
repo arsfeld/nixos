@@ -12,7 +12,11 @@ with lib; let
   cfg = config.constellation.githubNotify;
 in {
   options.constellation.githubNotify = {
-    enable = mkEnableOption "GitHub notifications for systemd failures";
+    enable = mkOption {
+      type = types.bool;
+      default = false;
+      description = "Enable GitHub notifications for systemd failures";
+    };
 
     username = mkOption {
       type = types.str;
