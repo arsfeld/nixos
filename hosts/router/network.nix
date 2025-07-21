@@ -13,8 +13,18 @@
   # Computed values
   network = "${netConfig.prefix}.0/${toString netConfig.cidr}";
   routerIp = "${netConfig.prefix}.1";
-  dhcpStart = 100;
-  dhcpSize = 50;
+  
+  # Helper to generate TCP port rules from interface config
+  interfaceTCPRules = iface: ports: 
+    if ports != [] then
+      "iifname \"${iface}\" tcp dport { ${lib.concatStringsSep ", " (map toString ports)} } accept"
+    else "";
+    
+  # Helper to generate UDP port rules from interface config  
+  interfaceUDPRules = iface: ports:
+    if ports != [] then
+      "iifname \"${iface}\" udp dport { ${lib.concatStringsSep ", " (map toString ports)} } accept"
+    else "";
 in {
   options.router = {
     interfaces = lib.mkOption {
@@ -33,6 +43,9 @@ in {
   };
 
   config = {
+    # Disable NixOS firewall since we're using custom nftables
+    networking.firewall.enable = false;
+    
     # nftables firewall configuration
     networking.nftables = {
       enable = true;
@@ -51,6 +64,17 @@ in {
             # Allow DNS, DHCP from LAN bridge
             iifname "br-lan" udp dport { 53, 67 } accept
 
+            # Allow configured ports from NixOS firewall settings
+            ${lib.optionalString (config.networking.firewall.interfaces ? br-lan) ''
+              ${interfaceTCPRules "br-lan" (config.networking.firewall.interfaces.br-lan.allowedTCPPorts or [])}
+              ${interfaceUDPRules "br-lan" (config.networking.firewall.interfaces.br-lan.allowedUDPPorts or [])}
+            ''}
+            
+            ${lib.optionalString (config.networking.firewall.interfaces ? tailscale0) ''
+              ${interfaceTCPRules "tailscale0" (config.networking.firewall.interfaces.tailscale0.allowedTCPPorts or [])}
+              ${interfaceUDPRules "tailscale0" (config.networking.firewall.interfaces.tailscale0.allowedUDPPorts or [])}
+            ''}
+            
             # Allow UPnP from LAN bridge
             iifname "br-lan" tcp dport 1024-65535 accept  # miniupnpd HTTP (uses dynamic port)
             iifname "br-lan" udp dport { 1900, 5351 } accept   # SSDP and NAT-PMP
@@ -189,24 +213,10 @@ in {
           matchConfig.Name = "br-lan";
           address = ["${routerIp}/${toString netConfig.cidr}"];
           networkConfig = {
-            DHCPServer = true;
+            # DHCP is handled by Kea, not systemd-networkd
             IPv4Forwarding = true;
             IPv6Forwarding = false;
           };
-          dhcpServerConfig = {
-            PoolOffset = dhcpStart;
-            PoolSize = dhcpSize;
-            EmitDNS = true;
-            DNS = routerIp; # Blocky DNS server
-            EmitRouter = true;
-          };
-          dhcpServerStaticLeases = [
-            {
-              # Storage server static IP
-              Address = "${netConfig.prefix}.5";
-              MACAddress = "00:e0:4c:bb:00:e3";
-            }
-          ];
           linkConfig.RequiredForOnline = "no";
         };
       };
