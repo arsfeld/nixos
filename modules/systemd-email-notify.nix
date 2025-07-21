@@ -78,7 +78,7 @@ with lib; let
     
     # Perform LLM analysis if enabled and API key is available
     LLM_ANALYSIS=""
-    if [ "${toString config.systemdEmailNotify.enableLLMAnalysis}" = "1" ]; then
+    ${optionalString config.systemdEmailNotify.enableLLMAnalysis ''
       # Handle both direct API key and agenix secret file
       if [ -f "${config.systemdEmailNotify.googleApiKey}" ]; then
         # It's a file path (agenix secret)
@@ -100,14 +100,14 @@ with lib; let
         </div>"
         fi
       fi
-    fi
+    ''}
     
     # Convert logs to HTML
     LOG_HTML=$(cat "$LOG_FILE" | ${pkgs.aha}/bin/aha -n)
     STATUS_HTML=$(cat "$STATUS_FILE" | ${pkgs.aha}/bin/aha -n)
     
     # Create GitHub issue if enabled
-    if [ "${toString config.systemdEmailNotify.enableGitHubIssues}" = "1" ] && [ -n "${config.systemdEmailNotify.gitHubRepo}" ]; then
+    ${optionalString (config.systemdEmailNotify.enableGitHubIssues && config.systemdEmailNotify.gitHubRepo != "") ''
       LLM_FILE=""
       if [ -n "$LLM_ANALYSIS" ]; then
         LLM_FILE=$(mktemp)
@@ -125,7 +125,7 @@ with lib; let
         --update-interval ${toString config.systemdEmailNotify.gitHubUpdateInterval} || true
       
       [ -n "$LLM_FILE" ] && rm -f "$LLM_FILE"
-    fi
+    ''}
     
     # Clean up temp files
     rm -f "$LOG_FILE" "$STATUS_FILE"

@@ -34,7 +34,7 @@ with lib; {
   options.constellation.llmEmail = {
     enable = mkOption {
       type = types.bool;
-      default = false;
+      default = true;
       description = ''
         Enable AI-powered analysis for systemd service failure notifications.
         Requires constellation.email to be enabled and a Google API key.
