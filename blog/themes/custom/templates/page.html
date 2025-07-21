@@ -71,11 +71,35 @@
         
         
         <!-- Related posts -->
-        {% if config.extra.enable_related_posts %}
+        {% if config.extra.enable_related_posts and page.taxonomies.tags %}
+        {% set section = get_section(path="posts/_index.md") %}
+        {% set_global related_posts = [] %}
+        {% for post in section.pages %}
+            {% if post.permalink != page.permalink and post.taxonomies.tags %}
+                {% for tag in page.taxonomies.tags %}
+                    {% if tag in post.taxonomies.tags %}
+                        {% set_global related_posts = related_posts | concat(with=post) %}
+                        {% break %}
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        {% endfor %}
+        
+        {% if related_posts | length > 0 %}
         <div class="related-posts">
             <h3>Related Posts</h3>
-            <!-- This would need custom logic to find related posts based on tags -->
+            <ul class="related-posts-list">
+                {% for post in related_posts | slice(end=5) %}
+                <li>
+                    <a href="{{ post.permalink }}">{{ post.title }}</a>
+                    {% if post.date %}
+                    <span class="post-date">{{ post.date | date(format="%B %d, %Y") }}</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
         </div>
+        {% endif %}
         {% endif %}
     </footer>
 </article>

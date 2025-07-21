@@ -67,3 +67,6 @@ __pycache__/
 *.pyc
 
 **/.claude/settings.local.json
+
+# Blog generated images
+blog/static/images/generated/
