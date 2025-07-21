@@ -29,4 +29,8 @@
     python3Packages.pymdown-extensions
   ];
   # See full reference at https://devenv.sh/reference/options/
+
+  git-hooks.hooks = {
+    alejandra.enable = true;
+  };
 }

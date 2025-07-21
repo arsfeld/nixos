@@ -51,7 +51,7 @@
         serviceConfig = {
           Type = "oneshot";
           RemainAfterExit = true;
-          ExecStart = "${pkgs.coreutils}/bin/echo 'Storage server with static IP 192.168.10.5'";
+          ExecStart = "${pkgs.coreutils}/bin/echo 'Storage server with static IP 10.1.1.5'";
         };
       };
     };
@@ -96,6 +96,16 @@
         # Import only the modules we need, not disk/hardware config
         "${self}/hosts/router/network.nix"
         "${self}/hosts/router/services.nix"
+        "${self}/hosts/router/alerting.nix"
+      ];
+      
+      # Apply overlays to make packages available
+      nixpkgs.overlays = [
+        (import "${self}/overlays/python-packages.nix")
+        # Add network-metrics-exporter package
+        (final: prev: {
+          network-metrics-exporter = final.callPackage "${self}/packages/network-metrics-exporter" {};
+        })
       ];
 
       # Test-specific overrides
@@ -162,6 +172,9 @@
       # Disable Tailscale services in test environment to prevent hanging
       services.tailscale.enable = lib.mkForce false;
       systemd.services.tailscale-subnet-router.enable = lib.mkForce false;
+      
+      # Disable alerting in test environment
+      router.alerting.enable = lib.mkForce false;
     };
 
     # Client on first LAN port
@@ -195,7 +208,7 @@
         curl
         traceroute
         python3
-        netcat
+        netcat-gnu  # Use GNU netcat for -z flag
         dnsutils # for nslookup
       ];
 
@@ -320,7 +333,7 @@
       environment.systemPackages = with pkgs; [
         curl
         traceroute
-        netcat
+        netcat-gnu  # Use GNU netcat for -z flag
         dnsutils # for nslookup
       ];
 
@@ -349,6 +362,10 @@
     external.wait_for_unit("nginx.service")
     external.wait_for_open_port(80)
 
+    # Wait for Kea DHCP server to start
+    router.wait_until_succeeds("systemctl is-active kea-dhcp4-server.service", timeout=30)
+    router.succeed("systemctl status kea-dhcp4-server.service || journalctl -u kea-dhcp4-server.service -n 50")
+
     # Wait for natpmp-server to start
     router.wait_until_succeeds("systemctl is-active natpmp-server.service", timeout=30)
 
@@ -362,30 +379,64 @@
     router.wait_for_unit("grafana.service")
     router.wait_for_open_port(9090)  # Prometheus
     router.wait_for_open_port(3000)  # Grafana
+    
+    # Wait for Caddy
+    router.wait_for_unit("caddy.service")
+    router.wait_for_open_port(80)   # HTTP
+    router.wait_for_open_port(443)  # HTTPS
 
     # Wait for client traffic monitoring
     router.wait_for_unit("client-traffic-tracker.service")
-    router.wait_for_unit("client-traffic-exporter.service")
+    router.wait_for_unit("network-metrics-exporter.service")
 
     client1.wait_for_unit("test-http-server.service")
     client2.wait_for_unit("test-http-server.service")
 
     # Give DHCP time to assign addresses
-    storage.wait_until_succeeds("ip addr show eth1 | grep 192.168.10.5")  # Static IP
-    client1.wait_until_succeeds("ip addr show eth1 | grep 192.168.10")
-    client2.wait_until_succeeds("ip addr show eth1 | grep 192.168.10")
+    storage.wait_until_succeeds("ip addr show eth1 | grep 10.1.1.5")  # Static IP
+    client1.wait_until_succeeds("ip addr show eth1 | grep 10.1.1")
+    client2.wait_until_succeeds("ip addr show eth1 | grep 10.1.1")
 
     # Test basic connectivity
     with subtest("Clients and storage can ping router"):
-        storage.succeed("ping -c 1 192.168.10.1")
-        client1.succeed("ping -c 1 192.168.10.1")
-        client2.succeed("ping -c 1 192.168.10.1")
+        storage.succeed("ping -c 1 10.1.1.1")
+        client1.succeed("ping -c 1 10.1.1.1")
+        client2.succeed("ping -c 1 10.1.1.1")
 
     with subtest("Storage has correct static IP"):
-        # Verify storage got the static IP 192.168.10.5
+        # Verify storage got the static IP 10.1.1.5
         storage_ip = storage.succeed("ip -4 addr show eth1 | grep inet | awk '{print $2}' | cut -d'/' -f1").strip()
-        assert storage_ip == "192.168.10.5", f"Storage IP is {storage_ip}, expected 192.168.10.5"
+        assert storage_ip == "10.1.1.5", f"Storage IP is {storage_ip}, expected 10.1.1.5"
         print(f"Storage server has static IP: {storage_ip}")
+
+    with subtest("DNS resolution for static hosts"):
+        # Test that static hosts are resolvable
+        storage_resolved = client1.succeed("nslookup storage.lan 10.1.1.1 | grep Address | tail -1 | awk '{print $2}'").strip()
+        assert storage_resolved == "10.1.1.5", f"storage.lan resolved to {storage_resolved}, expected 10.1.1.5"
+        print("✓ storage.lan resolves correctly")
+        
+        router_resolved = client1.succeed("nslookup router.lan 10.1.1.1 | grep Address | tail -1 | awk '{print $2}'").strip()
+        assert router_resolved == "10.1.1.1", f"router.lan resolved to {router_resolved}, expected 10.1.1.1"
+        print("✓ router.lan resolves correctly")
+
+    with subtest("DHCP and DNS integration"):
+        # Check that Kea lease file exists
+        router.succeed("ls -la /var/lib/kea/")
+        
+        # Check hosts file exists and contains static entries
+        hosts_content = router.succeed("cat /var/lib/kea/dhcp-hosts")
+        print(f"Hosts file content:\n{hosts_content}")
+        assert "10.1.1.1 router router.lan" in hosts_content, "Router entry not in hosts file"
+        assert "10.1.1.5 storage storage.lan" in hosts_content, "Storage entry not in hosts file"
+        
+        # Test reverse DNS for clients (should work after they get DHCP leases)
+        client1_ip = client1.succeed("ip -4 addr show eth1 | grep inet | awk '{print $2}' | cut -d'/' -f1").strip()
+        # Try reverse DNS lookup - this tests if network-metrics-exporter can resolve names
+        try:
+            client1_name = router.succeed(f"nslookup {client1_ip} 127.0.0.1 | grep 'name =' || echo 'No reverse DNS yet'")
+            print(f"Client1 reverse DNS: {client1_name}")
+        except:
+            print("Reverse DNS not available yet (expected if client didn't send hostname)")
 
     with subtest("Router can ping external"):
         router.succeed("ping -c 1 10.0.2.1")
@@ -426,6 +477,10 @@
         # Check that Blocky DNS is running
         router.succeed("systemctl is-active blocky")
         print("Blocky DNS server is running")
+        
+        # Check that Kea DHCP is running
+        router.succeed("systemctl is-active kea-dhcp4-server")
+        print("Kea DHCP server is running")
 
         # Check that monitoring services are running
         router.succeed("systemctl is-active prometheus")
@@ -451,7 +506,7 @@
         router.succeed("ip addr show eth1")
 
         # Test NAT-PMP info request from client
-        output = client1.succeed("python3 /etc/natpmp-test-client.py 192.168.10.1 info")
+        output = client1.succeed("python3 /etc/natpmp-test-client.py 10.1.1.1 info")
         print(f"NAT-PMP info output:\n{output}")
         assert "External IP: 10.0.2.2" in output, "External IP not correct in NAT-PMP response"
         assert "Server epoch:" in output, "Server epoch not found in response"
@@ -463,7 +518,7 @@
         print(f"Client1 IP for port mapping: {client1_ip}")
 
         # Add a TCP port mapping
-        map_result = client1.succeed("python3 /etc/natpmp-test-client.py 192.168.10.1 map 9090 8080 tcp 3600")
+        map_result = client1.succeed("python3 /etc/natpmp-test-client.py 10.1.1.1 map 9090 8080 tcp 3600")
         print(f"Port mapping output: {map_result}")
         assert "Mapping created:" in map_result, "Port mapping failed"
         assert "External port: 8080" in map_result, "External port not correct"
@@ -475,7 +530,7 @@
         assert client1_ip in nft_rules, f"Client IP {client1_ip} not found in NAT rules"
 
         # Test UDP port mapping
-        udp_result = client1.succeed("python3 /etc/natpmp-test-client.py 192.168.10.1 map 9091 8081 udp 1800")
+        udp_result = client1.succeed("python3 /etc/natpmp-test-client.py 10.1.1.1 map 9091 8081 udp 1800")
         print(f"UDP mapping output: {udp_result}")
         assert "Mapping created:" in udp_result, "UDP port mapping failed"
 
@@ -527,7 +582,7 @@
         successful_mappings = 0
 
         for port in test_ports:
-            result = client1.succeed(f"python3 /etc/natpmp-test-client.py 192.168.10.1 map 9090 {port} tcp 1800")
+            result = client1.succeed(f"python3 /etc/natpmp-test-client.py 10.1.1.1 map 9090 {port} tcp 1800")
             if "Mapping created:" in result:
                 successful_mappings += 1
             print(f"Test mapping {port}: {result}")
@@ -544,6 +599,58 @@
 
         print("NAT-PMP security and limits testing completed")
 
+
+    with subtest("Caddy web server and firewall integration"):
+        # Test that Caddy is running and accessible from LAN
+        router.succeed("systemctl is-active caddy")
+        print("✓ Caddy service is active")
+        
+        # Test access to router dashboard from LAN clients
+        client1_response = client1.succeed("curl -s http://10.1.1.1/")
+        assert "Router Dashboard" in client1_response, "Router dashboard not accessible from client1"
+        print("✓ Client1 can access router dashboard via HTTP")
+        
+        client2_response = client2.succeed("curl -s http://10.1.1.1/")
+        assert "Router Dashboard" in client2_response, "Router dashboard not accessible from client2"
+        print("✓ Client2 can access router dashboard via HTTP")
+        
+        # Test that external access is blocked
+        external.fail("curl -s --connect-timeout 5 http://10.0.2.2/")
+        print("✓ External access to Caddy is properly blocked")
+        
+        # Test specific service endpoints
+        client1.succeed("curl -f http://10.1.1.1/grafana/")
+        print("✓ Grafana reverse proxy is working")
+        
+        client1.succeed("curl -f http://10.1.1.1/prometheus/")
+        print("✓ Prometheus reverse proxy is working")
+        
+        # Test dashboard template rendering
+        dashboard_html = client1.succeed("curl -s http://192.168.10.1/")
+        assert "services-container" in dashboard_html, "Dashboard template not rendering properly"
+        print("✓ Dashboard template is rendering correctly")
+
+    with subtest("Firewall interface rules integration"):
+        # Check that firewall rules are properly generated from NixOS config
+        nft_rules = router.succeed("nft list table inet filter")
+        
+        # Verify that ports 80 and 443 are allowed on br-lan
+        assert 'iifname "br-lan" tcp dport { 80, 443 } accept' in nft_rules, "HTTP/HTTPS ports not allowed on br-lan"
+        print("✓ Firewall allows HTTP/HTTPS on br-lan interface")
+        
+        # Verify that SSH is still allowed
+        assert 'iifname "br-lan" tcp dport 22 accept' in nft_rules, "SSH port not allowed on br-lan"
+        print("✓ SSH access is preserved")
+        
+        # Test that the firewall is actually enforcing rules
+        # Try accessing a port that should not be allowed
+        client1.fail("nc -zv -w 2 10.1.1.1 8888")
+        print("✓ Firewall properly blocks unauthorized ports")
+        
+        # Verify Tailscale interface rules if they exist
+        if "tailscale0" in nft_rules:
+            assert 'iifname "tailscale0"' in nft_rules, "Tailscale interface rules missing"
+            print("✓ Tailscale interface rules are present")
 
     with subtest("Monitoring stack is working"):
         # Just verify services are running
@@ -563,8 +670,12 @@
         import time
         time.sleep(10)
 
-        # Check that client traffic metrics are being exported
-        router.succeed("test -f /var/lib/prometheus-node-exporter-text-files/client_traffic.prom")
-        print("Client traffic metrics are being exported")
+        # Check that network metrics exporter is running
+        router.succeed("systemctl is-active network-metrics-exporter")
+        print("Network metrics exporter is active")
+        
+        # Verify metrics endpoint
+        router.succeed("curl -f http://localhost:9101/metrics | grep -q network_client")
+        print("Network metrics are being exported")
   '';
 }
