@@ -267,7 +267,7 @@
               try:
                   sock.sendto(request, (server_addr, port))
                   response, _ = sock.recvfrom(16)
-                  (version, resp_opcode, reserved, result_code, epoch, int_port, ext_port, lifetime_granted) = struct.unpack('!BBHHIHHI', response)
+                  (version, resp_opcode, result_code, epoch, int_port, ext_port, lifetime_granted) = struct.unpack('!BBHIHHI', response)
                   if result_code == 0:
                       print(f"Mapping created: Internal port: {int_port}, External port: {ext_port}, Lifetime: {lifetime_granted} seconds")
                       return True

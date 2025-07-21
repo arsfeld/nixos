@@ -32,5 +32,6 @@
 
   git-hooks.hooks = {
     alejandra.enable = true;
+    gptcommit.enable = true;
   };
 }
