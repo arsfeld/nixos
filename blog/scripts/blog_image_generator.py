@@ -98,8 +98,9 @@ class ImageGenerator:
 
     def _build_full_prompt(self, post_id: str, base_prompt: str) -> str:
         """Build complete prompt including post style and personality."""
-        post_styles = self.config.get("post_styles", {})
-        post_style = post_styles.get(post_id, {})
+        posts = self.config.get("posts", {})
+        post = posts.get(post_id, {})
+        post_style = post.get("styles", {})
 
         full_prompt = base_prompt
 
@@ -209,22 +210,23 @@ class ImageGenerator:
     def list_prompts(self, post_filter: Optional[str] = None) -> None:
         """List all available prompts, optionally filtered by post."""
 
-        prompts = self.config.get("prompts", {})
-        post_styles = self.config.get("post_styles", {})
+        posts = self.config.get("posts", {})
 
         if post_filter:
-            if post_filter not in prompts:
+            if post_filter not in posts:
                 console.print(f"[red]Error: Post '{post_filter}' not found[/red]")
                 raise typer.Exit(1)
-            posts_to_show = {post_filter: prompts[post_filter]}
+            posts_to_show = {post_filter: posts[post_filter]}
         else:
-            posts_to_show = prompts
+            posts_to_show = posts
 
         console.print("[blue]Available Image Prompts:[/blue]\n")
 
-        for post_id, post_prompts in posts_to_show.items():
-            # Create post panel
-            style_info = post_styles.get(post_id, {})
+        for post_id, post_data in posts_to_show.items():
+            # Get styles and prompts from the post
+            style_info = post_data.get("styles", {})
+            post_prompts = post_data.get("prompts", {})
+            
             style_desc = style_info.get("description", "No style defined")
             personality = style_info.get("personality", "No personality defined")
 
@@ -252,11 +254,11 @@ class ImageGenerator:
                 )
 
             # Create panel with style info and table
-            style_info = f"[bold]Style:[/bold] {style_desc}\n[bold]Personality:[/bold] {personality}"
+            style_info_text = f"[bold]Style:[/bold] {style_desc}\n[bold]Personality:[/bold] {personality}"
 
             # Print style info first, then table in a panel
             console.print(f"📝 [bold blue]{post_id}[/bold blue]")
-            console.print(style_info)
+            console.print(style_info_text)
             console.print()
             panel = Panel(table, border_style="blue")
             console.print(panel)
@@ -264,11 +266,12 @@ class ImageGenerator:
 
     def list_styles(self) -> None:
         """List all post styles."""
-        post_styles = self.config.get("post_styles", {})
+        posts = self.config.get("posts", {})
 
         console.print("[blue]Post Styles:[/blue]\n")
 
-        for post_id, style_data in post_styles.items():
+        for post_id, post_data in posts.items():
+            style_data = post_data.get("styles", {})
             description = style_data.get("description", "")
             personality = style_data.get("personality", "")
 
@@ -289,13 +292,13 @@ class ImageGenerator:
     ) -> None:
         """Generate images for a post or specific prompt."""
 
-        prompts = self.config.get("prompts", {})
+        posts = self.config.get("posts", {})
 
-        if post_id not in prompts:
+        if post_id not in posts:
             console.print(f"[red]Error: Post '{post_id}' not found[/red]")
             raise typer.Exit(1)
 
-        post_prompts = prompts[post_id]
+        post_prompts = posts[post_id].get("prompts", {})
 
         if prompt_key:
             # Generate specific prompt
@@ -337,11 +340,12 @@ class ImageGenerator:
     ) -> None:
         """Regenerate images by ID."""
 
-        prompts = self.config.get("prompts", {})
+        posts = self.config.get("posts", {})
 
         # Find the prompt by ID
         found = False
-        for post_id, post_prompts in prompts.items():
+        for post_id, post_data in posts.items():
+            post_prompts = post_data.get("prompts", {})
             for prompt_key, prompt_data in post_prompts.items():
                 if prompt_data.get("id") == target_id:
                     base_prompt = prompt_data.get("base_prompt", "")

@@ -1,181 +1,183 @@
 # Image Prompts Configuration
-# Structure: post_id -> prompt_id -> prompt details
+# Tree structure: posts -> [post_id] -> styles, prompts -> [prompt_id] -> details
 
-# Post styles define the visual personality for each blog post
-post_styles:
+posts:
   managing-homelab-with-nixos:
-    description: "Clean isometric tech illustration with translucent materials, glass-like surfaces, modern blue aesthetic, flowing data connections, professional 3D rendered style"
-    personality: "Professional and polished, emphasizing clarity and modern infrastructure"
+    styles:
+      description: "Clean isometric tech illustration with translucent materials, glass-like surfaces, modern blue aesthetic, flowing data connections, professional 3D rendered style"
+      personality: "Professional and polished, emphasizing clarity and modern infrastructure"
     
-  constellation-pattern:
-    description: "Abstract technical diagrams with geometric patterns, dark space backgrounds, glowing connections, blue and purple accent colors, constellation-inspired, clean minimal style"
-    personality: "Technical and sophisticated, emphasizing interconnection and modularity"
-    
-  self-hosting-with-nixos:
-    description: "Warm home office aesthetic mixed with clean tech elements, cozy lighting with modern touches, translucent materials, blue and green color scheme"
-    personality: "Welcoming and practical, emphasizing home comfort with technical capability"
-    
-  nixos-router-journey:
-    description: "Ultra high quality, 8k resolution, professional photography and technical illustration, crisp clean lines, perfect focus, studio lighting, minimalist modern design, blue and orange color palette, white background, highly detailed"
-    personality: "Technical precision with photorealistic quality, clean and professional presentation"
-    
-  nixos-router-getting-started:
-    description: "Futuristic tech transformation style, glowing neon blue network connections, modern gradient backgrounds, clean 3D renders, dramatic lighting with blue and purple highlights, high-tech aesthetic"
-    personality: "Exciting and transformative, emphasizing the journey from hardware to powerful router"
-
-# Image prompts organized by post
-prompts:
-  managing-homelab-with-nixos:
-    hero:
-      id: "nixos-homelab-hero"
-      base_prompt: "Isometric server infrastructure with NixOS snowflake branding"
-      aspect_ratio: "16:9"
-      priority: 1
-      
-    transformation:
-      id: "ubuntu-to-nixos-transformation"
-      base_prompt: "Split screen: chaotic tangled cables vs clean organized servers"
-      aspect_ratio: "16:9"
-      priority: 2
-      
-    infrastructure:
-      id: "nixos-infrastructure-overview"
-      base_prompt: "Server rack with translucent materials and flowing data connections"
-      aspect_ratio: "16:9"
-      priority: 3
-      
-    cicd:
-      id: "nixos-github-actions"
-      base_prompt: "Code flowing through automated pipelines to servers"
-      aspect_ratio: "16:9"
-      priority: 4
+    prompts:
+      hero:
+        id: "nixos-homelab-hero"
+        base_prompt: "Isometric server infrastructure with NixOS snowflake branding"
+        aspect_ratio: "16:9"
+        priority: 1
+        
+      transformation:
+        id: "ubuntu-to-nixos-transformation"
+        base_prompt: "Split screen: chaotic tangled cables vs clean organized servers"
+        aspect_ratio: "16:9"
+        priority: 2
+        
+      infrastructure:
+        id: "nixos-infrastructure-overview"
+        base_prompt: "Server rack with translucent materials and flowing data connections"
+        aspect_ratio: "16:9"
+        priority: 3
+        
+      cicd:
+        id: "nixos-github-actions"
+        base_prompt: "Code flowing through automated pipelines to servers"
+        aspect_ratio: "16:9"
+        priority: 4
 
   constellation-pattern:
-    hero:
-      id: "constellation-pattern-hero"
-      base_prompt: "Network constellation of glowing interconnected nodes in space"
-      aspect_ratio: "16:9"
-      priority: 1
-      
-    architecture:
-      id: "constellation-architecture"
-      base_prompt: "Modular building blocks stacking and connecting together"
-      aspect_ratio: "16:9"
-      priority: 2
-      
-    problems:
-      id: "configuration-drift-problems"
-      base_prompt: "Multiple server nodes drifting apart with broken connections"
-      aspect_ratio: "16:9"
-      priority: 3
-      
-    modules:
-      id: "constellation-modules"
-      base_prompt: "Modular components that mix and match flexibly"
-      aspect_ratio: "16:9"
-      priority: 4
+    styles:
+      description: "Abstract technical diagrams with geometric patterns, dark space backgrounds, glowing connections, blue and purple accent colors, constellation-inspired, clean minimal style"
+      personality: "Technical and sophisticated, emphasizing interconnection and modularity"
+    
+    prompts:
+      hero:
+        id: "constellation-pattern-hero"
+        base_prompt: "Network constellation of glowing interconnected nodes in space"
+        aspect_ratio: "16:9"
+        priority: 1
+        
+      architecture:
+        id: "constellation-architecture"
+        base_prompt: "Modular building blocks stacking and connecting together"
+        aspect_ratio: "16:9"
+        priority: 2
+        
+      problems:
+        id: "configuration-drift-problems"
+        base_prompt: "Multiple server nodes drifting apart with broken connections"
+        aspect_ratio: "16:9"
+        priority: 3
+        
+      modules:
+        id: "constellation-modules"
+        base_prompt: "Modular components that mix and match flexibly"
+        aspect_ratio: "16:9"
+        priority: 4
 
   self-hosting-with-nixos:
-    hero:
-      id: "self-hosting-hero"
-      base_prompt: "Cozy home office with futuristic server setup and dashboards"
-      aspect_ratio: "16:9"
-      priority: 1
-      
-    services:
-      id: "self-hosted-services"
-      base_prompt: "Floating interconnected service icons in technical style"
-      aspect_ratio: "16:9"
-      priority: 2
-      
-    security:
-      id: "nixos-security"
-      base_prompt: "Layered security shields protecting network infrastructure"
-      aspect_ratio: "16:9"
-      priority: 3
+    styles:
+      description: "Warm home office aesthetic mixed with clean tech elements, cozy lighting with modern touches, translucent materials, blue and green color scheme"
+      personality: "Welcoming and practical, emphasizing home comfort with technical capability"
+    
+    prompts:
+      hero:
+        id: "self-hosting-hero"
+        base_prompt: "Cozy home office with futuristic server setup and dashboards"
+        aspect_ratio: "16:9"
+        priority: 1
+        
+      services:
+        id: "self-hosted-services"
+        base_prompt: "Floating interconnected service icons in technical style"
+        aspect_ratio: "16:9"
+        priority: 2
+        
+      security:
+        id: "nixos-security"
+        base_prompt: "Layered security shields protecting network infrastructure"
+        aspect_ratio: "16:9"
+        priority: 3
 
   nixos-router-journey:
-    hero:
-      id: "nixos-router-hero"
-      base_prompt: "Photo-realistic Intel N5105 mini PC router with 4 ethernet ports, soft blue LED glow on ports, minimalist desk setup, shallow depth of field, product photography style, no text"
-      aspect_ratio: "16:9"
-      priority: 1
-      
-    network-flow:
-      id: "router-network-flow"
-      base_prompt: "Clean visualization of home network topology: fiber modem icon connecting to router icon, then branching to server icon, TV icon, and laptop icon, blue and orange connection lines showing data flow, minimal flat design, no text or labels"
-      aspect_ratio: "16:9"
-      priority: 2
-      
-    architecture:
-      id: "router-architecture-diagram"
-      base_prompt: "Technical diagram showing router internals: single input port to firewall shield icon, then to bridge icon with 3 output ports, clean flowchart style with blue boxes and orange connection arrows, minimal design, no text labels"
-      aspect_ratio: "16:9"
-      priority: 3
-      
-    testing:
-      id: "router-testing-visualization"
-      base_prompt: "Split screen: left shows dark code editor window, right shows green checkmark icons in a vertical list, clean minimal UI, blue and green accent colors, no text"
-      aspect_ratio: "16:9"
-      priority: 4
-      
-    monitoring:
-      id: "router-monitoring-dashboard"
-      base_prompt: "Dashboard interface showing network bandwidth line graph, pie chart, and bar charts, dark theme with blue and orange data visualization, realistic monitoring interface, no text or numbers"
-      aspect_ratio: "16:9"
-      priority: 5
-      
-    dns-blocking:
-      id: "router-dns-blocking"
-      base_prompt: "Visualization of DNS filtering: dots flowing through funnel, some dots blocked by shield icon, others passing through, blue dots for allowed, orange dots for blocked, minimal flat design, no text"
-      aspect_ratio: "16:9"
-      priority: 6
-      
-    qos-cake:
-      id: "router-qos-bufferbloat"
-      base_prompt: "Before/after comparison: left shows jagged spiky line graph, right shows smooth flowing line graph, streaming and video icons below, blue and orange lines, clean data visualization, no text or numbers"
-      aspect_ratio: "16:9"
-      priority: 7
-      
-    hardware:
-      id: "router-hardware-specs"
-      base_prompt: "Exploded view of mini PC components: CPU chip, network cards, RAM module, heatsink fins, clean technical illustration, blue and gray color scheme, no text labels"
-      aspect_ratio: "16:9"
-      priority: 8
-      
-    upnp:
-      id: "router-upnp-gaming"
-      base_prompt: "Media streaming setup with server icon, router icon in middle with glowing ports, arrows showing connection paths, blue and green success indicator lights, clean illustration, no text"
-      aspect_ratio: "16:9"
-      priority: 9
-      
-    tailscale:
-      id: "router-vpn-access"
-      base_prompt: "Home network represented as glowing bubble connected via secure tunnel line to laptop icon in coffee shop setting, blue secure connection, orange home network glow, minimal illustration, no text"
-      aspect_ratio: "16:9"
-      priority: 10
+    styles:
+      description: "Ultra high quality, 8k resolution, professional photography and technical illustration, crisp clean lines, perfect focus, studio lighting, minimalist modern design, blue and orange color palette, white background, highly detailed"
+      personality: "Technical precision with photorealistic quality, clean and professional presentation"
+    
+    prompts:
+      hero:
+        id: "nixos-router-hero"
+        base_prompt: "Photo-realistic Intel N5105 mini PC router with 4 ethernet ports, soft blue LED glow on ports, minimalist desk setup, shallow depth of field, product photography style, no text"
+        aspect_ratio: "16:9"
+        priority: 1
+        
+      network-flow:
+        id: "router-network-flow"
+        base_prompt: "Clean visualization of home network topology: fiber modem icon connecting to router icon, then branching to server icon, TV icon, and laptop icon, blue and orange connection lines showing data flow, minimal flat design, no text or labels"
+        aspect_ratio: "16:9"
+        priority: 2
+        
+      architecture:
+        id: "router-architecture-diagram"
+        base_prompt: "Technical diagram showing router internals: single input port to firewall shield icon, then to bridge icon with 3 output ports, clean flowchart style with blue boxes and orange connection arrows, minimal design, no text labels"
+        aspect_ratio: "16:9"
+        priority: 3
+        
+      testing:
+        id: "router-testing-visualization"
+        base_prompt: "Split screen: left shows dark code editor window, right shows green checkmark icons in a vertical list, clean minimal UI, blue and green accent colors, no text"
+        aspect_ratio: "16:9"
+        priority: 4
+        
+      monitoring:
+        id: "router-monitoring-dashboard"
+        base_prompt: "Dashboard interface showing network bandwidth line graph, pie chart, and bar charts, dark theme with blue and orange data visualization, realistic monitoring interface, no text or numbers"
+        aspect_ratio: "16:9"
+        priority: 5
+        
+      dns-blocking:
+        id: "router-dns-blocking"
+        base_prompt: "Visualization of DNS filtering: dots flowing through funnel, some dots blocked by shield icon, others passing through, blue dots for allowed, orange dots for blocked, minimal flat design, no text"
+        aspect_ratio: "16:9"
+        priority: 6
+        
+      qos-cake:
+        id: "router-qos-bufferbloat"
+        base_prompt: "Before/after comparison: left shows jagged spiky line graph, right shows smooth flowing line graph, streaming and video icons below, blue and orange lines, clean data visualization, no text or numbers"
+        aspect_ratio: "16:9"
+        priority: 7
+        
+      hardware:
+        id: "router-hardware-specs"
+        base_prompt: "Exploded view of mini PC components: CPU chip, network cards, RAM module, heatsink fins, clean technical illustration, blue and gray color scheme, no text labels"
+        aspect_ratio: "16:9"
+        priority: 8
+        
+      upnp:
+        id: "router-upnp-gaming"
+        base_prompt: "Media streaming setup with server icon, router icon in middle with glowing ports, arrows showing connection paths, blue and green success indicator lights, clean illustration, no text"
+        aspect_ratio: "16:9"
+        priority: 9
+        
+      tailscale:
+        id: "router-vpn-access"
+        base_prompt: "Home network represented as glowing bubble connected via secure tunnel line to laptop icon in coffee shop setting, blue secure connection, orange home network glow, minimal illustration, no text"
+        aspect_ratio: "16:9"
+        priority: 10
 
   nixos-router-getting-started:
-    hero:
-      id: "nixos-router-getting-started"
-      base_prompt: "Futuristic mini PC transforming into network router, glowing ethernet ports with neon blue light trails, network cables forming connection patterns, dramatic transformation effect, dark gradient background with blue and purple highlights, 3D render style, no text"
-      aspect_ratio: "16:9"
-      priority: 1
-      
-    hardware-selection:
-      id: "router-hardware-selection"
-      base_prompt: "Three mini PCs in ascending size and price, glowing price tags floating above, network ports highlighted in blue, clean product comparison layout, gradient background, modern tech showcase style, no text"
-      aspect_ratio: "16:9"
-      priority: 2
-      
-    installation:
-      id: "nixos-installation-process"
-      base_prompt: "USB drive with glowing NixOS snowflake logo inserting into mini PC, installation progress visualization with flowing data streams, blue and white color scheme, clean technical illustration, no text"
-      aspect_ratio: "16:9"
-      priority: 3
-      
-    configuration:
-      id: "router-configuration-code"
-      base_prompt: "Holographic code editor floating above mini PC router, glowing configuration lines connecting to network ports, futuristic AR interface, blue syntax highlighting effect, dark background, no actual code text"
-      aspect_ratio: "16:9"
-      priority: 4
+    styles:
+      description: "Futuristic tech transformation style, glowing neon blue network connections, modern gradient backgrounds, clean 3D renders, dramatic lighting with blue and purple highlights, high-tech aesthetic"
+      personality: "Exciting and transformative, emphasizing the journey from hardware to powerful router"
+    
+    prompts:
+      hero:
+        id: "nixos-router-getting-started"
+        base_prompt: "Futuristic mini PC transforming into network router, glowing ethernet ports with neon blue light trails, network cables forming connection patterns, dramatic transformation effect, dark gradient background with blue and purple highlights, 3D render style, no text"
+        aspect_ratio: "16:9"
+        priority: 1
+        
+      hardware-selection:
+        id: "router-hardware-selection"
+        base_prompt: "Three mini PCs in ascending size and price, glowing price tags floating above, network ports highlighted in blue, clean product comparison layout, gradient background, modern tech showcase style, no text"
+        aspect_ratio: "16:9"
+        priority: 2
+        
+      installation:
+        id: "nixos-installation-process"
+        base_prompt: "USB drive with glowing NixOS snowflake logo inserting into mini PC, installation progress visualization with flowing data streams, blue and white color scheme, clean technical illustration, no text"
+        aspect_ratio: "16:9"
+        priority: 3
+        
+      configuration:
+        id: "router-configuration-code"
+        base_prompt: "Holographic code editor floating above mini PC router, glowing configuration lines connecting to network ports, futuristic AR interface, blue syntax highlighting effect, dark background, no actual code text"
+        aspect_ratio: "16:9"
+        priority: 4
