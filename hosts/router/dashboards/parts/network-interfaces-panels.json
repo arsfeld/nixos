@@ -106,68 +106,101 @@
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "Down",
-                  "color": "red"
-                },
-                "1": {
-                  "text": "Available",
-                  "color": "green"
-                }
-              }
-            }
-          ],
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          },
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
-                "value": 0
-              },
-              {
                 "color": "green",
-                "value": 1
+                "value": null
               }
             ]
-          },
-          "unit": "none"
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Disconnected",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "Connected",
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 4,
-        "w": 3,
-        "x": 9,
-        "y": 86
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 10
       },
       "id": 41,
       "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "textMode": "auto"
+        "showHeader": true,
+        "sortBy": []
       },
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "upnp_http_interface_available",
+          "expr": "node_network_up{job=\"node\",device=\"{{WAN_INTERFACE}}\"}",
+          "format": "table",
+          "instant": true,
           "refId": "A"
+        },
+        {
+          "expr": "wan_ip_info{interface=\"{{WAN_INTERFACE}}\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "B"
         }
       ],
-      "title": "HTTP Interface",
-      "type": "stat"
+      "title": "WAN Interface ({{WAN_INTERFACE}})",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "device": true,
+              "interface": true
+            },
+            "renameByName": {
+              "Value #A": "Status",
+              "ip": "IP Address"
+            }
+          }
+        }
+      ],
+      "type": "table"
     }
   ]
 }

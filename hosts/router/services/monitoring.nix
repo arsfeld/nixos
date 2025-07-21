@@ -2,18 +2,12 @@
   config,
   lib,
   pkgs,
-  self ? null,
   ...
 }: let
   netConfig = config.router.network;
   network = "${netConfig.prefix}.0/${toString netConfig.cidr}";
   routerIp = "${netConfig.prefix}.1";
 in {
-  imports = if self != null then [
-    "${self}/packages/network-metrics-exporter/module.nix"
-  ] else [
-    ../../../packages/network-metrics-exporter/module.nix
-  ];
 
   # Grafana for visualization
   services.grafana = {
@@ -22,10 +16,24 @@ in {
       server = {
         http_addr = "0.0.0.0";
         http_port = 3000;
+        root_url = "https://router.bat-boa.ts.net/grafana/";
+        serve_from_sub_path = true;
       };
       security = {
         admin_user = "admin";
         admin_password = "admin";
+      };
+      "auth.anonymous" = {
+        enabled = true;
+        org_name = "Main Org.";
+        org_role = "Viewer";
+      };
+      auth = {
+        disable_login_form = false;
+      };
+      feature_toggles = {
+        enable = true;
+        experimentalThemes = true;
       };
     };
 
@@ -46,7 +54,7 @@ in {
           name = "Router Dashboards";
           folder = "Router";
           type = "file";
-          options.path = pkgs.writeTextDir "router-metrics.json" (builtins.toJSON (import ../dashboards {inherit lib pkgs;}));
+          options.path = pkgs.writeTextDir "router-metrics.json" (builtins.toJSON (import ../dashboards {inherit config lib pkgs;}));
         }
       ];
     };
@@ -332,13 +340,17 @@ in {
         group_wait: 10s
         group_interval: 10s
         repeat_interval: 1h
-        receiver: 'ntfy'
+        receiver: ${if config.router.alerting.enable && config.router.alerting.ntfyUrl != null then "'ntfy'" else "'null'"}
 
       receivers:
+      - name: 'null'
+        # Null receiver - discards all alerts
+      ${lib.optionalString (config.router.alerting.enable && config.router.alerting.ntfyUrl != null) ''
       - name: 'ntfy'
         webhook_configs:
         - url: '${config.router.alerting.ntfyUrl}'
           send_resolved: true
+      ''}
     '';
   };
 

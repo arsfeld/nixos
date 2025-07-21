@@ -40,9 +40,17 @@ var (
 		Help: "Client online status (1=online, 0=offline)",
 	}, []string{"ip", "client"})
 
+	wanIpInfo = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "wan_ip_info",
+		Help: "WAN IP address information",
+	}, []string{"interface", "ip"})
+
 	// Internal tracking
 	clients     = make(map[string]*ClientInfo)
 	clientsLock sync.RWMutex
+	
+	// WAN interface name from environment
+	wanInterface = os.Getenv("WAN_INTERFACE")
 	
 	// Traffic tracking for rate calculation
 	trafficHistory     = make(map[string]*TrafficSnapshot)
@@ -129,6 +137,9 @@ func updateMetrics() {
 
 	// Update client status
 	updateClientStatus()
+	
+	// Update WAN IP
+	updateWanIp()
 }
 
 func updateTrafficMetrics() {
@@ -346,19 +357,7 @@ func getClientName(ip string) string {
 	}
 	clientNameCacheLock.RUnlock()
 
-	// Try dhcp-hosts file first (format: IP hostname hostname.lan)
-	if name := getNameFromDhcpHosts("/var/lib/dnsmasq/dhcp-hosts", ip); name != "" {
-		updateClientNameCache(ip, name)
-		return name
-	}
-
-	// Try dnsmasq leases file (format: timestamp MAC IP hostname *)
-	if name := getNameFromFile("/var/lib/dnsmasq/dnsmasq.leases", ip, 2, 3); name != "" {
-		updateClientNameCache(ip, name)
-		return name
-	}
-
-	// Try reverse DNS lookup as fallback
+	// Use reverse DNS lookup - works with any DHCP server
 	if name := getNameFromReverseDNS(ip); name != "" {
 		updateClientNameCache(ip, name)
 		return name
@@ -468,15 +467,6 @@ func loadClientNameCache() {
 	log.Printf("Loaded %d client names from cache", len(clientNameCache))
 }
 
-func updateClientNameCache(ip, name string) {
-	clientNameCacheLock.Lock()
-	clientNameCache[ip] = name
-	clientNameCacheLock.Unlock()
-	
-	// Save cache asynchronously
-	go saveClientNameCache()
-}
-
 func saveClientNameCache() {
 	clientNameCacheLock.RLock()
 	defer clientNameCacheLock.RUnlock()
@@ -498,4 +488,49 @@ func saveClientNameCache() {
 	if err := os.Rename(tmpFile, clientNameCacheFile); err != nil {
 		log.Printf("Error renaming client name cache: %v", err)
 	}
+}
+
+func updateClientNameCache(ip, name string) {
+	clientNameCacheLock.Lock()
+	clientNameCache[ip] = name
+	clientNameCacheLock.Unlock()
+	
+	// Save cache in background
+	go saveClientNameCache()
+}
+
+func updateWanIp() {
+	if wanInterface == "" {
+		// No WAN interface specified
+		return
+	}
+	
+	// Get IP address from the WAN interface
+	cmd := exec.Command("ip", "addr", "show", wanInterface)
+	output, err := cmd.Output()
+	if err != nil {
+		log.Printf("Error getting WAN interface info: %v", err)
+		return
+	}
+	
+	// Parse the output to find IPv4 address
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "inet ") {
+			// Format: inet 135.19.127.22/24 brd ...
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				ip := strings.Split(fields[1], "/")[0]
+				// Update metric
+				wanIpInfo.Reset()
+				wanIpInfo.WithLabelValues(wanInterface, ip).Set(1)
+				return
+			}
+		}
+	}
+	
+	// No IP found
+	wanIpInfo.Reset()
+	wanIpInfo.WithLabelValues(wanInterface, "none").Set(0)
 }
