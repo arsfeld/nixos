@@ -194,4 +194,10 @@
       9080 # Promtail
     ];
   };
+
+  # Ensure proper service ordering
+  systemd.services.promtail = {
+    requires = [ "loki.service" ];
+    after = [ "loki.service" ];
+  };
 }

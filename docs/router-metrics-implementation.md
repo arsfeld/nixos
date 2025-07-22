@@ -4,6 +4,22 @@ This document outlines the implementation tasks for adding power consumption, Ta
 
 ## Completed Implementations
 
+### ✅ VictoriaMetrics Migration
+
+**Status**: Completed and deployed
+
+**Changes Made**:
+- Replaced Prometheus with VictoriaMetrics for better performance and resource efficiency
+- Updated all Grafana dashboards to use VictoriaMetrics datasource
+- Migrated alert rules to VictoriaMetrics vmalert format
+- Updated reverse proxy configuration for VictoriaMetrics endpoints
+
+**Benefits**:
+- Lower memory and CPU usage
+- Better storage compression
+- Faster query performance
+- Full Prometheus compatibility maintained
+
 ### ✅ Network Metrics Exporter (formerly client-metrics-exporter)
 
 **Status**: Completed and deployed
@@ -30,6 +46,98 @@ client_status{ip="192.168.10.x",client="hostname"} # 1=online, 0=offline
 - Reads from nftables traffic accounting rules
 - Uses conntrack for connection counting
 - Monitors dnsmasq DHCP leases and ARP table
+
+### ✅ Prometheus Exporters Investigation
+
+**Status**: Completed
+
+**Findings**:
+- Investigated NixOS built-in Prometheus exporters as replacements for custom exporters
+- Attempted to use `services.prometheus.exporters.kea` but it has compatibility issues with unix sockets
+- Determined that custom exporters provide unique functionality not available in standard modules
+
+**Exporters to Keep**:
+1. **Custom Kea DHCP Metrics Exporter** - More reliable than built-in, provides pool utilization metrics
+2. **Custom Network Metrics Exporter** - Unique per-client bandwidth monitoring
+3. **Custom Speed Test Exporter** - Periodic WAN performance testing
+4. **Custom QoS Monitoring** - Traffic shaping statistics
+
+**Built-in Exporters in Use**:
+- Node exporter with extensive collectors
+- Blocky DNS (native Prometheus metrics)
+- NAT-PMP (native Prometheus metrics)
+
+### ✅ Client Device Integration with Dynamic Discovery
+
+**Status**: Completed with enhanced device type detection
+
+**Features Implemented**:
+- Device type labeling for all network metrics
+- Dynamic device type inference from hostname patterns and MAC OUI
+- Static client definitions from DHCP configuration (only storage server)
+- Client database metrics integrated into network-metrics-exporter
+- Persistent client name caching across DHCP lease renewals
+- MAC address collection from ARP table
+
+**Metrics Available**:
+```
+# Per-client metrics now include device_type label
+client_traffic_bytes{direction="rx|tx",ip="192.168.10.x",client="hostname",device_type="server"}
+client_traffic_rate_bps{direction="rx|tx",ip="192.168.10.x",client="hostname",device_type="server"}
+client_active_connections{ip="192.168.10.x",client="hostname",device_type="server"}
+client_status{ip="192.168.10.x",client="hostname",device_type="server"}
+
+# Client database metrics with job="network-metrics"
+network_clients_total          # Total number of known clients
+network_clients_online         # Number of currently online clients
+network_clients_by_type{type}  # Clients grouped by device type
+```
+
+**Device Type Detection**:
+1. **Hostname Pattern Matching**: Recognizes common device naming patterns
+   - Apple devices: MacBook, iPhone, iPad, Apple-TV
+   - Google devices: Google-Home, Nest-Mini, Chromecast
+   - IoT devices: HS/KS series (TP-Link), MyQ, Ring, Hue, Wemo
+   - Media devices: Roku, FireTV, Shield, Vizio, Samsung-TV
+   - Gaming: PlayStation, Xbox, Nintendo
+   - Printers: HP, Brother, Canon, Epson patterns
+   - Network equipment: switch, router, AP-, UniFi
+
+2. **MAC OUI Lookup**: Identifies vendors from MAC address prefixes
+   - Apple, Google, Amazon, TP-Link OUI ranges
+   - Falls back to device type based on vendor
+
+3. **Static Definitions**: Only storage server defined statically in `kea-dhcp.nix`
+
+**Implementation Details**:
+- Enhanced `inferDeviceType()` function in `main.go`
+- `getMacAddress()` function retrieves MAC from ARP table
+- Device types: router, server, computer, laptop, phone, tablet, media, iot, printer, gaming, network, unknown
+- Client name cache persisted at `/var/lib/network-metrics-exporter/client-names.cache`
+- Static clients JSON at `/var/lib/network-metrics-exporter/static-clients.json`
+
+**Grafana Dashboard Updates**:
+- Fixed job labels from "client-database" to "network-metrics"
+- Added panels for client type distribution
+- Device type breakdown visualization
+
+**Future Device Discovery Improvements**:
+1. **Phase 1 - Quick Wins**:
+   - Enable extended DHCP info in Kea (vendor class identifiers)
+   - Add `arp-scan` integration for better vendor lookup
+   - Implement mDNS/Avahi name resolution
+
+2. **Phase 2 - Advanced Discovery**:
+   - DHCP fingerprinting with local database
+   - SSDP/UPnP listener for smart home devices
+   - Periodic nmap scans for OS detection
+
+3. **Phase 3 - Comprehensive Solution**:
+   - Dedicated device-discovery service aggregating all sources
+   - Persistent device database with confidence scores
+   - Machine learning for behavioral device classification
+
+See `/docs/router-device-discovery-improvements.md` for detailed research on discovery methods.
 
 ## Priority Metrics Implementation
 
@@ -263,3 +371,41 @@ After successful implementation of priority metrics:
 - Create automated reports for ISP performance
 - Add machine learning for anomaly detection
 - Extend log parsing for security event correlation
+
+## Current Monitoring Stack Summary
+
+### Time Series Database
+- **VictoriaMetrics** (replaced Prometheus)
+  - Port: 8428
+  - Storage: `/var/lib/victoriametrics`
+  - Scrape interval: 30s
+  - Full PromQL compatibility
+
+### Visualization
+- **Grafana**
+  - Port: 3000
+  - Access: `/grafana` via Caddy reverse proxy
+  - Dashboards: Router metrics with multiple panels for system, network, DNS, DHCP, etc.
+
+### Alerting
+- **VictoriaMetrics vmalert**
+  - Port: 8880
+  - Alert rules for disk space, temperature, bandwidth, CPU, memory, network interfaces
+- **Prometheus Alertmanager**
+  - Port: 9093
+  - Routes alerts to configured notification channels
+
+### Metrics Collection
+- **Node Exporter** (port 9100) - System metrics
+- **Blocky** (port 4000) - DNS metrics
+- **NAT-PMP** (port 9333) - Port mapping metrics
+- **Network Metrics Exporter** (port 9101) - Per-client bandwidth, client database, device types
+- **Custom exporters** via text files:
+  - Kea DHCP metrics
+  - Speed test results
+  - QoS/traffic shaping statistics
+
+### Log Aggregation
+- **Loki** - Log storage and indexing
+- **Promtail** - Log collection from systemd journal
+- **Grafana** - Log exploration and correlation with metrics

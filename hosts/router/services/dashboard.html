@@ -213,9 +213,9 @@
 
             <div class="card">
                 <div class="status"></div>
-                <h2>Prometheus</h2>
-                <p>Time-series database collecting metrics from all services and network devices.</p>
-                <a href="/prometheus">
+                <h2>VictoriaMetrics</h2>
+                <p>High-performance time-series database collecting metrics from all services and network devices.</p>
+                <a href="/victoriametrics">
                     Query Metrics
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -226,7 +226,7 @@
             <div class="card">
                 <div class="status"></div>
                 <h2>Alertmanager</h2>
-                <p>Handles alerts from Prometheus and routes them to the appropriate notification channels.</p>
+                <p>Handles alerts from VictoriaMetrics vmalert and routes them to the appropriate notification channels.</p>
                 <a href="/alertmanager">
                     View Alerts
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -237,21 +237,9 @@
 
             <div class="card">
                 <div class="status"></div>
-                <h2>Loki</h2>
-                <p>Log aggregation system collecting logs from all services. Access logs through Grafana's Explore feature.</p>
-                <a href="/grafana/explore?orgId=1&left=%7B%22datasource%22:%22Loki%22%7D">
-                    Browse Logs in Grafana
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M5 12h14M12 5l7 7-7 7"/>
-                    </svg>
-                </a>
-            </div>
-
-            <div class="card">
-                <div class="status"></div>
                 <h2>System Logs</h2>
-                <p>All system and service logs are collected by Promtail and stored in Loki for analysis.</p>
-                <a href="/grafana/explore?orgId=1&left=%7B%22datasource%22:%22Loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22expr%22:%22%7Bjob%3D%5C%22systemd-journal%5C%22%7D%22%7D%5D%7D">
+                <p>View and search system logs with Grafito's clean web interface. Real-time updates and powerful filtering.</p>
+                <a href="/logs/">
                     View System Logs
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -271,17 +259,6 @@
                 </a>
             </div>
 
-            <div class="card">
-                <div class="status"></div>
-                <h2>SigNoz</h2>
-                <p>Open-source observability platform with distributed tracing, metrics, and logs in a single pane.</p>
-                <a href="/signoz">
-                    Open SigNoz
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M5 12h14M12 5l7 7-7 7"/>
-                    </svg>
-                </a>
-            </div>
         </div>
 
         <div class="info">

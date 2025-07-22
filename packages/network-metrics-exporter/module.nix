@@ -58,6 +58,33 @@ in {
       example = "eth0";
       description = "Network interface to monitor for client discovery";
     };
+
+    staticClients = mkOption {
+      type = types.attrsOf (types.submodule {
+        options = {
+          ip = mkOption {
+            type = types.str;
+            description = "IP address of the client";
+          };
+          mac = mkOption {
+            type = types.nullOr types.str;
+            default = null;
+            description = "MAC address of the client";
+          };
+          hostname = mkOption {
+            type = types.str;
+            description = "Hostname of the client";
+          };
+          deviceType = mkOption {
+            type = types.str;
+            default = "unknown";
+            description = "Type of device (computer, phone, iot, etc.)";
+          };
+        };
+      });
+      default = {};
+      description = "Static client definitions with known device types";
+    };
   };
 
   config = mkIf cfg.enable {
@@ -65,6 +92,18 @@ in {
     systemd.tmpfiles.rules = [
       "d /var/lib/network-metrics-exporter 0755 root root -"
     ];
+
+    # Create static clients file
+    environment.etc."network-metrics-exporter/static-clients.json" = {
+      text = builtins.toJSON cfg.staticClients;
+      mode = "0644";
+    };
+    
+    # Also write to the state directory for the service
+    system.activationScripts.networkMetricsExporterStaticClients = ''
+      mkdir -p /var/lib/network-metrics-exporter
+      cat ${pkgs.writeText "static-clients.json" (builtins.toJSON cfg.staticClients)} > /var/lib/network-metrics-exporter/static-clients.json
+    '';
 
     # Open firewall if requested
     networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [cfg.port];
@@ -178,12 +217,16 @@ in {
         METRICS_PORT = toString cfg.port;
         UPDATE_INTERVAL = toString cfg.updateInterval;
         WAN_INTERFACE = config.router.interfaces.wan or "";
+        STATIC_CLIENTS_FILE = "/var/lib/network-metrics-exporter/static-clients.json";
+        TRAFFIC_INTERFACE = cfg.trafficInterface;
+        NETWORK_PREFIX = cfg.networkPrefix;
       };
 
       path = with pkgs; [
         nftables
         conntrack-tools
         iproute2
+        arp-scan
       ];
     };
   };
