@@ -6,7 +6,7 @@
 }: let
   netConfig = config.router.network;
   routerIp = "${netConfig.prefix}.1";
-  
+
   # Shared routing configuration for both internal IP and Tailscale access
   routerRoutes = ''
     # Grafana - Monitoring dashboards
@@ -18,7 +18,7 @@
     handle /victoriametrics* {
       reverse_proxy localhost:8428
     }
-    
+
     # Prometheus compatibility endpoint
     handle /prometheus* {
       reverse_proxy localhost:8428
@@ -88,7 +88,6 @@ in {
     };
   };
 
-
   # Update Alertmanager configuration for reverse proxy
   services.prometheus.alertmanager = lib.mkIf config.services.prometheus.alertmanager.enable {
     webExternalUrl = "http://${routerIp}/alertmanager/";
@@ -112,7 +111,7 @@ in {
       443 # HTTPS
     ];
   };
-  
+
   # Allow Caddy to access Tailscale certificates
   services.tailscale.permitCertUid = "caddy";
 }

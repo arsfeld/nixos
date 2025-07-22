@@ -1,10 +1,10 @@
-{ lib
-, buildGoModule
-, fetchFromGitHub
-, sqlite
-, pkg-config
+{
+  lib,
+  buildGoModule,
+  fetchFromGitHub,
+  sqlite,
+  pkg-config,
 }:
-
 buildGoModule rec {
   pname = "signoz-query-service";
   version = "0.90.1";
@@ -19,17 +19,17 @@ buildGoModule rec {
   vendorHash = "sha256-HARssGBij+rFTPXmgKn7Hdb658IHE0pzFUpCW+ZhrXE=";
 
   # Build only the query-service
-  subPackages = [ "pkg/query-service" ];
+  subPackages = ["pkg/query-service"];
 
-  nativeBuildInputs = [ pkg-config ];
-  buildInputs = [ sqlite ];
-  
+  nativeBuildInputs = [pkg-config];
+  buildInputs = [sqlite];
+
   # Need CGO for SQLite
   env.CGO_ENABLED = 1;
 
   # Build tags and flags from SigNoz Makefile
-  tags = [ "timetzdata" ];
-  
+  tags = ["timetzdata"];
+
   ldflags = [
     "-s"
     "-w"
@@ -40,10 +40,10 @@ buildGoModule rec {
   # Environment variables needed at runtime
   postInstall = ''
     mkdir -p $out/share/signoz
-    
+
     # Move the built binary
     mv $out/bin/query-service $out/bin/signoz-query-service
-    
+
     # Create a wrapper script that sets required environment variables
     cat > $out/bin/signoz-query-service-wrapped << EOF
     #!/bin/sh
@@ -67,6 +67,6 @@ buildGoModule rec {
     description = "SigNoz Query Service - handles queries for traces, logs, and metrics";
     homepage = "https://signoz.io";
     license = licenses.asl20;
-    maintainers = with maintainers; [ ];
+    maintainers = with maintainers; [];
   };
 }

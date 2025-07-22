@@ -98,7 +98,7 @@ in {
       text = builtins.toJSON cfg.staticClients;
       mode = "0644";
     };
-    
+
     # Also write to the state directory for the service
     system.activationScripts.networkMetricsExporterStaticClients = ''
       mkdir -p /var/lib/network-metrics-exporter

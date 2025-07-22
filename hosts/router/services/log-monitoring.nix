@@ -197,7 +197,7 @@
 
   # Ensure proper service ordering
   systemd.services.promtail = {
-    requires = [ "loki.service" ];
-    after = [ "loki.service" ];
+    requires = ["loki.service"];
+    after = ["loki.service"];
   };
 }

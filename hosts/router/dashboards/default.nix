@@ -6,11 +6,12 @@
 }: let
   # Get WAN interface name from config
   wanInterface = config.router.interfaces.wan;
-  
+
   # Function to read JSON file with optional placeholder replacement
   readJsonFile = file: needsReplacement: let
     content = builtins.readFile file;
-    processed = if needsReplacement 
+    processed =
+      if needsReplacement
       then builtins.replaceStrings ["{{WAN_INTERFACE}}"] [wanInterface] content
       else content;
   in
@@ -113,24 +114,30 @@
     panelWidth = 24 / panelsPerRow;
     panelHeight = 8;
   in
-    lib.imap0 (i: panel: 
-      panel // {
-        gridPos = {
-          h = panelHeight;
-          w = panelWidth;
-          x = (lib.mod i panelsPerRow) * panelWidth;
-          y = startY + (i / panelsPerRow) * panelHeight;
-        };
-      }
-    ) panels;
+    lib.imap0 (
+      i: panel:
+        panel
+        // {
+          gridPos = {
+            h = panelHeight;
+            w = panelWidth;
+            x = (lib.mod i panelsPerRow) * panelWidth;
+            y = startY + (i / panelsPerRow) * panelHeight;
+          };
+        }
+    )
+    panels;
 
   # Calculate the height of a panel section
   sectionHeight = panels:
     if panels == []
     then 1
-    else lib.foldl' lib.max 0 (map (panel: 
-      (panel.gridPos.y or 0) + (panel.gridPos.h or 8)
-    ) panels);
+    else
+      lib.foldl' lib.max 0 (map (
+          panel:
+            (panel.gridPos.y or 0) + (panel.gridPos.h or 8)
+        )
+        panels);
 
   # Build dashboard sections dynamically
   buildSections = let
@@ -141,30 +148,33 @@
       else let
         section = builtins.head sections;
         remainingSections = builtins.tail sections;
-        
+
         # Read panels for this section
         panels = (readJsonFile section.file section.needsReplacement).panels;
-        
+
         # Skip optional empty sections
         skipSection = section.optional or false && panels == [];
-        
+
         # Create row and positioned panels
         row = createRow {
           inherit (section) title id;
           y = currentY;
         };
-        
-        positionedPanels = if skipSection 
+
+        positionedPanels =
+          if skipSection
           then []
           else organizePanelsInGrid (currentY + 1) section.panelsPerRow panels;
-        
+
         # Calculate next Y position
-        nextY = if skipSection
+        nextY =
+          if skipSection
           then currentY
           else currentY + sectionHeight positionedPanels + 2;
-        
+
         # Accumulate results
-        newProcessed = if skipSection
+        newProcessed =
+          if skipSection
           then processedSections
           else processedSections ++ [row] ++ positionedPanels;
       in

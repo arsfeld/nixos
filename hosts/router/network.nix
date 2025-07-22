@@ -13,17 +13,17 @@
   # Computed values
   network = "${netConfig.prefix}.0/${toString netConfig.cidr}";
   routerIp = "${netConfig.prefix}.1";
-  
+
   # Helper to generate TCP port rules from interface config
-  interfaceTCPRules = iface: ports: 
-    if ports != [] then
-      "iifname \"${iface}\" tcp dport { ${lib.concatStringsSep ", " (map toString ports)} } accept"
+  interfaceTCPRules = iface: ports:
+    if ports != []
+    then "iifname \"${iface}\" tcp dport { ${lib.concatStringsSep ", " (map toString ports)} } accept"
     else "";
-    
-  # Helper to generate UDP port rules from interface config  
+
+  # Helper to generate UDP port rules from interface config
   interfaceUDPRules = iface: ports:
-    if ports != [] then
-      "iifname \"${iface}\" udp dport { ${lib.concatStringsSep ", " (map toString ports)} } accept"
+    if ports != []
+    then "iifname \"${iface}\" udp dport { ${lib.concatStringsSep ", " (map toString ports)} } accept"
     else "";
 in {
   options.router = {
@@ -49,7 +49,7 @@ in {
   config = {
     # Disable NixOS firewall since we're using custom nftables
     networking.firewall.enable = false;
-    
+
     # nftables firewall configuration
     networking.nftables = {
       enable = true;
@@ -70,15 +70,15 @@ in {
 
             # Allow configured ports from NixOS firewall settings
             ${lib.optionalString (config.networking.firewall.interfaces ? br-lan) ''
-              ${interfaceTCPRules "br-lan" (config.networking.firewall.interfaces.br-lan.allowedTCPPorts or [])}
-              ${interfaceUDPRules "br-lan" (config.networking.firewall.interfaces.br-lan.allowedUDPPorts or [])}
-            ''}
-            
+          ${interfaceTCPRules "br-lan" (config.networking.firewall.interfaces.br-lan.allowedTCPPorts or [])}
+          ${interfaceUDPRules "br-lan" (config.networking.firewall.interfaces.br-lan.allowedUDPPorts or [])}
+        ''}
+
             ${lib.optionalString (config.networking.firewall.interfaces ? tailscale0) ''
-              ${interfaceTCPRules "tailscale0" (config.networking.firewall.interfaces.tailscale0.allowedTCPPorts or [])}
-              ${interfaceUDPRules "tailscale0" (config.networking.firewall.interfaces.tailscale0.allowedUDPPorts or [])}
-            ''}
-            
+          ${interfaceTCPRules "tailscale0" (config.networking.firewall.interfaces.tailscale0.allowedTCPPorts or [])}
+          ${interfaceUDPRules "tailscale0" (config.networking.firewall.interfaces.tailscale0.allowedUDPPorts or [])}
+        ''}
+
             # Allow UPnP from LAN bridge
             iifname "br-lan" tcp dport 1024-65535 accept  # miniupnpd HTTP (uses dynamic port)
             iifname "br-lan" udp dport { 1900, 5351 } accept   # SSDP and NAT-PMP
@@ -95,7 +95,7 @@ in {
             jump CLIENT_TRAFFIC
 
             ct state established,related accept
-            
+
             # Accept traffic that has been DNAT'd (for NAT-PMP and miniupnpd)
             ct status dnat accept
 
@@ -137,7 +137,7 @@ in {
             type filter hook forward priority filter; policy accept;
           }
         }
-        
+
         table ip nat {
           chain prerouting {
             type nat hook prerouting priority -100;
@@ -153,7 +153,7 @@ in {
           # Chain for miniupnpd DNAT rules
           chain MINIUPNPD {
           }
-          
+
           # Chain for NAT-PMP DNAT rules
           chain NATPMP_DNAT {
             type nat hook prerouting priority dstnat; policy accept;

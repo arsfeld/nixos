@@ -7,28 +7,28 @@
 }: let
   netConfig = config.router.network;
   routerIp = "${netConfig.prefix}.1";
-  
+
   # SigNoz configuration
   signozDataDir = "/var/lib/signoz";
   clickhouseDataDir = "${signozDataDir}/clickhouse";
-  
+
   # Ports
-  signozQueryPort = 8080;  # Standard SigNoz query service port
+  signozQueryPort = 8080; # Standard SigNoz query service port
   signozFrontendPort = 3301;
-  signozInternalMetricsPort = 8888;  # Internal metrics port for query service
-  signozCollectorPort = 4317;  # OTLP gRPC
-  signozCollectorHttpPort = 4318;  # OTLP HTTP
-  signozMetricsPort = 8888;     # Internal metrics
+  signozInternalMetricsPort = 8888; # Internal metrics port for query service
+  signozCollectorPort = 4317; # OTLP gRPC
+  signozCollectorHttpPort = 4318; # OTLP HTTP
+  signozMetricsPort = 8888; # Internal metrics
   clickhouseHttpPort = 8123;
   clickhouseTcpPort = 9000;
-  
+
   # Build the packages
   signoz-query-service = pkgs.callPackage (self + "/packages/signoz-query-service") {};
   signoz-frontend = pkgs.callPackage (self + "/packages/signoz-frontend") {};
   # Use nixpkgs opentelemetry-collector-contrib instead of custom build
   signoz-otel-collector = pkgs.opentelemetry-collector-contrib;
   signoz-clickhouse-schema = pkgs.callPackage (self + "/packages/signoz-clickhouse-schema") {};
-  
+
   # OpenTelemetry Collector configuration for SigNoz
   otelCollectorConfig = pkgs.writeText "signoz-otel-config.yaml" ''
     receivers:
@@ -38,7 +38,7 @@
             endpoint: 0.0.0.0:${toString signozCollectorPort}
           http:
             endpoint: 0.0.0.0:${toString signozCollectorHttpPort}
-      
+
       prometheus:
         config:
           scrape_configs:
@@ -54,24 +54,24 @@
             - job_name: 'natpmp'
               static_configs:
                 - targets: ['localhost:9333']
-    
+
     processors:
       batch:
         send_batch_size: 10000
         send_batch_max_size: 11000
         timeout: 10s
-      
+
       memory_limiter:
         check_interval: 5s
         limit_percentage: 80
         spike_limit_percentage: 25
-      
+
       resource:
         attributes:
           - key: host.name
             value: router
             action: upsert
-    
+
     exporters:
       clickhouse:
         endpoint: tcp://localhost:${toString clickhouseTcpPort}
@@ -80,19 +80,19 @@
         traces_table_name: signoz_index_v2
         metrics_table_name: samples_v4
         ttl: 72h
-      
+
       prometheus:
         endpoint: "0.0.0.0:8889"
         namespace: signoz
-    
+
     extensions:
       health_check:
         endpoint: 0.0.0.0:13133
         path: "/health"
-      
+
       zpages:
         endpoint: 0.0.0.0:55679
-    
+
     service:
       extensions: [health_check, zpages]
       pipelines:
@@ -100,23 +100,26 @@
           receivers: [otlp]
           processors: [memory_limiter, batch, resource]
           exporters: [clickhouse]
-        
+
         metrics:
           receivers: [otlp, prometheus]
           processors: [memory_limiter, batch, resource]
           exporters: [clickhouse, prometheus]
-        
+
         logs:
           receivers: [otlp]
           processors: [memory_limiter, batch, resource]
           exporters: [clickhouse]
   '';
 in {
-  imports = if self != null then [
-    "${self}/packages/network-metrics-exporter/module.nix"
-  ] else [
-    ../../../packages/network-metrics-exporter/module.nix
-  ];
+  imports =
+    if self != null
+    then [
+      "${self}/packages/network-metrics-exporter/module.nix"
+    ]
+    else [
+      ../../../packages/network-metrics-exporter/module.nix
+    ];
 
   # Create required directories and users
   systemd.tmpfiles.rules = [
@@ -148,14 +151,14 @@ in {
       <logger>
         <level>warning</level>
       </logger>
-      
+
       <http_port>${toString clickhouseHttpPort}</http_port>
       <tcp_port>${toString clickhouseTcpPort}</tcp_port>
-      
+
       <listen_host>0.0.0.0</listen_host>
-      
+
       <path>${clickhouseDataDir}/</path>
-      
+
       <users>
         <default>
           <password></password>
@@ -173,23 +176,23 @@ in {
   # Initialize ClickHouse schema for SigNoz
   systemd.services.signoz-clickhouse-init = {
     description = "Initialize SigNoz ClickHouse Schema";
-    after = [ "clickhouse.service" ];
-    requires = [ "clickhouse.service" ];
-    wantedBy = [ "multi-user.target" ];
-    
+    after = ["clickhouse.service"];
+    requires = ["clickhouse.service"];
+    wantedBy = ["multi-user.target"];
+
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
       User = "clickhouse";
       Group = "clickhouse";
       ExecStart = "${signoz-clickhouse-schema}/share/signoz/clickhouse/init-signoz-db.sh";
-      
+
       # Retry a few times in case ClickHouse is still starting
       Restart = "on-failure";
       RestartSec = "10s";
       StartLimitBurst = "5";
     };
-    
+
     environment = {
       CLICKHOUSE_HOST = "localhost";
       CLICKHOUSE_PORT = toString clickhouseTcpPort;
@@ -199,10 +202,10 @@ in {
   # SigNoz Query Service
   systemd.services.signoz-query = {
     description = "SigNoz Query Service";
-    after = [ "network.target" "clickhouse.service" "signoz-clickhouse-init.service" ];
-    requires = [ "clickhouse.service" ];
-    wantedBy = [ "multi-user.target" ];
-    
+    after = ["network.target" "clickhouse.service" "signoz-clickhouse-init.service"];
+    requires = ["clickhouse.service"];
+    wantedBy = ["multi-user.target"];
+
     serviceConfig = {
       Type = "simple";
       User = "signoz";
@@ -212,7 +215,7 @@ in {
       Restart = "always";
       RestartSec = "10s";
     };
-    
+
     environment = {
       CLICKHOUSE_URL = "tcp://localhost:${toString clickhouseTcpPort}";
       STORAGE = "clickhouse";
@@ -231,10 +234,10 @@ in {
   # SigNoz Frontend
   systemd.services.signoz-frontend = {
     description = "SigNoz Frontend";
-    after = [ "network.target" "signoz-query.service" ];
-    wants = [ "signoz-query.service" ];
-    wantedBy = [ "multi-user.target" ];
-    
+    after = ["network.target" "signoz-query.service"];
+    wants = ["signoz-query.service"];
+    wantedBy = ["multi-user.target"];
+
     serviceConfig = {
       Type = "simple";
       User = "signoz";
@@ -244,7 +247,7 @@ in {
       Restart = "always";
       RestartSec = "10s";
     };
-    
+
     environment = {
       PORT = toString signozFrontendPort;
       QUERY_SERVICE_URL = "http://localhost:${toString signozQueryPort}";
@@ -255,10 +258,10 @@ in {
   # SigNoz OpenTelemetry Collector
   systemd.services.signoz-otel-collector = {
     description = "SigNoz OpenTelemetry Collector";
-    after = [ "network.target" "clickhouse.service" "signoz-clickhouse-init.service" ];
-    requires = [ "clickhouse.service" ];
-    wantedBy = [ "multi-user.target" ];
-    
+    after = ["network.target" "clickhouse.service" "signoz-clickhouse-init.service"];
+    requires = ["clickhouse.service"];
+    wantedBy = ["multi-user.target"];
+
     serviceConfig = {
       Type = "simple";
       User = "signoz";
@@ -267,12 +270,12 @@ in {
       ExecStart = "${signoz-otel-collector}/bin/otelcol-contrib --config=${otelCollectorConfig}";
       Restart = "always";
       RestartSec = "10s";
-      
+
       # Capabilities for network monitoring
-      AmbientCapabilities = [ "CAP_NET_RAW" "CAP_NET_ADMIN" ];
-      CapabilityBoundingSet = [ "CAP_NET_RAW" "CAP_NET_ADMIN" ];
+      AmbientCapabilities = ["CAP_NET_RAW" "CAP_NET_ADMIN"];
+      CapabilityBoundingSet = ["CAP_NET_RAW" "CAP_NET_ADMIN"];
     };
-    
+
     environment = {
       OTEL_RESOURCE_ATTRIBUTES = "host.name=router,deployment.environment=production";
     };
@@ -282,12 +285,12 @@ in {
   services.prometheus.alertmanager = {
     enable = true;
     port = 9093;
-    
+
     configuration = {
       global = {
         resolve_timeout = "5m";
       };
-      
+
       route = {
         group_by = ["alertname" "cluster" "service"];
         group_wait = "10s";
@@ -295,7 +298,7 @@ in {
         repeat_interval = "1h";
         receiver = "default";
       };
-      
+
       receivers = [
         {
           name = "default";
@@ -316,20 +319,20 @@ in {
         uri strip_prefix /signoz
         reverse_proxy localhost:${toString signozFrontendPort}
       }
-      
+
       # SigNoz API
       handle /api* {
         reverse_proxy localhost:${toString signozQueryPort}
       }
     '';
-    
+
     "router.bat-boa.ts.net".extraConfig = lib.mkAfter ''
       # SigNoz Frontend
       handle /signoz* {
         uri strip_prefix /signoz
         reverse_proxy localhost:${toString signozFrontendPort}
       }
-      
+
       # SigNoz API
       handle /api* {
         reverse_proxy localhost:${toString signozQueryPort}
@@ -340,15 +343,15 @@ in {
   # Open firewall ports
   networking.firewall = {
     allowedTCPPorts = [
-      signozCollectorPort  # OTLP gRPC
-      signozCollectorHttpPort  # OTLP HTTP
+      signozCollectorPort # OTLP gRPC
+      signozCollectorHttpPort # OTLP HTTP
     ];
-    
+
     # Internal access only for UI and ClickHouse
     interfaces.br-lan.allowedTCPPorts = [
-      signozFrontendPort   # SigNoz Frontend
-      signozQueryPort      # SigNoz Query API
-      clickhouseHttpPort   # ClickHouse HTTP
+      signozFrontendPort # SigNoz Frontend
+      signozQueryPort # SigNoz Query API
+      clickhouseHttpPort # ClickHouse HTTP
     ];
   };
 
@@ -358,35 +361,35 @@ in {
       #!${pkgs.bash}/bin/bash
       echo "=== SigNoz Service Status ==="
       echo ""
-      
+
       for service in clickhouse signoz-clickhouse-init signoz-query signoz-frontend signoz-otel-collector prometheus-alertmanager; do
         echo "$service:"
         systemctl status $service --no-pager | head -n 5
         echo ""
       done
-      
+
       echo "=== Port Status ==="
       ${pkgs.nettools}/bin/netstat -tlpn 2>/dev/null | grep -E "(${toString signozFrontendPort}|${toString signozQueryPort}|${toString signozCollectorPort}|${toString clickhouseHttpPort}|${toString clickhouseTcpPort})" || echo "Run as root to see process names"
       echo ""
-      
+
       echo "=== Collector Health Check ==="
       ${pkgs.curl}/bin/curl -s http://localhost:13133/health || echo "Collector health check failed"
       echo ""
-      
+
       echo "=== SigNoz URLs ==="
       echo "Frontend: http://${routerIp}:${toString signozFrontendPort}"
       echo "Query API: http://${routerIp}:${toString signozQueryPort}"
       echo "OTLP Endpoint: ${routerIp}:${toString signozCollectorPort}"
     '')
-    
+
     (pkgs.writeScriptBin "signoz-test-trace" ''
       #!${pkgs.bash}/bin/bash
       echo "Sending test trace to SigNoz..."
-      
+
       # Generate a random trace ID
       TRACE_ID=$(${pkgs.openssl}/bin/openssl rand -hex 16)
       SPAN_ID=$(${pkgs.openssl}/bin/openssl rand -hex 8)
-      
+
       ${pkgs.curl}/bin/curl -X POST http://localhost:${toString signozCollectorHttpPort}/v1/traces \
         -H "Content-Type: application/json" \
         -d '{
@@ -425,7 +428,7 @@ in {
             }]
           }]
         }'
-      
+
       echo ""
       echo "Test trace sent with ID: $TRACE_ID"
       echo "Check SigNoz UI at http://${routerIp}/signoz"

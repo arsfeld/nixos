@@ -4,7 +4,12 @@
   name = "systemd-email-notify";
 
   nodes = {
-    machine = { config, pkgs, lib, ... }: {
+    machine = {
+      config,
+      pkgs,
+      lib,
+      ...
+    }: {
       imports = [
         ../modules/systemd-email-notify.nix
       ];
@@ -29,7 +34,7 @@
 
       systemd.timers.email-notify-test = {
         description = "Timer to trigger email notification test service failure";
-        wantedBy = [ "timers.target" ];
+        wantedBy = ["timers.target"];
         timerConfig = {
           OnBootSec = "5min";
           OnUnitActiveSec = "20min";
@@ -46,13 +51,13 @@
           echo -e "\n=== EMAIL END ===" >> /tmp/captured-emails.log
           echo "Email captured successfully"
         '')
-        
+
         # Mock gh CLI for GitHub issue creation
         (writeShellScriptBin "gh" ''
           # Mock gh that logs commands to a file
           echo "=== GH COMMAND ===" >> /tmp/gh-commands.log
           echo "Command: $@" >> /tmp/gh-commands.log
-          
+
           # Handle different gh commands
           case "$1" in
             "issue")
@@ -83,38 +88,40 @@
       nixpkgs.overlays = [
         (self: super: {
           send-email-event = super.send-email-event.overrideAttrs (old: {
-            propagatedBuildInputs = (old.propagatedBuildInputs or []) ++ [ 
-              pkgs.figlet 
-            ];
+            propagatedBuildInputs =
+              (old.propagatedBuildInputs or [])
+              ++ [
+                pkgs.figlet
+              ];
             postFixup = ''
               # Ensure our mock msmtp is used
               wrapProgram $out/bin/send-email-event \
-                --prefix PATH : ${lib.makeBinPath [ 
-                  (pkgs.writeShellScriptBin "msmtp" ''
-                    echo "=== EMAIL START ===" >> /tmp/captured-emails.log
-                    cat >> /tmp/captured-emails.log
-                    echo -e "\n=== EMAIL END ===" >> /tmp/captured-emails.log
-                  '')
-                ]}
-              
+                --prefix PATH : ${lib.makeBinPath [
+                (pkgs.writeShellScriptBin "msmtp" ''
+                  echo "=== EMAIL START ===" >> /tmp/captured-emails.log
+                  cat >> /tmp/captured-emails.log
+                  echo -e "\n=== EMAIL END ===" >> /tmp/captured-emails.log
+                '')
+              ]}
+
               # Wrap create-github-issue if it exists
               if [ -f $out/bin/create-github-issue ]; then
                 wrapProgram $out/bin/create-github-issue \
-                  --prefix PATH : ${lib.makeBinPath [ 
-                    (pkgs.writeShellScriptBin "gh" ''
-                      echo "=== GH COMMAND ===" >> /tmp/gh-commands.log
-                      echo "Command: $@" >> /tmp/gh-commands.log
-                      case "$1" in
-                        "issue")
-                          case "$2" in
-                            "list") echo "[]" ;;
-                            "create") echo "https://github.com/test/repo/issues/123" ;;
-                          esac
-                          ;;
+                  --prefix PATH : ${lib.makeBinPath [
+                (pkgs.writeShellScriptBin "gh" ''
+                  echo "=== GH COMMAND ===" >> /tmp/gh-commands.log
+                  echo "Command: $@" >> /tmp/gh-commands.log
+                  case "$1" in
+                    "issue")
+                      case "$2" in
+                        "list") echo "[]" ;;
+                        "create") echo "https://github.com/test/repo/issues/123" ;;
                       esac
-                      echo "=== GH END ===" >> /tmp/gh-commands.log
-                    '')
-                  ]}
+                      ;;
+                  esac
+                  echo "=== GH END ===" >> /tmp/gh-commands.log
+                '')
+              ]}
               fi
             '';
           });
@@ -143,7 +150,7 @@
     # Check that an email was captured
     machine.succeed("test -f /tmp/captured-emails.log")
     email_output = machine.succeed("cat /tmp/captured-emails.log")
-    
+
     # Verify the email contains expected content
     assert "Service Failure email-notify-test" in email_output, "Email should contain service failure notification"
     assert "Failed Service: email-notify-test" in email_output, "Email should contain the failed service name"
@@ -153,7 +160,7 @@
     # Check GitHub issue creation
     gh_output = machine.succeed("cat /tmp/gh-commands.log || echo 'No GitHub commands logged'")
     print(f"GitHub commands: {gh_output}")
-    
+
     if "test/repo" in config.systemdEmailNotify.gitHubRepo:
         assert "issue" in gh_output, "Should attempt to create GitHub issue"
         assert "create" in gh_output or "comment" in gh_output, "Should create issue or comment"
@@ -161,18 +168,18 @@
     # Test rate limiting: trigger the service again
     machine.fail("systemctl start email-notify-test.service")
     machine.sleep(2)
-    
+
     # Count how many emails were sent (should be only 1 due to rate limiting)
     email_count = machine.succeed("grep -c '=== EMAIL START ===' /tmp/captured-emails.log || echo 0").strip()
     assert email_count == "1", f"Expected 1 email due to rate limiting, but got {email_count}"
 
     # Test cooldown period expiry (simulate by modifying timestamp file)
     machine.succeed("echo '0' > /tmp/service_failure_email-notify-test.timestamp")
-    
+
     # Trigger again after cooldown
     machine.fail("systemctl start email-notify-test.service")
     machine.sleep(2)
-    
+
     # Should now have 2 emails
     email_count = machine.succeed("grep -c '=== EMAIL START ===' /tmp/captured-emails.log || echo 0").strip()
     assert email_count == "2", f"Expected 2 emails after cooldown, but got {email_count}"

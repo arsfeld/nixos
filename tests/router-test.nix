@@ -98,7 +98,7 @@
         "${self}/hosts/router/services.nix"
         "${self}/hosts/router/alerting.nix"
       ];
-      
+
       # Apply overlays to make packages available
       nixpkgs.overlays = [
         (import "${self}/overlays/python-packages.nix")
@@ -172,7 +172,7 @@
       # Disable Tailscale services in test environment to prevent hanging
       services.tailscale.enable = lib.mkForce false;
       systemd.services.tailscale-subnet-router.enable = lib.mkForce false;
-      
+
       # Disable alerting in test environment
       router.alerting.enable = lib.mkForce false;
     };
@@ -208,7 +208,7 @@
         curl
         traceroute
         python3
-        netcat-gnu  # Use GNU netcat for -z flag
+        netcat-gnu # Use GNU netcat for -z flag
         dnsutils # for nslookup
       ];
 
@@ -333,7 +333,7 @@
       environment.systemPackages = with pkgs; [
         curl
         traceroute
-        netcat-gnu  # Use GNU netcat for -z flag
+        netcat-gnu # Use GNU netcat for -z flag
         dnsutils # for nslookup
       ];
 
@@ -379,7 +379,7 @@
     router.wait_for_unit("grafana.service")
     router.wait_for_open_port(9090)  # Prometheus
     router.wait_for_open_port(3000)  # Grafana
-    
+
     # Wait for Caddy
     router.wait_for_unit("caddy.service")
     router.wait_for_open_port(80)   # HTTP
@@ -414,7 +414,7 @@
         storage_resolved = client1.succeed("nslookup storage.lan 10.1.1.1 | grep Address | tail -1 | awk '{print $2}'").strip()
         assert storage_resolved == "10.1.1.5", f"storage.lan resolved to {storage_resolved}, expected 10.1.1.5"
         print("✓ storage.lan resolves correctly")
-        
+
         router_resolved = client1.succeed("nslookup router.lan 10.1.1.1 | grep Address | tail -1 | awk '{print $2}'").strip()
         assert router_resolved == "10.1.1.1", f"router.lan resolved to {router_resolved}, expected 10.1.1.1"
         print("✓ router.lan resolves correctly")
@@ -422,13 +422,13 @@
     with subtest("DHCP and DNS integration"):
         # Check that Kea lease file exists
         router.succeed("ls -la /var/lib/kea/")
-        
+
         # Check hosts file exists and contains static entries
         hosts_content = router.succeed("cat /var/lib/kea/dhcp-hosts")
         print(f"Hosts file content:\n{hosts_content}")
         assert "10.1.1.1 router router.lan" in hosts_content, "Router entry not in hosts file"
         assert "10.1.1.5 storage storage.lan" in hosts_content, "Storage entry not in hosts file"
-        
+
         # Test reverse DNS for clients (should work after they get DHCP leases)
         client1_ip = client1.succeed("ip -4 addr show eth1 | grep inet | awk '{print $2}' | cut -d'/' -f1").strip()
         # Try reverse DNS lookup - this tests if network-metrics-exporter can resolve names
@@ -477,7 +477,7 @@
         # Check that Blocky DNS is running
         router.succeed("systemctl is-active blocky")
         print("Blocky DNS server is running")
-        
+
         # Check that Kea DHCP is running
         router.succeed("systemctl is-active kea-dhcp4-server")
         print("Kea DHCP server is running")
@@ -592,7 +592,7 @@
         # Verify all mappings exist in nftables
         final_rules = router.succeed("nft list chain ip nat NATPMP_DNAT")
         print(f"Final NAT-PMP rules:\n{final_rules}")
-        
+
         # Count total mappings
         mapping_count = final_rules.count("dnat to")
         print(f"Total active mappings: {mapping_count}")
@@ -604,27 +604,27 @@
         # Test that Caddy is running and accessible from LAN
         router.succeed("systemctl is-active caddy")
         print("✓ Caddy service is active")
-        
+
         # Test access to router dashboard from LAN clients
         client1_response = client1.succeed("curl -s http://10.1.1.1/")
         assert "Router Dashboard" in client1_response, "Router dashboard not accessible from client1"
         print("✓ Client1 can access router dashboard via HTTP")
-        
+
         client2_response = client2.succeed("curl -s http://10.1.1.1/")
         assert "Router Dashboard" in client2_response, "Router dashboard not accessible from client2"
         print("✓ Client2 can access router dashboard via HTTP")
-        
+
         # Test that external access is blocked
         external.fail("curl -s --connect-timeout 5 http://10.0.2.2/")
         print("✓ External access to Caddy is properly blocked")
-        
+
         # Test specific service endpoints
         client1.succeed("curl -f http://10.1.1.1/grafana/")
         print("✓ Grafana reverse proxy is working")
-        
+
         client1.succeed("curl -f http://10.1.1.1/prometheus/")
         print("✓ Prometheus reverse proxy is working")
-        
+
         # Test dashboard template rendering
         dashboard_html = client1.succeed("curl -s http://10.1.1.1/")
         assert "Router Dashboard" in dashboard_html, "Dashboard template not rendering properly"
@@ -636,14 +636,14 @@
         # Check that HTTP/HTTPS are accessible from LAN clients
         client1.succeed("nc -zv -w 2 10.1.1.1 80")
         print("✓ HTTP port 80 is accessible from LAN")
-        
+
         client1.succeed("nc -zv -w 2 10.1.1.1 443")
         print("✓ HTTPS port 443 is accessible from LAN")
-        
+
         # Verify SSH is accessible
         client1.succeed("nc -zv -w 2 10.1.1.1 22")
         print("✓ SSH port 22 is accessible")
-        
+
         # Test that random high port is not open (service not running)
         client1.fail("nc -zv -w 2 10.1.1.1 8888")
         print("✓ Unbound ports properly fail connection")
@@ -669,7 +669,7 @@
         # Check that network metrics exporter is running
         router.succeed("systemctl is-active network-metrics-exporter")
         print("Network metrics exporter is active")
-        
+
         # Verify metrics endpoint is accessible
         router.succeed("curl -f -o /dev/null -s http://localhost:9101/metrics")
         print("Network metrics endpoint is accessible")

@@ -3,30 +3,32 @@
   lib,
   pkgs,
   ...
-}: 
-with lib;
-{
+}:
+with lib; {
   imports = [
     ../../../packages/natpmp-server/module.nix
   ];
 
   services.natpmp-server = {
     enable = true;
-    
+
     # Router interfaces
-    externalInterface = config.router.interfaces.wan;  # Use configured WAN interface
-    listenInterface = "br-lan";  # LAN bridge interface
-    
+    externalInterface = config.router.interfaces.wan; # Use configured WAN interface
+    listenInterface = "br-lan"; # LAN bridge interface
+
     # Security settings
     maxMappingsPerClient = 50;
-    defaultLifetime = 3600;  # 1 hour
-    maxLifetime = 86400;     # 24 hours
-    
+    defaultLifetime = 3600; # 1 hour
+    maxLifetime = 86400; # 24 hours
+
     # Port ranges - allow standard unprivileged ports
     allowedPortRanges = [
-      { from = 1024; to = 65535; }
+      {
+        from = 1024;
+        to = 65535;
+      }
     ];
-    
+
     # Use custom nftables chains to avoid conflicts
     nftables = {
       natTable = "nat";
@@ -34,9 +36,9 @@ with lib;
       filterTable = "filter";
       filterChain = "NATPMP_FORWARD";
     };
-    
+
     # Enable Prometheus metrics
-    metricsPort = 9333;  # Use a different port to avoid conflicts
+    metricsPort = 9333; # Use a different port to avoid conflicts
   };
 
   # Create a wrapper script for nftables reload that also restarts NAT-PMP
@@ -55,7 +57,7 @@ with lib;
       fi
     '';
   };
-  
+
   # Add an alias for convenience
   environment.shellAliases = {
     "nftables-reload" = "/etc/nftables-reload-wrapper";

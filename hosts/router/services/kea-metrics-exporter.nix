@@ -37,7 +37,7 @@
           # Function to get Kea statistics
           get_kea_stats() {
             local stats_json=$(send_kea_command '{"command": "statistic-get-all"}')
-            
+
             if echo "$stats_json" | jq -e '.result == 0' >/dev/null 2>&1; then
               echo "$stats_json"
             else
@@ -48,7 +48,7 @@
           # Function to get lease statistics
           get_lease_stats() {
             local subnet_stats=$(send_kea_command '{"command": "stat-lease4-get"}')
-            
+
             if echo "$subnet_stats" | jq -e '.result == 0' >/dev/null 2>&1; then
               echo "$subnet_stats"
             else
@@ -75,13 +75,13 @@
 
               # Get Kea statistics
               stats_json=$(get_kea_stats)
-              
+
               if echo "$stats_json" | jq -e '.result == 0' >/dev/null 2>&1; then
                 # Extract packet statistics
                 for stat_type in "pkt4-received" "pkt4-discover-received" "pkt4-offer-sent" "pkt4-request-received" "pkt4-ack-sent" "pkt4-nak-sent" "pkt4-release-received" "pkt4-decline-received" "pkt4-inform-received"; do
                   stat_value=$(echo "$stats_json" | jq -r ".arguments.\"$stat_type\"[0][0] // 0")
                   stat_name=$(echo "$stat_type" | tr '-' '_')
-                  
+
                   echo "# HELP kea_dhcp4_$stat_name Total number of $stat_type packets"
                   echo "# TYPE kea_dhcp4_$stat_name counter"
                   echo "kea_dhcp4_$stat_name $stat_value"
@@ -91,7 +91,7 @@
                 for stat_type in "v4-allocation-fail" "v4-allocation-fail-shared-network" "v4-allocation-fail-subnet" "v4-allocation-fail-no-pools" "v4-allocation-fail-classes"; do
                   stat_value=$(echo "$stats_json" | jq -r ".arguments.\"$stat_type\"[0][0] // 0")
                   stat_name=$(echo "$stat_type" | tr '-' '_')
-                  
+
                   echo "# HELP kea_dhcp4_$stat_name Total number of $stat_type events"
                   echo "# TYPE kea_dhcp4_$stat_name counter"
                   echo "kea_dhcp4_$stat_name $stat_value"
@@ -103,7 +103,7 @@
                     stat_key="subnet[$subnet_id].$lease_type"
                     stat_value=$(echo "$stats_json" | jq -r ".arguments.\"$stat_key\"[0][0] // 0")
                     stat_name=$(echo "$lease_type" | tr '-' '_')
-                    
+
                     echo "# HELP kea_dhcp4_subnet_$stat_name Number of $lease_type in subnet"
                     echo "# TYPE kea_dhcp4_subnet_$stat_name gauge"
                     echo "kea_dhcp4_subnet_$stat_name{subnet_id=\"$subnet_id\"} $stat_value"
@@ -113,7 +113,7 @@
 
               # Get lease statistics
               lease_stats=$(get_lease_stats)
-              
+
               # Active leases from lease file (fallback method)
               if [ -f "/var/lib/kea/kea-leases4.csv" ]; then
                 active_leases=$(grep -v '^#' /var/lib/kea/kea-leases4.csv 2>/dev/null | wc -l || echo "0")
@@ -127,7 +127,7 @@
               pool_start=${toString config.router.network.dhcpPool.start}
               pool_end=${toString config.router.network.dhcpPool.end}
               total_pool_size=$((pool_end - pool_start + 1))
-              
+
               if [ -f "/var/lib/kea/kea-leases4.csv" ]; then
                 # Count all leases in the pool range
                 pool_leases=$(grep -v '^#' /var/lib/kea/kea-leases4.csv 2>/dev/null | \
@@ -137,17 +137,17 @@
                     last_octet = parts[4]
                     if (last_octet >= start && last_octet <= end) count++
                   } END {print count+0}' || echo "0")
-                
+
                 pool_utilization=$(echo "scale=2; $pool_leases * 100 / $total_pool_size" | bc -l 2>/dev/null || echo "0")
-                
+
                 echo "# HELP kea_dhcp4_pool_utilization_percent DHCP pool utilization percentage"
                 echo "# TYPE kea_dhcp4_pool_utilization_percent gauge"
                 echo "kea_dhcp4_pool_utilization_percent $pool_utilization"
-                
+
                 echo "# HELP kea_dhcp4_pool_size Total size of DHCP pool"
                 echo "# TYPE kea_dhcp4_pool_size gauge"
                 echo "kea_dhcp4_pool_size $total_pool_size"
-                
+
                 echo "# HELP kea_dhcp4_pool_used Number of addresses used from DHCP pool"
                 echo "# TYPE kea_dhcp4_pool_used gauge"
                 echo "kea_dhcp4_pool_used $pool_leases"
@@ -169,7 +169,7 @@
       # The script will still be able to connect to Kea socket
     };
   };
-  
+
   # Ensure the kea socket is accessible
   systemd.services.kea-dhcp4-server = {
     serviceConfig = {

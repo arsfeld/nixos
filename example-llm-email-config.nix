@@ -1,10 +1,12 @@
 # Example configuration for LLM-powered crash log analysis with agenix
-{ config, pkgs, ... }:
-
 {
+  config,
+  pkgs,
+  ...
+}: {
   # Import the systemd email notification module
-  imports = [ 
-    ./modules/systemd-email-notify.nix 
+  imports = [
+    ./modules/systemd-email-notify.nix
   ];
 
   # Configure agenix for secret management
@@ -21,10 +23,10 @@
     # Email configuration
     toEmail = "admin@example.com";
     fromEmail = "noreply@example.com";
-    
+
     # Enable AI-powered analysis
     enableLLMAnalysis = true;
-    
+
     # Use the agenix secret for the API key
     googleApiKey = config.age.secrets.google-api-key.path;
   };
