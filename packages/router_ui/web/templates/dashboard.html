@@ -1,0 +1,100 @@
+{{define "content"}}
+<div x-data="dashboard()" x-init="init" class="space-y-6">
+    <h2 class="text-3xl font-bold">Dashboard</h2>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Active VPNs -->
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h3 class="card-title text-lg">Active VPNs</h3>
+                <div class="stat">
+                    <div class="stat-value text-primary" x-text="stats.active_vpns || 0"></div>
+                    <div class="stat-desc">of <span x-text="stats.total_vpns || 0"></span> configured</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Connected Clients -->
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h3 class="card-title text-lg">Connected Clients</h3>
+                <div class="stat">
+                    <div class="stat-value text-secondary" x-text="stats.connected_clients || 0"></div>
+                    <div class="stat-desc">DHCP leases</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CPU Usage -->
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h3 class="card-title text-lg">CPU Usage</h3>
+                <div class="stat">
+                    <div class="stat-value" x-text="`${(stats.system_health?.cpu_usage || 0).toFixed(1)}%`"></div>
+                    <div class="radial-progress text-primary" 
+                         :style="`--value:${stats.system_health?.cpu_usage || 0};`"
+                         role="progressbar">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Memory Usage -->
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h3 class="card-title text-lg">Memory Usage</h3>
+                <div class="stat">
+                    <div class="stat-value" x-text="`${(stats.system_health?.memory_usage || 0).toFixed(1)}%`"></div>
+                    <div class="radial-progress text-warning" 
+                         :style="`--value:${stats.system_health?.memory_usage || 0};`"
+                         role="progressbar">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Traffic Statistics -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h3 class="card-title">VPN Traffic Statistics</h3>
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Interface</th>
+                            <th>Bytes Sent</th>
+                            <th>Bytes Received</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="(stat, iface) in stats.traffic_stats" :key="iface">
+                            <tr>
+                                <td x-text="iface"></td>
+                                <td x-text="formatBytes(stat.bytes_sent)"></td>
+                                <td x-text="formatBytes(stat.bytes_received)"></td>
+                                <td x-text="formatBytes(stat.bytes_sent + stat.bytes_received)"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Information -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h3 class="card-title">System Information</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <p class="text-sm text-base-content/70">Uptime</p>
+                    <p class="font-mono" x-text="formatUptime(stats.system_health?.uptime || 0)"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}
