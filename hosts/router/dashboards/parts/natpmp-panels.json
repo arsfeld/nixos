@@ -1,7 +1,7 @@
 {
   "panels": [
     {
-      "datasource": "Prometheus",
+      "datasource": "VictoriaMetrics",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -61,7 +61,7 @@
       "type": "stat"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": "VictoriaMetrics",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -161,7 +161,7 @@
       "type": "bargauge"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": "VictoriaMetrics",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -262,7 +262,7 @@
       "type": "table"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": "VictoriaMetrics",
       "fieldConfig": {
         "defaults": {
           "color": {

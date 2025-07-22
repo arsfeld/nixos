@@ -8,6 +8,10 @@
   network = "${netConfig.prefix}.0/${toString netConfig.cidr}";
   routerIp = "${netConfig.prefix}.1";
 in {
+  # Import Kea metrics exporter
+  imports = [
+    ./kea-metrics-exporter.nix
+  ];
 
   # Grafana for visualization
   services.grafana = {
@@ -42,9 +46,9 @@ in {
 
       datasources.settings.datasources = [
         {
-          name = "Prometheus";
+          name = "VictoriaMetrics";
           type = "prometheus";
-          url = "http://localhost:9090/prometheus";
+          url = "http://localhost:8428";
           isDefault = true;
         }
       ];
@@ -60,44 +64,52 @@ in {
     };
   };
 
-  # Prometheus for metrics collection
-  services.prometheus = {
+  # VictoriaMetrics for metrics collection
+  services.victoriametrics = {
     enable = true;
-    port = 9090;
-
-    scrapeConfigs = [
-      {
-        job_name = "blocky";
-        static_configs = [
+    listenAddress = ":8428";
+    # Prometheus compatibility mode
+    extraOptions = [
+      "-promscrape.config=${pkgs.writeText "victoriametrics-scrape.yml" (builtins.toJSON {
+        global = {
+          scrape_interval = "30s";
+        };
+        scrape_configs = [
           {
-            targets = ["localhost:4000"];
+            job_name = "blocky";
+            static_configs = [
+              {
+                targets = ["localhost:4000"];
+              }
+            ];
+          }
+          {
+            job_name = "node";
+            static_configs = [
+              {
+                targets = ["localhost:9100"];
+              }
+            ];
+          }
+          {
+            job_name = "network-metrics";
+            static_configs = [
+              {
+                targets = ["localhost:9101"];
+              }
+            ];
+          }
+          {
+            job_name = "natpmp";
+            static_configs = [
+              {
+                targets = ["localhost:9333"];
+              }
+            ];
           }
         ];
-      }
-      {
-        job_name = "node";
-        static_configs = [
-          {
-            targets = ["localhost:9100"];
-          }
-        ];
-      }
-      {
-        job_name = "network-metrics";
-        static_configs = [
-          {
-            targets = ["localhost:9101"];
-          }
-        ];
-      }
-      {
-        job_name = "natpmp";
-        static_configs = [
-          {
-            targets = ["localhost:9333"];
-          }
-        ];
-      }
+      })}"
+      "-storageDataPath=/var/lib/victoriametrics"
     ];
   };
 
@@ -140,6 +152,10 @@ in {
     networkPrefix = netConfig.prefix;
     trafficInterface = "br-lan";
   };
+
+  # Kea DHCP metrics exporter - using custom exporter
+  # The built-in NixOS kea exporter has issues with unix socket format
+  # See: https://github.com/NixOS/nixpkgs/issues/[issue-number]
 
   # UPnP metrics exporter - disabled since we're using natpmp-server
   systemd.services.upnp-metrics-exporter = {
@@ -327,7 +343,10 @@ in {
     };
   };
 
-  # Alerting configuration using Prometheus Alertmanager
+  # VictoriaMetrics alerting configuration
+  # Note: vmalert will be configured separately in alerting.nix
+
+  # Alertmanager configuration (works with VictoriaMetrics vmalert)
   services.prometheus.alertmanager = {
     enable = true;
     port = 9093;

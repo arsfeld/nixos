@@ -37,6 +37,10 @@ in {
       default = {
         prefix = "10.1.1";
         cidr = 24;
+        dhcpPool = {
+          start = 15;
+          end = 254;
+        };
       };
       description = "Network configuration for LAN";
     };

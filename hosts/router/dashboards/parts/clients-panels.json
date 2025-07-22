@@ -1,7 +1,168 @@
 {
   "panels": [
     {
-      "datasource": "Prometheus",
+      "datasource": "VictoriaMetrics",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "id": 101,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "expr": "network_clients_total{job=\"network-metrics\"}",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Known Clients",
+      "type": "stat"
+    },
+    {
+      "datasource": "VictoriaMetrics",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "id": 102,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "expr": "network_clients_online{job=\"network-metrics\"}",
+          "refId": "A"
+        }
+      ],
+      "title": "Currently Online",
+      "type": "stat"
+    },
+    {
+      "datasource": "VictoriaMetrics",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            }
+          },
+          "mappings": [],
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 1
+      },
+      "id": 103,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "values": []
+        },
+        "pieType": "pie",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "expr": "network_clients_by_type{job=\"network-metrics\"}",
+          "legendFormat": "{{type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Clients by Device Type",
+      "type": "piechart"
+    },
+    {
+      "datasource": "VictoriaMetrics",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -53,7 +214,7 @@
       "type": "stat"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": "VictoriaMetrics",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -143,7 +304,7 @@
       "type": "table"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": "VictoriaMetrics",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -220,7 +381,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": "VictoriaMetrics",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -458,6 +619,10 @@
               "client": {
                 "aggregations": [],
                 "operation": "groupby"
+              },
+              "device_type": {
+                "aggregations": [],
+                "operation": "groupby"
               }
             }
           }
@@ -475,12 +640,13 @@
             "indexByName": {
               "client": 0,
               "ip": 1,
-              "Value #A (lastNotNull)": 2,
-              "Value #B (lastNotNull)": 3,
-              "Value #C (lastNotNull)": 4,
-              "Value #D (lastNotNull)": 5,
-              "Value #E (lastNotNull)": 6,
-              "Value #F (lastNotNull)": 7
+              "device_type": 2,
+              "Value #A (lastNotNull)": 3,
+              "Value #B (lastNotNull)": 4,
+              "Value #C (lastNotNull)": 5,
+              "Value #D (lastNotNull)": 6,
+              "Value #E (lastNotNull)": 7,
+              "Value #F (lastNotNull)": 8
             },
             "renameByName": {
               "Value #A (lastNotNull)": "Current DL Rate",
@@ -490,7 +656,8 @@
               "Value #E (lastNotNull)": "Total Bytes DL",
               "Value #F (lastNotNull)": "Total Bytes UL",
               "ip": "IP Address",
-              "client": "Client"
+              "client": "Client",
+              "device_type": "Device Type"
             }
           }
         }
@@ -498,7 +665,7 @@
       "type": "table"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": "VictoriaMetrics",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -562,7 +729,7 @@
       "type": "gauge"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": "VictoriaMetrics",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -624,6 +791,161 @@
       ],
       "title": "Total Upload Bandwidth (Mbps)",
       "type": "gauge"
+    },
+    {
+      "datasource": "VictoriaMetrics",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            }
+          },
+          "mappings": [],
+          "unit": "binBps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "id": 21,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": ["last", "max", "mean"]
+        },
+        "pieType": "donut",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "expr": "sum by (device_type) (client_traffic_rate_bps{job=\"network-metrics\",direction=\"rx\"})",
+          "legendFormat": "{{device_type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Bandwidth by Device Type (Download)",
+      "type": "piechart"
+    },
+    {
+      "datasource": "VictoriaMetrics",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Count"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "lcd-gauge"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-BlYlRd"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "id": 22,
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Count"
+          }
+        ]
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "expr": "count by (device_type) (client_status{job=\"network-metrics\"} == 1)",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Online Clients by Device Type",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Value": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "aggregate"
+              },
+              "device_type": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "device_type": 0,
+              "Value (lastNotNull)": 1
+            },
+            "renameByName": {
+              "device_type": "Device Type",
+              "Value (lastNotNull)": "Count"
+            }
+          }
+        }
+      ],
+      "type": "table"
     }
   ]
 }

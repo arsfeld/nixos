@@ -1,7 +1,7 @@
 {
   "panels": [
     {
-      "datasource": "Prometheus",
+      "datasource": "VictoriaMetrics",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -82,7 +82,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": "VictoriaMetrics",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -162,7 +162,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": "VictoriaMetrics",
       "fieldConfig": {
         "defaults": {
           "custom": {

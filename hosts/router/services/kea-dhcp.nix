@@ -18,17 +18,22 @@
       ip = routerIp;
       mac = null;
       aliases = ["router" "router.lan"];
+      deviceType = "router";
     };
     storage = {
       ip = "${netConfig.prefix}.5";
       mac = "00:e0:4c:bb:00:e3";
       aliases = ["storage" "storage.lan"];
+      deviceType = "server";
     };
   };
 
   # Kea hook script to update hosts file on lease events
   keaHostsHook = pkgs.writeScript "kea-hosts-hook" ''
     #!${pkgs.bash}/bin/bash
+    
+    # Set PATH to include necessary utilities
+    export PATH="${pkgs.coreutils}/bin:${pkgs.gnugrep}/bin:${pkgs.gnused}/bin:${pkgs.util-linux}/bin:$PATH"
     
     # Called by Kea with environment variables:
     # LEASE4_ADDRESS - IPv4 address
@@ -65,6 +70,13 @@
     ) 200>"$HOSTS_LOCK"
   '';
 in {
+  # Export static hosts to network-metrics-exporter
+  services.network-metrics-exporter.staticClients = lib.mapAttrs (name: host: {
+    ip = host.ip;
+    mac = host.mac;
+    hostname = name;
+    deviceType = host.deviceType or "unknown";
+  }) (lib.filterAttrs (n: v: v.mac != null) staticHosts);
   # Disable systemd-networkd DHCP server
   systemd.network.networks."10-lan".networkConfig.DHCPServer = false;
 
@@ -77,9 +89,33 @@ in {
           interfaces = ["br-lan"];
         };
         
-        valid-lifetime = 43200; # 12 hours
+        valid-lifetime = 172800; # 48 hours - increased from 12 hours
+        max-valid-lifetime = 604800; # 7 days maximum
+        renew-timer = 43200; # Tell clients to renew after 12 hours
+        rebind-timer = 129600; # Tell clients to rebind after 36 hours
         
-        # Hook libraries for dynamic hosts file updates
+        # Reduce decline probation period from default 24 hours to 5 minutes
+        decline-probation-period = 300;
+        
+        # Lease database configuration
+        lease-database = {
+          type = "memfile";
+          persist = true;
+          name = "/var/lib/kea/kea-leases4.csv";
+          lfc-interval = 3600;  # Run lease file cleanup every hour to prevent duplicate buildup
+          # Keep expired leases for an additional 7 days before purging
+          max-row-errors = 100;
+        };
+        
+        # Expired lease processing - keep expired leases in memory for tracking
+        expired-leases-processing = {
+          reclaim-timer-wait-time = 3600; # Wait 1 hour before reclaiming expired leases
+          hold-reclaimed-time = 604800; # Hold reclaimed leases for 7 days
+          max-reclaim-leases = 100; # Process up to 100 expired leases at a time
+          max-reclaim-time = 250; # Spend max 250ms processing expired leases
+        };
+        
+        # Hook libraries for dynamic hosts file updates and statistics
         hooks-libraries = [
           {
             library = "${pkgs.kea}/lib/kea/hooks/libdhcp_run_script.so";
@@ -88,7 +124,17 @@ in {
               sync = false;
             };
           }
+          {
+            library = "${pkgs.kea}/lib/kea/hooks/libdhcp_stat_cmds.so";
+            parameters = {};
+          }
         ];
+        
+        # Enable control socket for metrics collection
+        control-socket = {
+          socket-type = "unix";
+          socket-name = "/var/lib/kea/kea-dhcp4.sock";
+        };
         
         subnet4 = [
           {
@@ -96,7 +142,7 @@ in {
             subnet = network;
             pools = [
               {
-                pool = "${netConfig.prefix}.100 - ${netConfig.prefix}.149";
+                pool = "${netConfig.prefix}.${toString netConfig.dhcpPool.start} - ${netConfig.prefix}.${toString netConfig.dhcpPool.end}";
               }
             ];
             

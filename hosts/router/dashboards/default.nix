@@ -57,6 +57,13 @@
       needsReplacement = false;
     }
     {
+      title = "DHCP Server";
+      id = 105;
+      file = ./parts/dhcp-panels.json;
+      panelsPerRow = 3;
+      needsReplacement = false;
+    }
+    {
       title = "NAT-PMP Server";
       id = 106;
       file = ./parts/natpmp-panels.json;
@@ -88,7 +95,7 @@
     collapsed ? false,
   }: {
     collapsed = collapsed;
-    datasource = "Prometheus";
+    datasource = "VictoriaMetrics";
     gridPos = {
       h = 1;
       w = 24;

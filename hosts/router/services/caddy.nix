@@ -14,9 +14,14 @@
       reverse_proxy localhost:3000
     }
 
-    # Prometheus - Metrics database
+    # VictoriaMetrics - Metrics database
+    handle /victoriametrics* {
+      reverse_proxy localhost:8428
+    }
+    
+    # Prometheus compatibility endpoint
     handle /prometheus* {
-      reverse_proxy localhost:9090
+      reverse_proxy localhost:8428
     }
 
     # Alertmanager - Alert management
@@ -27,6 +32,12 @@
     # Blocky DNS API
     handle /blocky* {
       reverse_proxy localhost:4000
+    }
+
+    # Grafito - System logs viewer
+    handle /logs* {
+      uri strip_prefix /logs
+      reverse_proxy localhost:8090
     }
 
     # Router dashboard
@@ -78,23 +89,13 @@ in {
   };
 
 
-  # Update Prometheus configuration for reverse proxy
-  services.prometheus = lib.mkMerge [
-    (lib.mkIf config.services.prometheus.enable {
-      webExternalUrl = "http://${routerIp}/prometheus/";
-      extraFlags = [
-        "--web.route-prefix=/prometheus"
-      ];
-    })
-    (lib.mkIf config.services.prometheus.alertmanager.enable {
-      alertmanager = {
-        webExternalUrl = "http://${routerIp}/alertmanager/";
-        extraFlags = [
-          "--web.route-prefix=/alertmanager"
-        ];
-      };
-    })
-  ];
+  # Update Alertmanager configuration for reverse proxy
+  services.prometheus.alertmanager = lib.mkIf config.services.prometheus.alertmanager.enable {
+    webExternalUrl = "http://${routerIp}/alertmanager/";
+    extraFlags = [
+      "--web.route-prefix=/alertmanager"
+    ];
+  };
 
   # Open firewall ports for Caddy (only on LAN interface)
   networking.firewall.interfaces.br-lan = {
