@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en" x-data="themeManager()" :data-theme="theme">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Router UI</title>
+    <link href="/static/css/app.css" rel="stylesheet">
+    <script defer src="/static/js/alpine.min.js"></script>
+</head>
+<body>
+    <div class="drawer lg:drawer-open">
+        <input id="drawer-toggle" type="checkbox" class="drawer-toggle" />
+        <div class="drawer-content flex flex-col">
+            <!-- Navbar -->
+            <div class="navbar bg-base-300 lg:hidden">
+                <div class="flex-none">
+                    <label for="drawer-toggle" class="btn btn-square btn-ghost">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-5 h-5 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                    </label>
+                </div>
+                <div class="flex-1">
+                    <a class="btn btn-ghost normal-case text-xl">Router UI</a>
+                </div>
+                <div class="flex-none">
+                    <div class="dropdown dropdown-end">
+                        <label tabindex="0" class="btn btn-ghost btn-circle">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+                            </svg>
+                        </label>
+                        <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
+                            <li><a @click="setTheme('light')">Light</a></li>
+                            <li><a @click="setTheme('dark')">Dark</a></li>
+                            <li><a @click="setTheme('cupcake')">Cupcake</a></li>
+                            <li><a @click="setTheme('emerald')">Emerald</a></li>
+                            <li><a @click="setTheme('corporate')">Corporate</a></li>
+                            <li><a @click="setTheme('synthwave')">Synthwave</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Page content -->
+            <main class="flex-1 p-4">
+                {{template "content" .}}
+            </main>
+        </div> 
+        
+        <div class="drawer-side">
+            <label for="drawer-toggle" class="drawer-overlay"></label>
+            <aside class="w-64 min-h-full bg-base-200">
+                <div class="p-4">
+                    <h1 class="text-2xl font-bold mb-8">Router UI</h1>
+                    <ul class="menu p-0 w-full">
+                        <li><a href="/dashboard" class="{{if eq .Page "dashboard"}}active{{end}}">Dashboard</a></li>
+                        <li><a href="/vpn" class="{{if eq .Page "vpn"}}active{{end}}">VPN Manager</a></li>
+                        <li><a href="/clients" class="{{if eq .Page "clients"}}active{{end}}">Clients</a></li>
+                    </ul>
+                </div>
+            </aside>
+        </div>
+    </div>
+    
+    <!-- Toast Container -->
+    <div class="toast toast-end toast-bottom" x-data="toastManager()" x-show="toasts.length > 0">
+        <template x-for="toast in toasts" :key="toast.id">
+            <div :class="`alert alert-${toast.type}`" x-show="toast.visible" x-transition>
+                <span x-text="toast.message"></span>
+                <button @click="removeToast(toast.id)" class="btn btn-ghost btn-xs">✕</button>
+            </div>
+        </template>
+    </div>
+    
+    <script src="/static/js/app.js"></script>
+    <script>
+        function themeManager() {
+            return {
+                theme: localStorage.getItem('theme') || 'dark',
+                
+                init() {
+                    // Apply saved theme on load
+                    this.$watch('theme', value => {
+                        localStorage.setItem('theme', value);
+                    });
+                },
+                
+                setTheme(newTheme) {
+                    this.theme = newTheme;
+                }
+            };
+        }
+        
+        function toastManager() {
+            return {
+                toasts: [],
+                
+                init() {
+                    // Listen for custom toast events
+                    window.addEventListener('show-toast', (event) => {
+                        this.addToast(event.detail.message, event.detail.type || 'info');
+                    });
+                },
+                
+                addToast(message, type = 'info') {
+                    const id = Date.now();
+                    const toast = {
+                        id,
+                        message,
+                        type,
+                        visible: false
+                    };
+                    
+                    this.toasts.push(toast);
+                    
+                    // Show toast after a small delay for animation
+                    setTimeout(() => {
+                        const index = this.toasts.findIndex(t => t.id === id);
+                        if (index !== -1) {
+                            this.toasts[index].visible = true;
+                        }
+                    }, 100);
+                    
+                    // Auto-remove after 5 seconds
+                    setTimeout(() => {
+                        this.removeToast(id);
+                    }, 5000);
+                },
+                
+                removeToast(id) {
+                    const index = this.toasts.findIndex(t => t.id === id);
+                    if (index !== -1) {
+                        this.toasts[index].visible = false;
+                        setTimeout(() => {
+                            this.toasts = this.toasts.filter(t => t.id !== id);
+                        }, 300);
+                    }
+                }
+            };
+        }
+        
+        // Global toast helper
+        window.showToast = function(message, type = 'info') {
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message, type }
+            }));
+        };
+    </script>
+</body>
+</html>
