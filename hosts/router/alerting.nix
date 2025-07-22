@@ -306,8 +306,7 @@ in {
                       summary: "High DNS block rate"
                       description: "DNS is blocking {{ $value | printf \"%.1f\" }}% of queries"
           '';
-        in
-          "${pkgs.victoriametrics}/bin/vmalert -datasource.url=http://localhost:8428 -notifier.url=http://localhost:9093 -rule=${alertRulesFile} -httpListenAddr=:8880";
+        in "${pkgs.victoriametrics}/bin/vmalert -datasource.url=http://localhost:8428 -notifier.url=http://localhost:9093 -rule=${alertRulesFile} -httpListenAddr=:8880";
         Restart = "always";
         RestartSec = "10s";
       };

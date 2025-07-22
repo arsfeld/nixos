@@ -2,12 +2,12 @@
   pythonEnv = pkgs.python3.withPackages (ps: [
     ps.jinja2
   ]);
-  
+
   # Python environment for LLM analysis
   pythonEnvLLM = pkgs.python3.withPackages (ps: [
     ps.google-generativeai
   ]);
-  
+
   # Main send-email-event script
   sendEmailEvent = pkgs.writeShellApplication {
     name = "send-email-event";
@@ -27,7 +27,7 @@
       ${pythonEnv}/bin/python ${./send-email.py} "$@"
     '';
   };
-  
+
   # LLM analysis script
   analyzeWithLLM = pkgs.writeShellApplication {
     name = "analyze-with-llm";
@@ -36,7 +36,7 @@
       ${pythonEnvLLM}/bin/python ${./analyze-with-llm.py} "$@"
     '';
   };
-  
+
   # GitHub issue creation script
   createGitHubIssue = pkgs.writeShellApplication {
     name = "create-github-issue";
@@ -50,5 +50,5 @@
 in
   pkgs.symlinkJoin {
     name = "send-email-event";
-    paths = [ sendEmailEvent analyzeWithLLM createGitHubIssue ];
+    paths = [sendEmailEvent analyzeWithLLM createGitHubIssue];
   }

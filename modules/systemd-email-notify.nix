@@ -72,10 +72,10 @@ with lib; let
     # Capture logs and status to temporary files for LLM analysis
     LOG_FILE=$(mktemp)
     STATUS_FILE=$(mktemp)
-    
+
     SYSTEMD_COLORS=1 journalctl -u "$1" --reverse --lines=50 -b > "$LOG_FILE"
     SYSTEMD_COLORS=1 systemctl status --full "$1" > "$STATUS_FILE"
-    
+
     # Perform LLM analysis if enabled and API key is available
     LLM_ANALYSIS=""
     ${optionalString config.systemdEmailNotify.enableLLMAnalysis ''
@@ -87,13 +87,13 @@ with lib; let
         # It's a direct API key
         export GOOGLE_API_KEY="${config.systemdEmailNotify.googleApiKey}"
       fi
-      
+
       if [ -n "$GOOGLE_API_KEY" ]; then
         LLM_ANALYSIS=$(${pkgs.send-email-event}/bin/analyze-with-llm "$1" "$LOG_FILE" "$STATUS_FILE" 2>/dev/null || echo "")
-        
+
         if [ -n "$LLM_ANALYSIS" ]; then
         LLM_ANALYSIS="
-        
+
         <h3 style='color: #1f2937; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Arial, sans-serif;'>AI Analysis</h3>
         <div style='background-color: #f0f4ff; border: 1px solid #4a90e2; border-radius: 8px; padding: 16px; margin: 16px 0;'>
         <pre style='white-space: pre-wrap; font-family: monospace; color: #1f2937; margin: 0;'>$LLM_ANALYSIS</pre>
@@ -101,11 +101,11 @@ with lib; let
         fi
       fi
     ''}
-    
+
     # Convert logs to HTML
     LOG_HTML=$(cat "$LOG_FILE" | ${pkgs.aha}/bin/aha -n)
     STATUS_HTML=$(cat "$STATUS_FILE" | ${pkgs.aha}/bin/aha -n)
-    
+
     # Create GitHub issue if enabled
     ${optionalString (config.systemdEmailNotify.enableGitHubIssues && config.systemdEmailNotify.gitHubRepo != "") ''
       LLM_FILE=""
@@ -113,7 +113,7 @@ with lib; let
         LLM_FILE=$(mktemp)
         echo "$LLM_ANALYSIS" | sed 's/<[^>]*>//g' > "$LLM_FILE"
       fi
-      
+
       ${pkgs.send-email-event}/bin/create-github-issue \
         --repo "${config.systemdEmailNotify.gitHubRepo}" \
         --service "$1" \
@@ -123,10 +123,10 @@ with lib; let
         --failure-count "$FAILURE_COUNT" \
         ${optionalString (config.systemdEmailNotify.enableLLMAnalysis) "--llm-analysis \"$LLM_FILE\""} \
         --update-interval ${toString config.systemdEmailNotify.gitHubUpdateInterval} || true
-      
+
       [ -n "$LLM_FILE" ] && rm -f "$LLM_FILE"
     ''}
-    
+
     # Clean up temp files
     rm -f "$LOG_FILE" "$STATUS_FILE"
 

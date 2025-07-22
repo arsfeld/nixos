@@ -85,7 +85,7 @@
   # Disable virtualization to save disk space
   constellation.virtualization.enable = false;
   constellation.netdataClient.enable = false;
-  
+
   # Enable Podman for containerized services
   constellation.podman.enable = true;
 

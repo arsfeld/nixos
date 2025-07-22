@@ -57,11 +57,13 @@
               EmitDNS = true;
               DNS = "2001:db8:ffff::1";
             };
-            ipv6Prefixes = [{
-              Prefix = "2001:db8:ffff::/64";
-              PreferredLifetimeSec = 3600;
-              ValidLifetimeSec = 7200;
-            }];
+            ipv6Prefixes = [
+              {
+                Prefix = "2001:db8:ffff::/64";
+                PreferredLifetimeSec = 3600;
+                ValidLifetimeSec = 7200;
+              }
+            ];
             # Delegate a /56 prefix to the router
             dhcpPrefixDelegationConfig = {
               UplinkInterface = ":self";
@@ -153,11 +155,13 @@
             DNS = "_link_local";
           };
           # Use delegated prefix for SLAAC
-          ipv6Prefixes = [{
-            Prefix = "::/64";
-            PreferredLifetimeSec = 3600;
-            ValidLifetimeSec = 7200;
-          }];
+          ipv6Prefixes = [
+            {
+              Prefix = "::/64";
+              PreferredLifetimeSec = 3600;
+              ValidLifetimeSec = 7200;
+            }
+          ];
           linkConfig.RequiredForOnline = "no";
         };
       };
@@ -170,17 +174,17 @@
 
             ct state established,related accept
             iif lo accept
-            
+
             # IPv4 ICMP
             ip protocol icmp accept
-            
+
             # IPv6 ICMPv6 (essential for IPv6)
-            ip6 nexthdr icmpv6 icmpv6 type { 
-              destination-unreachable, 
-              packet-too-big, 
-              time-exceeded, 
-              parameter-problem, 
-              echo-request, 
+            ip6 nexthdr icmpv6 icmpv6 type {
+              destination-unreachable,
+              packet-too-big,
+              time-exceeded,
+              parameter-problem,
+              echo-request,
               echo-reply,
               nd-router-solicit,
               nd-router-advert,
@@ -218,7 +222,7 @@
             type filter hook output priority 0; policy accept;
           }
         }
-        
+
         table ip nat {
           chain postrouting {
             type nat hook postrouting priority 100;
@@ -316,20 +320,20 @@
     with subtest("Router receives IPv6 prefix delegation"):
         # Router should have IPv6 on WAN
         router.wait_until_succeeds("ip -6 addr show eth1 | grep 2001:db8", timeout=30)
-        
+
         # Router should have delegated prefix on LAN
         router.wait_until_succeeds("ip -6 addr show br-lan | grep 2001:db8", timeout=30)
-        
+
         # Check IPv6 routing is enabled
         router.succeed("sysctl net.ipv6.conf.all.forwarding | grep 1")
 
     with subtest("Client receives IPv6 via SLAAC"):
         # Client should get IPv6 address via SLAAC
         client.wait_until_succeeds("ip -6 addr show eth1 | grep 2001:db8", timeout=30)
-        
+
         # Client should have default route via router
         client.wait_until_succeeds("ip -6 route | grep default", timeout=30)
-        
+
         # Verify client got both IPv4 and IPv6
         client.succeed("ip addr show eth1 | grep 'inet '")
         client.succeed("ip addr show eth1 | grep 'inet6 2001:db8'")
@@ -338,7 +342,7 @@
         # Client can ping router's IPv6 address
         router_ipv6 = router.succeed("ip -6 addr show br-lan | grep 2001:db8 | grep -v fe80 | awk '{print $2}' | cut -d/ -f1 | head -1").strip()
         client.succeed(f"ping -6 -c 1 {router_ipv6}")
-        
+
         # Client can ping ISP's IPv6
         client.succeed("ping -6 -c 1 2001:db8:ffff::1")
 
@@ -351,7 +355,7 @@
         # Verify both IPv4 and IPv6 work simultaneously
         client.succeed("ping -4 -c 1 10.1.1.1")
         client.succeed(f"ping -6 -c 1 {router_ipv6}")
-        
+
         # Verify both protocols can access external addresses
         client.succeed("ping -4 -c 1 192.168.100.1")
         client.succeed("ping -6 -c 1 2001:db8:ffff::1")
@@ -359,14 +363,14 @@
     with subtest("IPv6 firewall allows essential ICMPv6"):
         # Neighbor discovery should work
         client.succeed(f"ping -6 -c 1 {router_ipv6}")
-        
+
         # Path MTU discovery
         client.succeed(f"ping -6 -c 1 -s 1400 {router_ipv6}")
 
     with subtest("Router advertisements work correctly"):
         # Client should see router advertisements
         client.succeed("ip -6 route | grep ra-")
-        
+
         # Check RA flags
         output = client.succeed("rdisc6 eth1 || true")
         print(f"Router advertisement info: {output}")

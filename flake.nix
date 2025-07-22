@@ -75,18 +75,21 @@
       flake = {
         lib = let
           # Define packages loading function once
-          loadPackages = pkgs: 
-            let
-              loaded = inputs.haumea.lib.load {
-                src = ./packages;
-                loader = inputs.haumea.lib.loaders.callPackage;
-                inputs = { inherit pkgs; };
-              };
-            in
-              builtins.mapAttrs (name: value: 
-                if value ? default then value.default else value
-              ) loaded;
-          
+          loadPackages = pkgs: let
+            loaded = inputs.haumea.lib.load {
+              src = ./packages;
+              loader = inputs.haumea.lib.loaders.callPackage;
+              inputs = {inherit pkgs;};
+            };
+          in
+            builtins.mapAttrs (
+              name: value:
+                if value ? default
+                then value.default
+                else value
+            )
+            loaded;
+
           commonModules = inputs.nixpkgs.lib.flatten [
             inputs.agenix.nixosModules.default
             inputs.nix-flatpak.nixosModules.nix-flatpak

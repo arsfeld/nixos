@@ -41,8 +41,8 @@ in {
     # Configure gh CLI with the token
     systemd.services.configure-gh = {
       description = "Configure GitHub CLI authentication for notifications";
-      wantedBy = [ "multi-user.target" ];
-      after = [ "agenix.service" ];
+      wantedBy = ["multi-user.target"];
+      after = ["agenix.service"];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -61,7 +61,7 @@ in {
     };
 
     # Ensure gh is available system-wide
-    environment.systemPackages = [ pkgs.gh ];
+    environment.systemPackages = [pkgs.gh];
 
     # Enable GitHub issues for systemd failures if email notifications are configured
     systemdEmailNotify = mkIf (config.constellation.email.enable) {

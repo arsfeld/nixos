@@ -1,8 +1,8 @@
-{ lib
-, buildGoModule
-, fetchFromGitHub
+{
+  lib,
+  buildGoModule,
+  fetchFromGitHub,
 }:
-
 buildGoModule rec {
   pname = "signoz-otel-collector";
   version = "0.102.9";
@@ -14,10 +14,10 @@ buildGoModule rec {
     sha256 = "sha256-pyEYWptfG5ZvXfwJHlVPQsZkjc61qY3hTjOWQMkIHRU=";
   };
 
-  vendorHash = lib.fakeHash;  # Will be set after first build attempt
+  vendorHash = lib.fakeHash; # Will be set after first build attempt
 
   # Build the collector binary
-  subPackages = [ "." ];
+  subPackages = ["."];
 
   ldflags = [
     "-s"
@@ -32,6 +32,6 @@ buildGoModule rec {
     description = "SigNoz OpenTelemetry Collector - customized OTEL collector for SigNoz";
     homepage = "https://github.com/SigNoz/signoz-otel-collector";
     license = licenses.asl20;
-    maintainers = with maintainers; [ ];
+    maintainers = with maintainers; [];
   };
 }

@@ -1,59 +1,58 @@
-{ lib
-, stdenv
-, writeShellScript
-, callPackage
-}:
-
-let
+{
+  lib,
+  stdenv,
+  writeShellScript,
+  callPackage,
+}: let
   signoz-schema-migrator = callPackage ../signoz-schema-migrator {};
 in
-stdenv.mkDerivation rec {
-  pname = "signoz-clickhouse-schema";
-  version = "0.90.1";
+  stdenv.mkDerivation rec {
+    pname = "signoz-clickhouse-schema";
+    version = "0.90.1";
 
-  dontUnpack = true;
-  dontBuild = true;
+    dontUnpack = true;
+    dontBuild = true;
 
-  installPhase = ''
-    mkdir -p $out/share/signoz/clickhouse
-    
-    # Create initialization script that uses the migrator
-    cat > $out/share/signoz/clickhouse/init-signoz-db.sh << 'EOF'
-    #!/bin/bash
-    set -e
+    installPhase = ''
+      mkdir -p $out/share/signoz/clickhouse
 
-    CLICKHOUSE_HOST=''${CLICKHOUSE_HOST:-localhost}
-    CLICKHOUSE_PORT=''${CLICKHOUSE_PORT:-9000}
-    CLICKHOUSE_USER=''${CLICKHOUSE_USER:-default}
-    CLICKHOUSE_PASSWORD=''${CLICKHOUSE_PASSWORD:-}
+      # Create initialization script that uses the migrator
+      cat > $out/share/signoz/clickhouse/init-signoz-db.sh << 'EOF'
+      #!/bin/bash
+      set -e
 
-    echo "Initializing SigNoz ClickHouse databases using schema migrator..."
+      CLICKHOUSE_HOST=''${CLICKHOUSE_HOST:-localhost}
+      CLICKHOUSE_PORT=''${CLICKHOUSE_PORT:-9000}
+      CLICKHOUSE_USER=''${CLICKHOUSE_USER:-default}
+      CLICKHOUSE_PASSWORD=''${CLICKHOUSE_PASSWORD:-}
 
-    # Build DSN
-    if [ -n "$CLICKHOUSE_PASSWORD" ]; then
-      DSN="tcp://$CLICKHOUSE_HOST:$CLICKHOUSE_PORT?username=$CLICKHOUSE_USER&password=$CLICKHOUSE_PASSWORD"
-    else
-      DSN="tcp://$CLICKHOUSE_HOST:$CLICKHOUSE_PORT?username=$CLICKHOUSE_USER"
-    fi
+      echo "Initializing SigNoz ClickHouse databases using schema migrator..."
 
-    # Run sync migrations
-    echo "Running synchronous migrations..."
-    ${signoz-schema-migrator}/bin/signoz-schema-migrator sync --dsn="$DSN" --replication=false --up
+      # Build DSN
+      if [ -n "$CLICKHOUSE_PASSWORD" ]; then
+        DSN="tcp://$CLICKHOUSE_HOST:$CLICKHOUSE_PORT?username=$CLICKHOUSE_USER&password=$CLICKHOUSE_PASSWORD"
+      else
+        DSN="tcp://$CLICKHOUSE_HOST:$CLICKHOUSE_PORT?username=$CLICKHOUSE_USER"
+      fi
 
-    # Run async migrations
-    echo "Running asynchronous migrations..."
-    ${signoz-schema-migrator}/bin/signoz-schema-migrator async --dsn="$DSN" --replication=false --up
+      # Run sync migrations
+      echo "Running synchronous migrations..."
+      ${signoz-schema-migrator}/bin/signoz-schema-migrator sync --dsn="$DSN" --replication=false --up
 
-    echo "SigNoz ClickHouse initialization complete!"
-    EOF
+      # Run async migrations
+      echo "Running asynchronous migrations..."
+      ${signoz-schema-migrator}/bin/signoz-schema-migrator async --dsn="$DSN" --replication=false --up
 
-    chmod +x $out/share/signoz/clickhouse/init-signoz-db.sh
-  '';
+      echo "SigNoz ClickHouse initialization complete!"
+      EOF
 
-  meta = with lib; {
-    description = "SigNoz ClickHouse schema initialization using official migrator";
-    homepage = "https://signoz.io";
-    license = licenses.asl20;
-    maintainers = with maintainers; [ ];
-  };
-}
+      chmod +x $out/share/signoz/clickhouse/init-signoz-db.sh
+    '';
+
+    meta = with lib; {
+      description = "SigNoz ClickHouse schema initialization using official migrator";
+      homepage = "https://signoz.io";
+      license = licenses.asl20;
+      maintainers = with maintainers; [];
+    };
+  }

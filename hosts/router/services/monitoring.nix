@@ -359,16 +359,20 @@ in {
         group_wait: 10s
         group_interval: 10s
         repeat_interval: 1h
-        receiver: ${if config.router.alerting.enable && config.router.alerting.ntfyUrl != null then "'ntfy'" else "'null'"}
+        receiver: ${
+        if config.router.alerting.enable && config.router.alerting.ntfyUrl != null
+        then "'ntfy'"
+        else "'null'"
+      }
 
       receivers:
       - name: 'null'
         # Null receiver - discards all alerts
       ${lib.optionalString (config.router.alerting.enable && config.router.alerting.ntfyUrl != null) ''
-      - name: 'ntfy'
-        webhook_configs:
-        - url: '${config.router.alerting.ntfyUrl}'
-          send_resolved: true
+        - name: 'ntfy'
+          webhook_configs:
+          - url: '${config.router.alerting.ntfyUrl}'
+            send_resolved: true
       ''}
     '';
   };

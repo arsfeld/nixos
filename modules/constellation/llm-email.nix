@@ -29,7 +29,7 @@
 }:
 with lib; {
   # Import the systemd email notification module at the top level
-  imports = [ ../systemd-email-notify.nix ];
+  imports = [../systemd-email-notify.nix];
 
   options.constellation.llmEmail = {
     enable = mkOption {
@@ -38,7 +38,7 @@ with lib; {
       description = ''
         Enable AI-powered analysis for systemd service failure notifications.
         Requires constellation.email to be enabled and a Google API key.
-        
+
         This adds intelligent crash log analysis to email notifications,
         providing root cause analysis and resolution suggestions.
       '';
@@ -68,7 +68,7 @@ with lib; {
       # Use email addresses from constellation.email
       toEmail = mkDefault config.constellation.email.toEmail;
       fromEmail = mkDefault config.constellation.email.fromEmail;
-      
+
       # Enable LLM analysis
       enableLLMAnalysis = true;
       googleApiKey = config.age.secrets.google-api-key.path;
