@@ -46,6 +46,7 @@ jobs:
       - name: Install devenv
         run: |
           nix-env -iA devenv -f https://github.com/NixOS/nixpkgs/tarball/nixpkgs-unstable
+          devenv up
 
       - name: Build documentation
         run: |
