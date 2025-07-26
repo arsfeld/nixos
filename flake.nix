@@ -202,6 +202,12 @@
               ./hosts/router/configuration.nix
             ];
           };
+          cottage = self.lib.mkLinuxSystem {
+            mods = [
+              inputs.disko.nixosModules.disko
+              ./hosts/cottage/configuration.nix
+            ];
+          };
           r2s = self.lib.mkLinuxSystem {
             mods = [
               inputs.eh5.nixosModules.fake-hwclock
@@ -218,6 +224,7 @@
           deployOverrides = {
             storage = {}; # Use all defaults
             router = {}; # Use all defaults
+            cottage = {}; # Use all defaults
             cloud = {
               system = "aarch64-linux";
               remoteBuild = true;
@@ -281,6 +288,13 @@
 
           # Router QEMU test
           router-test = inputs.nixpkgs.legacyPackages.x86_64-linux.callPackage ./tests/router-qemu-test.nix {};
+          
+          # Custom kexec image with Tailscale for nixos-anywhere
+          kexec-tailscale = inputs.nixos-generators.nixosGenerate {
+            pkgs = inputs.nixpkgs.legacyPackages.x86_64-linux;
+            modules = [ ./kexec-tailscale.nix ];
+            format = "kexec-bundle";
+          };
         };
       };
     });
