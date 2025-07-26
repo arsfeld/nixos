@@ -113,13 +113,66 @@
 
               # Get lease statistics
               lease_stats=$(get_lease_stats)
-
-              # Active leases from lease file (fallback method)
+              # Active leases from lease file (counting unique IP addresses)
               if [ -f "/var/lib/kea/kea-leases4.csv" ]; then
-                active_leases=$(grep -v '^#' /var/lib/kea/kea-leases4.csv 2>/dev/null | wc -l || echo "0")
-                echo "# HELP kea_dhcp4_active_leases Number of active DHCP leases"
+                # Get current timestamp
+                current_time=$(date +%s)
+                
+                # Count unique IP addresses with non-expired leases (state=0 means active)
+                active_leases=$(grep -v '^#' /var/lib/kea/kea-leases4.csv 2>/dev/null | \
+                  awk -F, -v now="$current_time" '$10 == 0 && $5 > now {print $1}' | \
+                  sort -u | wc -l || echo "0")
+                
+                echo "# HELP kea_dhcp4_active_leases Number of unique active DHCP leases"
                 echo "# TYPE kea_dhcp4_active_leases gauge"
                 echo "kea_dhcp4_active_leases $active_leases"
+                
+                # Export individual lease information
+                echo "# HELP kea_dhcp4_lease_info DHCP lease information (1=active, 0=expired)"
+                echo "# TYPE kea_dhcp4_lease_info gauge"
+                
+                # Get hostname mapping from DHCP hosts file
+                declare -A hostnames
+                if [ -f "/var/lib/kea/dhcp-hosts" ]; then
+                  while IFS=' ' read -r ip hostname rest; do
+                    if [[ ! "$ip" =~ ^# ]] && [ -n "$ip" ] && [ -n "$hostname" ]; then
+                      # Remove .lan suffix if present
+                      hostname=''${hostname%.lan}
+                      hostnames["$ip"]="$hostname"
+                    fi
+                  done < /var/lib/kea/dhcp-hosts
+                fi
+                
+                # Process each lease in the CSV file
+                # CSV format: IP,hwaddr,client_id,valid_lifetime,expire,subnet_id,fqdn_fwd,fqdn_rev,hostname,state
+                grep -v '^#' /var/lib/kea/kea-leases4.csv 2>/dev/null | while IFS=',' read -r ip hwaddr client_id valid_lifetime expire subnet_id fqdn_fwd fqdn_rev hostname state rest; do
+                  # Skip if state is not 0 (active)
+                  if [ "$state" != "0" ]; then
+                    continue
+                  fi
+                  
+                  # Check if lease is expired
+                  if [ "$expire" -le "$current_time" ]; then
+                    continue
+                  fi
+                  
+                  # Calculate remaining time
+                  remaining=$((expire - current_time))
+                  
+                  # Get hostname from various sources
+                  display_name="unknown"
+                  if [ -n "''${hostnames[$ip]}" ]; then
+                    display_name="''${hostnames[$ip]}"
+                  elif [ -n "$hostname" ] && [ "$hostname" != "" ]; then
+                    display_name="$hostname"
+                  fi
+                  
+                  # Clean up MAC address format
+                  mac_clean=$(echo "$hwaddr" | tr -d ':' | tr '[:upper:]' '[:lower:]')
+                  
+                  # Output metric with labels
+                  echo "kea_dhcp4_lease_info{ip=\"$ip\",mac=\"$hwaddr\",hostname=\"$display_name\",expire_ts=\"$expire\",remaining_s=\"$remaining\"} 1"
+                done
               fi
 
               # Pool utilization calculation
@@ -129,15 +182,16 @@
               total_pool_size=$((pool_end - pool_start + 1))
 
               if [ -f "/var/lib/kea/kea-leases4.csv" ]; then
-                # Count all leases in the pool range
+                # Count unique IP addresses in the pool range with active leases
                 pool_leases=$(grep -v '^#' /var/lib/kea/kea-leases4.csv 2>/dev/null | \
-                  awk -F, -v prefix="${config.router.network.prefix}" -v start="$pool_start" -v end="$pool_end" \
-                  '$1 ~ "^"prefix"\\." {
+                  awk -F, -v prefix="${config.router.network.prefix}" -v start="$pool_start" -v end="$pool_end" -v now="$current_time" \
+                  '$10 == 0 && $5 > now && $1 ~ "^"prefix"\\." {
                     split($1, parts, ".")
                     last_octet = parts[4]
-                    if (last_octet >= start && last_octet <= end) count++
-                  } END {print count+0}' || echo "0")
-
+                    if (last_octet >= start && last_octet <= end) {
+                      ips[$1] = 1
+                    }
+                  } END {print length(ips)+0}' || echo "0")
                 pool_utilization=$(echo "scale=2; $pool_leases * 100 / $total_pool_size" | bc -l 2>/dev/null || echo "0")
 
                 echo "# HELP kea_dhcp4_pool_utilization_percent DHCP pool utilization percentage"

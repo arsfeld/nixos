@@ -108,12 +108,12 @@
       },
       "targets": [
         {
-          "expr": "speedtest_download_mbps",
+          "expr": "speedtest_download_bits_per_second / 1000000",
           "legendFormat": "Download",
           "refId": "A"
         },
         {
-          "expr": "speedtest_upload_mbps",
+          "expr": "speedtest_upload_bits_per_second / 1000000",
           "legendFormat": "Upload",
           "refId": "B"
         }
@@ -174,7 +174,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "speedtest_ping_ms",
+          "expr": "speedtest_ping_milliseconds",
           "refId": "A"
         }
       ],
@@ -244,7 +244,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "speedtest_success",
+          "expr": "speedtest_last_run_timestamp > (time() - 18000)",
           "refId": "A"
         }
       ],
@@ -296,7 +296,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "speedtest_timestamp_seconds * 1000",
+          "expr": "speedtest_last_run_timestamp * 1000",
           "refId": "A"
         }
       ],
