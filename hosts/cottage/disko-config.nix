@@ -1,6 +1,6 @@
 # ZFS disko configuration for cottage
 # Boot SSD + ZFS RAID array for storage
-{ ... }: {
+{...}: {
   disko.devices = {
     disk = {
       # Boot SSD - Samsung 512GB
@@ -30,7 +30,7 @@
           };
         };
       };
-      
+
       # Data disks for ZFS RAID
       # Using 3 of the 4TB drives for RAID-Z (equivalent to RAID-5)
       data1 = {
@@ -82,11 +82,11 @@
         };
       };
     };
-    
+
     zpool = {
       tank = {
         type = "zpool";
-        mode = "raidz";  # RAID-Z equivalent to RAID-5
+        mode = "raidz"; # RAID-Z equivalent to RAID-5
         rootFsOptions = {
           compression = "zstd";
           atime = "off";
@@ -103,7 +103,7 @@
               "com.sun:auto-snapshot" = "true";
             };
           };
-          
+
           # Dataset for backup storage
           backups = {
             type = "zfs_fs";
@@ -113,7 +113,7 @@
               "com.sun:auto-snapshot" = "true";
             };
           };
-          
+
           # Dataset for general data
           data = {
             type = "zfs_fs";
@@ -124,9 +124,9 @@
             };
           };
         };
-        
+
         # Mount options for resilience
-        mountOptions = [ "nofail" ];
+        mountOptions = ["nofail"];
       };
     };
   };

@@ -117,20 +117,20 @@
               if [ -f "/var/lib/kea/kea-leases4.csv" ]; then
                 # Get current timestamp
                 current_time=$(date +%s)
-                
+
                 # Count unique IP addresses with non-expired leases (state=0 means active)
                 active_leases=$(grep -v '^#' /var/lib/kea/kea-leases4.csv 2>/dev/null | \
                   awk -F, -v now="$current_time" '$10 == 0 && $5 > now {print $1}' | \
                   sort -u | wc -l || echo "0")
-                
+
                 echo "# HELP kea_dhcp4_active_leases Number of unique active DHCP leases"
                 echo "# TYPE kea_dhcp4_active_leases gauge"
                 echo "kea_dhcp4_active_leases $active_leases"
-                
+
                 # Export individual lease information
                 echo "# HELP kea_dhcp4_lease_info DHCP lease information (1=active, 0=expired)"
                 echo "# TYPE kea_dhcp4_lease_info gauge"
-                
+
                 # Get hostname mapping from DHCP hosts file
                 declare -A hostnames
                 if [ -f "/var/lib/kea/dhcp-hosts" ]; then
@@ -142,7 +142,7 @@
                     fi
                   done < /var/lib/kea/dhcp-hosts
                 fi
-                
+
                 # Process each lease in the CSV file
                 # CSV format: IP,hwaddr,client_id,valid_lifetime,expire,subnet_id,fqdn_fwd,fqdn_rev,hostname,state
                 grep -v '^#' /var/lib/kea/kea-leases4.csv 2>/dev/null | while IFS=',' read -r ip hwaddr client_id valid_lifetime expire subnet_id fqdn_fwd fqdn_rev hostname state rest; do
@@ -150,15 +150,15 @@
                   if [ "$state" != "0" ]; then
                     continue
                   fi
-                  
+
                   # Check if lease is expired
                   if [ "$expire" -le "$current_time" ]; then
                     continue
                   fi
-                  
+
                   # Calculate remaining time
                   remaining=$((expire - current_time))
-                  
+
                   # Get hostname from various sources
                   display_name="unknown"
                   if [ -n "''${hostnames[$ip]}" ]; then
@@ -166,10 +166,10 @@
                   elif [ -n "$hostname" ] && [ "$hostname" != "" ]; then
                     display_name="$hostname"
                   fi
-                  
+
                   # Clean up MAC address format
                   mac_clean=$(echo "$hwaddr" | tr -d ':' | tr '[:upper:]' '[:lower:]')
-                  
+
                   # Output metric with labels
                   echo "kea_dhcp4_lease_info{ip=\"$ip\",mac=\"$hwaddr\",hostname=\"$display_name\",expire_ts=\"$expire\",remaining_s=\"$remaining\"} 1"
                 done
