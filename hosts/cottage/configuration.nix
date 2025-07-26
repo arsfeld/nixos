@@ -9,27 +9,28 @@
 with lib; {
   imports = [
     ./hardware-configuration.nix
-    ./disko-config.nix
+    # ./disko-config.nix  # Disabled for nixos-infect - using existing ZFS pools
     ./services
-    ./backup
+    # ./backup  # Disabled until data pool is recreated
   ];
 
   # Enable all constellation modules
   constellation = {
-    backup.enable = true;
+    backup.enable = false;  # Disabled until data pool is recreated
     common.enable = true;
     email.enable = true;
-    media.enable = true;
+    media.enable = false;  # Disabled until data pool is recreated
     podman.enable = true;
     services.enable = true;
     virtualization.enable = true;
   };
 
   # Enable media services with cottage-specific domain
-  media.config = {
-    enable = true;
-    domain = "arsfeld.com";
-  };
+  # Disabled until data pool is recreated
+  # media.config = {
+  #   enable = true;
+  #   domain = "arsfeld.com";
+  # };
 
   # Host-specific settings
   networking = {
