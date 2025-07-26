@@ -16,10 +16,10 @@ with lib; {
 
   # Enable all constellation modules
   constellation = {
-    backup.enable = false;  # Disabled until data pool is recreated
+    backup.enable = false; # Disabled until data pool is recreated
     common.enable = true;
     email.enable = true;
-    media.enable = false;  # Disabled until data pool is recreated
+    media.enable = false; # Disabled until data pool is recreated
     podman.enable = true;
     services.enable = true;
     virtualization.enable = true;
@@ -36,10 +36,10 @@ with lib; {
   networking = {
     hostName = "cottage";
     hostId = "d4c0ffee"; # Required for ZFS
-    
+
     # Use DHCP as fallback on all interfaces
     useDHCP = true;
-    
+
     # Ensure network doesn't block boot
     dhcpcd = {
       wait = "background"; # Don't wait for DHCP during boot
@@ -53,7 +53,7 @@ with lib; {
       '';
     };
   };
-  
+
   # Emergency SSH access
   services.openssh = {
     enable = true;
@@ -64,13 +64,13 @@ with lib; {
     # Start SSH early in boot process
     startWhenNeeded = false;
   };
-  
+
   # Ensure SSH starts even if network is degraded
   systemd.services.sshd = {
-    wantedBy = [ "multi-user.target" ];
-    after = lib.mkForce [ "network.target" ];
+    wantedBy = ["multi-user.target"];
+    after = lib.mkForce ["network.target"];
   };
-  
+
   nixpkgs.hostPlatform = "x86_64-linux";
 
   # Bootloader configuration
@@ -79,29 +79,29 @@ with lib; {
 
   # Kernel settings
   boot = {
-    binfmt.emulatedSystems = [ "aarch64-linux" ];
-    kernelModules = [ "kvm-intel" "ip6_tables" ];
-    supportedFilesystems = [ "zfs" ];
-    
+    binfmt.emulatedSystems = ["aarch64-linux"];
+    kernelModules = ["kvm-intel" "ip6_tables"];
+    supportedFilesystems = ["zfs"];
+
     # ZFS boot resilience
     zfs = {
       forceImportRoot = false; # Don't force import root pool
       forceImportAll = false; # Don't force import other pools
       allowHibernation = false; # Disable hibernation for ZFS stability
     };
-    
+
     # Allow booting with degraded ZFS pools
-    kernelParams = [ 
+    kernelParams = [
       "zfs.zfs_scan_vdev_limit=16M" # Limit resilver speed to prevent overload
       "nohibernate" # Disable hibernation
     ];
-    
+
     # ZFS import configuration - allow degraded imports
     initrd.systemd.services."zfs-import-degraded" = {
       description = "Import ZFS pools with degraded support";
-      after = [ "zfs-import.target" ];
-      before = [ "zfs.target" ];
-      wantedBy = [ "zfs.target" ];
+      after = ["zfs-import.target"];
+      before = ["zfs.target"];
+      wantedBy = ["zfs.target"];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -128,7 +128,7 @@ with lib; {
   systemd.services.NetworkManager-wait-online.enable = false;
 
   # Caddy configuration for SSL certificates
-  users.users.caddy.extraGroups = [ "acme" ];
+  users.users.caddy.extraGroups = ["acme"];
 
   security.acme = {
     acceptTerms = true;
@@ -171,7 +171,7 @@ with lib; {
 
   # Graphics support for hardware acceleration
   nixpkgs.config.packageOverrides = pkgs: {
-    vaapiIntel = pkgs.vaapiIntel.override { enableHybridCodec = true; };
+    vaapiIntel = pkgs.vaapiIntel.override {enableHybridCodec = true;};
   };
 
   hardware.graphics = {
@@ -197,7 +197,7 @@ with lib; {
   # Ensure boot continues even if filesystems fail
   boot.initrd.systemd.enable = true;
   boot.initrd.systemd.emergencyAccess = true;
-  
+
   # System state version
   system.stateVersion = "25.05";
 }

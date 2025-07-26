@@ -1,8 +1,12 @@
 # Custom kexec image with Tailscale for nixos-anywhere
 # This allows maintaining Tailscale connectivity during installation
-{ config, lib, pkgs, modulesPath, ... }:
-
 {
+  config,
+  lib,
+  pkgs,
+  modulesPath,
+  ...
+}: {
   imports = [
     # Base kexec installer
     (modulesPath + "/installer/netboot/netboot-minimal.nix")
@@ -10,7 +14,7 @@
 
   # Basic system configuration
   system.stateVersion = config.system.nixos.release;
-  
+
   # Kernel configuration for kexec
   boot.kernelParams = [
     "panic=30"
@@ -46,12 +50,12 @@
     useNetworkd = true;
     # Don't block on network
     dhcpcd.wait = "background";
-    
+
     # Firewall configuration
     firewall = {
       enable = true;
-      allowedTCPPorts = [ 22 ]; # SSH
-      trustedInterfaces = [ "tailscale0" ];
+      allowedTCPPorts = [22]; # SSH
+      trustedInterfaces = ["tailscale0"];
       # Allow Tailscale to work
       checkReversePath = "loose";
     };
@@ -65,26 +69,26 @@
     curl
     wget
     git
-    
+
     # Disk tools
     parted
     gptfdisk
     cryptsetup
-    
+
     # Filesystem tools
     e2fsprogs
     btrfs-progs
     xfsprogs
     zfs
-    
+
     # Network tools
     iproute2
     iputils
     dnsutils
-    
+
     # Tailscale CLI
     tailscale
-    
+
     # For debugging
     htop
     iotop
@@ -92,9 +96,9 @@
   ];
 
   # Enable ZFS support
-  boot.supportedFilesystems = [ "zfs" ];
+  boot.supportedFilesystems = ["zfs"];
   boot.zfs.forceImportRoot = false;
-  
+
   # Auto-login as root for easier access
   services.getty.autologinUser = lib.mkDefault "root";
 
@@ -107,10 +111,10 @@
   # Create a systemd service to restore Tailscale state if provided
   systemd.services.restore-tailscale-state = {
     description = "Restore Tailscale state from previous system";
-    after = [ "network.target" ];
-    before = [ "tailscaled.service" ];
-    wantedBy = [ "multi-user.target" ];
-    
+    after = ["network.target"];
+    before = ["tailscaled.service"];
+    wantedBy = ["multi-user.target"];
+
     script = ''
       # Check if Tailscale state was preserved
       if [ -f /tmp/tailscale-state.tar.gz ]; then
@@ -122,7 +126,7 @@
         echo "No Tailscale state to restore"
       fi
     '';
-    
+
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
@@ -135,12 +139,12 @@
     text = ''
       #!/usr/bin/env bash
       set -euo pipefail
-      
+
       echo "=== NixOS Anywhere Tailscale Setup ==="
       echo ""
       echo "This kexec installer includes Tailscale for maintaining connectivity."
       echo ""
-      
+
       # Check if Tailscale is already authenticated
       if tailscale status &>/dev/null; then
         echo "✓ Tailscale is already connected!"
@@ -154,7 +158,7 @@
         echo "If you have a pre-auth key:"
         echo "  tailscale up --authkey=YOUR_KEY"
       fi
-      
+
       echo ""
       echo "Once Tailscale is connected, run nixos-anywhere as usual."
     '';
@@ -162,7 +166,7 @@
 
   # Show instructions on login
   services.getty.helpLine = ''
-    
+
     === NixOS Installer with Tailscale ===
     Run '/etc/nixos-anywhere-tailscale-setup.sh' for Tailscale setup instructions.
   '';
