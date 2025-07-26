@@ -26,6 +26,7 @@ concurrency:
 
 jobs:
   build:
+    name: Build documentation
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -46,6 +47,7 @@ jobs:
       - name: Install devenv
         run: |
           nix-env -iA devenv -f https://github.com/NixOS/nixpkgs/tarball/nixpkgs-unstable
+          echo "/home/runner/.nix-profile/bin" >> $GITHUB_PATH
           devenv up
 
       - name: Build documentation
