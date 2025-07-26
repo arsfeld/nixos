@@ -197,7 +197,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Host | Platform | Status | Duration |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|---|---|" >> $GITHUB_STEP_SUMMARY
-          for job in ${{ toJSON(needs.build-matrix.outputs) }}; do
+          echo '${{ toJSON(needs.build-matrix.outputs) }}' | jq -c '.[]' | while read -r job; do
             host=$(echo "$job" | jq -r '.host')
             platform=$(echo "$job" | jq -r '.platform')
             status=$(echo "$job" | jq -r '.status')
