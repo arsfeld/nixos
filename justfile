@@ -145,21 +145,124 @@ router-test:
 router-test-production:
     nix build .#checks.x86_64-linux.router-test-production -L
 
-# Install any host configuration to a running NixOS system via SSH using nixos-anywhere
+# Build custom kexec image with Tailscale support
+build-kexec-tailscale:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    echo "Building custom kexec image with Tailscale support..."
+    nix build ".#kexec-tailscale" -L
+    
+    echo ""
+    echo "Kexec image built successfully!"
+    echo "Output: ./result"
+    echo ""
+    echo "To use with nixos-anywhere:"
+    echo "  just install-tailscale <host> <target>"
+    echo ""
+    echo "Or manually:"
+    echo "  nixos-anywhere --kexec ./result --flake .#<host> root@<target>"
+
+# Install any host configuration using nixos-anywhere with Tailscale-enabled kexec
+# This maintains Tailscale connectivity throughout the installation process
+install-tailscale HOST TARGET_IP:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    echo "Installing {{ HOST }} to {{ TARGET_IP }} using nixos-anywhere with Tailscale kexec..."
+    echo ""
+    echo "This method uses a custom kexec image that includes Tailscale,"
+    echo "allowing you to maintain connectivity throughout the installation."
+    echo ""
+    
+    # Build the kexec image if it doesn't exist
+    if [ ! -e result ] || [ ! -e result/kexec-installer ]; then
+        echo "Building custom kexec image..."
+        nix build ".#kexec-tailscale" -L || {
+            echo "Failed to build kexec image"
+            exit 1
+        }
+    fi
+    
+    echo "Using kexec image at: ./result"
+    echo ""
+    read -p "Continue with installation? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Aborted."
+        exit 1
+    fi
+    
+    # Create temporary directory for state preservation
+    TMPDIR=$(mktemp -d)
+    trap 'rm -rf -- "$TMPDIR"' EXIT
+    
+    # Try to preserve Tailscale state
+    echo "Checking for existing Tailscale state..."
+    if ssh root@{{ TARGET_IP }} "test -d /var/lib/tailscale || test -d /var/db/tailscale" 2>/dev/null; then
+        echo "Found Tailscale state, preserving it..."
+        ssh root@{{ TARGET_IP }} "tar -czf - -C / var/lib/tailscale 2>/dev/null || tar -czf - -C / var/db/tailscale 2>/dev/null" > "$TMPDIR/tailscale-state.tar.gz" || {
+            echo "Warning: Could not extract Tailscale state."
+        }
+        
+        if [ -f "$TMPDIR/tailscale-state.tar.gz" ] && [ -s "$TMPDIR/tailscale-state.tar.gz" ]; then
+            echo "Uploading Tailscale state to target..."
+            scp "$TMPDIR/tailscale-state.tar.gz" root@{{ TARGET_IP }}:/tmp/ || {
+                echo "Warning: Could not upload Tailscale state"
+            }
+        fi
+    fi
+    
+    echo ""
+    echo "Running nixos-anywhere with custom kexec..."
+    echo "The target will reboot into the installer with Tailscale support."
+    echo ""
+    
+    # Prepare extra files if we have them
+    EXTRA_FILES_ARG=""
+    if [ -d "$TMPDIR/extra-files" ] && [ -n "$(ls -A "$TMPDIR/extra-files")" ]; then
+        EXTRA_FILES_ARG="--extra-files $TMPDIR/extra-files"
+    fi
+    
+    # Run nixos-anywhere with our custom kexec
+    nix run github:nix-community/nixos-anywhere -- \
+        --kexec ./result \
+        --flake .#{{ HOST }} \
+        --copy-host-keys \
+        $EXTRA_FILES_ARG \
+        root@{{ TARGET_IP }}
+    
+    echo ""
+    echo "Installation complete!"
+    echo "The system should be accessible via Tailscale at {{ HOST }}.bat-boa.ts.net"
+
+# Install any host configuration to a running system via SSH using nixos-anywhere
+# WARNING: This will completely wipe and reinstall the target system!
 install HOST TARGET_IP:
     #!/usr/bin/env bash
     set -euo pipefail
     
     echo "Installing {{ HOST }} configuration to {{ TARGET_IP }} using nixos-anywhere..."
-    echo "This will:"
+    echo ""
+    echo "⚠️  WARNING: This will COMPLETELY WIPE the target system!"
+    echo ""
+    echo "Installation process:"
     echo "  1. Connect to the target host via SSH"
-    echo "  2. Partition and format the disk using disko"
-    echo "  3. Install NixOS with the {{ HOST }} configuration"
+    echo "  2. Preserve Tailscale state if available"
+    echo "  3. Boot into installer via kexec (you may lose connection here)"
+    echo "  4. Partition and format the disk using disko"
+    echo "  5. Install NixOS with the {{ HOST }} configuration"
+    echo "  6. Restore preserved state and reboot"
     echo ""
     echo "Prerequisites:"
-    echo "  - Target host must be booted into NixOS installer ISO"
-    echo "  - SSH access as root must be enabled"
-    echo "  - Network connectivity must be working"
+    echo "  - SSH access as root to the target"
+    echo "  - Network connectivity"
+    echo ""
+    echo "IMPORTANT for Tailscale users:"
+    echo "  - If connected via Tailscale, you WILL lose connection during kexec"
+    echo "  - Ensure the target has a non-Tailscale IP accessible"
+    echo "  - Or run this from a machine on the same local network"
+    echo "  - Tailscale will be restored after installation completes"
     echo ""
     read -p "Continue? (y/N) " -n 1 -r
     echo
@@ -168,19 +271,117 @@ install HOST TARGET_IP:
         exit 1
     fi
     
+    # Create temporary directory for state preservation
+    TMPDIR=$(mktemp -d)
+    trap 'rm -rf -- "$TMPDIR"' EXIT
+    
+    # Detect if we're using a Tailscale IP
+    if [[ {{ TARGET_IP }} == *.ts.net ]] || [[ {{ TARGET_IP }} == 100.* ]]; then
+        echo ""
+        echo "⚠️  WARNING: You appear to be using a Tailscale address!"
+        echo "You will lose connection when the installer starts."
+        echo ""
+        echo "Alternative options:"
+        echo "1. Use the target's local IP address instead"
+        echo "2. Set up a jump host on the same network"
+        echo "3. Ensure the target has a public IP"
+        echo ""
+        read -p "Do you want to proceed anyway? (y/N) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Aborted. Please use a non-Tailscale IP address."
+            exit 1
+        fi
+    fi
+    
+    # Try to preserve Tailscale state if it exists
+    echo "Checking for existing Tailscale state..."
+    if ssh root@{{ TARGET_IP }} "test -d /var/lib/tailscale || test -d /var/db/tailscale" 2>/dev/null; then
+        echo "Found Tailscale state, preserving it..."
+        ssh root@{{ TARGET_IP }} "tar -czf - -C / var/lib/tailscale 2>/dev/null || tar -czf - -C / var/db/tailscale 2>/dev/null" > "$TMPDIR/tailscale-state.tar.gz" || {
+            echo "Warning: Could not extract Tailscale state."
+        }
+        
+        if [ -f "$TMPDIR/tailscale-state.tar.gz" ]; then
+            mkdir -p "$TMPDIR/extra-files"
+            tar -xzf "$TMPDIR/tailscale-state.tar.gz" -C "$TMPDIR/extra-files"
+            echo "Tailscale state extracted successfully"
+        fi
+    else
+        echo "No Tailscale state found on target"
+    fi
+    
+    # Build nixos-anywhere command
+    NIXOS_ANYWHERE_CMD="nix run github:nix-community/nixos-anywhere -- --flake .#{{ HOST }}"
+    
+    # Add extra files if we have them
+    if [ -d "$TMPDIR/extra-files" ] && [ -n "$(ls -A "$TMPDIR/extra-files")" ]; then
+        NIXOS_ANYWHERE_CMD="$NIXOS_ANYWHERE_CMD --extra-files $TMPDIR/extra-files"
+    fi
+    
+    # Always copy host keys if they exist
+    NIXOS_ANYWHERE_CMD="$NIXOS_ANYWHERE_CMD --copy-host-keys"
+    
     # Install using nixos-anywhere
-    nix run github:nix-community/nixos-anywhere -- \
-        --flake .#{{ HOST }} \
-        root@{{ TARGET_IP }}
+    echo ""
+    echo "Starting installation..."
+    echo "NOTE: You may see 'Connection closed' - this is expected during kexec."
+    $NIXOS_ANYWHERE_CMD root@{{ TARGET_IP }}
     
     echo ""
     echo "Installation complete! The system should automatically reboot."
-    echo "After reboot, you can deploy updates with: just deploy {{ HOST }}"
+    if [ -d "$TMPDIR/extra-files" ] && [ -n "$(ls -A "$TMPDIR/extra-files")" ]; then
+        echo "Tailscale state has been preserved - after reboot, the host will be accessible via Tailscale."
+    fi
     echo ""
-    echo "First steps after installation:"
-    echo "  1. Set up Tailscale: tailscale up"
-    echo "  2. Monitor services: systemctl status"
-    echo "  3. Check host-specific configuration"
+    echo "After reboot:"
+    echo "  - If Tailscale was preserved: Connect via {{ HOST }}.bat-boa.ts.net"
+    echo "  - Otherwise: Connect via {{ TARGET_IP }} and run 'tailscale up'"
+    echo "  - Deploy updates with: just deploy {{ HOST }}"
+
+
+# Install NixOS on a running Linux system using nixos-infect
+# This is useful for systems where nixos-anywhere cannot be used (e.g., when only Tailscale access is available)
+install-infect HOST TARGET_HOST:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    echo "Installing {{ HOST }} on {{ TARGET_HOST }} using nixos-infect..."
+    echo ""
+    echo "This method:"
+    echo "  - Converts an existing Linux system to NixOS in-place"
+    echo "  - Preserves Tailscale authentication"
+    echo "  - Maintains SSH connectivity (mostly)"
+    echo "  - Works when you only have Tailscale access"
+    echo ""
+    echo "Prerequisites:"
+    echo "  - Target must be running a supported Linux distribution"
+    echo "  - Root SSH access must be available"
+    echo "  - At least 2GB of free disk space"
+    echo ""
+    read -p "Continue? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Aborted."
+        exit 1
+    fi
+    
+    # Copy and run the install script
+    echo "Copying installation script to target..."
+    scp hosts/{{ HOST }}/install-nixos.sh root@{{ TARGET_HOST }}:/tmp/
+    
+    echo "Running installation script..."
+    echo "NOTE: You may temporarily lose connection during the conversion"
+    ssh root@{{ TARGET_HOST }} "bash /tmp/install-nixos.sh" || {
+        echo ""
+        echo "Connection lost (this is expected during nixos-infect)"
+        echo "The system should reboot into NixOS automatically"
+        echo ""
+        echo "Wait a few minutes and try connecting again:"
+        echo "  ssh root@{{ TARGET_HOST }}"
+        echo ""
+        echo "If using Tailscale, the host should remain accessible"
+    }
 
 # Generate hardware configuration for any host
 hardware-config HOST TARGET_HOST:
