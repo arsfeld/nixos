@@ -190,34 +190,60 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-matrix
     if: always()
+    permissions:
+      actions: read
     steps:
       - name: Generate build summary
-        run: |
-          echo "### 🚀 Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Host | Platform | Status | Duration |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo '${{ toJSON(needs.build-matrix.outputs) }}' | jq -c '.[]' | while read -r job; do
-            host=$(echo "$job" | jq -r '.host')
-            platform=$(echo "$job" | jq -r '.platform')
-            status=$(echo "$job" | jq -r '.status')
-            duration_seconds=$(echo "$job" | jq -r '.duration')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Get the current run ID
+            const runId = context.runId;
             
-            # Format duration
-            if [[ "$duration_seconds" -lt 60 ]]; then
-              duration="${duration_seconds}s"
-            else
-              minutes=$((duration_seconds / 60))
-              seconds=$((duration_seconds % 60))
-              duration="${minutes}m ${seconds}s"
-            fi
-
-            # Format status
-            if [[ "$status" == "success" ]]; then
-              status_icon="✅"
-            else
-              status_icon="❌"
-            fi
-
-            echo "| $host | $platform | $status_icon $status | $duration |" >> $GITHUB_STEP_SUMMARY
-          done
+            // Get all jobs for this workflow run
+            const { data: jobs } = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: runId,
+            });
+            
+            // Filter for build-matrix jobs
+            const buildJobs = jobs.jobs.filter(job => job.name.startsWith('Build '));
+            
+            // Generate summary table
+            let summary = '### 🚀 Build Summary\n\n';
+            summary += '| Host | Platform | Status | Duration |\n';
+            summary += '|---|---|---|---|\n';
+            
+            for (const job of buildJobs) {
+              // Extract host name from job name (e.g., "Build cloud" -> "cloud")
+              const host = job.name.replace('Build ', '');
+              
+              // Get platform from the matrix config
+              let platform = 'unknown';
+              if (host === 'cloud') platform = 'aarch64-linux';
+              else if (host === 'storage') platform = 'x86-64-linux';
+              
+              // Calculate duration
+              const startTime = new Date(job.started_at);
+              const endTime = new Date(job.completed_at || Date.now());
+              const durationSeconds = Math.floor((endTime - startTime) / 1000);
+              
+              let duration;
+              if (durationSeconds < 60) {
+                duration = `${durationSeconds}s`;
+              } else {
+                const minutes = Math.floor(durationSeconds / 60);
+                const seconds = durationSeconds % 60;
+                duration = `${minutes}m ${seconds}s`;
+              }
+              
+              // Format status
+              const statusIcon = job.conclusion === 'success' ? '✅' : '❌';
+              const status = job.conclusion || 'in_progress';
+              
+              summary += `| ${host} | ${platform} | ${statusIcon} ${status} | ${duration} |\n`;
+            }
+            
+            // Write to summary
+            await core.summary.addRaw(summary).write();
