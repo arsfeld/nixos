@@ -16,15 +16,14 @@
   boot.kernelModules = ["kvm-intel"];
   boot.extraModulePackages = [];
 
+  fileSystems."/" = {
+    device = "/dev/disk/by-uuid/02b6a197-04da-48a8-904a-96f9f4d810e6";
+    fsType = "ext4";
+  };
 
-  fileSystems."/" =
-    { device = "/dev/disk/by-uuid/02b6a197-04da-48a8-904a-96f9f4d810e6";
-      fsType = "ext4";
-    };
-
-  swapDevices =
-    [ { device = "/dev/disk/by-uuid/323526ac-f79e-4557-af6a-82962bcb7dbb"; }
-    ];
+  swapDevices = [
+    {device = "/dev/disk/by-uuid/323526ac-f79e-4557-af6a-82962bcb7dbb";}
+  ];
 
   # Support ZFS
   boot.supportedFilesystems = ["zfs"];
