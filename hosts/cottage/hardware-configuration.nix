@@ -16,31 +16,22 @@
   boot.kernelModules = ["kvm-intel"];
   boot.extraModulePackages = [];
 
+
+  fileSystems."/" =
+    { device = "/dev/disk/by-uuid/02b6a197-04da-48a8-904a-96f9f4d810e6";
+      fsType = "ext4";
+    };
+
+  swapDevices =
+    [ { device = "/dev/disk/by-uuid/323526ac-f79e-4557-af6a-82962bcb7dbb"; }
+    ];
+
   # Support ZFS
   boot.supportedFilesystems = ["zfs"];
-
-  # Import existing ZFS pools
-  boot.zfs.extraPools = ["boot-pool"];
 
   # Don't force import - the pool should be clean
   boot.zfs.forceImportRoot = false;
   boot.zfs.forceImportAll = false;
-
-  # Root filesystem from boot-pool
-  fileSystems."/" = {
-    device = "boot-pool/ROOT/nixos";
-    fsType = "zfs";
-    options = ["zfsutil"];
-  };
-
-  # EFI boot partition
-  fileSystems."/boot" = {
-    device = "/dev/disk/by-uuid/6F43-89F4";
-    fsType = "vfat";
-  };
-
-  # Swap (if needed)
-  swapDevices = [];
 
   # CPU microcode updates
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;

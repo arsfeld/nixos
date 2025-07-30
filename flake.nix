@@ -224,7 +224,9 @@
           deployOverrides = {
             storage = {}; # Use all defaults
             router = {}; # Use all defaults
-            cottage = {}; # Use all defaults
+            cottage = {
+              hostname = "192.168.18.4";
+            };
             cloud = {
               system = "aarch64-linux";
               remoteBuild = true;
