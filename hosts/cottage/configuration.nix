@@ -54,91 +54,21 @@ with lib; {
     };
   };
 
-  # Emergency SSH access
-  services.openssh = {
-    enable = true;
-    settings = {
-      PermitRootLogin = "yes"; # Allow root login for emergency access
-      PasswordAuthentication = false;
-    };
-    # Start SSH early in boot process
-    startWhenNeeded = false;
-  };
-
-  # Ensure SSH starts even if network is degraded
-  systemd.services.sshd = {
-    wantedBy = ["multi-user.target"];
-    after = lib.mkForce ["network.target"];
-  };
-
   nixpkgs.hostPlatform = "x86_64-linux";
 
-  # Bootloader configuration
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  # Kernel settings
-  boot = {
-    binfmt.emulatedSystems = ["aarch64-linux"];
-    kernelModules = ["kvm-intel" "ip6_tables"];
-    supportedFilesystems = ["zfs"];
-
-    # ZFS boot resilience
-    zfs = {
-      forceImportRoot = false; # Don't force import root pool
-      forceImportAll = false; # Don't force import other pools
-      allowHibernation = false; # Disable hibernation for ZFS stability
-    };
-
-    # Allow booting with degraded ZFS pools
-    kernelParams = [
-      "zfs.zfs_scan_vdev_limit=16M" # Limit resilver speed to prevent overload
-      "nohibernate" # Disable hibernation
-    ];
-
-    # ZFS import configuration - allow degraded imports
-    initrd.systemd.services."zfs-import-degraded" = {
-      description = "Import ZFS pools with degraded support";
-      after = ["zfs-import.target"];
-      before = ["zfs.target"];
-      wantedBy = ["zfs.target"];
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
-        ExecStart = ''
-          ${pkgs.runtimeShell} -c '
-            # Try normal import first
-            if ! ${pkgs.zfs}/bin/zpool import -a -N 2>/dev/null; then
-              echo "Normal ZFS import failed, trying degraded import..."
-              ${pkgs.zfs}/bin/zpool import -a -N -f -d /dev/disk/by-id 2>/dev/null || true
-            fi
-          '
-        '';
-      };
-    };
-  };
+  # Bootloader.
+  boot.loader.grub.enable = true;
+  boot.loader.grub.device = "/dev/sda";
+  boot.loader.grub.useOSProber = true;
 
   # Early OOM killer
   services.earlyoom.enable = true;
 
   # Use latest kernel
-  boot.kernelPackages = pkgs.linuxPackages_latest;
+  #boot.kernelPackages = pkgs.linuxPackages_latest;
 
   # Disable network wait online service
   systemd.services.NetworkManager-wait-online.enable = false;
-
-  # Caddy configuration for SSL certificates
-  users.users.caddy.extraGroups = ["acme"];
-
-  security.acme = {
-    acceptTerms = true;
-  };
-
-  services.caddy = {
-    enable = true;
-  };
-
-  services.tailscale.permitCertUid = "caddy";
 
   # Systemd boot resilience
   systemd = {
@@ -185,18 +115,6 @@ with lib; {
       vpl-gpu-rt
     ];
   };
-
-  # Allow insecure packages (if needed)
-  nixpkgs.config.permittedInsecurePackages = [
-    "aspnetcore-runtime-6.0.36"
-    "aspnetcore-runtime-wrapped-6.0.36"
-    "dotnet-sdk-6.0.428"
-    "dotnet-sdk-wrapped-6.0.428"
-  ];
-
-  # Ensure boot continues even if filesystems fail
-  boot.initrd.systemd.enable = true;
-  boot.initrd.systemd.emergencyAccess = true;
 
   # System state version
   system.stateVersion = "25.05";
