@@ -1,47 +1,16 @@
+# Import modular justfiles with namespaces
+mod router-ui 'just/router-ui.just'
+mod blog 'just/blog.just'
+mod secrets 'just/secrets.just'
+mod docs 'just/docs.just'
+mod supabase 'just/supabase.just'
+
 fmt:
     nix fmt
 
-# Documentation commands
-docs-serve:
-    devenv shell -- mkdocs serve --dev-addr 127.0.0.1:8000
-
-docs-build:
-    devenv shell -- mkdocs build
-
-docs-deploy:
-    devenv shell -- mkdocs gh-deploy --force
 
 args := "--skip-checks"
 
-# Supabase management commands
-supabase-create INSTANCE:
-    modules/supabase/scripts/create-instance {{INSTANCE}}
-
-supabase-delete INSTANCE:
-    modules/supabase/scripts/delete-instance {{INSTANCE}}
-
-supabase-update-secret INSTANCE SECRET:
-    modules/supabase/scripts/update-secret {{INSTANCE}} {{SECRET}}
-
-supabase-status:
-    #!/usr/bin/env bash
-    echo "=== Supabase Instances ==="
-    for instance in /var/lib/supabase-*; do
-        if [ -d "$instance" ]; then
-            name=$(basename "$instance" | sed 's/supabase-//')
-            echo "Instance: $name"
-            if systemctl is-active --quiet "supabase-$name"; then
-                echo "  Status: Running"
-                echo "  Port: $(grep -o '${toString port}' "$instance/docker-compose.yml" 2>/dev/null || echo "Unknown")"
-            else
-                echo "  Status: Stopped"
-            fi
-            echo
-        fi
-    done
-
-supabase-info:
-    modules/supabase/scripts/info
 
 # Private recipe to format targets with .# prefix
 _format-targets +TARGETS:
@@ -142,11 +111,9 @@ r2s:
 router-test:
     nix build .#checks.x86_64-linux.router-test -L
 
-router-test-production:
-    nix build .#checks.x86_64-linux.router-test-production -L
-
 # Build custom kexec image with Tailscale support
-build-kexec-tailscale:
+# This kexec image maintains Tailscale connectivity during nixos-anywhere installations
+build-kexec:
     #!/usr/bin/env bash
     set -euo pipefail
     
@@ -158,87 +125,21 @@ build-kexec-tailscale:
     echo "Output: ./result"
     echo ""
     echo "To use with nixos-anywhere:"
-    echo "  just install-tailscale <host> <target>"
+    echo "  just install <host> <target> ./result"
+    echo ""
+    echo "Example:"
+    echo "  just install cottage cottage.bat-boa.ts.net ./result"
     echo ""
     echo "Or manually:"
     echo "  nixos-anywhere --kexec ./result --flake .#<host> root@<target>"
 
-# Install any host configuration using nixos-anywhere with Tailscale-enabled kexec
-# This maintains Tailscale connectivity throughout the installation process
-install-tailscale HOST TARGET_IP:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    
-    echo "Installing {{ HOST }} to {{ TARGET_IP }} using nixos-anywhere with Tailscale kexec..."
-    echo ""
-    echo "This method uses a custom kexec image that includes Tailscale,"
-    echo "allowing you to maintain connectivity throughout the installation."
-    echo ""
-    
-    # Build the kexec image if it doesn't exist
-    if [ ! -e result ] || [ ! -e result/kexec-installer ]; then
-        echo "Building custom kexec image..."
-        nix build ".#kexec-tailscale" -L || {
-            echo "Failed to build kexec image"
-            exit 1
-        }
-    fi
-    
-    echo "Using kexec image at: ./result"
-    echo ""
-    read -p "Continue with installation? (y/N) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Aborted."
-        exit 1
-    fi
-    
-    # Create temporary directory for state preservation
-    TMPDIR=$(mktemp -d)
-    trap 'rm -rf -- "$TMPDIR"' EXIT
-    
-    # Try to preserve Tailscale state
-    echo "Checking for existing Tailscale state..."
-    if ssh root@{{ TARGET_IP }} "test -d /var/lib/tailscale || test -d /var/db/tailscale" 2>/dev/null; then
-        echo "Found Tailscale state, preserving it..."
-        ssh root@{{ TARGET_IP }} "tar -czf - -C / var/lib/tailscale 2>/dev/null || tar -czf - -C / var/db/tailscale 2>/dev/null" > "$TMPDIR/tailscale-state.tar.gz" || {
-            echo "Warning: Could not extract Tailscale state."
-        }
-        
-        if [ -f "$TMPDIR/tailscale-state.tar.gz" ] && [ -s "$TMPDIR/tailscale-state.tar.gz" ]; then
-            echo "Uploading Tailscale state to target..."
-            scp "$TMPDIR/tailscale-state.tar.gz" root@{{ TARGET_IP }}:/tmp/ || {
-                echo "Warning: Could not upload Tailscale state"
-            }
-        fi
-    fi
-    
-    echo ""
-    echo "Running nixos-anywhere with custom kexec..."
-    echo "The target will reboot into the installer with Tailscale support."
-    echo ""
-    
-    # Prepare extra files if we have them
-    EXTRA_FILES_ARG=""
-    if [ -d "$TMPDIR/extra-files" ] && [ -n "$(ls -A "$TMPDIR/extra-files")" ]; then
-        EXTRA_FILES_ARG="--extra-files $TMPDIR/extra-files"
-    fi
-    
-    # Run nixos-anywhere with our custom kexec
-    nix run github:nix-community/nixos-anywhere -- \
-        --kexec ./result \
-        --flake .#{{ HOST }} \
-        --copy-host-keys \
-        $EXTRA_FILES_ARG \
-        root@{{ TARGET_IP }}
-    
-    echo ""
-    echo "Installation complete!"
-    echo "The system should be accessible via Tailscale at {{ HOST }}.bat-boa.ts.net"
 
 # Install any host configuration to a running system via SSH using nixos-anywhere
 # WARNING: This will completely wipe and reinstall the target system!
-install HOST TARGET_IP:
+# Usage:
+#   just install <host> <target>          # Standard installation (loses Tailscale during kexec)
+#   just install <host> <target> ./result # With custom kexec (maintains Tailscale connectivity)
+install HOST TARGET_IP KEXEC="":
     #!/usr/bin/env bash
     set -euo pipefail
     
@@ -253,15 +154,32 @@ install HOST TARGET_IP:
     echo "  4. Partition and format the disk using disko"
     echo "  5. Install NixOS with the {{ HOST }} configuration"
     echo "  6. Restore preserved state and reboot"
+    
+    # Check if using custom kexec
+    if [ -n "{{ KEXEC }}" ]; then
+        echo ""
+        echo "Using custom kexec image: {{ KEXEC }}"
+        if [ ! -e "{{ KEXEC }}" ]; then
+            echo "Error: Kexec image not found at {{ KEXEC }}"
+            echo "Run 'just build-kexec' first to build the custom kexec image"
+            exit 1
+        fi
+    fi
     echo ""
     echo "Prerequisites:"
     echo "  - SSH access as root to the target"
     echo "  - Network connectivity"
     echo ""
     echo "IMPORTANT for Tailscale users:"
-    echo "  - If connected via Tailscale, you WILL lose connection during kexec"
-    echo "  - Ensure the target has a non-Tailscale IP accessible"
-    echo "  - Or run this from a machine on the same local network"
+    if [ -n "{{ KEXEC }}" ] && [[ "{{ KEXEC }}" == *"result"* ]]; then
+        echo "  - Using custom kexec with Tailscale support"
+        echo "  - Tailscale connectivity should be maintained during installation"
+    else
+        echo "  - If connected via Tailscale, you WILL lose connection during kexec"
+        echo "  - Ensure the target has a non-Tailscale IP accessible"
+        echo "  - Or run this from a machine on the same local network"
+        echo "  - Consider using 'just build-kexec' and 'just install <host> <target> ./result'"
+    fi
     echo "  - Tailscale will be restored after installation completes"
     echo ""
     read -p "Continue? (y/N) " -n 1 -r
@@ -313,6 +231,11 @@ install HOST TARGET_IP:
     
     # Build nixos-anywhere command
     NIXOS_ANYWHERE_CMD="nix run github:nix-community/nixos-anywhere -- --flake .#{{ HOST }}"
+    
+    # Add custom kexec if provided
+    if [ -n "{{ KEXEC }}" ]; then
+        NIXOS_ANYWHERE_CMD="$NIXOS_ANYWHERE_CMD --kexec {{ KEXEC }}"
+    fi
     
     # Add extra files if we have them
     if [ -d "$TMPDIR/extra-files" ] && [ -n "$(ls -A "$TMPDIR/extra-files")" ]; then
@@ -399,6 +322,75 @@ hardware-config HOST TARGET_HOST:
     echo "Hardware configuration saved to hosts/{{ HOST }}/hardware-configuration.nix"
     echo "Review the file and commit it to the repository."
 
+# Apply disko configuration to format and partition disks on a host
+# WARNING: This will DESTROY ALL DATA on the configured disks!
+# Usage: just disko <host> <target>
+# Example: just disko cottage root@cottage.bat-boa.ts.net
+disko HOST TARGET:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    echo "Applying disko configuration for {{ HOST }} to {{ TARGET }}..."
+    echo ""
+    echo "⚠️  WARNING: This will DESTROY ALL DATA on the configured disks!"
+    echo ""
+    echo "This command will:"
+    echo "  1. Copy the disko configuration to {{ TARGET }}"
+    echo "  2. Run disko on the target system"
+    echo "  3. Partition and format all configured disks"
+    echo "  4. Create filesystems (including ZFS pools if configured)"
+    echo "  5. Mount everything according to the configuration"
+    echo ""
+    
+    # Check if disko config exists
+    if [ ! -f "hosts/{{ HOST }}/disko-config.nix" ]; then
+        echo "Error: No disko configuration found at hosts/{{ HOST }}/disko-config.nix"
+        exit 1
+    fi
+    
+    # Show disk configuration summary
+    echo "Disk configuration preview:"
+    if grep -q "zpool" "hosts/{{ HOST }}/disko-config.nix"; then
+        echo "  - ZFS pool configuration detected"
+        grep -E "(pool = |type = \"zpool\"|mode = )" "hosts/{{ HOST }}/disko-config.nix" | sed 's/^/    /'
+    fi
+    if grep -q "disk = {" "hosts/{{ HOST }}/disko-config.nix"; then
+        echo "  - Disk devices:"
+        grep -E "device = " "hosts/{{ HOST }}/disko-config.nix" | sed 's/^/    /'
+    fi
+    echo ""
+    
+    read -p "Are you ABSOLUTELY SURE you want to continue? Type 'yes' to proceed: " confirmation
+    if [[ "$confirmation" != "yes" ]]; then
+        echo "Aborted."
+        exit 1
+    fi
+    
+    echo ""
+    echo "Copying disko configuration to target..."
+    
+    # Copy the disko configuration to the target
+    scp "hosts/{{ HOST }}/disko-config.nix" "{{ TARGET }}:/tmp/disko-config.nix"
+    
+    echo "Running disko on the target system..."
+    
+    # Run disko on the target system
+    # Using --mode destroy,format,mount to wipe, format and mount
+    # Add --debug for more verbose output if needed
+    ssh "{{ TARGET }}" "nix run github:nix-community/disko -- --mode destroy,format,mount --yes-wipe-all-disks /tmp/disko-config.nix"
+    
+    echo ""
+    echo "✅ Disko configuration applied successfully!"
+    echo ""
+    echo "The disks have been formatted and mounted at /mnt on the target system."
+    echo ""
+    echo "Next steps:"
+    echo "  - To install NixOS: just install {{ HOST }} {{ TARGET }}"
+    echo "  - To check the mounted filesystems: ssh {{ TARGET }} 'df -h; zfs list 2>/dev/null || true'"
+    echo ""
+    echo "Note: If this is a ZFS system, the pool has been created but won't persist"
+    echo "across reboots until NixOS is installed with the proper configuration."
+
 # List network interfaces on router in Nix configuration format
 router-interfaces TARGET_HOST:
     #!/usr/bin/env bash
@@ -438,299 +430,9 @@ router-interfaces TARGET_HOST:
         echo "  };"
     EOF
 
-# Secret management commands
-secret-generate NAME LENGTH="64":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    
-    # Check if agenix is available
-    if ! command -v agenix &> /dev/null; then
-        echo "Error: agenix command not found. Please enter the development shell with 'nix develop'"
-        exit 1
-    fi
-    
-    echo "Generating {{ LENGTH }}-character key for {{ NAME }}..."
-    
-    # Generate the key
-    key=$(openssl rand -base64 {{ LENGTH }} | tr -d '\n=' | head -c {{ LENGTH }})
-    
-    # Save to temporary file
-    echo "$key" > "/tmp/{{ NAME }}.txt"
-    
-    # Encrypt with agenix (run from secrets directory)
-    echo "Encrypting {{ NAME }}..."
-    cd secrets && agenix -e "{{ NAME }}.age" < "/tmp/{{ NAME }}.txt"
-    rm -f "/tmp/{{ NAME }}.txt"
-    
-    echo "✓ Key generated and encrypted to secrets/{{ NAME }}.age"
-    echo "Don't forget to add it to secrets/secrets.nix!"
 
-secret-copy SOURCE DEST:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    
-    if ! command -v agenix &> /dev/null; then
-        echo "Error: agenix command not found. Please enter the development shell with 'nix develop'"
-        exit 1
-    fi
-    
-    if [ ! -f "secrets/{{ SOURCE }}" ]; then
-        echo "Error: Source secret secrets/{{ SOURCE }} not found"
-        exit 1
-    fi
-    
-    echo "Copying secret from {{ SOURCE }} to {{ DEST }}..."
-    
-    # Create temporary file
-    temp_file=$(mktemp)
-    trap "rm -f $temp_file" EXIT
-    
-    # Decrypt source (run from secrets directory)
-    cd secrets && agenix -d "{{ SOURCE }}" > "$temp_file"
-    
-    # Re-encrypt to destination
-    agenix -e "{{ DEST }}" < "$temp_file"
-    
-    echo "✓ Secret copied to secrets/{{ DEST }}"
-    echo "Don't forget to add it to secrets/secrets.nix with appropriate publicKeys!"
-
-secret-show NAME:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    
-    if ! command -v agenix &> /dev/null; then
-        echo "Error: agenix command not found. Please enter the development shell with 'nix develop'"
-        exit 1
-    fi
-    
-    if [ ! -f "secrets/{{ NAME }}" ]; then
-        echo "Error: Secret secrets/{{ NAME }} not found"
-        exit 1
-    fi
-    
-    echo "⚠️  WARNING: This will display the secret in plain text!"
-    read -p "Are you sure you want to continue? (yes/no): " confirm
-    
-    if [ "$confirm" != "yes" ]; then
-        echo "Aborted."
-        exit 0
-    fi
-    
-    echo "Decrypting {{ NAME }}..."
-    echo "--- BEGIN SECRET ---"
-    cd secrets && agenix -d "{{ NAME }}"
-    echo -e "\n--- END SECRET ---"
-
-secret-list:
-    #!/usr/bin/env bash
-    echo "Available secrets:"
-    if [ -d "secrets" ]; then
-        ls -la secrets/*.age 2>/dev/null | awk '{print "  " $9}' | sed 's|secrets/||g' || echo "  No secrets found"
-    else
-        echo "Error: secrets directory not found"
-    fi
-
-# Build and serve the blog locally for testing
-blog-serve PORT="8000":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    
-    # Try to get local IP address
-    LOCAL_IP=$(ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '127.0.0.1' | head -n1 || echo "localhost")
-    
-    echo "Building and serving blog on http://0.0.0.0:{{ PORT }}"
-    echo "Blog will be accessible at:"
-    echo "  - http://localhost:{{ PORT }}"
-    if [ "$LOCAL_IP" != "localhost" ]; then
-        echo "  - http://${LOCAL_IP}:{{ PORT }}"
-    fi
-    
-    echo "Press Ctrl+C to stop the server"
-    
-    # Use the local IP as the base URL so assets load correctly from remote hosts
-    cd blog && nix run 'nixpkgs#zola' -- serve --interface 0.0.0.0 --port {{ PORT }} --base-url "http://${LOCAL_IP}"
-
-# Build the blog without serving
-blog-build:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    
-    echo "Building blog..."
-    cd blog && nix run 'nixpkgs#zola' -- build
-    echo "✓ Blog built successfully in blog/public/"
-
-# Check the blog for issues
-blog-check:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    
-    echo "Checking blog for issues..."
-    cd blog && nix run 'nixpkgs#zola' -- check
-    echo "✓ Blog check completed"
 
 # Setup Plausible Analytics secrets
-# Router UI development commands
-router-ui-dev:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    
-    echo "Starting Router UI development server..."
-    cd packages/router_ui
-    
-    # Enter nix shell and run Go server
-    nix shell "nixpkgs#go" "nixpkgs#nodejs" "nixpkgs#nodePackages.npm" "nixpkgs#tailwindcss" -c bash -c '
-        # Download Go dependencies and create go.sum
-        echo "Downloading Go dependencies..."
-        go mod tidy
-        
-        # Install web dependencies if needed
-        if [ ! -d "web/node_modules" ]; then
-            echo "Installing npm dependencies..."
-            cd web && npm install --legacy-peer-deps && cd ..
-        fi
-        
-        # Build web assets
-        echo "Building web assets..."
-        cd web
-        tailwindcss -i ./src/css/app.css -o ./static/css/app.css --minify
-        cp ./src/js/app.js ./static/js/app.js
-        cp node_modules/alpinejs/dist/cdn.min.js ./static/js/alpine.min.js
-        cd ..
-        
-        # Create data directory for development and clean up any locks
-        mkdir -p /tmp/router-ui-dev
-        rm -f /tmp/router-ui-dev/db/LOCK
-        
-        # Start Go server
-        echo "Starting Router UI server on http://localhost:4000"
-        go run main.go -db /tmp/router-ui-dev/db -port 4000
-    '
-
-router-ui-setup:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    
-    echo "Setting up Router UI development environment..."
-    cd packages/router_ui
-    
-    nix shell "nixpkgs#go" "nixpkgs#nodejs" "nixpkgs#nodePackages.npm" "nixpkgs#tailwindcss" -c bash -c '
-        # Download Go dependencies and create go.sum
-        echo "Downloading Go dependencies..."
-        go mod tidy
-        
-        # Install npm dependencies
-        echo "Installing npm dependencies..."
-        cd web && npm install --legacy-peer-deps && cd ..
-        
-        # Build web assets
-        echo "Building web assets..."
-        cd web
-        mkdir -p static/css static/js
-        tailwindcss -i ./src/css/app.css -o ./static/css/app.css --minify
-        cp ./src/js/app.js ./static/js/app.js
-        cp node_modules/alpinejs/dist/cdn.min.js ./static/js/alpine.min.js
-        cd ..
-        
-        echo "✓ Router UI setup complete!"
-        echo "Run 'just router-ui-dev' to start the development server"
-    '
-
-router-ui-test:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    
-    echo "Running Router UI tests..."
-    cd packages/router_ui
-    
-    nix shell "nixpkgs#go" -c go test ./...
-
-router-ui-build:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    
-    echo "Building Router UI release..."
-    cd packages/router_ui
-    
-    nix build ./. -L
-    echo "✓ Router UI built successfully!"
-    
-    # Also push to cache if available
-    if command -v attic &> /dev/null; then
-        echo "Pushing to cache..."
-        attic push system result
-    fi
-
-router-ui-watch:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    
-    echo "Starting Router UI with hot-reload..."
-    cd packages/router_ui
-    
-    nix shell "nixpkgs#go" "nixpkgs#nodejs" "nixpkgs#nodePackages.npm" "nixpkgs#tailwindcss" "nixpkgs#entr" -c bash -c '
-        # Download Go dependencies and create go.sum
-        echo "Downloading Go dependencies..."
-        go mod tidy
-        
-        # Install dependencies if needed
-        if [ ! -d "web/node_modules" ]; then
-            echo "Installing npm dependencies..."
-            cd web && npm install --legacy-peer-deps && cd ..
-        fi
-        
-        # Create data directory for development and clean up any locks
-        mkdir -p /tmp/router-ui-dev
-        rm -f /tmp/router-ui-dev/db/LOCK
-        
-        # Create directories
-        mkdir -p web/static/css web/static/js
-        
-        # Copy JS files
-        cp web/src/js/app.js web/static/js/app.js
-        cp web/node_modules/alpinejs/dist/cdn.min.js web/static/js/alpine.min.js
-        
-        # Build CSS initially
-        echo "Building CSS..."
-        cd web
-        tailwindcss -i ./src/css/app.css -o ./static/css/app.css --minify
-        cd ..
-        
-        # Run tailwindcss watch in background
-        echo "Starting CSS watcher..."
-        cd web
-        tailwindcss -i ./src/css/app.css -o ./static/css/app.css --watch &
-        CSS_PID=$!
-        cd ..
-        
-        # Function to cleanup background process
-        cleanup() {
-            echo "Stopping CSS watcher..."
-            kill $CSS_PID 2>/dev/null || true
-        }
-        trap cleanup EXIT
-        
-        # Watch Go files and restart on changes
-        echo "Starting Go server with auto-reload..."
-        find . -name "*.go" -o -name "*.html" | entr -r go run main.go -db /tmp/router-ui-dev/db -port 4000
-    '
-
-router-ui-deploy TARGET="router":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    
-    echo "Deploying Router UI to {{ TARGET }}..."
-    
-    # Build the package first
-    echo "Building Router UI..."
-    cd packages/router_ui && nix build ./. -L
-    
-    # Deploy the configuration
-    echo "Deploying to {{ TARGET }}..."
-    just deploy {{ TARGET }}
-    
-    echo "✓ Router UI deployed to {{ TARGET }}"
-    echo "Access it at: http://{{ TARGET }}.bat-boa.ts.net:4000 or via Caddy proxy"
-
 plausible-setup:
     #!/usr/bin/env bash
     set -euo pipefail
