@@ -100,7 +100,7 @@
         legacyPackages.homeConfigurations.arosenfeld = inputs.home-manager.lib.homeManagerConfiguration {
           inherit pkgs;
           modules = [
-            inputs.nix-index-database.hmModules.nix-index
+            inputs.nix-index-database.homeModules.nix-index
             ./home/home.nix
             {
               # Specific to standalone home-manager
@@ -138,7 +138,7 @@
             inputs.home-manager.nixosModules.home-manager
             {
               home-manager.sharedModules = [
-                inputs.nix-index-database.hmModules.nix-index
+                inputs.nix-index-database.homeModules.nix-index
               ];
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = false;
@@ -200,7 +200,7 @@
             inputs.home-manager.nixosModules.home-manager
             {
               home-manager.sharedModules = [
-                inputs.nix-index-database.hmModules.nix-index
+                inputs.nix-index-database.homeModules.nix-index
               ];
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = false;
