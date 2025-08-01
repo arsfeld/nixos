@@ -26,11 +26,11 @@ We've created a custom kexec image that includes Tailscale, allowing you to main
 ### Method 1: Using Just Commands (Recommended)
 
 ```bash
-# Build the custom kexec image (optional, done automatically)
-just build-kexec-tailscale
+# Build the custom kexec image
+just build-kexec
 
 # Install using the Tailscale-enabled kexec
-just install-tailscale cottage cottage.bat-boa.ts.net
+just install cottage cottage.bat-boa.ts.net ./result
 ```
 
 ### Method 2: Manual nixos-anywhere
@@ -67,6 +67,15 @@ nixos-anywhere \
    - System reboots into newly installed NixOS
    - Tailscale state is preserved in the final system
    - No need to re-authenticate Tailscale
+
+## Alternative: Standard Installation without Custom Kexec
+
+If you don't need to maintain Tailscale connectivity during installation:
+
+```bash
+# Standard installation (will lose Tailscale connection during kexec)
+just install cottage 192.168.1.100
+```
 
 ## Customizing the Kexec Image
 
