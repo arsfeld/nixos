@@ -15,8 +15,8 @@
     flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
     haumea.url = "github:nix-community/haumea"; # File tree loader for Nix
     haumea.inputs.nixpkgs.follows = "nixpkgs";
-    devenv.url = "github:cachix/devenv"; # Development environment manager
-    devenv.inputs.nixpkgs.follows = "nixpkgs";
+    git-hooks.url = "github:cachix/git-hooks.nix"; # Git hooks framework
+    git-hooks.inputs.nixpkgs.follows = "nixpkgs";
     nix-flatpak.url = "github:gmodena/nix-flatpak"; # Flatpak support for NixOS
     tsnsrv.url = "github:arsfeld/tsnsrv"; # Tailscale name server
     tsnsrv.inputs.nixpkgs.follows = "nixpkgs";
@@ -28,9 +28,7 @@
 
   outputs = {self, ...} @ inputs:
     inputs.flake-parts.lib.mkFlake {inherit inputs;} ({moduleWithSystem, ...}: {
-      imports = [
-        inputs.devenv.flakeModule
-      ];
+      imports = [];
 
       systems = ["x86_64-linux" "aarch64-linux" "aarch64-darwin"];
 
@@ -42,11 +40,54 @@
         system,
         ...
       }: {
-        devShells.default = inputs.devenv.lib.mkShell {
-          inherit inputs pkgs;
-          modules = [
-            ./devenv.nix
-          ];
+        checks = {
+          pre-commit-check = inputs.git-hooks.lib.${system}.run {
+            src = ./.;
+            hooks = {
+              alejandra.enable = true;
+              gptcommit = {
+                enable = false;
+                name = "gptcommit";
+                entry = "${pkgs.gptcommit}/bin/gptcommit prepare-commit-msg";
+                language = "system";
+                stages = ["prepare-commit-msg"];
+                always_run = true;
+                pass_filenames = false;
+                args = ["--commit-msg-file"];
+              };
+            };
+          };
+        };
+        devShells.default = pkgs.mkShell {
+          inherit (config.checks.pre-commit-check) shellHook;
+          buildInputs = with pkgs;
+            [
+              # Nix tools
+              alejandra
+              attic-client
+              colmena
+              deploy-rs
+              disko
+              git
+              jq
+              just
+              openssl
+              inputs.agenix.packages."${pkgs.stdenv.system}".default
+              inputs.disko.packages."${pkgs.stdenv.system}".default
+
+              # Python tools
+              black
+              python3Packages.mkdocs
+              python3Packages.mkdocs-material
+              python3Packages.mkdocs-mermaid2-plugin
+              python3Packages.mkdocs-awesome-pages-plugin
+              python3Packages.mike
+              python3Packages.pymdown-extensions
+
+              # Git commit tools
+              gptcommit
+            ]
+            ++ config.checks.pre-commit-check.enabledPackages;
         };
 
         # Expose packages loaded via haumea
