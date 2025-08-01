@@ -3,15 +3,12 @@ let
   users = [arsfeld];
 
   storage = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILOJScEgldmHPqi7SqSl8GpKncVv5k7DXh2HGdnajIeQ root@storage";
-  micro = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA6dDFoQv53Bb3vF0G2Kqna/O/bEr4o7lKkJL28+EIGK root@nixos-micro";
   cloud = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH51UBt4enqaDYdbEaBD1I1ef+wZGFmkjv68Mv4bnVWA root@dev";
   raspi3 = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDgLgYS1DyvdxHbwa4p94Tnu6pbqksrtP7DmsagVOAfI root@raspi3";
-  core = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIApMMHFDPH4I3DZNf4s2M+/OGST+s5zt3184kq08AKVS root@core";
-  g14 = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMiYsUOYKV9yWD262A4b2X4x/umbw5HrCBkyNexctEgz root@G14";
-  hpe = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBioA7Y9FOdvgXG7C4/UhH2R6kzK2eZn0P6T/90nwCQQ root@hpe";
   r2s = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH1YUqHzxqtu512agJVUBNbTOWOad9/k0REig4RjEhdN root@nixos";
   router = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA8n1XWNmEvEHAMxqAljnkFkfMZrOYeZ16BYtnzG9fop root@router";
-  systems = [storage micro cloud raspi3 core g14 hpe r2s router];
+  cottage = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHdUc+a9PVJ/kmJwcLw8Jx7400iq4ySaunDLXCMa8d5b root@nixos";
+  systems = [storage cloud raspi3 r2s router cottage];
 in {
   "authelia-secrets.age".publicKeys = users ++ [cloud];
   "bitmagnet-env.age".publicKeys = users ++ [storage];
@@ -26,7 +23,6 @@ in {
   "rclone-idrive.age".publicKeys = users ++ systems;
   "restic-password.age".publicKeys = users ++ systems;
   "restic-rest-cloud.age".publicKeys = users ++ [cloud];
-  "restic-rest-micro.age".publicKeys = users ++ [micro];
   "restic-truenas.age".publicKeys = users ++ systems;
   "idrive-env.age".publicKeys = users ++ systems;
   "smtp_password.age".publicKeys = users ++ systems;
@@ -43,4 +39,5 @@ in {
   "google-api-key.age".publicKeys = users ++ systems;
   "github-token.age".publicKeys = users ++ systems;
   "minio-credentials.age".publicKeys = users ++ systems;
+  "restic-cottage-minio.age".publicKeys = users ++ systems;
 }

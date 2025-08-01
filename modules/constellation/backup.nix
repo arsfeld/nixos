@@ -14,6 +14,10 @@
 # The module backs up critical system directories (/var/lib, /var/data, /home, /root)
 # while excluding temporary files, caches, and container storage to optimize
 # backup size and performance.
+#
+# Backup destinations:
+# - cottage: MinIO S3-compatible storage on cottage host
+# - idrive: Cloud backup to iDrive E2 storage
 {
   lib,
   config,
@@ -74,6 +78,7 @@ in {
   config = mkIf config.constellation.backup.enable {
     age.secrets."restic-password".file = "${self}/secrets/restic-password.age";
     age.secrets."restic-truenas".file = "${self}/secrets/restic-truenas.age";
+    age.secrets."restic-cottage-minio".file = "${self}/secrets/restic-cottage-minio.age";
     age.secrets."idrive-env".file = "${self}/secrets/idrive-env.age";
     age.secrets."restic-rclone-idrive".file = "${self}/secrets/rclone-idrive.age";
 
@@ -88,11 +93,11 @@ in {
               repository = "opendal:s3";
               options = {
                 bucket = "restic";
-                endpoint = "http://cottage:9000";
+                endpoint = "http://cottage.bat-boa.ts.net:9000";
                 region = "auto";
               };
             };
-            environmentFile = config.age.secrets.restic-truenas.path;
+            environmentFile = config.age.secrets."restic-cottage-minio".path;
           };
 
         idrive =
