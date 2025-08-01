@@ -9,7 +9,7 @@
 with lib; {
   imports = [
     ./hardware-configuration.nix
-    # ./disko-config.nix  # Disabled for nixos-infect - using existing ZFS pools
+    ./disko-config.nix
     ./services
     # ./backup  # Disabled until data pool is recreated
   ];
@@ -21,7 +21,7 @@ with lib; {
     email.enable = true;
     media.enable = false; # Disabled until data pool is recreated
     podman.enable = true;
-    services.enable = true;
+    services.enable = false; # Disabled until data pool is recreated (requires media.config for ACME)
     virtualization.enable = true;
   };
 
