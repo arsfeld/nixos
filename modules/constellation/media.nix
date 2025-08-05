@@ -133,6 +133,14 @@ in {
             "${vars.storageDir}/media/Manga:/data"
           ];
         };
+
+        actual = {
+          image = "ghcr.io/actualbudget/actual-server:latest";
+          listenPort = 5006;
+          volumes = [
+            "${vars.storageDir}/data/actual:/data"
+          ];
+        };
       };
 
       cloudServices = {
