@@ -14,6 +14,19 @@ This is a personal NixOS configuration repository that manages multiple machines
 nix develop
 ```
 
+### Secret Management
+```bash
+# Edit an encrypted secret
+ragenix -e secrets/secret-name.age --rules secrets/secrets.nix
+
+# View decrypted secret (use with caution)
+# Note: ragenix doesn't have a direct decrypt command, use age:
+cd secrets && age -d -i ~/.ssh/id_ed25519 secret-name.age
+
+# Rekey all secrets (after adding/removing keys in secrets.nix)
+ragenix -r --rules secrets/secrets.nix
+```
+
 ### Deployment Commands
 ```bash
 # Deploy to a specific host
@@ -42,7 +55,7 @@ just fmt
 ### Directory Structure
 - `/hosts/` - Machine-specific configurations. Each host has its own directory with configuration.nix and hardware-configuration.nix
 - `/modules/` - Reusable NixOS modules, especially the `constellation/` modules that provide opt-in features
-- `/secrets/` - Encrypted secrets using agenix (age encryption)
+- `/secrets/` - Encrypted secrets using ragenix (age encryption, Rust implementation)
 - `/home/` - Home Manager configuration for user environments
 
 ### Key Configuration Patterns
@@ -54,7 +67,7 @@ just fmt
    - `constellation.media` - Media server stack
    - `constellation.podman` - Container runtime
 
-2. **Secret Management**: All secrets are encrypted with agenix. Secrets are defined in `secrets/secrets.nix` and encrypted files are in `/secrets/*.age`
+2. **Secret Management**: All secrets are encrypted with ragenix. Secrets are defined in `secrets/secrets.nix` and encrypted files are in `/secrets/*.age`
 
 3. **Deployment**: Uses deploy-rs for remote deployment. All hosts are accessible via Tailscale VPN (*.bat-boa.ts.net)
 
@@ -66,9 +79,14 @@ just fmt
 - Services often use Podman containers
 - The storage host runs most services including media servers, databases, and backup systems
 
+## Service and Network Details
+
+- arsfeld.one is served through tailscale by storage if inside the tailnet, otherwise it's served through cloud
+
 ## Testing Changes
 
 Before deploying:
 1. Test build locally: `nix build .#nixosConfigurations.<hostname>.config.system.build.toplevel`
 2. Format code: `just fmt`
 3. Deploy to test system first if available
+```
