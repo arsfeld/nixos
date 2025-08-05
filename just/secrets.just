@@ -5,9 +5,9 @@ generate NAME LENGTH="64":
     #!/usr/bin/env bash
     set -euo pipefail
     
-    # Check if agenix is available
-    if ! command -v agenix &> /dev/null; then
-        echo "Error: agenix command not found. Please enter the development shell with 'nix develop'"
+    # Check if ragenix is available
+    if ! command -v ragenix &> /dev/null; then
+        echo "Error: ragenix command not found. Please enter the development shell with 'nix develop'"
         exit 1
     fi
     
@@ -19,9 +19,9 @@ generate NAME LENGTH="64":
     # Save to temporary file
     echo "$key" > "/tmp/{{ NAME }}.txt"
     
-    # Encrypt with agenix (run from secrets directory)
+    # Encrypt with ragenix (run from secrets directory)
     echo "Encrypting {{ NAME }}..."
-    cd secrets && agenix -e "{{ NAME }}.age" < "/tmp/{{ NAME }}.txt"
+    cd secrets && ragenix -e "{{ NAME }}.age" < "/tmp/{{ NAME }}.txt"
     rm -f "/tmp/{{ NAME }}.txt"
     
     echo "✓ Key generated and encrypted to secrets/{{ NAME }}.age"
@@ -32,8 +32,8 @@ copy SOURCE DEST:
     #!/usr/bin/env bash
     set -euo pipefail
     
-    if ! command -v agenix &> /dev/null; then
-        echo "Error: agenix command not found. Please enter the development shell with 'nix develop'"
+    if ! command -v ragenix &> /dev/null; then
+        echo "Error: ragenix command not found. Please enter the development shell with 'nix develop'"
         exit 1
     fi
     
@@ -49,10 +49,10 @@ copy SOURCE DEST:
     trap "rm -f $temp_file" EXIT
     
     # Decrypt source (run from secrets directory)
-    cd secrets && agenix -d "{{ SOURCE }}" > "$temp_file"
+    cd secrets && age -d -i ~/.ssh/id_ed25519 "{{ SOURCE }}" > "$temp_file"
     
     # Re-encrypt to destination
-    agenix -e "{{ DEST }}" < "$temp_file"
+    ragenix -e "{{ DEST }}" < "$temp_file"
     
     echo "✓ Secret copied to secrets/{{ DEST }}"
     echo "Don't forget to add it to secrets/secrets.nix with appropriate publicKeys!"
@@ -62,8 +62,8 @@ show NAME:
     #!/usr/bin/env bash
     set -euo pipefail
     
-    if ! command -v agenix &> /dev/null; then
-        echo "Error: agenix command not found. Please enter the development shell with 'nix develop'"
+    if ! command -v ragenix &> /dev/null; then
+        echo "Error: ragenix command not found. Please enter the development shell with 'nix develop'"
         exit 1
     fi
     
@@ -82,7 +82,7 @@ show NAME:
     
     echo "Decrypting {{ NAME }}..."
     echo "--- BEGIN SECRET ---"
-    cd secrets && agenix -d "{{ NAME }}"
+    cd secrets && age -d -i ~/.ssh/id_ed25519 "{{ NAME }}"
     echo -e "\n--- END SECRET ---"
 
 # List all available secrets
