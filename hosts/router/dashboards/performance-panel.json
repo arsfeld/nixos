@@ -1,0 +1,157 @@
+{
+  "title": "Performance Optimizations",
+  "panels": [
+    {
+      "title": "TCP Congestion Control",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "node_netstat_Tcp_CurrEstab",
+          "legendFormat": "Active TCP Connections"
+        }
+      ],
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 }
+    },
+    {
+      "title": "BBR Metrics",
+      "type": "graph",
+      "targets": [
+        {
+          "expr": "rate(node_netstat_Tcp_RetransSegs[5m])",
+          "legendFormat": "TCP Retransmissions/sec"
+        },
+        {
+          "expr": "rate(node_netstat_Tcp_OutSegs[5m])",
+          "legendFormat": "TCP Segments Out/sec"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 0 }
+    },
+    {
+      "title": "Hardware Offload Status",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "network_offload_tso",
+          "legendFormat": "TSO {{interface}}"
+        },
+        {
+          "expr": "network_offload_gso",
+          "legendFormat": "GSO {{interface}}"
+        },
+        {
+          "expr": "network_offload_gro",
+          "legendFormat": "GRO {{interface}}"
+        }
+      ],
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 }
+    },
+    {
+      "title": "XDP Firewall Statistics",
+      "type": "graph",
+      "targets": [
+        {
+          "expr": "rate(xdp_packets_total[5m])",
+          "legendFormat": "Total Packets/sec"
+        },
+        {
+          "expr": "rate(xdp_packets_dropped[5m])",
+          "legendFormat": "Dropped Packets/sec"
+        },
+        {
+          "expr": "rate(xdp_packets_passed[5m])",
+          "legendFormat": "Passed Packets/sec"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+    },
+    {
+      "title": "XDP Drop Rate",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "(rate(xdp_packets_dropped[5m]) / rate(xdp_packets_total[5m])) * 100",
+          "legendFormat": "Drop Rate %"
+        }
+      ],
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "green" },
+              { "value": 5, "color": "yellow" },
+              { "value": 10, "color": "red" }
+            ]
+          },
+          "unit": "percent"
+        }
+      }
+    },
+    {
+      "title": "Banned IPs",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "xdp_banned_ips",
+          "legendFormat": "Currently Banned IPs"
+        }
+      ],
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 }
+    },
+    {
+      "title": "Network Buffer Usage",
+      "type": "graph",
+      "targets": [
+        {
+          "expr": "node_sockstat_TCP_mem",
+          "legendFormat": "TCP Memory Pages"
+        },
+        {
+          "expr": "node_sockstat_UDP_mem",
+          "legendFormat": "UDP Memory Pages"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 }
+    },
+    {
+      "title": "Connection Tracking",
+      "type": "graph",
+      "targets": [
+        {
+          "expr": "node_nf_conntrack_entries",
+          "legendFormat": "Active Connections"
+        },
+        {
+          "expr": "node_nf_conntrack_entries_limit",
+          "legendFormat": "Connection Limit"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 }
+    },
+    {
+      "title": "CPU Frequency",
+      "type": "graph",
+      "targets": [
+        {
+          "expr": "node_cpu_frequency_hertz",
+          "legendFormat": "CPU {{cpu}} Frequency"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 }
+    },
+    {
+      "title": "Interrupt Distribution",
+      "type": "heatmap",
+      "targets": [
+        {
+          "expr": "rate(node_interrupts_total[5m])",
+          "legendFormat": "{{cpu}} {{device}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 }
+    }
+  ]
+}

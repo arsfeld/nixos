@@ -13,6 +13,10 @@
     ./traffic-shaping.nix
     ./alerting.nix
     ./ntfy-webhook.nix
+    ./performance-tuning.nix # BBR v3 and TCP optimizations
+    ./hardware-offload.nix # TSO/GSO/GRO offloading
+    # ./xdp-firewall.nix       # XDP DDoS protection (disabled - overkill for home use)
+    ../../packages/router_ui/module.nix
   ];
 
   # Boot configuration
@@ -27,7 +31,7 @@
     "net.netfilter.nf_conntrack_acct" = true;
   };
 
-  boot.kernelModules = ["nf_conntrack"];
+  boot.kernelModules = ["nf_conntrack" "wireguard"];
 
   # Basic networking
   networking = {
@@ -163,5 +167,12 @@
       cpuUsagePercent = 90; # Alert when CPU usage exceeds 90%
       memoryUsagePercent = 85; # Alert when memory usage exceeds 85%
     };
+  };
+
+  # VPN Manager service
+  services.vpn-manager = {
+    enable = true;
+    port = 8501;
+    openFirewall = true; # Open port in firewall for local access
   };
 }
