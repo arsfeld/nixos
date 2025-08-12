@@ -42,7 +42,7 @@ with lib; let
       yarr = 7070;
     };
     storage = {
-      beszel = 8090;
+      # beszel = 8090; # Disabled - monitoring service causing high CPU usage
       bitmagnet = 3333;
       code = 4444;
       duplicati = 8200;
