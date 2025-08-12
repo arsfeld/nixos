@@ -5,8 +5,8 @@
     nixos-generators.inputs.nixpkgs.follows = "nixpkgs";
     disko.url = "github:nix-community/disko"; # Declarative disk partitioning
     disko.inputs.nixpkgs.follows = "nixpkgs";
-    ragenix.url = "github:yaxitech/ragenix"; # Age-based secret management (Rust implementation)
-    ragenix.inputs.nixpkgs.follows = "nixpkgs";
+    agenix.url = "github:ryantm/agenix"; # Age-based secret management
+    agenix.inputs.nixpkgs.follows = "nixpkgs";
     home-manager.url = "github:nix-community/home-manager/release-25.05"; # User environment management
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     deploy-rs.url = "github:serokell/deploy-rs"; # Remote deployment tool
@@ -72,7 +72,7 @@
               jq
               just
               openssl
-              inputs.ragenix.packages."${pkgs.stdenv.system}".default
+              inputs.agenix.packages."${pkgs.stdenv.system}".default
               inputs.disko.packages."${pkgs.stdenv.system}".default
 
               # Python tools
@@ -132,7 +132,7 @@
             loaded;
 
           commonModules = inputs.nixpkgs.lib.flatten [
-            inputs.ragenix.nixosModules.default
+            inputs.agenix.nixosModules.default
             inputs.nix-flatpak.nixosModules.nix-flatpak
             inputs.tsnsrv.nixosModules.default
             inputs.home-manager.nixosModules.home-manager
@@ -169,7 +169,7 @@
               getAllValues modules)
           ];
           baseModules = inputs.nixpkgs.lib.flatten [
-            inputs.ragenix.nixosModules.default
+            inputs.agenix.nixosModules.default
             inputs.nix-flatpak.nixosModules.nix-flatpak
             inputs.tsnsrv.nixosModules.default
             {
@@ -258,6 +258,12 @@
           raspi3 = self.lib.mkLinuxSystem {
             mods = [./hosts/raspi3/configuration.nix];
           };
+          raider = self.lib.mkLinuxSystem {
+            mods = [
+              inputs.disko.nixosModules.disko
+              ./hosts/raider/configuration.nix
+            ];
+          };
         };
 
         deploy = let
@@ -272,6 +278,7 @@
             };
             r2s.system = "aarch64-linux";
             raspi3.system = "aarch64-linux";
+            raider = {}; # Desktop gaming machine
           };
 
           mkDeploy = hostName: overrides: let

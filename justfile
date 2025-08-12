@@ -1,5 +1,4 @@
 # Import modular justfiles with namespaces
-mod router-ui 'just/router-ui.just'
 mod blog 'just/blog.just'
 mod secrets 'just/secrets.just'
 mod docs 'just/docs.just'
@@ -25,7 +24,13 @@ boot +TARGETS:
 deploy +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail # Enable strict error handling
-    deploy {{ args }} --targets $(just _format-targets {{ TARGETS }})
+    # Build deploy command with multiple --targets flags
+    cmd="deploy {{ args }}"
+    for target in {{ TARGETS }}; do
+        cmd="$cmd --targets \".#$target\""
+    done
+    echo "Running: $cmd"
+    eval $cmd
 
 trace +TARGETS:
     #!/usr/bin/env bash
@@ -445,9 +450,9 @@ plausible-setup:
     
     echo -e "${GREEN}Setting up Plausible Analytics secrets...${NC}"
     
-    # Check if ragenix is available
-    if ! command -v ragenix &> /dev/null; then
-        echo -e "${RED}Error: ragenix command not found. Please enter the development shell with 'nix develop'${NC}"
+    # Check if agenix is available
+    if ! command -v agenix &> /dev/null; then
+        echo -e "${RED}Error: agenix command not found. Please enter the development shell with 'nix develop'${NC}"
         exit 1
     fi
     
@@ -461,7 +466,7 @@ plausible-setup:
     
     # Encrypt the secret key
     echo -e "${YELLOW}Encrypting SECRET_KEY_BASE...${NC}"
-    cd "$ORIG_DIR/secrets" && ragenix -e plausible-secret-key.age < /tmp/plausible-secret-key.txt
+    cd "$ORIG_DIR/secrets" && agenix -e plausible-secret-key.age < /tmp/plausible-secret-key.txt
     rm -f /tmp/plausible-secret-key.txt
     
     echo -e "${GREEN}✓ SECRET_KEY_BASE generated and encrypted${NC}"
@@ -483,13 +488,13 @@ plausible-setup:
             trap "rm -f ${TEMP_SMTP}" EXIT
             
             # Decrypt the existing SMTP password
-            cd "$ORIG_DIR/secrets" && ragenix -d smtp_password.age > "${TEMP_SMTP}"
+            cd "$ORIG_DIR/secrets" && age -d -i ~/.ssh/id_ed25519 smtp_password.age > "${TEMP_SMTP}"
             
             # Format it for Plausible's environment variable
             echo "SMTP_USER_PWD=$(cat ${TEMP_SMTP})" > /tmp/plausible-smtp-password.txt
             
             # Encrypt for Plausible
-            cd "$ORIG_DIR/secrets" && ragenix -e plausible-smtp-password.age < /tmp/plausible-smtp-password.txt
+            cd "$ORIG_DIR/secrets" && agenix -e plausible-smtp-password.age < /tmp/plausible-smtp-password.txt
             rm -f /tmp/plausible-smtp-password.txt
             
             echo -e "${GREEN}✓ Existing SMTP password reused for Plausible${NC}"
@@ -504,7 +509,7 @@ plausible-setup:
             echo "SMTP_USER_PWD=${smtp_password}" > /tmp/plausible-smtp-password.txt
             
             # Encrypt the SMTP password
-            cd "$ORIG_DIR/secrets" && ragenix -e plausible-smtp-password.age < /tmp/plausible-smtp-password.txt
+            cd "$ORIG_DIR/secrets" && agenix -e plausible-smtp-password.age < /tmp/plausible-smtp-password.txt
             rm -f /tmp/plausible-smtp-password.txt
             
             echo -e "${GREEN}✓ New SMTP password encrypted for Plausible${NC}"
