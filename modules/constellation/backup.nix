@@ -81,6 +81,7 @@ in {
     age.secrets."restic-cottage-minio".file = "${self}/secrets/restic-cottage-minio.age";
     age.secrets."idrive-env".file = "${self}/secrets/idrive-env.age";
     age.secrets."restic-rclone-idrive".file = "${self}/secrets/rclone-idrive.age";
+    age.secrets."restic-rest-auth".file = "${self}/secrets/restic-rest-auth.age";
 
     services.rustic = {
       enable = true;
@@ -111,6 +112,18 @@ in {
               repository = "rclone:idrive:arosenfeld";
               password-file = config.age.secrets."restic-password".path;
             };
+          };
+
+        servarica =
+          recursiveUpdate
+          opts
+          {
+            repository = {
+              repository = "rest:https://servarica.bat-boa.ts.net/";
+              password-file = config.age.secrets."restic-password".path;
+              init = true;
+            };
+            environmentFile = config.age.secrets."restic-rest-auth".path;
           };
       };
     };

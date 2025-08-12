@@ -68,7 +68,7 @@ in {
         PUID = toString vars.puid;
         PGID = toString vars.pgid;
       };
-      ports = ["38080:80"];
+      ports = ["38080:8080"];
     };
   };
 
