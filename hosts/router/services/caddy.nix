@@ -40,6 +40,11 @@
       reverse_proxy localhost:8090
     }
 
+    # VPN Manager - Per-client VPN routing (Streamlit app)
+    handle /vpn-manager* {
+      reverse_proxy localhost:8501
+    }
+
     # Router dashboard
     handle /dashboard* {
       reverse_proxy localhost:8080

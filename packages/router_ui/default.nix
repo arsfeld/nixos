@@ -1,59 +1,29 @@
 {
   lib,
-  buildGoModule,
-  nodejs,
-  nodePackages,
+  python3,
+  writeTextFile,
+  writeShellScriptBin,
+  iproute2,
+  nftables,
+  wireguard-tools,
 }: let
-  pname = "router-ui";
-  version = "0.1.0";
+  pythonEnv = python3.withPackages (ps:
+    with ps; [
+      streamlit
+      pandas
+    ]);
 
-  src = ./.;
+  vpnManagerScript = writeTextFile {
+    name = "vpn-manager.py";
+    text = builtins.readFile ./vpn-manager.py;
+    executable = false;
+  };
 in
-  buildGoModule rec {
-    inherit pname version src;
-
-    vendorHash = null; # Will be replaced with actual hash after first build
-
-    # Build-time dependencies
-    nativeBuildInputs = [
-      nodejs
-      nodePackages.npm
-    ];
-
-    # Build the web assets before building the Go binary
-    preBuild = ''
-      # Install npm dependencies and build web assets
-      cd web
-      npm install
-      npm run build
-      cd ..
-    '';
-
-    # Install the binary and web assets
-    postInstall = ''
-      # Create directories
-      mkdir -p $out/share/router-ui/web
-
-      # Copy web assets
-      cp -r web/static $out/share/router-ui/web/
-      cp -r web/templates $out/share/router-ui/web/
-
-      # Create wrapper script that sets the correct paths
-      mv $out/bin/router_ui $out/bin/.router_ui-wrapped
-      cat > $out/bin/router_ui <<EOF
-      #!/bin/sh
-      export ROUTER_UI_STATIC_DIR="$out/share/router-ui/web/static"
-      export ROUTER_UI_TEMPLATES_DIR="$out/share/router-ui/web/templates"
-      exec $out/bin/.router_ui-wrapped "\$@"
-      EOF
-      chmod +x $out/bin/router_ui
-    '';
-
-    meta = with lib; {
-      description = "Web interface for router management with VPN client control";
-      homepage = "https://github.com/arosenfeld/nixos-config";
-      license = licenses.mit;
-      maintainers = with maintainers; [];
-      platforms = platforms.linux;
-    };
-  }
+  writeShellScriptBin "vpn-manager" ''
+    export PATH="${iproute2}/bin:${nftables}/bin:${wireguard-tools}/bin:$PATH"
+    exec ${pythonEnv}/bin/streamlit run \
+      --server.baseUrlPath=vpn-manager \
+      --server.enableCORS=false \
+      --server.enableXsrfProtection=false \
+      ${vpnManagerScript} "$@"
+  ''

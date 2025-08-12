@@ -3,142 +3,94 @@
   lib,
   pkgs,
   ...
-}:
-with lib; let
-  cfg = config.services.router-ui;
+}: let
+  cfg = config.services.vpn-manager;
 
-  router-ui = pkgs.callPackage ./. {};
-
-  # Database configuration
-  dataDir = "/var/lib/router-ui";
-  dbPath = "${dataDir}/db";
-
-  # Configuration file
-  configFile = pkgs.writeText "router-ui-config.json" (builtins.toJSON {
-    port = toString cfg.port;
-    db_path = dbPath;
-    static_dir = "${router-ui}/share/router-ui/web/static";
-    templates_dir = "${router-ui}/share/router-ui/web/templates";
-    tailscale_auth = cfg.tailscaleAuth;
-  });
+  vpn-manager = pkgs.callPackage ./default.nix {};
 in {
-  options.services.router-ui = {
-    enable = mkEnableOption "Router UI - Web interface for router management";
+  options.services.vpn-manager = {
+    enable = lib.mkEnableOption "Streamlit VPN Manager";
 
-    port = mkOption {
-      type = types.port;
-      default = 4000;
-      description = "Port on which Router UI will listen";
+    port = lib.mkOption {
+      type = lib.types.port;
+      default = 8501;
+      description = "Port for the Streamlit web interface";
     };
 
-    tailscaleAuth = mkOption {
-      type = types.bool;
-      default = true;
-      description = "Enable Tailscale authentication";
+    stateDir = lib.mkOption {
+      type = lib.types.path;
+      default = "/var/lib/vpn-manager";
+      description = "Directory for storing VPN manager state";
     };
 
-    openFirewall = mkOption {
-      type = types.bool;
+    openFirewall = lib.mkOption {
+      type = lib.types.bool;
       default = false;
-      description = "Whether to open the firewall for Router UI";
-    };
-
-    environmentFile = mkOption {
-      type = types.nullOr types.path;
-      default = null;
-      description = ''
-        Environment file containing sensitive configuration.
-        Can contain environment variables for the service.
-      '';
+      description = "Open firewall port for web interface";
     };
   };
 
-  config = mkIf cfg.enable {
-    # Create system user and group
-    users.users.router-ui = {
-      isSystemUser = true;
-      group = "router-ui";
-      home = dataDir;
-      description = "Router UI service user";
-    };
-
-    users.groups.router-ui = {};
-
-    # Create required directories
+  config = lib.mkIf cfg.enable {
+    # Create state directory
     systemd.tmpfiles.rules = [
-      "d ${dataDir} 0700 router-ui router-ui -"
-      "d ${dbPath} 0700 router-ui router-ui -"
-      "d /etc/wireguard 0700 root root -"
-      "d /etc/nftables.d 0755 root root -"
+      "d ${cfg.stateDir} 0755 root root -"
     ];
 
     # Systemd service
-    systemd.services.router-ui = {
-      description = "Router UI - Web interface for router management";
-      wantedBy = ["multi-user.target"];
+    systemd.services.vpn-manager = {
+      description = "Streamlit VPN Manager";
       after = ["network.target"];
+      wantedBy = ["multi-user.target"];
+
+      environment = {
+        STREAMLIT_SERVER_PORT = toString cfg.port;
+        STREAMLIT_SERVER_ADDRESS = "0.0.0.0";
+        STREAMLIT_SERVER_HEADLESS = "true";
+        STREAMLIT_SERVER_BASE_URL_PATH = "vpn-manager";
+        STREAMLIT_BROWSER_GATHER_USAGE_STATS = "false";
+        VPN_MANAGER_STATE_FILE = "/var/lib/vpn-manager/state.json";
+        HOME = "/var/lib/vpn-manager";
+      };
 
       serviceConfig = {
-        Type = "exec";
-        User = "router-ui";
-        Group = "router-ui";
-        WorkingDirectory = dataDir;
-
-        # Network admin capabilities for WireGuard and nftables management
-        AmbientCapabilities = ["CAP_NET_ADMIN" "CAP_NET_RAW"];
-        CapabilityBoundingSet = ["CAP_NET_ADMIN" "CAP_NET_RAW"];
-
-        # Security hardening
-        PrivateTmp = true;
-        ProtectSystem = "strict";
-        ProtectHome = true;
-        NoNewPrivileges = true;
-        ReadWritePaths = [
-          dataDir
-          "/etc/wireguard"
-          "/etc/nftables.d"
-          "/var/lib/kea" # For reading DHCP leases
-        ];
-
-        # Environment
-        Environment = [
-          "HOME=${dataDir}"
-        ];
-        EnvironmentFile = mkIf (cfg.environmentFile != null) cfg.environmentFile;
-
-        # Run the service
-        ExecStart = "${router-ui}/bin/router_ui -config ${configFile}";
-
+        Type = "simple";
+        ExecStart = "${vpn-manager}/bin/vpn-manager";
         Restart = "on-failure";
         RestartSec = 5;
 
-        # Logging
-        StandardOutput = "journal";
-        StandardError = "journal";
-        SyslogIdentifier = "router-ui";
+        # Run as a dedicated user for better security
+        DynamicUser = true;
+        StateDirectory = "vpn-manager";
+
+        # Capabilities for network management (including WireGuard)
+        AmbientCapabilities = ["CAP_NET_ADMIN" "CAP_NET_RAW" "CAP_SYS_MODULE"];
+        CapabilityBoundingSet = ["CAP_NET_ADMIN" "CAP_NET_RAW" "CAP_SYS_MODULE"];
+
+        # Security hardening
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        ReadWritePaths = ["/tmp"];
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+
+        # Allow reading DHCP leases
+        ReadOnlyPaths = [
+          "/var/lib/misc" # dnsmasq leases
+          "/var/lib/kea" # Kea leases
+        ];
       };
     };
 
     # Open firewall if requested
-    networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [cfg.port];
+    networking.firewall.allowedTCPPorts = lib.mkIf cfg.openFirewall [cfg.port];
 
-    # Add router-ui to nftables reload path
-    systemd.services.nftables = mkIf config.networking.nftables.enable {
-      reloadIfChanged = true;
-      serviceConfig.ExecReload = mkForce ''
-        ${pkgs.nftables}/bin/nft -f /etc/nftables.conf
-        ${pkgs.nftables}/bin/nft -f /etc/nftables.d/router-ui.nft || true
-      '';
-    };
-
-    # Integration with Caddy (if enabled)
-    services.caddy.virtualHosts = mkIf (config.services.caddy.enable && cfg.openFirewall == false) {
-      ":80".extraConfig = mkAfter ''
-        handle /router-ui* {
-          uri strip_prefix /router-ui
+    # Add to reverse proxy if Caddy is enabled
+    services.caddy.virtualHosts = lib.mkIf (config.services.caddy.enable) {
+      "vpn-manager.local" = {
+        extraConfig = ''
           reverse_proxy localhost:${toString cfg.port}
-        }
-      '';
+        '';
+      };
     };
   };
 }
