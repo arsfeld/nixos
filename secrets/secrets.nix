@@ -27,6 +27,7 @@ in {
   "idrive-env.age".publicKeys = users ++ systems;
   "smtp_password.age".publicKeys = users ++ systems;
   "tailscale-key.age".publicKeys = users ++ systems;
+  "tailscale-env.age".publicKeys = users ++ systems;
   "transmission-openvpn-pia.age".publicKeys = users ++ [storage];
   "ntfy-env.age".publicKeys = users ++ [cloud];
   "finance-tracker-env.age".publicKeys = users ++ [storage];
@@ -40,4 +41,5 @@ in {
   "github-token.age".publicKeys = users ++ systems;
   "minio-credentials.age".publicKeys = users ++ systems;
   "restic-cottage-minio.age".publicKeys = users ++ systems;
+  "restic-rest-auth.age".publicKeys = users ++ systems;
 }
