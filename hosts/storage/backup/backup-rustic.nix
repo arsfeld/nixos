@@ -11,7 +11,7 @@
         RandomizedDelaySec = "5h";
       };
       repository = {
-        repository = "/mnt/data/backups/rustic";
+        repository = "/mnt/storage/backups/rustic";
         password-file = config.age.secrets."restic-password".path;
       };
       backup = {
