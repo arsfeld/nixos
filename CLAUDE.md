@@ -17,14 +17,13 @@ nix develop
 ### Secret Management
 ```bash
 # Edit an encrypted secret
-ragenix -e secrets/secret-name.age --rules secrets/secrets.nix
+agenix -e secrets/secret-name.age
 
 # View decrypted secret (use with caution)
-# Note: ragenix doesn't have a direct decrypt command, use age:
 cd secrets && age -d -i ~/.ssh/id_ed25519 secret-name.age
 
 # Rekey all secrets (after adding/removing keys in secrets.nix)
-ragenix -r --rules secrets/secrets.nix
+agenix -r
 ```
 
 ### Deployment Commands
@@ -55,7 +54,7 @@ just fmt
 ### Directory Structure
 - `/hosts/` - Machine-specific configurations. Each host has its own directory with configuration.nix and hardware-configuration.nix
 - `/modules/` - Reusable NixOS modules, especially the `constellation/` modules that provide opt-in features
-- `/secrets/` - Encrypted secrets using ragenix (age encryption, Rust implementation)
+- `/secrets/` - Encrypted secrets using agenix (age encryption)
 - `/home/` - Home Manager configuration for user environments
 
 ### Key Configuration Patterns
@@ -67,7 +66,7 @@ just fmt
    - `constellation.media` - Media server stack
    - `constellation.podman` - Container runtime
 
-2. **Secret Management**: All secrets are encrypted with ragenix. Secrets are defined in `secrets/secrets.nix` and encrypted files are in `/secrets/*.age`
+2. **Secret Management**: All secrets are encrypted with agenix. Secrets are defined in `secrets/secrets.nix` and encrypted files are in `/secrets/*.age`
 
 3. **Deployment**: Uses deploy-rs for remote deployment. All hosts are accessible via Tailscale VPN (*.bat-boa.ts.net)
 
