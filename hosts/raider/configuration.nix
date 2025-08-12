@@ -7,65 +7,45 @@
 }: let
   appimage = pkgs.callPackage (import ./appimage.nix) {};
 in {
-  imports = [./hardware-configuration.nix];
-
-  boot.kernelParams = [
-    "zswap.enabled=1"
-    "mitigations=off"
-    "splash"
-    "quiet"
-    "udev.log_level=0"
+  imports = [
+    ./hardware-configuration.nix
+    ./disko-config.nix
   ];
 
-  boot.plymouth.enable = true;
-  boot.plymouth.theme = "bgrt";
+  # Enable constellation modules
+  constellation = {
+    gnome.enable = true;
+    gaming.enable = true;
+    development.enable = true;
+  };
 
-  boot.initrd.verbose = false;
-  boot.consoleLogLevel = 0;
-
-  # powerManagement.powertop.enable = true;
-
-  services.system76-scheduler.enable = true;
-
-  networking.hostName = "raider-nixos";
+  # Basic system configuration
+  networking.hostName = "raider";
 
   systemd.services.NetworkManager-wait-online.enable = false;
 
-  # Bootloader.
+  # Bootloader
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
+
+  # Boot appearance
+  boot.plymouth.enable = true;
+  boot.plymouth.theme = "bgrt";
+  boot.initrd.verbose = false;
+  boot.consoleLogLevel = 0;
 
   # Remove zfs
   boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "ntfs" "reiserfs" "vfat" "xfs" "bcachefs"];
 
-  virtualisation.incus = {
-    enable = true;
-    ui.enable = true;
-  };
   networking.nftables.enable = true;
 
-  boot.kernelPackages = pkgs.linuxPackages_zen;
-
+  # Additional system services specific to this machine
   programs.coolercontrol.enable = true;
 
-  programs = {
-    gamemode.enable = true;
-    gamescope = {
-      enable = true;
-      capSysNice = true;
-    };
-    steam = {
-      enable = true;
-      gamescopeSession.enable = true;
-    };
-  };
-
-  #services.power-profiles-daemon.enable = false;
-
-  # Set your time zone.
+  # Set your time zone
   time.timeZone = "America/Toronto";
 
-  # Select internationalisation properties.
+  # Select internationalisation properties
   i18n.defaultLocale = "en_CA.UTF-8";
 
   # Configure keymap in X11
@@ -77,20 +57,40 @@ in {
   # Configure console keymap
   console.keyMap = "us";
 
-  # Enable the OpenSSH daemon.
+  # Enable the OpenSSH daemon
   services.openssh.enable = true;
 
-  # Open ports in the firewall.
-  # networking.firewall.allowedTCPPorts = [ ... ];
-  # networking.firewall.allowedUDPPorts = [ ... ];
-  # Or disable the firewall altogether.
+  # Disable firewall for development
   networking.firewall.enable = false;
+
+  # Mount games partition
+  fileSystems."/mnt/games" = {
+    device = "/dev/disk/by-uuid/d167c926-d34b-4185-b5d9-5235483b8c39";
+    fsType = "btrfs";
+    options = ["compress=zstd" "noatime"];
+  };
+
+  # System activation script for games directory
+  system.activationScripts.gamesSetup = ''
+    if [ -d /mnt/games ]; then
+      mkdir -p /mnt/games/SteamLibrary
+      chown -R arosenfeld:users /mnt/games 2>/dev/null || true
+      chmod 755 /mnt/games
+
+      if [ ! -L /home/arosenfeld/Games ]; then
+        ln -sf /mnt/games /home/arosenfeld/Games 2>/dev/null || true
+      fi
+    fi
+  '';
+
+  # Environment variable for games location
+  environment.sessionVariables = {
+    GAMES_DIR = "/mnt/games";
+  };
 
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions
-  # on your system were taken. It‘s perfectly fine and recommended to leave
+  # on your system were taken. It's perfectly fine and recommended to leave
   # this value at the release version of the first install of this system.
-  # Before changing this value read the documentation for this option
-  # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
-  system.stateVersion = "23.05"; # Did you read the comment?
+  system.stateVersion = "23.05";
 }
