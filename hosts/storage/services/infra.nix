@@ -13,6 +13,7 @@
       };
       plugins = {
         "apps" = "no";
+        "go.d" = "no"; # Disable go.d plugin to stop podman API polling
       };
     };
   };
@@ -37,45 +38,10 @@
     settings.web.listen.port = 9998;
   };
 
-  users.users.beszel = {
-    group = "beszel";
-    home = "/var/lib/beszel";
-    isSystemUser = true;
-    createHome = true;
-  };
-
-  users.groups.beszel.name = "beszel";
-
-  systemd.services.beszel-hub = {
-    wantedBy = ["multi-user.target"];
-    after = ["network.target"];
-    serviceConfig = {
-      User = "beszel";
-      ExecStart = "${pkgs.beszel}/bin/beszel-hub serve --http 0.0.0.0:8090";
-      WorkingDirectory = "/var/lib/beszel";
-    };
-  };
-
-  users.users.beszel-agent = {
-    group = "beszel-agent";
-    home = "/var/lib/beszel-agent";
-    isSystemUser = true;
-    createHome = true;
-  };
-
-  users.groups.beszel-agent.name = "beszel-agent";
-
-  systemd.services.beszel-agent = {
-    wantedBy = ["multi-user.target"];
-    after = ["network.target"];
-    serviceConfig = {
-      Environment = [
-        "PORT=45876"
-        "KEY='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGKIjUSMdRqYMmZopjoXBVbEW2SpjE4mxrPclsnQCvW9'"
-      ];
-      User = "beszel-agent";
-      ExecStart = "${pkgs.beszel}/bin/beszel-agent";
-      WorkingDirectory = "/var/lib/beszel-agent";
-    };
+  # Beszel monitoring configuration moved to constellation.beszel module
+  constellation.beszel = {
+    enable = false; # Disabled to reduce CPU usage from podman polling
+    hub.enable = true;
+    agent.enable = true;
   };
 }
