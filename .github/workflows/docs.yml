@@ -43,16 +43,10 @@ jobs:
         uses: cachix/cachix-action@v14
         with:
           name: devenv
-          
-      - name: Install devenv
-        run: |
-          nix-env -iA devenv -f https://github.com/NixOS/nixpkgs/tarball/nixpkgs-unstable
-          echo "/home/runner/.nix-profile/bin" >> $GITHUB_PATH
-          devenv up
 
       - name: Build documentation
         run: |
-          devenv shell -- mkdocs build
+          nix develop --command mkdocs build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
