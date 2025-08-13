@@ -1,0 +1,19 @@
+# Local direnv configuration for performance tuning
+# This file is sourced by .envrc if it exists
+
+# Prevent evaluation stampedes by using a lock file
+export NIX_DIRENV_LOCKFILE_TIMEOUT=60
+
+# Use a shared evaluation cache across all shells
+export NIX_DIRENV_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/nix-direnv"
+
+# Increase garbage collection threshold for better performance
+export DIRENV_GC_THRESHOLD=100
+
+# Optional: Disable automatic reloading in editors
+# Uncomment if you want to manually trigger reloads
+# export DIRENV_DISABLE_AUTO_RELOAD=1
+
+# Optional: Use a single evaluation for all shells
+# This ensures only one nix evaluation happens at a time
+export NIX_DIRENV_USE_SYNC=1

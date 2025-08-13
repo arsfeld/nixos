@@ -286,7 +286,7 @@
       joycond.enable = true;
 
       # System optimization
-      system76-scheduler.enable = true;
+      system76-scheduler.enable = false; # Disabled - causes high context switches and freezing
 
       # Power management for gaming
       tlp = {

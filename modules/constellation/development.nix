@@ -35,12 +35,6 @@
       enableOnBoot = false; # Manual control for gaming
 
       daemon.settings = {
-        default-ulimits = {
-          nofile = {
-            Hard = 64000;
-            Soft = 64000;
-          };
-        };
         storage-driver = "btrfs";
         log-driver = "json-file";
         log-opts = {

@@ -17,6 +17,7 @@ in {
     gnome.enable = true;
     gaming.enable = true;
     development.enable = true;
+    docker.enable = true; # Enable Docker runtime
   };
 
   # Basic system configuration
@@ -36,6 +37,10 @@ in {
 
   # Remove zfs
   boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "ntfs" "reiserfs" "vfat" "xfs" "bcachefs"];
+
+  # Disable aggressive SATA power management to prevent SSD freezing
+  boot.kernelParams = ["ahci.mobile_lpm_policy=0"];
+  powerManagement.scsiLinkPolicy = "max_performance";
 
   networking.nftables.enable = true;
 
@@ -80,7 +85,7 @@ in {
   # Disable power management features
   powerManagement = {
     enable = true;
-    powertop.enable = true;
+    powertop.enable = false; # Disabled - causes aggressive power management that freezes input
   };
 
   # Disable GNOME auto-suspend
