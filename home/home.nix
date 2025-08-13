@@ -98,6 +98,7 @@ in {
       );
     shellAliases = {
       "df" = "df -h -x tmpfs";
+      "claude" = "${pkgs.nodejs}/bin/npx -y @anthropic-ai/claude-code@latest";
     };
 
     shell = {

@@ -79,8 +79,8 @@
               black
               python3Packages.mkdocs
               python3Packages.mkdocs-material
-              python3Packages.mkdocs-mermaid2-plugin
               python3Packages.mkdocs-awesome-pages-plugin
+              python3Packages.mkdocs-mermaid2-plugin
               python3Packages.mike
               python3Packages.pymdown-extensions
 
