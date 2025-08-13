@@ -63,6 +63,29 @@ in {
   # Disable firewall for development
   networking.firewall.enable = false;
 
+  # Disable suspend/hibernate
+  services.logind = {
+    lidSwitch = "ignore";
+    lidSwitchDocked = "ignore";
+    lidSwitchExternalPower = "ignore";
+    extraConfig = ''
+      HandlePowerKey=ignore
+      HandleSuspendKey=ignore
+      HandleHibernateKey=ignore
+      IdleAction=ignore
+      IdleActionSec=0
+    '';
+  };
+
+  # Disable power management features
+  powerManagement = {
+    enable = true;
+    powertop.enable = true;
+  };
+
+  # Disable GNOME auto-suspend
+  services.xserver.displayManager.gdm.autoSuspend = false;
+
   # Mount games partition
   fileSystems."/mnt/games" = {
     device = "/dev/disk/by-uuid/d167c926-d34b-4185-b5d9-5235483b8c39";
