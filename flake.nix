@@ -274,7 +274,6 @@
             cottage = {};
             cloud = {
               system = "aarch64-linux";
-              remoteBuild = true;
             };
             r2s.system = "aarch64-linux";
             raspi3.system = "aarch64-linux";

@@ -20,7 +20,6 @@
       distrobox
       nvidia-offload
       waypipe
-      nix
     ];
 in {
   # Home Manager needs a bit of information about you and the
@@ -55,6 +54,7 @@ in {
         kondo
         kotlin
         nil
+        nodejs
         procs
         ripgrep
         ruby
@@ -111,6 +111,15 @@ in {
   # This should be enabled by default, but being explicit here
   programs.nix-index.enable = true;
   programs.nix-index-database.comma.enable = true;
+
+  # Configure nix settings for user
+  nix = {
+    settings = {
+      # Use remote builders configuration
+      builders = "@${../nix-builders.conf}";
+      builders-use-substitutes = true;
+    };
+  };
 
   # programs.java.enable = true;
 
