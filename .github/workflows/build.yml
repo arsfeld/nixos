@@ -166,7 +166,7 @@ jobs:
 
           # Build the system
           echo "🛠️ Building for ${{ matrix.machine.host }}..."
-          deploy --remote-build=false --skip-checks \
+          deploy --skip-checks \
             --targets ".#${{ matrix.machine.host }}" \
             --${{ inputs.activation_mode || 'boot' }}
 

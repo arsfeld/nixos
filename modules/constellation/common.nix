@@ -43,6 +43,9 @@ with lib; {
         # Deduplicate and optimize nix store
         auto-optimise-store = true;
 
+        # Enable substitutes for remote builders
+        builders-use-substitutes = true;
+
         substituters = [
           "https://nix-community.cachix.org?priority=41" # this is a useful public cache!
           "https://numtide.cachix.org?priority=42" # this is also a useful public cache!
@@ -60,6 +63,20 @@ with lib; {
           "cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o="
         ];
       };
+
+      # Configure remote builders
+      buildMachines = [
+        {
+          hostName = "cloud.bat-boa.ts.net";
+          system = "aarch64-linux";
+          protocol = "ssh";
+          sshUser = "root";
+          maxJobs = 4;
+          speedFactor = 2;
+          supportedFeatures = ["nixos-test" "benchmark" "big-parallel"];
+          mandatoryFeatures = [];
+        }
+      ];
 
       #registry.nixpkgs.flake = inputs.nixpkgs;
 
@@ -90,6 +107,13 @@ with lib; {
 
     programs.zsh.enable = true;
     programs.fish.enable = true;
+
+    # Configure SSH known hosts for remote builders
+    programs.ssh.knownHosts = {
+      "cloud.bat-boa.ts.net" = {
+        publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH51UBt4enqaDYdbEaBD1I1ef+wZGFmkjv68Mv4bnVWA";
+      };
+    };
 
     nix.settings.trusted-users = [
       "root"
