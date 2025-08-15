@@ -1,11 +1,10 @@
 {
-  config,
   lib,
   pkgs,
   ...
 }: {
   imports = [
-    ./disk-config.nix
+    ./disko-config.nix
     ./hardware-configuration.nix
     ./interfaces.nix
     ./network.nix
