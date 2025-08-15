@@ -32,6 +32,32 @@ deploy +TARGETS:
     echo "Running: $cmd"
     eval $cmd
 
+# Deploy using Colmena (alternative to deploy-rs)
+colmena-deploy +TARGETS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    colmena apply --impure --on {{ TARGETS }} --verbose
+
+# Deploy with boot activation using Colmena
+colmena-boot +TARGETS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    colmena apply --impure --on {{ TARGETS }} --reboot --verbose
+
+# Build configuration using Colmena without deploying
+colmena-build +TARGETS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    colmena build --impure --on {{ TARGETS }}
+
+# Show Colmena deployment information
+colmena-info:
+    colmena eval --impure -E '{ nodes, ... }: builtins.attrNames nodes'
+
+# Interactive Colmena deployment
+colmena-interactive:
+    colmena apply --impure --interactive
+
 trace +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail # Enable strict error handling
