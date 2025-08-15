@@ -185,25 +185,64 @@
       openFirewall = true;
     };
 
-    # Font configuration
+    # Font configuration with improved rendering
     fonts = {
       fontconfig = {
+        enable = true;
         antialias = true;
         cache32Bit = true;
-        hinting.enable = true;
-        hinting.autohint = true;
+        hinting = {
+          enable = true;
+          autohint = false; # Disable autohint for better quality with modern fonts
+          style = "slight"; # Use slight hinting for better appearance
+        };
+        subpixel = {
+          rgba = "rgb"; # Most common for modern displays
+          lcdfilter = "default"; # Good balance between sharpness and color fringing
+        };
+        defaultFonts = {
+          serif = ["Noto Serif" "Liberation Serif" "DejaVu Serif"];
+          sansSerif = ["Inter" "Noto Sans" "DejaVu Sans"];
+          monospace = ["JetBrains Mono" "Cascadia Code" "Fira Code"];
+          emoji = ["Noto Color Emoji"];
+        };
       };
 
       packages = with pkgs; [
+        # High-quality font families
+        inter
+        jetbrains-mono
+        roboto
+        ubuntu_font_family
+        cantarell-fonts
+
+        # Nerd fonts for terminal use
         nerd-fonts.fira-code
-        nerd-fonts.droid-sans-mono
+        nerd-fonts.jetbrains-mono
+        nerd-fonts.meslo-lg
+
+        # Essential fonts
         noto-fonts
         noto-fonts-cjk-sans
         noto-fonts-emoji
         liberation_ttf
+        dejavu_fonts
+        freefont_ttf
+
+        # Japanese fonts
+        source-han-sans
+        source-han-serif
         source-han-sans-japanese
         source-han-serif-japanese
+
+        # Microsoft-compatible fonts
+        corefonts
+        vistafonts
+
+        # Programming fonts
         cascadia-code
+        iosevka
+        fira-code
       ];
     };
   };
