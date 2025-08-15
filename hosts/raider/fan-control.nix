@@ -1,11 +1,6 @@
 # NZXT H1 V2 Dynamic Fan Control
 # Python-based fan control with exponential curve and anti-oscillation
-{
-  config,
-  pkgs,
-  lib,
-  ...
-}: {
+{pkgs, ...}: {
   # Service to manage dynamic fan curves using Python script
   systemd.services.nzxt-fan-control = {
     description = "NZXT H1 V2 Dynamic Fan Control";

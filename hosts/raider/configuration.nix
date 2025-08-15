@@ -1,16 +1,8 @@
-{
-  config,
-  pkgs,
-  lib,
-  self,
-  ...
-}: let
-  appimage = pkgs.callPackage (import ./appimage.nix) {};
-in {
+{lib, ...}: {
   imports = [
     ./hardware-configuration.nix
     ./disko-config.nix
-    ./coolercontrol.nix
+    ./fan-control.nix
     ./fontconfig.nix
   ];
 
