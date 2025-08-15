@@ -10,6 +10,8 @@ in {
   imports = [
     ./hardware-configuration.nix
     ./disko-config.nix
+    ./coolercontrol.nix
+    ./fontconfig.nix
   ];
 
   # Enable constellation modules
@@ -45,7 +47,7 @@ in {
   networking.nftables.enable = true;
 
   # Additional system services specific to this machine
-  programs.coolercontrol.enable = true;
+  # CoolerControl is configured in ./coolercontrol.nix
 
   # Set your time zone
   time.timeZone = "America/Toronto";
