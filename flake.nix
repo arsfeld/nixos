@@ -309,6 +309,163 @@
           };
         };
 
+        # Colmena deployment configuration
+        colmena = let
+          # Re-define loadPackages here since it's not exposed in lib
+          loadPackages = pkgs: let
+            loaded = inputs.haumea.lib.load {
+              src = ./packages;
+              loader = inputs.haumea.lib.loaders.callPackage;
+              inputs = {inherit pkgs;};
+            };
+          in
+            builtins.mapAttrs (
+              name: value:
+                if value ? default
+                then value.default
+                else value
+            )
+            loaded;
+        in {
+          meta = {
+            nixpkgs = import inputs.nixpkgs {
+              system = "x86_64-linux";
+              overlays = [
+                (import ./overlays/python-packages.nix)
+                (final: prev: loadPackages final)
+              ];
+            };
+            nodeNixpkgs = {
+              cloud = import inputs.nixpkgs {
+                system = "aarch64-linux";
+                overlays = [
+                  (import ./overlays/python-packages.nix)
+                  (final: prev: loadPackages final)
+                ];
+              };
+              r2s = import inputs.nixpkgs {
+                system = "aarch64-linux";
+                overlays = [
+                  (import ./overlays/python-packages.nix)
+                  (final: prev: loadPackages final)
+                ];
+              };
+              raspi3 = import inputs.nixpkgs {
+                system = "aarch64-linux";
+                overlays = [
+                  (import ./overlays/python-packages.nix)
+                  (final: prev: loadPackages final)
+                ];
+              };
+            };
+            specialArgs = {inherit self inputs;};
+          };
+
+          # Host configurations for Colmena
+          storage = {
+            deployment = {
+              targetHost = "storage.bat-boa.ts.net";
+              targetUser = "root";
+              buildOnTarget = false;
+            };
+            imports =
+              self.lib.baseModules
+              ++ self.lib.homeManagerModules
+              ++ [
+                inputs.disko.nixosModules.disko
+                ./hosts/storage/configuration.nix
+              ];
+          };
+
+          cloud = {
+            deployment = {
+              targetHost = "cloud.bat-boa.ts.net";
+              targetUser = "root";
+              buildOnTarget = false;
+            };
+            imports =
+              self.lib.baseModules
+              ++ self.lib.homeManagerModules
+              ++ [
+                ./hosts/cloud/configuration.nix
+              ];
+          };
+
+          router = {
+            deployment = {
+              targetHost = "router.bat-boa.ts.net";
+              targetUser = "root";
+              buildOnTarget = false;
+            };
+            imports =
+              self.lib.baseModules
+              ++ self.lib.homeManagerModules
+              ++ [
+                inputs.disko.nixosModules.disko
+                ./hosts/router/configuration.nix
+              ];
+          };
+
+          cottage = {
+            deployment = {
+              targetHost = "cottage.bat-boa.ts.net";
+              targetUser = "root";
+              buildOnTarget = false;
+            };
+            imports =
+              self.lib.baseModules
+              ++ self.lib.homeManagerModules
+              ++ [
+                inputs.disko.nixosModules.disko
+                ./hosts/cottage/configuration.nix
+              ];
+          };
+
+          r2s = {
+            deployment = {
+              targetHost = "r2s.bat-boa.ts.net";
+              targetUser = "root";
+              buildOnTarget = false;
+            };
+            imports =
+              self.lib.baseModules
+              ++ self.lib.homeManagerModules
+              ++ [
+                inputs.eh5.nixosModules.fake-hwclock
+                ./hosts/r2s/configuration.nix
+              ];
+          };
+
+          raspi3 = {
+            deployment = {
+              targetHost = "raspi3.bat-boa.ts.net";
+              targetUser = "root";
+              buildOnTarget = false;
+            };
+            imports =
+              self.lib.baseModules
+              ++ self.lib.homeManagerModules
+              ++ [
+                ./hosts/raspi3/configuration.nix
+              ];
+          };
+
+          raider = {
+            deployment = {
+              targetHost = "raider.bat-boa.ts.net";
+              targetUser = "root";
+              buildOnTarget = false;
+            };
+            imports =
+              self.lib.baseModules
+              ++ self.lib.homeManagerModules
+              ++ [
+                inputs.disko.nixosModules.disko
+                ./hosts/raider/configuration.nix
+              ];
+          };
+        };
+
         checks =
           builtins.mapAttrs (
             system: deployLib:
