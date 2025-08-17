@@ -7,6 +7,7 @@
   ...
 }: {
   imports = [
+    inputs.eh5.nixosModules.fake-hwclock
     ./hardware-configuration.nix
     (import ./networking.nix {
       internalInterface = "enu1"; # or w/e ethernet interface you want to connect your raspberry pi to
