@@ -1,6 +1,7 @@
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05"; # Core nixpkgs - stable 25.05
+    determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/*"; # Determinate Nix
     nixos-generators.url = "github:nix-community/nixos-generators"; # System image generators (ISO, SD card, etc.)
     nixos-generators.inputs.nixpkgs.follows = "nixpkgs";
     disko.url = "github:nix-community/disko"; # Declarative disk partitioning
@@ -131,53 +132,20 @@
             )
             loaded;
 
-          commonModules = inputs.nixpkgs.lib.flatten [
-            inputs.agenix.nixosModules.default
-            inputs.nix-flatpak.nixosModules.nix-flatpak
-            inputs.tsnsrv.nixosModules.default
-            inputs.home-manager.nixosModules.home-manager
-            {
-              home-manager.sharedModules = [
-                inputs.nix-index-database.homeModules.nix-index
-              ];
-              home-manager.useGlobalPkgs = true;
-              home-manager.useUserPackages = false;
-              home-manager.backupFileExtension = "bak";
-              home-manager.users.arosenfeld = import ./home/home.nix;
-            }
-            {
-              nixpkgs.overlays = [
-                (import ./overlays/python-packages.nix)
-                # Load packages from ./packages directory using haumea
-                (final: prev: loadPackages final)
-              ];
-            }
-            # Load all modules from the modules directory
-            (let
-              getAllValues = set: let
-                recurse = value:
-                  if builtins.isAttrs value
-                  then builtins.concatLists (map recurse (builtins.attrValues value))
-                  else [value];
-              in
-                recurse set;
-              modules = inputs.haumea.lib.load {
-                src = ./modules;
-                loader = inputs.haumea.lib.loaders.path;
-              };
-            in
-              getAllValues modules)
+          # Common overlays used everywhere
+          overlays = [
+            (import ./overlays/python-packages.nix)
+            # Load packages from ./packages directory using haumea
+            (final: prev: loadPackages final)
           ];
+
           baseModules = inputs.nixpkgs.lib.flatten [
             inputs.agenix.nixosModules.default
+            inputs.determinate.nixosModules.default
             inputs.nix-flatpak.nixosModules.nix-flatpak
             inputs.tsnsrv.nixosModules.default
             {
-              nixpkgs.overlays = [
-                (import ./overlays/python-packages.nix)
-                # Load packages from ./packages directory using haumea
-                (final: prev: loadPackages final)
-              ];
+              nixpkgs.overlays = overlays;
             }
             # Load all modules from the modules directory
             (let
@@ -209,94 +177,71 @@
             }
           ];
         in {
-          mkLinuxSystem = {
-            mods,
-            includeHomeManager ? true,
-          }:
+          inherit loadPackages overlays baseModules homeManagerModules;
+
+          mkLinuxSystem = {mods}:
             inputs.nixpkgs.lib.nixosSystem {
               # Arguments to pass to all modules.
               specialArgs = {inherit self inputs;};
               modules =
                 baseModules
-                ++ (
-                  if includeHomeManager
-                  then homeManagerModules
-                  else []
-                )
+                ++ homeManagerModules
                 ++ mods;
             };
         };
 
-        nixosConfigurations = {
-          storage = self.lib.mkLinuxSystem {
-            mods = [
-              inputs.disko.nixosModules.disko
-              ./hosts/storage/configuration.nix
-            ];
-          };
-          cloud = self.lib.mkLinuxSystem {
-            mods = [./hosts/cloud/configuration.nix];
-          };
-          router = self.lib.mkLinuxSystem {
-            mods = [
-              inputs.disko.nixosModules.disko
-              ./hosts/router/configuration.nix
-            ];
-          };
-          cottage = self.lib.mkLinuxSystem {
-            mods = [
-              inputs.disko.nixosModules.disko
-              ./hosts/cottage/configuration.nix
-            ];
-          };
-          r2s = self.lib.mkLinuxSystem {
-            mods = [
-              inputs.eh5.nixosModules.fake-hwclock
-              ./hosts/r2s/configuration.nix
-            ];
-          };
-          raspi3 = self.lib.mkLinuxSystem {
-            mods = [./hosts/raspi3/configuration.nix];
-          };
-          raider = self.lib.mkLinuxSystem {
-            mods = [
-              inputs.disko.nixosModules.disko
-              ./hosts/raider/configuration.nix
-            ];
-          };
-        };
+        # Auto-discover all hosts from the hosts/ directory
+        hosts = let
+          # Load all host directories
+          hostDirs = builtins.readDir ./hosts;
+          # Filter for directories that have configuration.nix
+          validHosts =
+            inputs.nixpkgs.lib.filterAttrs (
+              name: type:
+                type == "directory" && builtins.pathExists ./hosts/${name}/configuration.nix
+            )
+            hostDirs;
+        in
+          builtins.attrNames validHosts;
 
-        deploy = let
-          # Host-specific deployment overrides (only specify what differs from defaults)
-          deployOverrides = {
-            storage = {}; # Use all defaults
-            router = {}; # Use all defaults
-            cottage = {};
-            cloud = {
-              system = "aarch64-linux";
-            };
-            r2s.system = "aarch64-linux";
-            raspi3.system = "aarch64-linux";
-            raider = {}; # Desktop gaming machine
-          };
-
-          mkDeploy = hostName: overrides: let
-            defaults = {
-              hostname = "${hostName}.bat-boa.ts.net";
-              system = "x86_64-linux";
-              fastConnection = true;
-              remoteBuild = false;
-            };
-            config = defaults // overrides;
+        nixosConfigurations = builtins.listToAttrs (map (hostName: let
+            # Check if host has a disko config file
+            hasDisko = builtins.pathExists ./hosts/${hostName}/disko-config.nix;
           in {
-            inherit (config) hostname fastConnection remoteBuild;
-            profiles.system.path = inputs.deploy-rs.lib.${config.system}.activate.nixos self.nixosConfigurations.${hostName};
+            name = hostName;
+            value = self.lib.mkLinuxSystem {
+              mods =
+                (
+                  if hasDisko
+                  then [inputs.disko.nixosModules.disko]
+                  else []
+                )
+                ++ [./hosts/${hostName}/configuration.nix];
+            };
+          })
+          self.hosts);
+
+        # Deploy-rs configuration
+        deploy = let
+          mkDeploy = hostName: let
+            # Get the system from the nixosConfiguration
+            hostConfig = self.nixosConfigurations.${hostName}.config;
+            system = hostConfig.nixpkgs.hostPlatform.system or "x86_64-linux";
+          in {
+            hostname = "${hostName}.bat-boa.ts.net";
+            fastConnection = true;
+            remoteBuild = false;
+            profiles.system.path = inputs.deploy-rs.lib.${system}.activate.nixos self.nixosConfigurations.${hostName};
           };
         in {
           sshUser = "root";
           autoRollback = false;
           magicRollback = false;
-          nodes = builtins.mapAttrs mkDeploy deployOverrides;
+          nodes = builtins.listToAttrs (map (hostName: {
+              name = hostName;
+              value = mkDeploy hostName;
+            })
+            self.hosts);
         };
 
         packages.aarch64-linux = {
@@ -311,160 +256,62 @@
 
         # Colmena deployment configuration
         colmena = let
-          # Re-define loadPackages here since it's not exposed in lib
-          loadPackages = pkgs: let
-            loaded = inputs.haumea.lib.load {
-              src = ./packages;
-              loader = inputs.haumea.lib.loaders.callPackage;
-              inputs = {inherit pkgs;};
+          # Function to create colmena host configuration
+          mkColmenaHost = hostName: let
+            # Check if host has a disko config file
+            hasDisko = builtins.pathExists ./hosts/${hostName}/disko-config.nix;
+          in {
+            deployment = {
+              targetHost = "${hostName}.bat-boa.ts.net";
+              targetUser = "root";
+              buildOnTarget = false;
             };
+            imports =
+              self.lib.baseModules
+              ++ self.lib.homeManagerModules
+              ++ (
+                if hasDisko
+                then [inputs.disko.nixosModules.disko]
+                else []
+              )
+              ++ [
+                ./hosts/${hostName}/configuration.nix
+              ];
+          };
+
+          # Find aarch64 hosts by checking their configurations
+          aarch64Hosts = builtins.filter (name: let
+            hostConfig = self.nixosConfigurations.${name}.config;
+            system = hostConfig.nixpkgs.hostPlatform.system or "x86_64-linux";
           in
-            builtins.mapAttrs (
-              name: value:
-                if value ? default
-                then value.default
-                else value
-            )
-            loaded;
-        in {
-          meta = {
-            nixpkgs = import inputs.nixpkgs {
-              system = "x86_64-linux";
-              overlays = [
-                (import ./overlays/python-packages.nix)
-                (final: prev: loadPackages final)
-              ];
-            };
-            nodeNixpkgs = {
-              cloud = import inputs.nixpkgs {
+            system == "aarch64-linux")
+          self.hosts;
+
+          # Define nixpkgs for each aarch64 host to enable cross-compilation
+          nodeNixpkgs = builtins.listToAttrs (map (hostName: {
+              name = hostName;
+              value = import inputs.nixpkgs {
                 system = "aarch64-linux";
-                overlays = [
-                  (import ./overlays/python-packages.nix)
-                  (final: prev: loadPackages final)
-                ];
+                overlays = self.lib.overlays;
               };
-              r2s = import inputs.nixpkgs {
-                system = "aarch64-linux";
-                overlays = [
-                  (import ./overlays/python-packages.nix)
-                  (final: prev: loadPackages final)
-                ];
+            })
+            aarch64Hosts);
+        in
+          {
+            meta = {
+              nixpkgs = import inputs.nixpkgs {
+                system = "x86_64-linux";
+                overlays = self.lib.overlays;
               };
-              raspi3 = import inputs.nixpkgs {
-                system = "aarch64-linux";
-                overlays = [
-                  (import ./overlays/python-packages.nix)
-                  (final: prev: loadPackages final)
-                ];
-              };
+              inherit nodeNixpkgs;
+              specialArgs = {inherit self inputs;};
             };
-            specialArgs = {inherit self inputs;};
-          };
-
-          # Host configurations for Colmena
-          storage = {
-            deployment = {
-              targetHost = "storage.bat-boa.ts.net";
-              targetUser = "root";
-              buildOnTarget = false;
-            };
-            imports =
-              self.lib.baseModules
-              ++ self.lib.homeManagerModules
-              ++ [
-                inputs.disko.nixosModules.disko
-                ./hosts/storage/configuration.nix
-              ];
-          };
-
-          cloud = {
-            deployment = {
-              targetHost = "cloud.bat-boa.ts.net";
-              targetUser = "root";
-              buildOnTarget = false;
-            };
-            imports =
-              self.lib.baseModules
-              ++ self.lib.homeManagerModules
-              ++ [
-                ./hosts/cloud/configuration.nix
-              ];
-          };
-
-          router = {
-            deployment = {
-              targetHost = "router.bat-boa.ts.net";
-              targetUser = "root";
-              buildOnTarget = false;
-            };
-            imports =
-              self.lib.baseModules
-              ++ self.lib.homeManagerModules
-              ++ [
-                inputs.disko.nixosModules.disko
-                ./hosts/router/configuration.nix
-              ];
-          };
-
-          cottage = {
-            deployment = {
-              targetHost = "cottage.bat-boa.ts.net";
-              targetUser = "root";
-              buildOnTarget = false;
-            };
-            imports =
-              self.lib.baseModules
-              ++ self.lib.homeManagerModules
-              ++ [
-                inputs.disko.nixosModules.disko
-                ./hosts/cottage/configuration.nix
-              ];
-          };
-
-          r2s = {
-            deployment = {
-              targetHost = "r2s.bat-boa.ts.net";
-              targetUser = "root";
-              buildOnTarget = false;
-            };
-            imports =
-              self.lib.baseModules
-              ++ self.lib.homeManagerModules
-              ++ [
-                inputs.eh5.nixosModules.fake-hwclock
-                ./hosts/r2s/configuration.nix
-              ];
-          };
-
-          raspi3 = {
-            deployment = {
-              targetHost = "raspi3.bat-boa.ts.net";
-              targetUser = "root";
-              buildOnTarget = false;
-            };
-            imports =
-              self.lib.baseModules
-              ++ self.lib.homeManagerModules
-              ++ [
-                ./hosts/raspi3/configuration.nix
-              ];
-          };
-
-          raider = {
-            deployment = {
-              targetHost = "raider.bat-boa.ts.net";
-              targetUser = "root";
-              buildOnTarget = false;
-            };
-            imports =
-              self.lib.baseModules
-              ++ self.lib.homeManagerModules
-              ++ [
-                inputs.disko.nixosModules.disko
-                ./hosts/raider/configuration.nix
-              ];
-          };
-        };
+          }
+          // (builtins.listToAttrs (map (hostName: {
+              name = hostName;
+              value = mkColmenaHost hostName;
+            })
+            self.hosts));
 
         checks =
           builtins.mapAttrs (
@@ -476,14 +323,6 @@
               }
           )
           inputs.deploy-rs.lib;
-
-        # Router testing configurations
-        nixosConfigurations.router-test = inputs.nixpkgs.lib.nixosSystem {
-          specialArgs = {inherit self inputs;};
-          modules = [
-            ./tests/router-container-test.nix
-          ];
-        };
 
         # Testing configurations and packages
         packages.x86_64-linux = {
