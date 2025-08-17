@@ -89,7 +89,14 @@
   fileSystems."/mnt/games" = {
     device = "/dev/disk/by-uuid/d167c926-d34b-4185-b5d9-5235483b8c39";
     fsType = "btrfs";
-    options = ["compress=zstd" "noatime"];
+    options = [
+      "compress=zstd:1" # Keep compression but use faster level
+      "noatime" # Don't update access times
+      "ssd" # Optimize for SSD
+      "discard=async" # Enable async TRIM
+      "space_cache=v2" # Use improved space cache
+      "autodefrag" # Enable automatic defragmentation
+    ];
   };
 
   # System activation script for games directory
