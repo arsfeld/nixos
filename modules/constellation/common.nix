@@ -52,7 +52,6 @@ with lib; {
           "https://fly-attic.fly.dev/system"
           "https://deploy-rs.cachix.org"
           "https://cosmic.cachix.org/"
-          "https://cache.lix.systems/"
         ];
         trusted-public-keys = [
           "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
@@ -60,7 +59,6 @@ with lib; {
           "system:qhuLhZgxwERwu+xGKJN0G/46X4rDB1KPxSx8xQrJdBU="
           "deploy-rs.cachix.org-1:xfNobmiwF/vzvK1gpfediPwpdIP0rpDV2rYqx40zdSI="
           "cosmic.cachix.org-1:Dya9IyXD4xdBehWjrkPv6rtxpmMdRel02smYzA85dPE="
-          "cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o="
         ];
       };
 
@@ -101,7 +99,8 @@ with lib; {
       };
     };
 
-    nix.package = pkgs.lix;
+    # Use standard Nix package (not Lix)
+    # nix.package is automatically set to pkgs.nix by default
 
     security.polkit.enable = true;
 
