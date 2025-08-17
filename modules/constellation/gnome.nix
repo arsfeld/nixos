@@ -63,6 +63,31 @@
       desktopManager.gnome.enable = true;
     };
 
+    # Selective dark mode for specific applications
+    programs.dconf.profiles.user.databases = [
+      {
+        settings = {
+          # Dark mode for Nautilus (Files)
+          "org/gnome/nautilus/preferences" = {
+            default-folder-viewer = "list-view";
+          };
+          "org/gnome/nautilus/gtk" = {
+            application-prefer-dark-theme = true;
+          };
+
+          # Dark mode for Ptyxis (Console)
+          "app/devsuite/Ptyxis" = {
+            prefer-dark-theme = true;
+          };
+
+          # Dark mode for Zen Browser
+          "app/zen-browser/zen" = {
+            prefer-dark-theme = true;
+          };
+        };
+      }
+    ];
+
     # Disable network manager wait
     systemd.services.NetworkManager-wait-online.enable = false;
 
@@ -197,8 +222,8 @@
           style = "slight"; # Use slight hinting for better appearance
         };
         subpixel = {
-          rgba = "rgb"; # Most common for modern displays
-          lcdfilter = "default"; # Good balance between sharpness and color fringing
+          rgba = "none"; # Standard antialiasing without subpixel rendering
+          lcdfilter = "none"; # No LCD filter needed for standard antialiasing
         };
         defaultFonts = {
           serif = ["Noto Serif" "Liberation Serif" "DejaVu Serif"];

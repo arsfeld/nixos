@@ -127,6 +127,14 @@
         extraCompatPackages = with pkgs; [
           proton-ge-bin
         ];
+
+        # Native GTK theme for Steam
+        package = pkgs.steam.override {
+          extraPkgs = pkgs:
+            with pkgs; [
+              adwsteamgtk # Adwaita theme manager for Steam
+            ];
+        };
       };
 
       # GameMode for automatic optimizations
@@ -221,6 +229,9 @@
       steamtinkerlaunch
       legendary-gl
       rare
+
+      # Steam theming
+      adwsteamgtk # GUI tool to install and manage Adwaita theme for Steam
 
       # Emulation
       retroarch
