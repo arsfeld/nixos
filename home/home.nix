@@ -48,6 +48,7 @@ in {
         fastfetch
         fd
         fortune
+        gh
         git-lfs
         glances
         htop
@@ -343,48 +344,230 @@ in {
     enable = true;
     enableSessionWide = false;
     settings = {
-      # full = true;
-      # no_display = true;
-      # cpu_load_change = true;
-      # toggle_fps_limit="F1";
+      # Minimal display configuration for FPS and essential stats
       legacy_layout = false;
-      gpu_stats = true;
-      gpu_temp = true;
-      gpu_load_change = true;
-      gpu_load_value = "50,90";
-      gpu_load_color = "FFFFFF,FF7800,CC0000";
-      gpu_text = "GPU";
-      cpu_stats = true;
-      cpu_temp = true;
-      cpu_load_change = true;
-      core_load_change = true;
-      cpu_load_value = "50,90";
-      cpu_load_color = "FFFFFF,FF7800,CC0000";
-      cpu_color = "2e97cb";
-      cpu_text = "CPU";
-      io_color = "a491d3";
-      vram = true;
-      vram_color = "ad64c1";
-      ram_color = "c26693";
+
+      # FPS Display
       fps = true;
-      engine_color = "eb5b5b";
-      gpu_color = "2e9762e";
-      wine_color = "eb5b5b";
+      fps_limit = "0";
       frame_timing = 1;
       frametime_color = "00ff00";
-      media_player_color = "ffffff";
-      background_alpha = 0.4;
-      font_size = 24;
-      blacklist = "google-chrome,chrome,UplayWebCore,upc";
-      background_color = "020202";
+
+      # GPU Stats (minimal)
+      gpu_stats = true;
+      gpu_temp = true;
+      gpu_load_change = false;
+      gpu_text = "GPU";
+      gpu_color = "2e9762";
+
+      # CPU Stats (minimal)
+      cpu_stats = true;
+      cpu_temp = true;
+      cpu_load_change = false;
+      cpu_text = "CPU";
+      cpu_color = "2e97cb";
+
+      # Memory Stats (minimal)
+      vram = true;
+      vram_color = "ad64c1";
+      ram = true;
+      ram_color = "c26693";
+
+      # Display Configuration
       position = "top-left";
+      font_size = 18;
+      width = 0;
+      height = 0;
+      offset_x = 10;
+      offset_y = 10;
+
+      # Visual Style (subtle)
+      background_alpha = 0.3;
+      background_color = "020202";
       text_color = "ffffff";
-      round_corners = 0;
+      round_corners = 5;
+
+      # Toggles
       toggle_hud = "Shift_R+F12";
+      toggle_fps_limit = "Shift_L+F1";
       toggle_logging = "Shift_L+F2";
       upload_log = "F5";
       output_folder = "/home/arosenfeld";
-      media_player_name = "spotify";
+
+      # Extensive blacklist to prevent showing in non-game apps
+      blacklist = lib.concatStringsSep "," [
+        # Web Browsers
+        "google-chrome"
+        "chrome"
+        "chromium"
+        "firefox"
+        "firefox-esr"
+        "brave"
+        "brave-browser"
+        "vivaldi"
+        "opera"
+        "edge"
+        "microsoft-edge"
+        "safari"
+        "epiphany"
+        "midori"
+        "qutebrowser"
+        "nyxt"
+
+        # Electron Apps & Development Tools
+        "code"
+        "vscode"
+        "vscodium"
+        "code-oss"
+        "atom"
+        "sublime_text"
+        "brackets"
+        "notepadqq"
+        "gedit"
+        "kate"
+        "emacs"
+        "vim"
+        "nvim"
+        "idea"
+        "webstorm"
+        "pycharm"
+        "android-studio"
+        "eclipse"
+
+        # 3D Modeling & Graphics Software
+        "blender"
+        "maya"
+        "3dsmax"
+        "cinema4d"
+        "houdini"
+        "modo"
+        "substance"
+        "zbrush"
+        "mudbox"
+        "fusion360"
+        "autocad"
+        "sketchup"
+        "freecad"
+        "openscad"
+        "solvespace"
+
+        # Video & Streaming
+        "obs"
+        "obs-studio"
+        "vlc"
+        "mpv"
+        "mplayer"
+        "celluloid"
+        "kodi"
+        "plex"
+        "jellyfin"
+        "youtube"
+        "netflix"
+        "twitch"
+
+        # Communication
+        "discord"
+        "Discord"
+        "teams"
+        "slack"
+        "telegram"
+        "signal"
+        "element"
+        "riot"
+        "zoom"
+        "skype"
+        "mumble"
+        "teamspeak"
+
+        # Office & Productivity
+        "libreoffice"
+        "openoffice"
+        "onlyoffice"
+        "wps"
+        "freeoffice"
+        "thunderbird"
+        "evolution"
+        "kmail"
+        "geary"
+        "mailspring"
+
+        # File Managers & System Tools
+        "nautilus"
+        "dolphin"
+        "thunar"
+        "pcmanfm"
+        "nemo"
+        "caja"
+        "ranger"
+        "mc"
+        "vifm"
+        "nnn"
+        "terminal"
+        "konsole"
+        "gnome-terminal"
+        "kitty"
+        "alacritty"
+        "wezterm"
+        "foot"
+        "terminator"
+
+        # Game Launchers and Stores (show only in actual games)
+        "steam"
+        "Steam"
+        "steamwebhelper"
+        "epic"
+        "EpicGamesLauncher"
+        "uplay"
+        "UplayWebCore"
+        "upc"
+        "origin"
+        "Origin"
+        "battle.net"
+        "Battle.net"
+        "gog"
+        "GOG Galaxy"
+        "itch"
+        "lutris"
+        "heroic"
+        "legendary"
+        "rare"
+        "bottles"
+        "playonlinux"
+
+        # Multimedia Creation
+        "gimp"
+        "krita"
+        "inkscape"
+        "darktable"
+        "rawtherapee"
+        "kdenlive"
+        "openshot"
+        "shotcut"
+        "davinci"
+        "resolve"
+        "audacity"
+        "ardour"
+        "lmms"
+        "fl_studio"
+        "ableton"
+
+        # Other Applications
+        "spotify"
+        "Spotify"
+        "rhythmbox"
+        "clementine"
+        "amarok"
+        "gwenview"
+        "eog"
+        "feh"
+        "sxiv"
+        "nomacs"
+        "digikam"
+        "virtualbox"
+        "vmware"
+        "qemu"
+        "virt-manager"
+      ];
     };
   };
 
