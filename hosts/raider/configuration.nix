@@ -112,9 +112,15 @@
     fi
   '';
 
-  # Environment variable for games location
+  # Environment variables for games
   environment.sessionVariables = {
     GAMES_DIR = "/mnt/games";
+
+    # Enable MangoHud for all Vulkan games
+    MANGOHUD = "1";
+
+    # Enable MangoHud for OpenGL games as well
+    MANGOHUD_DLSYM = "1";
   };
 
   # This value determines the NixOS release from which the default
