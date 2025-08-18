@@ -32,13 +32,13 @@
       <?xml version="1.0"?>
       <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
       <fontconfig>
-        <!-- Subpixel rendering settings -->
+        <!-- Standard antialiasing (grayscale) without subpixel rendering -->
         <match target="font">
           <edit name="rgba" mode="assign">
-            <const>rgb</const>
+            <const>none</const>
           </edit>
           <edit name="lcdfilter" mode="assign">
-            <const>lcddefault</const>
+            <const>none</const>
           </edit>
         </match>
       </fontconfig>
@@ -120,7 +120,7 @@
         font-name = "Inter 11";
         document-font-name = "Inter 11";
         monospace-font-name = "JetBrains Mono 10";
-        font-antialiasing = "rgba";
+        font-antialiasing = "grayscale";
         font-hinting = "slight";
         text-scaling-factor = 1.0;
       };
