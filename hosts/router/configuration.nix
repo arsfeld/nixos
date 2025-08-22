@@ -14,6 +14,7 @@
     ./ntfy-webhook.nix
     # ./performance-tuning.nix # BBR v3 and TCP optimizations (disabled - may cause issues)
     # ./hardware-offload.nix # TSO/GSO/GRO offloading (disabled - may cause issues)
+    # ./loop-protection.nix # Network loop detection and prevention
     # ./xdp-firewall.nix       # XDP DDoS protection (disabled - overkill for home use)
     ../../packages/router_ui/module.nix
   ];
