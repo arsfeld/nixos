@@ -152,6 +152,7 @@
     "nohz_full=2-3" # Tickless on CPU cores 2-3 (adjust based on CPU count)
     "rcu_nocbs=2-3" # Move RCU callbacks to other cores
     "net.ifnames=0" # Use traditional interface names (optional)
+    "transparent_hugepage=always" # Transparent hugepages for better memory performance
   ];
 
   # CPU frequency governor for performance
@@ -164,7 +165,7 @@
   services.irqbalance = {
     enable = true;
     # Ban IRQs from isolated CPU cores (if using CPU isolation)
-    bannedCpus = "2-3";
+    # bannedCpus = "2-3"; # Option not available in current NixOS version
   };
 
   # Real-time scheduling for network processes
@@ -218,7 +219,4 @@
   # Enable kernel samepage merging for memory efficiency
   hardware.ksm.enable = true;
   hardware.ksm.sleep = 20; # Check every 20ms
-
-  # Transparent hugepages for better memory performance
-  boot.kernelParams = ["transparent_hugepage=always"];
 }
