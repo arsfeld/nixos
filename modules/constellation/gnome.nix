@@ -9,6 +9,25 @@
   options.constellation.gnome = {
     enable = lib.mkEnableOption "GNOME desktop environment with full desktop stack";
 
+    theme = lib.mkOption {
+      type = lib.types.submodule {
+        options = {
+          gtk = lib.mkOption {
+            type = lib.types.str;
+            default = "Adwaita-dark";
+            description = "GTK theme name";
+          };
+          icon = lib.mkOption {
+            type = lib.types.str;
+            default = "Adwaita";
+            description = "Icon theme name";
+          };
+        };
+      };
+      default = {};
+      description = "Theme configuration for GNOME";
+    };
+
     gnomeExtensions = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -36,7 +55,6 @@
     flatpakPackages = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [
-        "com.valvesoftware.Steam"
         "com.github.tchx84.Flatseal"
         "com.spotify.Client"
         "tv.plex.PlexDesktop"
@@ -63,10 +81,22 @@
       desktopManager.gnome.enable = true;
     };
 
-    # Selective dark mode for specific applications
+    # Theme and application settings
+    programs.dconf.enable = true;
     programs.dconf.profiles.user.databases = [
       {
         settings = {
+          # Global theme settings
+          "org/gnome/desktop/interface" = {
+            gtk-theme = config.constellation.gnome.theme.gtk;
+            icon-theme = config.constellation.gnome.theme.icon;
+          };
+
+          # Enable variable refresh rate (VRR) support
+          "org/gnome/mutter" = {
+            experimental-features = ["variable-refresh-rate" "scale-monitor-framebuffer"];
+          };
+
           # Dark mode for Nautilus (Files)
           "org/gnome/nautilus/preferences" = {
             default-folder-viewer = "list-view";
