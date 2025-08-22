@@ -57,14 +57,6 @@
                 };
               };
             };
-            windows = {
-              size = "256G";
-              content = {
-                type = "filesystem";
-                format = "ntfs";
-                extraArgs = ["-Q"];
-              };
-            };
           };
         };
       };
