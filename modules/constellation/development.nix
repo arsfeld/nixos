@@ -79,6 +79,12 @@
         httpie
         curl
 
+        # Compilers and build tools
+        clang
+        pkg-config
+        openssl
+        openssl.dev
+
         # Modern CLI tools
         ripgrep
         fd
@@ -143,6 +149,14 @@
     # User configuration
     users.users.arosenfeld = lib.mkIf config.constellation.development.docker {
       extraGroups = ["docker"];
+    };
+
+    # Environment variables for Rust development
+    environment.sessionVariables = lib.mkIf (builtins.elem "rust" config.constellation.development.languages) {
+      PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
+      OPENSSL_DIR = "${pkgs.openssl.dev}";
+      OPENSSL_LIB_DIR = "${pkgs.openssl.out}/lib";
+      OPENSSL_INCLUDE_DIR = "${pkgs.openssl.dev}/include";
     };
 
     # Performance tuning for development
