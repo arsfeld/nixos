@@ -174,6 +174,18 @@ in {
           netdevConfig = {
             Kind = "bridge";
             Name = "br-lan";
+            # Set a fixed MAC address for the bridge to avoid conflicts
+            MACAddress = "02:00:00:00:00:01";
+          };
+          bridgeConfig = {
+            # Enable STP to prevent loops
+            STP = true;
+            # Set forward delay (in seconds) - time spent in listening/learning states
+            ForwardDelaySec = 4;
+            # Hello time - interval between STP BPDUs
+            HelloTimeSec = 2;
+            # Max age - how long to store STP info
+            MaxAgeSec = 20;
           };
         };
       };
@@ -196,6 +208,13 @@ in {
             Bridge = "br-lan";
           };
           linkConfig.RequiredForOnline = "enslaved";
+          bridgeConfig = {
+            # Enable BPDU guard to disable port if it receives BPDUs (loop detection)
+            HairPin = false;
+            FastLeave = true;
+            # Cost for STP path selection (lower = preferred)
+            Cost = 4;
+          };
         };
 
         "30-lan2" = {
@@ -204,6 +223,13 @@ in {
             Bridge = "br-lan";
           };
           linkConfig.RequiredForOnline = "enslaved";
+          bridgeConfig = {
+            # Enable BPDU guard to disable port if it receives BPDUs (loop detection)
+            HairPin = false;
+            FastLeave = true;
+            # Cost for STP path selection (lower = preferred)
+            Cost = 4;
+          };
         };
 
         "30-lan3" = {
@@ -212,6 +238,13 @@ in {
             Bridge = "br-lan";
           };
           linkConfig.RequiredForOnline = "enslaved";
+          bridgeConfig = {
+            # Enable BPDU guard to disable port if it receives BPDUs (loop detection)
+            HairPin = false;
+            FastLeave = true;
+            # Cost for STP path selection (lower = preferred)
+            Cost = 4;
+          };
         };
 
         # Configure the bridge

@@ -133,7 +133,7 @@ in {
         # Enable control socket for metrics collection
         control-socket = {
           socket-type = "unix";
-          socket-name = "/var/lib/kea/kea-dhcp4.sock";
+          socket-name = "/run/kea/kea-dhcp4.sock";
         };
 
         subnet4 = [
@@ -221,6 +221,7 @@ in {
   # Create the initial hosts file and ensure directory exists
   systemd.tmpfiles.rules = [
     "d /var/lib/kea 0755 kea kea -"
+    "d /run/kea 0755 kea kea -"
     "C ${dhcpHostsFile} 0644 kea kea - ${staticHostsFile}"
   ];
 
