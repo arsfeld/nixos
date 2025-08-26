@@ -98,6 +98,7 @@ with lib; let
     "grafana"
     "ghost"
     "immich"
+    "jellyfin"
     "mqtt"
     "nextcloud"
     "ntfy"
