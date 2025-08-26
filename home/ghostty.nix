@@ -36,8 +36,9 @@
       keybind = f11=toggle_fullscreen
       keybind = ctrl+shift+a=select_all
 
-      # Search functionality
-      keybind = ctrl+shift+f=search_forward
+      # Search functionality (workaround until native search is implemented)
+      # Opens scrollback in default text editor where you can search
+      keybind = ctrl+shift+f=write_scrollback_file:open
 
       # Scrolling
       keybind = shift+page_up=scroll_page_up
