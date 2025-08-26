@@ -42,6 +42,7 @@
     acpi # Battery status monitoring
     easyeffects # Audio enhancement for G14 speakers
     alsa-utils # Audio utilities
+    librepods # Open-source AirPods client
   ];
 
   # Bootloader
@@ -183,21 +184,21 @@
   services.tlp = {
     enable = true;
     settings = {
-      # CPU power management
-      CPU_SCALING_GOVERNOR_ON_AC = "performance";
-      CPU_SCALING_GOVERNOR_ON_BAT = "powersave";
-      CPU_ENERGY_PERF_POLICY_ON_AC = "performance";
-      CPU_ENERGY_PERF_POLICY_ON_BAT = "power";
+      # CPU power management - balanced for both AC and battery
+      CPU_SCALING_GOVERNOR_ON_AC = "schedutil"; # More balanced, less aggressive
+      CPU_SCALING_GOVERNOR_ON_BAT = "schedutil"; # More balanced than powersave
+      CPU_ENERGY_PERF_POLICY_ON_AC = "balance_performance"; # Quieter operation on AC
+      CPU_ENERGY_PERF_POLICY_ON_BAT = "balance_performance"; # Better balance
       CPU_MIN_PERF_ON_AC = 0;
       CPU_MAX_PERF_ON_AC = 100;
-      CPU_MIN_PERF_ON_BAT = 0;
-      CPU_MAX_PERF_ON_BAT = 60;
-      CPU_BOOST_ON_AC = 1;
-      CPU_BOOST_ON_BAT = 0;
+      CPU_MIN_PERF_ON_BAT = 20; # Higher minimum for better responsiveness
+      CPU_MAX_PERF_ON_BAT = 100; # Full performance available when needed
+      CPU_BOOST_ON_AC = 0; # Disable boost on AC for quieter operation
+      CPU_BOOST_ON_BAT = 0; # Keep boost disabled on battery for better efficiency
 
       # Platform profiles
-      PLATFORM_PROFILE_ON_AC = "performance";
-      PLATFORM_PROFILE_ON_BAT = "low-power";
+      PLATFORM_PROFILE_ON_AC = "balanced"; # Balanced for quieter operation
+      PLATFORM_PROFILE_ON_BAT = "balanced"; # Changed from low-power to balanced
 
       # Disk power management
       DISK_IDLE_SECS_ON_AC = 0;
@@ -224,10 +225,7 @@
       SOUND_POWER_SAVE_ON_BAT = 1;
       SOUND_POWER_SAVE_CONTROLLER = "Y";
 
-      # Battery charge thresholds (ASUS specific)
-      # Commented out to allow full charging
-      # START_CHARGE_THRESH_BAT0 = 75;
-      # STOP_CHARGE_THRESH_BAT0 = 80;
+      # Battery charge thresholds disabled for full charging
     };
   };
 
