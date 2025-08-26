@@ -112,6 +112,19 @@ in {
           devices = ["/dev/dri:/dev/dri"];
         };
 
+        jellyfin = {
+          listenPort = 8096;
+          mediaVolumes = true;
+          devices = ["/dev/dri:/dev/dri"];
+          environment = {
+            JELLYFIN_PublishedServerUrl = "https://jellyfin.arsfeld.one";
+          };
+          settings = {
+            funnel = true;
+            bypassAuth = true;
+          };
+        };
+
         stash = {
           image = "stashapp/stash:latest";
           configDir = "/root/.stash";
