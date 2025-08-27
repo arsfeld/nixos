@@ -146,7 +146,7 @@ in {
   services.network-metrics-exporter = {
     enable = true;
     port = 9101;
-    updateInterval = 2;
+    updateInterval = 10; # Reduced frequency to reduce CPU usage
     openFirewall = false; # Firewall managed separately
     enableNftablesIntegration = true;
     networkPrefix = netConfig.prefix;

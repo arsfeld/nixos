@@ -10,6 +10,13 @@
     after = ["network.target"];
     wantedBy = ["multi-user.target"];
 
+    # Add required packages to the service's PATH
+    path = with pkgs; [
+      iputils # for ping
+      iproute2 # for ip command
+      conntrack-tools # for conntrack
+    ];
+
     serviceConfig = {
       Type = "simple";
       # Bind to localhost only since Caddy proxies to it
@@ -29,9 +36,19 @@
       ProtectKernelTunables = false;
       ProtectKernelModules = false;
 
-      # Allow reading Kea DHCP leases
-      ReadOnlyPaths = ["/var/lib/kea"];
+      # Allow reading Kea DHCP leases and proc files
+      ReadOnlyPaths = [
+        "/var/lib/kea"
+        "/proc/net"
+        "/proc/uptime"
+        "/proc/loadavg"
+        "/proc/stat"
+        "/proc/meminfo"
+      ];
       SupplementaryGroups = ["kea"];
+
+      # Allow writing hostname cache
+      ReadWritePaths = ["/tmp"];
 
       # Network capabilities for getting interface info
       AmbientCapabilities = ["CAP_NET_ADMIN" "CAP_NET_RAW"];

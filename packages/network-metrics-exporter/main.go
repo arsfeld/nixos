@@ -21,6 +21,16 @@ import (
 	"github.com/wimark/vendormap"
 )
 
+// Debug timing logs
+var debugTiming = os.Getenv("DEBUG_TIMING") == "true"
+
+// Helper for timing logs
+func logTiming(format string, args ...interface{}) {
+	if debugTiming {
+		log.Printf("[TIMING] "+format, args...)
+	}
+}
+
 var (
 	// Metrics
 	clientTrafficBytes = promauto.NewGaugeVec(prometheus.GaugeOpts{
@@ -63,8 +73,8 @@ var (
 	trafficHistory     = make(map[string]*TrafficSnapshot)
 	trafficHistoryLock sync.RWMutex
 	
-	// Client name cache that persists across restarts
-	clientNameCache     = make(map[string]string)
+	// Client name cache that persists across restarts (keyed by MAC address)
+	clientNameCache     = make(map[string]string) // MAC -> hostname
 	clientNameCacheLock sync.RWMutex
 	clientNameCacheFile = "/var/lib/network-metrics-exporter/client-names.cache"
 	
@@ -200,45 +210,96 @@ func collectMetrics() {
 }
 
 func updateMetrics() {
+	var overallStart time.Time
+	if debugTiming {
+		overallStart = time.Now()
+	}
+	
 	// Update traffic metrics from nftables
+	var start time.Time
+	if debugTiming {
+		start = time.Now()
+	}
 	updateTrafficMetrics()
+	if debugTiming {
+		logTiming(" updateTrafficMetrics took %v", time.Since(start))
+	}
 
 	// Update connection counts
+	if debugTiming {
+		start = time.Now()
+	}
 	updateConnectionCounts()
+	if debugTiming {
+		logTiming(" updateConnectionCounts took %v", time.Since(start))
+	}
 
 	// Update client status
+	if debugTiming {
+		start = time.Now()
+	}
 	updateClientStatus()
+	if debugTiming {
+		logTiming(" updateClientStatus took %v", time.Since(start))
+	}
 	
 	// Update WAN IP
+	if debugTiming {
+		start = time.Now()
+	}
 	updateWanIp()
+	if debugTiming {
+		logTiming(" updateWanIp took %v", time.Since(start))
+	}
 	
 	// Update client database metrics
+	if debugTiming {
+		start = time.Now()
+	}
 	updateClientDatabaseMetrics()
+	if debugTiming {
+		logTiming(" updateClientDatabaseMetrics took %v", time.Since(start))
+	}
+	
+	if debugTiming {
+		logTiming(" Total updateMetrics took %v", time.Since(overallStart))
+	}
 }
 
 func updateTrafficMetrics() {
+	start := time.Now()
 	cmd := exec.Command("nft", "-j", "list", "chain", "inet", "filter", "CLIENT_TRAFFIC")
 	output, err := cmd.Output()
 	if err != nil {
 		log.Printf("Error getting nftables rules: %v", err)
 		return
 	}
+	logTiming("nft command took %v", time.Since(start))
 
+	start = time.Now()
 	var nftOutput NftOutput
 	if err := json.Unmarshal(output, &nftOutput); err != nil {
 		log.Printf("Error parsing nftables JSON: %v", err)
 		return
 	}
+	logTiming(" JSON unmarshal took %v", time.Since(start))
+
+	// Load client database once before processing rules
+	clientDB := loadClientDatabase()
 
 	currentTime := time.Now()
 	
 	// Track current values per IP
 	currentTraffic := make(map[string]*TrafficSnapshot)
+	
+	start = time.Now()
+	ruleCount := 0
 
 	clientsLock.Lock()
 	defer clientsLock.Unlock()
 
 	for _, item := range nftOutput.Nftables {
+		ruleCount++
 		if item.Rule == nil || item.Rule.Comment == "" {
 			continue
 		}
@@ -267,7 +328,6 @@ func updateTrafficMetrics() {
 			deviceType := "unknown"
 			
 			// Try to get device type from client database first
-			clientDB := loadClientDatabase()
 			if dbEntry, ok := clientDB[ip]; ok {
 				if dbEntry.Hostname != "" && clientName == "unknown" {
 					clientName = dbEntry.Hostname
@@ -326,8 +386,10 @@ func updateTrafficMetrics() {
 			currentTraffic[ip].TxBytes = bytes
 		}
 	}
+	logTiming(" Processing %d nftables rules took %v", ruleCount, time.Since(start))
 	
 	// Calculate rates
+	start = time.Now()
 	trafficHistoryLock.Lock()
 	defer trafficHistoryLock.Unlock()
 	
@@ -370,11 +432,14 @@ func updateTrafficMetrics() {
 			}
 		}
 	}
+	logTiming(" Rate calculations took %v", time.Since(start))
 }
 
 func updateConnectionCounts() {
+	start := time.Now()
 	cmd := exec.Command("conntrack", "-L", "-o", "extended")
 	output, err := cmd.Output()
+	logTiming(" conntrack command took %v", time.Since(start))
 	if err != nil {
 		// conntrack might return error if no connections
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
@@ -387,10 +452,13 @@ func updateConnectionCounts() {
 	}
 
 	// Count connections per IP
+	start = time.Now()
 	connectionCounts := make(map[string]int)
 	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	lineCount := 0
 	
 	for scanner.Scan() {
+		lineCount++
 		line := scanner.Text()
 		// Extract IPs from conntrack output
 		// Look for src= and dst= patterns
@@ -404,7 +472,9 @@ func updateConnectionCounts() {
 			}
 		}
 	}
+	logTiming(" Parsing %d conntrack lines took %v", lineCount, time.Since(start))
 
+	start = time.Now()
 	clientsLock.RLock()
 	defer clientsLock.RUnlock()
 
@@ -416,22 +486,28 @@ func updateConnectionCounts() {
 		count := connectionCounts[ip]
 		clientActiveConnections.WithLabelValues(ip, client.Name, client.DeviceType).Set(float64(count))
 	}
+	logTiming(" Updating connection metrics took %v", time.Since(start))
 }
 
 func updateClientStatus() {
 	// Get ARP table
+	start := time.Now()
 	cmd := exec.Command("ip", "neigh", "show")
 	output, err := cmd.Output()
+	logTiming(" ip neigh show took %v", time.Since(start))
 	if err != nil {
 		log.Printf("Error getting ARP table: %v", err)
 		return
 	}
 
 	// Parse ARP entries
+	start = time.Now()
 	arpEntries := make(map[string]bool)
 	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	lineCount := 0
 	
 	for scanner.Scan() {
+		lineCount++
 		line := scanner.Text()
 		// Look for REACHABLE, STALE, DELAY, or PROBE states
 		if strings.Contains(line, "REACHABLE") || 
@@ -447,7 +523,9 @@ func updateClientStatus() {
 			}
 		}
 	}
+	logTiming(" Parsing %d ARP entries took %v", lineCount, time.Since(start))
 
+	start = time.Now()
 	clientsLock.RLock()
 	defer clientsLock.RUnlock()
 
@@ -459,16 +537,29 @@ func updateClientStatus() {
 		}
 		clientStatus.WithLabelValues(ip, client.Name, client.DeviceType).Set(status)
 	}
+	logTiming(" Updating client status metrics took %v", time.Since(start))
 }
 
 func getClientName(ip string) string {
-	// Check cache first
-	clientNameCacheLock.RLock()
-	if cachedName, exists := clientNameCache[ip]; exists {
+	start := time.Now()
+	defer func() {
+		if time.Since(start) > 10*time.Millisecond {
+			log.Printf("[TIMING WARNING] getClientName(%s) took %v", ip, time.Since(start))
+		}
+	}()
+	
+	// First get MAC address for this IP
+	macAddr := getMacAddress(ip)
+	
+	// Check cache by MAC address
+	if macAddr != "" {
+		clientNameCacheLock.RLock()
+		if cachedName, exists := clientNameCache[macAddr]; exists {
+			clientNameCacheLock.RUnlock()
+			return cachedName
+		}
 		clientNameCacheLock.RUnlock()
-		return cachedName
 	}
-	clientNameCacheLock.RUnlock()
 
 	// Check mDNS cache
 	mdnsCacheLock.RLock()
@@ -482,7 +573,9 @@ func getClientName(ip string) string {
 			name = strings.TrimSuffix(name, ".")
 		}
 		if name != "" {
-			updateClientNameCache(ip, name)
+			if macAddr != "" {
+				updateClientNameCache(macAddr, name)
+			}
 			return name
 		}
 	} else {
@@ -494,7 +587,9 @@ func getClientName(ip string) string {
 	if resolvedName, exists := dnsResolveCache[ip]; exists {
 		dnsResolveCacheLock.RUnlock()
 		if resolvedName != "" {
-			updateClientNameCache(ip, resolvedName)
+			if macAddr != "" {
+				updateClientNameCache(macAddr, resolvedName)
+			}
 			return resolvedName
 		}
 	} else {
@@ -581,12 +676,25 @@ func loadClientNameCache() {
 	clientNameCacheLock.Lock()
 	defer clientNameCacheLock.Unlock()
 	
-	// Parse cache file (format: IP|Name per line)
+	// Parse cache file (format: MAC|Name per line)
+	// Also handle old format (IP|Name) for backward compatibility
 	scanner := bufio.NewScanner(strings.NewReader(string(data)))
 	for scanner.Scan() {
 		parts := strings.Split(scanner.Text(), "|")
 		if len(parts) == 2 {
-			clientNameCache[parts[0]] = parts[1]
+			key := parts[0]
+			name := parts[1]
+			// Check if it's a MAC address (contains colons) or IP
+			if strings.Contains(key, ":") {
+				// It's a MAC address, use as-is
+				clientNameCache[key] = name
+			} else if net.ParseIP(key) != nil {
+				// It's an IP address from old format - try to get MAC and convert
+				mac := getMacAddress(key)
+				if mac != "" {
+					clientNameCache[mac] = name
+				}
+			}
 		}
 	}
 	
@@ -598,8 +706,11 @@ func saveClientNameCache() {
 	defer clientNameCacheLock.RUnlock()
 	
 	var lines []string
-	for ip, name := range clientNameCache {
-		lines = append(lines, ip+"|"+name)
+	for mac, name := range clientNameCache {
+		// Only save entries that look like MAC addresses
+		if strings.Contains(mac, ":") {
+			lines = append(lines, mac+"|"+name)
+		}
 	}
 	
 	data := strings.Join(lines, "\n")
@@ -616,9 +727,12 @@ func saveClientNameCache() {
 	}
 }
 
-func updateClientNameCache(ip, name string) {
+func updateClientNameCache(mac, name string) {
+	if mac == "" || name == "" || name == "unknown" {
+		return
+	}
 	clientNameCacheLock.Lock()
-	clientNameCache[ip] = name
+	clientNameCache[mac] = name
 	clientNameCacheLock.Unlock()
 	
 	// Save cache in background
@@ -929,7 +1043,9 @@ func updateWanIp() {
 
 func updateClientDatabaseMetrics() {
 	// Load client database
+	start := time.Now()
 	clientDB := loadClientDatabase()
+	logTiming(" loadClientDatabase took %v", time.Since(start))
 	
 	// Count total clients
 	total := 0
@@ -937,6 +1053,7 @@ func updateClientDatabaseMetrics() {
 	deviceTypes := make(map[string]int)
 	
 	// Count static clients
+	start = time.Now()
 	for _, entry := range clientDB {
 		total++
 		
@@ -954,8 +1071,10 @@ func updateClientDatabaseMetrics() {
 		}
 		deviceTypes[deviceType]++
 	}
+	logTiming(" Processing %d static clients took %v", len(clientDB), time.Since(start))
 	
 	// Also count dynamic clients from current session
+	start = time.Now()
 	clientsLock.RLock()
 	for ip, client := range clients {
 		// Skip if already in database
@@ -978,6 +1097,7 @@ func updateClientDatabaseMetrics() {
 		deviceTypes[deviceType]++
 	}
 	clientsLock.RUnlock()
+	logTiming(" Processing dynamic clients took %v", time.Since(start))
 	
 	// Update metrics
 	clientsTotal.Set(float64(total))
@@ -1022,6 +1142,10 @@ func runPeriodicMDNSDiscovery() {
 
 // runArpScan performs an ARP scan of the local network and caches results
 func runArpScan() {
+	start := time.Now()
+	defer func() {
+		logTiming(" Total runArpScan took %v", time.Since(start))
+	}()
 	// Remove the time check since we're now called on a schedule
 	// Only run if it's been more than 5 minutes since last scan
 	// if time.Since(lastArpScan) < 5*time.Minute {
@@ -1047,8 +1171,10 @@ func runArpScan() {
 	}
 	
 	// Run arp-scan on the local network
+	cmdStart := time.Now()
 	cmd := exec.Command("arp-scan", "-l", "-I", iface, "--retry=2", "--timeout=200")
 	output, err := cmd.Output()
+	logTiming(" arp-scan command took %v", time.Since(cmdStart))
 	if err != nil {
 		// Check if it's a permission error
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -1067,6 +1193,7 @@ func runArpScan() {
 	}
 	
 	// Parse arp-scan output
+	parseStart := time.Now()
 	scanner := bufio.NewScanner(strings.NewReader(string(output)))
 	newCache := make(map[string]*ArpScanEntry)
 	currentTime := time.Now()
@@ -1107,6 +1234,7 @@ func runArpScan() {
 			}
 		}
 	}
+	logTiming(" Parsing arp-scan output took %v", time.Since(parseStart))
 	
 	// Update cache
 	arpScanCacheLock.Lock()
@@ -1119,6 +1247,10 @@ func runArpScan() {
 
 // discoverMDNS performs mDNS discovery to find devices on the network
 func discoverMDNS() {
+	start := time.Now()
+	defer func() {
+		logTiming(" Total discoverMDNS took %v", time.Since(start))
+	}()
 	// Remove the time check since we're now called on a schedule
 	// Only run if it's been more than 5 minutes since last scan
 	// if time.Since(lastMDNSScan) < 5*time.Minute {
@@ -1295,7 +1427,11 @@ func backgroundDNSResolver() {
 		
 		// If we got a name, update the main cache too
 		if resolvedName != "" {
-			updateClientNameCache(ip, resolvedName)
+			// Get MAC for this IP to cache properly
+			mac := getMacAddress(ip)
+			if mac != "" {
+				updateClientNameCache(mac, resolvedName)
+			}
 		}
 	}
 }
