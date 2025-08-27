@@ -8,7 +8,7 @@ tags = ["nixos", "router", "testing", "networking", "homelab", "tutorial"]
 
 *Part 2 of the NixOS Router Series*
 
-In the [previous post](./nixos-router-getting-started), we built a minimal NixOS router that provides internet connectivity to your network. Now let's ensure it stays reliable by writing comprehensive tests for our configuration.
+In the [previous post](/posts/nixos-router-getting-started), we built a minimal NixOS router that provides internet connectivity to your network. Now let's ensure it stays reliable by writing comprehensive tests for our configuration.
 
 **Why test your router?** A misconfigured router can leave you without internet access, making it difficult to fix remotely. By writing tests, you can:
 - Catch configuration errors before deployment
@@ -517,7 +517,9 @@ With these tests in place, you can confidently make changes knowing you'll catch
 
 In the next post, we'll add monitoring to track per-client network usage with custom metrics. You'll gain real-time visibility into which devices are using your bandwidth!
 
-**Continue to:** [Part 3 - Monitor Per-Client Network Usage →](./nixos-router-blog-post-3-monitoring.md)
+**Continue to:** [Part 3 - Monitor Per-Client Network Usage →](/posts/nixos-router-blog-post-3-monitoring)
+
+For a complete overview of the entire router build including advanced features like QoS, VLANs, and hardware selection, check out my **[NixOS router journey](/posts/nixos-router-journey)** post.
 
 ---
 

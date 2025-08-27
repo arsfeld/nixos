@@ -292,12 +292,12 @@ sudo tcpdump -i enp2s0 -n
 
 ## What's Next?
 
-Congratulations! You now have a working NixOS router. It's basic, but it's yours. In the upcoming guides, we'll add:
+Congratulations! You now have a working NixOS router. It's basic, but it's yours. Continue with the series to add more features:
 
-- **[Part 2: DNS with Ad Blocking](/posts/nixos-router-dns-adblock)** - Set up Blocky for network-wide ad blocking
-- **Part 3: Advanced Firewall Rules** - Per-client tracking and sophisticated security
-- **Part 4: UPnP for Gaming** - Automatic port forwarding done right
-- **Part 5: Eliminate Bufferbloat** - CAKE QoS for smooth performance
+- **[Part 2: Testing Your Configuration](/posts/nixos-router-blog-post-2-testing)** - Write comprehensive tests to ensure reliability and catch errors before deployment
+- **[Part 3: Per-Client Monitoring](/posts/nixos-router-blog-post-3-monitoring)** - Track bandwidth usage per device with Prometheus and Grafana
+
+For a complete overview of the entire router build including advanced features like QoS, VLANs, and hardware selection, check out my **[NixOS router journey](/posts/nixos-router-journey)** post.
 
 The complete configuration for this series is available in my [nixos-config repository](https://github.com/arsfeld/nixos). Feel free to explore and adapt it to your needs.
 

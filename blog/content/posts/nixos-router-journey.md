@@ -155,7 +155,11 @@ The dashboard shows real-time metrics including CPU usage, memory utilization, d
 
 ## What's Next?
 
-This is just the beginning of my NixOS router journey. If you're interested in building your own NixOS router, check out my [step-by-step getting started guide](/posts/nixos-router-getting-started/) that walks through hardware selection and basic setup.
+If you're interested in building your own NixOS router, I've created a tutorial series that walks you through the process:
+
+- **[Part 1: Getting Started](/posts/nixos-router-getting-started)** - Hardware selection, basic installation, and minimal router configuration
+- **[Part 2: Testing Your Configuration](/posts/nixos-router-blog-post-2-testing)** - Write comprehensive tests to ensure reliability
+- **[Part 3: Per-Client Monitoring](/posts/nixos-router-blog-post-3-monitoring)** - Track bandwidth usage per device with Prometheus and Grafana
 
 The full configuration demonstrates many advanced features including comprehensive testing, network architecture with bridging and VLANs, DNS with ad blocking, QoS with CAKE for bufferbloat mitigation, monitoring with Prometheus and Grafana, VPN integration, and dynamic port forwarding.
 
