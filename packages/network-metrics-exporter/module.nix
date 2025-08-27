@@ -220,6 +220,7 @@ in {
         STATIC_CLIENTS_FILE = "/var/lib/network-metrics-exporter/static-clients.json";
         TRAFFIC_INTERFACE = cfg.trafficInterface;
         NETWORK_PREFIX = cfg.networkPrefix;
+        DEBUG_TIMING = "true"; # Enable timing logs to debug performance
       };
 
       path = with pkgs; [
