@@ -4,6 +4,7 @@
     ./disko-config.nix
     ./fan-control.nix
     ./fontconfig.nix
+    ./scheduler-tuning.nix
   ];
 
   # Enable constellation modules
