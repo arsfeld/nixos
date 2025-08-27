@@ -23,655 +23,213 @@ DASHBOARD_HTML = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Router Dashboard</title>
     <link href="https://cdn.lineicons.com/4.0/lineicons.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        gray: {
+                            900: '#0f0f0f',
+                            800: '#1a1a1a',
+                            700: '#2a2a2a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        /* Minimal custom styles */
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
-            color: #e0e0e0;
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1400px;
-            width: 100%;
-            margin: 0 auto;
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        
-        .system-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 40px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 16px;
-            padding: 24px;
-        }
-        
-        .stat-card {
-            text-align: center;
-            padding: 16px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-        
-        .stat-label {
-            font-size: 0.85rem;
-            color: #888;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        .stat-value {
-            font-size: 1.8rem;
-            font-weight: 600;
-            background: linear-gradient(135deg, #4a9eff 0%, #00d4ff 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        
-        .stat-value.status-online {
-            background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        
-        .stat-value.status-offline {
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        
-        .stat-value.status-partial {
-            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        
-        .stat-sub {
-            font-size: 0.9rem;
-            color: #aaa;
-            margin-top: 4px;
-        }
-        
-        .network-info {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 16px;
-            padding: 24px;
-            margin-bottom: 40px;
-        }
-        
-        .network-info h3 {
-            font-size: 1.2rem;
-            margin-bottom: 16px;
-            color: #fff;
-        }
-        
-        .network-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 16px;
-        }
-        
-        .network-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 12px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
-            font-size: 0.9rem;
-        }
-        
-        .network-label {
-            color: #888;
-        }
-        
-        .network-value {
-            color: #fff;
-            font-family: 'Courier New', monospace;
-        }
-        
-        .clients-section {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 16px;
-            padding: 24px;
-            margin-bottom: 40px;
-        }
-        
-        .dns-stats-section {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 16px;
-            padding: 24px;
-            margin-bottom: 40px;
-        }
-        
-        .dns-stats-section h3 {
-            font-size: 1.2rem;
-            margin-bottom: 20px;
-            color: #fff;
-        }
-        
-        .dns-stats-section h4 {
-            font-size: 1rem;
-            margin-bottom: 12px;
-            color: #bbb;
-        }
-        
-        .dns-stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-            margin-bottom: 24px;
-        }
-        
-        .dns-stat-card {
-            text-align: center;
-            padding: 16px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-        
-        .dns-top-section {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 20px;
-        }
-        
-        .dns-top-clients {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-            padding: 16px;
-        }
-        
-        .dns-top-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .dns-client-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 6px;
-            font-size: 0.9rem;
-        }
-        
-        .dns-client-name {
-            color: #e0e0e0;
-            flex: 1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        
-        .dns-client-count {
-            color: #4a9eff;
-            font-weight: 500;
-            margin-left: 12px;
-        }
-        
-        .block-lists {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            justify-content: center;
-            margin-top: 8px;
-        }
-        
-        .block-list-item {
-            padding: 4px 8px;
-            background: rgba(239, 68, 68, 0.2);
-            border: 1px solid rgba(239, 68, 68, 0.3);
-            border-radius: 12px;
-            font-size: 0.75rem;
-            color: #fca5a5;
-        }
-        
-        .clients-section h3 {
-            font-size: 1.2rem;
-            margin-bottom: 20px;
-            color: #fff;
-        }
-        
-        .clients-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        
-        .clients-title {
-            font-size: 1.2rem;
-            color: #fff;
-        }
-        
-        .sort-controls {
-            display: flex;
-            gap: 8px;
-        }
-        
-        .sort-btn {
-            padding: 6px 12px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 6px;
-            color: #888;
-            font-size: 0.85rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        
-        .sort-btn:hover {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(255, 255, 255, 0.2);
-            color: #fff;
-        }
-        
-        .sort-btn.active {
-            background: rgba(74, 158, 255, 0.2);
-            border-color: #4a9eff;
-            color: #4a9eff;
-        }
-        
-        .sort-btn i {
-            font-size: 0.7rem;
-            opacity: 0.7;
-        }
-        
-        .sort-btn.active i {
-            opacity: 1;
-        }
-        
-        .sort-btn.desc i {
-            transform: rotate(180deg);
-        }
-        
-        .clients-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 12px;
-        }
-        
-        .client-item {
-            display: flex;
-            align-items: center;
-            padding: 12px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
-            transition: all 0.2s ease;
-        }
-        
-        .client-item:hover {
-            background: rgba(255, 255, 255, 0.08);
-            transform: translateX(4px);
-        }
-        
-        .client-icon {
-            font-size: 1.2rem;
-            margin-right: 12px;
-            min-width: 24px;
-            text-align: center;
-            color: #4a9eff;
-            opacity: 0.6;
-        }
-        
-        .client-info {
-            flex: 1;
-            min-width: 0;
-        }
-        
-        .client-name {
-            color: #fff;
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .client-details {
-            color: #888;
-            font-size: 0.85rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .client-bandwidth {
-            margin-left: auto;
-            padding: 0 8px;
-            text-align: right;
-            min-width: 100px;
-        }
-        
-        .bandwidth-label {
-            font-size: 0.7rem;
-            color: #666;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .bandwidth-value {
-            font-size: 0.75rem;
-            color: #4a9eff;
-            font-family: 'Courier New', monospace;
-        }
-        
-        .bandwidth-value.active {
-            color: #4ade80;
-            font-weight: 500;
-        }
-        
-        .client-state-indicator {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-left: 8px;
-            background: #666;
-            box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
-            transition: all 0.3s ease;
-            flex-shrink: 0;
-        }
-        
-        .client-state-indicator.reachable {
-            background: #4ade80;
-            box-shadow: 0 0 8px #4ade80, 0 0 12px #4ade80;
-            animation: pulse-green 2s infinite;
-        }
-        
-        .client-state-indicator.stale {
-            background: #fbbf24;
-            box-shadow: 0 0 6px #fbbf24;
-        }
-        
-        .client-state-indicator.failed,
-        .client-state-indicator.unknown {
-            background: #666;
-            box-shadow: none;
-        }
-        
-        @keyframes pulse-green {
-            0%, 100% { 
-                box-shadow: 0 0 8px #4ade80, 0 0 12px #4ade80;
-                opacity: 1;
-            }
-            50% { 
-                box-shadow: 0 0 12px #4ade80, 0 0 20px #4ade80;
-                opacity: 0.8;
-            }
-        }
-
-        h1 {
-            font-size: 3rem;
-            font-weight: 300;
-            letter-spacing: -1px;
-            margin-bottom: 10px;
-            background: linear-gradient(135deg, #4a9eff 0%, #00d4ff 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .subtitle {
-            font-size: 1.2rem;
-            color: #888;
-            font-weight: 300;
-        }
-        
-        .timing-info {
-            margin-top: 15px;
-            padding: 10px 20px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 8px;
-            font-size: 0.85rem;
-            display: inline-block;
-        }
-        
-        .timing-label {
-            color: #888;
-            margin-right: 8px;
-        }
-        
-        .timing-value {
-            color: #4a9eff;
-            font-weight: 500;
-            margin-right: 12px;
-        }
-        
-        .timing-value.slow {
-            color: #fbbf24;
-        }
-        
-        .timing-value.very-slow {
-            color: #ef4444;
-        }
-        
-        .timing-details {
-            color: #666;
-            font-size: 0.8rem;
-        }
-        
-        .timing-details span {
-            margin: 0 4px;
-        }
-
-        .services-title {
-            font-size: 1.2rem;
-            margin-top: 40px;
-            margin-bottom: 20px;
-            color: #fff;
-            padding-left: 8px;
-        }
-        
-        .services-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-            gap: 12px;
-            margin-bottom: 40px;
-        }
-
-        .service-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            padding: 16px;
-            text-align: center;
-            transition: all 0.2s ease;
-            text-decoration: none;
-            display: block;
-        }
-
-        .service-card:hover {
-            transform: translateY(-2px);
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-
-        .service-icon {
-            font-size: 1.6rem;
-            margin-bottom: 8px;
-            display: block;
-            opacity: 0.8;
-            color: #4a9eff;
-        }
-
-        .service-name {
-            color: #e0e0e0;
-            font-size: 0.9rem;
-            font-weight: 500;
-        }
-
-        .loading {
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 0.6; }
-            50% { opacity: 1; }
-        }
-        
-        @media (max-width: 768px) {
-            h1 {
-                font-size: 2rem;
-            }
-            .subtitle {
-                font-size: 1rem;
-            }
-            .grid {
-                grid-template-columns: 1fr;
-            }
-            .system-stats {
-                grid-template-columns: 1fr;
-            }
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Router Dashboard</h1>
-            <p class="subtitle">Network Services & Monitoring</p>
-            <div class="timing-info" id="timing-info" style="display: none;">
-                <span class="timing-label">Response:</span>
-                <span class="timing-value" id="timing-value">--ms</span>
-                <span class="timing-details" id="timing-details"></span>
-            </div>
+<body class="dark min-h-screen text-gray-200 p-5">
+    <div class="max-w-[1400px] w-full mx-auto">
+        <div class="text-center mb-8">
+            <h1 class="text-5xl font-light tracking-tight mb-2 bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">Router Dashboard</h1>
+            <p class="text-lg text-gray-400 font-light">Network Services & Monitoring</p>
         </div>
 
         <!-- System Statistics -->
-        <div class="system-stats">
-            <div class="stat-card">
-                <div class="stat-label">Internet</div>
-                <div class="stat-value loading" id="connectivity-status">--</div>
-                <div class="stat-sub" id="connectivity-ping">-- ms avg</div>
+        <div x-data="statsApp" x-init="init()" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-10 p-6 bg-gray-900/30 border border-gray-800 rounded-2xl backdrop-blur-sm">
+            <!-- Internet Status Card -->
+            <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-4 text-center hover:bg-gray-800/70 transition-colors">
+                <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Internet</div>
+                <div class="text-2xl font-bold bg-gradient-to-r bg-clip-text text-transparent"
+                     :class="getConnectivityClasses()"
+                     x-text="stats.connectivity.status_text || '--'">--</div>
+                <div class="text-xs text-gray-500 mt-1" 
+                     x-text="stats.connectivity.ping || '-- ms avg'">-- ms avg</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-label">Uptime</div>
-                <div class="stat-value loading" id="uptime">--</div>
+            
+            <!-- Uptime Card -->
+            <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-4 text-center hover:bg-gray-800/70 transition-colors">
+                <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Uptime</div>
+                <div class="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent"
+                     :class="{ 'animate-pulse': loading }"
+                     x-text="stats.uptime || '--'">--</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-label">CPU Load</div>
-                <div class="stat-value loading" id="cpu-load">--</div>
-                <div class="stat-sub" id="cpu-info">-- cores</div>
+            
+            <!-- CPU Load Card -->
+            <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-4 text-center hover:bg-gray-800/70 transition-colors">
+                <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">CPU Load</div>
+                <div class="text-2xl font-bold bg-gradient-to-r bg-clip-text text-transparent"
+                     :class="getCpuLoadClasses()"
+                     x-text="stats.cpu.load || '--'">--</div>
+                <div class="text-xs text-gray-500 mt-1" 
+                     x-text="stats.cpu.info || '-- cores'">-- cores</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-label">Memory</div>
-                <div class="stat-value loading" id="memory-percent">--%</div>
-                <div class="stat-sub" id="memory-info">--</div>
+            
+            <!-- Memory Card -->
+            <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-4 text-center hover:bg-gray-800/70 transition-colors">
+                <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Memory</div>
+                <div class="text-2xl font-bold bg-gradient-to-r bg-clip-text text-transparent"
+                     :class="getMemoryClasses()"
+                     x-text="stats.memory.percent || '--%'">--%</div>
+                <div class="text-xs text-gray-500 mt-1" 
+                     x-text="stats.memory.info || '--'">--</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-label">Connected Clients</div>
-                <div class="stat-value loading" id="client-count">--</div>
-                <div class="stat-sub">Active devices</div>
+            
+            <!-- Connected Clients Card -->
+            <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-4 text-center hover:bg-gray-800/70 transition-colors">
+                <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Connected Clients</div>
+                <div class="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent"
+                     :class="{ 'animate-pulse': loading }"
+                     x-text="stats.clientCount || '--'">--</div>
+                <div class="text-xs text-gray-500 mt-1">Active devices</div>
             </div>
         </div>
 
         <!-- Network Information -->
-        <div class="network-info">
-            <h3>Network Topology</h3>
-            <div class="network-grid">
-                <div class="network-item">
-                    <span class="network-label">WAN Address:</span>
-                    <span class="network-value loading" id="wan-ip">--</span>
+        <div x-data="networkApp" x-init="init()" class="bg-gray-900/30 border border-gray-800 rounded-2xl backdrop-blur-sm p-6 mb-10">
+            <h3 class="text-lg font-semibold text-white mb-4 flex items-center">
+                <i class="lni lni-network text-cyan-400 mr-2"></i>
+                Network Topology
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="flex justify-between items-center p-3 bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-lg hover:bg-gray-800/70 transition-colors">
+                    <span class="text-sm text-gray-400 flex items-center">
+                        <i class="lni lni-world text-blue-400 mr-2 text-xs"></i>
+                        WAN Address:
+                    </span>
+                    <span class="text-sm font-mono text-white" 
+                          :class="{ 'animate-pulse': loading }"
+                          x-text="network.wanIp">--</span>
                 </div>
-                <div class="network-item">
-                    <span class="network-label">LAN Network:</span>
-                    <span class="network-value loading" id="lan-network">--</span>
+                <div class="flex justify-between items-center p-3 bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-lg hover:bg-gray-800/70 transition-colors">
+                    <span class="text-sm text-gray-400 flex items-center">
+                        <i class="lni lni-home text-green-400 mr-2 text-xs"></i>
+                        LAN Network:
+                    </span>
+                    <span class="text-sm font-mono text-white"
+                          :class="{ 'animate-pulse': loading }"
+                          x-text="network.lanNetwork">--</span>
                 </div>
-                <div class="network-item">
-                    <span class="network-label">Bridge (br-lan):</span>
-                    <span class="network-value" id="br-lan-stats">RX: -- / TX: --</span>
+                <div class="flex justify-between items-center p-3 bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-lg hover:bg-gray-800/70 transition-colors group">
+                    <span class="text-sm text-gray-400 flex items-center">
+                        <i class="lni lni-bridge text-purple-400 mr-2 text-xs"></i>
+                        Bridge (br-lan):
+                    </span>
+                    <div class="text-sm font-mono flex items-center">
+                        <i class="lni lni-download text-cyan-400 mr-1 text-xs"></i>
+                        <span class="text-cyan-400" x-text="network.interfaces.brLan.rx">--</span>
+                        <span class="text-gray-500 mx-2">/</span>
+                        <i class="lni lni-upload text-emerald-400 mr-1 text-xs"></i>
+                        <span class="text-emerald-400" x-text="network.interfaces.brLan.tx">--</span>
+                    </div>
                 </div>
-                <div class="network-item">
-                    <span class="network-label">Tailscale:</span>
-                    <span class="network-value" id="tailscale-stats">RX: -- / TX: --</span>
+                <div class="flex justify-between items-center p-3 bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-lg hover:bg-gray-800/70 transition-colors group">
+                    <span class="text-sm text-gray-400 flex items-center">
+                        <i class="lni lni-shield text-orange-400 mr-2 text-xs"></i>
+                        Tailscale:
+                    </span>
+                    <div class="text-sm font-mono flex items-center">
+                        <i class="lni lni-download text-cyan-400 mr-1 text-xs"></i>
+                        <span class="text-cyan-400" x-text="network.interfaces.tailscale.rx">--</span>
+                        <span class="text-gray-500 mx-2">/</span>
+                        <i class="lni lni-upload text-emerald-400 mr-1 text-xs"></i>
+                        <span class="text-emerald-400" x-text="network.interfaces.tailscale.tx">--</span>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Connected Clients -->
-        <div class="clients-section" x-data="clientsApp" x-init="init()">
-            <div class="clients-header">
-                <h3 class="clients-title">Connected Devices (<span x-text="clients.length">0</span>)</h3>
-                <div class="sort-controls">
+        <!-- Connected Devices -->
+        <div x-data="clientsApp" x-init="init()" class="bg-gray-900/30 border border-gray-800 rounded-2xl backdrop-blur-sm p-6 mb-10">
+            <div class="flex justify-between items-center mb-5">
+                <h3 class="text-lg font-semibold text-white flex items-center">
+                    <i class="lni lni-users text-cyan-400 mr-2"></i>
+                    Connected Devices (<span x-text="clients.length">0</span>)
+                </h3>
+                <div class="flex gap-2">
                     <button 
-                        class="sort-btn" 
-                        :class="{ 'active': sortField === 'name', 'desc': sortField === 'name' && sortDirection === 'desc' }"
+                        class="px-3 py-1.5 text-xs font-medium rounded-md border transition-all duration-200 flex items-center gap-1"
+                        :class="sortField === 'name' 
+                            ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' 
+                            : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:bg-gray-700/50 hover:text-white'"
                         @click="setSortField('name')">
                         <span>Name</span>
-                        <i class="lni lni-chevron-up"></i>
+                        <i class="lni lni-chevron-up text-[10px]" 
+                           :class="{ 'rotate-180': sortField === 'name' && sortDirection === 'desc' }"></i>
                     </button>
                     <button 
-                        class="sort-btn" 
-                        :class="{ 'active': sortField === 'bandwidth', 'desc': sortField === 'bandwidth' && sortDirection === 'desc' }"
+                        class="px-3 py-1.5 text-xs font-medium rounded-md border transition-all duration-200 flex items-center gap-1"
+                        :class="sortField === 'bandwidth' 
+                            ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' 
+                            : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:bg-gray-700/50 hover:text-white'"
                         @click="setSortField('bandwidth')">
                         <span>Bandwidth</span>
-                        <i class="lni lni-chevron-up"></i>
+                        <i class="lni lni-chevron-up text-[10px]" 
+                           :class="{ 'rotate-180': sortField === 'bandwidth' && sortDirection === 'desc' }"></i>
                     </button>
                     <button 
-                        class="sort-btn" 
-                        :class="{ 'active': sortField === 'status', 'desc': sortField === 'status' && sortDirection === 'desc' }"
+                        class="px-3 py-1.5 text-xs font-medium rounded-md border transition-all duration-200 flex items-center gap-1"
+                        :class="sortField === 'status' 
+                            ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' 
+                            : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:bg-gray-700/50 hover:text-white'"
                         @click="setSortField('status')">
                         <span>Status</span>
-                        <i class="lni lni-chevron-up"></i>
+                        <i class="lni lni-chevron-up text-[10px]" 
+                           :class="{ 'rotate-180': sortField === 'status' && sortDirection === 'desc' }"></i>
                     </button>
                 </div>
             </div>
-            <div class="clients-grid">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
                 <template x-for="client in sortedClients" :key="client.ip">
-                    <div class="client-item">
-                        <i class="lni client-icon" :class="client.icon || 'lni-mobile'"></i>
-                        <div class="client-info">
-                            <div class="client-name" x-text="getClientName(client)"></div>
-                            <div class="client-details">
-                                <span x-text="client.ip"></span> • <span x-text="client.mac"></span>
+                    <div class="flex items-center p-3 bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-lg hover:bg-gray-800/70 hover:translate-x-0.5 transition-all duration-200">
+                        <i class="lni text-xl mr-3 text-cyan-400 opacity-60" :class="client.icon || 'lni-mobile'"></i>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium text-white text-sm truncate" x-text="getClientName(client)"></div>
+                            <div class="text-xs text-gray-400 truncate">
+                                <span x-text="client.ip"></span>
                             </div>
                         </div>
-                        <div class="client-bandwidth">
-                            <div>
-                                <span class="bandwidth-label">↓</span>
-                                <span class="bandwidth-value" 
-                                      :class="{ 'active': (client.bandwidth_rx_bps || 0) > 1000 }"
+                        <div class="ml-auto pl-3 text-right min-w-[90px]">
+                            <div class="flex items-center justify-end gap-1 text-xs">
+                                <i class="lni lni-download text-cyan-400 text-[10px]"></i>
+                                <span class="font-mono text-[11px]" 
+                                      :class="(client.bandwidth_rx_bps || 0) > 1000 ? 'text-cyan-400 font-semibold' : 'text-gray-500'"
                                       x-text="client.bandwidth_rx_formatted || '0 bps'"></span>
                             </div>
-                            <div>
-                                <span class="bandwidth-label">↑</span>
-                                <span class="bandwidth-value" 
-                                      :class="{ 'active': (client.bandwidth_tx_bps || 0) > 1000 }"
+                            <div class="flex items-center justify-end gap-1 text-xs">
+                                <i class="lni lni-upload text-emerald-400 text-[10px]"></i>
+                                <span class="font-mono text-[11px]" 
+                                      :class="(client.bandwidth_tx_bps || 0) > 1000 ? 'text-emerald-400 font-semibold' : 'text-gray-500'"
                                       x-text="client.bandwidth_tx_formatted || '0 bps'"></span>
                             </div>
                         </div>
-                        <div class="client-state-indicator" 
-                             :class="(client.state || 'unknown').toLowerCase()" 
+                        <div class="ml-2 w-2 h-2 rounded-full flex-shrink-0"
+                             :class="{
+                                'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)] animate-pulse': (client.state || '').toLowerCase() === 'reachable',
+                                'bg-yellow-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]': (client.state || '').toLowerCase() === 'stale',
+                                'bg-gray-600': (client.state || '').toLowerCase() === 'failed' || (client.state || '').toLowerCase() === 'unknown'
+                             }"
                              :title="client.state || 'unknown'"></div>
                     </div>
                 </template>
@@ -679,72 +237,85 @@ DASHBOARD_HTML = """
         </div>
 
         <!-- DNS Statistics -->
-        <div class="dns-stats-section">
-            <h3>DNS Statistics (Blocky)</h3>
-            <div class="dns-stats-grid">
-                <div class="dns-stat-card">
-                    <div class="stat-label">Total Queries</div>
-                    <div class="stat-value" id="dns-total-queries">--</div>
-                    <div class="stat-sub" id="dns-queries-rate">-- q/min</div>
+        <div x-data="dnsApp" x-init="init()" class="bg-gray-900/30 border border-gray-800 rounded-2xl backdrop-blur-sm p-6 mb-10">
+            <h3 class="text-lg font-semibold text-white mb-4 flex items-center">
+                <i class="lni lni-shield-check text-cyan-400 mr-2"></i>
+                DNS Statistics (Blocky)
+            </h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <!-- Total Queries -->
+                <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-lg p-4 hover:bg-gray-800/70 transition-colors">
+                    <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Total Queries</div>
+                    <div class="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent" 
+                         :class="{ 'animate-pulse': loading }"
+                         x-text="formatNumber(stats.totalQueries)">--</div>
+                    <div class="text-xs text-gray-500 mt-1" x-text="stats.queriesRate">-- q/min</div>
                 </div>
-                <div class="dns-stat-card">
-                    <div class="stat-label">Blocked</div>
-                    <div class="stat-value" id="dns-blocked-percent">--%</div>
-                    <div class="stat-sub" id="dns-blocked-count">-- queries</div>
+                <!-- Blocked -->
+                <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-lg p-4 hover:bg-gray-800/70 transition-colors">
+                    <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Blocked</div>
+                    <div class="text-2xl font-bold bg-gradient-to-r bg-clip-text text-transparent" 
+                         :class="getBlockedGradient()"
+                         x-text="stats.blockedPercent">--%</div>
+                    <div class="text-xs text-gray-500 mt-1" x-text="formatNumber(stats.blockedQueries) + ' queries'">-- queries</div>
                 </div>
-                <div class="dns-stat-card">
-                    <div class="stat-label">Cache Hit Rate</div>
-                    <div class="stat-value" id="dns-cache-hit-rate">--%</div>
+                <!-- Cache Hit Rate -->
+                <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-lg p-4 hover:bg-gray-800/70 transition-colors">
+                    <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Cache Hit Rate</div>
+                    <div class="text-2xl font-bold bg-gradient-to-r bg-clip-text text-transparent"
+                         :class="getCacheGradient()"
+                         x-text="stats.cacheHitRate">--%</div>
                 </div>
-                <div class="dns-stat-card">
-                    <div class="stat-label">Block Lists</div>
-                    <div class="block-lists" id="dns-block-lists">
-                        <!-- Block lists will be added here -->
+                <!-- Block Lists -->
+                <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-lg p-4 hover:bg-gray-800/70 transition-colors">
+                    <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Block Lists</div>
+                    <div class="flex flex-wrap gap-1 justify-center mt-2">
+                        <template x-for="(count, list) in stats.blockingLists" :key="list">
+                            <div class="px-2 py-1 bg-red-500/20 border border-red-500/30 rounded-full text-[10px] text-red-300">
+                                <span x-text="`${list}: ${formatNumber(count)}`"></span>
+                            </div>
+                        </template>
+                        <div x-show="Object.keys(stats.blockingLists).length === 0" 
+                             class="text-xs text-gray-500">No data</div>
                     </div>
                 </div>
             </div>
-            <div class="dns-top-section">
-                <div class="dns-top-clients">
-                    <h4>Top Clients</h4>
-                    <div id="dns-top-clients-list" class="dns-top-list">
-                        <!-- Top clients will be added here -->
-                    </div>
+            <!-- Top Clients -->
+            <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-lg p-4">
+                <h4 class="text-sm font-medium text-gray-300 mb-3 flex items-center">
+                    <i class="lni lni-users text-purple-400 mr-2 text-xs"></i>
+                    Top DNS Clients
+                </h4>
+                <div class="space-y-2">
+                    <template x-for="client in stats.topClients" :key="client.ip">
+                        <div class="flex justify-between items-center p-2 bg-gray-700/30 rounded-md hover:bg-gray-700/50 transition-colors">
+                            <span class="text-sm text-gray-200 truncate flex-1" x-text="client.hostname || client.ip"></span>
+                            <span class="text-sm font-mono text-cyan-400 ml-3" x-text="formatNumber(client.queries)"></span>
+                        </div>
+                    </template>
+                    <div x-show="stats.topClients.length === 0" 
+                         class="text-center text-sm text-gray-500 py-2">No DNS data available</div>
                 </div>
             </div>
         </div>
 
         <!-- Services -->
-        <h3 class="services-title">Services</h3>
-        <div class="services-grid">
-            <a href="/grafana/d/router-metrics/router-metrics?kiosk&theme=sapphire-dusk" class="service-card">
-                <i class="lni lni-stats-up service-icon"></i>
-                <div class="service-name">Metrics</div>
-            </a>
-            
-            <a href="/grafana" class="service-card">
-                <i class="lni lni-bar-chart service-icon"></i>
-                <div class="service-name">Grafana</div>
-            </a>
-            
-            <a href="/victoriametrics" class="service-card">
-                <i class="lni lni-database service-icon"></i>
-                <div class="service-name">VictoriaMetrics</div>
-            </a>
-            
-            <a href="/alertmanager" class="service-card">
-                <i class="lni lni-alarm service-icon"></i>
-                <div class="service-name">Alertmanager</div>
-            </a>
-            
-            <a href="/logs/" class="service-card">
-                <i class="lni lni-files service-icon"></i>
-                <div class="service-name">System Logs</div>
-            </a>
-            
-            <a href="/vpn-manager" class="service-card">
-                <i class="lni lni-shield service-icon"></i>
-                <div class="service-name">VPN Manager</div>
-            </a>
+        <div x-data="servicesApp" x-init="init()" class="bg-gray-900/30 border border-gray-800 rounded-2xl backdrop-blur-sm p-6 mb-10">
+            <h3 class="text-lg font-semibold text-white mb-4 flex items-center">
+                <i class="lni lni-apps text-cyan-400 mr-2"></i>
+                Services
+            </h3>
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                <template x-for="service in services" :key="service.name">
+                    <a :href="service.url" 
+                       class="group bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-4 text-center hover:bg-gray-800/70 hover:border-cyan-500/50 hover:scale-105 transition-all duration-200 block">
+                        <i class="lni text-2xl mb-2 block text-cyan-400 opacity-80 group-hover:opacity-100 transition-opacity" 
+                           :class="service.icon"></i>
+                        <div class="text-xs font-medium text-gray-300 group-hover:text-white transition-colors" 
+                             x-text="service.name"></div>
+                    </a>
+                </template>
+            </div>
         </div>
     </div>
 
@@ -764,8 +335,171 @@ DASHBOARD_HTML = """
             }
         };
         
-        // Alpine.js component for clients list
+        // Alpine.js components
         document.addEventListener('alpine:init', () => {
+            // Stats component for top cards
+            Alpine.data('statsApp', () => ({
+                loading: true,
+                stats: {
+                    connectivity: {
+                        status: null,
+                        status_text: '--',
+                        ping: '-- ms avg'
+                    },
+                    uptime: '--',
+                    cpu: {
+                        load: '--',
+                        info: '-- cores'
+                    },
+                    memory: {
+                        percent: '--%',
+                        info: '--'
+                    },
+                    clientCount: '--'
+                },
+                
+                init() {
+                    // Subscribe to metrics updates
+                    metricsStore.subscribe((data) => {
+                        this.updateStats(data);
+                    });
+                },
+                
+                updateStats(data) {
+                    this.loading = false;
+                    
+                    // Update connectivity
+                    if (data.connectivity) {
+                        this.stats.connectivity.status = data.connectivity.status;
+                        this.stats.connectivity.status_text = data.connectivity.status_text || 'Unknown';
+                        this.stats.connectivity.ping = data.connectivity.avg_response_time !== null 
+                            ? `${data.connectivity.avg_response_time} ms avg` 
+                            : 'No response';
+                    }
+                    
+                    // Update uptime
+                    if (data.uptime) {
+                        this.stats.uptime = data.uptime.formatted || '--';
+                    }
+                    
+                    // Update CPU
+                    if (data.cpu) {
+                        this.stats.cpu.load = data.cpu.load_1 ? data.cpu.load_1.toFixed(2) : '--';
+                        this.stats.cpu.info = `${data.cpu.cores || '--'} cores | ${data.cpu.usage_percent || '--'}% usage`;
+                    }
+                    
+                    // Update memory
+                    if (data.memory) {
+                        this.stats.memory.percent = `${data.memory.percent || '--'}%`;
+                        if (data.memory.formatted) {
+                            this.stats.memory.info = `${data.memory.formatted.used} / ${data.memory.formatted.total}`;
+                        }
+                    }
+                    
+                    // Update client count
+                    if (data.clients) {
+                        this.stats.clientCount = data.clients.count || 0;
+                    }
+                },
+                
+                getConnectivityClasses() {
+                    const status = this.stats.connectivity.status;
+                    if (this.loading) return 'from-cyan-400 to-blue-500 animate-pulse';
+                    
+                    switch(status) {
+                        case 'online':
+                            return 'from-green-400 to-emerald-500';
+                        case 'offline':
+                            return 'from-red-400 to-rose-500';
+                        case 'partial':
+                            return 'from-amber-400 to-yellow-500';
+                        default:
+                            return 'from-cyan-400 to-blue-500';
+                    }
+                },
+                
+                getCpuLoadClasses() {
+                    if (this.loading) return 'from-cyan-400 to-blue-500 animate-pulse';
+                    
+                    const load = parseFloat(this.stats.cpu.load);
+                    if (isNaN(load)) return 'from-cyan-400 to-blue-500';
+                    
+                    // Assuming 4 cores average, adjust thresholds
+                    if (load > 8) return 'from-red-400 to-rose-500';
+                    if (load > 4) return 'from-amber-400 to-yellow-500';
+                    if (load > 2) return 'from-cyan-400 to-blue-500';
+                    return 'from-green-400 to-emerald-500';
+                },
+                
+                getMemoryClasses() {
+                    if (this.loading) return 'from-cyan-400 to-blue-500 animate-pulse';
+                    
+                    const percent = parseFloat(this.stats.memory.percent);
+                    if (isNaN(percent)) return 'from-cyan-400 to-blue-500';
+                    
+                    if (percent > 90) return 'from-red-400 to-rose-500';
+                    if (percent > 75) return 'from-amber-400 to-yellow-500';
+                    if (percent > 50) return 'from-cyan-400 to-blue-500';
+                    return 'from-green-400 to-emerald-500';
+                }
+            }));
+            
+            // Network component
+            Alpine.data('networkApp', () => ({
+                loading: true,
+                network: {
+                    wanIp: '--',
+                    lanNetwork: '--',
+                    interfaces: {
+                        brLan: {
+                            rx: 'RX: --',
+                            tx: 'TX: --'
+                        },
+                        tailscale: {
+                            rx: 'RX: --',
+                            tx: 'TX: --'
+                        }
+                    }
+                },
+                
+                init() {
+                    // Subscribe to metrics updates
+                    metricsStore.subscribe((data) => {
+                        this.updateNetwork(data);
+                    });
+                },
+                
+                updateNetwork(data) {
+                    this.loading = false;
+                    
+                    if (data.network) {
+                        // Update WAN IP
+                        this.network.wanIp = data.network.wan_ip || 'unknown';
+                        
+                        // Update LAN Network
+                        if (data.network.lan_network) {
+                            this.network.lanNetwork = data.network.lan_network.cidr || '10.1.1.0/24';
+                        }
+                        
+                        // Update interface stats
+                        if (data.network.interfaces) {
+                            if (data.network.interfaces['br-lan']) {
+                                const stats = data.network.interfaces['br-lan'];
+                                this.network.interfaces.brLan.rx = `RX: ${stats.formatted.rx}`;
+                                this.network.interfaces.brLan.tx = `TX: ${stats.formatted.tx}`;
+                            }
+                            
+                            if (data.network.interfaces.tailscale0) {
+                                const stats = data.network.interfaces.tailscale0;
+                                this.network.interfaces.tailscale.rx = `RX: ${stats.formatted.rx}`;
+                                this.network.interfaces.tailscale.tx = `TX: ${stats.formatted.tx}`;
+                            }
+                        }
+                    }
+                }
+            }));
+            
+            // Clients component
             Alpine.data('clientsApp', () => ({
                 clients: [],
                 sortField: 'name',
@@ -826,6 +560,112 @@ DASHBOARD_HTML = """
                         : client.mac.substring(0, 8).toUpperCase();
                 }
             }));
+            
+            // DNS Statistics component
+            Alpine.data('dnsApp', () => ({
+                loading: true,
+                stats: {
+                    totalQueries: 0,
+                    blockedQueries: 0,
+                    blockedPercent: '--%',
+                    queriesRate: '-- q/min',
+                    cacheHitRate: '--%',
+                    topClients: [],
+                    blockingLists: {}
+                },
+                
+                init() {
+                    // Subscribe to metrics updates
+                    metricsStore.subscribe((data) => {
+                        this.updateStats(data);
+                    });
+                },
+                
+                updateStats(data) {
+                    this.loading = false;
+                    
+                    if (data.blocky && data.blocky.enabled) {
+                        this.stats.totalQueries = data.blocky.total_queries || 0;
+                        this.stats.blockedQueries = data.blocky.blocked_queries || 0;
+                        this.stats.blockedPercent = `${data.blocky.block_percentage || 0}%`;
+                        this.stats.queriesRate = `${data.blocky.queries_per_minute || 0} q/min`;
+                        this.stats.cacheHitRate = `${data.blocky.cache_hit_rate || 0}%`;
+                        this.stats.topClients = data.blocky.top_clients || [];
+                        this.stats.blockingLists = data.blocky.blocking_lists || {};
+                    }
+                },
+                
+                formatNumber(num) {
+                    if (num === undefined || num === null) return '--';
+                    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+                    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+                    return num.toLocaleString();
+                },
+                
+                getBlockedGradient() {
+                    if (this.loading) return 'from-cyan-400 to-blue-500 animate-pulse';
+                    
+                    const percent = parseFloat(this.stats.blockedPercent);
+                    if (isNaN(percent)) return 'from-cyan-400 to-blue-500';
+                    
+                    if (percent > 50) return 'from-red-400 to-rose-500';
+                    if (percent > 30) return 'from-amber-400 to-yellow-500';
+                    if (percent > 10) return 'from-cyan-400 to-blue-500';
+                    return 'from-green-400 to-emerald-500';
+                },
+                
+                getCacheGradient() {
+                    if (this.loading) return 'from-cyan-400 to-blue-500 animate-pulse';
+                    
+                    const percent = parseFloat(this.stats.cacheHitRate);
+                    if (isNaN(percent)) return 'from-cyan-400 to-blue-500';
+                    
+                    if (percent > 80) return 'from-green-400 to-emerald-500';
+                    if (percent > 60) return 'from-cyan-400 to-blue-500';
+                    if (percent > 40) return 'from-amber-400 to-yellow-500';
+                    return 'from-red-400 to-rose-500';
+                }
+            }));
+            
+            // Services component
+            Alpine.data('servicesApp', () => ({
+                services: [
+                    {
+                        name: 'Metrics',
+                        icon: 'lni-stats-up',
+                        url: '/grafana/d/router-metrics/router-metrics?kiosk&theme=sapphire-dusk'
+                    },
+                    {
+                        name: 'Grafana',
+                        icon: 'lni-bar-chart',
+                        url: '/grafana'
+                    },
+                    {
+                        name: 'VictoriaMetrics',
+                        icon: 'lni-database',
+                        url: '/victoriametrics'
+                    },
+                    {
+                        name: 'Alertmanager',
+                        icon: 'lni-alarm',
+                        url: '/alertmanager'
+                    },
+                    {
+                        name: 'System Logs',
+                        icon: 'lni-files',
+                        url: '/logs/'
+                    },
+                    {
+                        name: 'VPN Manager',
+                        icon: 'lni-shield',
+                        url: '/vpn-manager'
+                    }
+                ],
+                
+                init() {
+                    // Services are static, no need to subscribe to updates
+                }
+            }));
         });
         
         // Function to fetch and update metrics (for non-Alpine parts)
@@ -844,184 +684,6 @@ DASHBOARD_HTML = """
                 
                 // Update the shared store for Alpine components
                 metricsStore.update(data);
-                
-                // Display timing information
-                const timingInfo = document.getElementById('timing-info');
-                const timingValue = document.getElementById('timing-value');
-                const timingDetails = document.getElementById('timing-details');
-                
-                if (timingInfo && timingValue && data._timings) {
-                    timingInfo.style.display = 'inline-block';
-                    const totalTime = data._timings.total || fetchTime;
-                    timingValue.textContent = `${totalTime}ms`;
-                    
-                    // Color code based on response time
-                    timingValue.classList.remove('slow', 'very-slow');
-                    if (totalTime > 1000) {
-                        timingValue.classList.add('very-slow');
-                    } else if (totalTime > 500) {
-                        timingValue.classList.add('slow');
-                    }
-                    
-                    // Show detailed timings if not from cache
-                    if (data._timings.details && !data._timings.from_cache) {
-                        const slowest = Object.entries(data._timings.details)
-                            .sort((a, b) => b[1] - a[1])
-                            .slice(0, 3)
-                            .map(([name, time]) => `${name}: ${time}ms`)
-                            .join(' | ');
-                        timingDetails.textContent = data._timings.from_cache ? '(cached)' : `Slowest: ${slowest}`;
-                    } else {
-                        timingDetails.textContent = data._timings.from_cache ? '(cached)' : '';
-                    }
-                }
-                
-                // Update connectivity status
-                const connectivityEl = document.getElementById('connectivity-status');
-                const connectivityPingEl = document.getElementById('connectivity-ping');
-                if (connectivityEl && data.connectivity) {
-                    connectivityEl.textContent = data.connectivity.status_text || 'Unknown';
-                    connectivityEl.classList.remove('loading', 'status-online', 'status-offline', 'status-partial');
-                    connectivityEl.classList.add(`status-${data.connectivity.status}`);
-                    
-                    if (connectivityPingEl) {
-                        if (data.connectivity.avg_response_time !== null) {
-                            connectivityPingEl.textContent = `${data.connectivity.avg_response_time} ms avg`;
-                        } else {
-                            connectivityPingEl.textContent = 'No response';
-                        }
-                    }
-                }
-                
-                // Update uptime
-                const uptimeEl = document.getElementById('uptime');
-                if (uptimeEl && data.uptime) {
-                    uptimeEl.textContent = data.uptime.formatted || '--';
-                    uptimeEl.classList.remove('loading');
-                }
-                
-                // Update CPU load
-                const cpuLoadEl = document.getElementById('cpu-load');
-                const cpuInfoEl = document.getElementById('cpu-info');
-                if (cpuLoadEl && data.cpu) {
-                    cpuLoadEl.textContent = data.cpu.load_1.toFixed(2);
-                    cpuLoadEl.classList.remove('loading');
-                    if (cpuInfoEl) {
-                        cpuInfoEl.textContent = `${data.cpu.cores} cores | ${data.cpu.usage_percent}% usage`;
-                    }
-                }
-                
-                // Update memory
-                const memPercentEl = document.getElementById('memory-percent');
-                const memInfoEl = document.getElementById('memory-info');
-                if (memPercentEl && data.memory) {
-                    memPercentEl.textContent = `${data.memory.percent}%`;
-                    memPercentEl.classList.remove('loading');
-                    if (memInfoEl && data.memory.formatted) {
-                        memInfoEl.textContent = `${data.memory.formatted.used} / ${data.memory.formatted.total}`;
-                    }
-                }
-                
-                // Update client count (only for the system stats card)
-                const clientCountEl = document.getElementById('client-count');
-                
-                if (clientCountEl && data.clients) {
-                    clientCountEl.textContent = data.clients.count;
-                    clientCountEl.classList.remove('loading');
-                }
-                
-                // Update network info
-                const wanIpEl = document.getElementById('wan-ip');
-                if (wanIpEl && data.network) {
-                    wanIpEl.textContent = data.network.wan_ip || 'unknown';
-                    wanIpEl.classList.remove('loading');
-                }
-                
-                const lanNetworkEl = document.getElementById('lan-network');
-                if (lanNetworkEl && data.network && data.network.lan_network) {
-                    lanNetworkEl.textContent = data.network.lan_network.cidr || '10.1.1.0/24';
-                    lanNetworkEl.classList.remove('loading');
-                }
-                
-                // Update interface stats
-                if (data.network && data.network.interfaces) {
-                    const brLanEl = document.getElementById('br-lan-stats');
-                    if (brLanEl && data.network.interfaces['br-lan']) {
-                        const stats = data.network.interfaces['br-lan'];
-                        brLanEl.textContent = `RX: ${stats.formatted.rx} / TX: ${stats.formatted.tx}`;
-                    }
-                    
-                    const tailscaleEl = document.getElementById('tailscale-stats');
-                    if (tailscaleEl && data.network.interfaces.tailscale0) {
-                        const stats = data.network.interfaces.tailscale0;
-                        tailscaleEl.textContent = `RX: ${stats.formatted.rx} / TX: ${stats.formatted.tx}`;
-                    }
-                }
-                
-                // Update DNS Statistics
-                if (data.blocky && data.blocky.enabled) {
-                    // Total queries
-                    const dnsTotalEl = document.getElementById('dns-total-queries');
-                    if (dnsTotalEl) {
-                        dnsTotalEl.textContent = data.blocky.total_queries.toLocaleString();
-                    }
-                    
-                    // Queries rate
-                    const dnsRateEl = document.getElementById('dns-queries-rate');
-                    if (dnsRateEl) {
-                        dnsRateEl.textContent = `${data.blocky.queries_per_minute} q/min`;
-                    }
-                    
-                    // Blocked percentage
-                    const dnsBlockedPercentEl = document.getElementById('dns-blocked-percent');
-                    if (dnsBlockedPercentEl) {
-                        dnsBlockedPercentEl.textContent = `${data.blocky.block_percentage}%`;
-                    }
-                    
-                    // Blocked count
-                    const dnsBlockedCountEl = document.getElementById('dns-blocked-count');
-                    if (dnsBlockedCountEl) {
-                        dnsBlockedCountEl.textContent = `${data.blocky.blocked_queries.toLocaleString()} queries`;
-                    }
-                    
-                    // Cache hit rate
-                    const dnsCacheEl = document.getElementById('dns-cache-hit-rate');
-                    if (dnsCacheEl) {
-                        dnsCacheEl.textContent = `${data.blocky.cache_hit_rate}%`;
-                    }
-                    
-                    // Block lists
-                    const blockListsEl = document.getElementById('dns-block-lists');
-                    if (blockListsEl && data.blocky.blocking_lists) {
-                        blockListsEl.innerHTML = '';
-                        for (const [list, count] of Object.entries(data.blocky.blocking_lists)) {
-                            const item = document.createElement('div');
-                            item.className = 'block-list-item';
-                            item.textContent = `${list}: ${count}`;
-                            blockListsEl.appendChild(item);
-                        }
-                    }
-                    
-                    // Top clients
-                    const topClientsEl = document.getElementById('dns-top-clients-list');
-                    if (topClientsEl && data.blocky.top_clients) {
-                        topClientsEl.innerHTML = '';
-                        data.blocky.top_clients.forEach(client => {
-                            const item = document.createElement('div');
-                            item.className = 'dns-client-item';
-                            
-                            const name = client.hostname && client.hostname !== 'unknown' 
-                                ? client.hostname 
-                                : client.ip;
-                            
-                            item.innerHTML = `
-                                <span class="dns-client-name">${name}</span>
-                                <span class="dns-client-count">${client.queries.toLocaleString()}</span>
-                            `;
-                            topClientsEl.appendChild(item);
-                        });
-                    }
-                }
                 
             } catch (error) {
                 console.error('Error fetching metrics:', error);
@@ -1069,100 +731,65 @@ class MetricsCache:
         with self.lock:
             self.cache[key] = (value, time.time())
 
-class HostnameCache:
-    """Persistent hostname cache with async DNS resolution"""
-    def __init__(self, cache_file='/tmp/hostname_cache.json'):
+class ClientInfoCache:
+    """Cache for client information from network-metrics-exporter"""
+    def __init__(self, ttl_seconds=30):
         self.cache = {}
-        self.cache_file = cache_file
+        self.ttl = ttl_seconds
         self.lock = threading.Lock()
-        self.resolution_queue = []
-        self.last_resolution = {}
-        self.load_cache()
-        # Start background hostname resolution thread
-        self.resolver_thread = threading.Thread(target=self._background_resolver, daemon=True)
-        self.resolver_thread.start()
+        self.last_update = 0
     
-    def load_cache(self):
-        """Load hostname cache from disk"""
-        try:
-            with open(self.cache_file, 'r') as f:
-                data = json.load(f)
-                # Convert to format: {ip: {'hostname': str, 'timestamp': float}}
-                self.cache = data if isinstance(data, dict) else {}
-        except:
-            self.cache = {}
-    
-    def save_cache(self):
-        """Save hostname cache to disk"""
-        try:
-            with self.lock:
-                with open(self.cache_file, 'w') as f:
-                    json.dump(self.cache, f)
-        except:
-            pass
-    
-    def get(self, ip, mac=None):
-        """Get hostname for IP, queue for resolution if not cached"""
+    def get_clients(self):
+        """Get client information from VictoriaMetrics"""
         with self.lock:
-            # Check cache first
-            if ip in self.cache and 'hostname' in self.cache[ip]:
-                hostname = self.cache[ip]['hostname']
-                if hostname and hostname != 'unknown' and hostname != ip:
-                    # Refresh old entries slowly (older than 1 hour)
-                    if time.time() - self.cache[ip].get('timestamp', 0) > 3600:
-                        if ip not in self.resolution_queue:
-                            self.resolution_queue.append(ip)
-                    return hostname
+            # Check if cache is still valid
+            if time.time() - self.last_update < self.ttl and self.cache:
+                return self.cache
             
-            # Queue for resolution if not recently attempted
-            if ip not in self.last_resolution or time.time() - self.last_resolution[ip] > 60:
-                if ip not in self.resolution_queue:
-                    self.resolution_queue.append(ip)
-                self.last_resolution[ip] = time.time()
-            
-            # Return IP as fallback
-            return ip
-    
-    def set(self, ip, hostname):
-        """Set hostname for IP"""
-        with self.lock:
-            self.cache[ip] = {
-                'hostname': hostname,
-                'timestamp': time.time()
-            }
-    
-    def _background_resolver(self):
-        """Background thread to resolve hostnames slowly"""
-        while True:
             try:
-                if self.resolution_queue:
-                    with self.lock:
-                        if self.resolution_queue:
-                            ip = self.resolution_queue.pop(0)
-                        else:
-                            ip = None
-                    
-                    if ip:
-                        # Try DNS resolution (outside lock to avoid blocking)
-                        try:
-                            hostname = socket.gethostbyaddr(ip)[0].split('.')[0]
-                            if hostname and hostname != ip:
-                                self.set(ip, hostname)
-                                self.save_cache()
-                        except:
-                            # Failed resolution, cache as unknown
-                            self.set(ip, ip)
+                # Query client status from network-metrics-exporter
+                clients = {}
                 
-                # Sleep between resolutions to avoid overloading
-                time.sleep(0.5)
-            except:
-                time.sleep(1)
+                # Get client status (online/offline)
+                status_query = 'client_status'
+                url = f"http://localhost:8428/api/v1/query?query={urllib.parse.quote(status_query)}"
+                with urllib.request.urlopen(url, timeout=2) as response:
+                    data = json.loads(response.read().decode())
+                    if data.get('status') == 'success' and data.get('data', {}).get('result'):
+                        for item in data['data']['result']:
+                            metric = item['metric']
+                            ip = metric.get('ip', '')
+                            if ip:
+                                clients[ip] = {
+                                    'ip': ip,
+                                    'hostname': metric.get('client', 'unknown'),
+                                    'device_type': metric.get('device_type', 'unknown'),
+                                    'status': float(item['value'][1]) > 0
+                                }
+                
+                # Get active connections per client
+                conn_query = 'client_active_connections'
+                url = f"http://localhost:8428/api/v1/query?query={urllib.parse.quote(conn_query)}"
+                with urllib.request.urlopen(url, timeout=2) as response:
+                    data = json.loads(response.read().decode())
+                    if data.get('status') == 'success' and data.get('data', {}).get('result'):
+                        for item in data['data']['result']:
+                            ip = item['metric'].get('ip', '')
+                            if ip and ip in clients:
+                                clients[ip]['connections'] = int(float(item['value'][1]))
+                
+                self.cache = clients
+                self.last_update = time.time()
+                return clients
+            except Exception as e:
+                print(f"Error getting client info from metrics: {e}")
+                return self.cache  # Return stale cache on error
 
 # Global cache instances
 metrics_cache = MetricsCache(ttl_seconds=5)  # Cache metrics for 5 seconds
 connectivity_cache = MetricsCache(ttl_seconds=30)  # Cache connectivity for 30 seconds
 blocky_cache = MetricsCache(ttl_seconds=10)  # Cache Blocky stats for 10 seconds
-hostname_cache = HostnameCache()  # Persistent hostname cache
+client_info_cache = ClientInfoCache(ttl_seconds=30)  # Cache client info from network-metrics-exporter
 
 class MetricsHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -1451,149 +1078,34 @@ class MetricsHandler(BaseHTTPRequestHandler):
         
         return stats
     
-    def get_device_type(self, mac: str, hostname: str = '') -> str:
-        """Determine device type from MAC vendor and hostname patterns"""
-        mac_upper = mac.upper().replace(':', '')
-        hostname_lower = hostname.lower() if hostname else ''
-        
-        # Check hostname patterns first (more specific)
-        if hostname_lower and hostname_lower != 'unknown':
-            if 'iphone' in hostname_lower or 'ipad' in hostname_lower or 'ipod' in hostname_lower:
-                return 'apple'
-            elif 'android' in hostname_lower or 'galaxy' in hostname_lower or 'pixel' in hostname_lower or 'samsung' in hostname_lower:
-                return 'android'
-            elif 'macbook' in hostname_lower or 'imac' in hostname_lower or 'mac-' in hostname_lower or 'mbp' in hostname_lower:
-                return 'laptop'
-            elif 'chromecast' in hostname_lower or 'google-home' in hostname_lower or 'nest' in hostname_lower:
-                return 'smart-speaker'
-            elif 'echo' in hostname_lower or 'alexa' in hostname_lower:
-                return 'smart-speaker'
-            elif 'tv' in hostname_lower or 'roku' in hostname_lower or 'firetv' in hostname_lower or 'shield' in hostname_lower:
-                return 'tv'
-            elif 'playstation' in hostname_lower or 'ps4' in hostname_lower or 'ps5' in hostname_lower:
-                return 'game-console'
-            elif 'xbox' in hostname_lower:
-                return 'game-console'
-            elif 'switch' in hostname_lower or 'nintendo' in hostname_lower:
-                return 'game-console'
-            elif 'printer' in hostname_lower or 'print' in hostname_lower:
-                return 'printer'
-            elif 'nas' in hostname_lower or 'synology' in hostname_lower or 'qnap' in hostname_lower or 'storage' in hostname_lower:
-                return 'server'
-            elif 'raspberry' in hostname_lower or 'raspberrypi' in hostname_lower or 'rpi' in hostname_lower:
-                return 'raspberry-pi'
-            elif 'desktop' in hostname_lower or 'pc-' in hostname_lower or 'workstation' in hostname_lower:
-                return 'desktop'
-            elif 'laptop' in hostname_lower or 'notebook' in hostname_lower or 'thinkpad' in hostname_lower:
-                return 'laptop'
-            elif 'server' in hostname_lower or 'vm-' in hostname_lower:
-                return 'server'
-            elif 'camera' in hostname_lower or 'cam' in hostname_lower:
-                return 'camera'
-            elif 'watch' in hostname_lower:
-                return 'watch'
-        
-        # Check MAC vendor prefixes - simpler approach
-        if len(mac_upper) >= 6:
-            oui = mac_upper[:6]
-            
-            # Apple - common prefixes
-            apple_prefixes = ['3C22FB', '48A195', 'F0D1A9', '70ECE4', 'A8667F', '38F9D3', '1C1AC0', '6C4008', 
-                             'A47733', '7014A6', '3CE072', 'B8E856', '70F087', '4C3275', '440010', 'A45E60',
-                             'F0F61C', '98F0AB', 'DC415F', '30F7C5', '98CA33', '68D93C', 'D89E3F', '88E9FE',
-                             'E0AC69', 'F8FF0B', '84A134', '406C8F', '58B035', 'F02475', '883955', 'F85971',
-                             'BCE143', '5C9698', 'CE2BAD', '5CA6E6', 'D88C79', 'B2E983', 'D8D822', '508811',
-                             '3C9BD6', '9EE84C', '7C4D8F', '5CCD5B', '74D83E']
-            
-            for prefix in apple_prefixes:
-                if oui == prefix or mac_upper.startswith(prefix[:5]):
-                    return 'apple'
-            
-            # Raspberry Pi
-            if oui in ['B827EB', 'DC2632', 'E45F01', 'D8E743', '2C9E5F']:
-                return 'raspberry-pi'
-            
-            # Samsung/Android devices 
-            samsung_prefixes = ['5CA6E6', '3C9BD6', 'D88C79', '849DC4', 'CCB11A', '78D752', '94103A', 
-                               'BC72B4', '40B895', 'F4D9FB', 'B86CE8', '001664']
-            for prefix in samsung_prefixes:
-                if oui == prefix or mac_upper.startswith(prefix[:5]):
-                    return 'android'
-            
-            # Intel NICs (likely desktop/server)
-            intel_prefixes = ['001E67', '00D861', 'F4D4B8', '7C5CF8', '3C9701', '5065F3', 'B4969']
-            for prefix in intel_prefixes:
-                if oui == prefix or mac_upper.startswith(prefix[:5]):
-                    return 'desktop'
-            
-            # TP-Link (likely router/switch)
-            if mac_upper.startswith(('98DAC', '50C7B', '8C210')):
-                return 'router'
-            
-            # Gaming consoles
-            if oui in ['0011D9', '001A11', '001422', '0018DD', '00192F', '001C62', '001D60', '001DD8']:
-                return 'game-console'
-            
-            # Sony PlayStation
-            if oui in ['000414', 'F84610', 'FC0FE6', 'BC6065', '28C78']:
-                return 'game-console'
-            
-            # Microsoft Xbox
-            if oui in ['7CBB8A', '30594', '28187', 'CC6683']:
-                return 'game-console'
-            
-            # Nintendo
-            if oui in ['0009BF', '001656', '0017AB', '001AE9', '001B7A', '001BEA']:
-                return 'game-console'
-            
-            # Smart TVs
-            if mac_upper.startswith(('0050F2', '00D9D1', '3CD923', 'FC0171')):
-                return 'tv'
-            
-            # Printers
-            if mac_upper.startswith(('001738', '001975', '002155', '002654')):
-                return 'printer'
-            
-            # Google devices
-            if mac_upper.startswith(('E063DA', '30B5F5')):
-                return 'smart-speaker'
-            
-            # Check for randomized/private MAC addresses (local bit set)
-            if len(mac_upper) >= 2:
-                first_octet = int(mac_upper[:2], 16)
-                # Check if local bit (bit 1 of first octet) is set - indicates randomized MAC
-                if first_octet & 0x02:
-                    # Try to guess based on other patterns
-                    # Many Apple devices use randomized MACs starting with certain patterns
-                    if mac_upper[:2] in ['02', '06', '0A', '0E', '12', '16', '1A', '1E', '22', '26', '2A', '2E', 
-                                         '32', '36', '3A', '3E', '42', '46', '4A', '4E', '52', '56', '5A', '5E',
-                                         '62', '66', '6A', '6E', '72', '76', '7A', '7E', '82', '86', '8A', '8E',
-                                         '92', '96', '9A', '9E', 'A2', 'A6', 'AA', 'AE', 'B2', 'B6', 'BA', 'BE',
-                                         'C2', 'C6', 'CA', 'CE', 'D2', 'D6', 'DA', 'DE', 'E2', 'E6', 'EA', 'EE',
-                                         'F2', 'F6', 'FA', 'FE']:
-                        # Without hostname, hard to identify randomized MACs
-                        return 'generic'
-        
-        # Default fallback
-        return 'generic'
+    def get_device_type_from_exporter(self, ip: str) -> str:
+        """Get device type from network-metrics-exporter data"""
+        clients = client_info_cache.get_clients()
+        if ip in clients:
+            return clients[ip].get('device_type', 'unknown')
+        return 'unknown'
     
     def get_device_icon(self, device_type: str) -> str:
         """Get Lineicon class for device type"""
         icons = {
-            'apple': 'lni-mobile',  # Apple devices - use mobile icon
-            'android': 'lni-android-original',  # Android has original variant
+            'phone': 'lni-mobile',
+            'tablet': 'lni-tab',
             'laptop': 'lni-laptop',
+            'computer': 'lni-display-alt',
             'desktop': 'lni-display-alt',
+            'media': 'lni-display',
             'tv': 'lni-display',
+            'gaming': 'lni-game',
             'game-console': 'lni-game',
+            'iot': 'lni-volume-high',
             'smart-speaker': 'lni-volume-high',
             'printer': 'lni-printer',
             'server': 'lni-server',
-            'raspberry-pi': 'lni-code-alt',  # Use code icon for Pi
-            'router': 'lni-network',  # Use network icon for router
+            'network': 'lni-network',
+            'router': 'lni-network',
             'camera': 'lni-camera',
             'watch': 'lni-timer',
-            'tablet': 'lni-tab',
+            'unknown': 'lni-help',
             'generic': 'lni-mobile'
         }
         return icons.get(device_type, 'lni-mobile')
@@ -1810,71 +1322,19 @@ class MetricsHandler(BaseHTTPRequestHandler):
         }
     
     def get_connected_clients(self) -> Dict[str, Any]:
-        """Get connected clients - with internal timing for debugging"""
+        """Get connected clients from network-metrics-exporter and ARP table"""
         start = time.time()
         clients = []
-        seen_macs = set()
         seen_ips = set()
-        
-        internal_timings = {}
         
         # Get bandwidth data from VictoriaMetrics
         bandwidth_data = self.get_client_bandwidth_rates()
         
-        # First load all Kea lease data into a lookup dict
-        kea_start = time.time()
-        kea_data = {}
-        try:
-            lease_file = '/var/lib/kea/kea-leases4.csv'
-            if os.path.exists(lease_file):
-                with open(lease_file, 'r') as f:
-                    lines = f.readlines()
-                    if lines and lines[0].startswith('address,'):
-                        lines = lines[1:]
-                    
-                    for line in lines:
-                        parts = line.strip().split(',')
-                        if len(parts) >= 9:
-                            ip = parts[0]
-                            mac = parts[1].lower()
-                            hostname = parts[8] if parts[8] else ''
-                            # Store all leases, even expired ones for hostname lookup
-                            if mac and mac != '00:00:00:00:00:00':
-                                if mac not in kea_data or (hostname and not kea_data.get(mac, {}).get('hostname')):
-                                    kea_data[mac] = {'ip': ip, 'hostname': hostname}
-                                    # Also cache the hostname if we have one
-                                    if hostname and hostname != 'unknown':
-                                        hostname_cache.set(ip, hostname)
-        except:
-            pass
-        internal_timings['kea_load'] = round((time.time() - kea_start) * 1000, 1)
+        # Get client info from network-metrics-exporter
+        exporter_clients = client_info_cache.get_clients()
         
-        # Try faster method: Get states from ip neigh with aggressive timeout
-        arp_start = time.time()
-        ip_states = {}
-        try:
-            # First try to get states from ip neigh with very short timeout
-            result = subprocess.run(
-                ['ip', '-o', 'neigh', 'show', 'dev', 'br-lan'],  # -o for one-line output
-                capture_output=True,
-                text=True,
-                timeout=0.3  # Very short timeout
-            )
-            
-            if result.returncode == 0 and result.stdout:
-                for line in result.stdout.strip().split('\n'):
-                    parts = line.split()
-                    if len(parts) >= 4:
-                        ip = parts[0]
-                        # Find state - it's usually the last word
-                        state = parts[-1] if parts[-1] in ['REACHABLE', 'STALE', 'DELAY', 'PROBE', 'FAILED', 'PERMANENT'] else 'STALE'
-                        ip_states[ip] = state
-        except subprocess.TimeoutExpired:
-            print(f"ip neigh timed out after 0.3s, using fallback")
-        except Exception as e:
-            print(f"Error getting states from ip neigh: {e}")
-        
-        # Read ARP table from /proc/net/arp for comprehensive client list
+        # Read ARP table for MAC addresses and state
+        arp_data = {}
         try:
             with open('/proc/net/arp', 'r') as f:
                 lines = f.readlines()[1:]  # Skip header
@@ -1883,160 +1343,79 @@ class MetricsHandler(BaseHTTPRequestHandler):
                 parts = line.split()
                 if len(parts) >= 6:
                     ip = parts[0]
-                    hw_type = parts[1]
                     flags = parts[2]
                     mac = parts[3].lower()
-                    mask = parts[4]
                     device = parts[5]
                     
                     # Check if it's on br-lan
-                    if device == 'br-lan' and mac != '00:00:00:00:00:00':
-                        # Get state from ip_states if available, otherwise deduce from flags
-                        if ip in ip_states:
-                            state = ip_states[ip]
-                        else:
-                            # Fallback to flags-based detection
-                            if flags == '0x0':
-                                state = 'FAILED'
-                            elif flags in ['0x2', '0x6']:
-                                state = 'STALE'  # Default to STALE since we don't know for sure
-                            else:
-                                state = 'STALE'
-                        
-                        # Only include complete entries (not failed)
-                        if flags != '0x0' and mac not in seen_macs:
-                            # Try to get hostname from Kea data first, then hostname cache
-                            hostname = ''
-                            if mac in kea_data:
-                                hostname = kea_data[mac].get('hostname', '')
-                            
-                            # If no hostname from DHCP, use the hostname cache
-                            if not hostname or hostname == 'unknown':
-                                hostname = hostname_cache.get(ip, mac)
-                            
-                            # Determine device type
-                            device_type = self.get_device_type(mac, hostname)
-                            icon = self.get_device_icon(device_type)
-                            
-                            # Get bandwidth info for this IP
-                            bw_info = bandwidth_data.get(ip, {})
-                            
-                            clients.append({
-                                'ip': ip,
-                                'mac': mac,
-                                'hostname': hostname if hostname else ip,
-                                'device_type': device_type,
-                                'icon': icon,
-                                'source': 'arp',
-                                'state': state,
-                                'bandwidth_rx_bps': bw_info.get('rx_bps', 0),
-                                'bandwidth_tx_bps': bw_info.get('tx_bps', 0),
-                                'bandwidth_rx_formatted': bw_info.get('rx_formatted', '0 bps'),
-                                'bandwidth_tx_formatted': bw_info.get('tx_formatted', '0 bps')
-                            })
-                            seen_macs.add(mac)
-                            seen_ips.add(ip)
+                    if device == 'br-lan' and mac != '00:00:00:00:00:00' and flags != '0x0':
+                        arp_data[ip] = {
+                            'mac': mac,
+                            'state': 'REACHABLE' if flags in ['0x2', '0x6'] else 'STALE'
+                        }
         except Exception as e:
             print(f"Error reading ARP table: {e}")
-            # Fallback to ip command with very short timeout
-            try:
-                result = subprocess.run(
-                    ['ip', 'neigh', 'show', 'dev', 'br-lan'],
-                    capture_output=True,
-                    text=True,
-                    timeout=0.2  # Very short timeout
-                )
-                if result.returncode == 0 and result.stdout:
-                    for line in result.stdout.strip().split('\n'):
-                        if not line or 'FAILED' in line:
-                            continue
-                        parts = line.split()
-                        if 'lladdr' in parts and len(parts) >= 3:
-                            ip = parts[0]
-                            try:
-                                lladdr_index = parts.index('lladdr')
-                                if lladdr_index + 1 < len(parts):
-                                    mac = parts[lladdr_index + 1].lower()
-                                    if mac not in seen_macs and mac != '00:00:00:00:00:00':
-                                        bw_info = bandwidth_data.get(ip, {})
-                                        clients.append({
-                                            'ip': ip,
-                                            'mac': mac,
-                                            'hostname': ip,  # Just use IP for speed
-                                            'source': 'arp',
-                                            'state': 'REACHABLE',
-                                            'bandwidth_rx_bps': bw_info.get('rx_bps', 0),
-                                            'bandwidth_tx_bps': bw_info.get('tx_bps', 0),
-                                            'bandwidth_rx_formatted': bw_info.get('rx_formatted', '0 bps'),
-                                            'bandwidth_tx_formatted': bw_info.get('tx_formatted', '0 bps')
-                                        })
-                                        seen_macs.add(mac)
-                                        seen_ips.add(ip)
-                            except:
-                                continue
-            except:
-                pass
-        internal_timings['arp_table'] = round((time.time() - arp_start) * 1000, 1)
         
-        # Add DHCP leases for any devices not in ARP (recently disconnected but lease still valid)
-        lease_start = time.time()
-        kea_leases = self.get_kea_leases()
-        for lease in kea_leases:
-            if lease['mac'] not in seen_macs and lease.get('ip') not in seen_ips:
-                # Add bandwidth info for DHCP lease
-                bw_info = bandwidth_data.get(lease['ip'], {})
-                lease['bandwidth_rx_bps'] = bw_info.get('rx_bps', 0)
-                lease['bandwidth_tx_bps'] = bw_info.get('tx_bps', 0)
-                lease['bandwidth_rx_formatted'] = bw_info.get('rx_formatted', '0 bps')
-                lease['bandwidth_tx_formatted'] = bw_info.get('tx_formatted', '0 bps')
-                clients.append(lease)
-                seen_macs.add(lease['mac'])
-        internal_timings['kea_leases'] = round((time.time() - lease_start) * 1000, 1)
+        # Combine data from all sources
+        for ip, arp_info in arp_data.items():
+            # Get hostname and device type from exporter
+            if ip in exporter_clients:
+                hostname = exporter_clients[ip].get('hostname', 'unknown')
+                device_type = exporter_clients[ip].get('device_type', 'unknown')
+                status = exporter_clients[ip].get('status', False)
+            else:
+                # Fallback to IP as hostname
+                hostname = ip
+                device_type = 'unknown'
+                status = True  # Assume online if in ARP table
+            
+            # Get bandwidth info
+            bw_info = bandwidth_data.get(ip, {})
+            
+            # Determine state - prefer ARP state, but mark as 'FAILED' if offline in exporter
+            state = arp_info['state']
+            if not status:
+                state = 'FAILED'
+            
+            clients.append({
+                'ip': ip,
+                'mac': arp_info['mac'],
+                'hostname': hostname,
+                'device_type': device_type,
+                'icon': self.get_device_icon(device_type),
+                'source': 'arp',
+                'state': state,
+                'bandwidth_rx_bps': bw_info.get('rx_bps', 0),
+                'bandwidth_tx_bps': bw_info.get('tx_bps', 0),
+                'bandwidth_rx_formatted': bw_info.get('rx_formatted', '0 bps'),
+                'bandwidth_tx_formatted': bw_info.get('tx_formatted', '0 bps')
+            })
+            seen_ips.add(ip)
         
-        # If still no clients, try connection tracking
-        if len(clients) == 0:
-            try:
-                # Get the LAN network dynamically
-                lan_info = self.get_lan_network()
-                lan_prefix = lan_info['cidr'].rsplit('.', 1)[0] if lan_info else '10.1.1'
-                router_ip = lan_info['ip'] if lan_info else '10.1.1.1'
-                
-                # Count unique source IPs from LAN network in conntrack
-                result = subprocess.run(
-                    ['conntrack', '-L'],
-                    capture_output=True,
-                    text=True,
-                    timeout=2
-                )
-                if result.returncode == 0:
-                    unique_ips = set()
-                    for line in result.stdout.split('\n'):
-                        if f'src={lan_prefix}.' in line:
-                            # Extract source IP
-                            parts = line.split()
-                            for part in parts:
-                                if part.startswith(f'src={lan_prefix}.'):
-                                    ip = part[4:]
-                                    if ip != router_ip:  # Exclude router itself
-                                        unique_ips.add(ip)
-                                    break
-                    
-                    # Add as unknown clients if we found any
-                    for ip in unique_ips:
-                        clients.append({
-                            'ip': ip,
-                            'mac': 'unknown',
-                            'hostname': self.get_hostname_for_ip(ip),
-                            'source': 'conntrack'
-                        })
-            except:
-                pass
+        # Add any clients from exporter that aren't in ARP (recently disconnected)
+        for ip, client_info in exporter_clients.items():
+            if ip not in seen_ips:
+                bw_info = bandwidth_data.get(ip, {})
+                clients.append({
+                    'ip': ip,
+                    'mac': 'unknown',
+                    'hostname': client_info.get('hostname', ip),
+                    'device_type': client_info.get('device_type', 'unknown'),
+                    'icon': self.get_device_icon(client_info.get('device_type', 'unknown')),
+                    'source': 'exporter',
+                    'state': 'STALE' if client_info.get('status') else 'FAILED',
+                    'bandwidth_rx_bps': bw_info.get('rx_bps', 0),
+                    'bandwidth_tx_bps': bw_info.get('tx_bps', 0),
+                    'bandwidth_rx_formatted': bw_info.get('rx_formatted', '0 bps'),
+                    'bandwidth_tx_formatted': bw_info.get('tx_formatted', '0 bps')
+                })
+                seen_ips.add(ip)
         
         total_time = round((time.time() - start) * 1000, 1)
         
         # Log if slow
         if total_time > 100:  # More than 100ms
-            print(f"Slow get_connected_clients: {total_time}ms, breakdown: {internal_timings}")
+            print(f"get_connected_clients took: {total_time}ms")
         
         return {
             'count': len(clients),
@@ -2044,80 +1423,6 @@ class MetricsHandler(BaseHTTPRequestHandler):
             '_debug_timing': total_time
         }
     
-    def get_kea_leases(self):
-        leases = []
-        seen_macs = set()
-        
-        # Read Kea lease file directly (primary method for router)
-        lease_file = '/var/lib/kea/kea-leases4.csv'
-        
-        try:
-            if os.path.exists(lease_file):
-                with open(lease_file, 'r') as f:
-                    lines = f.readlines()
-                    
-                # Skip header line if present
-                if lines and lines[0].startswith('address,'):
-                    lines = lines[1:]
-                
-                # Parse CSV format: address,hwaddr,client_id,valid_lifetime,expire,subnet_id,fqdn_fwd,fqdn_rev,hostname,state,user_context,pool_id
-                for line in lines:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    
-                    parts = line.split(',')
-                    if len(parts) >= 10:
-                        # Check state field (index 9): 0=active, 1=declined, 2=expired-reclaimed
-                        state = parts[9] if len(parts) > 9 else '0'
-                        
-                        # Only include active leases (state 0)
-                        if state == '0':
-                            ip = parts[0]
-                            mac = parts[1].lower()
-                            hostname = parts[8] if len(parts) > 8 and parts[8] else ''
-                            
-                            # Only add if we have valid IP and MAC, and haven't seen this MAC before
-                            if ip and mac and not ip.startswith('#') and mac not in seen_macs:
-                                seen_macs.add(mac)
-                                # Cache hostname if we have one from DHCP
-                                if hostname and hostname != 'unknown':
-                                    hostname_cache.set(ip, hostname)
-                                # Use cached hostname if no DHCP hostname
-                                if not hostname or hostname == 'unknown':
-                                    hostname = hostname_cache.get(ip, mac)
-                                leases.append({
-                                    'ip': ip,
-                                    'mac': mac,
-                                    'hostname': hostname if hostname else ip,
-                                    'source': 'dhcp'
-                                })
-        except Exception as e:
-            print(f"Error reading Kea leases: {e}")
-        
-        return leases
-    
-    def get_hostname_from_dhcp(self, ip: str, mac: str) -> str:
-        """Try to get hostname from DHCP lease file"""
-        try:
-            lease_file = '/var/lib/kea/kea-leases4.csv'
-            if os.path.exists(lease_file):
-                with open(lease_file, 'r') as f:
-                    for line in f:
-                        parts = line.strip().split(',')
-                        if len(parts) >= 9:
-                            if parts[0] == ip or parts[1].lower() == mac.lower():
-                                hostname = parts[8] if parts[8] else ''
-                                if hostname:
-                                    return hostname
-        except:
-            pass
-        return ''
-    
-    def get_hostname_for_ip(self, ip: str) -> str:
-        # DNS lookups are too slow - just return unknown
-        # This was causing 5+ second delays
-        return 'unknown'
     
     def format_bytes(self, bytes_val: int) -> str:
         for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
