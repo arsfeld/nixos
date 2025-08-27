@@ -23,8 +23,8 @@ Our custom [network-metrics-exporter](https://github.com/arsfeld/nixos/tree/mast
 
 ## Prerequisites
 
-- A working NixOS router ([from Part 1](./nixos-router-getting-started))
-- Your router configuration in a flake (as introduced in [Part 2](./nixos-router-blog-post-2-testing))
+- A working NixOS router ([from Part 1](/posts/nixos-router-getting-started))
+- Your router configuration in a flake (as introduced in [Part 2](/posts/nixos-router-blog-post-2-testing))
 - Basic familiarity with NixOS configuration
 - About 45 minutes
 
@@ -629,11 +629,15 @@ With this visibility, you can finally answer questions like:
 - Is someone streaming 4K video during work hours?
 - Are all my IoT devices phoning home constantly?
 
-## Next Steps
+## What's Next?
 
-In the next post, we'll add automatic port forwarding with a custom NAT-PMP server, making gaming and P2P applications "just work" without manual configuration.
+This concludes the currently available posts in the NixOS Router Series. You now have:
 
-**Continue to:** [Part 4 - Enable Automatic Port Forwarding →](./nixos-router-blog-post-4-natpmp.md)
+- **[Part 1: Getting Started](/posts/nixos-router-getting-started)** - A working NixOS router with basic connectivity
+- **[Part 2: Testing](/posts/nixos-router-blog-post-2-testing)** - Comprehensive tests to ensure reliability
+- **Part 3: Monitoring** (this post) - Per-client bandwidth tracking and dashboards
+
+For a complete overview of the entire router build including advanced features like QoS, VLANs, and hardware selection, check out my **[NixOS router journey](/posts/nixos-router-journey)** post.
 
 ---
 
