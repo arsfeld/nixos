@@ -52,6 +52,10 @@ var (
 	clients     = make(map[string]*ClientInfo)
 	clientsLock sync.RWMutex
 	
+	// Compiled regex patterns for performance
+	trafficRuleRegex = regexp.MustCompile(`^(tx|rx)_(\d+\.\d+\.\d+\.\d+)$`)
+	conntrackIPRegex = regexp.MustCompile(`\b(?:src|dst)=(\d+\.\d+\.\d+\.\d+)\b`)
+	
 	// WAN interface name from environment
 	wanInterface = os.Getenv("WAN_INTERFACE")
 	
@@ -89,6 +93,11 @@ var (
 	mdnsCache     = make(map[string]*MDNSEntry)
 	mdnsCacheLock sync.RWMutex
 	lastMDNSScan  time.Time
+	
+	// DNS resolution queue for background processing
+	dnsResolveQueue = make(chan string, 100)
+	dnsResolveCache = make(map[string]string)
+	dnsResolveCacheLock sync.RWMutex
 )
 
 type ClientInfo struct {
@@ -154,6 +163,9 @@ func main() {
 		port = "9101"
 	}
 	
+	// Start background DNS resolver
+	go backgroundDNSResolver()
+	
 	// Start metric collection
 	go collectMetrics()
 
@@ -174,6 +186,10 @@ func collectMetrics() {
 		}
 	}
 	
+	// Start background discovery tasks with their own timers
+	go runPeriodicArpScan()
+	go runPeriodicMDNSDiscovery()
+	
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
 
@@ -184,12 +200,6 @@ func collectMetrics() {
 }
 
 func updateMetrics() {
-	// Run ARP scan periodically for better device discovery
-	go runArpScan()
-	
-	// Run mDNS discovery periodically
-	go discoverMDNS()
-	
 	// Update traffic metrics from nftables
 	updateTrafficMetrics()
 
@@ -220,7 +230,6 @@ func updateTrafficMetrics() {
 		return
 	}
 
-	re := regexp.MustCompile(`^(tx|rx)_(\d+\.\d+\.\d+\.\d+)$`)
 	currentTime := time.Now()
 	
 	// Track current values per IP
@@ -234,7 +243,7 @@ func updateTrafficMetrics() {
 			continue
 		}
 
-		matches := re.FindStringSubmatch(item.Rule.Comment)
+		matches := trafficRuleRegex.FindStringSubmatch(item.Rule.Comment)
 		if len(matches) != 3 {
 			continue
 		}
@@ -385,8 +394,7 @@ func updateConnectionCounts() {
 		line := scanner.Text()
 		// Extract IPs from conntrack output
 		// Look for src= and dst= patterns
-		re := regexp.MustCompile(`\b(?:src|dst)=(\d+\.\d+\.\d+\.\d+)\b`)
-		matches := re.FindAllStringSubmatch(line, -1)
+		matches := conntrackIPRegex.FindAllStringSubmatch(line, -1)
 		
 		for _, match := range matches {
 			ip := match[1]
@@ -481,10 +489,22 @@ func getClientName(ip string) string {
 		mdnsCacheLock.RUnlock()
 	}
 
-	// Use reverse DNS lookup - works with any DHCP server
-	if name := getNameFromReverseDNS(ip); name != "" {
-		updateClientNameCache(ip, name)
-		return name
+	// Check DNS resolution cache
+	dnsResolveCacheLock.RLock()
+	if resolvedName, exists := dnsResolveCache[ip]; exists {
+		dnsResolveCacheLock.RUnlock()
+		if resolvedName != "" {
+			updateClientNameCache(ip, resolvedName)
+			return resolvedName
+		}
+	} else {
+		dnsResolveCacheLock.RUnlock()
+		// Queue for background resolution
+		select {
+		case dnsResolveQueue <- ip:
+		default:
+			// Queue is full, skip
+		}
 	}
 
 	return "unknown"
@@ -534,24 +554,6 @@ func getNameFromFile(filename, ip string, ipCol, nameCol int) string {
 	return ""
 }
 
-func getNameFromReverseDNS(ip string) string {
-	// Try reverse DNS lookup with a short timeout
-	names, err := net.LookupAddr(ip)
-	if err != nil || len(names) == 0 {
-		return ""
-	}
-	
-	// Use the first name, remove trailing dot and .lan suffix
-	name := strings.TrimSuffix(names[0], ".")
-	name = strings.TrimSuffix(name, ".lan")
-	
-	// If it's just an IP-based name, ignore it
-	if strings.Contains(name, ip) {
-		return ""
-	}
-	
-	return name
-}
 
 func max(a, b int) int {
 	if a > b {
@@ -988,12 +990,43 @@ func updateClientDatabaseMetrics() {
 	}
 }
 
+// runPeriodicArpScan runs ARP scans on a fixed schedule
+func runPeriodicArpScan() {
+	// Initial delay to avoid all discovery running at startup
+	time.Sleep(30 * time.Second)
+	
+	// Run every 5 minutes
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	
+	for {
+		runArpScan()
+		<-ticker.C
+	}
+}
+
+// runPeriodicMDNSDiscovery runs mDNS discovery on a fixed schedule
+func runPeriodicMDNSDiscovery() {
+	// Initial delay to avoid all discovery running at startup
+	time.Sleep(1 * time.Minute)
+	
+	// Run every 5 minutes
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	
+	for {
+		discoverMDNS()
+		<-ticker.C
+	}
+}
+
 // runArpScan performs an ARP scan of the local network and caches results
 func runArpScan() {
+	// Remove the time check since we're now called on a schedule
 	// Only run if it's been more than 5 minutes since last scan
-	if time.Since(lastArpScan) < 5*time.Minute {
-		return
-	}
+	// if time.Since(lastArpScan) < 5*time.Minute {
+	//	return
+	// }
 	
 	// Get network prefix from environment or use default
 	networkPrefix := os.Getenv("NETWORK_PREFIX")
@@ -1086,10 +1119,11 @@ func runArpScan() {
 
 // discoverMDNS performs mDNS discovery to find devices on the network
 func discoverMDNS() {
+	// Remove the time check since we're now called on a schedule
 	// Only run if it's been more than 5 minutes since last scan
-	if time.Since(lastMDNSScan) < 5*time.Minute {
-		return
-	}
+	// if time.Since(lastMDNSScan) < 5*time.Minute {
+	//	return
+	// }
 	
 	// Check if we can bind to mDNS port (5353)
 	// This is a quick check to see if mDNS is likely to work
@@ -1138,11 +1172,18 @@ func discoverMDNS() {
 	successCount := 0
 	errorCount := 0
 	
+	// Limit concurrent mDNS queries to reduce CPU usage
+	semaphore := make(chan struct{}, 3) // Max 3 concurrent queries
+	
 	// Browse each service type
 	for _, serviceType := range serviceTypes {
 		wg.Add(1)
 		go func(service string) {
 			defer wg.Done()
+			
+			// Acquire semaphore
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
 			defer func() {
 				if r := recover(); r != nil {
 					log.Printf("Panic in mDNS discovery for %s: %v", service, r)
@@ -1218,6 +1259,47 @@ func discoverMDNS() {
 }
 
 // inferDeviceTypeFromService infers device type from mDNS service type
+// backgroundDNSResolver processes DNS lookups in the background to avoid blocking
+func backgroundDNSResolver() {
+	for ip := range dnsResolveQueue {
+		// Check if we already have it cached
+		dnsResolveCacheLock.RLock()
+		if _, exists := dnsResolveCache[ip]; exists {
+			dnsResolveCacheLock.RUnlock()
+			continue
+		}
+		dnsResolveCacheLock.RUnlock()
+		
+		// Perform DNS lookup with timeout
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		resolver := &net.Resolver{}
+		names, err := resolver.LookupAddr(ctx, ip)
+		cancel()
+		
+		var resolvedName string
+		if err == nil && len(names) > 0 {
+			// Use the first name, remove trailing dot and .lan suffix
+			name := strings.TrimSuffix(names[0], ".")
+			name = strings.TrimSuffix(name, ".lan")
+			
+			// If it's just an IP-based name, ignore it
+			if !strings.Contains(name, ip) {
+				resolvedName = name
+			}
+		}
+		
+		// Cache the result (even if empty to avoid repeated lookups)
+		dnsResolveCacheLock.Lock()
+		dnsResolveCache[ip] = resolvedName
+		dnsResolveCacheLock.Unlock()
+		
+		// If we got a name, update the main cache too
+		if resolvedName != "" {
+			updateClientNameCache(ip, resolvedName)
+		}
+	}
+}
+
 func inferDeviceTypeFromService(service string, instance string) string {
 	lowerService := strings.ToLower(service)
 	lowerInstance := strings.ToLower(instance)

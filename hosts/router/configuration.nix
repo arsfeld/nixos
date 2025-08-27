@@ -12,8 +12,8 @@
     ./traffic-shaping.nix
     ./alerting.nix
     ./ntfy-webhook.nix
-    ./performance-tuning.nix # BBR v3 and TCP optimizations
-    ./hardware-offload.nix # TSO/GSO/GRO offloading
+    # ./performance-tuning.nix # BBR v3 and TCP optimizations (disabled - may cause issues)
+    # ./hardware-offload.nix # TSO/GSO/GRO offloading (disabled - may cause issues)
     # ./xdp-firewall.nix       # XDP DDoS protection (disabled - overkill for home use)
     ../../packages/router_ui/module.nix
   ];

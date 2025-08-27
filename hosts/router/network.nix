@@ -101,6 +101,7 @@ in {
 
             # Allow LAN to WAN
             iifname "br-lan" oifname "${interfaces.wan}" accept
+            iifname "br-lan" oifname "eth0" accept  # Also support kernel name
 
             # Allow LAN to LAN (between bridged interfaces)
             iifname "br-lan" oifname "br-lan" accept
@@ -147,6 +148,7 @@ in {
           chain postrouting {
             type nat hook postrouting priority 100;
             oifname "${interfaces.wan}" masquerade
+            oifname "eth0" masquerade  # Also support kernel name
             oifname "tailscale0" masquerade
           }
 
