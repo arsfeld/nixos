@@ -14,6 +14,8 @@
     ./services/log-monitoring.nix
     ./services/grafito.nix
     ./services/caddy.nix
+    ./services/metrics-api.nix
+    ./services/client-monitor.nix
     ../../packages/network-metrics-exporter/module.nix
   ];
 }

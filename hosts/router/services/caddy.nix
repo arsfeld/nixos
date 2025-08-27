@@ -9,6 +9,16 @@
 
   # Shared routing configuration for both internal IP and Tailscale access
   routerRoutes = ''
+    # Router metrics API and dashboard
+    handle /api/metrics {
+      reverse_proxy localhost:8085
+    }
+
+    # Serve dashboard from the metrics service (for dynamic content)
+    handle /dashboard {
+      reverse_proxy localhost:8085
+    }
+
     # Grafana - Monitoring dashboards
     handle /grafana* {
       reverse_proxy localhost:3000
@@ -45,24 +55,12 @@
       reverse_proxy localhost:8501
     }
 
-    # Router dashboard
-    handle /dashboard* {
-      reverse_proxy localhost:8080
-    }
-
-    # Default landing page with template
+    # Default landing page - serve from metrics API
     handle / {
-      templates
-      file_server {
-        root /etc/caddy
-        index dashboard.html
-      }
+      reverse_proxy localhost:8085
     }
   '';
 in {
-  # Dashboard template file
-  environment.etc."caddy/dashboard.html".source = ./dashboard.html;
-
   # Caddy reverse proxy - internal access only (no WAN/public access)
   services.caddy = {
     enable = true;
