@@ -2,17 +2,28 @@
 
 import argparse
 import json
+import logging
 import os
 import socket
 import subprocess
+import sys
 import time
 import urllib.request
 import urllib.parse
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from typing import Dict, Any, Optional, List
-from pathlib import Path
+from typing import Dict, Any, Optional
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stderr)
+    ]
+)
+logger = logging.getLogger('router-dashboard')
 
 # Read the dashboard HTML file
 DASHBOARD_HTML = """
@@ -40,6 +51,7 @@ DASHBOARD_HTML = """
             }
         }
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         /* Minimal custom styles */
@@ -170,6 +182,35 @@ DASHBOARD_HTML = """
                 <div class="flex gap-2">
                     <button 
                         class="px-3 py-1.5 text-xs font-medium rounded-md border transition-all duration-200 flex items-center gap-1"
+                        :class="allGraphsExpanded 
+                            ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' 
+                            : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:bg-gray-700/50 hover:text-white'"
+                        @click="toggleAllGraphs()">
+                        <i class="lni lni-stats-up text-[10px]"></i>
+                        <span x-text="allGraphsExpanded ? 'Hide All Graphs' : 'Show All Graphs'">Show All Graphs</span>
+                    </button>
+                    <button 
+                        x-show="Object.keys(expandedGraphs).filter(ip => expandedGraphs[ip]).length > 0"
+                        class="px-3 py-1.5 text-xs font-medium rounded-md border transition-all duration-200 flex items-center gap-1"
+                        :class="useUnifiedScale 
+                            ? 'bg-blue-500/20 border-blue-500/50 text-blue-400' 
+                            : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:bg-gray-700/50 hover:text-white'"
+                        @click="toggleUnifiedScale()">
+                        <i class="lni lni-ruler text-[10px]"></i>
+                        <span x-text="useUnifiedScale ? 'Unified Scale' : 'Auto Scale'">Unified Scale</span>
+                    </button>
+                    <select 
+                        x-show="Object.keys(expandedGraphs).filter(ip => expandedGraphs[ip]).length > 0"
+                        x-model="timeRange"
+                        @change="onTimeRangeChange()"
+                        class="px-3 py-1.5 text-xs font-medium rounded-md border bg-gray-800/50 border-gray-700/50 text-gray-300 hover:bg-gray-700/50 hover:text-white transition-all duration-200 cursor-pointer">
+                        <template x-for="range in availableTimeRanges" :key="range.value">
+                            <option :value="range.value" x-text="range.label"></option>
+                        </template>
+                    </select>
+                    <div class="w-px bg-gray-700"></div>
+                    <button 
+                        class="px-3 py-1.5 text-xs font-medium rounded-md border transition-all duration-200 flex items-center gap-1"
                         :class="sortField === 'name' 
                             ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' 
                             : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:bg-gray-700/50 hover:text-white'"
@@ -202,35 +243,74 @@ DASHBOARD_HTML = """
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
                 <template x-for="client in sortedClients" :key="client.ip">
-                    <div class="flex items-center p-3 bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-lg hover:bg-gray-800/70 hover:translate-x-0.5 transition-all duration-200">
-                        <i class="lni text-xl mr-3 text-cyan-400 opacity-60" :class="client.icon || 'lni-mobile'"></i>
-                        <div class="flex-1 min-w-0">
-                            <div class="font-medium text-white text-sm truncate" x-text="getClientName(client)"></div>
-                            <div class="text-xs text-gray-400 truncate">
-                                <span x-text="client.ip"></span>
+                    <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-lg overflow-hidden">
+                        <!-- Client info row -->
+                        <div class="flex items-center p-3 hover:bg-gray-800/70 transition-all duration-200">
+                            <i class="lni text-xl mr-3 text-cyan-400 opacity-60" :class="client.icon || 'lni-mobile'"></i>
+                            <div class="flex-1 min-w-0">
+                                <div class="font-medium text-white text-sm truncate" x-text="getClientName(client)"></div>
+                                <div class="text-xs text-gray-400 truncate">
+                                    <span x-text="client.ip"></span>
+                                    <span class="text-gray-500" x-show="client.mac && client.mac !== 'unknown'"> • <span x-text="client.mac.toUpperCase()"></span></span>
+                                </div>
+                            </div>
+                            <div class="ml-auto pl-3 text-right min-w-[90px]">
+                                <div class="flex items-center justify-end gap-1 text-xs">
+                                    <i class="lni lni-download text-cyan-400 text-[10px]"></i>
+                                    <span class="font-mono text-[11px]" 
+                                          :class="(client.bandwidth_rx_bps || 0) > 1000 ? 'text-cyan-400 font-semibold' : 'text-gray-500'"
+                                          x-text="client.bandwidth_rx_formatted || '0 bps'"></span>
+                                </div>
+                                <div class="flex items-center justify-end gap-1 text-xs">
+                                    <i class="lni lni-upload text-emerald-400 text-[10px]"></i>
+                                    <span class="font-mono text-[11px]" 
+                                          :class="(client.bandwidth_tx_bps || 0) > 1000 ? 'text-emerald-400 font-semibold' : 'text-gray-500'"
+                                          x-text="client.bandwidth_tx_formatted || '0 bps'"></span>
+                                </div>
+                            </div>
+                            <!-- Graph toggle button -->
+                            <button class="ml-3 p-1.5 rounded-md bg-gray-700/50 hover:bg-gray-700 transition-colors"
+                                    :class="{'bg-cyan-500/20 border-cyan-500/50': expandedGraphs[client.ip]}"
+                                    @click="toggleClientGraph(client.ip)">
+                                <i class="lni lni-stats-up text-sm" 
+                                   :class="expandedGraphs[client.ip] ? 'text-cyan-400' : 'text-gray-400'"></i>
+                            </button>
+                            <div class="ml-2 w-2 h-2 rounded-full flex-shrink-0"
+                                 :class="{
+                                    'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)] animate-pulse': (client.state || '').toLowerCase() === 'reachable',
+                                    'bg-yellow-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]': (client.state || '').toLowerCase() === 'stale',
+                                    'bg-gray-600': (client.state || '').toLowerCase() === 'failed' || (client.state || '').toLowerCase() === 'unknown'
+                                 }"
+                                 :title="client.state || 'unknown'"></div>
+                        </div>
+                        <!-- Expandable graph section - spans full width of card -->
+                        <div x-show="expandedGraphs[client.ip]" 
+                             x-transition:enter="transition ease-out duration-300"
+                             x-transition:enter-start="opacity-0 transform scale-95"
+                             x-transition:enter-end="opacity-100 transform scale-100"
+                             x-transition:leave="transition ease-in duration-200"
+                             x-transition:leave-start="opacity-100 transform scale-100"
+                             x-transition:leave-end="opacity-0 transform scale-95"
+                             class="border-t border-gray-700/50 p-4 bg-gray-900/50">
+                            <div class="flex justify-between items-center mb-2">
+                                <div class="text-xs text-gray-400">Auto-refreshing every 5 seconds</div>
+                                <button @click="refreshChart(client.ip)" 
+                                        class="px-2 py-1 text-xs bg-gray-700/50 hover:bg-gray-700 border border-gray-600 rounded transition-colors flex items-center gap-1">
+                                    <i class="lni lni-reload text-[10px]"></i>
+                                    <span>Refresh Now</span>
+                                </button>
+                            </div>
+                            <div class="h-48 relative">
+                                <canvas :id="'bandwidth-chart-' + client.ip.replace(/\\./g, '-')"></canvas>
+                                <div x-show="loadingGraphs[client.ip]" 
+                                     class="absolute inset-0 flex items-center justify-center bg-gray-900/75">
+                                    <div class="text-cyan-400">
+                                        <i class="lni lni-spinner-arrow animate-spin text-2xl"></i>
+                                        <p class="text-xs mt-2">Loading bandwidth history...</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div class="ml-auto pl-3 text-right min-w-[90px]">
-                            <div class="flex items-center justify-end gap-1 text-xs">
-                                <i class="lni lni-download text-cyan-400 text-[10px]"></i>
-                                <span class="font-mono text-[11px]" 
-                                      :class="(client.bandwidth_rx_bps || 0) > 1000 ? 'text-cyan-400 font-semibold' : 'text-gray-500'"
-                                      x-text="client.bandwidth_rx_formatted || '0 bps'"></span>
-                            </div>
-                            <div class="flex items-center justify-end gap-1 text-xs">
-                                <i class="lni lni-upload text-emerald-400 text-[10px]"></i>
-                                <span class="font-mono text-[11px]" 
-                                      :class="(client.bandwidth_tx_bps || 0) > 1000 ? 'text-emerald-400 font-semibold' : 'text-gray-500'"
-                                      x-text="client.bandwidth_tx_formatted || '0 bps'"></span>
-                            </div>
-                        </div>
-                        <div class="ml-2 w-2 h-2 rounded-full flex-shrink-0"
-                             :class="{
-                                'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)] animate-pulse': (client.state || '').toLowerCase() === 'reachable',
-                                'bg-yellow-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]': (client.state || '').toLowerCase() === 'stale',
-                                'bg-gray-600': (client.state || '').toLowerCase() === 'failed' || (client.state || '').toLowerCase() === 'unknown'
-                             }"
-                             :title="client.state || 'unknown'"></div>
                     </div>
                 </template>
             </div>
@@ -334,6 +414,9 @@ DASHBOARD_HTML = """
                 this.subscribers.forEach(callback => callback(data));
             }
         };
+        
+        // Chart instances stored outside of Alpine's reactive scope to prevent conflicts
+        const chartInstances = {};
         
         // Alpine.js components
         document.addEventListener('alpine:init', () => {
@@ -502,8 +585,29 @@ DASHBOARD_HTML = """
             // Clients component
             Alpine.data('clientsApp', () => ({
                 clients: [],
-                sortField: 'name',
-                sortDirection: 'asc',
+                sortField: 'bandwidth',
+                sortDirection: 'desc',
+                expandedGraphs: {},
+                // charts: {}, // Removed - now using external chartInstances
+                allGraphsExpanded: false,
+                loadingGraphs: {},
+                updateInterval: null,  // Store interval ID for cleanup
+                useUnifiedScale: true,  // Use same scale for all charts
+                unifiedMaxValue: 0,  // Maximum value across all charts
+                timeRange: '10m',  // Default time range for charts
+                availableTimeRanges: [
+                    { value: '5m', label: '5 min' },
+                    { value: '10m', label: '10 min' },
+                    { value: '30m', label: '30 min' },
+                    { value: '1h', label: '1 hour' },
+                    { value: '3h', label: '3 hours' },
+                    { value: '6h', label: '6 hours' },
+                    { value: '12h', label: '12 hours' },
+                    { value: '24h', label: '24 hours' },
+                    { value: '48h', label: '2 days' },
+                    { value: '72h', label: '3 days' },
+                    { value: '168h', label: '1 week' }
+                ],
                 
                 init() {
                     // Subscribe to metrics updates
@@ -512,6 +616,606 @@ DASHBOARD_HTML = """
                             this.clients = data.clients.clients;
                         }
                     });
+                    
+                    // Set up periodic chart updates (every 5 seconds)
+                    this.updateInterval = setInterval(() => {
+                        this.updateAllCharts();
+                    }, 5000);
+                    
+                    // Cleanup on component destroy
+                    this.$watch('$destroy', () => {
+                        if (this.updateInterval) {
+                            clearInterval(this.updateInterval);
+                        }
+                        // Destroy all charts
+                        Object.keys(chartInstances).forEach(ip => {
+                            if (chartInstances[ip]) {
+                                try {
+                                    chartInstances[ip].destroy();
+                                } catch (e) {
+                                    console.warn(`Error destroying chart for ${ip}:`, e);
+                                }
+                                delete chartInstances[ip];
+                            }
+                        });
+                    });
+                },
+                
+                calculateUnifiedScale(allHistories) {
+                    // Calculate the maximum value across all charts
+                    let maxValue = 0;
+                    
+                    for (const history of Object.values(allHistories)) {
+                        if (!history || history.error) continue;
+                        
+                        // Find max in rx data
+                        if (history.rx && Array.isArray(history.rx)) {
+                            const maxRx = Math.max(...history.rx.filter(v => !isNaN(v)));
+                            if (!isNaN(maxRx)) maxValue = Math.max(maxValue, maxRx);
+                        }
+                        
+                        // Find max in tx data
+                        if (history.tx && Array.isArray(history.tx)) {
+                            const maxTx = Math.max(...history.tx.filter(v => !isNaN(v)));
+                            if (!isNaN(maxTx)) maxValue = Math.max(maxValue, maxTx);
+                        }
+                    }
+                    
+                    // Add 10% padding to the top
+                    this.unifiedMaxValue = maxValue * 1.1;
+                    
+                    // Round up to nice values for better readability
+                    if (this.unifiedMaxValue > 1000000000) {
+                        // Round up to nearest 100 Mbps for Gbps range
+                        this.unifiedMaxValue = Math.ceil(this.unifiedMaxValue / 100000000) * 100000000;
+                    } else if (this.unifiedMaxValue > 1000000) {
+                        // Round up to nearest 10 Mbps for Mbps range
+                        this.unifiedMaxValue = Math.ceil(this.unifiedMaxValue / 10000000) * 10000000;
+                    } else if (this.unifiedMaxValue > 1000) {
+                        // Round up to nearest 100 Kbps for Kbps range
+                        this.unifiedMaxValue = Math.ceil(this.unifiedMaxValue / 100000) * 100000;
+                    }
+                    
+                    console.log(`[SCALE] Unified max value: ${formatBandwidth(this.unifiedMaxValue)}`);
+                },
+                
+                updateChartScale(chart) {
+                    // Update chart's y-axis scale
+                    if (this.useUnifiedScale && this.unifiedMaxValue > 0) {
+                        chart.options.scales.y.max = this.unifiedMaxValue;
+                        chart.options.scales.y.min = 0;
+                    } else {
+                        // Auto scale
+                        delete chart.options.scales.y.max;
+                        delete chart.options.scales.y.min;
+                    }
+                },
+                
+                async updateAllCharts() {
+                    // Update all visible charts with latest data
+                    const expandedIps = Object.keys(this.expandedGraphs).filter(ip => this.expandedGraphs[ip]);
+                    
+                    if (expandedIps.length === 0) return;
+                    
+                    try {
+                        // Batch fetch only the histories we need with time range
+                        const response = await fetch(`/api/client-histories?ips=${expandedIps.join(',')}&duration=${this.timeRange}`);
+                        if (!response.ok) {
+                            console.error('Failed to fetch batch histories');
+                            return;
+                        }
+                        
+                        const allHistories = await response.json();
+                        
+                        // Calculate unified scale if enabled
+                        if (this.useUnifiedScale) {
+                            this.calculateUnifiedScale(allHistories);
+                        }
+                        
+                        // Update each chart with its data
+                        for (const ip of expandedIps) {
+                            const history = allHistories[ip];
+                            if (!history || history.error) continue;
+                            
+                            const chart = chartInstances[ip];
+                            if (!chart || chart._destroyed) continue;
+                            
+                            // Clear existing data
+                            chart.data.labels.length = 0;
+                            chart.data.datasets[0].data.length = 0;
+                            chart.data.datasets[1].data.length = 0;
+                            
+                            // Add new data
+                            chart.data.labels.push(...history.labels);
+                            chart.data.datasets[0].data.push(...history.rx);
+                            chart.data.datasets[1].data.push(...history.tx);
+                            
+                            // Update scale if unified
+                            this.updateChartScale(chart);
+                            
+                            // Update chart without animation for smooth updates
+                            chart.update('none');
+                        }
+                    } catch (error) {
+                        console.error('Error updating charts:', error);
+                        // Fallback to individual updates
+                        for (const ip of expandedIps) {
+                            if (chartInstances[ip] && !chartInstances[ip]._destroyed) {
+                                await this.updateChartData(ip);
+                            }
+                        }
+                    }
+                },
+                
+                async updateChartData(ip) {
+                    // Update chart with latest data without recreating it
+                    try {
+                        const response = await fetch(`/api/client-histories?ips=${ip}&duration=${this.timeRange}`);
+                        if (!response.ok) return;
+                        
+                        const histories = await response.json();
+                        const history = histories[ip];
+                        if (!history || history.error) return;
+                        
+                        const chart = chartInstances[ip];
+                        if (!chart || chart._destroyed) return;
+                        
+                        // Clear existing data
+                        chart.data.labels.length = 0;
+                        chart.data.datasets[0].data.length = 0;
+                        chart.data.datasets[1].data.length = 0;
+                        
+                        // Add new data
+                        chart.data.labels.push(...history.labels);
+                        chart.data.datasets[0].data.push(...history.rx);
+                        chart.data.datasets[1].data.push(...history.tx);
+                        
+                        // Update chart without animation for smooth updates
+                        chart.update('none');
+                    } catch (error) {
+                        console.error(`Error updating chart for ${ip}:`, error);
+                    }
+                },
+                
+                async refreshChart(ip) {
+                    console.log(`[REFRESH] Manual refresh requested for IP: ${ip}`);
+                    
+                    try {
+                        // Fetch fresh data using batch endpoint with time range
+                        const response = await fetch(`/api/client-histories?ips=${ip}&duration=${this.timeRange}`);
+                        if (!response.ok) {
+                            console.error('Failed to refresh chart for IP:', ip);
+                            return;
+                        }
+                        
+                        const histories = await response.json();
+                        const history = histories[ip];
+                        if (!history || history.error) {
+                            console.error('No valid history data for IP:', ip);
+                            return;
+                        }
+                        
+                        if (chartInstances[ip] && !chartInstances[ip]._destroyed) {
+                            // Update existing chart
+                            const chart = chartInstances[ip];
+                            
+                            // Clear and update data
+                            chart.data.labels.length = 0;
+                            chart.data.datasets[0].data.length = 0;
+                            chart.data.datasets[1].data.length = 0;
+                            
+                            chart.data.labels.push(...history.labels);
+                            chart.data.datasets[0].data.push(...history.rx);
+                            chart.data.datasets[1].data.push(...history.tx);
+                            
+                            // Force update with animation for manual refresh
+                            chart.update();
+                        } else {
+                            // Chart doesn't exist, create it
+                            this.fetchAndCreateChart(ip);
+                        }
+                    } catch (error) {
+                        console.error('Error refreshing chart for IP:', ip, error);
+                    }
+                },
+                
+                toggleClientGraph(ip) {
+                    console.log(`[TOGGLE] Toggling graph for IP: ${ip}, current state: ${this.expandedGraphs[ip]}`);
+                    this.expandedGraphs[ip] = !this.expandedGraphs[ip];
+                    
+                    if (this.expandedGraphs[ip]) {
+                        console.log(`[TOGGLE] Expanding graph for IP: ${ip}`);
+                        // Use Alpine's nextTick to ensure DOM is ready
+                        this.$nextTick(() => {
+                            // Additional delay for transition to complete
+                            setTimeout(() => {
+                                console.log(`[TOGGLE] Creating chart for IP: ${ip}`);
+                                this.fetchAndCreateChart(ip);
+                            }, 100);
+                        });
+                    } else if (chartInstances[ip]) {
+                        console.log(`[TOGGLE] Collapsing graph for IP: ${ip}, destroying chart`);
+                        // Destroy chart when closing
+                        try {
+                            chartInstances[ip].destroy();
+                            console.log(`[TOGGLE] Successfully destroyed chart for IP: ${ip}`);
+                        } catch (e) {
+                            console.warn(`[TOGGLE] Error destroying chart for IP: ${ip}:`, e);
+                        }
+                        delete chartInstances[ip];
+                        delete this.loadingGraphs[ip];
+                    }
+                },
+                
+                createChartFromData(ip, history) {
+                    const canvasId = 'bandwidth-chart-' + ip.replace(/\\./g, '-');
+                    const canvas = document.getElementById(canvasId);
+                    console.log(`[CREATE] Creating chart for IP: ${ip}, canvas: ${canvasId}, exists: ${!!canvas}`);
+                    
+                    if (!canvas) {
+                        console.error(`[CREATE] Canvas not found for IP: ${ip}, ID: ${canvasId}`);
+                        return;
+                    }
+                    
+                    // Destroy existing chart if any
+                    if (chartInstances[ip]) {
+                        console.log(`[CREATE] Destroying existing chart for IP: ${ip} before creating new one`);
+                        chartInstances[ip].destroy();
+                        delete chartInstances[ip];
+                    }
+                    
+                    // Calculate scale for this chart if unified scale is enabled
+                    const scaleOptions = {};
+                    if (this.useUnifiedScale && this.unifiedMaxValue > 0) {
+                        scaleOptions.max = this.unifiedMaxValue;
+                        scaleOptions.min = 0;
+                    }
+                    
+                    // Create new chart with provided data
+                    try {
+                        chartInstances[ip] = new Chart(canvas, {
+                        type: 'line',
+                        data: {
+                            labels: history.labels,
+                            datasets: [
+                                {
+                                    label: 'Download',
+                                    data: history.rx,
+                                    borderColor: 'rgb(34, 211, 238)',
+                                    backgroundColor: 'rgba(34, 211, 238, 0.1)',
+                                    borderWidth: 2,
+                                    tension: 0.4,
+                                    fill: true
+                                },
+                                {
+                                    label: 'Upload',
+                                    data: history.tx,
+                                    borderColor: 'rgb(52, 211, 153)',
+                                    backgroundColor: 'rgba(52, 211, 153, 0.1)',
+                                    borderWidth: 2,
+                                    tension: 0.4,
+                                    fill: true
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: {
+                                intersect: false,
+                                mode: 'index'
+                            },
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top',
+                                    labels: {
+                                        color: '#9CA3AF',
+                                        font: {
+                                            size: 11
+                                        },
+                                        boxWidth: 12,
+                                        boxHeight: 12
+                                    }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            let label = context.dataset.label || '';
+                                            if (label) {
+                                                label += ': ';
+                                            }
+                                            label += formatBandwidth(context.parsed.y);
+                                            return label;
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    display: true,
+                                    grid: {
+                                        color: 'rgba(255, 255, 255, 0.05)',
+                                        drawBorder: false
+                                    },
+                                    ticks: {
+                                        color: '#6B7280',
+                                        font: {
+                                            size: 10
+                                        },
+                                        maxRotation: 0,
+                                        autoSkip: true,
+                                        maxTicksLimit: 8
+                                    }
+                                },
+                                y: {
+                                    display: true,
+                                    grid: {
+                                        color: 'rgba(255, 255, 255, 0.05)',
+                                        drawBorder: false
+                                    },
+                                    ticks: {
+                                        color: '#6B7280',
+                                        font: {
+                                            size: 10
+                                        },
+                                        callback: function(value) {
+                                            return formatBandwidth(value);
+                                        }
+                                    },
+                                    ...scaleOptions  // Apply unified scale if set
+                                }
+                            }
+                        }
+                    });
+                        console.log(`[CREATE] Successfully created chart for IP: ${ip}`);
+                    } catch (error) {
+                        console.error(`[CREATE] Failed to create chart for IP: ${ip}:`, error);
+                        delete chartInstances[ip];
+                    }
+                },
+                
+                async fetchAndCreateChart(ip) {
+                    const canvasId = 'bandwidth-chart-' + ip.replace(/\\./g, '-');
+                    const canvas = document.getElementById(canvasId);
+                    console.log(`[FETCH_CREATE] Starting chart creation for IP: ${ip}, canvas: ${canvasId}`);
+                    
+                    if (!canvas) {
+                        console.error(`[FETCH_CREATE] Canvas not found for IP: ${ip}, ID: ${canvasId}`);
+                        return;
+                    }
+                    
+                    // Mark as just created to skip immediate updates
+                    this.justCreatedCharts = this.justCreatedCharts || {};
+                    this.justCreatedCharts[ip] = true;
+                    setTimeout(() => {
+                        delete this.justCreatedCharts[ip];
+                        console.log(`[FETCH_CREATE] Chart for ${ip} is now ready for updates`);
+                    }, 5000); // Wait 5 seconds before allowing updates
+                    
+                    // Show loading state
+                    this.loadingGraphs[ip] = true;
+                    
+                    try {
+                        // If unified scale is enabled and we need to calculate it
+                        let ips = ip;
+                        if (this.useUnifiedScale) {
+                            // Get all expanded IPs to calculate unified scale
+                            const expandedIps = Object.keys(this.expandedGraphs).filter(ip => this.expandedGraphs[ip]);
+                            if (expandedIps.length > 0) {
+                                ips = expandedIps.join(',');
+                            }
+                        }
+                        
+                        // Fetch history from server with time range
+                        const response = await fetch(`/api/client-histories?ips=${ips}&duration=${this.timeRange}`);
+                        
+                        // Check if response is OK
+                        if (!response.ok) {
+                            console.error('Failed to fetch history for IP:', ip, 'Status:', response.status);
+                            this.loadingGraphs[ip] = false;
+                            return;
+                        }
+                        
+                        const histories = await response.json();
+                        
+                        // Calculate unified scale if needed
+                        if (this.useUnifiedScale && Object.keys(histories).length > 0) {
+                            this.calculateUnifiedScale(histories);
+                        }
+                        
+                        const history = histories[ip];
+                        
+                        if (!history || history.error) {
+                            console.error('Error fetching history for IP:', ip, history?.error || 'No data');
+                            this.loadingGraphs[ip] = false;
+                            return;
+                        }
+                        
+                        // Destroy existing chart if any
+                        if (chartInstances[ip]) {
+                            chartInstances[ip].destroy();
+                            delete chartInstances[ip];
+                        }
+                        
+                        // Create new chart with server data
+                        chartInstances[ip] = new Chart(canvas, {
+                            type: 'line',
+                            data: {
+                                labels: history.labels,
+                                datasets: [
+                                    {
+                                        label: 'Download',
+                                        data: history.rx,
+                                        borderColor: 'rgb(34, 211, 238)',
+                                        backgroundColor: 'rgba(34, 211, 238, 0.1)',
+                                        borderWidth: 2,
+                                        tension: 0.4,
+                                        fill: true
+                                    },
+                                    {
+                                        label: 'Upload',
+                                        data: history.tx,
+                                        borderColor: 'rgb(52, 211, 153)',
+                                        backgroundColor: 'rgba(52, 211, 153, 0.1)',
+                                        borderWidth: 2,
+                                        tension: 0.4,
+                                        fill: true
+                                    }
+                                ]
+                            },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: {
+                                intersect: false,
+                                mode: 'index'
+                            },
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top',
+                                    labels: {
+                                        color: '#9CA3AF',
+                                        font: {
+                                            size: 11
+                                        },
+                                        boxWidth: 12,
+                                        boxHeight: 12
+                                    }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            let label = context.dataset.label || '';
+                                            if (label) {
+                                                label += ': ';
+                                            }
+                                            label += formatBandwidth(context.parsed.y);
+                                            return label;
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    display: true,
+                                    grid: {
+                                        color: 'rgba(255, 255, 255, 0.05)',
+                                        drawBorder: false
+                                    },
+                                    ticks: {
+                                        color: '#6B7280',
+                                        font: {
+                                            size: 10
+                                        },
+                                        maxRotation: 0,
+                                        autoSkip: true,
+                                        maxTicksLimit: 8
+                                    }
+                                },
+                                y: {
+                                    display: true,
+                                    grid: {
+                                        color: 'rgba(255, 255, 255, 0.05)',
+                                        drawBorder: false
+                                    },
+                                    ticks: {
+                                        color: '#6B7280',
+                                        font: {
+                                            size: 10
+                                        },
+                                        callback: function(value) {
+                                            return formatBandwidth(value);
+                                        }
+                                    },
+                                    ...scaleOptions  // Apply unified scale if set
+                                }
+                                }
+                            }
+                        });
+                        
+                        this.loadingGraphs[ip] = false;
+                        
+                    } catch (error) {
+                        console.error('Error creating chart for IP:', ip, error);
+                        this.loadingGraphs[ip] = false;
+                    }
+                },
+                
+                async toggleAllGraphs() {
+                    this.allGraphsExpanded = !this.allGraphsExpanded;
+                    
+                    if (this.allGraphsExpanded) {
+                        // Get all client IPs to expand
+                        const clientIps = this.clients.map(c => c.ip);
+                        
+                        // Fetch all histories at once for better performance
+                        try {
+                            const response = await fetch(`/api/client-histories?ips=${clientIps.join(',')}&duration=${this.timeRange}`);
+                            if (response.ok) {
+                                const allHistories = await response.json();
+                                
+                                // Calculate unified scale for all charts
+                                if (this.useUnifiedScale) {
+                                    this.calculateUnifiedScale(allHistories);
+                                }
+                                
+                                // Process each client's history
+                                for (const ip of clientIps) {
+                                    const history = allHistories[ip];
+                                    if (!history || history.error) continue;
+                                    
+                                    if (!this.expandedGraphs[ip]) {
+                                        this.expandedGraphs[ip] = true;
+                                        
+                                        // Wait for DOM to update
+                                        await this.$nextTick();
+                                        
+                                        // Create chart with fetched data
+                                        const canvasId = 'bandwidth-chart-' + ip.replace(/\\./g, '-');
+                                        const canvas = document.getElementById(canvasId);
+                                        
+                                        if (canvas && !chartInstances[ip]) {
+                                            this.createChartFromData(ip, history);
+                                        }
+                                    }
+                                }
+                            } else {
+                                // Fallback to individual fetching
+                                console.warn('Bulk fetch failed, falling back to individual requests');
+                                this.clients.forEach(client => {
+                                    if (!this.expandedGraphs[client.ip]) {
+                                        this.toggleClientGraph(client.ip);
+                                    }
+                                });
+                            }
+                        } catch (error) {
+                            console.error('Error fetching bulk histories:', error);
+                            // Fallback to individual fetching
+                            this.clients.forEach(client => {
+                                if (!this.expandedGraphs[client.ip]) {
+                                    this.toggleClientGraph(client.ip);
+                                }
+                            });
+                        }
+                    } else {
+                        // Collapse all graphs
+                        Object.keys(this.expandedGraphs).forEach(ip => {
+                            if (this.expandedGraphs[ip]) {
+                                this.expandedGraphs[ip] = false;
+                                if (chartInstances[ip]) {
+                                    try {
+                                        chartInstances[ip].destroy();
+                                    } catch (e) {
+                                        console.warn('Error destroying chart:', e);
+                                    }
+                                    delete chartInstances[ip];
+                                    delete this.loadingGraphs[ip];
+                                }
+                            }
+                        });
+                    }
                 },
                 
                 get sortedClients() {
@@ -528,7 +1232,7 @@ DASHBOARD_HTML = """
                             case 'bandwidth':
                                 const bwA = (a.bandwidth_rx_bps || 0) + (a.bandwidth_tx_bps || 0);
                                 const bwB = (b.bandwidth_rx_bps || 0) + (b.bandwidth_tx_bps || 0);
-                                compareValue = bwB - bwA; // Higher first by default
+                                compareValue = bwA - bwB; // Lower first (will be reversed for desc)
                                 break;
                                 
                             case 'status':
@@ -551,6 +1255,101 @@ DASHBOARD_HTML = """
                         // New field, set default direction
                         this.sortField = field;
                         this.sortDirection = field === 'bandwidth' ? 'desc' : 'asc';
+                    }
+                },
+                
+                async toggleUnifiedScale() {
+                    this.useUnifiedScale = !this.useUnifiedScale;
+                    
+                    // If enabling unified scale, recalculate and update all charts
+                    if (this.useUnifiedScale) {
+                        const expandedIps = Object.keys(this.expandedGraphs).filter(ip => this.expandedGraphs[ip]);
+                        if (expandedIps.length > 0) {
+                            // Fetch all data to calculate unified scale
+                            const response = await fetch(`/api/client-histories?ips=${expandedIps.join(',')}&duration=${this.timeRange}`);
+                            if (response.ok) {
+                                const allHistories = await response.json();
+                                this.calculateUnifiedScale(allHistories);
+                                
+                                // Update all existing charts with the new scale
+                                for (const ip of expandedIps) {
+                                    const chart = chartInstances[ip];
+                                    if (chart && !chart._destroyed) {
+                                        this.updateChartScale(chart);
+                                        chart.update();
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Disable unified scale, let charts auto-scale
+                        this.unifiedMaxValue = 0;
+                        for (const ip of Object.keys(chartInstances)) {
+                            const chart = chartInstances[ip];
+                            if (chart && !chart._destroyed) {
+                                delete chart.options.scales.y.max;
+                                delete chart.options.scales.y.min;
+                                chart.update();
+                            }
+                        }
+                    }
+                },
+                
+                async onTimeRangeChange() {
+                    console.log(`[TIME_RANGE] Changed to: ${this.timeRange}`);
+                    
+                    // Clear and recreate all charts with new time range
+                    const expandedIps = Object.keys(this.expandedGraphs).filter(ip => this.expandedGraphs[ip]);
+                    
+                    if (expandedIps.length === 0) return;
+                    
+                    // Show loading state for all charts
+                    for (const ip of expandedIps) {
+                        this.loadingGraphs[ip] = true;
+                    }
+                    
+                    try {
+                        // Fetch all data with new time range
+                        // Note: The backend automatically adapts data sampling based on duration
+                        // - Short durations (<=1h): 30s-2m resolution, detailed time labels
+                        // - Medium durations (1h-24h): 2m-30m resolution, hour:minute labels  
+                        // - Long durations (>24h): 1h-6h resolution, date labels
+                        // This keeps graphs responsive while showing appropriate detail level
+                        const response = await fetch(`/api/client-histories?ips=${expandedIps.join(',')}&duration=${this.timeRange}`);
+                        if (!response.ok) {
+                            console.error('Failed to fetch data with new time range');
+                            return;
+                        }
+                        
+                        const allHistories = await response.json();
+                        
+                        // Calculate unified scale if enabled
+                        if (this.useUnifiedScale) {
+                            this.calculateUnifiedScale(allHistories);
+                        }
+                        
+                        // Update all charts with new data
+                        for (const ip of expandedIps) {
+                            const history = allHistories[ip];
+                            if (!history || history.error) {
+                                this.loadingGraphs[ip] = false;
+                                continue;
+                            }
+                            
+                            // Recreate chart with new data
+                            if (chartInstances[ip]) {
+                                chartInstances[ip].destroy();
+                                delete chartInstances[ip];
+                            }
+                            
+                            this.createChartFromData(ip, history);
+                            this.loadingGraphs[ip] = false;
+                        }
+                    } catch (error) {
+                        console.error('Error changing time range:', error);
+                        for (const ip of expandedIps) {
+                            this.loadingGraphs[ip] = false;
+                        }
                     }
                 },
                 
@@ -668,6 +1467,19 @@ DASHBOARD_HTML = """
             }));
         });
         
+        // Helper function to format bandwidth for display
+        function formatBandwidth(bps) {
+            if (bps < 1000) {
+                return bps.toFixed(0) + ' bps';
+            } else if (bps < 1000000) {
+                return (bps / 1000).toFixed(1) + ' Kbps';
+            } else if (bps < 1000000000) {
+                return (bps / 1000000).toFixed(1) + ' Mbps';
+            } else {
+                return (bps / 1000000000).toFixed(1) + ' Gbps';
+            }
+        }
+        
         // Function to fetch and update metrics (for non-Alpine parts)
         async function updateMetrics() {
             const startTime = Date.now();
@@ -782,7 +1594,7 @@ class ClientInfoCache:
                 self.last_update = time.time()
                 return clients
             except Exception as e:
-                print(f"Error getting client info from metrics: {e}")
+                logger.error(f"Error getting client info from metrics: {e}")
                 return self.cache  # Return stale cache on error
 
 # Global cache instances
@@ -790,29 +1602,78 @@ metrics_cache = MetricsCache(ttl_seconds=5)  # Cache metrics for 5 seconds
 connectivity_cache = MetricsCache(ttl_seconds=30)  # Cache connectivity for 30 seconds
 blocky_cache = MetricsCache(ttl_seconds=10)  # Cache Blocky stats for 10 seconds
 client_info_cache = ClientInfoCache(ttl_seconds=30)  # Cache client info from network-metrics-exporter
+bandwidth_history_cache = MetricsCache(ttl_seconds=15)  # Cache bandwidth histories for 15 seconds
 
 class MetricsHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/' or self.path == '/index.html':
             # Serve the dashboard HTML
+            logger.debug(f"Dashboard request from {self.address_string()}")
             self.send_response(200)
             self.send_header('Content-Type', 'text/html')
             self.end_headers()
             self.wfile.write(DASHBOARD_HTML.encode())
+            logger.debug(f"Served dashboard HTML ({len(DASHBOARD_HTML)} chars)")
         elif self.path == '/api/metrics':
+            logger.debug(f"Metrics request from {self.address_string()}")
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             
             metrics = self.get_system_metrics()
-            self.wfile.write(json.dumps(metrics).encode())
+            response_data = json.dumps(metrics).encode()
+            self.wfile.write(response_data)
+            self.wfile.flush()
+            logger.debug(f"Sent metrics response ({len(response_data)} bytes)")
+        elif self.path.startswith('/api/client-histories'):
+            # Bulk fetch client histories
+            logger.debug(f"Bulk client histories request from {self.address_string()}")
+            
+            try:
+                # Parse query parameters for specific IPs
+                from urllib.parse import urlparse, parse_qs
+                parsed = urlparse(self.path)
+                query_params = parse_qs(parsed.query)
+                
+                # Get requested IPs from query params, or all if not specified
+                if 'ips' in query_params:
+                    # IPs provided as comma-separated list
+                    client_ips = query_params['ips'][0].split(',')
+                    logger.debug(f"Fetching histories for specific IPs: {client_ips}")
+                else:
+                    # No IPs specified, get all connected clients
+                    clients_data = self.get_connected_clients()
+                    client_ips = [client['ip'] for client in clients_data.get('clients', [])]
+                    logger.debug(f"Fetching histories for all {len(client_ips)} connected clients")
+                
+                # Get duration parameter (default to 10m)
+                duration = query_params.get('duration', ['10m'])[0]
+                logger.debug(f"Using duration: {duration}")
+                
+                # Fetch histories in parallel with specified duration
+                histories = self.get_bulk_client_histories(client_ips, duration)
+                
+                response_data = json.dumps(histories).encode()
+                
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Content-Length', str(len(response_data)))
+                self.end_headers()
+                
+                self.wfile.write(response_data)
+                self.wfile.flush()
+                logger.debug(f"Sent bulk histories for {len(histories)} clients ({len(response_data)} bytes)")
+            except Exception as e:
+                logger.error(f"Error handling bulk histories request: {e}", exc_info=True)
+                self.send_error(500, "Internal Server Error")
         else:
             self.send_error(404)
     
     def log_message(self, format, *args):
-        # Suppress default logging
-        pass
+        # Log HTTP requests using our logger
+        logger.info(f"{self.address_string()} - {format % args}")
     
     def get_system_metrics(self) -> Dict[str, Any]:
         """Fetch all metrics concurrently for better performance"""
@@ -851,7 +1712,7 @@ class MetricsHandler(BaseHTTPRequestHandler):
                     results[key] = future.result(timeout=3)
                     timings[key] = round((time.time() - task_starts[key]) * 1000, 1)  # ms
                 except Exception as e:
-                    print(f"Error getting {key}: {e}")
+                    logger.error(f"Error getting {key}: {e}")
                     results[key] = {}
                     timings[key] = -1  # Mark as error
         
@@ -1140,7 +2001,7 @@ class MetricsHandler(BaseHTTPRequestHandler):
                     return data['data']['result']
                 return None
         except Exception as e:
-            print(f"Error querying VictoriaMetrics: {e}")
+            logger.error(f"Error querying VictoriaMetrics: {e}")
             return None
     
     def get_blocky_stats(self) -> Dict[str, Any]:
@@ -1187,7 +2048,7 @@ class MetricsHandler(BaseHTTPRequestHandler):
                     try:
                         query_results[key] = future.result(timeout=1)
                     except Exception as e:
-                        print(f"Error querying {key}: {e}")
+                        logger.error(f"Error querying {key}: {e}")
                         query_results[key] = None
             
             # Process results
@@ -1235,7 +2096,7 @@ class MetricsHandler(BaseHTTPRequestHandler):
             return stats
             
         except Exception as e:
-            print(f"Error getting Blocky stats: {e}")
+            logger.error(f"Error getting Blocky stats: {e}")
             return {
                 'enabled': False,
                 'error': str(e)
@@ -1294,7 +2155,7 @@ class MetricsHandler(BaseHTTPRequestHandler):
                 try:
                     results.append(future.result(timeout=2))
                 except Exception as e:
-                    print(f"Error in connectivity check: {e}")
+                    logger.error(f"Error in connectivity check: {e}")
         
         # Determine overall connectivity status
         reachable_count = sum(1 for r in results if r.get('reachable', False))
@@ -1354,7 +2215,7 @@ class MetricsHandler(BaseHTTPRequestHandler):
                             'state': 'REACHABLE' if flags in ['0x2', '0x6'] else 'STALE'
                         }
         except Exception as e:
-            print(f"Error reading ARP table: {e}")
+            logger.error(f"Error reading ARP table: {e}")
         
         # Combine data from all sources
         for ip, arp_info in arp_data.items():
@@ -1415,7 +2276,7 @@ class MetricsHandler(BaseHTTPRequestHandler):
         
         # Log if slow
         if total_time > 100:  # More than 100ms
-            print(f"get_connected_clients took: {total_time}ms")
+            logger.debug(f"get_connected_clients took: {total_time}ms")
         
         return {
             'count': len(clients),
@@ -1475,8 +2336,274 @@ class MetricsHandler(BaseHTTPRequestHandler):
             return bandwidth_by_ip
             
         except Exception as e:
-            print(f"Error getting client bandwidth rates: {e}")
+            logger.error(f"Error getting client bandwidth rates: {e}")
             return {}
+    
+    def get_bulk_client_histories(self, client_ips: list, duration: str = '10m') -> Dict[str, Any]:
+        """Get bandwidth history for multiple clients in a single VictoriaMetrics query"""
+        start_time = time.time()
+        
+        # Check cache for bulk request
+        cache_key = f"bulk_histories_{','.join(sorted(client_ips))}_{duration}"
+        cached = bandwidth_history_cache.get(cache_key)
+        if cached:
+            logger.debug(f"Using cached bulk histories for {len(client_ips)} clients")
+            return cached
+        
+        histories = {}
+        
+        # Initialize empty histories for all IPs
+        for ip in client_ips:
+            histories[ip] = {
+                'ip': ip,
+                'labels': [],
+                'rx': [],
+                'tx': []
+            }
+        
+        if not client_ips:
+            return histories
+        
+        try:
+            # Build time range parameters
+            end_time = int(time.time())
+            
+            # Parse duration and determine optimal step size
+            if duration.endswith('m'):
+                duration_seconds = int(duration[:-1]) * 60
+            elif duration.endswith('h'):
+                duration_seconds = int(duration[:-1]) * 3600
+            elif duration.endswith('d'):
+                duration_seconds = int(duration[:-1]) * 86400
+            else:
+                duration_seconds = 600  # Default 10 minutes for bulk
+            
+            start_time_query = end_time - duration_seconds
+            
+            # Adaptive step size and max points based on duration
+            # Goal: Keep graphs responsive with max ~100 data points
+            if duration_seconds <= 600:  # <= 10 minutes
+                step = 30  # 30-second resolution
+                max_points = 100
+            elif duration_seconds <= 1800:  # <= 30 minutes
+                step = 60  # 1-minute resolution
+                max_points = 100
+            elif duration_seconds <= 3600:  # <= 1 hour
+                step = 120  # 2-minute resolution
+                max_points = 100
+            elif duration_seconds <= 10800:  # <= 3 hours
+                step = 300  # 5-minute resolution
+                max_points = 100
+            elif duration_seconds <= 21600:  # <= 6 hours
+                step = 600  # 10-minute resolution
+                max_points = 100
+            elif duration_seconds <= 43200:  # <= 12 hours
+                step = 900  # 15-minute resolution
+                max_points = 100
+            elif duration_seconds <= 86400:  # <= 24 hours
+                step = 1800  # 30-minute resolution
+                max_points = 100
+            elif duration_seconds <= 172800:  # <= 48 hours (2 days)
+                step = 3600  # 1-hour resolution
+                max_points = 100
+            elif duration_seconds <= 259200:  # <= 72 hours (3 days)
+                step = 7200  # 2-hour resolution
+                max_points = 100
+            elif duration_seconds <= 604800:  # <= 1 week
+                step = 14400  # 4-hour resolution
+                max_points = 100
+            else:  # > 1 week
+                step = 21600  # 6-hour resolution
+                max_points = 100
+            
+            logger.debug(f"Duration: {duration}, seconds: {duration_seconds}, step: {step}s, max_points: {max_points}")
+            
+            # Build a single query for all clients using regex matching
+            # This queries all client_traffic_rate_bps metrics and filters by IP
+            base_url = "http://localhost:8428/api/v1/query_range"
+            
+            # Query all client traffic in one request
+            ip_regex = '|'.join(client_ips)
+            query = f'client_traffic_rate_bps{{ip=~"{ip_regex}"}}'
+            
+            params = {
+                'query': query,
+                'start': start_time_query,
+                'end': end_time,
+                'step': step
+            }
+            
+            url = f"{base_url}?{urllib.parse.urlencode(params)}"
+            logger.debug(f"Bulk query URL: {url}")
+            logger.debug(f"Query params: start={start_time_query}, end={end_time}, step={step}, duration_seconds={duration_seconds}")
+            
+            with urllib.request.urlopen(url, timeout=10) as response:
+                data = json.loads(response.read().decode())
+                
+                logger.debug(f"VictoriaMetrics response status: {data.get('status')}")
+                if data.get('data', {}).get('result'):
+                    logger.debug(f"Got {len(data['data']['result'])} series from VictoriaMetrics")
+                
+                if data.get('status') == 'success' and data.get('data', {}).get('result'):
+                    # Process each series returned - collect all data first
+                    series_data = {}  # ip -> {rx_values: [], tx_values: [], timestamps: []}
+                    
+                    for series in data['data']['result']:
+                        metric = series.get('metric', {})
+                        ip = metric.get('ip')
+                        direction = metric.get('direction')
+                        values = series.get('values', [])
+                        
+                        logger.debug(f"Processing series: ip={ip}, direction={direction}, values_count={len(values)}")
+                        
+                        if ip and ip in histories:
+                            if ip not in series_data:
+                                series_data[ip] = {'rx_values': [], 'tx_values': [], 'timestamps': []}
+                            
+                            if direction == 'rx':
+                                series_data[ip]['rx_values'] = [float(v) for _, v in values]
+                                series_data[ip]['timestamps'] = [float(ts) for ts, _ in values]
+                                logger.debug(f"Stored RX data for {ip}: {len(values)} points")
+                            elif direction == 'tx':
+                                series_data[ip]['tx_values'] = [float(v) for _, v in values]
+                                logger.debug(f"Stored TX data for {ip}: {len(values)} points")
+                    
+                    # Now process each IP's complete data
+                    for ip, data_dict in series_data.items():
+                        rx_values = data_dict['rx_values']
+                        tx_values = data_dict['tx_values']
+                        timestamps = data_dict['timestamps']
+                        
+                        logger.debug(f"Processing {ip}: rx={len(rx_values)}, tx={len(tx_values)}, timestamps={len(timestamps)}")
+                        
+                        # Use the longest array as the reference (should all be the same length)
+                        max_len = max(len(rx_values), len(tx_values), len(timestamps))
+                        if max_len == 0:
+                            logger.debug(f"Skipping {ip} - no data")
+                            continue
+                            
+                        # Pad shorter arrays with zeros/last timestamp
+                        while len(rx_values) < max_len:
+                            rx_values.append(0.0)
+                        while len(tx_values) < max_len:
+                            tx_values.append(0.0)
+                        while len(timestamps) < max_len:
+                            timestamps.append(timestamps[-1] if timestamps else start_time_query)
+                        
+                        # Truncate to shortest length if somehow mismatched
+                        min_len = min(len(rx_values), len(tx_values), len(timestamps))
+                        rx_values = rx_values[:min_len]
+                        tx_values = tx_values[:min_len]
+                        timestamps = timestamps[:min_len]
+                        
+                        # Generate formatted labels
+                        if duration_seconds <= 3600:  # <= 1 hour: show time only
+                            labels = [time.strftime('%H:%M:%S', time.localtime(ts)) for ts in timestamps]
+                        elif duration_seconds <= 86400:  # <= 24 hours: show hours:minutes
+                            labels = [time.strftime('%H:%M', time.localtime(ts)) for ts in timestamps]
+                        elif duration_seconds <= 604800:  # <= 1 week: show day and time
+                            labels = [time.strftime('%m/%d %H:%M', time.localtime(ts)) for ts in timestamps]
+                        else:  # > 1 week: show date only
+                            labels = [time.strftime('%m/%d', time.localtime(ts)) for ts in timestamps]
+                        
+                        # Apply downsampling if needed BEFORE storing
+                        if len(labels) > max_points:
+                            logger.debug(f"Downsampling {ip}: {len(labels)} -> {max_points} points")
+                            downsample_rate = len(labels) // max_points
+                            labels = labels[::downsample_rate][:max_points]
+                            rx_values = rx_values[::downsample_rate][:max_points]
+                            tx_values = tx_values[::downsample_rate][:max_points]
+                        
+                        # Store the processed data
+                        logger.debug(f"Storing {ip}: labels={len(labels)}, rx={len(rx_values)}, tx={len(tx_values)}")
+                        histories[ip]['labels'] = labels
+                        histories[ip]['rx'] = rx_values
+                        histories[ip]['tx'] = tx_values
+            
+            # Calculate expected number of points
+            num_points = min(max_points, max(1, int(duration_seconds / step)))
+            # Fill in empty data for clients with no metrics and validate all arrays
+            for ip in client_ips:
+                if not histories[ip]['labels']:  # No data from VictoriaMetrics
+                    # Generate time labels for empty data
+                    for i in range(num_points):
+                        timestamp = start_time_query + (i * step)
+                        # Format based on duration
+                        if duration_seconds <= 3600:  # <= 1 hour
+                            time_str = time.strftime('%H:%M:%S', time.localtime(timestamp))
+                        elif duration_seconds <= 86400:  # <= 24 hours
+                            time_str = time.strftime('%H:%M', time.localtime(timestamp))
+                        elif duration_seconds <= 604800:  # <= 1 week
+                            time_str = time.strftime('%m/%d %H:%M', time.localtime(timestamp))
+                        else:  # > 1 week
+                            time_str = time.strftime('%m/%d', time.localtime(timestamp))
+                        histories[ip]['labels'].append(time_str)
+                    histories[ip]['rx'] = [0] * num_points
+                    histories[ip]['tx'] = [0] * num_points
+                else:
+                    # Validate that all arrays are the same length
+                    label_count = len(histories[ip]['labels'])
+                    rx_count = len(histories[ip]['rx'])
+                    tx_count = len(histories[ip]['tx'])
+                    
+                    if not (label_count == rx_count == tx_count):
+                        logger.warning(f"Pre-validation length mismatch for {ip}: labels={label_count}, rx={rx_count}, tx={tx_count}")
+                        # Fix by truncating to shortest length
+                        min_count = min(label_count, rx_count, tx_count)
+                        if min_count > 0:
+                            histories[ip]['labels'] = histories[ip]['labels'][:min_count]
+                            histories[ip]['rx'] = histories[ip]['rx'][:min_count]
+                            histories[ip]['tx'] = histories[ip]['tx'][:min_count]
+                        else:
+                            # All arrays are empty, generate empty data
+                            histories[ip]['labels'] = []
+                            histories[ip]['rx'] = []
+                            histories[ip]['tx'] = []
+        
+        except Exception as e:
+            logger.error(f"Error fetching bulk histories: {e}")
+            # Fill with empty data on error
+            num_points = 10
+            for ip in client_ips:
+                if not histories[ip]['labels']:
+                    for i in range(num_points):
+                        timestamp = end_time - ((num_points - i - 1) * 30)
+                        time_str = time.strftime('%H:%M:%S', time.localtime(timestamp))
+                        histories[ip]['labels'].append(time_str)
+                    histories[ip]['rx'] = [0] * num_points
+                    histories[ip]['tx'] = [0] * num_points
+        
+        elapsed = time.time() - start_time
+        # Log statistics with validation
+        total_points = sum(len(h['labels']) for h in histories.values())
+        
+        # Debug: Check for mismatched array lengths
+        for ip, history in histories.items():
+            if history['labels']:  # Only check if there's data
+                label_len = len(history['labels'])
+                rx_len = len(history['rx'])
+                tx_len = len(history['tx'])
+                if not (label_len == rx_len == tx_len):
+                    logger.warning(f"Array length mismatch for {ip}: labels={label_len}, rx={rx_len}, tx={tx_len}")
+        
+        logger.info(f"Fetched {len(histories)} client histories ({total_points} total points) in {elapsed:.2f}s with step={step}s")
+        
+        # Cache the bulk result
+        bandwidth_history_cache.set(cache_key, histories)
+        
+        return histories
+    
+    def get_client_bandwidth_history(self, client_ip: str, duration: str = '30m') -> Dict[str, Any]:
+        """Get bandwidth history for a specific client from VictoriaMetrics"""
+        # For single client queries, just delegate to bulk function for consistency
+        histories = self.get_bulk_client_histories([client_ip], duration)
+        return histories.get(client_ip, {
+            'ip': client_ip,
+            'labels': [],
+            'rx': [],
+            'tx': [],
+            'error': 'No data available'
+        })
 
 def main():
     parser = argparse.ArgumentParser(description='Router Dashboard and Metrics API Server')
@@ -1486,8 +2613,14 @@ def main():
                        help='Port to listen on (default: 8085)')
     parser.add_argument('--bind-all', action='store_true',
                        help='Bind to all interfaces (equivalent to --host 0.0.0.0)')
+    parser.add_argument('--log-level', default='INFO',
+                       choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+                       help='Set the logging level (default: INFO)')
     
     args = parser.parse_args()
+    
+    # Update log level based on command line argument
+    logger.setLevel(getattr(logging, args.log_level))
     
     # Override host if --bind-all is specified
     host = '0.0.0.0' if args.bind_all else args.host
@@ -1497,27 +2630,27 @@ def main():
     
     # Display appropriate URLs based on binding
     if host == '0.0.0.0':
-        print(f"Router Dashboard and Metrics API server running on all interfaces, port {port}")
-        print(f"  - Dashboard: http://<your-ip>:{port}/")
-        print(f"  - Metrics API: http://<your-ip>:{port}/api/metrics")
+        logger.info(f"Router Dashboard and Metrics API server running on all interfaces, port {port}")
+        logger.info(f"  - Dashboard: http://<your-ip>:{port}/")
+        logger.info(f"  - Metrics API: http://<your-ip>:{port}/api/metrics")
         # Try to show actual IPs
         try:
             hostname = socket.gethostname()
             local_ips = socket.gethostbyname_ex(hostname)[2]
             for ip in local_ips:
                 if not ip.startswith('127.'):
-                    print(f"  - Available at: http://{ip}:{port}/")
+                    logger.info(f"  - Available at: http://{ip}:{port}/")
         except:
             pass
     else:
-        print(f"Router Dashboard and Metrics API server running on http://{host}:{port}")
-        print(f"  - Dashboard: http://{host}:{port}/")
-        print(f"  - Metrics API: http://{host}:{port}/api/metrics")
+        logger.info(f"Router Dashboard and Metrics API server running on http://{host}:{port}")
+        logger.info(f"  - Dashboard: http://{host}:{port}/")
+        logger.info(f"  - Metrics API: http://{host}:{port}/api/metrics")
     
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nShutting down server...")
+        logger.info("Shutting down server...")
         server.shutdown()
 
 if __name__ == '__main__':
