@@ -22,6 +22,19 @@
 in {
   options.blocky = {
     enable = lib.mkEnableOption "Blocky DNS server with ad-blocking capabilities";
+    lanAuthoritative = {
+      enable = lib.mkEnableOption "Forward LAN zones to a local authoritative DNS (for DDNS integration)";
+      upstream = lib.mkOption {
+        type = lib.types.str;
+        default = "127.0.0.1:5353";
+        description = "Authoritative DNS upstream (host:port) for LAN zones (e.g., BIND listening on 127.0.0.1:5353).";
+      };
+      zones = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = ["lan"];
+        description = "Zones to forward to the authoritative upstream (e.g., [\"lan\", \"1.1.10.in-addr.arpa\"]).";
+      };
+    };
   };
 
   config = lib.mkIf config.blocky.enable {
@@ -65,14 +78,24 @@ in {
             "arsfeld.one" = lib.mkDefault "192.168.1.5"; # "100.118.254.136";
           };
         };
-        conditional = {
-          rewrite = {
-            lan = "bat-boa.ts.net";
-          };
-          mapping = {
-            "ts.net" = "100.100.100.100";
-          };
-        };
+        conditional = lib.mkMerge [
+          {
+            rewrite = {
+              lan = "bat-boa.ts.net";
+            };
+            mapping = {
+              "ts.net" = "100.100.100.100";
+            };
+          }
+          (lib.mkIf config.blocky.lanAuthoritative.enable {
+            # Forward configured LAN zones to the local authoritative server
+            mapping = lib.listToAttrs (map (z: {
+                name = z;
+                value = config.blocky.lanAuthoritative.upstream;
+              })
+              config.blocky.lanAuthoritative.zones);
+          })
+        ];
         bootstrapDns = "tcp+udp:1.1.1.1";
         blocking = {
           blackLists = {

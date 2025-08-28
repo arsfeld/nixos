@@ -228,6 +228,7 @@ in {
         conntrack-tools
         iproute2
         arp-scan
+        samba # for nmblookup (NetBIOS name discovery)
       ];
     };
   };
