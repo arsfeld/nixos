@@ -9,8 +9,8 @@
 
   # Shared routing configuration for both internal IP and Tailscale access
   routerRoutes = ''
-    # Router metrics API and dashboard
-    handle /api/metrics {
+    # Router metrics API endpoints
+    handle /api/* {
       reverse_proxy localhost:8085
     }
 

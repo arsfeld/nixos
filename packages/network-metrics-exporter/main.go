@@ -1,18 +1,24 @@
 package main
 
 import (
-	"bufio"
-	"context"
-	"encoding/json"
-	"log"
-	"net"
-	"net/http"
-	"os"
-	"os/exec"
-	"regexp"
-	"strings"
-	"sync"
-	"time"
+    "bufio"
+    "context"
+    "encoding/csv"
+    "encoding/json"
+    "bytes"
+    "fmt"
+    "io"
+    "log"
+    "net"
+    "net/http"
+    "os"
+    "os/exec"
+    "strconv"
+    "regexp"
+    "strings"
+    "sync"
+    "time"
+    "sort"
 
 	"github.com/grandcat/zeroconf"
 	"github.com/prometheus/client_golang/prometheus"
@@ -66,8 +72,16 @@ var (
 	trafficRuleRegex = regexp.MustCompile(`^(tx|rx)_(\d+\.\d+\.\d+\.\d+)$`)
 	conntrackIPRegex = regexp.MustCompile(`\b(?:src|dst)=(\d+\.\d+\.\d+\.\d+)\b`)
 	
-	// WAN interface name from environment
-	wanInterface = os.Getenv("WAN_INTERFACE")
+    // WAN interface name from environment
+    wanInterface = os.Getenv("WAN_INTERFACE")
+    // LAN IPv4 prefix (e.g., 10.1.1)
+    lanPrefix = func() string {
+        p := os.Getenv("NETWORK_PREFIX")
+        if p == "" {
+            return "192.168.10"
+        }
+        return p
+    }()
 	
 	// Traffic tracking for rate calculation
 	trafficHistory     = make(map[string]*TrafficSnapshot)
@@ -102,12 +116,55 @@ var (
 	// mDNS cache
 	mdnsCache     = make(map[string]*MDNSEntry)
 	mdnsCacheLock sync.RWMutex
-	lastMDNSScan  time.Time
+    lastMDNSScan  time.Time
 	
 	// DNS resolution queue for background processing
-	dnsResolveQueue = make(chan string, 100)
-	dnsResolveCache = make(map[string]string)
-	dnsResolveCacheLock sync.RWMutex
+    dnsResolveQueue = make(chan string, 100)
+    dnsResolveCache = make(map[string]string)
+    dnsResolveCacheLock sync.RWMutex
+
+    // NetBIOS cache
+    netbiosCache     = make(map[string]string) // IP -> name
+    netbiosCacheLock sync.RWMutex
+    
+    // SSDP/UPnP cache
+    ssdpCache     = make(map[string]*SSDPDevice) // IP -> device info
+    ssdpCacheLock sync.RWMutex
+    lastSSDPScan  time.Time
+    
+    // Metrics for name resolution coverage
+    namesTotal = promauto.NewGauge(prometheus.GaugeOpts{
+        Name: "network_names_total",
+        Help: "Total number of devices with resolved names",
+    })
+    
+    namesBySource = promauto.NewGaugeVec(prometheus.GaugeOpts{
+        Name: "network_names_by_source",
+        Help: "Number of names resolved by each source",
+    }, []string{"source"})
+
+    // Kea leases and DHCP hosts caches
+    keaIPToName       = make(map[string]string)
+    keaMacToName      = make(map[string]string)
+    keaLastLoad       time.Time
+    dhcpHostsIPToName = make(map[string]string)
+    dhcpHostsLastLoad time.Time
+    // Exporter-managed hosts file for Blocky
+    exporterHostsPath = func() string {
+        p := os.Getenv("EXPORTER_HOSTS_FILE")
+        if p == "" {
+            return "/var/lib/network-metrics-exporter/hosts"
+        }
+        return p
+    }()
+    // Kea control socket path (preferred when available)
+    keaSocketPath = func() string {
+        p := os.Getenv("KEA_SOCKET_PATH")
+        if p == "" {
+            return "/run/kea/kea-dhcp4.sock"
+        }
+        return p
+    }()
 )
 
 type ClientInfo struct {
@@ -145,6 +202,16 @@ type MDNSEntry struct {
 	Service      string
 	Domain       string
 	DeviceType   string // Inferred from service type
+	LastSeen     time.Time
+}
+
+type SSDPDevice struct {
+	IP           string
+	FriendlyName string
+	ModelName    string
+	Manufacturer string
+	DeviceType   string
+	UUID         string
 	LastSeen     time.Time
 }
 
@@ -199,14 +266,18 @@ func collectMetrics() {
 	// Start background discovery tasks with their own timers
 	go runPeriodicArpScan()
 	go runPeriodicMDNSDiscovery()
+	go runPeriodicSSDPDiscovery()
 	
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
 
-	for {
-		updateMetrics()
-		<-ticker.C
-	}
+    for {
+        updateMetrics()
+        // After each metrics update, write a consolidated hosts file for DNS
+        // This provides LAN names to Blocky even when DHCP lacks hostnames
+        safelyWriteHostsFile()
+        <-ticker.C
+    }
 }
 
 func updateMetrics() {
@@ -460,18 +531,18 @@ func updateConnectionCounts() {
 	for scanner.Scan() {
 		lineCount++
 		line := scanner.Text()
-		// Extract IPs from conntrack output
-		// Look for src= and dst= patterns
-		matches := conntrackIPRegex.FindAllStringSubmatch(line, -1)
-		
-		for _, match := range matches {
-			ip := match[1]
-			// Only count local network IPs
-			if strings.HasPrefix(ip, "192.168.10.") {
-				connectionCounts[ip]++
-			}
-		}
-	}
+            // Extract IPs from conntrack output
+            // Look for src= and dst= patterns
+            matches := conntrackIPRegex.FindAllStringSubmatch(line, -1)
+            
+            for _, match := range matches {
+                ip := match[1]
+                // Only count local network IPs
+                if strings.HasPrefix(ip, lanPrefix+".") {
+                    connectionCounts[ip]++
+                }
+            }
+        }
 	logTiming(" Parsing %d conntrack lines took %v", lineCount, time.Since(start))
 
 	start = time.Now()
@@ -509,20 +580,20 @@ func updateClientStatus() {
 	for scanner.Scan() {
 		lineCount++
 		line := scanner.Text()
-		// Look for REACHABLE, STALE, DELAY, or PROBE states
-		if strings.Contains(line, "REACHABLE") || 
-		   strings.Contains(line, "STALE") || 
-		   strings.Contains(line, "DELAY") || 
-		   strings.Contains(line, "PROBE") {
-			fields := strings.Fields(line)
-			if len(fields) > 0 {
-				ip := fields[0]
-				if strings.HasPrefix(ip, "192.168.10.") {
-					arpEntries[ip] = true
-				}
-			}
-		}
-	}
+        // Look for REACHABLE, STALE, DELAY, or PROBE states
+        if strings.Contains(line, "REACHABLE") || 
+           strings.Contains(line, "STALE") || 
+           strings.Contains(line, "DELAY") || 
+           strings.Contains(line, "PROBE") {
+            fields := strings.Fields(line)
+            if len(fields) > 0 {
+                ip := fields[0]
+                if strings.HasPrefix(ip, lanPrefix+".") {
+                    arpEntries[ip] = true
+                }
+            }
+        }
+    }
 	logTiming(" Parsing %d ARP entries took %v", lineCount, time.Since(start))
 
 	start = time.Now()
@@ -548,61 +619,159 @@ func getClientName(ip string) string {
 		}
 	}()
 	
-	// First get MAC address for this IP
-	macAddr := getMacAddress(ip)
-	
-	// Check cache by MAC address
-	if macAddr != "" {
-		clientNameCacheLock.RLock()
-		if cachedName, exists := clientNameCache[macAddr]; exists {
-			clientNameCacheLock.RUnlock()
-			return cachedName
-		}
-		clientNameCacheLock.RUnlock()
-	}
+    // First get MAC address for this IP
+    macAddr := getMacAddress(ip)
 
-	// Check mDNS cache
-	mdnsCacheLock.RLock()
-	if mdnsEntry, exists := mdnsCache[ip]; exists {
-		mdnsCacheLock.RUnlock()
-		// Use instance name if available, otherwise hostname
-		name := mdnsEntry.Instance
-		if name == "" && mdnsEntry.Hostname != "" {
-			// Remove .local. suffix
-			name = strings.TrimSuffix(mdnsEntry.Hostname, ".local.")
-			name = strings.TrimSuffix(name, ".")
-		}
-		if name != "" {
-			if macAddr != "" {
-				updateClientNameCache(macAddr, name)
-			}
-			return name
-		}
-	} else {
-		mdnsCacheLock.RUnlock()
-	}
+    // Check cache by MAC address
+    if macAddr != "" {
+        clientNameCacheLock.RLock()
+        if cachedName, exists := clientNameCache[macAddr]; exists {
+            clientNameCacheLock.RUnlock()
+            updateNameSourceMetric("cache")
+            return cachedName
+        }
+        clientNameCacheLock.RUnlock()
+    }
 
-	// Check DNS resolution cache
-	dnsResolveCacheLock.RLock()
-	if resolvedName, exists := dnsResolveCache[ip]; exists {
-		dnsResolveCacheLock.RUnlock()
-		if resolvedName != "" {
-			if macAddr != "" {
-				updateClientNameCache(macAddr, resolvedName)
-			}
-			return resolvedName
-		}
-	} else {
-		dnsResolveCacheLock.RUnlock()
-		// Queue for background resolution
-		select {
-		case dnsResolveQueue <- ip:
-		default:
-			// Queue is full, skip
-		}
-	}
+    // Refresh DHCP-backed sources periodically (authoritative names)
+    ensureDhcpSourcesLoaded()
 
-	return "unknown"
+    // 1) Authoritative: dhcp-hosts (statics)
+    if name := getNameFromDhcpHostsCache(ip); name != "" {
+        if macAddr != "" {
+            updateClientNameCache(macAddr, name)
+        }
+        updateNameSourceMetric("dhcp-hosts")
+        return name
+    }
+
+    // 2) Authoritative: Kea leases (memfile). Prefer MAC map first, then IP map.
+    if name := getNameFromKeaCaches(ip, macAddr); name != "" {
+        if macAddr != "" {
+            updateClientNameCache(macAddr, name)
+        }
+        updateNameSourceMetric("kea-leases")
+        return name
+    }
+
+    // 3) Check SSDP/UPnP cache (common for media devices, IoT)
+    ssdpCacheLock.RLock()
+    if ssdpDevice, exists := ssdpCache[ip]; exists {
+        ssdpCacheLock.RUnlock()
+        if ssdpDevice.FriendlyName != "" {
+            if macAddr != "" {
+                updateClientNameCache(macAddr, ssdpDevice.FriendlyName)
+            }
+            updateNameSourceMetric("ssdp")
+            return ssdpDevice.FriendlyName
+        }
+    } else {
+        ssdpCacheLock.RUnlock()
+    }
+    
+    // 4) Check mDNS cache (fast, common for Apple/IoT/media)
+    mdnsCacheLock.RLock()
+    if mdnsEntry, exists := mdnsCache[ip]; exists {
+        mdnsCacheLock.RUnlock()
+        // Use instance name if available, otherwise hostname
+        name := mdnsEntry.Instance
+        if name == "" && mdnsEntry.Hostname != "" {
+            // Remove .local. suffix
+            name = strings.TrimSuffix(mdnsEntry.Hostname, ".local.")
+            name = strings.TrimSuffix(name, ".")
+        }
+        if name != "" {
+            if macAddr != "" {
+                updateClientNameCache(macAddr, name)
+            }
+            updateNameSourceMetric("mdns")
+            return name
+        }
+    } else {
+        mdnsCacheLock.RUnlock()
+    }
+
+    // 5) Check reverse DNS cache (PTR via system resolver)
+    dnsResolveCacheLock.RLock()
+    if resolvedName, exists := dnsResolveCache[ip]; exists {
+        dnsResolveCacheLock.RUnlock()
+        if resolvedName != "" {
+            if macAddr != "" {
+                updateClientNameCache(macAddr, resolvedName)
+            }
+            updateNameSourceMetric("dns")
+            return resolvedName
+        }
+    } else {
+        dnsResolveCacheLock.RUnlock()
+        // Queue for background resolution
+        select {
+        case dnsResolveQueue <- ip:
+        default:
+            // Queue is full, skip
+        }
+    }
+
+    // 6) Try NetBIOS (Windows/Samba) via nmblookup
+    if nb := getNameFromNetBIOS(ip); nb != "" {
+        if macAddr != "" {
+            updateClientNameCache(macAddr, nb)
+        }
+        updateNameSourceMetric("netbios")
+        return nb
+    }
+
+    // 7) Check /etc/hosts or custom hosts
+    hostsFile := os.Getenv("HOSTS_FILE")
+    if hostsFile == "" {
+        hostsFile = "/etc/hosts"
+    }
+    if hostName := getNameFromFile(hostsFile, ip, 0, 1); hostName != "" {
+        if macAddr != "" {
+            updateClientNameCache(macAddr, hostName)
+        }
+        updateNameSourceMetric("hosts-file")
+        return hostName
+    }
+
+    // 8) Static clients database (explicit mapping)
+    if dbName := getNameFromStaticClients(ip); dbName != "" {
+        if macAddr != "" {
+            updateClientNameCache(macAddr, dbName)
+        }
+        updateNameSourceMetric("static-db")
+        return dbName
+    }
+
+    // 9) Friendly fallback: vendor + mac tail
+    if macAddr != "" {
+        vend := getVendorForIP(ip)
+        vshort := ""
+        fields := strings.Fields(vend)
+        if len(fields) > 0 {
+            vshort = strings.ToLower(fields[0])
+            // Clean up malformed vendor names
+            vshort = strings.TrimPrefix(vshort, "(")
+            vshort = strings.TrimSuffix(vshort, ")")
+            // Remove any remaining special characters
+            vshort = regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(vshort, "")
+        }
+        m := strings.ReplaceAll(macAddr, ":", "")
+        if len(m) >= 4 {
+            m = m[len(m)-4:]
+        }
+        // Ensure we have a valid vendor prefix
+        if vshort == "" || vshort == "unknown" {
+            vshort = "device"
+        }
+        fallback := fmt.Sprintf("%s-%s", vshort, m)
+        updateClientNameCache(macAddr, fallback)
+        updateNameSourceMetric("fallback")
+        return fallback
+    }
+
+    updateNameSourceMetric("unknown")
+    return "unknown"
 }
 
 func getNameFromDhcpHosts(filename, ip string) string {
@@ -647,6 +816,364 @@ func getNameFromFile(filename, ip string, ipCol, nameCol int) string {
 		}
 	}
 	return ""
+}
+
+// getNameFromNetBIOS uses nmblookup to query NetBIOS name; caches results
+func getNameFromNetBIOS(ip string) string {
+    // Check cache first
+    netbiosCacheLock.RLock()
+    if n, ok := netbiosCache[ip]; ok {
+        netbiosCacheLock.RUnlock()
+        return n
+    }
+    netbiosCacheLock.RUnlock()
+
+    // Ensure nmblookup exists
+    if _, err := exec.LookPath("nmblookup"); err != nil {
+        return ""
+    }
+
+    // Run nmblookup -A <ip> with a short timeout
+    ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+    defer cancel()
+    out, err := exec.CommandContext(ctx, "nmblookup", "-A", ip).CombinedOutput()
+    if err != nil {
+        return ""
+    }
+
+    name := parseNetBIOSName(string(out))
+    if name != "" {
+        netbiosCacheLock.Lock()
+        netbiosCache[ip] = name
+        netbiosCacheLock.Unlock()
+    }
+    return name
+}
+
+// parseNetBIOSName extracts the UNIQUE <00> workstation name from nmblookup output
+func parseNetBIOSName(out string) string {
+    scanner := bufio.NewScanner(strings.NewReader(out))
+    for scanner.Scan() {
+        line := scanner.Text()
+        // Example: "MYPC         <00>  UNIQUE      Registered"
+        if strings.Contains(line, "<00>") && strings.Contains(line, "UNIQUE") {
+            fields := strings.Fields(line)
+            if len(fields) > 0 {
+                return fields[0]
+            }
+        }
+    }
+    return ""
+}
+
+// getNameFromStaticClients loads the static clients DB and returns a hostname for the IP
+func getNameFromStaticClients(ip string) string {
+    db := loadClientDatabase()
+    if entry, ok := db[ip]; ok {
+        return entry.Hostname
+    }
+    return ""
+}
+
+// getNameFromKeaLeases parses Kea memfile leases CSV and returns hostname for an IP
+func getNameFromKeaLeases(ip string) string {
+    leasesFile := os.Getenv("KEA_LEASES_CSV")
+    if leasesFile == "" {
+        leasesFile = "/var/lib/kea/kea-leases4.csv"
+    }
+    f, err := os.Open(leasesFile)
+    if err != nil {
+        return ""
+    }
+    defer f.Close()
+
+    scanner := bufio.NewScanner(f)
+    for scanner.Scan() {
+        line := scanner.Text()
+        if strings.HasPrefix(line, "#") || line == "" {
+            continue
+        }
+        // Kea memfile CSV default order:
+        // ip,hwaddr,client_id,valid_lifetime,expire,subnet_id,fqdn_fwd,fqdn_rev,hostname,state,...
+        parts := strings.Split(line, ",")
+        if len(parts) < 10 {
+            continue
+        }
+        if parts[0] == ip {
+            name := strings.TrimSpace(parts[8])
+            name = strings.Trim(name, "\"")
+            name = strings.TrimSuffix(name, ".lan")
+            // Filter to active, non-expired leases only
+            state := strings.TrimSpace(parts[9])
+            expireStr := strings.TrimSpace(parts[4])
+            if expireTs, err := strconv.ParseInt(expireStr, 10, 64); err == nil {
+                if state == "0" && time.Unix(expireTs, 0).After(time.Now()) {
+                    if name != "" && name != "*" && name != "null" {
+                        return name
+                    }
+                    return ""
+                }
+            }
+            return ""
+        }
+    }
+    return ""
+}
+
+// ensureDhcpSourcesLoaded refreshes caches from dhcp-hosts and Kea leases periodically
+func ensureDhcpSourcesLoaded() {
+    // dhcp-hosts every 30s
+    if time.Since(dhcpHostsLastLoad) > 30*time.Second {
+        loadDhcpHostsCache()
+    }
+    // Kea leases every 30s
+    if time.Since(keaLastLoad) > 30*time.Second {
+        loadKeaLeasesCache()
+    }
+}
+
+func loadDhcpHostsCache() {
+    filename := os.Getenv("DHCP_HOSTS_FILE")
+    if filename == "" {
+        filename = "/var/lib/kea/dhcp-hosts"
+    }
+    f, err := os.Open(filename)
+    if err != nil {
+        // Probably not present; update timestamp and keep
+        dhcpHostsLastLoad = time.Now()
+        return
+    }
+    defer f.Close()
+    m := make(map[string]string)
+    scanner := bufio.NewScanner(f)
+    for scanner.Scan() {
+        line := strings.TrimSpace(scanner.Text())
+        if line == "" || strings.HasPrefix(line, "#") {
+            continue
+        }
+        fields := strings.Fields(line)
+        if len(fields) >= 2 {
+            ip := fields[0]
+            name := strings.TrimSuffix(fields[1], ".lan")
+            if name != "" && net.ParseIP(ip) != nil {
+                m[ip] = name
+            }
+        }
+    }
+    dhcpHostsIPToName = m
+    dhcpHostsLastLoad = time.Now()
+}
+
+// loadKeaLeasesCache parses the memfile CSV and builds best-name maps for IP and MAC
+func loadKeaLeasesCache() {
+    // First try the Kea control socket for authoritative active leases
+    if tryLoadKeaViaSocket() {
+        keaLastLoad = time.Now()
+        return
+    }
+
+    leasesFile := os.Getenv("KEA_LEASES_CSV")
+    if leasesFile == "" {
+        leasesFile = "/var/lib/kea/kea-leases4.csv"
+    }
+
+    // Determine processing order per Kea memfile LFC design:
+    // If <filename>.completed exists:
+    //   [<filename>.completed, <filename>]
+    // else:
+    //   [<filename>.2, <filename>.1, <filename>]
+    order := []string{}
+    if _, err := os.Stat(leasesFile + ".completed"); err == nil {
+        order = append(order, leasesFile+".completed")
+        if _, err := os.Stat(leasesFile); err == nil {
+            order = append(order, leasesFile)
+        }
+    } else {
+        if _, err := os.Stat(leasesFile + ".2"); err == nil {
+            order = append(order, leasesFile+".2")
+        }
+        if _, err := os.Stat(leasesFile + ".1"); err == nil {
+            order = append(order, leasesFile+".1")
+        }
+        if _, err := os.Stat(leasesFile); err == nil {
+            order = append(order, leasesFile)
+        }
+    }
+    if len(order) == 0 {
+        keaLastLoad = time.Now()
+        return
+    }
+
+    ipBestExpire := make(map[string]int64)
+    macBestExpire := make(map[string]int64)
+    ipToName := make(map[string]string)
+    macToName := make(map[string]string)
+    now := time.Now()
+
+    process := func(path string) {
+        f, err := os.Open(path)
+        if err != nil {
+            return
+        }
+        defer f.Close()
+        r := csv.NewReader(f)
+        r.FieldsPerRecord = -1
+        header, err := r.Read()
+        if err != nil {
+            return
+        }
+        // header indices
+        find := func(name string) int {
+            for i, h := range header {
+                if h == name {
+                    return i
+                }
+            }
+            return -1
+        }
+        ipIdx := find("address")
+        macIdx := find("hwaddr")
+        hostIdx := find("hostname")
+        expIdx := find("expire")
+        stateIdx := find("state")
+        if ipIdx < 0 || macIdx < 0 || hostIdx < 0 || expIdx < 0 || stateIdx < 0 {
+            return
+        }
+        for {
+            rec, err := r.Read()
+            if err == io.EOF {
+                break
+            }
+            if err != nil || len(rec) <= stateIdx {
+                continue
+            }
+            ip := strings.TrimSpace(rec[ipIdx])
+            name := strings.TrimSpace(rec[hostIdx])
+            name = strings.Trim(name, "\"")
+            mac := strings.ToLower(strings.TrimSpace(rec[macIdx]))
+            if strings.HasSuffix(name, ".lan") {
+                name = strings.TrimSuffix(name, ".lan")
+            }
+            if name == "" || name == "*" || strings.EqualFold(name, "null") {
+                continue
+            }
+            expStr := strings.TrimSpace(rec[expIdx])
+            st := strings.TrimSpace(rec[stateIdx])
+            exp, _ := strconv.ParseInt(expStr, 10, 64)
+            if st != "0" || exp <= 0 || time.Unix(exp, 0).Before(now) {
+                continue
+            }
+            if ip != "" && net.ParseIP(ip) != nil {
+                if exp > ipBestExpire[ip] {
+                    ipBestExpire[ip] = exp
+                    ipToName[ip] = name
+                }
+            }
+            if mac != "" {
+                if exp > macBestExpire[mac] {
+                    macBestExpire[mac] = exp
+                    macToName[mac] = name
+                }
+            }
+        }
+    }
+
+    for _, p := range order {
+        process(p)
+    }
+
+    keaIPToName = ipToName
+    keaMacToName = macToName
+    keaLastLoad = time.Now()
+}
+
+// tryLoadKeaViaSocket queries the Kea control socket for lease4-get-all and
+// populates keaIPToName/keaMacToName if successful.
+func tryLoadKeaViaSocket() bool {
+    // Check socket existence early
+    if _, err := os.Stat(keaSocketPath); err != nil {
+        return false
+    }
+    // Dial UNIX socket
+    conn, err := net.DialTimeout("unix", keaSocketPath, 500*time.Millisecond)
+    if err != nil {
+        return false
+    }
+    defer conn.Close()
+    // Request all leases
+    req := []byte(`{ "command": "lease4-get-all", "service": ["dhcp4"] }` + "\n")
+    conn.SetWriteDeadline(time.Now().Add(500 * time.Millisecond))
+    if _, err := conn.Write(req); err != nil {
+        return false
+    }
+    // Read response
+    conn.SetReadDeadline(time.Now().Add(800 * time.Millisecond))
+    resp, err := io.ReadAll(conn)
+    if err != nil || len(resp) == 0 {
+        return false
+    }
+    // Minimal structs for JSON parsing
+    type lease struct {
+        IPAddress string `json:"ip-address"`
+        Hostname  string `json:"hostname"`
+        HWAddress string `json:"hw-address"`
+        State     int    `json:"state"`
+        ValidLft  int    `json:"valid-lft"`
+    }
+    var parsed struct {
+        Arguments struct {
+            Leases []lease `json:"leases"`
+        } `json:"arguments"`
+        Result int `json:"result"`
+    }
+    if err := json.Unmarshal(resp, &parsed); err != nil || parsed.Result != 0 {
+        return false
+    }
+    ipToName := make(map[string]string)
+    macToName := make(map[string]string)
+    for _, l := range parsed.Arguments.Leases {
+        if l.State != 0 || l.IPAddress == "" {
+            continue
+        }
+        name := strings.TrimSpace(strings.Trim(l.Hostname, "\""))
+        if strings.HasSuffix(name, ".lan") { name = strings.TrimSuffix(name, ".lan") }
+        if name == "" || strings.EqualFold(name, "null") || name == "*" {
+            continue
+        }
+        if net.ParseIP(l.IPAddress) != nil {
+            ipToName[l.IPAddress] = name
+        }
+        mac := strings.ToLower(strings.TrimSpace(l.HWAddress))
+        if mac != "" {
+            macToName[mac] = name
+        }
+    }
+    // Only consider it a success if we found at least one mapping
+    if len(ipToName) == 0 && len(macToName) == 0 {
+        return false
+    }
+    keaIPToName = ipToName
+    keaMacToName = macToName
+    return true
+}
+
+func getNameFromDhcpHostsCache(ip string) string {
+    if name, ok := dhcpHostsIPToName[ip]; ok {
+        return name
+    }
+    return ""
+}
+
+func getNameFromKeaCaches(ip, mac string) string {
+    if mac != "" {
+        if name, ok := keaMacToName[strings.ToLower(mac)]; ok && name != "" {
+            return name
+        }
+    }
+    if name, ok := keaIPToName[ip]; ok && name != "" {
+        return name
+    }
+    return ""
 }
 
 
@@ -745,8 +1272,8 @@ func inferDeviceType(hostname string, macAddr string, vendor string) string {
 	lowerHostname := strings.ToLower(hostname)
 	lowerVendor := strings.ToLower(vendor)
 	
-	// Check hostname patterns
-	switch {
+    // Check hostname patterns
+    switch {
 	// Apple devices
 	case strings.Contains(lowerHostname, "macbook"), strings.Contains(lowerHostname, "imac"):
 		return "laptop"
@@ -773,13 +1300,15 @@ func inferDeviceType(hostname string, macAddr string, vendor string) string {
 		strings.Contains(lowerHostname, "smartthings"):
 		return "iot"
 		
-	// Media devices
-	case strings.Contains(lowerHostname, "roku"),
-		strings.Contains(lowerHostname, "firetv"), strings.Contains(lowerHostname, "fire-tv"),
-		strings.Contains(lowerHostname, "shield"), // NVIDIA Shield
-		strings.Contains(lowerHostname, "vizio"),
-		strings.Contains(lowerHostname, "samsung-tv"), strings.Contains(lowerHostname, "lg-tv"):
-		return "media"
+    // Media devices
+    case strings.Contains(lowerHostname, "roku"),
+        strings.Contains(lowerHostname, "firetv"), strings.Contains(lowerHostname, "fire-tv"),
+        strings.Contains(lowerHostname, "shield"), // NVIDIA Shield
+        strings.Contains(lowerHostname, "vizio"),
+        strings.Contains(lowerHostname, "samsung-tv"), strings.Contains(lowerHostname, "lg-tv"),
+        strings.Contains(lowerHostname, "sonos"), strings.Contains(lowerHostname, "bravia"),
+        strings.Contains(lowerHostname, "hisense"), strings.Contains(lowerHostname, "tcl"):
+        return "media"
 		
 	// Gaming consoles
 	case strings.Contains(lowerHostname, "playstation"), strings.Contains(lowerHostname, "ps4"), strings.Contains(lowerHostname, "ps5"),
@@ -787,29 +1316,41 @@ func inferDeviceType(hostname string, macAddr string, vendor string) string {
 		strings.Contains(lowerHostname, "nintendo"), strings.Contains(lowerHostname, "switch"):
 		return "gaming"
 		
-	// Printers
-	case strings.Contains(lowerHostname, "printer"),
-		strings.HasPrefix(lowerHostname, "hp"), strings.Contains(lowerHostname, "officejet"),
-		strings.Contains(lowerHostname, "brother"),
-		strings.Contains(lowerHostname, "canon"),
-		strings.Contains(lowerHostname, "epson"):
-		return "printer"
+    // Printers
+    case strings.Contains(lowerHostname, "printer"),
+        strings.HasPrefix(lowerHostname, "hp"), strings.Contains(lowerHostname, "officejet"),
+        strings.Contains(lowerHostname, "laserjet"), strings.Contains(lowerHostname, "deskjet"),
+        strings.Contains(lowerHostname, "brother"),
+        strings.Contains(lowerHostname, "canon"),
+        strings.Contains(lowerHostname, "epson"):
+        return "printer"
 		
-	// Phones
-	case strings.Contains(lowerHostname, "android"), strings.Contains(lowerHostname, "phone"),
-		strings.Contains(lowerHostname, "pixel"), strings.Contains(lowerHostname, "galaxy"):
-		return "phone"
+    // Phones
+    case strings.Contains(lowerHostname, "android"), strings.Contains(lowerHostname, "phone"),
+        strings.Contains(lowerHostname, "pixel"), strings.Contains(lowerHostname, "galaxy"),
+        strings.Contains(lowerHostname, "oneplus"), strings.Contains(lowerHostname, "xiaomi"),
+        strings.Contains(lowerHostname, "huawei"), strings.Contains(lowerHostname, "oppo"),
+        strings.Contains(lowerHostname, "moto"), strings.Contains(lowerHostname, "nokia"):
+        return "phone"
 		
 	// Network equipment
 	case strings.Contains(lowerHostname, "switch"), strings.Contains(lowerHostname, "router"),
 		strings.Contains(lowerHostname, "ap-"), strings.Contains(lowerHostname, "unifi"):
 		return "network"
 		
-	// Computers
-	case strings.Contains(lowerHostname, "desktop"), strings.Contains(lowerHostname, "laptop"),
-		strings.Contains(lowerHostname, "pc-"), strings.Contains(lowerHostname, "workstation"):
-		return "computer"
-	}
+    // Computers
+    case strings.Contains(lowerHostname, "desktop"), strings.Contains(lowerHostname, "laptop"),
+        strings.Contains(lowerHostname, "pc-"), strings.Contains(lowerHostname, "workstation"),
+        strings.Contains(lowerHostname, "thinkpad"), strings.Contains(lowerHostname, "xps"),
+        strings.Contains(lowerHostname, "latitude"), strings.Contains(lowerHostname, "precision"):
+        return "computer"
+
+    // Storage / servers
+    case strings.Contains(lowerHostname, "nas"), strings.Contains(lowerHostname, "synology"),
+        strings.Contains(lowerHostname, "qnap"), strings.Contains(lowerHostname, "truenas"),
+        strings.Contains(lowerHostname, "unraid"):
+        return "storage"
+    }
 	
 	// Check vendor information from arp-scan
 	if vendor != "" {
@@ -870,43 +1411,85 @@ func inferDeviceType(hostname string, macAddr string, vendor string) string {
 		}
 	}
 	
-	// Check MAC OUI using proper database
-	if macAddr != "" && vendor == "" {
-		// Get vendor from OUI database
-		vendorFromDB := vendormap.MACVendor(macAddr)
-		if vendorFromDB != "" {
-			vendor = vendorFromDB
-			lowerVendor = strings.ToLower(vendor)
-			
-			// Re-run vendor-based device type detection with OUI vendor
-			switch {
-			// Apple devices
-			case strings.Contains(lowerVendor, "apple"):
-				if strings.Contains(lowerHostname, "iphone") {
-					return "phone"
-				} else if strings.Contains(lowerHostname, "ipad") {
-					return "tablet"
-				} else if strings.Contains(lowerHostname, "appletv") || strings.Contains(lowerHostname, "apple-tv") {
-					return "media"
-				}
-				return "computer"
-				
-			// Amazon devices
-			case strings.Contains(lowerVendor, "amazon"):
-				return "media"
-				
-			// Google devices
-			case strings.Contains(lowerVendor, "google"):
-				return "iot"
-				
-			// Network equipment vendors
-			case strings.Contains(lowerVendor, "ubiquiti"),
-				strings.Contains(lowerVendor, "cisco"),
-				strings.Contains(lowerVendor, "netgear"):
-				return "network"
-			}
-		}
-	}
+    // Always consider MAC OUI vendor as a supplemental hint
+    if macAddr != "" {
+        if vendor == "" {
+            vendor = vendormap.MACVendor(macAddr)
+            lowerVendor = strings.ToLower(vendor)
+        } else {
+            // If vendor already known, also try OUI to enrich matching
+            if v := vendormap.MACVendor(macAddr); v != "" {
+                lowerVendor = strings.ToLower(v)
+            }
+        }
+        if lowerVendor != "" {
+            switch {
+            // Apple devices
+            case strings.Contains(lowerVendor, "apple"):
+                if strings.Contains(lowerHostname, "iphone") {
+                    return "phone"
+                } else if strings.Contains(lowerHostname, "ipad") {
+                    return "tablet"
+                } else if strings.Contains(lowerHostname, "appletv") || strings.Contains(lowerHostname, "apple-tv") {
+                    return "media"
+                }
+                return "computer"
+
+            // Amazon devices
+            case strings.Contains(lowerVendor, "amazon"):
+                return "media"
+
+            // Google / Nest
+            case strings.Contains(lowerVendor, "google"), strings.Contains(lowerVendor, "nest"):
+                return "iot"
+
+            // Phones (manufacturers)
+            case strings.Contains(lowerVendor, "xiaomi"), strings.Contains(lowerVendor, "huawei"),
+                strings.Contains(lowerVendor, "oneplus"), strings.Contains(lowerVendor, "oppo"),
+                strings.Contains(lowerVendor, "motorola"):
+                return "phone"
+
+            // Storage vendors
+            case strings.Contains(lowerVendor, "synology"), strings.Contains(lowerVendor, "qnap"):
+                return "storage"
+
+            // Media devices / TVs
+            case strings.Contains(lowerVendor, "roku"), strings.Contains(lowerVendor, "vizio"),
+                strings.Contains(lowerVendor, "samsung"), strings.Contains(lowerVendor, "lg electronics"),
+                strings.Contains(lowerVendor, "sony"):
+                return "media"
+
+            // Smart home
+            case strings.Contains(lowerVendor, "belkin"), strings.Contains(lowerVendor, "tp-link"),
+                strings.Contains(lowerVendor, "tuya"), strings.Contains(lowerVendor, "espressif"),
+                strings.Contains(lowerVendor, "shelly"), strings.Contains(lowerVendor, "sonoff"):
+                return "iot"
+
+            // Network equipment vendors
+            case strings.Contains(lowerVendor, "ubiquiti"), strings.Contains(lowerVendor, "cisco"),
+                strings.Contains(lowerVendor, "netgear"), strings.Contains(lowerVendor, "asus"),
+                strings.Contains(lowerVendor, "d-link"):
+                return "network"
+
+            // Gaming / XR
+            case strings.Contains(lowerVendor, "nintendo"), strings.Contains(lowerVendor, "microsoft"),
+                strings.Contains(lowerVendor, "sony interactive"), strings.Contains(lowerVendor, "valve"),
+                strings.Contains(lowerVendor, "oculus"), strings.Contains(lowerVendor, "meta"):
+                return "gaming"
+
+            // Printers
+            case strings.Contains(lowerVendor, "hewlett packard"), strings.Contains(lowerVendor, "hp inc"),
+                strings.Contains(lowerVendor, "canon"), strings.Contains(lowerVendor, "epson"),
+                strings.Contains(lowerVendor, "brother"):
+                return "printer"
+
+            // PCs
+            case strings.Contains(lowerVendor, "dell"), strings.Contains(lowerVendor, "lenovo"),
+                strings.Contains(lowerVendor, "hp inc"):
+                return "computer"
+            }
+        }
+    }
 	
 	return "unknown"
 }
@@ -1108,6 +1691,68 @@ func updateClientDatabaseMetrics() {
 	for deviceType, count := range deviceTypes {
 		clientsByType.WithLabelValues(deviceType).Set(float64(count))
 	}
+}
+
+// safelyWriteHostsFile writes a consolidated hosts file mapping IP -> names.
+// Format per line: "IP name name.lan". Only writes if content changed.
+func safelyWriteHostsFile() {
+    // Build a map of IP -> name using known clients
+    clientsLock.RLock()
+    ips := make([]string, 0, len(clients))
+    for ip := range clients {
+        ips = append(ips, ip)
+    }
+    clientsLock.RUnlock()
+
+    // Sort IPs for stable output
+    sort.Slice(ips, func(i, j int) bool { return ips[i] < ips[j] })
+
+    var b strings.Builder
+    // Header
+    b.WriteString("# Generated by network-metrics-exporter\n")
+    now := time.Now().Format(time.RFC3339)
+    b.WriteString("# Updated: "+now+"\n")
+
+    for _, ip := range ips {
+        name := getClientName(ip)
+        if name == "" || name == "unknown" {
+            continue
+        }
+        // sanitize whitespace
+        name = strings.TrimSpace(name)
+        if name == "" {
+            continue
+        }
+        // Write "IP name name.lan"
+        b.WriteString(ip)
+        b.WriteByte(' ')
+        b.WriteString(name)
+        b.WriteByte(' ')
+        // append ".lan" suffix if not already a FQDN ending with known dot
+        if !strings.HasSuffix(name, ".lan") {
+            b.WriteString(name)
+            b.WriteString(".lan")
+        } else {
+            b.WriteString(name)
+        }
+        b.WriteByte('\n')
+    }
+
+    // Read current content (if any)
+    _ = os.MkdirAll("/var/lib/network-metrics-exporter", 0755)
+    newData := []byte(b.String())
+    oldData, _ := os.ReadFile(exporterHostsPath)
+    if bytes.Equal(newData, oldData) {
+        return
+    }
+    tmp := exporterHostsPath + ".tmp"
+    if err := os.WriteFile(tmp, newData, 0644); err != nil {
+        log.Printf("Error writing hosts file: %v", err)
+        return
+    }
+    if err := os.Rename(tmp, exporterHostsPath); err != nil {
+        log.Printf("Error renaming hosts file: %v", err)
+    }
 }
 
 // runPeriodicArpScan runs ARP scans on a fixed schedule
@@ -1333,6 +1978,10 @@ func discoverMDNS() {
 			entries := make(chan *zeroconf.ServiceEntry)
 			go func() {
 				for entry := range entries {
+					// Log any entry found
+					if debugTiming {
+						logTiming(" mDNS found entry: %s at %v", entry.Instance, entry.AddrIPv4)
+					}
 					// Check if IP is in our network
 					for _, ip := range entry.AddrIPv4 {
 						if strings.HasPrefix(ip.String(), networkPrefix) {
@@ -1358,8 +2007,11 @@ func discoverMDNS() {
 									DeviceType: deviceType,
 									LastSeen:   currentTime,
 								}
+								log.Printf("mDNS discovered: %s (%s) at %s", entry.Instance, service, ip.String())
 							}
 							cacheMutex.Unlock()
+						} else if debugTiming {
+							logTiming(" mDNS IP %s not in network %s", ip.String(), networkPrefix)
 						}
 					}
 				}
@@ -1476,4 +2128,229 @@ func inferDeviceTypeFromService(service string, instance string) string {
 	}
 	
 	return "unknown"
+}
+
+// runPeriodicSSDPDiscovery runs SSDP discovery on a fixed schedule
+func runPeriodicSSDPDiscovery() {
+	// Initial delay to avoid all discovery running at startup
+	time.Sleep(2 * time.Minute)
+	
+	// Run every 10 minutes (less frequent than mDNS as it's more disruptive)
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	
+	for {
+		discoverSSDP()
+		<-ticker.C
+	}
+}
+
+// discoverSSDP performs SSDP discovery to find UPnP devices on the network
+func discoverSSDP() {
+	start := time.Now()
+	defer func() {
+		logTiming(" Total discoverSSDP took %v", time.Since(start))
+	}()
+	
+	log.Println("Starting SSDP/UPnP discovery...")
+	
+	// Get network prefix from environment or use default
+	networkPrefix := os.Getenv("NETWORK_PREFIX")
+	if networkPrefix == "" {
+		networkPrefix = "192.168.10"
+	}
+	
+	newCache := make(map[string]*SSDPDevice)
+	currentTime := time.Now()
+	
+	// Create UDP socket for SSDP M-SEARCH
+	conn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
+	if err != nil {
+		log.Printf("Warning: Cannot create UDP socket for SSDP: %v", err)
+		return
+	}
+	defer conn.Close()
+	
+	// SSDP multicast address
+	ssdpAddr, _ := net.ResolveUDPAddr("udp", "239.255.255.250:1900")
+	
+	// M-SEARCH request
+	searchMsg := []byte("M-SEARCH * HTTP/1.1\r\n" +
+		"HOST: 239.255.255.250:1900\r\n" +
+		"ST: ssdp:all\r\n" +
+		"MAN: \"ssdp:discover\"\r\n" +
+		"MX: 3\r\n\r\n")
+	
+	// Send M-SEARCH
+	_, err = conn.WriteToUDP(searchMsg, ssdpAddr)
+	if err != nil {
+		log.Printf("Error sending SSDP M-SEARCH: %v", err)
+		return
+	}
+	
+	// Listen for responses (with timeout)
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	buf := make([]byte, 4096)
+	
+	responseCount := 0
+	for {
+		n, addr, err := conn.ReadFromUDP(buf)
+		if err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				break // Timeout reached, done reading
+			}
+			log.Printf("Error reading SSDP response: %v", err)
+			break
+		}
+		
+		responseCount++
+		// Check if response is from our network
+		ip := addr.IP.String()
+		if debugTiming {
+			logTiming(" SSDP response %d from %s", responseCount, ip)
+		}
+		
+		if !strings.HasPrefix(ip, networkPrefix) {
+			if debugTiming {
+				logTiming(" SSDP IP %s not in network %s", ip, networkPrefix)
+			}
+			continue
+		}
+		
+		// Parse SSDP response to get LOCATION header
+		response := string(buf[:n])
+		location := extractSSDPHeader(response, "LOCATION")
+		if location == "" {
+			if debugTiming {
+				logTiming(" SSDP response from %s has no LOCATION header", ip)
+			}
+			continue
+		}
+		
+		log.Printf("SSDP found device at %s with location: %s", ip, location)
+		
+		// Fetch device description XML (with timeout)
+		deviceInfo := fetchUPnPDeviceInfo(location)
+		if deviceInfo != nil {
+			deviceInfo.IP = ip
+			deviceInfo.LastSeen = currentTime
+			newCache[ip] = deviceInfo
+			log.Printf("SSDP device identified: %s at %s", deviceInfo.FriendlyName, ip)
+		} else if debugTiming {
+			logTiming(" SSDP failed to fetch device info from %s", location)
+		}
+	}
+	
+	if debugTiming {
+		logTiming(" SSDP received %d responses total", responseCount)
+	}
+	
+	// Update cache
+	ssdpCacheLock.Lock()
+	ssdpCache = newCache
+	lastSSDPScan = currentTime
+	ssdpCacheLock.Unlock()
+	
+	log.Printf("SSDP discovery completed: found %d devices", len(newCache))
+}
+
+// extractSSDPHeader extracts a header value from SSDP response
+func extractSSDPHeader(response, header string) string {
+	lines := strings.Split(response, "\r\n")
+	headerUpper := strings.ToUpper(header) + ":"
+	for _, line := range lines {
+		if strings.HasPrefix(strings.ToUpper(line), headerUpper) {
+			return strings.TrimSpace(strings.SplitN(line, ":", 2)[1])
+		}
+	}
+	return ""
+}
+
+// fetchUPnPDeviceInfo fetches and parses UPnP device description XML
+func fetchUPnPDeviceInfo(location string) *SSDPDevice {
+	// Use a short timeout for HTTP request
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(location)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+	
+	// Read response body
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024)) // Limit to 1MB
+	if err != nil {
+		return nil
+	}
+	
+	// Parse XML to extract device info
+	// Simple regex parsing for common fields (avoiding XML dependencies)
+	body := string(bodyBytes)
+	
+	device := &SSDPDevice{}
+	
+	// Extract friendlyName
+	if match := regexp.MustCompile(`<friendlyName>([^<]+)</friendlyName>`).FindStringSubmatch(body); len(match) > 1 {
+		device.FriendlyName = strings.TrimSpace(match[1])
+	}
+	
+	// Extract modelName
+	if match := regexp.MustCompile(`<modelName>([^<]+)</modelName>`).FindStringSubmatch(body); len(match) > 1 {
+		device.ModelName = strings.TrimSpace(match[1])
+	}
+	
+	// Extract manufacturer
+	if match := regexp.MustCompile(`<manufacturer>([^<]+)</manufacturer>`).FindStringSubmatch(body); len(match) > 1 {
+		device.Manufacturer = strings.TrimSpace(match[1])
+	}
+	
+	// Extract UDN (UUID)
+	if match := regexp.MustCompile(`<UDN>uuid:([^<]+)</UDN>`).FindStringSubmatch(body); len(match) > 1 {
+		device.UUID = strings.TrimSpace(match[1])
+	}
+	
+	// Infer device type
+	device.DeviceType = inferDeviceTypeFromUPnP(device.FriendlyName, device.ModelName, device.Manufacturer)
+	
+	// Only return if we got at least a friendly name
+	if device.FriendlyName != "" {
+		return device
+	}
+	
+	return nil
+}
+
+// inferDeviceTypeFromUPnP infers device type from UPnP device info
+func inferDeviceTypeFromUPnP(friendlyName, modelName, manufacturer string) string {
+	combined := strings.ToLower(friendlyName + " " + modelName + " " + manufacturer)
+	
+	switch {
+	case strings.Contains(combined, "tv"), strings.Contains(combined, "television"):
+		return "media"
+	case strings.Contains(combined, "roku"), strings.Contains(combined, "chromecast"), 
+		strings.Contains(combined, "fire tv"), strings.Contains(combined, "apple tv"):
+		return "media"
+	case strings.Contains(combined, "printer"):
+		return "printer"
+	case strings.Contains(combined, "router"), strings.Contains(combined, "gateway"):
+		return "network"
+	case strings.Contains(combined, "nas"), strings.Contains(combined, "synology"), strings.Contains(combined, "qnap"):
+		return "storage"
+	case strings.Contains(combined, "playstation"), strings.Contains(combined, "xbox"), strings.Contains(combined, "nintendo"):
+		return "gaming"
+	case strings.Contains(combined, "sonos"), strings.Contains(combined, "speaker"):
+		return "media"
+	case strings.Contains(combined, "camera"):
+		return "iot"
+	default:
+		return "unknown"
+	}
+}
+
+// updateNameSourceMetric updates metrics tracking name resolution sources
+func updateNameSourceMetric(source string) {
+	// This is called frequently, so we'll batch updates
+	// For now, just log at debug level
+	if debugTiming {
+		logTiming(" Name resolved from source: %s", source)
+	}
 }

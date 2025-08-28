@@ -102,17 +102,18 @@ in {
           type = "memfile";
           persist = true;
           name = "/var/lib/kea/kea-leases4.csv";
-          lfc-interval = 3600; # Run lease file cleanup every hour to prevent duplicate buildup
-          # Keep expired leases for an additional 7 days before purging
+          # Run Lease File Cleanup more frequently to compact stale rows
+          lfc-interval = 600; # 10 minutes
           max-row-errors = 100;
         };
 
         # Expired lease processing - keep expired leases in memory for tracking
         expired-leases-processing = {
-          reclaim-timer-wait-time = 3600; # Wait 1 hour before reclaiming expired leases
-          hold-reclaimed-time = 604800; # Hold reclaimed leases for 7 days
-          max-reclaim-leases = 100; # Process up to 100 expired leases at a time
-          max-reclaim-time = 250; # Spend max 250ms processing expired leases
+          reclaim-timer-wait-time = 900; # Reclaim expired leases every 15 minutes
+          hold-reclaimed-time = 900; # Keep reclaimed leases for 15 minutes before purge
+          flush-reclaimed-timer-wait-time = 900; # Flush reclaimed to disk regularly
+          max-reclaim-leases = 500; # Process more per cycle to catch up
+          max-reclaim-time = 500; # Allow more time for reclamation
         };
 
         # Hook libraries for dynamic hosts file updates and statistics
@@ -123,6 +124,11 @@ in {
               name = "${keaHostsHook}";
               sync = false;
             };
+          }
+          {
+            # Enable lease commands over control socket (lease4-get, lease4-get-all, etc.)
+            library = "${pkgs.kea}/lib/kea/hooks/libdhcp_lease_cmds.so";
+            parameters = {};
           }
           {
             library = "${pkgs.kea}/lib/kea/hooks/libdhcp_stat_cmds.so";
@@ -196,6 +202,7 @@ in {
     hostsFile = {
       sources = [
         dhcpHostsFile
+        "/var/lib/network-metrics-exporter/hosts"
       ];
       hostsTTL = "30s";
       filterLoopback = false;
