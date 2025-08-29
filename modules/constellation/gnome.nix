@@ -121,12 +121,12 @@
     # Disable network manager wait
     systemd.services.NetworkManager-wait-online.enable = false;
 
-    # Hardware graphics support with 32-bit compatibility
+    # Hardware graphics support with 32-bit compatibility (x86_64 only)
     hardware.graphics = {
       enable = true;
-      enable32Bit = true;
+      enable32Bit = pkgs.stdenv.hostPlatform.isx86_64;
       extraPackages = with pkgs; [mangohud];
-      extraPackages32 = with pkgs; [mangohud];
+      extraPackages32 = lib.optionals pkgs.stdenv.hostPlatform.isx86_64 (with pkgs; [mangohud]);
     };
 
     # Remove unwanted GNOME apps
@@ -197,19 +197,21 @@
         mupen64plus
         rpcs3
       ]
-      ++ lib.optionals config.constellation.gnome.multimedia [
-        # Multimedia support
-        plex-mpv-shim
-        multiviewer-for-f1
-        # GStreamer plugins
-        gst_all_1.gstreamer
-        gst_all_1.gst-plugins-base
-        gst_all_1.gst-plugins-good
-        gst_all_1.gst-plugins-bad
-        gst_all_1.gst-plugins-ugly
-        gst_all_1.gst-libav
-        gst_all_1.gst-vaapi
-      ]
+      ++ lib.optionals config.constellation.gnome.multimedia ([
+          # Multimedia support
+          plex-mpv-shim
+          # GStreamer plugins
+          gst_all_1.gstreamer
+          gst_all_1.gst-plugins-base
+          gst_all_1.gst-plugins-good
+          gst_all_1.gst-plugins-bad
+          gst_all_1.gst-plugins-ugly
+          gst_all_1.gst-libav
+          gst_all_1.gst-vaapi
+        ]
+        ++ lib.optionals pkgs.stdenv.hostPlatform.isx86_64 [
+          multiviewer-for-f1
+        ])
       ++ lib.optionals config.constellation.gnome.virtualization [
         # Virtualization tools
         quickemu
@@ -245,7 +247,7 @@
       fontconfig = {
         enable = true;
         antialias = true;
-        cache32Bit = true;
+        cache32Bit = pkgs.stdenv.hostPlatform.isx86_64;
         hinting = {
           enable = true;
           autohint = false; # Disable autohint for better quality with modern fonts
