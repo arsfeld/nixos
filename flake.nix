@@ -25,6 +25,8 @@
     nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
     eh5.url = "github:EHfive/flakes"; # EH5's flake collection (fake-hwclock module)
     eh5.inputs.nixpkgs.follows = "nixpkgs";
+    nixos-apple-silicon.url = "github:nix-community/nixos-apple-silicon"; # Apple Silicon support
+    nixos-apple-silicon.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = {self, ...} @ inputs:
@@ -230,7 +232,7 @@
           in {
             hostname = "${hostName}.bat-boa.ts.net";
             fastConnection = false;
-            remoteBuild = hostName == "cloud"; # Enable remote build for cloud (aarch64)
+            remoteBuild = hostName == "cloud"; # Only cloud uses remote build, mbair builds locally
             profiles.system.path = inputs.deploy-rs.lib.${system}.activate.nixos self.nixosConfigurations.${hostName};
           };
         in {
@@ -260,11 +262,15 @@
           mkColmenaHost = hostName: let
             # Check if host has a disko config file
             hasDisko = builtins.pathExists ./hosts/${hostName}/disko-config.nix;
+            # Build locally for aarch64 hosts to avoid space issues
+            hostConfig = self.nixosConfigurations.${hostName}.config;
+            system = hostConfig.nixpkgs.hostPlatform.system or "x86_64-linux";
+            isAarch64 = system == "aarch64-linux";
           in {
             deployment = {
               targetHost = "${hostName}.bat-boa.ts.net";
               targetUser = "root";
-              buildOnTarget = false;
+              buildOnTarget = false; # Always build locally
             };
             imports =
               self.lib.baseModules
