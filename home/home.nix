@@ -24,6 +24,7 @@
 in {
   imports = [
     ./ghostty.nix
+    ./neovim.nix
   ];
 
   # Home Manager needs a bit of information about you and the
@@ -58,6 +59,7 @@ in {
         htop
         kondo
         kotlin
+        mosh
         nil
         nodejs
         procs
@@ -345,7 +347,7 @@ in {
   };
 
   programs.mangohud = mkIf stdenv.isLinux {
-    enable = true;
+    enable = false;
     enableSessionWide = false;
     settings = {
       # Minimal display configuration for FPS and essential stats
