@@ -46,6 +46,10 @@ with lib; {
         # Enable substitutes for remote builders
         builders-use-substitutes = true;
 
+        # Increase download buffer size to prevent "download buffer is full" warnings
+        # Default is 64 MiB, increasing to 256 MiB
+        download-buffer-size = 268435456; # 256 * 1024 * 1024
+
         substituters = [
           "https://nix-community.cachix.org?priority=41" # this is a useful public cache!
           "https://numtide.cachix.org?priority=42" # this is also a useful public cache!

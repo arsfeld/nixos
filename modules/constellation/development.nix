@@ -57,6 +57,7 @@
         git
         gh
         lazygit
+        sublime-merge
         git-crypt
 
         # Editors
