@@ -128,14 +128,13 @@
           proton-ge-bin
         ];
 
-        # Native GTK theme for Steam and MangoHud support
+        # Native GTK theme for Steam
         package = pkgs.steam.override {
           extraPkgs = pkgs:
             with pkgs; [
               adwsteamgtk # Adwaita theme manager for Steam
-              mangohud # Ensure MangoHud is available to Steam
             ];
-          extraLibraries = pkgs: [pkgs.mangohud];
+          extraLibraries = pkgs: [];
         };
       };
 
@@ -191,7 +190,6 @@
       protontricks
 
       # Performance monitoring
-      mangohud
       goverlay
       vkbasalt
 
