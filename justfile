@@ -24,6 +24,19 @@ boot +TARGETS:
 deploy +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail # Enable strict error handling
+    
+    # If running on storage host, cache builds first to prevent GC issues
+    if [[ "$(hostname)" == "storage" ]]; then
+        echo "Caching builds to Attic before deployment..."
+        for target in {{ TARGETS }}; do
+            echo "Caching $target..."
+            OUTPUT=$(nix build ".#nixosConfigurations.$target.config.system.build.toplevel" --no-link --print-out-paths)
+            if [ -n "$OUTPUT" ]; then
+                attic push system "$OUTPUT" || echo "Warning: Failed to push $target to cache"
+            fi
+        done
+    fi
+    
     # Build deploy command with multiple --targets flags
     cmd="deploy {{ args }}"
     for target in {{ TARGETS }}; do
@@ -66,6 +79,21 @@ trace +TARGETS:
 build HOST:
     nix build '.#nixosConfigurations.{{ HOST }}.config.system.build.toplevel'
     attic push system result
+
+# Cache a specific host configuration to Attic
+cache HOST:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Building and caching {{ HOST }}..."
+    OUTPUT=$(nix build '.#nixosConfigurations.{{ HOST }}.config.system.build.toplevel' --no-link --print-out-paths)
+    echo "Pushing to Attic cache..."
+    attic push system "$OUTPUT"
+    echo "{{ HOST }} cached successfully"
+
+# Deploy with automatic caching
+deploy-cached HOST *ARGS:
+    just cache {{ HOST }}
+    just deploy {{ HOST }} {{ ARGS }}
 
 r2s:
     #!/usr/bin/env bash
