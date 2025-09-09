@@ -4,6 +4,7 @@
   config,
   pkgs,
   lib,
+  inputs,
   ...
 }: {
   options.constellation.gnome = {
@@ -73,7 +74,13 @@
     };
   };
 
-  config = lib.mkIf config.constellation.gnome.enable {
+  config = lib.mkIf config.constellation.gnome.enable (let
+    # Create unstable package set
+    pkgs-unstable = import inputs.nixpkgs-unstable {
+      inherit (pkgs) system;
+      config.allowUnfree = true;
+    };
+  in {
     # GNOME Desktop Environment
     services.xserver = {
       enable = true;
@@ -125,8 +132,8 @@
     hardware.graphics = {
       enable = true;
       enable32Bit = true;
-      extraPackages = with pkgs; [mangohud];
-      extraPackages32 = with pkgs; [mangohud];
+      extraPackages = with pkgs; [];
+      extraPackages32 = with pkgs; [];
     };
 
     # Remove unwanted GNOME apps
@@ -150,7 +157,7 @@
     environment.systemPackages = with pkgs;
       [
         # Core applications
-        zed-editor
+        pkgs-unstable.zed-editor
         vim
         wget
         ghostty
@@ -159,8 +166,6 @@
         variety
         gradience
         gnome-tweaks
-        # Bazaar - GNOME app store for Flatpak
-        bazaar
       ]
       ++ lib.optionals config.constellation.gnome.gnomeExtensions [
         # GNOME extensions
@@ -190,7 +195,6 @@
         wineWowPackages.stable
         gamescope
         goverlay
-        mangohud
         vkbasalt
         protonplus
         ryujinx
@@ -300,5 +304,5 @@
         fira-code
       ];
     };
-  };
+  });
 }
