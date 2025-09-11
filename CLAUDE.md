@@ -17,13 +17,13 @@ nix develop
 ### Secret Management
 ```bash
 # Edit an encrypted secret
-agenix -e secrets/secret-name.age
+ragenix -e secrets/secret-name.age
 
 # View decrypted secret (use with caution)
 cd secrets && age -d -i ~/.ssh/id_ed25519 secret-name.age
 
 # Rekey all secrets (after adding/removing keys in secrets.nix)
-agenix -r
+ragenix -r
 ```
 
 ### Deployment Commands
@@ -84,7 +84,7 @@ The repository is configured to use `cloud` (aarch64-linux) as a remote builder:
 ### Directory Structure
 - `/hosts/` - Machine-specific configurations. Each host has its own directory with configuration.nix and hardware-configuration.nix
 - `/modules/` - Reusable NixOS modules, especially the `constellation/` modules that provide opt-in features
-- `/secrets/` - Encrypted secrets using agenix (age encryption)
+- `/secrets/` - Encrypted secrets using ragenix (rust-based age encryption)
 - `/home/` - Home Manager configuration for user environments
 
 ### Key Configuration Patterns
@@ -96,7 +96,7 @@ The repository is configured to use `cloud` (aarch64-linux) as a remote builder:
    - `constellation.media` - Media server stack
    - `constellation.podman` - Container runtime
 
-2. **Secret Management**: All secrets are encrypted with agenix. Secrets are defined in `secrets/secrets.nix` and encrypted files are in `/secrets/*.age`
+2. **Secret Management**: All secrets are encrypted with ragenix. Secrets are defined in `secrets/secrets.nix` and encrypted files are in `/secrets/*.age`
 
 3. **Deployment**: Supports both deploy-rs and Colmena for remote deployment. All hosts are accessible via Tailscale VPN (*.bat-boa.ts.net)
 
