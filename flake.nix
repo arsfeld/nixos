@@ -7,8 +7,8 @@
     nixos-generators.inputs.nixpkgs.follows = "nixpkgs";
     disko.url = "github:nix-community/disko"; # Declarative disk partitioning
     disko.inputs.nixpkgs.follows = "nixpkgs";
-    agenix.url = "github:ryantm/agenix"; # Age-based secret management
-    agenix.inputs.nixpkgs.follows = "nixpkgs";
+    ragenix.url = "github:yaxitech/ragenix"; # Rust-based age secret management (faster and more reliable)
+    ragenix.inputs.nixpkgs.follows = "nixpkgs";
     home-manager.url = "github:nix-community/home-manager/release-25.05"; # User environment management
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     deploy-rs.url = "github:serokell/deploy-rs"; # Remote deployment tool
@@ -74,7 +74,7 @@
               jq
               just
               openssl
-              inputs.agenix.packages."${pkgs.stdenv.system}".default
+              inputs.ragenix.packages."${pkgs.stdenv.system}".default
               inputs.disko.packages."${pkgs.stdenv.system}".default
 
               # Python tools
@@ -141,7 +141,7 @@
           ];
 
           baseModules = inputs.nixpkgs.lib.flatten [
-            inputs.agenix.nixosModules.default
+            inputs.ragenix.nixosModules.default
             inputs.determinate.nixosModules.default
             inputs.nix-flatpak.nixosModules.nix-flatpak
             inputs.tsnsrv.nixosModules.default
