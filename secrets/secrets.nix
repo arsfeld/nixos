@@ -37,7 +37,9 @@ in {
   "plausible-secret-key.age".publicKeys = users ++ [cloud];
   "plausible-smtp-password.age".publicKeys = users ++ [cloud];
   "google-api-key.age".publicKeys = users ++ systems;
-  "github-token.age".publicKeys = users ++ systems;
   "minio-credentials.age".publicKeys = users ++ systems;
-  "restic-cottage-minio.age".publicKeys = users ++ systems;
+  "keycloak-pass.age".publicKeys = users ++ [cloud];
+  "plausible-admin-password.age".publicKeys = users ++ [cloud];
+  "restic-rest-auth.age".publicKeys = users ++ systems;
+  "restic-rest-micro.age".publicKeys = users ++ [cottage];
 }
