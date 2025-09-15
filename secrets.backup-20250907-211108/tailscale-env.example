@@ -1,0 +1,12 @@
+# Example Tailscale environment file for Caddy OAuth integration
+# 
+# To create the encrypted version:
+# 1. Copy the OAuth client key from your existing tailscale-key.age file
+# 2. Format it as an environment variable: TS_AUTHKEY=tskey-client-xxxxx
+# 3. Encrypt it using ragenix:
+#    echo "TS_AUTHKEY=tskey-client-xxxxx" | ragenix -e secrets/tailscale-env.age --rules secrets/secrets.nix
+#
+# The OAuth client key should be the same one currently used by tsnsrv
+# (the one stored in tailscale-key.age)
+
+TS_AUTHKEY=tskey-client-YOUR-KEY-HERE

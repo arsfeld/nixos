@@ -24,6 +24,12 @@
     domain = "plausible.arsfeld.dev";
   };
 
+  # Enable Planka kanban board
+  constellation.planka = {
+    enable = true;
+    domain = "planka.arsfeld.dev";
+  };
+
   boot = {
     binfmt.emulatedSystems = ["x86_64-linux"];
   };
