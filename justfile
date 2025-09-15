@@ -24,19 +24,21 @@ boot +TARGETS:
 deploy +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail # Enable strict error handling
-    
-    # If running on storage host, cache builds first to prevent GC issues
+
+    # Start attic watch-store in background if on storage host
+    WATCH_PID=""
     if [[ "$(hostname)" == "storage" ]]; then
-        echo "Caching builds to Attic before deployment..."
-        for target in {{ TARGETS }}; do
-            echo "Caching $target..."
-            OUTPUT=$(nix build ".#nixosConfigurations.$target.config.system.build.toplevel" --no-link --print-out-paths)
-            if [ -n "$OUTPUT" ]; then
-                attic push system "$OUTPUT" || echo "Warning: Failed to push $target to cache"
-            fi
-        done
+        echo "Starting attic watch-store to cache builds..."
+        attic watch-store system &
+        WATCH_PID=$!
+
+        # Ensure watch-store is killed on exit
+        trap 'if [ -n "$WATCH_PID" ]; then kill $WATCH_PID 2>/dev/null || true; fi' EXIT INT TERM
+
+        # Give watch-store a moment to start
+        sleep 1
     fi
-    
+
     # Build deploy command with multiple --targets flags
     cmd="deploy {{ args }}"
     for target in {{ TARGETS }}; do
@@ -90,9 +92,8 @@ cache HOST:
     attic push system "$OUTPUT"
     echo "{{ HOST }} cached successfully"
 
-# Deploy with automatic caching
+# Deploy with automatic caching (note: caching is now automatic via watch-store)
 deploy-cached HOST *ARGS:
-    just cache {{ HOST }}
     just deploy {{ HOST }} {{ ARGS }}
 
 r2s:
@@ -490,6 +491,33 @@ router-interfaces TARGET_HOST:
     EOF
 
 
+
+# Create a new secret file with a random value
+# Usage: just secret-create <secret-name>
+# Example: just secret-create planka-db-password
+secret-create SECRET_NAME:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Check if ragenix is available
+    if ! command -v ragenix &> /dev/null; then
+        echo "Error: ragenix command not found. Please enter the development shell with 'nix develop'"
+        exit 1
+    fi
+
+    # Generate a random secret
+    SECRET_VALUE=$(openssl rand -base64 32)
+
+    # Create temporary file with the secret
+    TMPFILE=$(mktemp)
+    trap 'rm -f "$TMPFILE"' EXIT
+    echo "$SECRET_VALUE" > "$TMPFILE"
+
+    # Encrypt the secret
+    cd secrets && EDITOR="cp $TMPFILE" ragenix -e "{{ SECRET_NAME }}.age"
+
+    echo "✅ Secret '{{ SECRET_NAME }}.age' created successfully"
+    echo "Don't forget to add it to secrets/secrets.nix if needed!"
 
 # Setup Plausible Analytics secrets
 plausible-setup:

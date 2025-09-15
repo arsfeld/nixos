@@ -39,6 +39,7 @@
 - PRs: concise description, affected hosts/modules, linked issues, commands run (`nix flake check`, builds), and relevant test output. For docs, include screenshots/links.
 
 ## Security & Configuration Tips
-- Secrets: never commit plaintext. Edit via `agenix -e secrets/<name>.age`.
+- Secrets: never commit plaintext. Edit via `ragenix -e secrets/<name>.age`.
+- Create new secrets with random values: `just secret-create <secret-name>`.
 - Use `.envrc.local` for machine‑local settings; keep it untracked.
 - Review `just install`/`disko` warnings carefully—these can wipe disks.

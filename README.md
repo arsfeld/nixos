@@ -33,7 +33,7 @@ This repo contains configurations for multiple machines:
 
 - 📦 Fully declarative system configurations
 - 🏠 Home-manager setup for user environment
-- 🔒 Secret management with Agenix
+- 🔒 Secret management with Ragenix
 - 🔄 Deployment via deploy-rs
 - 💻 Development environment with devshell
 - 🤖 CI/CD pipeline for building systems
@@ -98,6 +98,26 @@ just hardware-config <hostname> <target-host>
 just router-interfaces <target-host>
 ```
 
+### Secret Management
+
+This repository uses [ragenix](https://github.com/yaxitech/ragenix) for managing encrypted secrets:
+
+```bash
+# Edit an existing secret
+ragenix -e secrets/secret-name.age
+
+# Create a new secret with a random value
+just secret-create <secret-name>
+
+# Rekey all secrets (after adding/removing keys in secrets.nix)
+ragenix -r
+```
+
+After creating a new secret:
+1. Add it to `secrets/secrets.nix` with appropriate public keys
+2. Reference it in your NixOS module using `config.age.secrets.<name>`
+3. Commit the encrypted `.age` file (never commit plaintext!)
+
 ### Building SD Images
 
 ```bash
@@ -114,7 +134,7 @@ just r2s
 - `modules/` - Reusable NixOS modules
 - `home/` - Home-manager configurations
 - `packages/` - Custom packages
-- `secrets/` - Encrypted secrets (via agenix)
+- `secrets/` - Encrypted secrets (via ragenix)
 - `overlays/` - Nixpkgs overlays
 
 ## 📦 Custom Packages
@@ -153,7 +173,7 @@ This project uses:
 
 - Nix Flakes
 - Home Manager
-- Agenix
+- Ragenix
 - deploy-rs
 - disko
 - Attic (for binary cache)
