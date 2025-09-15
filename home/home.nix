@@ -106,6 +106,7 @@ in {
     shellAliases = {
       "df" = "df -h -x tmpfs";
       "claude" = "${pkgs.nodejs}/bin/npx -y @anthropic-ai/claude-code@latest";
+      "backlog" = "${pkgs.nodejs}/bin/npx -y backlog.md@latest";
     };
 
     shell = {
