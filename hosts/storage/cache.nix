@@ -7,9 +7,9 @@
   # Nix garbage collection settings to keep recent builds
   nix.gc = {
     automatic = true;
-    dates = "weekly";
+    dates = lib.mkForce "weekly";
     # Keep builds for 90 days to ensure deployment artifacts remain available
-    options = "--delete-older-than 90d";
+    options = lib.mkForce "--delete-older-than 90d";
     persistent = true;
   };
 
