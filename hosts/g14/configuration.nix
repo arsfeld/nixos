@@ -77,15 +77,15 @@
     "nmi_watchdog=0"
   ];
 
-  # Memory management settings to prevent swap thrashing
+  # Memory management settings to prevent swap thrashing - G14 specific overrides
   boot.kernel.sysctl = {
     # Reduce swappiness - only swap when really necessary (default is 60)
-    "vm.swappiness" = 10;
+    "vm.swappiness" = lib.mkForce 10;
     # Don't swap out pages unless memory pressure is high
-    "vm.vfs_cache_pressure" = 50;
+    "vm.vfs_cache_pressure" = lib.mkForce 50;
     # Prefer to reclaim page cache over swap
-    "vm.dirty_ratio" = 15;
-    "vm.dirty_background_ratio" = 5;
+    "vm.dirty_ratio" = lib.mkForce 15;
+    "vm.dirty_background_ratio" = lib.mkForce 5;
   };
 
   # Remove zfs support
