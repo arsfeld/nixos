@@ -69,6 +69,7 @@
         "net.lutris.Lutris"
         "app.devsuite.Ptyxis"
         "app.zen_browser.zen"
+        "io.github.kolunmi.Bazaar"
       ];
       description = "Flatpak packages to install";
     };
@@ -204,7 +205,7 @@
       ++ lib.optionals config.constellation.gnome.multimedia [
         # Multimedia support
         plex-mpv-shim
-        multiviewer-for-f1
+        pkgs-unstable.multiviewer-for-f1
         # GStreamer plugins
         gst_all_1.gstreamer
         gst_all_1.gst-plugins-base

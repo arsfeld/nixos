@@ -36,6 +36,11 @@ in {
       then "/home/arosenfeld"
       else "/Users/arosenfeld";
     stateVersion = "22.05";
+
+    # NPM configuration
+    file.".npmrc".text = ''
+      prefix=$HOME/.npm-global
+    '';
     packages = with pkgs;
       [
         android-tools
@@ -82,6 +87,7 @@ in {
     sessionVariables =
       {
         PNPM_HOME = "$HOME/.local/share/pnpm";
+        NPM_CONFIG_PREFIX = "$HOME/.npm-global";
       }
       // (
         if stdenv.isDarwin
@@ -94,6 +100,7 @@ in {
       [
         "$HOME/.local/bin"
         "$HOME/.local/share/pnpm"
+        "$HOME/.npm-global/bin"
       ]
       ++ (
         if stdenv.isDarwin
@@ -143,6 +150,11 @@ in {
   programs.fish = {
     enable = true;
     interactiveShellInit = ''
+      # Add npm global bin to PATH
+      if test -d $HOME/.npm-global/bin
+        fish_add_path -g $HOME/.npm-global/bin
+      end
+
       # Homebrew macOS
       if test -f /opt/homebrew/bin/brew
         eval (/opt/homebrew/bin/brew shellenv)
