@@ -1,6 +1,7 @@
 +++
 title = "Managing a Multi-Host Homelab with NixOS"
 date = 2025-06-10
+aliases = ["/posts/managing-homelab-with-nixos/"]
 description = "How I transformed my homelab from a fragile Ubuntu setup to a declarative NixOS infrastructure with automated deployments"
 tags = ["nixos", "homelab", "self-hosting", "infrastructure", "devops"]
 +++

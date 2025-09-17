@@ -1,6 +1,7 @@
 +++
 title = "GSoC 2010: DACP Support in Rhythmbox"
 date = 2010-05-21
+aliases = ["/posts/gsoc-2010-dacp-support-in-rhythmbox/"]
 description = "Community bonding is almost over so I thought I could share some details about my Google Summer of Code project.   As the title says, I will implement DACP support for Rhythmbox. You probably never he"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++

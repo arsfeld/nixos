@@ -1,6 +1,7 @@
 +++
 title = "How to Write Tests for Your NixOS Router Configuration"
 date = 2025-07-20
+aliases = ["/posts/nixos-router-blog-post-2-testing/"]
 description = "Learn how to write comprehensive tests for your NixOS router configuration to ensure reliability and catch errors before deployment. Part 2 of the NixOS Router Series."
 [taxonomies]
 tags = ["nixos", "router", "testing", "networking", "homelab", "tutorial"]

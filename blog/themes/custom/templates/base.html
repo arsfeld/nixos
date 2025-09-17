@@ -106,6 +106,106 @@
     
     <!-- Scripts -->
     <script src="{{ get_url(path="main.js") }}?v={{ now() | date(format="%s") }}"></script>
+
+    <!-- Mermaid diagram support -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        // Process Mermaid diagrams after page load
+        window.addEventListener('load', async function() {
+            console.log('Initializing Mermaid diagrams...');
+
+            // Initialize Mermaid with custom configuration
+            mermaid.initialize({
+                startOnLoad: false,
+                theme: 'default',
+                securityLevel: 'loose',
+                themeVariables: {
+                    primaryColor: '#0066cc',
+                    primaryTextColor: '#333',
+                    primaryBorderColor: '#0066cc',
+                    lineColor: '#333',
+                    secondaryColor: '#51cf66',
+                    tertiaryColor: '#74c0fc',
+                    background: '#fff',
+                    mainBkg: '#fff',
+                    secondBkg: '#f5f5f5',
+                    tertiaryBkg: '#e5e5e5'
+                }
+            });
+
+            // Find all code blocks with language-mermaid class
+            const mermaidCodeBlocks = document.querySelectorAll('pre.language-mermaid, code.language-mermaid');
+            console.log('Found', mermaidCodeBlocks.length, 'Mermaid code blocks');
+
+            for (let i = 0; i < mermaidCodeBlocks.length; i++) {
+                const block = mermaidCodeBlocks[i];
+
+                // Get the actual code content
+                let codeElement = block;
+                if (block.tagName === 'PRE') {
+                    codeElement = block.querySelector('code') || block;
+                }
+
+                // Extract the mermaid code, cleaning up HTML entities
+                let mermaidCode = codeElement.textContent || codeElement.innerText;
+                mermaidCode = mermaidCode
+                    .replace(/&lt;/g, '<')
+                    .replace(/&gt;/g, '>')
+                    .replace(/&amp;/g, '&')
+                    .replace(/&quot;/g, '"')
+                    .replace(/&#39;/g, "'");
+
+                console.log('Processing Mermaid diagram', i + 1, ':', mermaidCode.substring(0, 50) + '...');
+
+                // Create a unique ID for this diagram
+                const graphId = 'mermaid-graph-' + i;
+
+                // Create a new div for the diagram
+                const mermaidDiv = document.createElement('div');
+                mermaidDiv.className = 'mermaid-diagram';
+                mermaidDiv.id = graphId;
+
+                // Find the element to replace
+                let elementToReplace = block;
+                if (block.tagName === 'CODE') {
+                    elementToReplace = block.parentElement; // Get the PRE element
+                }
+                const wrapper = elementToReplace.closest('.code-block-wrapper');
+                if (wrapper) {
+                    elementToReplace = wrapper;
+                }
+
+                // Replace the element with our new div
+                if (elementToReplace && elementToReplace.parentNode) {
+                    elementToReplace.parentNode.replaceChild(mermaidDiv, elementToReplace);
+
+                    // Render the diagram using mermaid.render
+                    try {
+                        const { svg } = await mermaid.render(graphId + '-svg', mermaidCode);
+                        mermaidDiv.innerHTML = svg;
+                        console.log('Successfully rendered diagram', i + 1);
+                    } catch (error) {
+                        console.error('Failed to render Mermaid diagram', i + 1, ':', error);
+                        // Fallback: show the code
+                        mermaidDiv.innerHTML = '<pre style="color: red;">Error rendering diagram:\n' + error.message + '</pre><pre>' + mermaidCode + '</pre>';
+                    }
+                } else {
+                    console.error('Could not find parent element for Mermaid diagram', i + 1);
+                }
+            }
+
+            // Re-render on theme change
+            const themeToggle = document.getElementById('theme-toggle');
+            if (themeToggle) {
+                themeToggle.addEventListener('click', function() {
+                    setTimeout(() => {
+                        mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+                    }, 100);
+                });
+            }
+        });
+    </script>
+
     {% block extra_scripts %}{% endblock extra_scripts %}
 </body>
 </html>

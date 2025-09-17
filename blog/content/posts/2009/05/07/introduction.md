@@ -1,6 +1,7 @@
 +++
 title = "Introduction"
 date = 2009-05-07
+aliases = ["/posts/introduction/"]
 description = "Let me introduce myself, I am Alexandre Rosenfeld, a Computer Engineering student from Brazil, at the University of São Paulo. I have participated on the Google Summer of Code 2008, working on Conduit"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++

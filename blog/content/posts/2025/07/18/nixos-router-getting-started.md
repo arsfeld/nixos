@@ -1,6 +1,7 @@
 +++
 title = "Build Your Own Router with NixOS: Part 1 - Getting Started"
 date = 2025-07-18
+aliases = ["/posts/nixos-router-getting-started/"]
 description = "Learn how to select hardware and set up a basic NixOS router with internet connectivity, NAT, DHCP, and firewall rules"
 [taxonomies]
 tags = ["nixos", "router", "networking", "homelab", "tutorial", "hardware"]

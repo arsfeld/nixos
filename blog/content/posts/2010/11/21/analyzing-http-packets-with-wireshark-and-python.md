@@ -1,6 +1,7 @@
 +++
 title = "Analyzing HTTP packets with Wireshark and Python"
 date = 2010-11-21
+aliases = ["/posts/analyzing-http-packets-with-wireshark-and-python/"]
 description = "I’m doing some reverse-engineering stuff and it has been quite fun so far (hopefully I’ll blog more about why I’m doing this in the future). I needed to dump some HTTP traffic and analyse the data. Of"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++

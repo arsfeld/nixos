@@ -1,6 +1,7 @@
 +++
 title = "Google Summer of Code 2009"
 date = 2009-04-21
+aliases = ["/posts/google-summer-of-code-2009/"]
 description = "I have just been approved for Google Summer of Code 2009, which means I can once again work on a great project, the Conduit application.   This year my project is “Making Conduit work as a daemon”, wh"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++

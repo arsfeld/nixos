@@ -1,6 +1,7 @@
 +++
 title = "Reel: Bringing Native Media Streaming to the GNOME Desktop"
 date = 2025-08-25
+aliases = ["/posts/gnome-reel-native-media-streaming/"]
 draft = false
 
 [taxonomies]

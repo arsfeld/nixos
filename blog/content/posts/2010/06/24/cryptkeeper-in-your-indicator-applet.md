@@ -1,6 +1,7 @@
 +++
 title = "Cryptkeeper in your Indicator Applet"
 date = 2010-06-24
+aliases = ["/posts/cryptkeeper-in-your-indicator-applet/"]
 description = "I like the Indicator Applet and I like Cryptkeeper, so I decided to create an indicator for Cryptkeeper:      For anyone who doesn’t know, Cryptkeeper is a very useful application that allows you to m"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++
