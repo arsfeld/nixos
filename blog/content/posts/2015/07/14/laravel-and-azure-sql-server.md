@@ -1,6 +1,7 @@
 +++
 title = "Laravel and Azure SQL Server"
 date = 2015-07-14
+aliases = ["/posts/laravel-and-azure-sql-server/"]
 description = "From the same project as my last blog post, we had to connect a Laravel 5 web application to a SQL Server instance running on Azure. It took me awhile to get everything working well, so I want to shar"
 tags = ["Azure", "laravel", "PHP", "SQLServer", "#wordpress", "#Import 2023-07-26 18:26"]
 +++

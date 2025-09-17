@@ -1,6 +1,7 @@
 +++
 title = "glib-mkenums"
 date = 2010-08-12
+aliases = ["/posts/glib-mkenums/"]
 description = "I’m posting this here both to help someone else looking for this and to check if I got everything right.   I needed to use enums in a GObject property. So I needed a enum type for my property param sp"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++

@@ -1,6 +1,7 @@
 +++
 title = "Simplifying NixOS Configurations with Reusable Modules"
 date = 2025-06-11
+aliases = ["/posts/constellation-pattern/"]
 description = "A modular system for managing multiple NixOS machines that eliminates configuration duplication while maintaining flexibility"
 tags = ["nixos", "infrastructure", "self-hosting", "constellation-pattern"]
 +++

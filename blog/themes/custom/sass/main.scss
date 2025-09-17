@@ -977,3 +977,31 @@ a.ai-disclaimer-inline {
     }
   }
 }
+
+// Mermaid diagram styles
+.mermaid-diagram {
+  text-align: center;
+  margin: var(--spacing-lg) auto;
+  padding: var(--spacing-md);
+  background-color: var(--color-background);
+  border-radius: var(--border-radius);
+  overflow-x: auto;
+  max-width: 100%;
+
+  svg {
+    max-width: 100%;
+    height: auto;
+    display: inline-block;
+  }
+}
+
+// Dark mode support for Mermaid
+@media (prefers-color-scheme: dark) {
+  .mermaid-diagram svg {
+    filter: invert(0.9) hue-rotate(180deg);
+  }
+}
+
+body.dark .mermaid-diagram svg {
+  filter: invert(0.9) hue-rotate(180deg);
+}

@@ -1,6 +1,7 @@
 +++
 title = "Breadcrumb in Gtk"
 date = 2010-02-18
+aliases = ["/posts/breadcrumb-in-gtk/"]
 description = "Anyone knows how to implement (or anywhere it’s implemented) a breadcrumb / pathbar like the one in Nautilus in PyGtk? I just don’t know how to hide buttons that doent fit the window.   By the way, an"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++
