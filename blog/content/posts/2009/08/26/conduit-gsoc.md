@@ -1,6 +1,7 @@
 +++
 title = "Conduit GSoC"
 date = 2009-08-26
+aliases = ["/posts/conduit-gsoc/"]
 description = "Google Summer of Code is over and I still didnt blogged about the new interface for Conduit I wrote. Well, going back to university and doing multiple things at once can really slow things down.    Ok"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++

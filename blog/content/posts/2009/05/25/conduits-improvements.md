@@ -1,6 +1,7 @@
 +++
 title = "Conduit's improvements"
 date = 2009-05-25
+aliases = ["/posts/conduits-improvements/"]
 description = "As GSoC is officially starting yesterday and I made a promess to finish what I begun almost six months ago (sorry about taking so long), last week I commited the last parts of my branch. So, in the en"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++

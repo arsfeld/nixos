@@ -1,6 +1,7 @@
 +++
 title = "GNOME 3.0 and Fedora 15"
 date = 2011-04-12
+aliases = ["/posts/gnome-30-and-fedora-15/"]
 description = "On last sunday it happened the FLISOL, which I was able to partially attend here in La Paz. It was a good event, though I wasn’t able to see all the talks. Unfortunately I didn’t had much time to conv"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++

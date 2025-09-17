@@ -1,6 +1,7 @@
 +++
 title = "Something to fix"
 date = 2009-04-09
+aliases = ["/posts/something-to-fix/"]
 description = "So, this is my first post on this blog. I tried blogging before, but I never wrote much. I didnt have much to write about. But now my life is getting quite busy and I’m quite excited about many things"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++

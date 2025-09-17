@@ -1,6 +1,7 @@
 +++
 title = "Conduit GSoC Progress"
 date = 2009-08-06
+aliases = ["/posts/conduit-gsoc-progress/"]
 description = "Thinking about another thing I’m implementing in Conduit I noticed I totally forgot to blog about my Summer of Code progress. So far there has been some hacking and fixing in several places and now I’"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++

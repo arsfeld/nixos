@@ -1,6 +1,7 @@
 +++
 title = "Building a 2.5Gbps Home Router with NixOS"
 date = 2025-07-16
+aliases = ["/posts/nixos-router-journey/"]
 description = "A technical journey building a NixOS-based router with 2.5Gbps support, advanced QoS, comprehensive monitoring, and declarative configuration. Includes lessons learned from previous attempts with pfSense and OPNsense."
 [taxonomies]
 tags = ["nixos", "networking", "homelab", "router"]

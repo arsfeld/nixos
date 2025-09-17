@@ -1,6 +1,7 @@
 +++
 title = "DACP in Rhythmbox: Week 11"
 date = 2010-08-06
+aliases = ["/posts/dacp-in-rhythmbox-week-11/"]
 description = "I just went from week 2 to week 11 in the GSoC progress in my blog 😉 Well, there is not much to tell in a blog if there is not a picture to show (and showing off the iPhone remote working with Rhythm"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++

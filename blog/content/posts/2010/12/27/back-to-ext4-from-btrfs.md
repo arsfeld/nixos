@@ -1,6 +1,7 @@
 +++
 title = "Back to Ext4 from Btrfs"
 date = 2010-12-27
+aliases = ["/posts/back-to-ext4-from-btrfs/"]
 description = "After using Btrfs on both my work and home machines, I’m switching back to ext4. I actually like Btrfs and I wish I could keep using it, but I had two major issues.   The first one and this was enough"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++

@@ -1,6 +1,7 @@
 +++
 title = "First impressions with Gnome 3"
 date = 2011-03-25
+aliases = ["/posts/first-impressions-with-gnome-3/"]
 description = "I tried Gnome Shell a few months ago but I had so many issues I didn’t actually experienced anything. Yesterday I downloaded the Gnome 3 livecd but it seems my Radeon doesn’t work at all with it (all "
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++

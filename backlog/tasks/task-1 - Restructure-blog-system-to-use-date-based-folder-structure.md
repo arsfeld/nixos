@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2025-09-16 23:09'
-updated_date: '2025-09-16 23:18'
+updated_date: '2025-09-16 23:21'
 labels: []
 dependencies: []
 ---
@@ -44,3 +44,8 @@ Successfully migrated blog system to date-based folder structure:
 - Zola builds successfully with new structure
 - URLs now follow /posts/YYYY/MM/DD/post-name pattern
 - No changes needed to blog.nix build process
+
+Added URL aliases to preserve old links:
+- All old URLs (/posts/post-name/) redirect to new date-based URLs
+- Zola generates redirect HTML files automatically
+- No broken links for existing bookmarks or references

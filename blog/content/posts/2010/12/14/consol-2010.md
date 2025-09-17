@@ -1,6 +1,7 @@
 +++
 title = "CONSOL 2010"
 date = 2010-12-14
+aliases = ["/posts/consol-2010/"]
 description = "I just got back from Santa Cruz de la Sierra, Bolivia, where I was attending CONSOL 2010, the Congreso de Software Libre of Bolivia. And I had an amazing time over there and met some really amazing pe"
 tags = ["#wordpress", "#Import 2023-07-26 18:26"]
 +++

@@ -1,6 +1,7 @@
 +++
 title = "Monitor Per-Client Network Usage with Custom Metrics"
 date = 2025-07-22
+aliases = ["/posts/nixos-router-blog-post-3-monitoring/"]
 description = "Set up comprehensive monitoring for your NixOS router with per-device bandwidth tracking, real-time dashboards, and custom Prometheus metrics. Part 3 of the NixOS Router Series."
 [taxonomies]
 tags = ["nixos", "router", "monitoring", "prometheus", "grafana", "networking", "homelab", "tutorial"]
