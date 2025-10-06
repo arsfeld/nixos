@@ -35,7 +35,8 @@
       enableOnBoot = false; # Manual control for gaming
 
       daemon.settings = {
-        storage-driver = "btrfs";
+        # storage-driver removed - let Docker choose the best driver
+        registry-mirrors = ["https://mirror.gcr.io"];
         log-driver = "json-file";
         log-opts = {
           max-size = "10m";
