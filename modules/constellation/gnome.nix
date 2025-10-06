@@ -159,9 +159,10 @@
       [
         # Core applications
         pkgs-unstable.zed-editor
+        pkgs-unstable.ghostty
+        localsend
         vim
         wget
-        ghostty
         celluloid
         mission-center
         variety
@@ -181,6 +182,7 @@
         gnomeExtensions.window-gestures
         gnomeExtensions.user-themes
         gnomeExtensions.tiling-shell
+        gnomeExtensions.search-light
 
         # Theming
         yaru-theme
