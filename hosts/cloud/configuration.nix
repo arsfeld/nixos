@@ -30,6 +30,12 @@
     domain = "planka.arsfeld.dev";
   };
 
+  # Enable Siyuan note-taking application
+  constellation.siyuan = {
+    enable = true;
+    domain = "siyuan.arsfeld.dev";
+  };
+
   boot = {
     binfmt.emulatedSystems = ["x86_64-linux"];
   };
