@@ -48,4 +48,7 @@ in {
   # Planka secrets
   "planka-db-password.age".publicKeys = users ++ [cloud];
   "planka-secret-key.age".publicKeys = users ++ [cloud];
+
+  # Siyuan secrets
+  "siyuan-auth-code.age".publicKeys = users ++ [cloud];
 }
