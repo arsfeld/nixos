@@ -7,7 +7,7 @@
     nixos-generators.inputs.nixpkgs.follows = "nixpkgs";
     disko.url = "github:nix-community/disko"; # Declarative disk partitioning
     disko.inputs.nixpkgs.follows = "nixpkgs";
-    ragenix.url = "github:yaxitech/ragenix"; # Rust-based age secret management (faster and more reliable)
+    ragenix.url = "github:arsfeld/ragenix/add-decrypt-flag"; # Rust-based age secret management (faster and more reliable)
     ragenix.inputs.nixpkgs.follows = "nixpkgs";
     home-manager.url = "github:nix-community/home-manager/release-25.05"; # User environment management
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
@@ -230,7 +230,7 @@
             system = hostConfig.nixpkgs.hostPlatform.system or "x86_64-linux";
           in {
             hostname = "${hostName}.bat-boa.ts.net";
-            fastConnection = false;
+            fastConnection = true;
             remoteBuild = hostName == "cloud"; # Enable remote build for cloud (aarch64)
             profiles.system.path = inputs.deploy-rs.lib.${system}.activate.nixos self.nixosConfigurations.${hostName};
           };
