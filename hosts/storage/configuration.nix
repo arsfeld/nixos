@@ -22,6 +22,7 @@ with lib; {
   constellation.services.enable = true;
   constellation.media.enable = true;
   constellation.podman.enable = true;
+  constellation.isponsorblock.enable = true;
 
   media.config.enable = true;
 
