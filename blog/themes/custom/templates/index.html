@@ -18,7 +18,18 @@
         
         <div class="post-list">
             {% set posts = get_section(path="posts/_index.md") %}
-            {% for page in posts.pages | slice(end=5) %}
+            {% set_global all_pages = [] %}
+            {% for year in posts.subsections %}
+                {% set year_section = get_section(path=year) %}
+                {% for month in year_section.subsections %}
+                    {% set month_section = get_section(path=month) %}
+                    {% for day in month_section.subsections %}
+                        {% set day_section = get_section(path=day) %}
+                        {% set_global all_pages = all_pages | concat(with=day_section.pages) %}
+                    {% endfor %}
+                {% endfor %}
+            {% endfor %}
+            {% for page in all_pages | sort(attribute="date") | reverse | slice(end=5) %}
             <article class="post-preview">
                 <header class="post-header">
                     <h3 class="post-title">
