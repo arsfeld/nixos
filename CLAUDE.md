@@ -16,11 +16,17 @@ nix develop
 
 ### Secret Management
 ```bash
-# Edit an encrypted secret
+# Edit an encrypted secret interactively (opens default editor)
 ragenix -e secrets/secret-name.age
 
+# Edit/update a secret programmatically (using stdin)
+echo "new-secret-value" | ragenix -e secrets/secret-name.age --editor -
+
+# Create a new secret (add entry to secrets.nix first, then)
+echo "secret-value" | ragenix -e secrets/new-secret.age --editor -
+
 # View decrypted secret (use with caution)
-cd secrets && age -d -i ~/.ssh/id_ed25519 secret-name.age
+nix-shell -p rage --run "rage -d -i ~/.ssh/id_ed25519 secrets/secret-name.age"
 
 # Rekey all secrets (after adding/removing keys in secrets.nix)
 ragenix -r
