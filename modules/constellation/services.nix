@@ -42,6 +42,7 @@ with lib; let
       yarr = 7070;
     };
     storage = {
+      audiobookshelf = 13378;
       # beszel = 8090; # Disabled - monitoring service causing high CPU usage
       bitmagnet = 3333;
       code = 4444;
@@ -91,6 +92,7 @@ with lib; let
   };
 
   bypassAuth = [
+    "audiobookshelf"
     "auth"
     "autobrr"
     "dns"
@@ -114,6 +116,7 @@ with lib; let
   cors = ["sudo-proxy"];
 
   funnels = [
+    "audiobookshelf"
     "yarr"
     "jellyfin"
     "yarr-dev"
