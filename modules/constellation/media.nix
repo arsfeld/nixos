@@ -51,6 +51,12 @@ in {
     #   mode = "444";
     # };
 
+    # Ohdio secrets
+    age.secrets.ohdio-env = lib.mkIf (builtins.any (host: host == config.networking.hostName) ["storage"]) {
+      file = "${self}/secrets/ohdio-env.age";
+      mode = "444";
+    };
+
     media.containers = let
       storageServices = {
         nextcloud = {
@@ -153,6 +159,33 @@ in {
           volumes = [
             "${vars.storageDir}/data/actual:/data"
           ];
+          settings = {
+            bypassAuth = true;
+            funnel = true;
+          };
+        };
+
+        ohdio = {
+          image = "ghcr.io/arsfeld/ohdio:latest";
+          listenPort = 4000;
+          volumes = [
+            "${vars.storageDir}/data/ohdio:/config"
+          ];
+          environment = {
+            PHX_HOST = "ohdio.bat-boa.ts.net";
+            PORT = "4000";
+            MIX_ENV = "prod";
+            DATABASE_PATH = "/config/db/ohdio_prod.db";
+            STORAGE_PATH = "/config/downloads";
+            MAX_CONCURRENT_DOWNLOADS = "3";
+          };
+          environmentFiles = [
+            config.age.secrets.ohdio-env.path
+          ];
+          settings = {
+            bypassAuth = true;
+            funnel = true;
+          };
         };
       };
 
