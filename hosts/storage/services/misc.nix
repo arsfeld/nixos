@@ -111,15 +111,15 @@ in {
     #   ];
     # };
 
-    # filestash = {
-    #   image = "machines/filestash";
-    #   ports = ["8334:8334"];
-    #   volumes = [
-    #     "${vars.configDir}/filestash:/app/data/state"
-    #     "${vars.dataDir}/media:/mnt/data/media"
-    #     "${vars.dataDir}/files:/mnt/data/files"
-    #   ];
-    # };
+    filestash = {
+      image = "machines/filestash";
+      ports = ["8334:8334"];
+      volumes = [
+        "${vars.configDir}/filestash:/app/data/state"
+        "${vars.dataDir}/media:/mnt/data/media"
+        "${vars.dataDir}/files:/mnt/data/files"
+      ];
+    };
 
     headscale-ui = {
       image = "ghcr.io/gurucomputing/headscale-ui:latest";

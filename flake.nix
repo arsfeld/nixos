@@ -57,6 +57,7 @@
             (import ./overlays/python-packages.nix)
           ];
         };
+        formatter = pkgs.alejandra;
         checks = {
           pre-commit-check = inputs.git-hooks.lib.${system}.run {
             src = ./.;
