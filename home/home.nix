@@ -58,6 +58,7 @@ in {
         just
         fastfetch
         fd
+        flyctl
         fortune
         gh
         git-lfs
@@ -395,11 +396,13 @@ in {
   };
 
   programs.zellij = {
-    enable = false;
+    enable = true;
     settings = {
-      theme = "catppuccin-macchiato";
+      #theme = "catppuccin-mocha";
       #mouse_mode = false;
-      copy_on_select = false;
+      copy_on_select = true;
+      pane_frames = false;
+      scroll_buffer_size = 50000;
     };
   };
 
