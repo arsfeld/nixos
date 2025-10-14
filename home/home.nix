@@ -24,6 +24,7 @@
 in {
   imports = [
     ./ghostty.nix
+    ./helix.nix
     ./neovim.nix
   ];
 
@@ -113,7 +114,6 @@ in {
     shellAliases = {
       "df" = "df -h -x tmpfs";
       "claude" = "${pkgs.nodejs}/bin/npx -y @anthropic-ai/claude-code@latest";
-      "backlog" = "${pkgs.nodejs}/bin/npx -y backlog.md@latest";
     };
 
     shell = {
@@ -165,6 +165,32 @@ in {
         eval (/home/linuxbrew/.linuxbrew/bin/brew shellenv)
       end
     '';
+    functions = {
+      backlog = ''
+        set current_dir $PWD
+        set found_root ""
+
+        # Search up the directory tree for backlog/ folder
+        while test "$current_dir" != "/"
+          if test -d "$current_dir/backlog"
+            set found_root "$current_dir"
+            break
+          end
+          set current_dir (dirname "$current_dir")
+        end
+
+        # If found, cd to that directory and run backlog.md
+        if test -n "$found_root"
+          begin
+            cd "$found_root"
+            and ${pkgs.nodejs}/bin/npx -y backlog.md@latest $argv
+          end
+        else
+          # Fallback to current behavior
+          ${pkgs.nodejs}/bin/npx -y backlog.md@latest $argv
+        end
+      '';
+    };
   };
 
   programs.zsh = {
@@ -212,6 +238,29 @@ in {
       #   zellij attach -c
       # fi
 
+      # Smart backlog function that finds project root
+      backlog() {
+        local current_dir="$PWD"
+        local found_root=""
+
+        # Search up the directory tree for backlog/ folder
+        while [[ "$current_dir" != "/" ]]; do
+          if [[ -d "$current_dir/backlog" ]]; then
+            found_root="$current_dir"
+            break
+          fi
+          current_dir="$(dirname "$current_dir")"
+        done
+
+        # If found, cd to that directory and run backlog.md
+        if [[ -n "$found_root" ]]; then
+          (cd "$found_root" && ${pkgs.nodejs}/bin/npx -y backlog.md@latest "$@")
+        else
+          # Fallback to current behavior
+          ${pkgs.nodejs}/bin/npx -y backlog.md@latest "$@"
+        fi
+      }
+
       unsetopt EXTENDED_GLOB
     '';
     profileExtra = ''
@@ -235,6 +284,30 @@ in {
 
   programs.bash = {
     enable = true;
+    initExtra = ''
+      # Smart backlog function that finds project root
+      backlog() {
+        local current_dir="$PWD"
+        local found_root=""
+
+        # Search up the directory tree for backlog/ folder
+        while [[ "$current_dir" != "/" ]]; do
+          if [[ -d "$current_dir/backlog" ]]; then
+            found_root="$current_dir"
+            break
+          fi
+          current_dir="$(dirname "$current_dir")"
+        done
+
+        # If found, cd to that directory and run backlog.md
+        if [[ -n "$found_root" ]]; then
+          (cd "$found_root" && ${pkgs.nodejs}/bin/npx -y backlog.md@latest "$@")
+        else
+          # Fallback to current behavior
+          ${pkgs.nodejs}/bin/npx -y backlog.md@latest "$@"
+        fi
+      }
+    '';
     profileExtra = ''
       if [[ -s /etc/set-environment ]]; then
         . /etc/set-environment

@@ -16,7 +16,7 @@
         --volume "${cacheDir}:${cacheDir}" \
         --env XDG_CACHE_HOME="${cacheDir}" \
         --env-file "${config.age.secrets."finance-tracker-env".path}" \
-        ghcr.io/arsfeld/finance-tracker:latest "$@"
+        ghcr.io/arsfeld/finance-tracker:latest ./finance-tracker "$@"
     '';
   };
 in {
@@ -70,6 +70,26 @@ in {
   };
 
   virtualisation.oci-containers.containers = {
+    audiobookshelf = {
+      image = "ghcr.io/advplyr/audiobookshelf:latest";
+      environment = {
+        PUID = toString vars.puid;
+        PGID = toString vars.pgid;
+        TZ = vars.tz;
+      };
+      volumes = [
+        "${vars.configDir}/audiobookshelf/config:/config"
+        "${vars.configDir}/audiobookshelf/metadata:/metadata"
+        "${vars.dataDir}/media/audiobooks:/audiobooks"
+        "${vars.dataDir}/media/podcasts:/podcasts"
+      ];
+      ports = ["13378:80"];
+      extraOptions = [
+        "--label"
+        "io.containers.autoupdate=image"
+      ];
+    };
+
     homeassistant = {
       volumes = ["/var/lib/home-assistant:/config"];
       environment.TZ = "America/Toronto";

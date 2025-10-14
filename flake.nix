@@ -42,6 +42,21 @@
         system,
         ...
       }: {
+        _module.args.pkgs = import inputs.nixpkgs {
+          inherit system;
+          overlays = [
+            # Provide Go 1.25+ from nixpkgs-unstable for packages that need it (must come first)
+            (final: prev: let
+              system = final.stdenv.hostPlatform.system;
+            in {
+              go_1_25 = inputs.nixpkgs-unstable.legacyPackages.${system}.go;
+              buildGo125Module = final.buildGoModule.override {
+                go = inputs.nixpkgs-unstable.legacyPackages.${system}.go;
+              };
+            })
+            (import ./overlays/python-packages.nix)
+          ];
+        };
         checks = {
           pre-commit-check = inputs.git-hooks.lib.${system}.run {
             src = ./.;
@@ -96,6 +111,7 @@
         packages = inputs.haumea.lib.load {
           src = ./packages;
           loader = inputs.haumea.lib.loaders.callPackage;
+          inputs = {inherit pkgs;};
           transformer = inputs.haumea.lib.transformers.liftDefault;
         };
 
@@ -135,6 +151,15 @@
 
           # Common overlays used everywhere
           overlays = [
+            # Provide Go 1.25+ from nixpkgs-unstable for packages that need it (must come first)
+            (final: prev: let
+              system = final.stdenv.hostPlatform.system;
+            in {
+              go_1_25 = inputs.nixpkgs-unstable.legacyPackages.${system}.go;
+              buildGo125Module = final.buildGoModule.override {
+                go = inputs.nixpkgs-unstable.legacyPackages.${system}.go;
+              };
+            })
             (import ./overlays/python-packages.nix)
             # Load packages from ./packages directory using haumea
             (final: prev: loadPackages final)

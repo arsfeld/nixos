@@ -1,7 +1,7 @@
 {
   imports = [
     ./ai.nix
-    # ./caddy-tailscale.nix
+    ./caddy-tailscale-test.nix
     ./cloud-sync.nix
     ./db.nix
     ./develop.nix
