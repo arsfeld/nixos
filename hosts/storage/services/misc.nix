@@ -8,6 +8,7 @@
   vars = config.media.config;
 in {
   age.secrets.tailscale-key.file = "${self}/secrets/tailscale-key.age";
+  age.secrets.tailscale-env.file = "${self}/secrets/tailscale-env.age";
   age.secrets.romm-env.file = "${self}/secrets/romm-env.age";
 
   services.tsnsrv = {

@@ -1,62 +1,53 @@
-{
-  pkgs,
-  lib,
-  ...
-}: let
-  # Build the OAuth-supporting fork of caddy-tailscale plugin
-  caddy-tailscale-oauth = pkgs.buildGoModule rec {
-    pname = "caddy-tailscale-oauth";
-    version = "unstable-2024-01-15";
+{pkgs, ...}:
+# Build Caddy with Tailscale plugin using Go 1.25+ from nixpkgs-unstable
+# This eliminates the need for GOTOOLCHAIN workarounds and allows sandbox builds
+pkgs.buildGo125Module rec {
+  pname = "caddy-with-tailscale";
+  version = "2.9.1"; # Caddy version from go.mod
 
-    src = pkgs.fetchFromGitHub {
-      owner = "chrishoage";
-      repo = "caddy-tailscale";
-      rev = "559d3be3265d151136178bc04e4bf69a01c57889";
-      sha256 = "sha256-XcKAx8n7oXM8qRt0Kz7krcF3mZbD9fTsemBAzKVerVQ=";
-    };
+  # Use the local source directory
+  src = ./.;
 
-    vendorHash = "sha256-xLRNY0x5jG6v7k3OC7Yn9bhZdGqOqY5LhpCBSmmUvmo=";
+  # Computed vendorHash from building with Go 1.25 from nixpkgs-unstable
+  vendorHash = "sha256-rKJu1lt4Qz6Urw3eLw9rULs+gP7xMGpKkJmEYnxUyPQ=";
 
-    doCheck = false;
+  # Build the caddy binary from the main.go at the root
+  subPackages = ["."];
+
+  # Pass the Caddy version as a build flag
+  ldflags = [
+    "-s"
+    "-w"
+    "-X github.com/caddyserver/caddy/v2.CustomVersion=${version}"
+  ];
+
+  # Copy the plugin source to satisfy the replace directive in go.mod
+  # The go.mod has: replace github.com/tailscale/caddy-tailscale => ../caddy-tailscale-plugin
+  postPatch = ''
+    # Copy the plugin source to be a sibling of the current directory
+    echo "=== PostPatch: Copying plugin source ==="
+    echo "PWD: $PWD"
+
+    # Go up one level and copy the plugin there
+    cd ..
+    cp -r ${../caddy-tailscale-plugin} ./caddy-tailscale-plugin
+    chmod -R +w ./caddy-tailscale-plugin
+
+    echo "Copied plugin source to $(pwd)/caddy-tailscale-plugin"
+
+    # Go back to source directory
+    cd -
+    echo "=== End PostPatch ==="
+  '';
+
+  # Verify the build succeeded and caddy is functional
+  doCheck = false; # Skip tests for now as they may require network
+
+  meta = with pkgs.lib; {
+    description = "Caddy web server with Tailscale OAuth integration";
+    homepage = "https://github.com/tailscale/caddy-tailscale";
+    license = licenses.asl20;
+    mainProgram = "caddy-with-tailscale";
+    platforms = platforms.linux ++ platforms.darwin;
   };
-in
-  # Build Caddy with the OAuth Tailscale plugin
-  pkgs.caddy.override {
-    buildGoModule = args:
-      pkgs.buildGoModule (args
-        // {
-          pname = "caddy-with-tailscale";
-
-          overrideModAttrs = _: {
-            preBuild = ''
-              echo 'package main
-              import (
-                _ "github.com/caddyserver/caddy/v2/modules/standard"
-                _ "github.com/tailscale/caddy-tailscale"
-              )' > main_override.go
-
-              # Replace with the OAuth fork
-              go get github.com/chrishoage/caddy-tailscale@${caddy-tailscale-oauth.src.rev}
-              go mod tidy
-            '';
-          };
-
-          preBuild = ''
-            echo 'package main
-            import (
-              caddycmd "github.com/caddyserver/caddy/v2/cmd"
-              _ "github.com/caddyserver/caddy/v2/modules/standard"
-              _ "github.com/tailscale/caddy-tailscale"
-            )
-            func main() {
-              caddycmd.Main()
-            }' > cmd/caddy/main.go
-
-            # Replace with the OAuth fork
-            go get github.com/chrishoage/caddy-tailscale@${caddy-tailscale-oauth.src.rev}
-            go mod tidy
-          '';
-
-          vendorHash = "sha256-AqPieper9pFGfFGZf2K7mk2Y8SgKNpFfhg5dTl5scWY=";
-        });
-  }
+}

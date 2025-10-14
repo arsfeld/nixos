@@ -77,9 +77,6 @@ in {
       ports = [
         "${toString cfg.port}:${toString cfg.port}"
       ];
-      extraOptions = [
-        "--restart=unless-stopped"
-      ];
     };
 
     # Caddy reverse proxy configuration

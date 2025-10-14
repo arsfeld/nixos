@@ -40,13 +40,6 @@ in {
     };
   };
 
-  # Keep the old tsnsrv services running for everything else
-  # Only disable tsnsrv for the test services
-  services.tsnsrv.services = lib.mkForce (
-    lib.filterAttrs (
-      name: _:
-        !(lib.elem name ["speedtest" "homepage" "syncthing"])
-    )
-    config.services.tsnsrv.services
-  );
+  # Note: Both tsnsrv and Caddy will run for these test services temporarily
+  # Once we verify Caddy works, we'll do the full migration
 }
