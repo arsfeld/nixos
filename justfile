@@ -5,7 +5,7 @@ mod docs 'just/docs.just'
 mod supabase 'just/supabase.just'
 
 fmt:
-    nix fmt
+    alejandra .
 
 
 args := "--skip-checks"
