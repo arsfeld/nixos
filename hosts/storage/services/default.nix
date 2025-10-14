@@ -1,7 +1,7 @@
 {
   imports = [
     ./ai.nix
-    ./caddy-tailscale-test.nix
+    # ./caddy-tailscale-test.nix  # Temporarily disabled - conflicts with media gateway globalConfig
     ./cloud-sync.nix
     ./db.nix
     ./develop.nix
