@@ -52,4 +52,7 @@ in {
 
   # Siyuan secrets
   "siyuan-auth-code.age".publicKeys = users ++ [cloud];
+
+  # Ohdio secrets
+  "ohdio-env.age".publicKeys = users ++ [storage];
 }
