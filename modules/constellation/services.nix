@@ -167,7 +167,7 @@ with lib; let
           value =
             {
               inherit name host;
-              settings = {
+              settings = mkDefault {
                 bypassAuth = builtins.elem name bypassAuth;
                 cors = builtins.elem name cors;
                 funnel = builtins.elem name funnels;
