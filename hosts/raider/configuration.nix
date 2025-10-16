@@ -1,4 +1,8 @@
-{lib, ...}: {
+{
+  lib,
+  pkgs,
+  ...
+}: {
   imports = [
     ./hardware-configuration.nix
     ./disko-config.nix
@@ -14,6 +18,11 @@
     development.enable = true;
     docker.enable = true; # Enable Docker runtime
   };
+
+  # Additional packages
+  environment.systemPackages = with pkgs; [
+    anycubic-slicer
+  ];
 
   # Basic system configuration
   networking.hostName = "raider";
