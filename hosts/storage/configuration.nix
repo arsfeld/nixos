@@ -65,6 +65,11 @@ with lib; {
 
   services.caddy = {
     enable = true;
+    # Use caddy-tailscale plugin WITH OAuth support to make Caddy join Tailnet as a single node
+    # This replaces 64 separate tsnsrv instances, reducing CPU from 60.5% to ~2-5%
+    # Using vendored erikologic/caddy-tailscale fork (PR #109) with OAuth client credentials support
+    # OAuth allows ephemeral node registration with TS_API_CLIENT_ID + TS_API_CLIENT_SECRET
+    package = pkgs.caddy-tailscale;
   };
 
   services.tailscale.permitCertUid = "caddy";

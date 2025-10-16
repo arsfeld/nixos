@@ -55,6 +55,10 @@
               };
             })
             (import ./overlays/python-packages.nix)
+            # Caddy with Tailscale OAuth plugin (must come after buildGo125Module is available)
+            (final: prev: {
+              caddy-tailscale = final.callPackage ./packages/caddy-tailscale {};
+            })
           ];
         };
         formatter = pkgs.alejandra;
@@ -162,6 +166,10 @@
               };
             })
             (import ./overlays/python-packages.nix)
+            # Caddy with Tailscale OAuth plugin (must come after buildGo125Module is available)
+            (final: prev: {
+              caddy-tailscale = final.callPackage ./packages/caddy-tailscale {};
+            })
             # Load packages from ./packages directory using haumea
             (final: prev: loadPackages final)
           ];
