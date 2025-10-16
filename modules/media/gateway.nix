@@ -206,16 +206,16 @@ in {
     services.caddy.virtualHosts = hosts;
 
     # Configure Caddy systemd service to use Tailscale OAuth credentials
-    systemd.services.caddy = {
-      serviceConfig = {
-        # Use tailscale-env which contains OAuth credentials:
-        # - TS_API_CLIENT_ID (OAuth client ID)
-        # - TS_API_CLIENT_SECRET (OAuth client secret)
-        # - TS_AUTHKEY (legacy auth key, for fallback)
-        EnvironmentFile = _config.age.secrets.tailscale-env.path;
-        # Ensure state directory exists
-        StateDirectory = lib.mkForce "caddy caddy/tailscale";
-      };
+    systemd.services.caddy.serviceConfig = {
+      # Use tailscale-env which contains OAuth credentials:
+      # - TS_API_CLIENT_ID (OAuth client ID)
+      # - TS_API_CLIENT_SECRET (OAuth client secret)
+      # - TS_AUTHKEY (legacy auth key, for fallback)
+      EnvironmentFile = _config.age.secrets.tailscale-env.path;
+      # Ensure state directory exists
+      StateDirectory = lib.mkForce "caddy caddy/tailscale";
+      # Ensure Caddy can bind to privileged ports (443, 80)
+      AmbientCapabilities = lib.mkForce "CAP_NET_BIND_SERVICE";
     };
   };
 }
