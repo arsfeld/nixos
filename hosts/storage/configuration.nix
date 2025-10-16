@@ -26,6 +26,8 @@ with lib; {
 
   # Observability: Central hub for metrics and logs
   constellation.observability-hub.enable = true;
+  # Disable metrics-client on hub - observability-hub has its own node exporter
+  constellation.metrics-client.enable = false;
   constellation.metrics-client.caddy.enable = true;
 
   media.config.enable = true;

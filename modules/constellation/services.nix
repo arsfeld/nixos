@@ -155,29 +155,27 @@ with lib; let
     "stash"
   ];
 
-  # Services that should have dedicated Tailscale nodes (*.bat-boa.ts.net access)
+  # Services that should have dedicated Tailscale nodes (*.bat-boa.ts.net access) via tsnsrv
   # All other services will only be accessible via *.arsfeld.one through the cloud gateway
+  # This list is kept minimal to reduce CPU overhead from tsnsrv instances (task-49)
+  # Only frequently accessed services are exposed via Tailscale
   # Note: Cloud-based services (auth, dex, dns, users) are excluded because:
-  #   1. They run on cloud host which doesn't have Caddy Tailscale plugin
+  #   1. They run on cloud host which doesn't have tsnsrv enabled
   #   2. They're accessed via cloud.bat-boa.ts.net, not individual nodes
   #   3. Storage host accesses them via cloud gateway
   tailscaleExposed = [
-    # Primary media services - frequently accessed
     "jellyfin"
     "plex"
     "immich"
     "photos"
     "audiobookshelf"
-    # Home automation
     "hass"
     "grocy"
     "home"
     "www"
-    # Development tools
     "code"
     "gitea"
     "n8n"
-    # Monitoring
     "grafana"
     "netdata"
   ];

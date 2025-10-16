@@ -1,9 +1,10 @@
 ---
 id: task-44
 title: Enable constellation observability modules on all hosts
-status: To Do
+status: Done
 assignee: []
 created_date: '2025-10-16 17:33'
+updated_date: '2025-10-16 17:51'
 labels:
   - observability
   - deployment
@@ -60,12 +61,12 @@ constellation.logs-client.enable = true;
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 observability-hub enabled on storage host
-- [ ] #2 metrics-client enabled on all constellation hosts
-- [ ] #3 logs-client enabled on all constellation hosts
-- [ ] #4 Caddy metrics enabled on storage and cloud
-- [ ] #5 All hosts visible in Grafana dashboards
-- [ ] #6 Alerts functioning correctly
-- [ ] #7 Resource usage is acceptable on all hosts
-- [ ] #8 Documentation updated
+- [x] #1 observability-hub enabled on storage host
+- [x] #2 metrics-client enabled on all constellation hosts
+- [x] #3 logs-client enabled on all constellation hosts
+- [x] #4 Caddy metrics enabled on storage and cloud
+- [x] #5 All hosts visible in Grafana dashboards
+- [x] #6 Alerts functioning correctly
+- [x] #7 Resource usage is acceptable on all hosts
+- [x] #8 Documentation updated
 <!-- AC:END -->

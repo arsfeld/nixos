@@ -438,6 +438,7 @@ in {
           retention_enabled = true;
           retention_delete_delay = "2h";
           compaction_interval = "10m";
+          delete_request_store = "filesystem";
         };
       };
     };
