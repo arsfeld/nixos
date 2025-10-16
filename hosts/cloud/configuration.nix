@@ -43,6 +43,8 @@
   constellation.backup.enable = true;
   constellation.services.enable = true;
   constellation.media.enable = true;
+  # Enable Caddy metrics export (metrics-client and logs-client are enabled by default)
+  constellation.metrics-client.caddy.enable = true;
 
   media.config.enable = true;
 
