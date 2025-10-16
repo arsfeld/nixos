@@ -146,6 +146,17 @@ in {
     };
 
     tailscale = {
+      enable = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Enable Caddy Tailscale plugin integration.
+          When disabled, Caddy will not create Tailscale nodes.
+          Services with exposeViaTailscale will use tsnsrv instead.
+          DISABLED by default due to high CPU usage (task-48, task-49).
+        '';
+      };
+
       enableOAuth = mkOption {
         type = types.bool;
         default = true;
@@ -182,60 +193,31 @@ in {
       extraDomainNames = ["*.${domain}"];
     };
 
+    # Configure tsnsrv services for Tailscale access
+    # Re-enabled as fallback from caddy-tailscale due to high CPU usage (task-48)
+    services.tsnsrv.services = utils.generateTsnsrvConfigs {
+      services = cfg.services;
+    };
+
     services.caddy.email = cfg.email;
 
-    # Add Tailscale configuration to Caddy global config
-    # OAuth credentials are read from environment variables: TS_API_CLIENT_ID and TS_AUTHKEY (not from Caddyfile)
-    # The plugin reads these directly via os.Getenv(), so they must be set in the systemd service environment
-    # Only include Tailscale config if there are services with exposeViaTailscale enabled on THIS host
-    services.caddy.globalConfig = let
-      # Check if any services running on THIS host have exposeViaTailscale enabled
-      # This prevents hosts from creating Tailscale nodes for services running on other hosts
-      currentHost = _config.networking.hostName;
-      hasExposedServices = lib.any (svc: svc.enable && svc.exposeViaTailscale && svc.host == currentHost) (builtins.attrValues cfg.services);
-      tailscaleConfig = lib.optionalString hasExposedServices ''
-        # Tailscale configuration - creates one node per service for individual *.bat-boa.ts.net hostnames
-        # Each service gets its own Tailscale node with a unique hostname and state directory
-        # Using OAuth client credentials for ephemeral node registration
-        # Tags are required for OAuth-based ephemeral nodes
-        # See: https://github.com/tailscale/caddy-tailscale/pull/109
-        tailscale {
-          ephemeral ${
-          if cfg.tailscale.ephemeral
-          then "true"
-          else "false"
-        }
-          tags tag:service
-          ${utils.generateTailscaleNodes cfg.services}
-        }
-      '';
-    in ''
+    # Caddy Tailscale configuration DISABLED (task-48, task-49)
+    # Using tsnsrv instead due to high CPU usage from caddy-tailscale plugin
+    # tsnsrv provides the same Tailscale node functionality with lower overhead
+    # See: services.tsnsrv.services configuration above
+    services.caddy.globalConfig = ''
       ${utils.generateCaddyGlobalConfig}
-
-      ${tailscaleConfig}
     '';
 
     services.caddy.extraConfig = utils.generateCaddyExtraConfig domain;
 
     services.caddy.virtualHosts = hosts;
 
-    # Configure Caddy systemd service to use Tailscale OAuth credentials
-    systemd.services.caddy.serviceConfig = let
-      currentHost = _config.networking.hostName;
-      # Generate state directories only for services that have exposeViaTailscale enabled on THIS host
-      tailscaleStateDirs =
-        map (name: "caddy/tailscale/${name}")
-        (builtins.attrNames (lib.filterAttrs (_name: svc: svc.enable && svc.exposeViaTailscale && svc.host == currentHost) cfg.services));
-      # Check if any services on THIS host have exposeViaTailscale enabled
-      hasExposedServices = lib.any (svc: svc.enable && svc.exposeViaTailscale && svc.host == currentHost) (builtins.attrValues cfg.services);
-    in {
-      # Use tailscale-env which contains OAuth credentials (only if Tailscale is enabled):
-      # - TS_API_CLIENT_ID (OAuth client ID)
-      # - TS_API_CLIENT_SECRET (OAuth client secret)
-      # - TS_AUTHKEY (legacy auth key, for fallback)
-      EnvironmentFile = lib.mkIf hasExposedServices _config.age.secrets.tailscale-env.path;
-      # Ensure state directories exist for Caddy and all Tailscale nodes
-      StateDirectory = lib.mkForce (["caddy"] ++ tailscaleStateDirs);
+    # Configure Caddy systemd service
+    # Tailscale OAuth credentials removed (task-48, task-49) - using tsnsrv instead
+    systemd.services.caddy.serviceConfig = {
+      # Ensure state directory exists for Caddy (no Tailscale subdirectories needed)
+      StateDirectory = lib.mkForce ["caddy"];
       # Ensure Caddy can bind to privileged ports (443, 80)
       AmbientCapabilities = lib.mkForce "CAP_NET_BIND_SERVICE";
     };

@@ -15,12 +15,29 @@ A Prometheus exporter for per-client network metrics on NixOS routers, providing
 ## Metrics Exposed
 
 ### Traffic Metrics
-- `client_traffic_bytes{direction="rx|tx",ip="192.168.10.x",client="hostname"}` - Total bytes transferred
-- `client_traffic_rate_bps{direction="rx|tx",ip="192.168.10.x",client="hostname"}` - Current bandwidth in bits/sec
+- `client_traffic_bytes{direction="rx|tx",ip="192.168.10.x",client="hostname",device_type="..."}` - Total bytes transferred
+- `client_traffic_rate_bps{direction="rx|tx",ip="192.168.10.x",client="hostname",device_type="..."}` - Current bandwidth in bits/sec
 
 ### Connection Metrics
-- `client_active_connections{ip="192.168.10.x",client="hostname"}` - Number of active connections
-- `client_status{ip="192.168.10.x",client="hostname"}` - Online status (1=online, 0=offline)
+- `client_active_connections{ip="192.168.10.x",client="hostname",device_type="..."}` - Number of active connections
+- `client_status{ip="192.168.10.x",client="hostname",device_type="..."}` - Online status (1=online, 0=offline)
+
+### Client Database Metrics
+- `network_clients_total` - Total number of known network clients
+- `network_clients_online` - Number of currently online clients
+- `network_clients_by_type{type="..."}` - Number of clients by device type
+
+### Hostname Resolution Metrics
+- `hostname_cache_hits_total` - Total number of hostname cache hits
+- `hostname_cache_misses_total` - Total number of hostname cache misses
+- `hostname_cache_invalidations_total{reason="..."}` - Cache invalidations by reason (expired, updated, cleanup-expired, cleanup-stale)
+- `hostname_cache_entries` - Current number of entries in hostname cache
+- `hostname_resolution_duration_seconds{source="..."}` - Histogram of hostname resolution times by source
+- `hostname_resolution_source_total{source="..."}` - Count of hostname resolutions by source
+- `network_names_by_source{source="..."}` - Number of names resolved by each source
+
+### WAN Metrics
+- `wan_ip_info{interface="...",ip="..."}` - WAN IP address information
 
 ## Requirements
 
@@ -153,12 +170,33 @@ nft add rule inet filter CLIENT_TRAFFIC ip daddr 192.168.10.100 counter comment 
 ### Name Resolution
 
 Client names are resolved in the following order:
-1. Cached names from previous lookups
-2. Static DHCP assignments (`/var/lib/dnsmasq/dhcp-hosts`)
-3. Dynamic DHCP leases (`/var/lib/dnsmasq/dnsmasq.leases`)
-4. Reverse DNS lookup (if configured)
+1. **Cache** - Cached names from previous lookups (24-hour TTL)
+2. **DHCP Hosts** - Static DHCP assignments (`/var/lib/kea/dhcp-hosts`)
+3. **Kea Leases** - Dynamic DHCP leases from Kea (`/var/lib/kea/kea-leases4.csv` or control socket)
+4. **SSDP/UPnP** - Device discovery via UPnP (media devices, smart TVs)
+5. **mDNS** - Multicast DNS discovery (Apple devices, IoT)
+6. **Reverse DNS** - PTR records via system resolver
+7. **NetBIOS** - Windows/Samba name resolution
+8. **Static Database** - Custom client database (`/var/lib/network-metrics-exporter/static-clients.json`)
+9. **Fallback** - Vendor-based names (e.g., `apple-a1b2`)
 
-Names are cached persistently in `/var/lib/network-metrics-exporter/client-names.cache`.
+#### Cache Behavior
+
+Names are cached persistently in `/var/lib/network-metrics-exporter/client-names.cache` with the following characteristics:
+
+- **TTL**: Cache entries expire after 24 hours
+- **Format**: `MAC|Hostname|Source|Timestamp|LastSeenIP`
+- **Validation**: Expired entries are automatically invalidated on access
+- **Cleanup**: Background task runs hourly to remove stale entries
+- **Stale Detection**: Entries for MACs not seen in ARP table for >7 days are removed
+
+The cache tracks:
+- The hostname resolved for each MAC address
+- Which source provided the name (for debugging)
+- When the entry was created/last updated
+- The last IP address where the MAC was observed
+
+Cache operations are logged with `[CACHE HIT]`, `[CACHE EXPIRED]`, `[CACHE UPDATE]`, and `[CACHE CLEANUP]` prefixes for troubleshooting.
 
 ## Grafana Dashboard
 
@@ -208,21 +246,119 @@ curl -s http://localhost:9101/metrics | grep client_traffic_rate_bps
 
 ## Troubleshooting
 
-### No Client Names (Shows "unknown")
+### No Client Names (Shows "unknown" or vendor-based fallback names)
 
-1. Check dnsmasq files exist and are readable:
+1. **Check Kea DHCP leases**:
    ```bash
-   ls -la /var/lib/dnsmasq/
+   # View current leases
+   cat /var/lib/kea/kea-leases4.csv
+
+   # Or query via Kea control socket (if available)
+   echo '{ "command": "lease4-get-all", "service": ["dhcp4"] }' | socat - UNIX-CONNECT:/run/kea/kea-dhcp4.sock
    ```
 
-2. Verify DHCP leases are being created:
+2. **Check DHCP static hosts**:
    ```bash
-   cat /var/lib/dnsmasq/dnsmasq.leases
+   cat /var/lib/kea/dhcp-hosts
    ```
 
-3. Check the name cache:
+3. **Inspect the name cache**:
    ```bash
+   # View cache contents (includes source, timestamp, last IP)
    cat /var/lib/network-metrics-exporter/client-names.cache
+
+   # Check cache age and sources
+   grep -v "^#" /var/lib/network-metrics-exporter/client-names.cache | head -5
+   ```
+
+4. **Check exporter logs for resolution details**:
+   ```bash
+   journalctl -u network-metrics-exporter -f | grep -E "CACHE|TIMING"
+   ```
+
+   Look for:
+   - `[CACHE HIT]` - Successfully resolved from cache
+   - `[CACHE EXPIRED]` - Cache entry was too old
+   - `[CACHE UPDATE]` - Hostname changed for a MAC
+   - `[TIMING WARNING]` - Slow resolution (>10ms)
+
+5. **Monitor hostname resolution metrics**:
+   ```bash
+   curl -s http://localhost:9101/metrics | grep hostname_resolution
+   ```
+
+   Key metrics to check:
+   - `hostname_cache_hits_total` vs `hostname_cache_misses_total` (cache hit rate)
+   - `hostname_resolution_source_total` (which sources are being used)
+   - `hostname_cache_invalidations_total` (why entries are being invalidated)
+
+### Stale or Incorrect Client Names
+
+If clients show old/incorrect names despite correct DHCP data:
+
+1. **Check cache entry age**:
+   ```bash
+   # Cache entries expire after 24 hours
+   # Verify the timestamp is recent
+   cat /var/lib/network-metrics-exporter/client-names.cache | grep <MAC>
+   ```
+
+2. **Force cache invalidation** (restart the service):
+   ```bash
+   systemctl restart network-metrics-exporter
+   ```
+
+   The cache will reload, skipping expired entries.
+
+3. **Clear the cache completely** (if corrupted):
+   ```bash
+   rm /var/lib/network-metrics-exporter/client-names.cache
+   systemctl restart network-metrics-exporter
+   ```
+
+4. **Monitor cache cleanup**:
+   ```bash
+   journalctl -u network-metrics-exporter | grep "CACHE CLEANUP"
+   ```
+
+   Cache cleanup runs hourly and logs:
+   - Number of expired entries removed (>24 hours old)
+   - Number of stale entries removed (MAC not seen in ARP for >7 days)
+
+5. **Verify authoritative sources are updating**:
+   ```bash
+   # Kea leases should update when clients renew
+   stat /var/lib/kea/kea-leases4.csv
+
+   # Check for recent modifications
+   ls -lt /var/lib/kea/
+   ```
+
+### Slow Hostname Resolution
+
+If resolution is taking too long:
+
+1. **Check resolution duration metrics**:
+   ```bash
+   curl -s http://localhost:9101/metrics | grep hostname_resolution_duration
+   ```
+
+2. **Review timing warnings in logs**:
+   ```bash
+   journalctl -u network-metrics-exporter | grep "TIMING WARNING"
+   ```
+
+   Warnings show which source caused the delay.
+
+3. **Common slow sources**:
+   - **dns** (reverse DNS): 2-second timeout if DNS server is unreachable
+   - **netbios**: 2-second timeout if nmblookup fails
+   - **mdns**: Can be slow if many service types are scanned
+
+4. **Optimize by adding static entries**:
+   ```bash
+   # Add frequently-accessed clients to dhcp-hosts for fastest resolution
+   echo "192.168.10.100 my-device my-device.lan" >> /var/lib/kea/dhcp-hosts
    ```
 
 ### No Traffic Data
@@ -244,6 +380,8 @@ curl -s http://localhost:9101/metrics | grep client_traffic_rate_bps
 
 - Increase update interval in `main.go` (default: 2 seconds)
 - Check for excessive number of clients or connections
+- Disable slow discovery methods (SSDP, mDNS) if not needed
+- Monitor cache metrics - high invalidation rate may indicate configuration issues
 
 ## License
 

@@ -10,7 +10,7 @@
     ./immich.nix
     ./infra.nix
     ./media.nix
-    ./metrics.nix
+    # ./metrics.nix  # Replaced by constellation.observability-hub module
     ./misc.nix
     ./samba.nix
   ];

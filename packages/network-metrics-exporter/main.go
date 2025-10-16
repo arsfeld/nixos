@@ -88,9 +88,11 @@ var (
 	trafficHistoryLock sync.RWMutex
 	
 	// Client name cache that persists across restarts (keyed by MAC address)
-	clientNameCache     = make(map[string]string) // MAC -> hostname
+	// Now includes timestamp and source for expiry and debugging
+	clientNameCache     = make(map[string]*ClientNameCacheEntry) // MAC -> cache entry
 	clientNameCacheLock sync.RWMutex
 	clientNameCacheFile = "/var/lib/network-metrics-exporter/client-names.cache"
+	cacheExpiryDuration = 24 * time.Hour // Cache entries expire after 24 hours
 	
 	// Client database metrics
 	clientsTotal = promauto.NewGauge(prometheus.GaugeOpts{
@@ -137,10 +139,42 @@ var (
         Name: "network_names_total",
         Help: "Total number of devices with resolved names",
     })
-    
+
     namesBySource = promauto.NewGaugeVec(prometheus.GaugeOpts{
         Name: "network_names_by_source",
         Help: "Number of names resolved by each source",
+    }, []string{"source"})
+
+    // Cache performance metrics
+    cacheHits = promauto.NewCounter(prometheus.CounterOpts{
+        Name: "hostname_cache_hits_total",
+        Help: "Total number of hostname cache hits",
+    })
+
+    cacheMisses = promauto.NewCounter(prometheus.CounterOpts{
+        Name: "hostname_cache_misses_total",
+        Help: "Total number of hostname cache misses",
+    })
+
+    cacheInvalidations = promauto.NewCounterVec(prometheus.CounterOpts{
+        Name: "hostname_cache_invalidations_total",
+        Help: "Total number of hostname cache invalidations by reason",
+    }, []string{"reason"})
+
+    cacheEntries = promauto.NewGauge(prometheus.GaugeOpts{
+        Name: "hostname_cache_entries",
+        Help: "Current number of entries in hostname cache",
+    })
+
+    hostnameResolutionDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+        Name: "hostname_resolution_duration_seconds",
+        Help: "Time taken to resolve hostnames by source",
+        Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0},
+    }, []string{"source"})
+
+    hostnameResolutionSource = promauto.NewCounterVec(prometheus.CounterOpts{
+        Name: "hostname_resolution_source_total",
+        Help: "Count of hostname resolutions by source",
     }, []string{"source"})
 
     // Kea leases and DHCP hosts caches
@@ -172,6 +206,13 @@ type ClientInfo struct {
 	Name          string
 	DeviceType    string
 	LastSeen      time.Time
+}
+
+type ClientNameCacheEntry struct {
+	Hostname   string
+	Source     string    // Source that provided this name (e.g., "kea-leases", "mdns", "cache")
+	Timestamp  time.Time // When this entry was created/updated
+	LastSeenIP string    // Last IP this MAC was seen at (for debugging)
 }
 
 type TrafficSnapshot struct {
@@ -242,7 +283,10 @@ func main() {
 	
 	// Start background DNS resolver
 	go backgroundDNSResolver()
-	
+
+	// Start periodic cache cleanup
+	go runPeriodicCacheCleanup()
+
 	// Start metric collection
 	go collectMetrics()
 
@@ -613,24 +657,54 @@ func updateClientStatus() {
 
 func getClientName(ip string) string {
 	start := time.Now()
+	var resolvedSource string
 	defer func() {
-		if time.Since(start) > 10*time.Millisecond {
-			log.Printf("[TIMING WARNING] getClientName(%s) took %v", ip, time.Since(start))
+		elapsed := time.Since(start)
+		if elapsed > 10*time.Millisecond {
+			log.Printf("[TIMING WARNING] getClientName(%s) took %v (source: %s)", ip, elapsed, resolvedSource)
+		}
+		if resolvedSource != "" {
+			hostnameResolutionDuration.WithLabelValues(resolvedSource).Observe(elapsed.Seconds())
+			hostnameResolutionSource.WithLabelValues(resolvedSource).Inc()
 		}
 	}()
-	
+
     // First get MAC address for this IP
     macAddr := getMacAddress(ip)
 
-    // Check cache by MAC address
+    // Check cache by MAC address with expiry validation
     if macAddr != "" {
         clientNameCacheLock.RLock()
-        if cachedName, exists := clientNameCache[macAddr]; exists {
+        if cacheEntry, exists := clientNameCache[macAddr]; exists {
+            // Check if cache entry has expired
+            if time.Since(cacheEntry.Timestamp) < cacheExpiryDuration {
+                cachedName := cacheEntry.Hostname
+                clientNameCacheLock.RUnlock()
+
+                // Cache hit - valid entry
+                cacheHits.Inc()
+                resolvedSource = "cache"
+                updateNameSourceMetric("cache")
+                log.Printf("[CACHE HIT] MAC %s -> %s (age: %v, source: %s)",
+                    macAddr, cachedName, time.Since(cacheEntry.Timestamp).Round(time.Minute), cacheEntry.Source)
+                return cachedName
+            } else {
+                // Cache entry expired
+                clientNameCacheLock.RUnlock()
+                clientNameCacheLock.Lock()
+                delete(clientNameCache, macAddr)
+                clientNameCacheLock.Unlock()
+
+                cacheInvalidations.WithLabelValues("expired").Inc()
+                log.Printf("[CACHE EXPIRED] MAC %s -> %s (age: %v)",
+                    macAddr, cacheEntry.Hostname, time.Since(cacheEntry.Timestamp).Round(time.Minute))
+            }
+        } else {
             clientNameCacheLock.RUnlock()
-            updateNameSourceMetric("cache")
-            return cachedName
         }
-        clientNameCacheLock.RUnlock()
+
+        // Cache miss
+        cacheMisses.Inc()
     }
 
     // Refresh DHCP-backed sources periodically (authoritative names)
@@ -639,8 +713,9 @@ func getClientName(ip string) string {
     // 1) Authoritative: dhcp-hosts (statics)
     if name := getNameFromDhcpHostsCache(ip); name != "" {
         if macAddr != "" {
-            updateClientNameCache(macAddr, name)
+            updateClientNameCache(macAddr, name, "dhcp-hosts", ip)
         }
+        resolvedSource = "dhcp-hosts"
         updateNameSourceMetric("dhcp-hosts")
         return name
     }
@@ -648,8 +723,9 @@ func getClientName(ip string) string {
     // 2) Authoritative: Kea leases (memfile). Prefer MAC map first, then IP map.
     if name := getNameFromKeaCaches(ip, macAddr); name != "" {
         if macAddr != "" {
-            updateClientNameCache(macAddr, name)
+            updateClientNameCache(macAddr, name, "kea-leases", ip)
         }
+        resolvedSource = "kea-leases"
         updateNameSourceMetric("kea-leases")
         return name
     }
@@ -660,15 +736,16 @@ func getClientName(ip string) string {
         ssdpCacheLock.RUnlock()
         if ssdpDevice.FriendlyName != "" {
             if macAddr != "" {
-                updateClientNameCache(macAddr, ssdpDevice.FriendlyName)
+                updateClientNameCache(macAddr, ssdpDevice.FriendlyName, "ssdp", ip)
             }
+            resolvedSource = "ssdp"
             updateNameSourceMetric("ssdp")
             return ssdpDevice.FriendlyName
         }
     } else {
         ssdpCacheLock.RUnlock()
     }
-    
+
     // 4) Check mDNS cache (fast, common for Apple/IoT/media)
     mdnsCacheLock.RLock()
     if mdnsEntry, exists := mdnsCache[ip]; exists {
@@ -682,8 +759,9 @@ func getClientName(ip string) string {
         }
         if name != "" {
             if macAddr != "" {
-                updateClientNameCache(macAddr, name)
+                updateClientNameCache(macAddr, name, "mdns", ip)
             }
+            resolvedSource = "mdns"
             updateNameSourceMetric("mdns")
             return name
         }
@@ -697,8 +775,9 @@ func getClientName(ip string) string {
         dnsResolveCacheLock.RUnlock()
         if resolvedName != "" {
             if macAddr != "" {
-                updateClientNameCache(macAddr, resolvedName)
+                updateClientNameCache(macAddr, resolvedName, "dns", ip)
             }
+            resolvedSource = "dns"
             updateNameSourceMetric("dns")
             return resolvedName
         }
@@ -715,8 +794,9 @@ func getClientName(ip string) string {
     // 6) Try NetBIOS (Windows/Samba) via nmblookup
     if nb := getNameFromNetBIOS(ip); nb != "" {
         if macAddr != "" {
-            updateClientNameCache(macAddr, nb)
+            updateClientNameCache(macAddr, nb, "netbios", ip)
         }
+        resolvedSource = "netbios"
         updateNameSourceMetric("netbios")
         return nb
     }
@@ -728,8 +808,9 @@ func getClientName(ip string) string {
     }
     if hostName := getNameFromFile(hostsFile, ip, 0, 1); hostName != "" {
         if macAddr != "" {
-            updateClientNameCache(macAddr, hostName)
+            updateClientNameCache(macAddr, hostName, "hosts-file", ip)
         }
+        resolvedSource = "hosts-file"
         updateNameSourceMetric("hosts-file")
         return hostName
     }
@@ -737,8 +818,9 @@ func getClientName(ip string) string {
     // 8) Static clients database (explicit mapping)
     if dbName := getNameFromStaticClients(ip); dbName != "" {
         if macAddr != "" {
-            updateClientNameCache(macAddr, dbName)
+            updateClientNameCache(macAddr, dbName, "static-db", ip)
         }
+        resolvedSource = "static-db"
         updateNameSourceMetric("static-db")
         return dbName
     }
@@ -765,11 +847,13 @@ func getClientName(ip string) string {
             vshort = "device"
         }
         fallback := fmt.Sprintf("%s-%s", vshort, m)
-        updateClientNameCache(macAddr, fallback)
+        updateClientNameCache(macAddr, fallback, "fallback", ip)
+        resolvedSource = "fallback"
         updateNameSourceMetric("fallback")
         return fallback
     }
 
+    resolvedSource = "unknown"
     updateNameSourceMetric("unknown")
     return "unknown"
 }
@@ -1191,7 +1275,7 @@ func loadClientNameCache() {
 		log.Printf("Error creating cache directory: %v", err)
 		return
 	}
-	
+
 	data, err := os.ReadFile(clientNameCacheFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -1199,69 +1283,178 @@ func loadClientNameCache() {
 		}
 		return
 	}
-	
+
 	clientNameCacheLock.Lock()
 	defer clientNameCacheLock.Unlock()
-	
-	// Parse cache file (format: MAC|Name per line)
-	// Also handle old format (IP|Name) for backward compatibility
+
+	// Parse cache file
+	// New format: MAC|Hostname|Source|Timestamp|LastSeenIP
+	// Old formats: MAC|Name or IP|Name (for backward compatibility)
 	scanner := bufio.NewScanner(strings.NewReader(string(data)))
+	loadedCount := 0
+	expiredCount := 0
+
 	for scanner.Scan() {
-		parts := strings.Split(scanner.Text(), "|")
-		if len(parts) == 2 {
+		line := scanner.Text()
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		parts := strings.Split(line, "|")
+
+		// New format with 5 fields
+		if len(parts) == 5 {
+			mac := parts[0]
+			hostname := parts[1]
+			source := parts[2]
+			timestampStr := parts[3]
+			lastSeenIP := parts[4]
+
+			if !strings.Contains(mac, ":") {
+				continue // Skip invalid MAC
+			}
+
+			timestamp, err := time.Parse(time.RFC3339, timestampStr)
+			if err != nil {
+				// Try parsing as Unix timestamp for compatibility
+				if unixTime, err := strconv.ParseInt(timestampStr, 10, 64); err == nil {
+					timestamp = time.Unix(unixTime, 0)
+				} else {
+					log.Printf("Warning: Invalid timestamp in cache for MAC %s: %v", mac, err)
+					continue
+				}
+			}
+
+			// Check if expired
+			if time.Since(timestamp) >= cacheExpiryDuration {
+				expiredCount++
+				log.Printf("[CACHE LOAD] Skipping expired entry: MAC %s -> %s (age: %v)",
+					mac, hostname, time.Since(timestamp).Round(time.Minute))
+				continue
+			}
+
+			clientNameCache[mac] = &ClientNameCacheEntry{
+				Hostname:   hostname,
+				Source:     source,
+				Timestamp:  timestamp,
+				LastSeenIP: lastSeenIP,
+			}
+			loadedCount++
+
+		} else if len(parts) == 2 {
+			// Old format: MAC|Name or IP|Name
 			key := parts[0]
 			name := parts[1]
-			// Check if it's a MAC address (contains colons) or IP
+
+			// Check if it's a MAC address (contains colons)
 			if strings.Contains(key, ":") {
-				// It's a MAC address, use as-is
-				clientNameCache[key] = name
+				// Old format without timestamp - use current time but mark as migrated
+				clientNameCache[key] = &ClientNameCacheEntry{
+					Hostname:   name,
+					Source:     "migrated",
+					Timestamp:  time.Now(),
+					LastSeenIP: "",
+				}
+				loadedCount++
 			} else if net.ParseIP(key) != nil {
-				// It's an IP address from old format - try to get MAC and convert
+				// It's an IP address from very old format - try to get MAC and convert
 				mac := getMacAddress(key)
 				if mac != "" {
-					clientNameCache[mac] = name
+					clientNameCache[mac] = &ClientNameCacheEntry{
+						Hostname:   name,
+						Source:     "migrated",
+						Timestamp:  time.Now(),
+						LastSeenIP: key,
+					}
+					loadedCount++
 				}
 			}
 		}
 	}
-	
-	log.Printf("Loaded %d client names from cache", len(clientNameCache))
+
+	log.Printf("Loaded %d client names from cache (%d expired entries skipped)", loadedCount, expiredCount)
+	cacheEntries.Set(float64(len(clientNameCache)))
 }
 
 func saveClientNameCache() {
 	clientNameCacheLock.RLock()
 	defer clientNameCacheLock.RUnlock()
-	
+
 	var lines []string
-	for mac, name := range clientNameCache {
-		// Only save entries that look like MAC addresses
-		if strings.Contains(mac, ":") {
-			lines = append(lines, mac+"|"+name)
-		}
+	// Add header comment
+	lines = append(lines, "# network-metrics-exporter client name cache")
+	lines = append(lines, "# Format: MAC|Hostname|Source|Timestamp|LastSeenIP")
+
+	// Sort MACs for consistent output
+	macs := make([]string, 0, len(clientNameCache))
+	for mac := range clientNameCache {
+		macs = append(macs, mac)
 	}
-	
+	sort.Strings(macs)
+
+	for _, mac := range macs {
+		entry := clientNameCache[mac]
+		// Only save entries that look like MAC addresses
+		if !strings.Contains(mac, ":") {
+			continue
+		}
+
+		// Skip expired entries
+		if time.Since(entry.Timestamp) >= cacheExpiryDuration {
+			continue
+		}
+
+		// Format: MAC|Hostname|Source|Timestamp|LastSeenIP
+		line := fmt.Sprintf("%s|%s|%s|%s|%s",
+			mac,
+			entry.Hostname,
+			entry.Source,
+			entry.Timestamp.Format(time.RFC3339),
+			entry.LastSeenIP,
+		)
+		lines = append(lines, line)
+	}
+
 	data := strings.Join(lines, "\n")
-	
+
 	// Write atomically
 	tmpFile := clientNameCacheFile + ".tmp"
 	if err := os.WriteFile(tmpFile, []byte(data), 0644); err != nil {
 		log.Printf("Error writing client name cache: %v", err)
 		return
 	}
-	
+
 	if err := os.Rename(tmpFile, clientNameCacheFile); err != nil {
 		log.Printf("Error renaming client name cache: %v", err)
 	}
 }
 
-func updateClientNameCache(mac, name string) {
+func updateClientNameCache(mac, name, source, ip string) {
 	if mac == "" || name == "" || name == "unknown" {
 		return
 	}
+
+	entry := &ClientNameCacheEntry{
+		Hostname:   name,
+		Source:     source,
+		Timestamp:  time.Now(),
+		LastSeenIP: ip,
+	}
+
 	clientNameCacheLock.Lock()
-	clientNameCache[mac] = name
+	// Check if this is an update to existing entry
+	if existing, exists := clientNameCache[mac]; exists {
+		// Log if the name changed from a different source
+		if existing.Hostname != name {
+			log.Printf("[CACHE UPDATE] MAC %s: %s -> %s (source: %s -> %s)",
+				mac, existing.Hostname, name, existing.Source, source)
+			cacheInvalidations.WithLabelValues("updated").Inc()
+		}
+	}
+	clientNameCache[mac] = entry
+	cacheEntries.Set(float64(len(clientNameCache)))
 	clientNameCacheLock.Unlock()
-	
+
 	// Save cache in background
 	go saveClientNameCache()
 }
@@ -1755,15 +1948,101 @@ func safelyWriteHostsFile() {
     }
 }
 
+// runPeriodicCacheCleanup runs cache cleanup on a fixed schedule
+func runPeriodicCacheCleanup() {
+	// Initial delay before first cleanup
+	time.Sleep(10 * time.Minute)
+
+	// Run cleanup every hour
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+
+	for {
+		cleanupClientNameCache()
+		<-ticker.C
+	}
+}
+
+// cleanupClientNameCache removes expired and stale entries from the cache
+func cleanupClientNameCache() {
+	start := time.Now()
+	log.Printf("[CACHE CLEANUP] Starting cache cleanup")
+
+	clientNameCacheLock.Lock()
+	defer clientNameCacheLock.Unlock()
+
+	initialCount := len(clientNameCache)
+	expiredCount := 0
+	staleCount := 0
+
+	// Get current ARP table to check which MACs are still active
+	cmd := exec.Command("ip", "neigh", "show")
+	output, err := cmd.Output()
+	activeMacs := make(map[string]bool)
+
+	if err == nil {
+		scanner := bufio.NewScanner(strings.NewReader(string(output)))
+		for scanner.Scan() {
+			fields := strings.Fields(scanner.Text())
+			for i, field := range fields {
+				if field == "lladdr" && i+1 < len(fields) {
+					mac := strings.ToLower(fields[i+1])
+					activeMacs[mac] = true
+				}
+			}
+		}
+	}
+
+	// Iterate through cache and remove expired/stale entries
+	for mac, entry := range clientNameCache {
+		// Remove expired entries (>24 hours old)
+		if time.Since(entry.Timestamp) >= cacheExpiryDuration {
+			delete(clientNameCache, mac)
+			expiredCount++
+			log.Printf("[CACHE CLEANUP] Removed expired entry: MAC %s -> %s (age: %v)",
+				mac, entry.Hostname, time.Since(entry.Timestamp).Round(time.Hour))
+			cacheInvalidations.WithLabelValues("cleanup-expired").Inc()
+			continue
+		}
+
+		// Remove stale entries: MACs not seen in ARP for >7 days
+		macLower := strings.ToLower(mac)
+		if !activeMacs[macLower] && time.Since(entry.Timestamp) > 7*24*time.Hour {
+			delete(clientNameCache, mac)
+			staleCount++
+			log.Printf("[CACHE CLEANUP] Removed stale entry: MAC %s -> %s (not seen in ARP, age: %v)",
+				mac, entry.Hostname, time.Since(entry.Timestamp).Round(time.Hour))
+			cacheInvalidations.WithLabelValues("cleanup-stale").Inc()
+		}
+	}
+
+	finalCount := len(clientNameCache)
+	removedCount := initialCount - finalCount
+
+	log.Printf("[CACHE CLEANUP] Completed: removed %d entries (%d expired, %d stale), %d remain (took %v)",
+		removedCount, expiredCount, staleCount, finalCount, time.Since(start).Round(time.Millisecond))
+
+	// Update metrics
+	cacheEntries.Set(float64(finalCount))
+
+	// Save cleaned cache
+	if removedCount > 0 {
+		// Need to release lock before saving (saveClientNameCache acquires read lock)
+		clientNameCacheLock.Unlock()
+		saveClientNameCache()
+		clientNameCacheLock.Lock()
+	}
+}
+
 // runPeriodicArpScan runs ARP scans on a fixed schedule
 func runPeriodicArpScan() {
 	// Initial delay to avoid all discovery running at startup
 	time.Sleep(30 * time.Second)
-	
+
 	// Run every 5 minutes
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-	
+
 	for {
 		runArpScan()
 		<-ticker.C
@@ -2082,7 +2361,7 @@ func backgroundDNSResolver() {
 			// Get MAC for this IP to cache properly
 			mac := getMacAddress(ip)
 			if mac != "" {
-				updateClientNameCache(mac, resolvedName)
+				updateClientNameCache(mac, resolvedName, "dns-background", ip)
 			}
 		}
 	}

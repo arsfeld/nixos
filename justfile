@@ -171,15 +171,37 @@ r2s:
 router-test:
     nix build .#checks.x86_64-linux.router-test -L
 
+# Build Orange Pi Zero 3 SD card image
+# Generates a flashable SD card image for the octopi host (Orange Pi Zero 3)
+build-octopi:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo "Building Orange Pi Zero 3 SD card image..."
+    nix build ".#octopi" -L
+
+    echo ""
+    echo "✅ Image built successfully!"
+    echo "Output: ./result/sd-image/"
+    echo ""
+    echo "To flash the image to an SD card (replace /dev/sdX with your SD card device):"
+    echo "  sudo zstdcat ./result/sd-image/*.img.zst | sudo dd of=/dev/sdX bs=16M status=progress conv=fsync"
+    echo ""
+    echo "Or decompress and write in two steps:"
+    echo "  unzstd ./result/sd-image/*.img.zst"
+    echo "  sudo dd if=./result/sd-image/*.img of=/dev/sdX bs=16M status=progress conv=fsync"
+    echo ""
+    echo "After flashing, insert the SD card into the Orange Pi Zero 3 and power it on."
+
 # Build custom kexec image with Tailscale support
 # This kexec image maintains Tailscale connectivity during nixos-anywhere installations
 build-kexec:
     #!/usr/bin/env bash
     set -euo pipefail
-    
+
     echo "Building custom kexec image with Tailscale support..."
     nix build ".#kexec-tailscale" -L
-    
+
     echo ""
     echo "Kexec image built successfully!"
     echo "Output: ./result"

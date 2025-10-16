@@ -28,7 +28,7 @@ in {
   "idrive-env.age".publicKeys = users ++ systems;
   "smtp_password.age".publicKeys = users ++ systems;
   "tailscale-key.age".publicKeys = users ++ systems;
-  "tailscale-env.age".publicKeys = users ++ [storage];
+  "tailscale-env.age".publicKeys = users ++ [storage cloud];
   "transmission-openvpn-pia.age".publicKeys = users ++ [storage];
   "ntfy-env.age".publicKeys = users ++ [cloud];
   "finance-tracker-env.age".publicKeys = users ++ [storage];
