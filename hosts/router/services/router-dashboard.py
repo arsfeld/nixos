@@ -1861,9 +1861,9 @@ class MetricsHandler(BaseHTTPRequestHandler):
                         return line.split()[1].split('/')[0]
         except:
             pass
-        
-        # Try eth0 or other common WAN interfaces
-        for iface in ['eth0', 'wan', 'enp1s0']:
+
+        # Try common WAN interfaces including enp2s0 (actual WAN interface)
+        for iface in ['enp2s0', 'eth0', 'wan', 'enp1s0']:
             try:
                 result = subprocess.run(
                     ['ip', '-4', 'addr', 'show', iface],
@@ -1877,7 +1877,23 @@ class MetricsHandler(BaseHTTPRequestHandler):
                             return line.split()[1].split('/')[0]
             except:
                 continue
-        
+
+        # Fallback: query external IP check service
+        try:
+            result = subprocess.run(
+                ['curl', '-s', '--max-time', '2', 'https://ifconfig.me'],
+                capture_output=True,
+                text=True,
+                timeout=3
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                ip = result.stdout.strip()
+                # Validate it's a valid-looking IP
+                if '.' in ip and len(ip.split('.')) == 4:
+                    return ip
+        except:
+            pass
+
         return 'unknown'
     
     def get_lan_network(self) -> Dict[str, Any]:

@@ -78,66 +78,89 @@ in
 
     # generateHost: Creates a Caddy virtual host configuration
     # Input: generateHost { domain = "example.com"; cfg = { name = "app"; host = "server1"; port = 8080; exposeViaTailscale = true; settings = {}; }; }
-    # Output: { "app.example.com" = { useACMEHost = "example.com"; extraConfig = "..."; }; }
+    # Output: { "app.example.com" = { useACMEHost = "example.com"; extraConfig = "..."; }; } (or without useACMEHost if using Tailscale)
     generateHost = {
       domain,
       cfg,
-    }: {
-      "${cfg.name}.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = let
-          currentHost = config.networking.hostName;
-          # Bind this virtual host to its own Tailscale node only if:
-          # 1. exposeViaTailscale is enabled
-          # 2. The service runs on THIS host (otherwise the node won't exist)
-          # This creates one Tailscale node per service, enabling individual *.bat-boa.ts.net hostnames
-          # See: https://github.com/tailscale/caddy-tailscale#multiple-nodes
-          bindConfig = optionalString (cfg.exposeViaTailscale && cfg.host == currentHost) ''
-            bind tailscale/${cfg.name}
-          '';
-          authConfig = optionalString (!cfg.settings.bypassAuth) ''
-            forward_auth ${authHost}:${toString authPort} {
-              uri /api/verify?rd=https://auth.${domain}/
-              copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-            }
-          '';
-          protocol =
-            if cfg.settings.insecureTls
-            then "https"
-            else "http";
-          insecureTlsConfig = optionalString (cfg.settings.insecureTls) ''
-            transport http {
-                tls
-                tls_insecure_skip_verify
-            }
-          '';
-          corsConfig = optionalString (cfg.settings.cors) ''
-            import cors {header.origin}
-          '';
-          proxyConfig = ''
-            import errors
-            reverse_proxy ${protocol}://${cfg.host}:${toString cfg.port} {
-              ${insecureTlsConfig}
-              @error status 404 500 503
-              handle_response @error {
-                error {rp.status_code}
+    }: let
+      currentHost = config.networking.hostName;
+      # Check if this service is bound to Tailscale on THIS host
+      # When bound to Tailscale, we let Tailscale handle TLS certificate provisioning
+      # DISABLED: Caddy Tailscale integration disabled (task-48, task-49), using tsnsrv instead
+      caddyTailscaleEnabled = config.media.gateway.tailscale.enable or false;
+      isBoundToTailscale = caddyTailscaleEnabled && cfg.exposeViaTailscale && cfg.host == currentHost;
+    in {
+      "${cfg.name}.${domain}" =
+        {
+          # Only use ACME certificates when NOT bound to Tailscale
+          # Tailscale nodes automatically get TLS certificates for *.bat-boa.ts.net
+        }
+        // (optionalAttrs (!isBoundToTailscale) {
+          useACMEHost = domain;
+        })
+        // {
+          extraConfig = let
+            # Bind this virtual host to its own Tailscale node only if:
+            # 1. exposeViaTailscale is enabled
+            # 2. The service runs on THIS host (otherwise the node won't exist)
+            # This creates one Tailscale node per service, enabling individual *.bat-boa.ts.net hostnames
+            # See: https://github.com/tailscale/caddy-tailscale#multiple-nodes
+            bindConfig = optionalString isBoundToTailscale ''
+              bind tailscale/${cfg.name}
+            '';
+            # When binding to Tailscale, use Tailscale's certificate manager for HTTPS
+            # This tells Caddy to request certificates from Tailscale for the *.bat-boa.ts.net hostname
+            # See: https://github.com/tailscale/caddy-tailscale#https-support
+            tlsConfig = optionalString isBoundToTailscale ''
+              tls {
+                get_certificate tailscale
               }
-            }
+            '';
+            authConfig = optionalString (!cfg.settings.bypassAuth) ''
+              forward_auth ${authHost}:${toString authPort} {
+                uri /api/verify?rd=https://auth.${domain}/
+                copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+              }
+            '';
+            protocol =
+              if cfg.settings.insecureTls
+              then "https"
+              else "http";
+            insecureTlsConfig = optionalString (cfg.settings.insecureTls) ''
+              transport http {
+                  tls
+                  tls_insecure_skip_verify
+              }
+            '';
+            corsConfig = optionalString (cfg.settings.cors) ''
+              import cors {header.origin}
+            '';
+            proxyConfig = ''
+              import errors
+              reverse_proxy ${protocol}://${cfg.host}:${toString cfg.port} {
+                ${insecureTlsConfig}
+                @error status 404 500 503
+                handle_response @error {
+                  error {rp.status_code}
+                }
+              }
+            '';
+          in ''
+            ${bindConfig}
+            ${tlsConfig}
+            ${authConfig}
+            ${corsConfig}
+            ${proxyConfig}
           '';
-        in ''
-          ${bindConfig}
-          ${authConfig}
-          ${corsConfig}
-          ${proxyConfig}
-        '';
-      };
+        };
     };
 
-    # generateTsnsrvService: Creates a tsnsrv service configuration if the service is on the current host
-    # Input: generateTsnsrvService { funnels = ["api"]; cfg = { name = "api"; host = "localhost"; port = 3000; }; }
+    # generateTsnsrvService: Creates a tsnsrv service configuration if the service is on the current host and exposed via Tailscale
+    # Input: generateTsnsrvService { funnels = ["api"]; cfg = { name = "api"; host = "localhost"; port = 3000; exposeViaTailscale = true; }; }
     # Output: { "api" = { toURL = "http://127.0.0.1:3000"; funnel = true; }; }
+    # Only creates config for services with exposeViaTailscale = true to reduce CPU overhead
     generateTsnsrvService = {cfg}:
-      optionalAttrs (config.networking.hostName == cfg.host) {
+      optionalAttrs (config.networking.hostName == cfg.host && cfg.exposeViaTailscale) {
         "${cfg.name}" =
           {
             toURL = "http://127.0.0.1:${toString cfg.port}";

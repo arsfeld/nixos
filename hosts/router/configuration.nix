@@ -50,6 +50,7 @@
     speedtest-cli # Required for speed testing
     bc # Required for speed test calculations
     gawk # Required for speed test parsing
+    curl # Required for WAN IP detection fallback
   ];
 
   # Enable SSH
