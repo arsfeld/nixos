@@ -175,6 +175,8 @@ in {
     services.caddy.email = cfg.email;
 
     # Add Tailscale configuration to Caddy global config
+    # OAuth credentials are read from environment variables: TS_API_CLIENT_ID and TS_AUTHKEY (not from Caddyfile)
+    # The plugin reads these directly via os.Getenv(), so they must be set in the systemd service environment
     services.caddy.globalConfig = ''
       ${utils.generateCaddyGlobalConfig}
 
@@ -182,16 +184,6 @@ in {
       # Using OAuth client credentials for ephemeral node registration
       # See: https://github.com/tailscale/caddy-tailscale/pull/109
       tailscale {
-        ${
-        if cfg.tailscale.enableOAuth
-        then ''
-          client_id {$TS_API_CLIENT_ID}
-          client_secret {$TS_API_CLIENT_SECRET}
-        ''
-        else ''
-          auth_key {$TS_AUTHKEY}
-        ''
-      }
         ephemeral ${
         if cfg.tailscale.ephemeral
         then "true"
