@@ -4,7 +4,7 @@ title: Deploy caddy-tailscale OAuth and verify CPU reduction
 status: In Progress
 assignee: []
 created_date: '2025-10-16 13:39'
-updated_date: '2025-10-16 13:42'
+updated_date: '2025-10-16 14:04'
 labels:
   - deployment
   - verification
@@ -284,3 +284,37 @@ Capture these metrics for comparison:
 - [ ] #11 Deployment metrics recorded
 - [ ] #12 24-hour stability confirmed
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## Deployment Progress (2025-10-16)
+
+### What We Accomplished
+1. ✅ Fixed Caddy CAP_NET_BIND_SERVICE capability issue
+2. ✅ Deployed caddy-tailscale plugin successfully
+3. ✅ Configured OAuth environment variables correctly (TS_API_CLIENT_ID, TS_AUTHKEY)
+4. ✅ Verified Tailscale app loads in Caddy
+
+### Key Discovery
+
+**Nodes are created lazily** - The caddy-tailscale plugin only creates Tailscale nodes when virtual hosts explicitly bind to `tailscale/nodename`.
+
+Current config binds to `:443` (regular listener), so no Tailscale nodes are created.
+
+### Solution
+
+Need to add `bind tailscale/storage` directive to all virtual hosts. This will:
+- Create a single Tailscale node named 'storage'
+- All 64+ services accessible through one node
+- Achieve the goal: 82 nodes → 1 node
+
+### Next Steps
+
+Created **task-33** to implement proper Tailscale binding. This task (32) will be completed after task-33 is done.
+
+### Current Metrics
+- Tailscale nodes: Still 82 (no change - no bind directives yet)
+- CPU usage: ~7% (already low because tsnsrv was removed in rollback)
+- Caddy status: Running successfully with Tailscale plugin
+<!-- SECTION:NOTES:END -->

@@ -155,9 +155,36 @@ with lib; let
     "stash"
   ];
 
+  # Services that should have dedicated Tailscale nodes (*.bat-boa.ts.net access)
+  # All other services will only be accessible via *.arsfeld.one through the cloud gateway
+  # Note: Cloud-based services (auth, dex, dns, users) are excluded because:
+  #   1. They run on cloud host which doesn't have Caddy Tailscale plugin
+  #   2. They're accessed via cloud.bat-boa.ts.net, not individual nodes
+  #   3. Storage host accesses them via cloud gateway
+  tailscaleExposed = [
+    # Primary media services - frequently accessed
+    "jellyfin"
+    "plex"
+    "immich"
+    "photos"
+    "audiobookshelf"
+    # Home automation
+    "hass"
+    "grocy"
+    "home"
+    "www"
+    # Development tools
+    "code"
+    "gitea"
+    "n8n"
+    # Monitoring
+    "grafana"
+    "netdata"
+  ];
+
   # generateServices: Transforms nested service definitions into a flat list of configs
   # Input: generateServices { storage = { jellyfin = null; }; cloud = { yarr = 8096; } }
-  # Output: {"jellyfin" = { name = "jellyfin"; host = "storage"; }; "yarr" = { name = "yarr"; host = "cloud"; port = 8096; }}
+  # Output: {"jellyfin" = { name = "jellyfin"; host = "storage"; exposeViaTailscale = true; }; "yarr" = { name = "yarr"; host = "cloud"; port = 8096; exposeViaTailscale = false; }}
   generateServices = services:
     listToAttrs (builtins.concatMap
       (host:
@@ -167,6 +194,7 @@ with lib; let
           value =
             {
               inherit name host;
+              exposeViaTailscale = builtins.elem name tailscaleExposed;
               settings = mkDefault {
                 bypassAuth = builtins.elem name bypassAuth;
                 cors = builtins.elem name cors;

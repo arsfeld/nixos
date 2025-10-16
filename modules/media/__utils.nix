@@ -59,8 +59,25 @@ in
       };
     };
 
+    # generateTailscaleNodes: Creates named Tailscale node configurations for each service
+    # Input: generateTailscaleNodes { radarr = { name = "radarr"; host = "storage"; exposeViaTailscale = true; ... }; sonarr = { name = "sonarr"; exposeViaTailscale = false; ... }; }
+    # Output: "radarr { hostname radarr state_dir /var/lib/caddy/tailscale/radarr }" (sonarr excluded)
+    # Only creates nodes for services with exposeViaTailscale = true AND host = current hostname
+    generateTailscaleNodes = services: let
+      currentHost = config.networking.hostName;
+      # Filter to only enabled services that should be exposed via Tailscale on THIS host
+      exposedServices = builtins.filter (cfg: cfg.enable && cfg.exposeViaTailscale && cfg.host == currentHost) (builtins.attrValues services);
+      generateNode = cfg: ''
+        ${cfg.name} {
+          hostname ${cfg.name}
+          state_dir /var/lib/caddy/tailscale/${cfg.name}
+        }
+      '';
+    in
+      lib.concatMapStringsSep "\n" generateNode exposedServices;
+
     # generateHost: Creates a Caddy virtual host configuration
-    # Input: generateHost { domain = "example.com"; cfg = { name = "app"; host = "server1"; port = 8080; settings = {}; }; }
+    # Input: generateHost { domain = "example.com"; cfg = { name = "app"; host = "server1"; port = 8080; exposeViaTailscale = true; settings = {}; }; }
     # Output: { "app.example.com" = { useACMEHost = "example.com"; extraConfig = "..."; }; }
     generateHost = {
       domain,
@@ -69,6 +86,15 @@ in
       "${cfg.name}.${domain}" = {
         useACMEHost = domain;
         extraConfig = let
+          currentHost = config.networking.hostName;
+          # Bind this virtual host to its own Tailscale node only if:
+          # 1. exposeViaTailscale is enabled
+          # 2. The service runs on THIS host (otherwise the node won't exist)
+          # This creates one Tailscale node per service, enabling individual *.bat-boa.ts.net hostnames
+          # See: https://github.com/tailscale/caddy-tailscale#multiple-nodes
+          bindConfig = optionalString (cfg.exposeViaTailscale && cfg.host == currentHost) ''
+            bind tailscale/${cfg.name}
+          '';
           authConfig = optionalString (!cfg.settings.bypassAuth) ''
             forward_auth ${authHost}:${toString authPort} {
               uri /api/verify?rd=https://auth.${domain}/
@@ -99,6 +125,7 @@ in
             }
           '';
         in ''
+          ${bindConfig}
           ${authConfig}
           ${corsConfig}
           ${proxyConfig}

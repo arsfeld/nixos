@@ -24,6 +24,10 @@ with lib; {
   constellation.podman.enable = true;
   constellation.isponsorblock.enable = true;
 
+  # Observability: Central hub for metrics and logs
+  constellation.observability-hub.enable = true;
+  constellation.metrics-client.caddy.enable = true;
+
   media.config.enable = true;
 
   networking.hostName = "storage";
