@@ -186,7 +186,7 @@ in {
         mapAttrs (name: container: {
           host = container.host;
           port = mkIf (container.exposePort != null) container.exposePort;
-          settings = container.settings;
+          settings = mkDefault container.settings;
         })
         exposedContainers;
     };

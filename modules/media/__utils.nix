@@ -118,13 +118,13 @@ in
           }
           // (optionalAttrs (!cfg.settings.bypassAuth) {
             authURL = "http://${authHost}:${toString authPort}";
-            authPath = "/api/verify?rd=https://auth.${config.media.gateway.domain}/";
+            authPath = "/api/authz/forward-auth";
             authBypassForTailnet = true;
             authCopyHeaders = {
-              "Remote-User" = "Remote-User";
-              "Remote-Groups" = "Remote-Groups";
-              "Remote-Name" = "Remote-Name";
-              "Remote-Email" = "Remote-Email";
+              "Remote-User" = "";
+              "Remote-Groups" = "";
+              "Remote-Name" = "";
+              "Remote-Email" = "";
             };
           });
       };

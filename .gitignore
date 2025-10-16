@@ -70,3 +70,7 @@ __pycache__/
 
 # Blog generated images
 blog/static/images/generated/
+.env
+
+# Tailscale API key (for cleanup script)
+.tailscale-api-key

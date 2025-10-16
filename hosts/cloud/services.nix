@@ -17,6 +17,7 @@
 
   services.tsnsrv = {
     enable = true;
+    prometheusAddr = "127.0.0.1:9099";
     defaults = {
       tags = ["tag:service"];
       authKeyPath = config.age.secrets.tailscale-key.path;
