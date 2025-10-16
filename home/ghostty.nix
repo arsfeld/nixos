@@ -49,7 +49,7 @@
       # Optional: Add other Ghostty settings you might want
       font-family = FiraCode Nerd Font
       font-size = 12
-      theme = catppuccin-frappe
+      theme = Catppuccin Mocha
       cursor-style = block
       cursor-style-blink = true
 

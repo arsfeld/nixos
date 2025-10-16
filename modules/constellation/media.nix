@@ -66,39 +66,47 @@ in {
           ];
           settings = {
             insecureTls = true;
+            bypassAuth = true;
           };
         };
 
         overseerr = {
           listenPort = 5055;
+          settings.bypassAuth = true;
         };
 
         jackett = {
           listenPort = 9117;
+          settings.bypassAuth = true;
         };
 
         bazarr = {
           listenPort = 6767;
           mediaVolumes = true;
+          settings.bypassAuth = true;
         };
 
         radarr = {
           listenPort = 7878;
           mediaVolumes = true;
+          settings.bypassAuth = false; # Requires Authelia auth (API endpoints bypassed via Authelia rules)
         };
 
         sonarr = {
           listenPort = 8989;
           mediaVolumes = true;
+          settings.bypassAuth = false; # Requires Authelia auth (API endpoints bypassed via Authelia rules)
         };
 
         prowlarr = {
           listenPort = 9696;
+          settings.bypassAuth = true;
         };
 
         autobrr = {
           image = "ghcr.io/autobrr/autobrr:latest";
           listenPort = 7474;
+          settings.bypassAuth = true;
         };
 
         pinchflat = {
@@ -107,6 +115,7 @@ in {
           volumes = [
             "${vars.storageDir}/media/Pinchflat:/downloads"
           ];
+          settings.bypassAuth = true;
         };
 
         plex = {
@@ -126,17 +135,19 @@ in {
             JELLYFIN_PublishedServerUrl = "https://jellyfin.arsfeld.one";
           };
           settings = {
-            funnel = true;
             bypassAuth = true;
+            funnel = true;
           };
         };
 
         stash = {
           image = "stashapp/stash:latest";
+          listenPort = 9999;
           configDir = "/root/.stash";
           mediaVolumes = true;
           network = "host";
           devices = ["/dev/dri:/dev/dri"];
+          settings.funnel = true;
         };
 
         flaresolverr = {
@@ -144,6 +155,7 @@ in {
           listenPort = 8191;
           exposePort = 8191;
           configDir = null;
+          settings.bypassAuth = true;
         };
 
         kavita = {
@@ -151,6 +163,7 @@ in {
           volumes = [
             "${vars.storageDir}/media/Manga:/data"
           ];
+          settings.bypassAuth = true;
         };
 
         actual = {
@@ -159,18 +172,12 @@ in {
           volumes = [
             "${vars.storageDir}/data/actual:/data"
           ];
-          settings = {
-            bypassAuth = true;
-            funnel = true;
-          };
+          settings.bypassAuth = true;
         };
 
         ohdio = {
           image = "ghcr.io/arsfeld/ohdio:latest";
           listenPort = 4000;
-          volumes = [
-            "${vars.storageDir}/data/ohdio:/config"
-          ];
           environment = {
             PHX_HOST = "ohdio.bat-boa.ts.net";
             PORT = "4000";
@@ -182,10 +189,7 @@ in {
           environmentFiles = [
             config.age.secrets.ohdio-env.path
           ];
-          settings = {
-            bypassAuth = true;
-            funnel = true;
-          };
+          settings.bypassAuth = true;
         };
       };
 
