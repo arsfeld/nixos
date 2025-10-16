@@ -26,9 +26,6 @@ with lib; let
   cfg = config.media.gateway;
   _config = config;
   domain = cfg.domain;
-  tsnsrvConfigs = utils.generateTsnsrvConfigs {
-    services = cfg.services;
-  };
   hosts = utils.generateHosts {
     services = cfg.services;
     domain = domain;
@@ -137,6 +134,37 @@ in {
       '';
       example = "media@example.com";
     };
+
+    tailscale = {
+      enableOAuth = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Use OAuth client credentials (TS_API_CLIENT_ID + TS_API_CLIENT_SECRET)
+          instead of auth key (TS_AUTHKEY) for Tailscale node registration.
+          OAuth provides better security, scoping, and ephemeral node support.
+        '';
+      };
+
+      ephemeral = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Enable ephemeral node registration with Tailscale.
+          Ephemeral nodes are automatically cleaned up when they disconnect.
+          Requires OAuth to be enabled.
+        '';
+      };
+
+      stateDir = mkOption {
+        type = types.str;
+        default = "/var/lib/caddy/tailscale";
+        description = ''
+          Directory where Caddy will store Tailscale state.
+          This directory must be persistent and writable by the caddy user.
+        '';
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -144,14 +172,50 @@ in {
       extraDomainNames = ["*.${domain}"];
     };
 
-    services.tsnsrv.services = tsnsrvConfigs;
-
     services.caddy.email = cfg.email;
 
-    services.caddy.globalConfig = utils.generateCaddyGlobalConfig;
+    # Add Tailscale configuration to Caddy global config
+    services.caddy.globalConfig = ''
+      ${utils.generateCaddyGlobalConfig}
+
+      # Tailscale configuration - makes Caddy join the Tailnet as a single node
+      # Using OAuth client credentials for ephemeral node registration
+      # See: https://github.com/tailscale/caddy-tailscale/pull/109
+      tailscale {
+        ${
+        if cfg.tailscale.enableOAuth
+        then ''
+          client_id {$TS_API_CLIENT_ID}
+          client_secret {$TS_API_CLIENT_SECRET}
+        ''
+        else ''
+          auth_key {$TS_AUTHKEY}
+        ''
+      }
+        ephemeral ${
+        if cfg.tailscale.ephemeral
+        then "true"
+        else "false"
+      }
+        state_dir ${cfg.tailscale.stateDir}
+      }
+    '';
 
     services.caddy.extraConfig = utils.generateCaddyExtraConfig domain;
 
     services.caddy.virtualHosts = hosts;
+
+    # Configure Caddy systemd service to use Tailscale OAuth credentials
+    systemd.services.caddy = {
+      serviceConfig = {
+        # Use tailscale-env which contains OAuth credentials:
+        # - TS_API_CLIENT_ID (OAuth client ID)
+        # - TS_API_CLIENT_SECRET (OAuth client secret)
+        # - TS_AUTHKEY (legacy auth key, for fallback)
+        EnvironmentFile = _config.age.secrets.tailscale-env.path;
+        # Ensure state directory exists
+        StateDirectory = lib.mkForce "caddy caddy/tailscale";
+      };
+    };
   };
 }
