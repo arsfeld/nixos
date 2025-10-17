@@ -59,6 +59,7 @@ in {
 
   age.secrets."transmission-openvpn-pia".file = "${self}/secrets/transmission-openvpn-pia.age";
   age.secrets."qbittorrent-pia".file = "${self}/secrets/qbittorrent-pia.age";
+  age.secrets."airvpn-wireguard".file = "${self}/secrets/airvpn-wireguard.age";
 
   environment.systemPackages = [
     (pkgs.writeShellScriptBin "plex-trakt-sync" "${(plex-trakt-sync {interactive = true;})} \"$@\"")
@@ -73,6 +74,12 @@ in {
     serviceConfig.Type = "oneshot";
     script = "${(plex-trakt-sync {})} sync";
   };
+
+  # Setup wireguard config for qflood
+  systemd.tmpfiles.rules = lib.mkAfter [
+    "d ${vars.configDir}/qflood/wireguard 0750 ${toString vars.puid} ${toString vars.pgid}"
+    "C ${vars.configDir}/qflood/wireguard/wg0.conf 0600 ${toString vars.puid} ${toString vars.pgid} - ${config.age.secrets.airvpn-wireguard.path}"
+  ];
 
   virtualisation.oci-containers.containers = {
     # qbittorrent = {
