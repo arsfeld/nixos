@@ -63,7 +63,12 @@ in {
 
   # Required sysctl for VPN containers (qflood, transmission-openvpn)
   boot.kernel.sysctl = {
+    # Enable reverse path filtering with fwmark support
+    # Required for WireGuard policy routing - allows marked packets to use VPN routing tables
     "net.ipv4.conf.all.src_valid_mark" = 1;
+
+    # Keep IPv6 enabled (0 = enabled, 1 = disabled)
+    # AirVPN config includes IPv6 addresses
     "net.ipv6.conf.all.disable_ipv6" = 0;
   };
 
