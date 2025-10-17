@@ -48,7 +48,21 @@ with lib; {
 
   boot = {
     binfmt.emulatedSystems = ["aarch64-linux"];
-    kernelModules = ["kvm-intel" "ip6_tables"];
+    # Kernel modules for containers with iptables (qflood VPN)
+    # Containers cannot load kernel modules themselves, so these must be loaded on host
+    kernelModules = [
+      "kvm-intel"
+      # IPv4 iptables support
+      "ip_tables"
+      "iptable_filter" # Required for filter table
+      "iptable_nat" # Required for NAT/VPN
+      "iptable_mangle" # Required for packet mangling
+      # IPv6 iptables support (AirVPN uses IPv6)
+      "ip6_tables"
+      "ip6table_filter"
+      "ip6table_nat"
+      "ip6table_mangle"
+    ];
     supportedFilesystems = ["bcachefs"];
   };
 

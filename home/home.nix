@@ -3,6 +3,7 @@
   pkgs,
   lib,
   inputs,
+  osConfig ? null,
   ...
 }: let
   inherit (pkgs) stdenv;
@@ -55,6 +56,7 @@ in {
         direnv
         dogdns
         du-dust
+        jq
         just
         fastfetch
         fd
@@ -130,11 +132,14 @@ in {
 
   # Configure nix settings for user
   nix = {
-    settings = {
-      # Use remote builders configuration
-      builders = "@${../nix-builders.conf}";
-      builders-use-substitutes = true;
-    };
+    settings =
+      {
+        builders-use-substitutes = true;
+      }
+      // (lib.optionalAttrs (osConfig != null && osConfig.networking.hostName != "cloud") {
+        # Use remote builders configuration (skip on cloud to avoid circular dependency)
+        builders = "@${../nix-builders.conf}";
+      });
   };
 
   # programs.java.enable = true;

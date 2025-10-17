@@ -30,6 +30,13 @@
   services.postgresql = {
     enable = true;
     package = pkgs.postgresql_16_jit;
+    # Allow media user to connect as immich database user for file permissions
+    identMap = ''
+      immich-users media immich
+    '';
+    authentication = lib.mkAfter ''
+      local immich immich peer map=immich-users
+    '';
   };
 
   services.postgresqlBackup = {
