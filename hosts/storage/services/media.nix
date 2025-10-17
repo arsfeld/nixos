@@ -89,7 +89,8 @@ in {
   # Setup wireguard config for qflood
   systemd.tmpfiles.rules = lib.mkAfter [
     "d ${vars.configDir}/qflood/wireguard 0750 ${toString vars.puid} ${toString vars.pgid}"
-    "C ${vars.configDir}/qflood/wireguard/wg0.conf 0600 ${toString vars.puid} ${toString vars.pgid} - ${config.age.secrets.airvpn-wireguard.path}"
+    # Use L+ to create/replace symlink to the decrypted AirVPN config
+    "L+ ${vars.configDir}/qflood/wireguard/wg0.conf - ${toString vars.puid} ${toString vars.pgid} - ${config.age.secrets.airvpn-wireguard.path}"
   ];
 
   virtualisation.oci-containers.containers = {
