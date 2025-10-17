@@ -66,8 +66,8 @@ with lib; {
         ];
       };
 
-      # Configure remote builders
-      buildMachines = [
+      # Configure remote builders (skip on cloud to avoid circular dependency)
+      buildMachines = lib.optionals (config.networking.hostName != "cloud") [
         {
           hostName = "cloud.bat-boa.ts.net";
           system = "aarch64-linux";
