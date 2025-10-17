@@ -191,6 +191,25 @@ in {
           ];
           settings.bypassAuth = true;
         };
+
+        qflood = {
+          image = "ghcr.io/hotio/qflood";
+          listenPort = 8080; # Internal container port
+          # exposePort auto-assigned via nameToPort to avoid conflicts
+          mediaVolumes = true; # Mount media directories
+          privileged = true; # Required for WireGuard VPN setup
+          environment = {
+            UMASK = "002";
+            VPN_ENABLED = "true";
+            VPN_CONF = "wg0";
+            VPN_PROVIDER = "generic";
+            LIBTORRENT = "v2";
+            FLOOD_AUTH = "true";
+            # AirVPN port forwarding configuration
+            VPN_AUTO_PORT_FORWARD = "55473"; # Static port from AirVPN
+          };
+          settings.bypassAuth = true;
+        };
       };
 
       cloudServices = {

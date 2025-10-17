@@ -55,4 +55,7 @@ in {
 
   # Ohdio secrets
   "ohdio-env.age".publicKeys = users ++ [storage];
+
+  # AirVPN secrets
+  "airvpn-wireguard.age".publicKeys = users ++ [storage];
 }
