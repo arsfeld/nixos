@@ -9,6 +9,16 @@
     (modulesPath + "/installer/sd-card/sd-image-aarch64.nix")
   ];
 
+  # Orange Pi Zero 3 requires u-boot for SD card booting
+  sdImage = {
+    populateFirmwareCommands = "";
+    populateRootCommands = "";
+    postBuildCommands = ''
+      # Write u-boot to the SD card image at sector 1024 (8KB offset)
+      dd if=${pkgs.ubootOrangePiZero3}/u-boot-sunxi-with-spl.bin of=$img bs=1024 seek=8 conv=notrunc
+    '';
+  };
+
   # Orange Pi Zero 3 hardware configuration
   # SoC: Allwinner H618 (ARM Cortex-A53 quad-core)
   # Device tree is available in mainline kernel 6.6+
