@@ -61,6 +61,12 @@ in {
   age.secrets."qbittorrent-pia".file = "${self}/secrets/qbittorrent-pia.age";
   age.secrets."airvpn-wireguard".file = "${self}/secrets/airvpn-wireguard.age";
 
+  # Required sysctl for VPN containers (qflood, transmission-openvpn)
+  boot.kernel.sysctl = {
+    "net.ipv4.conf.all.src_valid_mark" = 1;
+    "net.ipv6.conf.all.disable_ipv6" = 0;
+  };
+
   environment.systemPackages = [
     (pkgs.writeShellScriptBin "plex-trakt-sync" "${(plex-trakt-sync {interactive = true;})} \"$@\"")
   ];
