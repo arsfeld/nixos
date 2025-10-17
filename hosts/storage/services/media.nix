@@ -94,7 +94,8 @@ in {
   # Copy AirVPN WireGuard config before starting container
   systemd.services.podman-qflood.serviceConfig.ExecStartPre = lib.mkAfter [
     "${pkgs.writeShellScript "copy-airvpn-config" ''
-      ${pkgs.coreutils}/bin/cp -f ${config.age.secrets.airvpn-wireguard.path} ${vars.configDir}/qflood/wireguard/wg0.conf
+      ${pkgs.coreutils}/bin/rm -f ${vars.configDir}/qflood/wireguard/wg0.conf
+      ${pkgs.coreutils}/bin/cp ${config.age.secrets.airvpn-wireguard.path} ${vars.configDir}/qflood/wireguard/wg0.conf
       ${pkgs.coreutils}/bin/chown ${toString vars.puid}:${toString vars.pgid} ${vars.configDir}/qflood/wireguard/wg0.conf
       ${pkgs.coreutils}/bin/chmod 600 ${vars.configDir}/qflood/wireguard/wg0.conf
     ''}"
