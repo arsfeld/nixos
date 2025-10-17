@@ -194,7 +194,7 @@ in {
 
         qflood = {
           image = "ghcr.io/hotio/qflood";
-          listenPort = 8080; # Internal container port
+          listenPort = 3000; # Flood UI port (qBittorrent runs on 8080 internally)
           # exposePort auto-assigned via nameToPort to avoid conflicts
           mediaVolumes = true; # Mount media directories
           privileged = true; # Required for WireGuard VPN setup
@@ -208,7 +208,10 @@ in {
             # AirVPN port forwarding configuration
             VPN_AUTO_PORT_FORWARD = "55473"; # Static port from AirVPN
           };
-          settings.bypassAuth = true;
+          settings = {
+            bypassAuth = true;
+            funnel = true; # Enable public access via Tailscale Funnel
+          };
         };
       };
 
