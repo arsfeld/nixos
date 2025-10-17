@@ -89,9 +89,14 @@ in {
   # Setup wireguard config for qflood
   systemd.tmpfiles.rules = lib.mkAfter [
     "d ${vars.configDir}/qflood/wireguard 0750 ${toString vars.puid} ${toString vars.pgid}"
-    # Use L+ to create/replace symlink to the decrypted AirVPN config
-    "L+ ${vars.configDir}/qflood/wireguard/wg0.conf - ${toString vars.puid} ${toString vars.pgid} - ${config.age.secrets.airvpn-wireguard.path}"
   ];
+
+  # Copy AirVPN WireGuard config before starting container
+  systemd.services.podman-qflood.preStart = lib.mkAfter ''
+    ${pkgs.coreutils}/bin/cp -f ${config.age.secrets.airvpn-wireguard.path} ${vars.configDir}/qflood/wireguard/wg0.conf
+    ${pkgs.coreutils}/bin/chown ${toString vars.puid}:${toString vars.pgid} ${vars.configDir}/qflood/wireguard/wg0.conf
+    ${pkgs.coreutils}/bin/chmod 600 ${vars.configDir}/qflood/wireguard/wg0.conf
+  '';
 
   virtualisation.oci-containers.containers = {
     # qbittorrent = {
