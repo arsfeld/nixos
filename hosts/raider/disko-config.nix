@@ -1,11 +1,11 @@
 # Disko configuration for raider gaming system
-# Target disk: Samsung SSD 850 EVO 1TB
+# Target disk: XrayDisk 512GB NVMe SSD
 {
   disko.devices = {
     disk = {
       main = {
         type = "disk";
-        device = "/dev/disk/by-id/ata-Samsung_SSD_850_EVO_1TB_S3PJNF0J907619X";
+        device = "/dev/disk/by-id/nvme-XrayDisk_512GB_SSD_AA000000000000000321";
         content = {
           type = "gpt";
           partitions = {
@@ -21,14 +21,6 @@
                   "defaults"
                   "umask=0077"
                 ];
-              };
-            };
-            swap = {
-              priority = 2;
-              size = "32G"; # Adjust based on your RAM size
-              content = {
-                type = "swap";
-                randomEncryption = true;
               };
             };
             root = {

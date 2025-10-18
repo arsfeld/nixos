@@ -1,7 +1,8 @@
 # save as sd-image.nix somewhere
-{...}: {
+{inputs, ...}: {
   imports = [
     <nixpkgs/nixos/modules/installer/sd-card/sd-image-aarch64.nix>
+    inputs.eh5.nixosModules.fake-hwclock
     ./hardware-configuration.nix
   ];
 

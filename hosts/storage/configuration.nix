@@ -1,9 +1,6 @@
-args @ {
+{
   lib,
   pkgs,
-  config,
-  self,
-  inputs,
   ...
 }:
 with lib; {
