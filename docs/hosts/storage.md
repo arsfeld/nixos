@@ -87,15 +87,12 @@ The storage server is the primary workhorse of the infrastructure, hosting most 
 │   │   ├── nextcloud/# Nextcloud data
 │   │   └── ...
 │   └── backup/       # Local backup storage
-├── storage/          # Bind mount to /mnt/data (historical)
-└── hangar/           # Fast NVMe storage (XrayDisk 512GB)
-    └── vms/          # Virtual machine images
+└── storage/          # Bind mount to /mnt/data (historical)
 ```
 
 ### Filesystem Configuration
 - **Boot/System**: Btrfs with zstd:3 compression, snapshots
 - **Bulk Storage**: Bcachefs for data integrity and performance
-- **VM Storage**: Btrfs on dedicated NVMe for performance
 - **Bind Mount**: `/mnt/storage` → `/mnt/data` for backwards compatibility
 
 ### Enabled Modules
