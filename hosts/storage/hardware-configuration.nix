@@ -48,9 +48,10 @@
   # systemd.services.docker.requires = ["mnt-storage.mount"];
 
   networking.useDHCP = false;
+  networking.useNetworkd = true;
   networking.bridges = {
     "br0" = {
-      interfaces = ["enp4s0"];
+      interfaces = ["enp3s0"];
     };
   };
   networking.interfaces.br0.useDHCP = true;

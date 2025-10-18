@@ -19,6 +19,10 @@
     docker.enable = true; # Enable Docker runtime
   };
 
+  boot = {
+    binfmt.emulatedSystems = ["aarch64-linux"];
+  };
+
   # Additional packages
   environment.systemPackages = with pkgs; [
     anycubic-slicer

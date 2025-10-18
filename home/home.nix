@@ -196,6 +196,13 @@ in {
           ${pkgs.nodejs}/bin/npx -y backlog.md@latest $argv
         end
       '';
+      ip = ''
+        if test "$argv[1]" = "addr" -o "$argv[1]" = "a"
+          command ip $argv | awk '/^[0-9]+: (docker|veth|br-)/ { skip=1; next } /^[0-9]+: / { skip=0 } !skip'
+        else
+          command ip $argv
+        end
+      '';
     };
   };
 
@@ -267,6 +274,15 @@ in {
         fi
       }
 
+      # Filter out docker interfaces from ip addr
+      ip() {
+        if [[ "$1" == "addr" || "$1" == "a" ]]; then
+          command ip "$@" | awk '/^[0-9]+: (docker|veth|br-)/ { skip=1; next } /^[0-9]+: / { skip=0 } !skip'
+        else
+          command ip "$@"
+        fi
+      }
+
       unsetopt EXTENDED_GLOB
     '';
     profileExtra = ''
@@ -311,6 +327,15 @@ in {
         else
           # Fallback to current behavior
           ${pkgs.nodejs}/bin/npx -y backlog.md@latest "$@"
+        fi
+      }
+
+      # Filter out docker interfaces from ip addr
+      ip() {
+        if [[ "$1" == "addr" || "$1" == "a" ]]; then
+          command ip "$@" | awk '/^[0-9]+: (docker|veth|br-)/ { skip=1; next } /^[0-9]+: / { skip=0 } !skip'
+        else
+          command ip "$@"
         fi
       }
     '';
