@@ -52,6 +52,17 @@
   };
 
   # Self-hosted Attic binary cache server
+  #
+  # IMPORTANT: SQLite Permissions Workaround
+  # On first deployment, if atticd fails to start with "unable to open database file",
+  # you need to manually create the database file with proper permissions:
+  #   ssh storage.bat-boa.ts.net
+  #   sudo touch /var/lib/private/atticd/server.db
+  #   sudo chmod 666 /var/lib/private/atticd/server.db
+  #   sudo systemctl restart atticd.service
+  #
+  # This is due to systemd DynamicUser + StateDirectory not creating writable
+  # directories properly on first run. Subsequent deployments work fine.
   services.atticd = {
     enable = true;
 
