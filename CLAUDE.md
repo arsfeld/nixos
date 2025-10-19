@@ -161,7 +161,39 @@ The repository is configured to use `cloud` (aarch64-linux) as a remote builder:
 
 ## Service and Network Details
 
-- arsfeld.one is served through tailscale by storage if inside the tailnet, otherwise it's served through cloud
+### Media Gateway Architecture
+
+The repository uses a centralized gateway system for exposing services:
+
+**Service Configuration Files:**
+
+1. **`modules/constellation/services.nix`** - Central service registry
+   - Add **native systemd services** here (e.g., Attic, duplicati, gitea)
+   - Defines service ports for each host (cloud vs storage)
+   - Controls authentication (`bypassAuth` list)
+   - Controls public access (`funnels` list for Tailscale Funnel)
+   - Controls Tailscale node creation (`tailscaleExposed` list)
+   - This is the **primary place to add new services**
+
+2. **`modules/constellation/media.nix`** - Container orchestration
+   - Add **containerized services** here (e.g., Plex, Jellyfin, Overseerr)
+   - Defines `storageServices` and `cloudServices` sections
+   - Automatically adds host attribution to each service
+   - Sets up volume mounts, environment variables, and container settings
+   - Only for services running in containers, not native systemd services
+
+3. **`modules/media/gateway.nix`** - Gateway implementation
+   - Consumes service definitions from `media.gateway.services`
+   - Generates Caddy reverse proxy configuration
+   - Runs on **cloud** host and proxies to services on storage
+   - Handles TLS certificates and error pages
+   - Integrates with tsnsrv for Tailscale node management
+
+**Service Access:**
+- arsfeld.one domains are served through cloud's Caddy gateway
+- Inside the tailnet: Direct access via `service.bat-boa.ts.net` (if in `tailscaleExposed`)
+- Outside the tailnet: Public access via `service.arsfeld.one` through cloud gateway (if in `funnels`)
+- Cloud host acts as the public-facing gateway for all `*.arsfeld.one` services
 
 ## Testing Changes
 
@@ -169,5 +201,20 @@ Before deploying:
 1. Test build locally: `nix build .#nixosConfigurations.<hostname>.config.system.build.toplevel`
 2. Format code: `just fmt`
 3. Deploy to test system first if available
+
+## Adding New Services
+
+When adding a new service:
+
+1. **For native systemd services** (Attic, gitea, duplicati, etc.):
+   - Add to `modules/constellation/services.nix` in the appropriate host section (cloud or storage)
+   - Add to `bypassAuth` list if the service has its own authentication
+   - Add to `funnels` list if it should be publicly accessible via Tailscale Funnel
+   - Add to `tailscaleExposed` list if it needs a dedicated Tailscale node
+   - Deploy to **cloud** host to update the gateway configuration
+
+2. **For containerized services** (Plex, Jellyfin, etc.):
+   - Add to `modules/constellation/media.nix` in `storageServices` or `cloudServices`
+   - Define image, ports, volumes, and environment variables
+   - The service will automatically be added to the gateway
 ```
-- When adding services, look at modules/constellation/media.nix first and add them there
