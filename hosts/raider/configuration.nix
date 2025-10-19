@@ -19,6 +19,9 @@
     docker.enable = true; # Enable Docker runtime
   };
 
+  # Configure Docker storage driver
+  virtualisation.docker.storageDriver = "overlay2";
+
   boot = {
     binfmt.emulatedSystems = ["aarch64-linux"];
   };

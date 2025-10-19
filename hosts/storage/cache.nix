@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  self,
   ...
 }: {
   # Nix garbage collection settings to keep recent builds
@@ -38,6 +39,67 @@
       preserve_host_build "$host"
     done
   '';
+
+  # Age secret for Attic credentials (JWT token for admin access)
+  age.secrets."attic-credentials" = {
+    file = "${self}/secrets/attic-credentials.age";
+  };
+
+  # Age secret for Attic server token (RSA key for JWT signing)
+  age.secrets."attic-server-token" = {
+    file = "${self}/secrets/attic-server-token.age";
+    mode = "0400";
+  };
+
+  # Self-hosted Attic binary cache server
+  services.atticd = {
+    enable = true;
+
+    # Environment file with RSA key for JWT signing
+    environmentFile = config.age.secrets.attic-server-token.path;
+
+    # Use local storage backend (no S3/MinIO needed)
+    settings = {
+      # Listen on localhost - will be exposed via tsnsrv
+      listen = "127.0.0.1:8080";
+
+      # Use local storage for binary cache data
+      storage = {
+        type = "local";
+        path = "/var/lib/atticd/storage";
+      };
+
+      # Use SQLite database
+      database.url = "sqlite:///var/lib/atticd/server.db";
+
+      # Enable compression
+      compression = {
+        type = "zstd";
+      };
+
+      # Garbage collection settings
+      garbage-collection = {
+        interval = "12 hours";
+        default-retention-period = "3 months";
+      };
+    };
+  };
+
+  # Expose Attic via tsnsrv with Funnel for public access
+  services.tsnsrv.services.attic = {
+    toURL = "http://127.0.0.1:8080";
+    funnel = true; # Enable public access via Tailscale Funnel
+  };
+
+  # Also add to media gateway for arsfeld.one access
+  media.gateway.services.attic = {
+    host = "storage";
+    port = 8080;
+    settings = {
+      bypassAuth = true; # No authentication needed for cache reads
+      funnel = true; # Public access
+    };
+  };
 
   # Script to push builds to Attic cache
   environment.systemPackages = with pkgs; [
@@ -94,6 +156,7 @@
       deploy --targets ".#$HOST" "$@"
     '')
     pkgs.attic-client
+    pkgs.attic-server
   ];
 
   # Keep more store paths before garbage collection
@@ -113,8 +176,9 @@
   # Systemd service to cache all host builds periodically
   systemd.services.cache-all-hosts = {
     description = "Cache all NixOS host configurations to Attic";
-    after = ["network-online.target"];
+    after = ["network-online.target" "atticd.service"];
     wants = ["network-online.target"];
+    requires = ["atticd.service"];
 
     serviceConfig = {
       Type = "oneshot";

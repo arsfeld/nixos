@@ -61,4 +61,5 @@ in {
 
   # Attic binary cache secrets
   "attic-credentials.age".publicKeys = users ++ [storage];
+  "attic-server-token.age".publicKeys = users ++ [storage];
 }
