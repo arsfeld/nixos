@@ -51,18 +51,10 @@ with lib; {
         download-buffer-size = 268435456; # 256 * 1024 * 1024
 
         substituters = [
-          "https://nix-community.cachix.org?priority=41" # this is a useful public cache!
-          "https://numtide.cachix.org?priority=42" # this is also a useful public cache!
-          "https://fly-attic.fly.dev/system"
-          "https://deploy-rs.cachix.org"
-          "https://cosmic.cachix.org/"
+          "https://attic.arsfeld.one/system" # Self-hosted Attic binary cache
         ];
         trusted-public-keys = [
-          "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
-          "numtide.cachix.org-1:2ps1kLBUWjxIneOy1Ik6cQjb41X0iXVXeHigGmycPPE="
-          "system:qhuLhZgxwERwu+xGKJN0G/46X4rDB1KPxSx8xQrJdBU="
-          "deploy-rs.cachix.org-1:xfNobmiwF/vzvK1gpfediPwpdIP0rpDV2rYqx40zdSI="
-          "cosmic.cachix.org-1:Dya9IyXD4xdBehWjrkPv6rtxpmMdRel02smYzA85dPE="
+          "system:qhuLhZgxwERwu+xGKJN0G/46X4rDB1KPxSx8xQrJdBU=" # Attic signing key (will be generated)
         ];
       };
 
