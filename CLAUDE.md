@@ -32,6 +32,51 @@ nix-shell -p rage --run "rage -d -i ~/.ssh/id_ed25519 secrets/secret-name.age"
 ragenix -r
 ```
 
+### Attic Binary Cache
+The repository uses a self-hosted Attic binary cache to speed up builds:
+
+**Cache URL**: https://attic.arsfeld.one/system
+
+#### Setup Attic Client
+```bash
+# Generate a client token (run on storage server)
+ssh storage.bat-boa.ts.net "sudo atticd-atticadm make-token --sub 'client' --validity '10y' --pull 'system' --push 'system'"
+
+# Configure attic client locally
+attic login storage https://attic.arsfeld.one <token-from-above>
+```
+
+#### Using the Cache
+```bash
+# Push a build to the cache
+attic push system /nix/store/path
+
+# Push current host build to cache
+nix build .#nixosConfigurations.$(hostname).config.system.build.toplevel --no-link --print-out-paths | xargs attic push system
+
+# Check cache info
+attic cache info system
+
+# The cache is automatically used for builds (configured in modules/constellation/common.nix)
+```
+
+#### Automatic Caching
+- **Local builds**: Use `attic watch-store system` to automatically push all builds
+- **CI builds**: GitHub Actions uses Magic Nix Cache automatically
+- **Scheduled**: A daily timer on storage caches all host configurations
+
+#### Cache Scripts
+```bash
+# Push a specific host to cache
+cache-push <hostname>
+
+# Cache all hosts
+cache-all-hosts
+
+# Deploy and cache in one command
+deploy-cached <hostname>
+```
+
 ### Deployment Commands
 
 #### Using deploy-rs (default)
