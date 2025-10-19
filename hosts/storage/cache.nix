@@ -60,8 +60,8 @@
 
     # Use local storage backend (no S3/MinIO needed)
     settings = {
-      # Listen on localhost - will be exposed via tsnsrv
-      listen = "127.0.0.1:8080";
+      # Listen on all interfaces to allow access from remote builders (cloud)
+      listen = "0.0.0.0:8080";
 
       # Use local storage for binary cache data
       storage = {
