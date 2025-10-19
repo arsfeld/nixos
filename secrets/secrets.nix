@@ -8,7 +8,7 @@ let
   r2s = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH1YUqHzxqtu512agJVUBNbTOWOad9/k0REig4RjEhdN root@nixos";
   router = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA8n1XWNmEvEHAMxqAljnkFkfMZrOYeZ16BYtnzG9fop root@router";
   cottage = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHdUc+a9PVJ/kmJwcLw8Jx7400iq4ySaunDLXCMa8d5b root@nixos";
-  raider = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBgCppVaNEuGP88UlWKNPIs+vyqKqw8ZnXeiSRXpMdaC root@nixos";
+  raider = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE7ayPDvZPe5h8rWjmRn2GMCRaMvE4Lhxxd2JjhJFai3 root@raider";
   systems = [storage cloud raspi3 r2s router cottage raider];
 in {
   "authelia-secrets.age".publicKeys = users ++ [cloud];
@@ -58,4 +58,7 @@ in {
 
   # AirVPN secrets
   "airvpn-wireguard.age".publicKeys = users ++ [storage];
+
+  # Attic binary cache secrets
+  "attic-credentials.age".publicKeys = users ++ [storage];
 }
