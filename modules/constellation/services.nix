@@ -42,6 +42,7 @@ with lib; let
       yarr = 7070;
     };
     storage = {
+      attic = 8080;
       audiobookshelf = 13378;
       # beszel = 8090; # Disabled - monitoring service causing high CPU usage
       bitmagnet = 3333;
@@ -92,6 +93,7 @@ with lib; let
   };
 
   bypassAuth = [
+    "attic"
     "audiobookshelf"
     "auth"
     "autobrr"
@@ -116,6 +118,7 @@ with lib; let
   cors = ["sudo-proxy"];
 
   funnels = [
+    "attic"
     "audiobookshelf"
     "yarr"
     "jellyfin"
@@ -178,6 +181,7 @@ with lib; let
     "n8n"
     "grafana"
     "netdata"
+    "stash"
   ];
 
   # generateServices: Transforms nested service definitions into a flat list of configs

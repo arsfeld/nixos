@@ -96,22 +96,6 @@
     };
   };
 
-  # Expose Attic via tsnsrv with Funnel for public access
-  services.tsnsrv.services.attic = {
-    toURL = "http://127.0.0.1:8080";
-    funnel = true; # Enable public access via Tailscale Funnel
-  };
-
-  # Also add to media gateway for arsfeld.one access
-  media.gateway.services.attic = {
-    host = "storage";
-    port = 8080;
-    settings = {
-      bypassAuth = true; # No authentication needed for cache reads
-      funnel = true; # Public access
-    };
-  };
-
   # Script to push builds to Attic cache
   environment.systemPackages = with pkgs; [
     (writeScriptBin "cache-push" ''
