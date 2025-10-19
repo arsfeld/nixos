@@ -54,7 +54,7 @@ with lib; {
           "https://attic.arsfeld.one/system" # Self-hosted Attic binary cache
         ];
         trusted-public-keys = [
-          "system:qhuLhZgxwERwu+xGKJN0G/46X4rDB1KPxSx8xQrJdBU=" # Attic signing key (will be generated)
+          "system:rXTiemngj5One4DkT0+kr9YoGqyQvsUtgaN+0EspyXE=" # Attic cache public key
         ];
       };
 
