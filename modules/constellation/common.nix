@@ -50,12 +50,13 @@ with lib; {
         # Default is 64 MiB, increasing to 256 MiB
         download-buffer-size = 268435456; # 256 * 1024 * 1024
 
-        substituters = [
-          "https://attic.arsfeld.one/system" # Self-hosted Attic binary cache
-        ];
-        trusted-public-keys = [
-          "system:rXTiemngj5One4DkT0+kr9YoGqyQvsUtgaN+0EspyXE=" # Attic cache public key
-        ];
+        # Temporarily disabled due to HTTP 500 errors
+        # substituters = [
+        #   "https://attic.arsfeld.one/system" # Self-hosted Attic binary cache
+        # ];
+        # trusted-public-keys = [
+        #   "system:rXTiemngj5One4DkT0+kr9YoGqyQvsUtgaN+0EspyXE=" # Attic cache public key
+        # ];
       };
 
       # Configure remote builders (skip on cloud to avoid circular dependency)

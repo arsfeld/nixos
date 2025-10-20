@@ -192,10 +192,10 @@ in {
           settings.bypassAuth = true;
         };
 
-        qflood = {
-          image = "ghcr.io/hotio/qflood";
-          listenPort = 3000; # Flood UI port (qBittorrent runs on 8080 internally)
-          # exposePort auto-assigned via nameToPort to avoid conflicts
+        # qBittorrent with integrated WireGuard VPN
+        qbittorrent = {
+          image = "ghcr.io/hotio/qbittorrent";
+          listenPort = 8080; # qBittorrent web UI port
           mediaVolumes = true; # Mount media directories
           privileged = true; # Required for WireGuard VPN setup
           environment = {
@@ -203,13 +203,26 @@ in {
             VPN_ENABLED = "true";
             VPN_CONF = "wg0";
             VPN_PROVIDER = "generic";
-            LIBTORRENT = "v2";
-            FLOOD_AUTH = "true";
+            VPN_LAN_NETWORK = "10.88.0.0/16"; # Podman default network for container and *arr access
             # AirVPN port forwarding configuration
             VPN_AUTO_PORT_FORWARD = "55473"; # Static port from AirVPN
           };
           settings = {
-            bypassAuth = true;
+            bypassAuth = true; # Has built-in authentication
+            funnel = false; # Not publicly exposed - tailnet access only
+          };
+        };
+
+        # qui - Modern qBittorrent web UI with multi-instance support
+        qui = {
+          image = "ghcr.io/autobrr/qui";
+          listenPort = 7476;
+          environment = {
+            QUI__HOST = "0.0.0.0";
+            QUI__PORT = "7476";
+          };
+          settings = {
+            bypassAuth = true; # qui has its own authentication
             funnel = true; # Enable public access via Tailscale Funnel
           };
         };
