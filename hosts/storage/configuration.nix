@@ -45,7 +45,7 @@ with lib; {
 
   boot = {
     binfmt.emulatedSystems = ["aarch64-linux"];
-    # Kernel modules for containers with iptables (qflood VPN)
+    # Kernel modules for containers with iptables (qbittorrent VPN)
     # Containers cannot load kernel modules themselves, so these must be loaded on host
     kernelModules = [
       "kvm-intel"
