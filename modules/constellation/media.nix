@@ -203,7 +203,7 @@ in {
             VPN_ENABLED = "true";
             VPN_CONF = "wg0";
             VPN_PROVIDER = "generic";
-            VPN_LAN_NETWORK = "10.88.0.0/16"; # Podman default network for container and *arr access
+            # Container auto-detects Podman network (10.88.0.0/16) for LAN access
             # AirVPN port forwarding configuration
             VPN_AUTO_PORT_FORWARD = "55473"; # Static port from AirVPN
           };
