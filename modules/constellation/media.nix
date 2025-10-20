@@ -197,7 +197,7 @@ in {
           image = "ghcr.io/hotio/qbittorrent";
           listenPort = 8080; # qBittorrent web UI port
           mediaVolumes = true; # Mount media directories
-          privileged = true; # Required for WireGuard VPN setup
+          extraOptions = ["--cap-add=NET_ADMIN"]; # Required for WireGuard VPN setup
           environment = {
             UMASK = "002";
             VPN_ENABLED = "true";
