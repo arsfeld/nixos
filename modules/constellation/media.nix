@@ -209,7 +209,7 @@ in {
           };
           settings = {
             bypassAuth = true; # Has built-in authentication
-            funnel = false; # Not publicly exposed - tailnet access only
+            funnel = true; # Enable public access via Tailscale Funnel at qbittorrent.arsfeld.one
           };
         };
 
