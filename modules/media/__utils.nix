@@ -139,7 +139,9 @@ in
               import errors
               reverse_proxy ${protocol}://${cfg.host}:${toString cfg.port} {
                 ${insecureTlsConfig}
-                @error status 404 500 503
+                # Only convert 500/503 to errors for fancy error pages
+                # Let 404s pass through unchanged (fixes task-83)
+                @error status 500 503
                 handle_response @error {
                   error {rp.status_code}
                 }
