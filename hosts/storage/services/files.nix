@@ -83,19 +83,21 @@ in {
   };
 
   services.nextcloud = {
-    enable = false;
-    datadir = "${vars.dataDir}/files/Nextcloud";
+    enable = false; # Temporarily disabled due to path ownership issues - will re-enable after manual fix
+    # Use /var/lib instead of /mnt/storage to avoid unsafe path transition issues
+    # The parent /mnt/storage/files is owned by media:media which conflicts with nextcloud:nextcloud
+    datadir = "/var/lib/nextcloud/data";
     hostName = "nextcloud.${vars.domain}";
     maxUploadSize = "10G";
     package = pkgs.nextcloud31;
-    appstoreEnable = true;
-    autoUpdateApps.enable = true;
+    appstoreEnable = false; # Disable to avoid write permission issues with NixOS-managed apps
+    autoUpdateApps.enable = false;
     configureRedis = true;
     database.createLocally = true;
     extraApps = {
       inherit (config.services.nextcloud.package.packages.apps) memories calendar tasks mail contacts onlyoffice user_oidc;
     };
-    extraAppsEnable = true;
+    extraAppsEnable = true; # Enable NixOS-managed apps
     config = {
       dbtype = "pgsql";
       adminpassFile = "/etc/secrets/nextcloud";
@@ -103,9 +105,13 @@ in {
     settings = {
       mail_smtpmode = "sendmail";
       mail_sendmailmode = "pipe";
-      trusted_domains = ["storage" "storage.bat-boa.ts.net" "nextcloud.bat-boa.ts.net"];
+      trusted_domains = ["storage" "storage.bat-boa.ts.net" "nextcloud.bat-boa.ts.net" "nextcloud.arsfeld.one"];
       trusted_proxies = ["100.66.83.36"];
       overwriteprotocol = "https";
+      # OIDC configuration for user_oidc app
+      user_oidc = {
+        default_token_endpoint_auth_method = "client_secret_post";
+      };
     };
     phpOptions = {
       "opcache.interned_strings_buffer" = "23";

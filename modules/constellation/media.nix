@@ -65,16 +65,17 @@ in {
 
     media.containers = let
       storageServices = {
-        nextcloud = {
-          listenPort = 443;
-          volumes = [
-            "${vars.storageDir}/files/Nextcloud:/data"
-          ];
-          settings = {
-            insecureTls = true;
-            bypassAuth = true;
-          };
-        };
+        # nextcloud = {
+        #   listenPort = 443;
+        #   volumes = [
+        #     "${vars.storageDir}/files/Nextcloud:/data"
+        #   ];
+        #   settings = {
+        #     insecureTls = true;
+        #     bypassAuth = true;
+        #   };
+        # };
+        # Note: Nextcloud is now using the native NixOS service in hosts/storage/services/files.nix
 
         overseerr = {
           listenPort = 5055;
