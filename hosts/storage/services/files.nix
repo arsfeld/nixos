@@ -115,6 +115,8 @@ in {
       trusted_proxies = ["100.66.83.36"];
       overwriteprotocol = "https";
       overwritehost = "nextcloud.arsfeld.one";
+      # Allow connections to Tailscale IPs for OIDC provider (Authelia)
+      allow_local_remote_servers = true;
       # OIDC configuration for user_oidc app
       user_oidc = {
         default_token_endpoint_auth_method = "client_secret_post";
