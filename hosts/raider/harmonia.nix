@@ -82,16 +82,16 @@ in {
 
   nix.gc.options = lib.mkForce "--max-free 75G --min-free 25G";
 
+  # tsnsrv configuration for Tailscale node creation
+  # The harmonia service is auto-configured via constellation.services
+  # (see modules/constellation/services.nix and modules/media/gateway.nix)
   services.tsnsrv = {
     enable = true;
+    prometheusAddr = "127.0.0.1:9099";
     defaults = {
-      tags = ["tag:service" "tag:cache"];
+      tags = ["tag:service"];
       authKeyPath = config.age.secrets."tailscale-key".path;
       ephemeral = true;
-    };
-    services.harmonia = {
-      toURL = "http://127.0.0.1:${toString harmoniaPort}";
-      funnel = false;
     };
   };
 }

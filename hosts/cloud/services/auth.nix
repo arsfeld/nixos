@@ -10,7 +10,7 @@
   inherit (domains) mediaDomain authDomain;
 in {
   age.secrets.dex-clients-tailscale-secret.file = "${self}/secrets/dex-clients-tailscale-secret.age";
-  age.secrets.dex-clients-qui-secret.file = "${self}/secrets/dex-clients-qui-secret.age";
+  # dex-clients-qui-secret removed - Qui migrated to Authelia OIDC
   age.secrets.lldap-env.file = "${self}/secrets/lldap-env.age";
   age.secrets.lldap-env.mode = "444";
   age.secrets.authelia-secrets.file = "${self}/secrets/authelia-secrets.age";
@@ -37,12 +37,7 @@ in {
           redirectURIs = ["https://login.tailscale.com/a/oauth_response"];
           secretFile = config.age.secrets.dex-clients-tailscale-secret.path;
         }
-        {
-          id = "qui";
-          name = "Qui";
-          redirectURIs = ["https://qui.arsfeld.one/api/auth/oidc/callback"];
-          secretFile = config.age.secrets.dex-clients-qui-secret.path;
-        }
+        # Qui migrated to Authelia OIDC provider
       ];
       staticPasswords = [
         {
@@ -186,6 +181,23 @@ in {
       storage = {
         local = {
           path = "/var/lib/authelia-${autheliaConfig}/db.sqlite3";
+        };
+      };
+      identity_providers = {
+        oidc = {
+          # HMAC secret, JWKS, and client secrets are in authelia-secrets.age
+          clients = [
+            {
+              client_id = "qui";
+              client_name = "Qui - qBittorrent Web UI";
+              authorization_policy = "one_factor";
+              redirect_uris = ["https://qui.arsfeld.one/api/auth/oidc/callback"];
+              scopes = ["openid" "profile" "email" "groups"];
+              grant_types = ["authorization_code"];
+              response_types = ["code"];
+              token_endpoint_auth_method = "client_secret_post";
+            }
+          ];
         };
       };
     };
