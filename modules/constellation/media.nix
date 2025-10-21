@@ -236,6 +236,9 @@ in {
           environmentFiles = [
             config.age.secrets.qui-oidc-env.path
           ];
+          extraOptions = [
+            "--no-healthcheck" # Disable container health check to prevent activation failures
+          ];
           settings = {
             bypassAuth = true; # qui has its own authentication
             funnel = true; # Enable public internet access to qui.bat-boa.ts.net (not just tailnet)
