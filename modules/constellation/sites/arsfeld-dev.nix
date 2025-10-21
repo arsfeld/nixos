@@ -39,14 +39,6 @@ in {
 
       # blog.${domain} is now handled directly by constellation.blog module
       # Supabase instances are now handled dynamically by services.supabase
-
-      "reel.${domain}" = {
-        useACMEHost = domain;
-        extraConfig = ''
-          root * ${./reel}
-          file_server
-        '';
-      };
     };
   };
 }
