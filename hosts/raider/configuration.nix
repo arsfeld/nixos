@@ -19,7 +19,11 @@
     development.enable = true;
     docker.enable = true; # Enable Docker runtime
     backup.enable = true; # Enable automated backups
+    services.enable = true; # Enable service gateway for harmonia tsnsrv integration
   };
+
+  # Enable media config for domain settings (required by constellation.services)
+  media.config.enable = true;
 
   # Configure Docker storage driver
   virtualisation.docker.storageDriver = "overlay2";

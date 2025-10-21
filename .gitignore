@@ -74,3 +74,6 @@ blog/static/images/generated/
 
 # Tailscale API key (for cleanup script)
 .tailscale-api-key
+
+# Code CLI artifacts
+.code/
