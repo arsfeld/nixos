@@ -55,8 +55,9 @@ in {
 
   systemd.services.harmonia-healthcheck = {
     description = "Harmonia cache health probe";
-    after = ["network-online.target"];
+    after = ["network-online.target" "harmonia-dev.service"];
     wants = ["network-online.target"];
+    requires = ["harmonia-dev.service"];
     serviceConfig = {
       Type = "oneshot";
       ExecStart = healthcheckScript;
