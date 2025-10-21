@@ -60,6 +60,9 @@ in {
   # Qui OIDC secrets
   "qui-oidc-env.age".publicKeys = users ++ [storage];
 
+  # Immich OIDC secrets
+  "immich-oidc-secret.age".publicKeys = users ++ [storage];
+
   # AirVPN secrets
   "airvpn-wireguard.age".publicKeys = users ++ [storage];
 
