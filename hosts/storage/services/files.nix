@@ -114,6 +114,7 @@ in {
       trusted_domains = ["storage" "storage.bat-boa.ts.net" "nextcloud.bat-boa.ts.net" "nextcloud.arsfeld.one"];
       trusted_proxies = ["100.66.83.36"];
       overwriteprotocol = "https";
+      overwritehost = "nextcloud.arsfeld.one";
       # OIDC configuration for user_oidc app
       user_oidc = {
         default_token_endpoint_auth_method = "client_secret_post";
