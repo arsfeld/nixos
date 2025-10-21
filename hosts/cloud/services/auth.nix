@@ -188,24 +188,13 @@ in {
           path = "/var/lib/authelia-${autheliaConfig}/db.sqlite3";
         };
       };
-      # OIDC disabled temporarily - needs more investigation on proper secrets configuration
-      # identity_providers = {
-      #   oidc = {
-      #     # HMAC secret, JWKS, and client secrets are in authelia-secrets.age
-      #     clients = [
-      #       {
-      #         client_id = "qui";
-      #         client_name = "Qui - qBittorrent Web UI";
-      #         authorization_policy = "one_factor";
-      #         redirect_uris = ["https://qui.arsfeld.one/api/auth/oidc/callback"];
-      #         scopes = ["openid" "profile" "email" "groups"];
-      #         grant_types = ["authorization_code"];
-      #         response_types = ["code"];
-      #         token_endpoint_auth_method = "client_secret_post";
-      #       }
-      #     ];
-      #   };
-      # };
+      # OIDC configuration - all secrets (hmac_secret, jwks, clients) are in authelia-secrets.age
+      identity_providers.oidc = {
+        # Enable PKCE to protect against authorization code interception
+        enforce_pkce = "public_clients_only";
+        # Validate nonce/state parameter length
+        minimum_parameter_entropy = 8;
+      };
     };
     settingsFiles = [config.age.secrets.authelia-secrets.path];
     secrets.manual = true;
