@@ -65,6 +65,7 @@ with lib; let
       komga = null;
       n8n = 5678;
       netdata = 19999;
+      nextcloud = 8099;
       ollama-api = 11434;
       ollama = 30198;
       photoprism = 2342;
