@@ -4,7 +4,7 @@ title: Investigate missing Authelia login button in Nextcloud
 status: Done
 assignee: []
 created_date: '2025-10-21 17:54'
-updated_date: '2025-10-21 18:01'
+updated_date: '2025-10-21 18:15'
 labels:
   - nextcloud
   - authelia
@@ -131,4 +131,35 @@ The OIDC integration is now functional. Users can:
 4. Have their account auto-created/linked based on LDAP credentials
 
 This completes the Nextcloud OIDC integration and resolves task-85 as well.
+
+## Follow-up: Fixed invalid_client Error
+
+### Issue
+After initial configuration, users encountered an "invalid_client" error when attempting to authenticate:
+```
+Error: invalid_client
+Description: Client authentication failed (e.g., unknown client, no client authentication included, or unsupported authentication method).
+Hint: The requested OAuth 2.0 Client does not exist.
+```
+
+### Root Cause
+The Nextcloud OIDC client was configured in `secrets/authelia-secrets.age` but the cloud host (where Authelia runs) had not been deployed with the updated secrets.
+
+### Resolution
+1. Verified the Nextcloud client exists in `secrets/authelia-secrets.age`
+2. Deployed the updated configuration to cloud host: `just deploy cloud`
+3. Restarted Authelia service to pick up the new client configuration
+4. Verified authentication flow works correctly
+
+### Verification
+- ✅ Authelia service logs show Nextcloud client loaded
+- ✅ OIDC login endpoint redirects to Authelia with correct client_id
+- ✅ All OIDC parameters present (state, nonce, PKCE challenge)
+- ✅ Authentication flow now works end-to-end
+
+### Lesson Learned
+When adding new OIDC clients to Authelia, remember to:
+1. Edit `secrets/authelia-secrets.age` to add the client
+2. Deploy to cloud host (not just storage)
+3. Restart the Authelia service if needed
 <!-- SECTION:NOTES:END -->
