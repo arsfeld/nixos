@@ -24,6 +24,8 @@
     tsnsrv.inputs.nixpkgs.follows = "nixpkgs";
     nix-index-database.url = "github:nix-community/nix-index-database"; # Faster command-not-found
     nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
+    harmonia.url = "github:nix-community/harmonia"; # Binary cache server
+    harmonia.inputs.nixpkgs.follows = "nixpkgs";
     eh5.url = "github:EHfive/flakes"; # EH5's flake collection (fake-hwclock module)
     eh5.inputs.nixpkgs.follows = "nixpkgs";
   };
@@ -178,6 +180,7 @@
             inputs.ragenix.nixosModules.default
             inputs.determinate.nixosModules.default
             inputs.nix-flatpak.nixosModules.nix-flatpak
+            inputs.harmonia.nixosModules.harmonia
             inputs.tsnsrv.nixosModules.default
             {
               nixpkgs.overlays = overlays;
@@ -368,6 +371,7 @@
               // {
                 router-test = inputs.nixpkgs.legacyPackages.${system}.nixosTest (import ./tests/router-test.nix {inherit self inputs;});
                 router-test-production = inputs.nixpkgs.legacyPackages.${system}.nixosTest (import ./tests/router-test-production.nix);
+                harmonia-cache-test = inputs.nixpkgs.legacyPackages.${system}.nixosTest (import ./tests/harmonia-cache-test.nix {inherit self inputs;});
               }
           )
           inputs.deploy-rs.lib;

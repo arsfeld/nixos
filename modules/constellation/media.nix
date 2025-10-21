@@ -57,6 +57,12 @@ in {
       mode = "444";
     };
 
+    # Qui OIDC secrets
+    age.secrets.qui-oidc-env = lib.mkIf (builtins.any (host: host == config.networking.hostName) ["storage"]) {
+      file = "${self}/secrets/qui-oidc-env.age";
+      mode = "444";
+    };
+
     media.containers = let
       storageServices = {
         nextcloud = {
@@ -209,7 +215,7 @@ in {
           };
           settings = {
             bypassAuth = true; # Has built-in authentication
-            funnel = true; # Enable public access via Tailscale Funnel at qbittorrent.arsfeld.one
+            funnel = true; # Enable public internet access to qbittorrent.bat-boa.ts.net (not just tailnet)
           };
         };
 
@@ -220,10 +226,19 @@ in {
           environment = {
             QUI__HOST = "0.0.0.0";
             QUI__PORT = "7476";
+            # OIDC authentication configuration
+            QUI__OIDC_ENABLED = "true";
+            QUI__OIDC_ISSUER = "https://rosenfeld.one";
+            QUI__OIDC_CLIENT_ID = "qui";
+            QUI__OIDC_REDIRECT_URL = "https://qui.arsfeld.one/api/auth/oidc/callback";
+            QUI__OIDC_DISABLE_BUILT_IN_LOGIN = "false"; # Keep local login as fallback
           };
+          environmentFiles = [
+            config.age.secrets.qui-oidc-env.path
+          ];
           settings = {
             bypassAuth = true; # qui has its own authentication
-            funnel = true; # Enable public access via Tailscale Funnel
+            funnel = true; # Enable public internet access to qui.bat-boa.ts.net (not just tailnet)
           };
         };
       };

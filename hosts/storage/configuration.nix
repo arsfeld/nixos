@@ -31,6 +31,8 @@ with lib; {
 
   networking.hostName = "storage";
   networking.firewall.enable = false;
+  # Ensure bridge MAC matches router reservation (see hosts/router/services/kea-dhcp.nix)
+  networking.interfaces.br0.macAddress = "00:e0:4c:bb:00:e3";
   nixpkgs.hostPlatform = "x86_64-linux";
 
   systemd.oomd.enableRootSlice = true;

@@ -109,6 +109,7 @@ nav:
     - Adding a New Host: guides/new-host.md
     - Adding a Service: guides/new-service.md
     - Managing Secrets: guides/secrets.md
+    - Harmonia Binary Cache: guides/harmonia-cache.md
     - Deployment: guides/deployment.md
     - Disaster Recovery: guides/disaster-recovery.md
     - Kubernetes Migration: guides/k8s-migration.md
