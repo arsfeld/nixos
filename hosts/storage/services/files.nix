@@ -82,10 +82,16 @@ in {
     ccnetSettings.General.SERVICE_URL = "https://seafile.${vars.domain}";
   };
 
+  # Fix tmpfiles ownership issue by explicitly creating directories with correct ownership
+  # This prevents systemd-tmpfiles from creating directories with incorrect ownership during activation
+  systemd.tmpfiles.rules = [
+    "d /var/lib/nextcloud 0750 nextcloud nextcloud -"
+    "d /var/lib/nextcloud/data 0750 nextcloud nextcloud -"
+    "d /var/lib/nextcloud/data/config 0750 nextcloud nextcloud -"
+  ];
+
   services.nextcloud = {
-    enable = false; # Temporarily disabled due to path ownership issues - will re-enable after manual fix
-    # Use /var/lib instead of /mnt/storage to avoid unsafe path transition issues
-    # The parent /mnt/storage/files is owned by media:media which conflicts with nextcloud:nextcloud
+    enable = true;
     datadir = "/var/lib/nextcloud/data";
     hostName = "nextcloud.${vars.domain}";
     maxUploadSize = "10G";

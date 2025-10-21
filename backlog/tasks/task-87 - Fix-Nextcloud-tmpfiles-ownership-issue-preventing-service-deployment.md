@@ -1,9 +1,10 @@
 ---
 id: task-87
 title: Fix Nextcloud tmpfiles ownership issue preventing service deployment
-status: To Do
+status: Done
 assignee: []
 created_date: '2025-10-21 14:33'
+updated_date: '2025-10-21 14:41'
 labels:
   - bug
   - nextcloud
@@ -97,9 +98,56 @@ systemd.services.nextcloud-setup.preStart = ''
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Nextcloud service starts without ownership errors
-- [ ] #2 systemd-tmpfiles creates directories with correct nextcloud:nextcloud ownership
-- [ ] #3 Service activation completes successfully
-- [ ] #4 Configuration survives redeployments without manual fixes
-- [ ] #5 Re-enable services.nextcloud.enable = true in files.nix
+- [x] #1 Nextcloud service starts without ownership errors
+- [x] #2 systemd-tmpfiles creates directories with correct nextcloud:nextcloud ownership
+- [x] #3 Service activation completes successfully
+- [x] #4 Configuration survives redeployments without manual fixes
+- [x] #5 Re-enable services.nextcloud.enable = true in files.nix
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## Solution Implemented
+
+Fixed the Nextcloud tmpfiles ownership issue by implementing **Option A: Custom tmpfiles.rules** as recommended in the task description.
+
+### Changes Made
+
+1. **Added systemd.tmpfiles.rules** in `hosts/storage/services/files.nix:87-91`:
+   ```nix
+   systemd.tmpfiles.rules = [
+     "d /var/lib/nextcloud 0750 nextcloud nextcloud -"
+     "d /var/lib/nextcloud/data 0750 nextcloud nextcloud -"
+     "d /var/lib/nextcloud/data/config 0750 nextcloud nextcloud -"
+   ];
+   ```
+
+2. **Re-enabled Nextcloud service**: Changed `services.nextcloud.enable` from `false` to `true`
+
+3. **Removed temporary comments**: Cleaned up comments about the ownership issue
+
+### Deployment Process
+
+The deployment required some manual bootstrapping due to a race condition in the NixOS module:
+1. Dropped existing database and user from previous failed attempts
+2. Manually ran initial Nextcloud installation to complete setup
+3. Subsequent redeployments work automatically without manual intervention
+
+### Verification
+
+- ✅ No ownership errors in service logs
+- ✅ Directories created with correct `nextcloud:nextcloud` ownership
+- ✅ Service starts successfully (exit status 0)
+- ✅ Service survives restarts and redeployments
+- ✅ All configured apps enabled (calendar, contacts, mail, memories, onlyoffice, tasks, user_oidc)
+- ✅ Nginx serving Nextcloud on port 8099
+
+### Root Cause
+
+The issue was that systemd-tmpfiles was creating directories during NixOS activation without explicit ownership specifications, causing them to inherit incorrect ownership from parent directories or default to root ownership. The explicit tmpfiles.rules ensure the directories are created with the correct ownership before the Nextcloud module's setup script runs.
+
+### Next Steps
+
+This fix unblocks **task-85** (Nextcloud OIDC integration), as the Authelia OIDC client configuration is already deployed and ready to use.
+<!-- SECTION:NOTES:END -->
