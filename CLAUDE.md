@@ -190,9 +190,10 @@ The repository uses a centralized gateway system for exposing services:
    - Integrates with tsnsrv for Tailscale node management
 
 **Service Access:**
-- arsfeld.one domains are served through cloud's Caddy gateway
-- Inside the tailnet: Direct access via `service.bat-boa.ts.net` (if in `tailscaleExposed`)
-- Outside the tailnet: Public access via `service.arsfeld.one` through cloud gateway (if in `funnels`)
+- `*.arsfeld.one` domains are ALWAYS served through cloud's Caddy gateway (all services)
+- `*.bat-boa.ts.net` domains (if in `tailscaleExposed`):
+  - With `funnel = false`: Only accessible within the tailnet
+  - With `funnel = true`: Publicly accessible via Tailscale Funnel
 - Cloud host acts as the public-facing gateway for all `*.arsfeld.one` services
 
 ## Testing Changes
@@ -209,8 +210,9 @@ When adding a new service:
 1. **For native systemd services** (Attic, gitea, duplicati, etc.):
    - Add to `modules/constellation/services.nix` in the appropriate host section (cloud or storage)
    - Add to `bypassAuth` list if the service has its own authentication
-   - Add to `funnels` list if it should be publicly accessible via Tailscale Funnel
-   - Add to `tailscaleExposed` list if it needs a dedicated Tailscale node
+   - Add to `tailscaleExposed` list if it needs a dedicated Tailscale node (creates `service.bat-boa.ts.net`)
+   - Add to `funnels` list if `bat-boa.ts.net` should be publicly accessible (not just tailnet)
+   - Note: All services are accessible via `service.arsfeld.one` through cloud gateway regardless of these settings
    - Deploy to **cloud** host to update the gateway configuration
 
 2. **For containerized services** (Plex, Jellyfin, etc.):
@@ -218,3 +220,29 @@ When adding a new service:
    - Define image, ports, volumes, and environment variables
    - The service will automatically be added to the gateway
 ```
+
+<!-- BACKLOG.MD MCP GUIDELINES START -->
+
+<CRITICAL_INSTRUCTION>
+
+## BACKLOG WORKFLOW INSTRUCTIONS
+
+This project uses Backlog.md MCP for all task and project management activities.
+
+**CRITICAL RESOURCE**: Read `backlog://workflow/overview` to understand when and how to use Backlog for this project.
+
+- **First time working here?** Read the overview resource IMMEDIATELY to learn the workflow
+- **Already familiar?** You should have the overview cached ("## Backlog.md Overview (MCP)")
+- **When to read it**: BEFORE creating tasks, or when you're unsure whether to track work
+
+The overview resource contains:
+- Decision framework for when to create tasks
+- Search-first workflow to avoid duplicates
+- Links to detailed guides for task creation, execution, and completion
+- MCP tools reference
+
+You MUST read the overview resource to understand the complete workflow. The information is NOT summarized here.
+
+</CRITICAL_INSTRUCTION>
+
+<!-- BACKLOG.MD MCP GUIDELINES END -->

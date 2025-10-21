@@ -8,6 +8,7 @@
     ./disko-config.nix
     ./fan-control.nix
     ./fontconfig.nix
+    ./harmonia.nix
     ./scheduler-tuning.nix
   ];
 
@@ -17,6 +18,7 @@
     gaming.enable = true;
     development.enable = true;
     docker.enable = true; # Enable Docker runtime
+    backup.enable = true; # Enable automated backups
   };
 
   # Configure Docker storage driver

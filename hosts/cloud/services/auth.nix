@@ -10,6 +10,7 @@
   inherit (domains) mediaDomain authDomain;
 in {
   age.secrets.dex-clients-tailscale-secret.file = "${self}/secrets/dex-clients-tailscale-secret.age";
+  age.secrets.dex-clients-qui-secret.file = "${self}/secrets/dex-clients-qui-secret.age";
   age.secrets.lldap-env.file = "${self}/secrets/lldap-env.age";
   age.secrets.lldap-env.mode = "444";
   age.secrets.authelia-secrets.file = "${self}/secrets/authelia-secrets.age";
@@ -35,6 +36,12 @@ in {
           name = "Tailscale";
           redirectURIs = ["https://login.tailscale.com/a/oauth_response"];
           secretFile = config.age.secrets.dex-clients-tailscale-secret.path;
+        }
+        {
+          id = "qui";
+          name = "Qui";
+          redirectURIs = ["https://qui.arsfeld.one/api/auth/oidc/callback"];
+          secretFile = config.age.secrets.dex-clients-qui-secret.path;
         }
       ];
       staticPasswords = [

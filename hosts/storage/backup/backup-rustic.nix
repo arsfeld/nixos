@@ -1,8 +1,10 @@
 {
   pkgs,
   config,
+  self,
   ...
 }: {
+  age.secrets."restic-rest-auth".file = "${self}/secrets/restic-rest-auth.age";
   services.rustic = {
     enable = true;
     profiles.nas = {

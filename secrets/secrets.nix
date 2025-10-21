@@ -16,6 +16,7 @@ in {
   "borg-passkey.age".publicKeys = users ++ systems;
   "cloudflare.age".publicKeys = users ++ systems;
   "dex-clients-tailscale-secret.age".publicKeys = users ++ [cloud];
+  "dex-clients-qui-secret.age".publicKeys = users ++ [cloud];
   "github-runner-token.age".publicKeys = users ++ systems;
   "gluetun-pia.age".publicKeys = users ++ systems;
   "homepage-env.age".publicKeys = users ++ systems;
@@ -56,10 +57,14 @@ in {
   # Ohdio secrets
   "ohdio-env.age".publicKeys = users ++ [storage];
 
+  # Qui OIDC secrets
+  "qui-oidc-env.age".publicKeys = users ++ [storage];
+
   # AirVPN secrets
   "airvpn-wireguard.age".publicKeys = users ++ [storage];
 
   # Attic binary cache secrets
   "attic-credentials.age".publicKeys = users ++ [storage];
   "attic-server-token.age".publicKeys = users ++ [storage];
+  "harmonia-cache-key.age".publicKeys = users ++ [raider];
 }

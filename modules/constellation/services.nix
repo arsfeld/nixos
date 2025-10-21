@@ -89,6 +89,9 @@ with lib; let
       windmill = 8001;
       yarr-dev = 7070;
     };
+    raider = {
+      harmonia = 5000;
+    };
   };
 
   bypassAuth = [
@@ -100,6 +103,7 @@ with lib; let
     "flaresolverr"
     "grafana"
     "ghost"
+    "harmonia"
     "immich"
     "jellyfin"
     "mqtt"
@@ -117,6 +121,10 @@ with lib; let
 
   cors = ["sudo-proxy"];
 
+  # Services that should be publicly accessible via Tailscale Funnel (*.bat-boa.ts.net)
+  # When a service is in this list, its bat-boa.ts.net domain is accessible from the public internet
+  # When NOT in this list (but in tailscaleExposed), bat-boa.ts.net is only accessible within the tailnet
+  # Note: This does NOT affect arsfeld.one access - ALL services are accessible via *.arsfeld.one through cloud gateway
   funnels = [
     "attic"
     "audiobookshelf"
@@ -159,7 +167,9 @@ with lib; let
   ];
 
   # Services that should have dedicated Tailscale nodes (*.bat-boa.ts.net access) via tsnsrv
-  # All other services will only be accessible via *.arsfeld.one through the cloud gateway
+  # Services in this list get their own service.bat-boa.ts.net hostname for direct tailnet access
+  # Services NOT in this list are only accessible via *.arsfeld.one (no bat-boa.ts.net hostname)
+  # Note: ALL services (whether in this list or not) are accessible via *.arsfeld.one through cloud gateway
   # This list is kept minimal to reduce CPU overhead from tsnsrv instances (task-49)
   # Only frequently accessed services are exposed via Tailscale
   # Note: Cloud-based services (auth, dex, dns, users) are excluded because:
@@ -175,6 +185,7 @@ with lib; let
     "hass"
     "grocy"
     "home"
+    "harmonia"
     "www"
     "code"
     "gitea"

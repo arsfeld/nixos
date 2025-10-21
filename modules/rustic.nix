@@ -18,7 +18,7 @@
 #     profiles = {
 #       home = {
 #         repository = "/backup/home";
-#         sources = [{ source = "/home"; }];
+#         backup.sources = ["/home"];  # Simple string format (automatically converted)
 #         keep = { daily = 7; weekly = 4; monthly = 12; };
 #         timerConfig = { OnCalendar = "daily"; };
 #         environmentFile = "/run/secrets/rustic-home";
@@ -37,6 +37,9 @@ with lib; let
   logDir = config.services.rustic.logDir;
   cacheDir = config.services.rustic.cacheDir;
 
+  # No need to normalize sources - rustic expects a simple array of strings
+  normalizeProfile = profile: profile;
+
   # Create the etc configurations
   etcConfigs = builtins.foldl' (
     acc: name:
@@ -50,7 +53,7 @@ with lib; let
                 log-file = "${logDir}/${name}.log";
               };
             }
-            (removeAttrs (builtins.getAttr name config.services.rustic.profiles) ["timerConfig" "environment" "environmentFile"])
+            (normalizeProfile (removeAttrs (builtins.getAttr name config.services.rustic.profiles) ["timerConfig" "environment" "environmentFile"]))
           );
         };
       }
