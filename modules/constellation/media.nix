@@ -226,9 +226,9 @@ in {
           environment = {
             QUI__HOST = "0.0.0.0";
             QUI__PORT = "7476";
-            # OIDC authentication configuration (using Authelia)
+            # OIDC authentication configuration (using Dex - Authelia OIDC needs more configuration work)
             QUI__OIDC_ENABLED = "true";
-            QUI__OIDC_ISSUER = "https://auth.arsfeld.one";
+            QUI__OIDC_ISSUER = "https://rosenfeld.one";
             QUI__OIDC_CLIENT_ID = "qui";
             QUI__OIDC_REDIRECT_URL = "https://qui.arsfeld.one/api/auth/oidc/callback";
             QUI__OIDC_DISABLE_BUILT_IN_LOGIN = "false"; # Keep local login as fallback
