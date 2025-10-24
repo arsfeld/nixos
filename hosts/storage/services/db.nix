@@ -30,6 +30,11 @@
   services.postgresql = {
     enable = true;
     package = pkgs.postgresql_16_jit;
+    # Listen on all interfaces to allow container connections
+    enableTCPIP = true;
+    settings = {
+      listen_addresses = "*";
+    };
     ensureUsers = [
       {
         name = "openarchiver";
@@ -47,6 +52,8 @@
     authentication = lib.mkAfter ''
       local immich immich peer map=immich-users
       local openarchiver openarchiver peer map=openarchiver-users
+      # Allow OpenArchiver container to connect from podman network without password (trust)
+      host openarchiver openarchiver 10.88.0.0/16 trust
     '';
   };
 
