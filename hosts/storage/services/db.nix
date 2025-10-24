@@ -30,12 +30,23 @@
   services.postgresql = {
     enable = true;
     package = pkgs.postgresql_16_jit;
+    ensureUsers = [
+      {
+        name = "openarchiver";
+        ensureDBOwnership = true;
+      }
+    ];
+    ensureDatabases = [
+      "openarchiver"
+    ];
     # Allow media user to connect as immich database user for file permissions
     identMap = ''
       immich-users media immich
+      openarchiver-users media openarchiver
     '';
     authentication = lib.mkAfter ''
       local immich immich peer map=immich-users
+      local openarchiver openarchiver peer map=openarchiver-users
     '';
   };
 
