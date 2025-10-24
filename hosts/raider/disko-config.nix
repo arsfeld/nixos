@@ -78,6 +78,32 @@
           };
         };
       };
+
+      # SOLIDIGM 2TB NVMe for games
+      games = {
+        type = "disk";
+        device = "/dev/disk/by-id/nvme-SOLIDIGM_SSDPFKNU020TZ_PHEH2476001Y2P0C";
+        content = {
+          type = "gpt";
+          partitions = {
+            games = {
+              size = "100%";
+              content = {
+                type = "filesystem";
+                format = "xfs";
+                mountpoint = "/mnt/games";
+                mountOptions = [
+                  "noatime"
+                  "discard"
+                  "largeio"
+                  "inode64"
+                  "x-systemd.nofail"
+                ];
+              };
+            };
+          };
+        };
+      };
     };
   };
 }
