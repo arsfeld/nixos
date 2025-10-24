@@ -63,6 +63,9 @@ in {
   # Immich OIDC secrets
   "immich-oidc-secret.age".publicKeys = users ++ [storage];
 
+  # OpenArchiver secrets
+  "openarchiver-env.age".publicKeys = users ++ [storage];
+
   # AirVPN secrets
   "airvpn-wireguard.age".publicKeys = users ++ [storage];
 
