@@ -1,6 +1,7 @@
 {
   imports = [
     ./ai.nix
+    ./bcachefs-monitor.nix
     ./cloud-sync.nix
     ./db.nix
     ./develop.nix

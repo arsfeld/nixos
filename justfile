@@ -16,12 +16,51 @@ _format-targets +TARGETS:
     #!/usr/bin/env bash
     printf ".#%s " {{ TARGETS }} | sed 's/ $//'
 
-boot +TARGETS:
+# === nixos-rebuild Deployment (default) ===
+# Direct deployment using nixos-rebuild
+# This is the default since deploy-rs has issues with Nix 2.32+ (https://github.com/serokell/deploy-rs/issues/340)
+
+# Deploy using nixos-rebuild (switch to new configuration)
+deploy HOST:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Determine the target host address
+    TARGET="{{ HOST }}.bat-boa.ts.net"
+
+    echo "Deploying {{ HOST }} using nixos-rebuild..."
+    nixos-rebuild switch --flake ".#{{ HOST }}" --target-host "root@${TARGET}" --use-remote-sudo
+
+# Deploy with boot activation (activates on next boot)
+boot HOST:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    TARGET="{{ HOST }}.bat-boa.ts.net"
+
+    echo "Deploying {{ HOST }} with boot activation using nixos-rebuild..."
+    nixos-rebuild boot --flake ".#{{ HOST }}" --target-host "root@${TARGET}" --use-remote-sudo
+
+# Test the configuration without activating it
+test HOST:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    TARGET="{{ HOST }}.bat-boa.ts.net"
+
+    echo "Testing {{ HOST }} configuration using nixos-rebuild..."
+    nixos-rebuild test --flake ".#{{ HOST }}" --target-host "root@${TARGET}" --use-remote-sudo
+
+# === Deploy-rs Deployment (currently broken with Nix 2.32+) ===
+# NOTE: deploy-rs has known issues with Nix 2.32+ (https://github.com/serokell/deploy-rs/issues/340)
+# Use these commands once the issue is resolved
+
+boot-rs +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail # Enable strict error handling
     deploy {{ args }} --boot --targets $(just _format-targets {{ TARGETS }})
 
-deploy +TARGETS:
+deploy-rs +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail # Enable strict error handling
 
@@ -73,7 +112,7 @@ colmena-info:
 colmena-interactive:
     colmena apply --impure --interactive
 
-trace +TARGETS:
+trace-rs +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail # Enable strict error handling
     deploy {{ args }} --targets $(just _format-targets {{ TARGETS }}) -- --show-trace
