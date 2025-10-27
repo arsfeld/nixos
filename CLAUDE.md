@@ -18,20 +18,22 @@ nix develop
 ```bash
 # Create a new secret (proper workflow):
 # 1. Add entry to secrets/secrets.nix
-# 2. Commit the secrets.nix change
-# 3. Create the encrypted secret file
+# 2. Stage the secrets.nix change (DO NOT commit yet)
+git add secrets/secrets.nix
+
+# 3. Create the encrypted secret file (ragenix will read the staged secrets.nix)
 openssl rand -base64 32 | nix develop -c ragenix -e secret-name.age --editor -
-# Note: ragenix creates files in the current directory, move to secrets/ if needed
-mv secret-name.age secrets/
+# ragenix automatically uses secrets/secrets.nix from git staging area
+# and creates files in the correct location
 
 # Edit an encrypted secret interactively (opens default editor)
-ragenix -e secrets/secret-name.age
+ragenix -e secret-name.age
 
 # Edit/update a secret programmatically (using stdin)
-echo "new-secret-value" | ragenix -e secrets/secret-name.age --editor -
+echo "new-secret-value" | ragenix -e secret-name.age --editor -
 
 # View decrypted secret (use with caution)
-nix-shell -p rage --run "rage -d -i ~/.ssh/id_ed25519 secrets/secret-name.age"
+nix develop -c ragenix -d secret-name.age
 
 # Rekey all secrets (after adding/removing keys in secrets.nix)
 ragenix -r
