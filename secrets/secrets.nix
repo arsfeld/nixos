@@ -73,4 +73,9 @@ in {
   "attic-credentials.age".publicKeys = users ++ [storage];
   "attic-server-token.age".publicKeys = users ++ [storage];
   "harmonia-cache-key.age".publicKeys = users ++ [raider];
+
+  # Stash secrets
+  "stash-jwt-secret.age".publicKeys = users ++ [raider];
+  "stash-session-secret.age".publicKeys = users ++ [raider];
+  "stash-password.age".publicKeys = users ++ [raider];
 }
