@@ -16,14 +16,19 @@ nix develop
 
 ### Secret Management
 ```bash
+# Create a new secret (proper workflow):
+# 1. Add entry to secrets/secrets.nix
+# 2. Commit the secrets.nix change
+# 3. Create the encrypted secret file
+openssl rand -base64 32 | nix develop -c ragenix -e secret-name.age --editor -
+# Note: ragenix creates files in the current directory, move to secrets/ if needed
+mv secret-name.age secrets/
+
 # Edit an encrypted secret interactively (opens default editor)
 ragenix -e secrets/secret-name.age
 
 # Edit/update a secret programmatically (using stdin)
 echo "new-secret-value" | ragenix -e secrets/secret-name.age --editor -
-
-# Create a new secret (add entry to secrets.nix first, then)
-echo "secret-value" | ragenix -e secrets/new-secret.age --editor -
 
 # View decrypted secret (use with caution)
 nix-shell -p rage --run "rage -d -i ~/.ssh/id_ed25519 secrets/secret-name.age"
@@ -202,6 +207,52 @@ Before deploying:
 1. Test build locally: `nix build .#nixosConfigurations.<hostname>.config.system.build.toplevel`
 2. Format code: `just fmt`
 3. Deploy to test system first if available
+
+## Commit Message Format
+
+**IMPORTANT**: All commits must follow conventional commit format.
+
+### Format
+```
+<type>(<scope>): <subject>
+
+[optional body]
+```
+
+### Types
+- `feat`: New feature or functionality
+- `fix`: Bug fix
+- `chore`: Maintenance tasks (secrets, dependencies, etc.)
+- `docs`: Documentation changes
+- `refactor`: Code refactoring without changing behavior
+- `test`: Adding or updating tests
+- `ci`: CI/CD changes
+
+### Scopes
+Use the hostname or module being modified:
+- `(raider)`, `(storage)`, `(cloud)` - Host-specific changes
+- `(secrets)` - Secret management changes
+- `(modules)` - Module changes
+- `(home)` - Home Manager changes
+
+### Examples
+```bash
+feat(raider): add Stash media organizer service
+fix(storage): resolve bcachefs mount timeout issue
+chore(secrets): add stash authentication secrets
+docs(readme): update deployment instructions
+```
+
+### Rewriting Recent Commits
+If commits don't follow the format:
+```bash
+# Soft reset to before the commits
+git reset --soft HEAD~N
+
+# Recommit with proper format
+git add <files>
+git commit -m "type(scope): subject"
+```
 
 ## Adding New Services
 
