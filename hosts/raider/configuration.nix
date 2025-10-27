@@ -53,7 +53,7 @@
     settings = {
       stash = [
         {
-          path = "/mnt/media/stash";
+          path = "/mnt/games/Stash";
         }
       ];
     };
@@ -157,9 +157,9 @@
 
   # System activation script for Stash media directory
   system.activationScripts.stashMediaSetup = ''
-    mkdir -p /mnt/media/stash
-    chown -R stash:stash /mnt/media/stash 2>/dev/null || true
-    chmod 755 /mnt/media/stash
+    mkdir -p /mnt/games/Stash
+    chown -R stash:stash /mnt/games/Stash 2>/dev/null || true
+    chmod 755 /mnt/games/Stash
   '';
 
   # Environment variables for games
