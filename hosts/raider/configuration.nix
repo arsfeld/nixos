@@ -1,4 +1,5 @@
 {
+  self,
   lib,
   pkgs,
   ...
@@ -11,6 +12,17 @@
     ./harmonia.nix
     ./scheduler-tuning.nix
   ];
+
+  # Age secrets for Stash
+  age.secrets."stash-jwt-secret" = {
+    file = "${self}/secrets/stash-jwt-secret.age";
+  };
+  age.secrets."stash-session-secret" = {
+    file = "${self}/secrets/stash-session-secret.age";
+  };
+  age.secrets."stash-password" = {
+    file = "${self}/secrets/stash-password.age";
+  };
 
   # Allow insecure packages
   nixpkgs.config.permittedInsecurePackages = [
@@ -29,6 +41,23 @@
 
   # Enable media config for domain settings (required by constellation.services)
   media.config.enable = true;
+
+  # Stash media organizer
+  services.stash = {
+    enable = true;
+    openFirewall = true; # Allow access through port 9999
+    username = "admin";
+    passwordFile = "/run/agenix/stash-password";
+    jwtSecretKeyFile = "/run/agenix/stash-jwt-secret";
+    sessionStoreKeyFile = "/run/agenix/stash-session-secret";
+    settings = {
+      stash = [
+        {
+          path = "/mnt/media/stash";
+        }
+      ];
+    };
+  };
 
   # Configure Docker storage driver
   virtualisation.docker.storageDriver = "overlay2";
@@ -124,6 +153,13 @@
         ln -sf /mnt/games /home/arosenfeld/Games 2>/dev/null || true
       fi
     fi
+  '';
+
+  # System activation script for Stash media directory
+  system.activationScripts.stashMediaSetup = ''
+    mkdir -p /mnt/media/stash
+    chown -R stash:stash /mnt/media/stash 2>/dev/null || true
+    chmod 755 /mnt/media/stash
   '';
 
   # Environment variables for games
