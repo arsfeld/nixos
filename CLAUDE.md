@@ -21,22 +21,21 @@ nix develop
 # 2. Stage the secrets.nix change (DO NOT commit yet)
 git add secrets/secrets.nix
 
-# 3. Create the encrypted secret file (ragenix will read the staged secrets.nix)
-openssl rand -base64 32 | nix develop -c ragenix -e secret-name.age --editor -
-# ragenix automatically uses secrets/secrets.nix from git staging area
-# and creates files in the correct location
+# 3. Create the encrypted secret file
+# Use --rules to point to secrets/secrets.nix when in repo root
+openssl rand -base64 32 | nix develop -c ragenix --rules secrets/secrets.nix -e secret-name.age --editor -
 
-# Edit an encrypted secret interactively (opens default editor)
-ragenix -e secret-name.age
+# Edit an encrypted secret interactively
+ragenix --rules secrets/secrets.nix -e secret-name.age
 
 # Edit/update a secret programmatically (using stdin)
-echo "new-secret-value" | ragenix -e secret-name.age --editor -
+echo "new-secret-value" | ragenix --rules secrets/secrets.nix -e secret-name.age --editor -
 
 # View decrypted secret (use with caution)
-nix develop -c ragenix -d secret-name.age
+nix develop -c ragenix --rules secrets/secrets.nix -d secret-name.age
 
 # Rekey all secrets (after adding/removing keys in secrets.nix)
-ragenix -r
+ragenix --rules secrets/secrets.nix -r
 ```
 
 ### Attic Binary Cache
