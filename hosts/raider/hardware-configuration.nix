@@ -13,7 +13,7 @@
 
   # Boot configuration
   boot.initrd.availableKernelModules = ["xhci_pci" "ahci" "nvme" "usb_storage" "sd_mod"];
-  boot.initrd.kernelModules = ["amdgpu"]; # AMD GPU early KMS
+  boot.initrd.kernelModules = ["amdgpu" "i915"]; # Early KMS for AMD GPU and Intel iGPU
   boot.kernelModules = ["kvm-intel"];
   boot.extraModulePackages = [];
 
@@ -36,18 +36,28 @@
   hardware.enableRedistributableFirmware = true;
   hardware.enableAllFirmware = true;
 
-  # AMD GPU configuration for Radeon RX 6650 XT
-  services.xserver.videoDrivers = ["amdgpu"];
+  # Dual GPU configuration
+  # - Intel Iris Xe Graphics (iGPU) at PCI 00:02.0 → /dev/dri/renderD129 for hardware video decode
+  # - AMD Radeon RX 6650 XT (dGPU) at PCI 03:00.0 → /dev/dri/renderD128 for graphics
+  services.xserver.videoDrivers = ["amdgpu" "modesetting"];
 
-  # AMD GPU hardware acceleration
+  # Hardware acceleration for both GPUs
   hardware.graphics = {
     enable = true;
     enable32Bit = true;
 
     extraPackages = with pkgs; [
+      # AMD GPU packages
       amdvlk
       rocmPackages.clr.icd
       mesa
+
+      # Intel iGPU packages for hardware video decode/encode
+      intel-media-driver # iHD driver for modern Intel GPUs (Gen 8+)
+      intel-vaapi-driver # i965 driver (fallback)
+      vaapiIntel
+      vaapiVdpau
+      libvdpau-va-gl
     ];
 
     extraPackages32 = with pkgs; [
