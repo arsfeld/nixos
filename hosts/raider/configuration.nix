@@ -42,20 +42,94 @@
   # Enable media config for domain settings (required by constellation.services)
   media.config.enable = true;
 
+  # Create stashapp-tools Python package (needed by AI Tagger plugin)
+  nixpkgs.overlays = [
+    (final: prev: {
+      stashapp-tools = prev.python3Packages.buildPythonPackage rec {
+        pname = "stashapp-tools";
+        version = "0.2.59";
+        format = "setuptools";
+
+        src = prev.fetchPypi {
+          inherit pname version;
+          hash = "sha256-Y52YueWHp8C2FsnJ01YMBkz4O2z4d7RBeCswWGr8SjY=";
+        };
+
+        propagatedBuildInputs = with prev.python3Packages; [
+          requests
+        ];
+
+        pythonImportsCheck = ["stashapi"];
+      };
+
+      # Python environment with required packages for Stash plugins
+      stashPython = prev.python3.withPackages (ps:
+        with ps; [
+          final.stashapp-tools
+          aiohttp # Required by AITagger plugin
+          pydantic # Required by AITagger plugin
+          imageio # Required by AITagger plugin (base package)
+          imageio-ffmpeg # Required by AITagger plugin (ffmpeg extra)
+        ]);
+    })
+  ];
+
   # Stash media organizer
-  services.stash = {
+  services.stash = let
+    # Fetch the CommunityScripts repository once
+    communityScripts = pkgs.fetchFromGitHub {
+      owner = "stashapp";
+      repo = "CommunityScripts";
+      rev = "refs/heads/main";
+      hash = "sha256-Eajj2mwYAiMjprJtxdR4MNHBr2oIf2OCgHAVLzuJhu4=";
+      sparseCheckout = ["plugins"];
+    };
+
+    # Helper to create plugin packages
+    mkStashPlugin = pluginName:
+      pkgs.runCommand "stash-plugin-${pluginName}" {} ''
+        mkdir -p $out
+        cp -r ${communityScripts}/plugins/${pluginName}/* $out/
+      '';
+  in {
     enable = true;
     openFirewall = true; # Allow access through port 9999
     username = "admin";
     passwordFile = "/run/agenix/stash-password";
     jwtSecretKeyFile = "/run/agenix/stash-jwt-secret";
     sessionStoreKeyFile = "/run/agenix/stash-session-secret";
+    mutablePlugins = false;
+    mutableSettings = false; # Force config.yml regeneration to include plugins_path
+    plugins = [
+      (mkStashPlugin "CommunityScriptsUILibrary") # UI library used by other community plugins
+      (mkStashPlugin "stashAI") # AI-powered features
+      (mkStashPlugin "AITagger") # AI-based tagging
+    ];
     settings = {
+      host = "0.0.0.0";
+      sequential_scanning = true;
+      parallel_tasks = 5;
       stash = [
         {
           path = "/mnt/games/Stash";
         }
       ];
+    };
+  };
+
+  # Override Stash systemd service to use custom Python with stashapp-tools
+  systemd.services.stash = {
+    path = lib.mkForce (with pkgs; [
+      coreutils # Provides install, env, and other basic utilities
+      ffmpeg-full
+      stashPython
+      ruby
+    ]);
+
+    # Configure ffmpeg to use Intel iGPU for hardware video acceleration
+    environment = {
+      LIBVA_DRIVER_NAME = "iHD"; # Intel media driver for Gen 8+ GPUs
+      LIBVA_DEVICE = "/dev/dri/renderD129"; # Intel iGPU render device
     };
   };
 
