@@ -16,10 +16,10 @@
   age.secrets.tailscale-key.file = "${self}/secrets/tailscale-key.age";
   age.secrets.tailscale-env.file = "${self}/secrets/tailscale-env.age";
 
-  # tsnsrv disabled - replaced by Caddy with Tailscale plugin
-  # Reduces CPU usage by consolidating service routing through Caddy gateway
+  # tsnsrv re-enabled - provides Tailscale node management for cloud services (task-100)
+  # Runs alongside storage host's tsnsrv to expose cloud services via Tailscale
   services.tsnsrv = {
-    enable = false;
+    enable = true;
     prometheusAddr = "127.0.0.1:9099";
     defaults = {
       tags = ["tag:service"];

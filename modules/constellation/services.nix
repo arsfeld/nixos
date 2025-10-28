@@ -36,6 +36,7 @@ with lib; let
       owntracks = 8083;
       owntracks-ui = 8084;
       search = null;
+      thelounge = null;
       users = null;
       vault = 8000;
       whoogle = 5000;
@@ -118,6 +119,7 @@ with lib; let
     "qbittorrent"
     "search"
     "sudo-proxy"
+    "thelounge"
     "transmission"
     "vault"
   ];
@@ -162,6 +164,7 @@ with lib; let
     "romm"
     "komga"
     "stirling"
+    "thelounge"
     "windmill"
     "beszel"
     "speedtest"
@@ -175,11 +178,11 @@ with lib; let
   # Note: ALL services (whether in this list or not) are accessible via *.arsfeld.one through cloud gateway
   # This list is kept minimal to reduce CPU overhead from tsnsrv instances (task-49)
   # Only frequently accessed services are exposed via Tailscale
-  # Note: Cloud-based services (auth, dex, dns, users) are excluded because:
-  #   1. They run on cloud host which doesn't have tsnsrv enabled
-  #   2. They're accessed via cloud.bat-boa.ts.net, not individual nodes
-  #   3. Storage host accesses them via cloud gateway
+  # Note: Some cloud-based services (auth, dex, dns, users) are excluded because:
+  #   1. They're accessed via cloud.bat-boa.ts.net, not individual nodes
+  #   2. Storage host accesses them via cloud gateway
   tailscaleExposed = [
+    # Storage host services
     "jellyfin"
     "plex"
     "immich"
@@ -196,6 +199,12 @@ with lib; let
     "grafana"
     "netdata"
     "stash"
+    # Cloud host services
+    "ntfy"
+    "yarr"
+    "vault"
+    "whoogle"
+    "thelounge"
   ];
 
   # generateServices: Transforms nested service definitions into a flat list of configs
