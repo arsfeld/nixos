@@ -5,6 +5,7 @@
   ...
 }: {
   age.secrets."restic-rest-auth".file = "${self}/secrets/restic-rest-auth.age";
+  # Local backup: Root disk only (system state, no user data or media)
   services.rustic = {
     enable = true;
     profiles.nas = {

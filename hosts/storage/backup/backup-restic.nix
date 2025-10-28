@@ -6,6 +6,7 @@
   age.secrets."restic-rest-auth".file = "${self}/secrets/restic-rest-auth.age";
 
   services.restic.backups = {
+    # Local backup: Root disk only (system state, no user data or media)
     nas = {
       paths = ["/"];
       exclude = [
@@ -31,22 +32,24 @@
       };
     };
 
+    # Remote backup: Full system including user data and media
     servarica = {
       paths = ["/"];
       exclude = [
         "/dev"
         "/proc"
         "/sys"
-        "/mnt"
         "/media"
         "/tmp"
         "/var/cache"
         "/home/*/.cache"
-        "/home"
         "/run"
         "/var/lib/docker"
         "/var/lib/containers"
         "/var/lib/lxcfs"
+        # Exclude local backup destinations to prevent recursion
+        "/mnt/data/backups"
+        "/mnt/storage/backups"
       ];
       repository = "rest:https://servarica.bat-boa.ts.net/";
       passwordFile = config.age.secrets."restic-password".path;
