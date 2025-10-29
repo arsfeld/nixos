@@ -8,29 +8,38 @@ This document describes the procedure for migrating the storage array from bcach
 
 ### Current State
 - **Filesystem**: bcachefs (in read-only recovery mode)
-- **Disks**: 6 disks (~42TB raw capacity)
+- **Disks**: 6 disks (4 HDDs + 2 SSDs, ~42TB raw capacity)
 - **Mount**: /mnt/storage
 - **Status**: Read-only, experiencing filesystem corruption
 
 ### Target State
 - **Filesystem**: btrfs RAID1
-- **Disks**: Same 6 disks
-- **Capacity**: ~21TB usable (RAID1 = 2 copies)
+- **Disks**: 4 HDDs only (SSDs excluded - see Disk Inventory)
+- **Capacity**: ~20TB usable (RAID1 = 2 copies)
 - **Mount**: /mnt/storage
 - **Features**: Compression (zstd), snapshots, scrubbing
 
 ## Disk Inventory
 
+### HDDs Used in Array (4 disks)
+
 | Device | Size | Model | WWN ID | Notes |
 |--------|------|-------|---------|-------|
-| sda | 476.9G | Samsung SSD | wwn-0x5002538d00c64e98 | Fast cache tier |
-| sdb | 476.9G | Samsung SSD | wwn-0x5002538d098031e0 | Fast cache tier |
 | sdc | 7.3T | WD HDD | wwn-0x5000cca0c2da52b1 | Bulk storage |
 | sdd | 12.7T | Seagate HDD | wwn-0x5000c500e86c43b1 | Primary disk |
 | sde | 12.7T | Seagate HDD | wwn-0x5000c500e987a4cc | Bulk storage |
 | sdf | 7.3T | WD HDD | wwn-0x5000cca0becf6150 | Bulk storage |
 
-**Total Raw**: ~42TB → **Usable with RAID1**: ~21TB
+**Total Raw**: ~40TB → **Usable with RAID1**: ~20TB
+
+### SSDs Excluded from Array (2 disks)
+
+| Device | Size | Model | WWN ID | Reason |
+|--------|------|-------|---------|--------|
+| sda | 476.9G | Samsung SSD | wwn-0x5002538d00c64e98 | Btrfs lacks tiered storage |
+| sdb | 476.9G | Samsung SSD | wwn-0x5002538d098031e0 | Btrfs lacks tiered storage |
+
+**Why SSDs are excluded**: Btrfs does not have native tiered storage or SSD caching like bcachefs. Including SSDs in the RAID1 array would waste their speed advantage on cold data that should remain on HDDs. The SSDs can be repurposed for other uses (VM storage, container volumes, etc.).
 
 ## Prerequisites
 
@@ -77,16 +86,16 @@ sudo lsof +D /mnt/storage
 
 ### 3. Current Array Information
 
-Document the current bcachefs array:
+Document the current bcachefs array (all 6 devices for reference):
 
 ```bash
-# Record current filesystem info
-sudo bcachefs show-super /dev/sda
-sudo bcachefs show-super /dev/sdb
-sudo bcachefs show-super /dev/sdc
-sudo bcachefs show-super /dev/sdd
-sudo bcachefs show-super /dev/sde
-sudo bcachefs show-super /dev/sdf
+# Record current filesystem info for all devices
+sudo bcachefs show-super /dev/sda  # SSD (will not be used in btrfs array)
+sudo bcachefs show-super /dev/sdb  # SSD (will not be used in btrfs array)
+sudo bcachefs show-super /dev/sdc  # HDD - will be used
+sudo bcachefs show-super /dev/sdd  # HDD - will be used
+sudo bcachefs show-super /dev/sde  # HDD - will be used
+sudo bcachefs show-super /dev/sdf  # HDD - will be used
 
 # Save to a file for reference
 sudo bcachefs show-super /dev/sda > ~/bcachefs-migration-backup.txt
@@ -144,16 +153,14 @@ sudo bcachefs show-super /dev/sda > ~/bcachefs-migration-backup.txt
 If not using disko to format (manual approach):
 
 ```bash
-# Wipe existing filesystem signatures
-sudo wipefs -af /dev/disk/by-id/wwn-0x5000c500e86c43b1
-sudo wipefs -af /dev/disk/by-id/wwn-0x5000c500e987a4cc
-sudo wipefs -af /dev/disk/by-id/wwn-0x5000cca0c2da52b1
-sudo wipefs -af /dev/disk/by-id/wwn-0x5000cca0becf6150
-sudo wipefs -af /dev/disk/by-id/wwn-0x5002538d00c64e98
-sudo wipefs -af /dev/disk/by-id/wwn-0x5002538d098031e0
+# Wipe existing filesystem signatures (4 HDDs only)
+sudo wipefs -af /dev/disk/by-id/wwn-0x5000c500e86c43b1  # Seagate 14TB #1
+sudo wipefs -af /dev/disk/by-id/wwn-0x5000c500e987a4cc  # Seagate 14TB #2
+sudo wipefs -af /dev/disk/by-id/wwn-0x5000cca0c2da52b1  # WD 8TB #1
+sudo wipefs -af /dev/disk/by-id/wwn-0x5000cca0becf6150  # WD 8TB #2
 
-# Create GPT partition table on each disk
-for disk in wwn-0x5000c500e86c43b1 wwn-0x5000c500e987a4cc wwn-0x5000cca0c2da52b1 wwn-0x5000cca0becf6150 wwn-0x5002538d00c64e98 wwn-0x5002538d098031e0; do
+# Create GPT partition table on each HDD
+for disk in wwn-0x5000c500e86c43b1 wwn-0x5000c500e987a4cc wwn-0x5000cca0c2da52b1 wwn-0x5000cca0becf6150; do
   sudo parted /dev/disk/by-id/$disk mklabel gpt
   sudo parted /dev/disk/by-id/$disk mkpart primary 0% 100%
 done
@@ -196,12 +203,10 @@ After the system reboots and mounts /mnt/storage:
 
 3. **If RAID1 conversion didn't run automatically**, run it manually:
    ```bash
-   # Add remaining disks
-   sudo btrfs device add -f /dev/disk/by-id/wwn-0x5000c500e987a4cc /mnt/storage
-   sudo btrfs device add -f /dev/disk/by-id/wwn-0x5000cca0c2da52b1 /mnt/storage
-   sudo btrfs device add -f /dev/disk/by-id/wwn-0x5000cca0becf6150 /mnt/storage
-   sudo btrfs device add -f /dev/disk/by-id/wwn-0x5002538d00c64e98 /mnt/storage
-   sudo btrfs device add -f /dev/disk/by-id/wwn-0x5002538d098031e0 /mnt/storage
+   # Add remaining 3 HDD disks (SSDs excluded)
+   sudo btrfs device add -f /dev/disk/by-id/wwn-0x5000c500e987a4cc /mnt/storage  # Seagate 14TB #2
+   sudo btrfs device add -f /dev/disk/by-id/wwn-0x5000cca0c2da52b1 /mnt/storage  # WD 8TB #1
+   sudo btrfs device add -f /dev/disk/by-id/wwn-0x5000cca0becf6150 /mnt/storage  # WD 8TB #2
 
    # Convert to RAID1 (this may take several hours)
    sudo btrfs balance start -dconvert=raid1 -mconvert=raid1 /mnt/storage
@@ -255,7 +260,7 @@ After the system reboots and mounts /mnt/storage:
 ```bash
 # Verify RAID1 configuration
 sudo btrfs filesystem show /mnt/storage
-# Should show all 6 devices
+# Should show all 4 HDD devices
 
 sudo btrfs filesystem df /mnt/storage
 # Should show:
