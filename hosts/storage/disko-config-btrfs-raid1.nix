@@ -11,11 +11,13 @@
 # 1. Disko creates initial single-device btrfs filesystem on first disk
 # 2. Post-install script adds remaining disks and converts to RAID1
 #
-# Storage disks (6 total, mixed sizes - ~42TB raw, ~21TB usable):
-# - sda: 476.9G Samsung SSD (wwn-0x5002538d00c64e98)
-# - sdb: 476.9G Samsung SSD (wwn-0x5002538d098031e0)
+# NOTE: SSDs are EXCLUDED from this array because btrfs lacks native tiered
+# storage (SSD caching) like bcachefs. Including SSDs would waste their speed
+# on cold data. Consider using SSDs for other purposes (VM storage, etc.).
+#
+# Storage disks (4 HDDs only, mixed sizes - ~40TB raw, ~20TB usable):
 # - sdc: 7.3T WD HDD (wwn-0x5000cca0c2da52b1)
-# - sdd: 12.7T Seagate HDD (wwn-0x5000c500e86c43b1)
+# - sdd: 12.7T Seagate HDD (wwn-0x5000c500e86c43b1) [PRIMARY]
 # - sde: 12.7T Seagate HDD (wwn-0x5000c500e987a4cc)
 # - sdf: 7.3T WD HDD (wwn-0x5000cca0becf6150)
 {
@@ -120,13 +122,12 @@
 
       echo "Starting btrfs RAID1 conversion..."
 
-      # Additional disks to add to the array
+      # Additional HDD disks to add to the array
+      # Note: SSDs excluded - btrfs lacks native tiered storage
       DISKS=(
         "/dev/disk/by-id/wwn-0x5000c500e987a4cc"  # Seagate 14TB #2
         "/dev/disk/by-id/wwn-0x5000cca0c2da52b1"  # WD 8TB #1
         "/dev/disk/by-id/wwn-0x5000cca0becf6150"  # WD 8TB #2
-        "/dev/disk/by-id/wwn-0x5002538d00c64e98"  # Samsung SSD #1
-        "/dev/disk/by-id/wwn-0x5002538d098031e0"  # Samsung SSD #2
       )
 
       # Add each disk to the array
