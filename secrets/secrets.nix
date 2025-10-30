@@ -68,6 +68,7 @@ in {
 
   # AirVPN secrets
   "airvpn-wireguard.age".publicKeys = users ++ [storage];
+  "transmission-openvpn-airvpn.age".publicKeys = users ++ [storage];
 
   # Attic binary cache secrets
   "attic-credentials.age".publicKeys = users ++ [storage];

@@ -252,6 +252,40 @@ in {
           };
         };
 
+        # Transmission with OpenVPN (AirVPN) - Alternative to qBittorrent
+        # Uses haugene/docker-transmission-openvpn with custom AirVPN .ovpn config
+        transmission = {
+          image = "haugene/transmission-openvpn:latest";
+          listenPort = 9091; # Transmission web UI port
+          mediaVolumes = true; # Mount media directories for downloads
+          extraOptions = [
+            "--cap-add=NET_ADMIN" # Required for OpenVPN setup
+            "--device=/dev/net/tun" # TUN device for VPN
+          ];
+          volumes = [
+            # Mount custom OpenVPN config directory
+            "${vars.configDir}/transmission-openvpn/openvpn:/etc/openvpn/custom:ro"
+          ];
+          environment = {
+            OPENVPN_PROVIDER = "custom";
+            OPENVPN_CONFIG = "airvpn"; # Filename without .ovpn extension
+            # Local network access for WebUI (Podman network: 10.88.0.0/16)
+            LOCAL_NETWORK = "10.88.0.0/16,100.64.0.0/10"; # Podman + Tailscale networks
+            TRANSMISSION_WEB_UI = "flood-for-transmission";
+            TRANSMISSION_DOWNLOAD_DIR = "/data/downloads";
+            TRANSMISSION_INCOMPLETE_DIR = "/data/incomplete";
+            TRANSMISSION_WATCH_DIR = "/data/watch";
+            TRANSMISSION_HOME = "/config";
+            PUID = toString vars.puid;
+            PGID = toString vars.pgid;
+            # Health check configuration
+            HEALTH_CHECK_HOST = "google.com";
+          };
+          settings = {
+            bypassAuth = true; # Has built-in authentication
+          };
+        };
+
         # OpenArchiver - Email archiving and eDiscovery platform
         # Dependencies: PostgreSQL (host), Meilisearch, Redis/Valkey, Apache Tika
         openarchiver = {
