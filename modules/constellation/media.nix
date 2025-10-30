@@ -206,27 +206,28 @@ in {
         };
 
         # qBittorrent with integrated WireGuard VPN
-        qbittorrent = {
-          image = "ghcr.io/hotio/qbittorrent";
-          listenPort = 8080; # qBittorrent web UI port
-          mediaVolumes = true; # Mount media directories
-          extraOptions = ["--cap-add=NET_ADMIN"]; # Required for WireGuard VPN setup
-          environment = {
-            UMASK = "002";
-            VPN_ENABLED = "true";
-            VPN_CONF = "wg0";
-            VPN_PROVIDER = "generic";
-            # Container auto-detects Podman network (10.88.0.0/16) for LAN access
-            # AirVPN port forwarding configuration
-            VPN_AUTO_PORT_FORWARD = "55473"; # Static port from AirVPN
-            # DNS configuration - use AirVPN's DNS servers for proper resolution
-            VPN_NAMESERVERS = "10.128.0.1";
-          };
-          settings = {
-            bypassAuth = true; # Has built-in authentication
-            funnel = true; # Enable public internet access to qbittorrent.bat-boa.ts.net (not just tailnet)
-          };
-        };
+        # DISABLED: Replaced with native NixOS qbittorrent-nox service (see hosts/storage/services/qbittorrent-vpn.nix)
+        # qbittorrent = {
+        #   image = "ghcr.io/hotio/qbittorrent";
+        #   listenPort = 8080; # qBittorrent web UI port
+        #   mediaVolumes = true; # Mount media directories
+        #   extraOptions = ["--cap-add=NET_ADMIN"]; # Required for WireGuard VPN setup
+        #   environment = {
+        #     UMASK = "002";
+        #     VPN_ENABLED = "true";
+        #     VPN_CONF = "wg0";
+        #     VPN_PROVIDER = "generic";
+        #     # Container auto-detects Podman network (10.88.0.0/16) for LAN access
+        #     # AirVPN port forwarding configuration
+        #     VPN_AUTO_PORT_FORWARD = "55473"; # Static port from AirVPN
+        #     # DNS configuration - use AirVPN's DNS servers for proper resolution
+        #     VPN_NAMESERVERS = "10.128.0.1";
+        #   };
+        #   settings = {
+        #     bypassAuth = true; # Has built-in authentication
+        #     funnel = true; # Enable public internet access to qbittorrent.bat-boa.ts.net (not just tailnet)
+        #   };
+        # };
 
         # qui - Modern qBittorrent web UI with multi-instance support
         qui = {

@@ -88,19 +88,26 @@ in {
   };
 
   # Setup wireguard config for qbittorrent
-  systemd.tmpfiles.rules = lib.mkAfter [
-    "d ${vars.configDir}/qbittorrent/wireguard 0750 ${toString vars.puid} ${toString vars.pgid}"
-    "d ${vars.configDir}/transmission-openvpn/openvpn 0750 ${toString vars.puid} ${toString vars.pgid}"
-  ];
+  # DISABLED: qbittorrent container replaced with native service
+  # systemd.tmpfiles.rules = lib.mkAfter [
+  #   "d ${vars.configDir}/qbittorrent/wireguard 0750 ${toString vars.puid} ${toString vars.pgid}"
+  #   "d ${vars.configDir}/transmission-openvpn/openvpn 0750 ${toString vars.puid} ${toString vars.pgid}"
+  # ];
 
   # Copy AirVPN WireGuard config before starting qbittorrent container
-  systemd.services.podman-qbittorrent.serviceConfig.ExecStartPre = lib.mkAfter [
-    "${pkgs.writeShellScript "copy-airvpn-config-qbittorrent" ''
-      ${pkgs.coreutils}/bin/rm -f ${vars.configDir}/qbittorrent/wireguard/wg0.conf
-      ${pkgs.coreutils}/bin/cp ${config.age.secrets.airvpn-wireguard.path} ${vars.configDir}/qbittorrent/wireguard/wg0.conf
-      ${pkgs.coreutils}/bin/chown ${toString vars.puid}:${toString vars.pgid} ${vars.configDir}/qbittorrent/wireguard/wg0.conf
-      ${pkgs.coreutils}/bin/chmod 600 ${vars.configDir}/qbittorrent/wireguard/wg0.conf
-    ''}"
+  # DISABLED: qbittorrent container replaced with native service
+  # systemd.services.podman-qbittorrent.serviceConfig.ExecStartPre = lib.mkAfter [
+  #   "${pkgs.writeShellScript "copy-airvpn-config-qbittorrent" ''
+  #     ${pkgs.coreutils}/bin/rm -f ${vars.configDir}/qbittorrent/wireguard/wg0.conf
+  #     ${pkgs.coreutils}/bin/cp ${config.age.secrets.airvpn-wireguard.path} ${vars.configDir}/qbittorrent/wireguard/wg0.conf
+  #     ${pkgs.coreutils}/bin/chown ${toString vars.puid}:${toString vars.pgid} ${vars.configDir}/qbittorrent/wireguard/wg0.conf
+  #     ${pkgs.coreutils}/bin/chmod 600 ${vars.configDir}/qbittorrent/wireguard/wg0.conf
+  #   ''}"
+  # ];
+
+  # Setup transmission openvpn config directory
+  systemd.tmpfiles.rules = lib.mkAfter [
+    "d ${vars.configDir}/transmission-openvpn/openvpn 0750 ${toString vars.puid} ${toString vars.pgid}"
   ];
 
   # Copy AirVPN OpenVPN config before starting transmission container

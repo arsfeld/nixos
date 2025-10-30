@@ -21,6 +21,9 @@ with lib; {
   constellation.podman.enable = true;
   constellation.isponsorblock.enable = true;
 
+  # Enable qBittorrent with WireGuard VPN in network namespace
+  services.qbittorrent-vpn.enable = true;
+
   # Observability: Central hub for metrics and logs
   constellation.observability-hub.enable = true;
   # Disable metrics-client on hub - observability-hub has its own node exporter

@@ -13,6 +13,7 @@
     ./media.nix
     # ./metrics.nix  # Replaced by constellation.observability-hub module
     ./misc.nix
+    ./qbittorrent-vpn.nix
     ./samba.nix
   ];
 }
