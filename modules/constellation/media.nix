@@ -260,7 +260,8 @@ in {
           mediaVolumes = true; # Mount media directories for downloads
           extraOptions = [
             "--cap-add=NET_ADMIN" # Required for OpenVPN setup
-            "--device=/dev/net/tun" # TUN device for VPN
+            "--cap-add=MKNOD" # Allow creating device nodes
+            "--device=/dev/net/tun:/dev/net/tun:rwm" # TUN device for VPN with full permissions
           ];
           volumes = [
             # Mount custom OpenVPN config directory
