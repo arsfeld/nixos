@@ -32,7 +32,7 @@
       };
     };
 
-    # Remote backup: Full system including user data and media
+    # Remote backup: Full system including user data and critical media (Immich)
     servarica = {
       paths = ["/"];
       exclude = [
@@ -50,6 +50,9 @@
         # Exclude local backup destinations to prevent recursion
         "/mnt/data/backups"
         "/mnt/storage/backups"
+        # Exclude bulk media (movies, TV, music) - replaceable content
+        "/mnt/storage/media"
+        "/mnt/storage/files"
       ];
       repository = "rest:https://servarica.bat-boa.ts.net/";
       passwordFile = config.age.secrets."restic-password".path;

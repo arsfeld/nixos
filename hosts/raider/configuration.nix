@@ -1,5 +1,6 @@
 {
   self,
+  config,
   lib,
   pkgs,
   ...
@@ -16,12 +17,13 @@
   # Age secrets for Stash
   age.secrets."stash-jwt-secret" = {
     file = "${self}/secrets/stash-jwt-secret.age";
+    owner = "media";
+    group = "media";
   };
   age.secrets."stash-session-secret" = {
     file = "${self}/secrets/stash-session-secret.age";
-  };
-  age.secrets."stash-password" = {
-    file = "${self}/secrets/stash-password.age";
+    owner = "media";
+    group = "media";
   };
 
   # Allow insecure packages
@@ -91,11 +93,17 @@
         mkdir -p $out
         cp -r ${communityScripts}/plugins/${pluginName}/* $out/
       '';
+
+    # Workaround for nixpkgs bug: passwordFile is read unconditionally even when null
+    # Create an empty file since we don't want authentication
+    emptyPasswordFile = pkgs.writeText "empty-password" "";
   in {
     enable = true;
     openFirewall = true; # Allow access through port 9999
-    username = "admin";
-    passwordFile = "/run/agenix/stash-password";
+    user = "media";
+    group = "media";
+    username = "dummy"; # Required by assertion, but empty password = no auth
+    passwordFile = emptyPasswordFile; # Dummy file to work around module bug
     jwtSecretKeyFile = "/run/agenix/stash-jwt-secret";
     sessionStoreKeyFile = "/run/agenix/stash-session-secret";
     mutablePlugins = false;
@@ -215,26 +223,6 @@
 
   # Disable GNOME auto-suspend
   services.xserver.displayManager.gdm.autoSuspend = false;
-
-  # System activation script for games directory
-  system.activationScripts.gamesSetup = ''
-    if [ -d /mnt/games ]; then
-      mkdir -p /mnt/games/SteamLibrary
-      chown -R arosenfeld:users /mnt/games 2>/dev/null || true
-      chmod 755 /mnt/games
-
-      if [ ! -L /home/arosenfeld/Games ]; then
-        ln -sf /mnt/games /home/arosenfeld/Games 2>/dev/null || true
-      fi
-    fi
-  '';
-
-  # System activation script for Stash media directory
-  system.activationScripts.stashMediaSetup = ''
-    mkdir -p /mnt/games/Stash
-    chown -R stash:stash /mnt/games/Stash 2>/dev/null || true
-    chmod 755 /mnt/games/Stash
-  '';
 
   # Environment variables for games
   environment.sessionVariables = {

@@ -380,6 +380,19 @@ in {
         #   ];
         # };
 
+        # The Lounge - Modern web-based IRC client with persistent connections
+        thelounge = {
+          image = "thelounge/thelounge:latest";
+          listenPort = 9000;
+          volumes = [
+            "${vars.configDir}/thelounge:/var/opt/thelounge"
+          ];
+          settings = {
+            bypassAuth = true; # Has built-in authentication
+            funnel = true; # Enable public access for IRC from anywhere
+          };
+        };
+
         # OwnTracks handled by hosts/cloud/services/owntracks.nix
       };
 

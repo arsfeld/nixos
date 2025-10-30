@@ -45,6 +45,8 @@ with lib; {
     enable = true;
   };
 
+  # boot.kernelPackages = pkgs.linuxPackages_6_12;
+
   boot = {
     binfmt.emulatedSystems = ["aarch64-linux"];
     # Kernel modules for containers with iptables (qbittorrent VPN)

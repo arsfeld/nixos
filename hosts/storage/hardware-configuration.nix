@@ -34,18 +34,18 @@
 
   fileSystems."/mnt/storage" = {
     fsType = "bcachefs";
-    device = "/dev/disk/by-uuid/74d26e9d-3e6c-4b33-9f63-d91bf13606b0";
+    device = "/dev/disk/by-uuid/ddd4e5fc-7046-4fb9-bc30-9bd856ee1c0e";
     options = ["nofail"];
   };
 
-  # systemd.services.mount-storage = {
-  #   description = "mount storage";
-  #   script = "/run/current-system/sw/bin/mount /mnt/storage || true";
-  #   wantedBy = ["multi-user.target"];
-  # };
+  systemd.services.mount-storage = {
+    description = "mount storage";
+    script = "/run/current-system/sw/bin/mount /mnt/storage || true";
+    wantedBy = ["multi-user.target"];
+  };
 
-  # systemd.services.docker.after = ["mnt-storage.mount"];
-  # systemd.services.docker.requires = ["mnt-storage.mount"];
+  systemd.services.docker.after = ["mnt-storage.mount"];
+  systemd.services.docker.requires = ["mnt-storage.mount"];
 
   networking.useDHCP = false;
   networking.useNetworkd = true;

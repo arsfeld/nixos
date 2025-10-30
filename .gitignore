@@ -77,3 +77,4 @@ blog/static/images/generated/
 
 # Code CLI artifacts
 .code/
+scripts/backup-to-r2.sh
