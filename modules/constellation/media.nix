@@ -219,6 +219,8 @@ in {
             # Container auto-detects Podman network (10.88.0.0/16) for LAN access
             # AirVPN port forwarding configuration
             VPN_AUTO_PORT_FORWARD = "55473"; # Static port from AirVPN
+            # DNS configuration - use AirVPN's DNS servers for proper resolution
+            VPN_NAMESERVERS = "10.128.0.1";
           };
           settings = {
             bypassAuth = true; # Has built-in authentication
@@ -262,6 +264,8 @@ in {
             "--cap-add=NET_ADMIN" # Required for OpenVPN setup
             "--cap-add=MKNOD" # Allow creating device nodes
             "--device=/dev/net/tun:/dev/net/tun:rwm" # TUN device for VPN with full permissions
+            "--dns=1.1.1.1" # Use public DNS to resolve VPN server hostname before VPN connects
+            "--dns=8.8.8.8" # Backup DNS server
           ];
           volumes = [
             # Mount custom OpenVPN config directory
