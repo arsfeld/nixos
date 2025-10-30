@@ -270,6 +270,10 @@ When adding a new service:
 2. **For containerized services** (Plex, Jellyfin, etc.):
    - Add to `modules/constellation/media.nix` in `storageServices` or `cloudServices`
    - Define image, ports, volumes, and environment variables
+   - **Volume paths**:
+     - `storageServices`: Can use `${vars.storageDir}` for large media files (defaults to `/mnt/storage` on storage host)
+     - `cloudServices`: Should use `${vars.configDir}` (defaults to `/var/data`) or direct paths - **do NOT use storageDir** as cloud host doesn't have `/mnt/storage` mount
+     - `storageDir` is only for large media files/downloads, not regular container config/data
    - The service will automatically be added to the gateway
 ```
 
