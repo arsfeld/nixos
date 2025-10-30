@@ -270,8 +270,9 @@ in {
           environment = {
             OPENVPN_PROVIDER = "custom";
             OPENVPN_CONFIG = "airvpn"; # Filename without .ovpn extension
-            # Local network access for WebUI (Podman network: 10.88.0.0/16)
-            LOCAL_NETWORK = "10.88.0.0/16,100.64.0.0/10"; # Podman + Tailscale networks
+            # Local network access for WebUI (Podman network only)
+            # Tailscale access will work via host routing, no need to add explicit route
+            LOCAL_NETWORK = "10.88.0.0/16"; # Podman network
             TRANSMISSION_WEB_UI = "flood-for-transmission";
             TRANSMISSION_DOWNLOAD_DIR = "/data/downloads";
             TRANSMISSION_INCOMPLETE_DIR = "/data/incomplete";
