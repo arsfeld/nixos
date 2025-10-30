@@ -280,6 +280,8 @@ in {
             TRANSMISSION_HOME = "/config";
             PUID = toString vars.puid;
             PGID = toString vars.pgid;
+            # AirVPN static port forwarding
+            TRANSMISSION_PEER_PORT = "30158";
             # Health check configuration
             HEALTH_CHECK_HOST = "google.com";
           };
