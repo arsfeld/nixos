@@ -78,3 +78,5 @@ blog/static/images/generated/
 # Code CLI artifacts
 .code/
 scripts/backup-to-r2.sh
+scripts/recover-from-r2.sh
+*.ovpn

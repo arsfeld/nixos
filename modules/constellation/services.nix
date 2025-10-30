@@ -73,6 +73,7 @@ with lib; let
       photoprism = 2342;
       photos = 2342;
       plex = 32400;
+      qbittorrent = 8080;
       remotely = 5000;
       resilio = 9000;
       restic = 8000;
