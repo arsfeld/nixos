@@ -173,15 +173,13 @@ in {
         # Create config directory if it doesn't exist
         mkdir -p ${vars.configDir}/mediamanager
 
-        # Generate config.toml with secrets substituted
+        # Load environment variables from secrets file and generate config.toml
+        set -a
+        source ${config.age.secrets.mediamanager-env.path}
+        set +a
         ${pkgs.envsubst}/bin/envsubst < /etc/mediamanager-config-template.toml > ${vars.configDir}/mediamanager/config.toml
         chmod 644 ${vars.configDir}/mediamanager/config.toml
       '';
-
-      # Load environment variables from secrets file for envsubst
-      serviceConfig = {
-        EnvironmentFile = config.age.secrets.mediamanager-env.path;
-      };
     };
 
     media.containers = let

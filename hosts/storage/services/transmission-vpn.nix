@@ -28,9 +28,9 @@ in {
 
       settings = {
         # Download directories
-        download-dir = "${vars.storageDir}/downloads";
-        incomplete-dir = "${vars.storageDir}/incomplete";
-        watch-dir = "${vars.storageDir}/watch";
+        download-dir = "${vars.storageDir}/media/downloads";
+        incomplete-dir = "${vars.storageDir}/media/incomplete";
+        watch-dir = "${vars.storageDir}/media/watch";
         watch-dir-enabled = true;
 
         # RPC/WebUI settings
@@ -76,10 +76,9 @@ in {
 
       # Ensure directories exist before starting
       preStart = ''
-        mkdir -p ${vars.storageDir}/downloads
-        mkdir -p ${vars.storageDir}/incomplete
-        mkdir -p ${vars.storageDir}/watch
-        chown -R ${vars.user}:${vars.group} ${vars.storageDir}/downloads ${vars.storageDir}/incomplete ${vars.storageDir}/watch
+        mkdir -p ${vars.storageDir}/media/downloads
+        mkdir -p ${vars.storageDir}/media/incomplete
+        mkdir -p ${vars.storageDir}/media/watch
       '';
 
       serviceConfig = {
