@@ -139,7 +139,7 @@ in {
 
         [torrents]
         [torrents.qbittorrent]
-        enabled = true
+        enabled = false
         host = "http://192.168.15.1"
         port = 8080
 
