@@ -29,7 +29,6 @@
     eh5.url = "github:EHfive/flakes"; # EH5's flake collection (fake-hwclock module)
     eh5.inputs.nixpkgs.follows = "nixpkgs";
     vpn-confinement.url = "github:Maroka-chan/VPN-Confinement"; # VPN namespace confinement for services
-    vpn-confinement.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = {self, ...} @ inputs:

@@ -261,7 +261,9 @@ in {
                 ++ (optional (container.configDir != null) "${vars.configDir}/${name}:${container.configDir}")
                 ++ (optionals container.mediaVolumes [
                   "${vars.dataDir}/files:/files"
+                  "${vars.dataDir}/files:${vars.dataDir}/files"
                   "${vars.storageDir}/media:/media"
+                  "${vars.storageDir}/media:${vars.storageDir}/media"
                 ]);
               extraOptions = flatten [
                 (optional (container.network != null) "--network=${container.network}")
