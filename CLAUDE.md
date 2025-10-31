@@ -196,11 +196,14 @@ The repository uses a centralized gateway system for exposing services:
    - Integrates with tsnsrv for Tailscale node management
 
 **Service Access:**
-- `*.arsfeld.one` domains are ALWAYS served through cloud's Caddy gateway (all services)
+- `*.arsfeld.one` domains use **split-horizon DNS** for optimal routing:
+  - **Public access** (outside tailnet): Cloudflare → cloud (gateway) → storage
+  - **Internal access** (inside tailnet): Tailscale MagicDNS → storage (direct, no cloud hop)
+  - Both storage and cloud run Caddy with identical service configurations
+  - This avoids unnecessary cloud roundtrips for internal network traffic
 - `*.bat-boa.ts.net` domains (if in `tailscaleExposed`):
   - With `funnel = false`: Only accessible within the tailnet
   - With `funnel = true`: Publicly accessible via Tailscale Funnel
-- Cloud host acts as the public-facing gateway for all `*.arsfeld.one` services
 
 ## Testing Changes
 

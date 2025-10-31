@@ -64,7 +64,7 @@
   # This is due to systemd DynamicUser + StateDirectory not creating writable
   # directories properly on first run. Subsequent deployments work fine.
   services.atticd = {
-    enable = true;
+    enable = false;
 
     # Environment file with RSA key for JWT signing
     environmentFile = config.age.secrets.attic-server-token.path;
