@@ -39,6 +39,7 @@
     docker.enable = true; # Enable Docker runtime
     backup.enable = true; # Enable automated backups
     services.enable = true; # Enable service gateway for harmonia tsnsrv integration
+    githubNotify.enable = true; # Enable GitHub issue creation for systemd failures
   };
 
   # Enable media config for domain settings (required by constellation.services)
