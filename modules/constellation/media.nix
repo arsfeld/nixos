@@ -103,7 +103,7 @@ in {
         email_password_resets = false
         token_secret = "$TOKEN_SECRET"
         session_lifetime = 86400
-        admin_emails = ["admin@arsfeld.one"]
+        admin_emails = ["alex@rosenfeld.one"]
 
         [auth.openid_connect]
         enabled = true
