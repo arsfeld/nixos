@@ -144,6 +144,7 @@ def create_new_issue(repo: str, service_name: str, hostname: str,
     elif "nginx" in service_name.lower() or "caddy" in service_name.lower():
         labels.append("web-server")
     
+    # Try to create issue with labels first
     cmd = [
         "gh", "issue", "create",
         "--repo", repo,
@@ -151,13 +152,24 @@ def create_new_issue(repo: str, service_name: str, hostname: str,
         "--body", body,
         "--label", ",".join(labels)
     ]
-    
+
     exit_code, stdout, stderr = run_command(cmd)
-    
+
+    # If labels failed, try without labels
+    if exit_code != 0 and "not found" in stderr.lower():
+        print(f"Warning: Some labels not found, creating issue without labels", file=sys.stderr)
+        cmd = [
+            "gh", "issue", "create",
+            "--repo", repo,
+            "--title", title,
+            "--body", body
+        ]
+        exit_code, stdout, stderr = run_command(cmd)
+
     if exit_code != 0:
         print(f"Error creating issue: {stderr}", file=sys.stderr)
         return False
-    
+
     print(f"Created issue: {stdout}")
     return True
 
