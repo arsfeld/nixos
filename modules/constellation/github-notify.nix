@@ -6,6 +6,7 @@
   config,
   lib,
   pkgs,
+  self,
   ...
 }:
 with lib; let
@@ -32,12 +33,20 @@ in {
 
     tokenFile = mkOption {
       type = types.path;
-      default = config.age.secrets.github-token.path;
       description = "Path to the GitHub token file (agenix secret)";
     };
   };
 
   config = mkIf cfg.enable {
+    # Set tokenFile to the agenix secret path
+    constellation.githubNotify.tokenFile = mkDefault config.age.secrets.github-token.path;
+
+    # Declare the github-token secret
+    age.secrets.github-token = {
+      file = "${self}/secrets/github-token.age";
+      mode = "400";
+    };
+
     # Configure gh CLI with the token
     systemd.services.configure-gh = {
       description = "Configure GitHub CLI authentication for notifications";
