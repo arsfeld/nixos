@@ -94,31 +94,60 @@ def create_issue_body(service_name: str, hostname: str, status_output: str,
     return body
 
 
-def update_existing_issue(repo: str, issue_number: int, service_name: str, 
-                         hostname: str, failure_count: int) -> bool:
-    """Update an existing issue with a new failure comment."""
+def update_existing_issue(repo: str, issue_number: int, service_name: str,
+                         hostname: str, status_output: str, journal_output: str,
+                         llm_analysis: Optional[str] = None, failure_count: int = 1) -> bool:
+    """Update an existing issue with a new failure comment including full details."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    comment = f"""## Additional Failure Detected
 
-The service `{service_name}` has failed again on `{hostname}`.
+    comment = f"""## 🔄 Service Failed Again
 
-**Time:** {timestamp}  
-**Total Failure Count:** {failure_count}
+**Service:** `{service_name}`
+**Host:** `{hostname}`
+**Time:** {timestamp}
+**Total Failures:** {failure_count}
 
-*Check the latest logs using:*
-```bash
-ssh {hostname} journalctl -u {service_name} -n 100 --no-pager
-```
 """
-    
+
+    if llm_analysis:
+        comment += f"""### 🤖 AI Analysis
+
+{llm_analysis}
+
+"""
+
+    comment += f"""### 📊 Current Service Status
+
+```
+{status_output}
+```
+
+### 📝 Recent Logs
+
+<details>
+<summary>Click to expand last 50 log lines</summary>
+
+```
+{journal_output}
+```
+
+</details>
+
+---
+
+**Quick Actions:**
+- Check live status: `ssh {hostname} systemctl status {service_name}`
+- View full logs: `ssh {hostname} journalctl -u {service_name} -n 100 --no-pager`
+- Restart service: `ssh {hostname} systemctl restart {service_name}`
+"""
+
     cmd = ["gh", "issue", "comment", str(issue_number), "--repo", repo, "--body", comment]
     exit_code, stdout, stderr = run_command(cmd)
-    
+
     if exit_code != 0:
         print(f"Error updating issue: {stderr}", file=sys.stderr)
         return False
-    
+
     return True
 
 
@@ -216,8 +245,10 @@ def main():
         if age_hours < args.update_interval:
             # Update existing issue with a comment
             print(f"Updating existing issue #{existing_issue['number']}")
-            if update_existing_issue(args.repo, existing_issue['number'], 
-                                   args.service, args.hostname, args.failure_count):
+            if update_existing_issue(args.repo, existing_issue['number'],
+                                   args.service, args.hostname,
+                                   status_output, journal_output,
+                                   llm_analysis, args.failure_count):
                 return 0
             else:
                 return 1
