@@ -86,9 +86,9 @@ in {
         cors_urls = ["https://mediamanager.arsfeld.one"]
 
         image_directory = "/app/images"
-        tv_directory = "/media/tv"
-        movie_directory = "/media/movies"
-        torrent_directory = "/media/downloads"
+        tv_directory = "/mnt/storage/media/Series"
+        movie_directory = "/mnt/storage/media/Movies"
+        torrent_directory = "/mnt/storage/media/downloads"
 
         development = false
 
