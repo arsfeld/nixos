@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2025-10-30 21:11'
-updated_date: '2025-10-31 01:02'
+updated_date: '2025-10-31 01:18'
 labels:
   - infrastructure
   - services
@@ -80,4 +80,30 @@ c5ffc19 - feat(storage): replace containerized qbittorrent with native NixOS Wir
 
 ### Testing
 Follow-up testing tracked in task-107
+
+## VPN-Confinement Refactoring (2025-10-31)
+
+During task-107 testing, refactored the implementation to use the VPN-Confinement NixOS module instead of manual bash scripts for better maintainability.
+
+### Changes
+- Added VPN-Confinement flake input (github:Maroka-chan/VPN-Confinement)
+- Rewrote qbittorrent-vpn.nix to use declarative vpnNamespaces configuration
+- Removed manual bash namespace/veth/routing setup
+- Added automatic killswitch via VPN-Confinement module
+
+### Benefits
+- More maintainable declarative configuration
+- Better error handling and service dependencies
+- Automatic killswitch functionality built-in
+- Cleaner integration with NixOS systemd
+- No more fragile bash scripts
+
+### Testing
+All functionality verified working in task-107:
+- VPN namespace created automatically
+- WireGuard connected (IP: 10.147.136.54)
+- No IP leaks (external: 184.75.208.2)
+- WebUI accessible via Tailscale and arsfeld.one
+
+Commit: 97b340d
 <!-- SECTION:NOTES:END -->
