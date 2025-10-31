@@ -101,14 +101,12 @@ in {
 
         [auth]
         email_password_resets = false
-        token_secret = "$TOKEN_SECRET"
         session_lifetime = 86400
         admin_emails = ["alex@rosenfeld.one"]
 
         [auth.openid_connect]
         enabled = true
         client_id = "mediamanager"
-        client_secret = "$OIDC_CLIENT_SECRET"
         configuration_endpoint = "https://auth.arsfeld.one/.well-known/openid-configuration"
         name = "Authelia"
 
@@ -144,41 +142,20 @@ in {
         enabled = true
         host = "http://192.168.15.1"
         port = 8080
-        username = "$QBITTORRENT_USERNAME"
-        password = "$QBITTORRENT_PASSWORD"
 
         [torrents.transmission]
         enabled = true
         host = "http://192.168.15.1"
         port = 9091
-        username = ""
-        password = ""
 
         [indexers]
         [indexers.prowlarr]
         enabled = true
-        api_key = "$PROWLARR_API_KEY"
         url = "http://prowlarr:9696"
 
         [indexers.jackett]
         enabled = true
-        api_key = "$JACKETT_API_KEY"
         url = "http://jackett:9117"
-      '';
-    };
-
-    # SystemD service to generate MediaManager config.toml with secrets
-    systemd.services."podman-mediamanager" = lib.mkIf (builtins.any (host: host == config.networking.hostName) ["storage"]) {
-      preStart = lib.mkAfter ''
-        # Create config directory if it doesn't exist
-        mkdir -p ${vars.configDir}/mediamanager
-
-        # Load environment variables from secrets file and generate config.toml
-        set -a
-        source ${config.age.secrets.mediamanager-env.path}
-        set +a
-        ${pkgs.envsubst}/bin/envsubst < /etc/mediamanager-config-template.toml > ${vars.configDir}/mediamanager/config.toml
-        chmod 644 ${vars.configDir}/mediamanager/config.toml
       '';
     };
 
@@ -462,6 +439,7 @@ in {
         };
 
         # MediaManager - Modern all-in-one media management system (alternative to Sonarr/Radarr/Overseerr)
+        # Secrets are provided via environment variables following MediaManager conventions (MEDIAMANAGER_*)
         mediamanager = {
           image = "ghcr.io/maxdorninger/mediamanager/mediamanager:latest";
           listenPort = 8000;
@@ -469,6 +447,7 @@ in {
           mediaVolumes = true;
           volumes = [
             "${vars.storageDir}/data/mediamanager/images:/app/images"
+            "/etc/mediamanager-config-template.toml:/config/config.toml:ro"
           ];
           extraOptions = [
             "--add-host=host.containers.internal:host-gateway"
