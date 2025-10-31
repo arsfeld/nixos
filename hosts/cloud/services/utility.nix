@@ -7,8 +7,9 @@
   mediaDomain = config.media.config.domain;
   services = config.media.gateway.services;
 in {
-  age.secrets.ntfy-env.file = "${self}/secrets/ntfy-env.age";
-  age.secrets.ntfy-env.mode = "444";
+  # NOTE: ntfy-env secret is now managed via sops in hosts/cloud/sops.nix
+  # age.secrets.ntfy-env.file = "${self}/secrets/ntfy-env.age";
+  # age.secrets.ntfy-env.mode = "444";
 
   services.ntfy-sh = {
     enable = true;
@@ -21,7 +22,7 @@ in {
     };
   };
 
-  systemd.services.ntfy-sh.serviceConfig.EnvironmentFile = config.age.secrets.ntfy-env.path;
+  systemd.services.ntfy-sh.serviceConfig.EnvironmentFile = config.sops.secrets.ntfy-env.path;
 
   services.caddy.enable = true;
 

@@ -9,6 +9,8 @@
     disko.inputs.nixpkgs.follows = "nixpkgs";
     ragenix.url = "github:arsfeld/ragenix/add-decrypt-flag"; # Rust-based age secret management (faster and more reliable)
     ragenix.inputs.nixpkgs.follows = "nixpkgs";
+    sops-nix.url = "github:Mic92/sops-nix"; # sops-nix secret management
+    sops-nix.inputs.nixpkgs.follows = "nixpkgs";
     home-manager.url = "github:nix-community/home-manager/release-25.05"; # User environment management
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     deploy-rs.url = "github:serokell/deploy-rs"; # Remote deployment tool
@@ -98,6 +100,9 @@
               just
               openssl
               inputs.ragenix.packages."${pkgs.stdenv.system}".default
+              inputs.sops-nix.packages."${pkgs.stdenv.system}".sops-import-keys-hook
+              sops
+              ssh-to-age
               inputs.disko.packages."${pkgs.stdenv.system}".default
 
               # Python tools
@@ -179,6 +184,7 @@
 
           baseModules = inputs.nixpkgs.lib.flatten [
             inputs.ragenix.nixosModules.default
+            inputs.sops-nix.nixosModules.sops
             inputs.determinate.nixosModules.default
             inputs.nix-flatpak.nixosModules.nix-flatpak
             inputs.harmonia.nixosModules.harmonia

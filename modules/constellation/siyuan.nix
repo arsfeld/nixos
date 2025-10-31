@@ -86,7 +86,7 @@ in {
 
         # Create environment file with SIYUAN_ACCESS_AUTH_CODE variable
         cat > /run/siyuan/env <<EOF
-        SIYUAN_ACCESS_AUTH_CODE=$(cat ${config.age.secrets.siyuan-auth-code.path})
+        SIYUAN_ACCESS_AUTH_CODE=$(cat ${config.sops.secrets.siyuan-auth-code.path})
         EOF
         chmod 600 /run/siyuan/env
       '';
@@ -116,7 +116,9 @@ in {
     };
 
     # Secrets
-    age.secrets = {
+    # NOTE: siyuan-auth-code is now managed via sops on hosts that enable it
+    # For hosts using ragenix, keep this configuration:
+    age.secrets = lib.mkIf (!config.sops.secrets ? siyuan-auth-code) {
       siyuan-auth-code = {
         file = ../../secrets/siyuan-auth-code.age;
         owner = "root";

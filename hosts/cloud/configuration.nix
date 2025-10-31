@@ -8,6 +8,7 @@
     ./services
     ./services.nix
     ./containers.nix
+    ./sops.nix
   ];
 
   constellation.docker.enable = true;
