@@ -66,6 +66,9 @@ in {
   # OpenArchiver secrets
   "openarchiver-env.age".publicKeys = users ++ [storage];
 
+  # MediaManager secrets
+  "mediamanager-env.age".publicKeys = users ++ [storage];
+
   # AirVPN secrets
   "airvpn-wireguard.age".publicKeys = users ++ [storage];
   "transmission-openvpn-airvpn.age".publicKeys = users ++ [storage];

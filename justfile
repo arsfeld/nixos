@@ -119,21 +119,6 @@ trace-rs +TARGETS:
 
 build HOST:
     nix build '.#nixosConfigurations.{{ HOST }}.config.system.build.toplevel'
-    attic push system result
-
-# Cache a specific host configuration to Attic
-cache HOST:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Building and caching {{ HOST }}..."
-    OUTPUT=$(nix build '.#nixosConfigurations.{{ HOST }}.config.system.build.toplevel' --no-link --print-out-paths)
-    echo "Pushing to Attic cache..."
-    attic push system "$OUTPUT"
-    echo "{{ HOST }} cached successfully"
-
-# Deploy with automatic caching (note: caching is now automatic via watch-store)
-deploy-cached HOST *ARGS:
-    just deploy {{ HOST }} {{ ARGS }}
 
 r2s:
     #!/usr/bin/env bash

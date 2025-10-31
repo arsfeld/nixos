@@ -10,7 +10,6 @@ with lib; {
     ./users.nix
     ./services
     ./backup
-    ./cache.nix
   ];
 
   constellation.backup.enable = true;
