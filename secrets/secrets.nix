@@ -79,4 +79,7 @@ in {
   "stash-jwt-secret.age".publicKeys = users ++ [raider];
   "stash-session-secret.age".publicKeys = users ++ [raider];
   "stash-password.age".publicKeys = users ++ [raider];
+
+  # GitHub notifications
+  "github-token.age".publicKeys = users ++ [raider storage];
 }
