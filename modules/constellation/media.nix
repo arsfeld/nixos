@@ -101,14 +101,14 @@ in {
 
         [auth]
         email_password_resets = false
-        token_secret = "__TOKEN_SECRET__"
+        token_secret = "$TOKEN_SECRET"
         session_lifetime = 86400
         admin_emails = ["admin@arsfeld.one"]
 
         [auth.openid_connect]
         enabled = true
         client_id = "mediamanager"
-        client_secret = "__OIDC_CLIENT_SECRET__"
+        client_secret = "$OIDC_CLIENT_SECRET"
         configuration_endpoint = "https://auth.arsfeld.one/.well-known/openid-configuration"
         name = "Authelia"
 
