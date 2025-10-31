@@ -255,46 +255,6 @@ in {
           };
         };
 
-        # Transmission with OpenVPN (AirVPN) - Alternative to qBittorrent
-        # Uses haugene/docker-transmission-openvpn with custom AirVPN .ovpn config
-        transmission = {
-          image = "haugene/transmission-openvpn:latest";
-          listenPort = 9091; # Transmission web UI port
-          mediaVolumes = true; # Mount media directories for downloads
-          extraOptions = [
-            "--cap-add=NET_ADMIN" # Required for OpenVPN setup
-            "--cap-add=MKNOD" # Allow creating device nodes
-            "--device=/dev/net/tun:/dev/net/tun:rwm" # TUN device for VPN with full permissions
-            "--dns=1.1.1.1" # Use public DNS to resolve VPN server hostname before VPN connects
-            "--dns=8.8.8.8" # Backup DNS server
-          ];
-          volumes = [
-            # Mount custom OpenVPN config directory
-            "${vars.configDir}/transmission-openvpn/openvpn:/etc/openvpn/custom:ro"
-          ];
-          environment = {
-            OPENVPN_PROVIDER = "custom";
-            OPENVPN_CONFIG = "airvpn"; # Filename without .ovpn extension
-            # Local network access for WebUI (Podman network only)
-            # Tailscale access will work via host routing, no need to add explicit route
-            LOCAL_NETWORK = "10.88.0.0/16"; # Podman network
-            TRANSMISSION_WEB_UI = "flood-for-transmission";
-            TRANSMISSION_DOWNLOAD_DIR = "/data/downloads";
-            TRANSMISSION_INCOMPLETE_DIR = "/data/incomplete";
-            TRANSMISSION_WATCH_DIR = "/data/watch";
-            TRANSMISSION_HOME = "/config";
-            PUID = toString vars.puid;
-            PGID = toString vars.pgid;
-            # AirVPN static port forwarding
-            TRANSMISSION_PEER_PORT = "30158";
-            # Health check configuration
-            HEALTH_CHECK_HOST = "google.com";
-          };
-          settings = {
-            bypassAuth = true; # Has built-in authentication
-          };
-        };
-
         # OpenArchiver - Email archiving and eDiscovery platform
         # Dependencies: PostgreSQL (host), Meilisearch, Redis/Valkey, Apache Tika
         openarchiver = {

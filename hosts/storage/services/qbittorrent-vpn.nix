@@ -35,11 +35,15 @@ in {
         "192.168.0.0/16" # Additional local networks
       ];
 
-      # Map port 8080 from host to namespace for WebUI access
+      # Map ports from host to namespace for WebUI access
       portMappings = [
         {
           from = 8080;
           to = 8080;
+        }
+        {
+          from = 9091;
+          to = 9091;
         }
       ];
 

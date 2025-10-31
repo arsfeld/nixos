@@ -24,6 +24,9 @@ with lib; {
   # Enable qBittorrent with WireGuard VPN in network namespace
   services.qbittorrent-vpn.enable = true;
 
+  # Enable Transmission with WireGuard VPN in network namespace
+  services.transmission-vpn.enable = true;
+
   # Observability: Central hub for metrics and logs
   constellation.observability-hub.enable = true;
   # Disable metrics-client on hub - observability-hub has its own node exporter
