@@ -141,29 +141,29 @@ in {
 
         [torrents]
         [torrents.qbittorrent]
-        enabled = false
-        host = "http://localhost"
+        enabled = true
+        host = "http://192.168.15.1"
         port = 8080
-        username = ""
-        password = ""
+        username = "$QBITTORRENT_USERNAME"
+        password = "$QBITTORRENT_PASSWORD"
 
         [torrents.transmission]
-        enabled = false
-        host = "http://localhost"
+        enabled = true
+        host = "http://192.168.15.1"
         port = 9091
         username = ""
         password = ""
 
         [indexers]
         [indexers.prowlarr]
-        enabled = false
-        api_key = ""
-        url = ""
+        enabled = true
+        api_key = "$PROWLARR_API_KEY"
+        url = "http://prowlarr:9696"
 
         [indexers.jackett]
-        enabled = false
-        api_key = ""
-        url = ""
+        enabled = true
+        api_key = "$JACKETT_API_KEY"
+        url = "http://jackett:9117"
       '';
     };
 
