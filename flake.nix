@@ -28,6 +28,8 @@
     harmonia.inputs.nixpkgs.follows = "nixpkgs";
     eh5.url = "github:EHfive/flakes"; # EH5's flake collection (fake-hwclock module)
     eh5.inputs.nixpkgs.follows = "nixpkgs";
+    vpn-confinement.url = "github:Maroka-chan/VPN-Confinement"; # VPN namespace confinement for services
+    vpn-confinement.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = {self, ...} @ inputs:
@@ -182,6 +184,7 @@
             inputs.nix-flatpak.nixosModules.nix-flatpak
             inputs.harmonia.nixosModules.harmonia
             inputs.tsnsrv.nixosModules.default
+            inputs.vpn-confinement.nixosModules.default
             {
               nixpkgs.overlays = overlays;
             }
