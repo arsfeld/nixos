@@ -288,6 +288,41 @@ bcachefs fs show
 
 # SMART status
 smartctl -a /dev/sdX
+
+# Check smartd service status
+systemctl status smartd
+
+# View smartd logs
+journalctl -u smartd -f
+```
+
+### SMART Monitoring Configuration
+
+The storage host uses smartd to monitor all drives for health issues:
+
+#### Monitored Devices
+- `/dev/sda`, `/dev/sdb`, `/dev/sdc`, `/dev/sdf` - Standard monitoring
+- `/dev/sdd`, `/dev/sde` - **Enhanced monitoring** with Raw_Read_Error_Rate alerts
+- `/dev/nvme0n1` - Standard monitoring
+
+#### Email Alerts
+Email notifications are sent for:
+- SMART health status failures
+- Self-test failures
+- Pre-failure attributes reaching thresholds
+- **For /dev/sdd and /dev/sde**: Any change in Raw_Read_Error_Rate (attribute 1)
+
+The enhanced monitoring on `/dev/sdd` and `/dev/sde` was added due to progressive increases in Raw_Read_Error_Rate, which indicates potential disk degradation. Any further changes will trigger immediate email alerts.
+
+#### Configuration
+Located in `/hosts/storage/configuration.nix`:
+```nix
+services.smartd = {
+  enable = true;
+  notifications.mail.enable = true;
+  notifications.test = true;
+  devices = [ /* explicit device list */ ];
+};
 ```
 
 #### Performance Problems
