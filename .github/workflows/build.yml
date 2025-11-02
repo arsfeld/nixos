@@ -16,10 +16,6 @@ on:
         type: string
         default: "boot"
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   # Job that builds all machines
   build-matrix:

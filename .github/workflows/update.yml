@@ -10,10 +10,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: write
-  actions: read
-
 jobs:
   update:
     runs-on: ubuntu-latest
@@ -54,6 +50,7 @@ jobs:
 
   build:
     needs: update
+    if: needs.update.outputs.has_changes == 'true'
     uses: ./.github/workflows/build.yml
     with:
       flake_lock: ${{ needs.update.outputs.flake_lock }}
