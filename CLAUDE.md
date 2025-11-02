@@ -39,11 +39,16 @@ nix develop -c sops --decrypt secrets/sops/cloud.yaml
 # 1. Enable the module in hosts/<hostname>/configuration.nix:
 #    constellation.sops = {
 #      enable = true;
+#      # Host-specific secrets from secrets/sops/<hostname>.yaml
 #      secretsConfig = {
 #        secret-name = { mode = "0444"; };  # Customize mode, owner, group as needed
 #      };
+#      # Optional: Common secrets shared across hosts from secrets/sops/common.yaml
+#      commonSecretsConfig = {
+#        shared-api-key = { mode = "0400"; };
+#      };
 #    };
-# 2. Secrets are automatically loaded from secrets/sops/<hostname>.yaml
+# 2. Secrets are automatically loaded from the appropriate sops files
 # 3. Use secret in services: config.sops.secrets.<secret-name>.path
 
 # Age keys location:
