@@ -120,6 +120,8 @@ in {
 
     # Create environment file for Planka container
     systemd.services.docker-planka = {
+      requires = ["postgresql.service"];
+      after = ["postgresql.service"];
       preStart = lib.mkAfter ''
         PASSWORD=$(cat ${config.age.secrets.planka-db-password.path})
         ENCODED_PASSWORD=$(${pkgs.python3}/bin/python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.stdin.read().strip()))" <<< "$PASSWORD")
