@@ -1,201 +1,85 @@
-# 🚀 My NixOS Configuration
+# NixOS Configuration
 
-<!-- System -->
 [![NixOS](https://img.shields.io/badge/NixOS-Unstable-blue.svg)](https://nixos.org)
 [![Flakes](https://img.shields.io/badge/Flakes-Enabled-blue.svg)](https://nixos.wiki/wiki/Flakes)
-[![Home Manager](https://img.shields.io/badge/Home%20Manager-Enabled-blue.svg)](https://github.com/nix-community/home-manager)
-[![deploy-rs](https://img.shields.io/badge/deploy--rs-Enabled-blue.svg)](https://github.com/serokell/deploy-rs)
-
-<!-- Status -->
 [![Build](https://github.com/arsfeld/nixos/actions/workflows/build.yml/badge.svg)](https://github.com/arsfeld/nixos/actions/workflows/build.yml)
-[![Last Commit](https://img.shields.io/github/last-commit/arsfeld/nixos)](https://github.com/arsfeld/nixos/commits/main)
 
-<!-- Repository Info -->
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Repo Size](https://img.shields.io/github/repo-size/arsfeld/nixos)](https://github.com/arsfeld/nixos)
-[![Systems](https://img.shields.io/badge/Systems-7-blue.svg)](https://github.com/arsfeld/nixos#-whats-inside)
+Personal NixOS configuration managing multiple machines using Nix Flakes.
 
-Welcome to my personal NixOS configuration repo! This is where I manage all my NixOS systems using the power of Nix flakes. ✨
+## 💻 Systems
 
-## 🖥️ What's Inside
+### 🏗️ Infrastructure
+- 💾 **storage** - NAS server (Intel 13th gen, 12c/24t, 32GB, ~500GB) - media services and backups
+- ☁️ **cloud** - Gateway proxy (ARM Neoverse, 4c, 24GB) - public services reverse proxy
+- 🏡 **cottage** - Secondary server with ZFS storage *(offline)*
+- 📧 **micro** - Mail server running mox *(offline)*
+- 🔀 **router** - Network router (Intel N5105, 4c, 8GB)
+- 🏠 **r2s** - Backup router + home automation (Rockchip RK3328 ARM, 4c, 1GB) - Home Assistant
 
-This repo contains configurations for multiple machines:
+### 🔌 Embedded
+- 🖨️ **octopi** - Raspberry Pi running OctoPrint *(offline)*
+- 🍓 **raspi3** - Raspberry Pi 3 *(offline)*
 
-- 💾 **storage** - NAS/Storage server
-- ☁️ **cloud** - Cloud server
-- ☁️ **cloud-br** - Another cloud instance
-- 🔄 **r2s** - Rockchip R2S device
-- 🍓 **raspi3** - Raspberry Pi 3
-- 🔌 **core** - Core infrastructure
-- 🏢 **hpe** - HPE server
+### ☁️ Cloud
+- 🌐 **cloud-br** - Oracle Cloud ARM instance *(offline)*
+- 🖥️ **core** - Minimal server instance *(offline)*
+- 🏢 **hpe** - HPE server for virtualization *(offline)*
 
-## 🛠️ Features
+### 🖥️ Desktops & Laptops
+- 🎮 **raider** - ITX desktop (ERYING G660, i5-12500H 12c/24t, RX 6650 XT, 32GB, 500GB+2TB NVMe)
+- 💻 **g14** - ASUS ROG Zephyrus G14 laptop *(offline)*
+- 🎯 **striker** - Gaming desktop *(offline)*
 
-- 📦 Fully declarative system configurations
-- 🏠 Home-manager setup for user environment
-- 🔒 Secret management with Ragenix
-- 🔄 Deployment via deploy-rs
-- 💻 Development environment with devshell
-- 🤖 CI/CD pipeline for building systems
-- 📊 Structured modular design
+## ✨ Features
 
-## 🚀 Usage
+- 🧩 **Modular Architecture** - Opt-in constellation modules for services, media, backups, and more
+- 🌍 **Split-Horizon DNS** - Optimized routing for internal vs. external access
+- 🚀 **Automated Deployments** - Using deploy-rs and Colmena
+- 🔐 **Secret Management** - Migrating from ragenix to sops-nix
+- 📦 **Binary Caching** - Attic server for faster builds
+- 🔨 **Remote Builders** - Automatic aarch64 builds via cloud host
+- 📝 **Declarative Everything** - Including disk partitioning (disko)
 
-### Development
+## 🚀 Quick Start
 
 ```bash
-# Enter the development shell
+# Enter development shell
 nix develop
-```
 
-### Deployment
-
-This repository uses [just](https://github.com/casey/just) as a task runner for common operations. Here are the main deployment commands:
-
-#### Remote Installation with nixos-anywhere
-
-For fresh installations on new hardware using [nixos-anywhere](https://github.com/nix-community/nixos-anywhere) and [disko](https://github.com/nix-community/disko):
-
-```bash
-# Install NixOS on a target machine (requires NixOS installer ISO booted)
-just install <hostname> <target-ip>
-
-# Example: Install router configuration
-just install router 192.168.1.100
-```
-
-This will:
-1. Connect to the target via SSH (must be booted into NixOS installer)
-2. Partition and format disks using the host's disko configuration
-3. Install NixOS with the specified host configuration
-4. Automatically reboot into the new system
-
-#### Regular Deployments
-
-For updating existing systems using [deploy-rs](https://github.com/serokell/deploy-rs):
-
-```bash
-# Deploy configuration changes
+# Deploy to a host
 just deploy <hostname>
 
-# Deploy with boot activation (for kernel/bootloader changes)
-just boot <hostname>
-
-# Deploy multiple hosts
-just deploy router storage cloud
-
-# Build locally and push to binary cache
-just build <hostname>
+# Fresh install on new hardware
+just install <hostname> <target-ip>
 ```
 
-#### Helper Commands
+## 📁 Project Structure
 
-```bash
-# Generate hardware configuration from a running system
-just hardware-config <hostname> <target-host>
-
-# List network interfaces on a router (useful for initial setup)
-just router-interfaces <target-host>
 ```
-
-### Secret Management
-
-This repository uses [ragenix](https://github.com/yaxitech/ragenix) for managing encrypted secrets:
-
-```bash
-# Edit an existing secret
-ragenix -e secrets/secret-name.age
-
-# Create a new secret with a random value
-just secret-create <secret-name>
-
-# Rekey all secrets (after adding/removing keys in secrets.nix)
-ragenix -r
-```
-
-After creating a new secret:
-1. Add it to `secrets/secrets.nix` with appropriate public keys
-2. Reference it in your NixOS module using `config.age.secrets.<name>`
-3. Commit the encrypted `.age` file (never commit plaintext!)
-
-### Building SD Images
-
-```bash
-# For Raspberry Pi 3
-nix build .#packages.aarch64-linux.raspi3
-
-# For NanoPi R2S (includes U-Boot)
-just r2s
-```
-
-## 📚 Structure
-
-- `hosts/` - Machine-specific configurations
-- `modules/` - Reusable NixOS modules
-- `home/` - Home-manager configurations
-- `packages/` - Custom packages
-- `secrets/` - Encrypted secrets (via ragenix)
-- `overlays/` - Nixpkgs overlays
-
-## 📦 Custom Packages
-
-This repository includes several custom packages that are automatically loaded via Haumea and exposed in the flake outputs:
-
-### Monitoring & Observability
-- **signoz-query-service** - SigNoz backend query service for traces, logs, and metrics
-- **signoz-frontend** - SigNoz web UI for observability platform
-- **signoz-clickhouse-schema** - ClickHouse database schema initialization for SigNoz
-- **signoz-otel-collector** - OpenTelemetry collector configuration for SigNoz
-- **network-metrics-exporter** - Custom Prometheus exporter for network metrics
-
-### Network Services
-- **natpmp-server** - NAT-PMP server implementation in Go for port forwarding
-- **supabase-manager** - Python tool for managing Supabase instances
-
-### Utilities
-- **check-stock** - Stock availability checker with email notifications
-- **send-email-event** - Email notification service for system events
-
-### Building Custom Packages
-
-```bash
-# Build a specific package
-nix build .#signoz-frontend
-nix build .#natpmp-server
-
-# List all custom packages
-nix flake show | grep packages
+hosts/              # Host-specific configurations
+modules/            # Reusable NixOS modules
+  constellation/    # Modular opt-in features
+  media/           # Media services
+home/              # Home Manager configurations
+packages/          # Custom packages
+secrets/           # Encrypted secrets
 ```
 
 ## 🔧 Tooling
 
-This project uses:
+- [Nix Flakes](https://nixos.wiki/wiki/Flakes) - Reproducible configurations
+- [Home Manager](https://github.com/nix-community/home-manager) - User environments
+- [deploy-rs](https://github.com/serokell/deploy-rs) - Deployment automation
+- [Colmena](https://colmena.cli.rs/) - Alternative deployment tool
+- [sops-nix](https://github.com/Mic92/sops-nix) - Secret management
+- [disko](https://github.com/nix-community/disko) - Declarative partitioning
+- [Attic](https://github.com/zhaofengli/attic) - Binary cache
+- [Tailscale](https://tailscale.com/) - VPN mesh network
 
-- Nix Flakes
-- Home Manager
-- Ragenix
-- deploy-rs
-- disko
-- Attic (for binary cache)
-- Colmena
-- flake-parts
+## 📚 Documentation
 
-## 📝 Commit Style
-
-Git commits follow the angular style with emojis:
-
-- ✨ feat: new features
-- 🐛 fix: bug fixes
-- 📚 docs: documentation changes
-- 💎 style: formatting changes
-- 📦 refactor: code restructuring
-- 🚀 perf: performance improvements
-- 🧪 test: test updates
-- 🛠️ build: build system changes
-- 👷 ci: CI configuration
-- 🧹 chore: maintenance tasks
-- ⏪ revert: reverts previous commits
+See [CLAUDE.md](CLAUDE.md) for detailed development and deployment instructions.
 
 ## 📄 License
 
-This project is for personal use, but feel free to take inspiration from it for your own NixOS configurations! ❤️ 
+Personal use. Feel free to take inspiration for your own configurations.
