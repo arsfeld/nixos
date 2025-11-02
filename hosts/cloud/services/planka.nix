@@ -68,6 +68,8 @@ in {
     # PostgreSQL database
     services.postgresql = {
       enable = true;
+      # Enable TCP/IP connections for container access
+      enableTCPIP = true;
       ensureDatabases = [cfg.database.name];
       ensureUsers = [
         {
@@ -75,6 +77,11 @@ in {
           ensureDBOwnership = true;
         }
       ];
+      # Allow planka user to connect via password from localhost
+      authentication = lib.mkAfter ''
+        host ${cfg.database.name} ${cfg.database.user} 127.0.0.1/32 scram-sha-256
+        host ${cfg.database.name} ${cfg.database.user} ::1/128 scram-sha-256
+      '';
     };
 
     # Set PostgreSQL password after database is created
@@ -148,8 +155,9 @@ in {
     age.secrets = {
       planka-db-password = {
         file = ../../../secrets/planka-db-password.age;
-        owner = "root";
-        group = "root";
+        owner = "postgres";
+        group = "postgres";
+        mode = "0400";
       };
       planka-secret-key = {
         file = ../../../secrets/planka-secret-key.age;
