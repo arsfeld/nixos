@@ -33,7 +33,7 @@ in {
 
       settings = {
         # Download directories
-        download-dir = "${vars.storageDir}/media/downloads";
+        download-dir = "${vars.storageDir}/media/Downloads";
         incomplete-dir = "${vars.storageDir}/media/incomplete";
         watch-dir = "${vars.storageDir}/media/watch";
         watch-dir-enabled = true;
@@ -81,7 +81,9 @@ in {
 
       # Ensure directories exist before starting
       preStart = ''
-        mkdir -p ${vars.storageDir}/media/downloads
+        mkdir -p ${vars.storageDir}/media/Downloads
+        mkdir -p ${vars.storageDir}/media/Downloads/radarr
+        mkdir -p ${vars.storageDir}/media/Downloads/sonarr
         mkdir -p ${vars.storageDir}/media/incomplete
         mkdir -p ${vars.storageDir}/media/watch
       '';

@@ -140,12 +140,13 @@ in {
         [torrents]
         [torrents.qbittorrent]
         enabled = false
-        host = "http://192.168.15.1"
+        host = "192.168.15.1"
         port = 8080
 
         [torrents.transmission]
         enabled = true
-        host = "http://192.168.15.1"
+        https_enabled = false
+        host = "192.168.15.1"
         port = 9091
 
         [indexers]
