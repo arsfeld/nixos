@@ -1,24 +1,30 @@
 # Constellation sops module
 #
-# This module provides sops-nix secret management configuration for hosts.
-# It uses age encryption with host SSH keys for automatic key generation.
+# This module provides sops-nix infrastructure setup for hosts.
+# It configures age encryption with automatic key generation from SSH host keys
+# and sets the default secrets file path.
+#
+# The module is a thin wrapper around sops-nix that handles infrastructure setup.
+# Use the standard sops.secrets options for defining secrets.
 #
 # Key features:
-# - Age key auto-generation from host SSH keys
-# - Host-specific secret files (secrets/sops/<hostname>.yaml)
-# - Shared secret files (secrets/sops/common.yaml) for cross-host secrets
-# - Flexible secret definition via secretsConfig option
+# - Automatic age key generation from SSH host keys
+# - Sets defaultSopsFile to secrets/sops/<hostname>.yaml
+# - Configures age key paths and generation
 #
 # Usage:
-#   constellation.sops = {
-#     enable = true;
-#     hostname = "cloud";  # defaults to config.networking.hostName
-#     secretsConfig = {
-#       ntfy-env = { mode = "0444"; };
-#       siyuan-auth-code = { owner = "root"; group = "root"; };
-#     };
-#     commonSecretsConfig = {
-#       shared-api-key = { mode = "0400"; };
+#   # Enable the module (infrastructure setup)
+#   constellation.sops.enable = true;
+#
+#   # Use standard sops-nix configuration for secrets
+#   sops.secrets = {
+#     # Host-specific secrets (uses defaultSopsFile)
+#     ntfy-env = { mode = "0444"; };
+#
+#     # Common secrets (explicit sopsFile)
+#     shared-api-key = {
+#       sopsFile = ../../secrets/sops/common.yaml;
+#       mode = "0400";
 #     };
 #   };
 {
@@ -38,9 +44,11 @@ in {
     enable = mkOption {
       type = types.bool;
       description = ''
-        Enable sops-nix secret management.
-        This sets up age-based encryption using the host's SSH key
-        and loads secrets from secrets/sops/<hostname>.yaml.
+        Enable sops-nix infrastructure setup.
+        This configures age-based encryption using the host's SSH key
+        and sets defaultSopsFile to secrets/sops/<hostname>.yaml.
+
+        Use the standard sops.secrets options to define actual secrets.
       '';
       default = false;
     };
@@ -48,72 +56,20 @@ in {
     hostname = mkOption {
       type = types.nullOr types.str;
       description = ''
-        Hostname to use for determining the secrets file path.
+        Hostname to use for determining the default secrets file path.
         Defaults to config.networking.hostName if not set.
       '';
       default = null;
     };
-
-    secretsConfig = mkOption {
-      type = types.attrsOf (types.submodule {
-        options = {
-          mode = mkOption {
-            type = types.str;
-            description = "File mode for the decrypted secret";
-            default = "0400";
-          };
-          owner = mkOption {
-            type = types.str;
-            description = "Owner of the decrypted secret file";
-            default = "root";
-          };
-          group = mkOption {
-            type = types.str;
-            description = "Group of the decrypted secret file";
-            default = "root";
-          };
-        };
-      });
-      description = ''
-        Attribute set of host-specific secrets to load from secrets/sops/<hostname>.yaml.
-        Each key is the secret name, and the value configures permissions.
-      '';
-      default = {};
-    };
-
-    commonSecretsConfig = mkOption {
-      type = types.attrsOf (types.submodule {
-        options = {
-          mode = mkOption {
-            type = types.str;
-            description = "File mode for the decrypted secret";
-            default = "0400";
-          };
-          owner = mkOption {
-            type = types.str;
-            description = "Owner of the decrypted secret file";
-            default = "root";
-          };
-          group = mkOption {
-            type = types.str;
-            description = "Group of the decrypted secret file";
-            default = "root";
-          };
-        };
-      });
-      description = ''
-        Attribute set of common secrets to load from secrets/sops/common.yaml.
-        These secrets are shared across multiple hosts.
-        Each key is the secret name, and the value configures permissions.
-      '';
-      default = {};
-    };
   };
 
   config = mkIf cfg.enable {
-    # Configure sops-nix
+    # Configure sops-nix infrastructure
     sops = {
+      # Set default secrets file to host-specific file
       defaultSopsFile = "${self}/secrets/sops/${hostname}.yaml";
+
+      # Configure age encryption
       age = {
         # Use the host's SSH key for decryption
         sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];
@@ -122,23 +78,7 @@ in {
         generateKey = true;
       };
 
-      # Define secrets from host-specific and common files
-      secrets =
-        # Host-specific secrets (use default sops file)
-        (mapAttrs (name: secretCfg: {
-            mode = secretCfg.mode;
-            owner = secretCfg.owner;
-            group = secretCfg.group;
-          })
-          cfg.secretsConfig)
-        # Common secrets (explicitly set sops file)
-        // (mapAttrs (name: secretCfg: {
-            sopsFile = "${self}/secrets/sops/common.yaml";
-            mode = secretCfg.mode;
-            owner = secretCfg.owner;
-            group = secretCfg.group;
-          })
-          cfg.commonSecretsConfig);
+      # Secrets are defined directly via sops.secrets in host configuration
     };
   };
 }

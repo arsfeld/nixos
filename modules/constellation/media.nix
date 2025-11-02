@@ -88,7 +88,7 @@ in {
         image_directory = "/app/images"
         tv_directory = "/mnt/storage/media/Series"
         movie_directory = "/mnt/storage/media/Movies"
-        torrent_directory = "/mnt/storage/media/downloads"
+        torrent_directory = "/mnt/storage/media/Downloads"
 
         development = false
 
