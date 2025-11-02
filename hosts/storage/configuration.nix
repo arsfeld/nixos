@@ -18,7 +18,7 @@ with lib; {
   constellation.services.enable = true;
   constellation.media.enable = true;
   constellation.podman.enable = true;
-  services.isponsorblock.enable = true;
+  services.isponsorblock.enable = false;
   constellation.githubNotify.enable = true; # Enable GitHub issue creation for systemd failures
 
   # Enable qBittorrent with WireGuard VPN in network namespace

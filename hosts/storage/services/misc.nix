@@ -50,17 +50,17 @@ in {
       ];
     };
 
-    watchyourlan = {
-      volumes = ["/var/lib/watchyourlan:/data/WatchYourLAN"];
-      environment = {
-        IFACES = "enp4s0";
-        TZ = "America/Toronto";
-      };
-      image = "aceberg/watchyourlan";
-      extraOptions = [
-        "--network=host"
-      ];
-    };
+    # watchyourlan = {
+    #   volumes = ["/var/lib/watchyourlan:/data/WatchYourLAN"];
+    #   environment = {
+    #     IFACES = "enp4s0";
+    #     TZ = "America/Toronto";
+    #   };
+    #   image = "aceberg/watchyourlan";
+    #   extraOptions = [
+    #     "--network=host"
+    #   ];
+    # };
 
     speedtest = {
       image = "lscr.io/linuxserver/speedtest-tracker:latest";
