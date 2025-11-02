@@ -83,7 +83,8 @@ in {
 
     systemd.services."boot-mail-alert" = {
       wantedBy = ["multi-user.target"];
-      after = ["network.target"];
+      after = ["network-online.target"];
+      wants = ["network-online.target"];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -92,7 +93,8 @@ in {
     };
     systemd.services."shutdown-mail-alert" = {
       wantedBy = ["multi-user.target"];
-      after = ["network.target"];
+      after = ["network-online.target"];
+      wants = ["network-online.target"];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;

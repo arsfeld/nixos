@@ -224,6 +224,11 @@ in {
     systemd.services."email@" = {
       description = "Sends a status mail via sendEmailEvent on service failures.";
       onFailure = mkForce [];
+      path = with pkgs; [
+        nettools # provides hostname command
+        coreutils
+        util-linux
+      ];
       serviceConfig = {
         ExecStart = "${sendmail} %i";
         Type = "oneshot";
