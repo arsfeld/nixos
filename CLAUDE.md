@@ -44,9 +44,9 @@ nix develop -c sops --decrypt secrets/sops/cloud.yaml
 #      # Host-specific secrets (uses defaultSopsFile = secrets/sops/<hostname>.yaml)
 #      secret-name = { mode = "0444"; };
 #
-#      # Common secrets shared across hosts (explicit sopsFile)
+#      # Common secrets shared across hosts
 #      shared-api-key = {
-#        sopsFile = ../../secrets/sops/common.yaml;
+#        sopsFile = config.constellation.sops.commonSopsFile;
 #        mode = "0400";
 #      };
 #    };
@@ -55,6 +55,7 @@ nix develop -c sops --decrypt secrets/sops/cloud.yaml
 #
 # Note: constellation.sops only sets up infrastructure (age keys, default paths).
 # Use standard sops.secrets for full flexibility (restartUnits, path, etc.).
+# Common secrets path: config.constellation.sops.commonSopsFile
 
 # Age keys location:
 # - User: ~/.config/sops/age/keys.txt (auto-generated from SSH key)
