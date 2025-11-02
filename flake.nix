@@ -28,7 +28,7 @@
     nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
     harmonia.url = "github:nix-community/harmonia"; # Binary cache server
     harmonia.inputs.nixpkgs.follows = "nixpkgs";
-    eh5.url = "github:EHfive/flakes"; # EH5's flake collection (fake-hwclock module)
+    eh5.url = "github:EHfive/flakes/942b76edbd6983965ede6afe342aa676cb5917a2"; # EH5's flake collection (fake-hwclock module) - pinned to avoid broken deploy-rs fork
     eh5.inputs.nixpkgs.follows = "nixpkgs";
     vpn-confinement.url = "github:Maroka-chan/VPN-Confinement"; # VPN namespace confinement for services
   };
