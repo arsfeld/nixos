@@ -1,6 +1,6 @@
-# Constellation blog module
+# Blog service using Zola static site generator
 #
-# This module sets up a static blog using Zola, a fast static site generator
+# This service sets up a static blog using Zola, a fast static site generator
 # written in Rust. The blog is automatically built at NixOS configuration time
 # and served via Caddy web server.
 #
@@ -23,7 +23,7 @@
   ...
 }:
 with lib; let
-  cfg = config.constellation.blog;
+  cfg = config.services.blog;
 
   # Build the Zola site at build time
   builtSite = pkgs.stdenv.mkDerivation {
@@ -48,7 +48,7 @@ with lib; let
     '';
   };
 in {
-  options.constellation.blog = {
+  options.services.blog = {
     enable = mkOption {
       type = types.bool;
       description = ''

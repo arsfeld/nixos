@@ -1,12 +1,13 @@
+# Siyuan note-taking service
 {
   config,
   lib,
   pkgs,
   ...
 }: let
-  cfg = config.constellation.siyuan;
+  cfg = config.services.siyuan-notes;
 in {
-  options.constellation.siyuan = {
+  options.services.siyuan-notes = {
     enable = lib.mkEnableOption "Siyuan note-taking application";
 
     domain = lib.mkOption {
@@ -120,7 +121,7 @@ in {
     # For hosts using ragenix, keep this configuration:
     age.secrets = lib.mkIf (!config.sops.secrets ? siyuan-auth-code) {
       siyuan-auth-code = {
-        file = ../../secrets/siyuan-auth-code.age;
+        file = ../../../secrets/siyuan-auth-code.age;
         owner = "root";
         group = "root";
       };

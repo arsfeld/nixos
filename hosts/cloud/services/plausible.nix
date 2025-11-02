@@ -1,12 +1,13 @@
+# Plausible Analytics service
 {
   config,
   lib,
   pkgs,
   ...
 }: let
-  cfg = config.constellation.plausible;
+  cfg = config.services.plausible-analytics;
 in {
-  options.constellation.plausible = {
+  options.services.plausible-analytics = {
     enable = lib.mkEnableOption "self-hosted Plausible Analytics";
 
     domain = lib.mkOption {
@@ -57,13 +58,13 @@ in {
   config = lib.mkIf cfg.enable {
     # Secrets
     age.secrets.plausible-secret-key = {
-      file = ../../secrets/plausible-secret-key.age;
+      file = ../../../secrets/plausible-secret-key.age;
       owner = "plausible";
       group = "plausible";
     };
 
     age.secrets.plausible-smtp-password = {
-      file = ../../secrets/plausible-smtp-password.age;
+      file = ../../../secrets/plausible-smtp-password.age;
       owner = "plausible";
       group = "plausible";
     };

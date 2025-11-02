@@ -38,10 +38,5 @@
     settings.web.listen.port = 9998;
   };
 
-  # Beszel monitoring configuration moved to constellation.beszel module
-  constellation.beszel = {
-    enable = false; # Disabled to reduce CPU usage from podman polling
-    hub.enable = true;
-    agent.enable = true;
-  };
+  # Beszel monitoring - removed (no longer used)
 }

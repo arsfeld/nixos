@@ -1,12 +1,13 @@
+# Planka kanban board service
 {
   config,
   lib,
   pkgs,
   ...
 }: let
-  cfg = config.constellation.planka;
+  cfg = config.services.planka-board;
 in {
-  options.constellation.planka = {
+  options.services.planka-board = {
     enable = lib.mkEnableOption "Planka kanban board";
 
     domain = lib.mkOption {
@@ -146,12 +147,12 @@ in {
     # Secrets
     age.secrets = {
       planka-db-password = {
-        file = ../../secrets/planka-db-password.age;
+        file = ../../../secrets/planka-db-password.age;
         owner = "root";
         group = "root";
       };
       planka-secret-key = {
-        file = ../../secrets/planka-secret-key.age;
+        file = ../../../secrets/planka-secret-key.age;
         owner = "root";
         group = "root";
       };

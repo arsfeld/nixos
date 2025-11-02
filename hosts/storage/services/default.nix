@@ -10,6 +10,7 @@
     ./homepage.nix
     ./immich.nix
     ./infra.nix
+    ./isponsorblock.nix
     ./media.nix
     # ./metrics.nix  # Replaced by constellation.observability-hub module
     ./misc.nix

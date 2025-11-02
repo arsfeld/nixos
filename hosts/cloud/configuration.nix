@@ -13,25 +13,27 @@
   constellation.docker.enable = true;
   constellation.sites.arsfeld-dev.enable = true;
   constellation.sites.rosenfeld-one.enable = true;
-  constellation.blog = {
+
+  # Blog service
+  services.blog = {
     enable = true;
     domain = "blog.arsfeld.dev";
   };
 
   # Enable self-hosted Plausible Analytics
-  constellation.plausible = {
+  services.plausible-analytics = {
     enable = true;
     domain = "plausible.arsfeld.dev";
   };
 
   # Enable Planka kanban board
-  constellation.planka = {
+  services.planka-board = {
     enable = true;
     domain = "planka.arsfeld.dev";
   };
 
   # Enable Siyuan note-taking application
-  constellation.siyuan = {
+  services.siyuan-notes = {
     enable = true;
     domain = "siyuan.arsfeld.dev";
   };
@@ -47,14 +49,15 @@
   constellation.metrics-client.caddy.enable = true;
 
   # Enable sops-nix secret management
-  constellation.sops = {
-    enable = true;
-    secretsConfig = {
-      ntfy-env = {mode = "0444";};
-      siyuan-auth-code = {
-        owner = "root";
-        group = "root";
-      };
+  constellation.sops.enable = true;
+
+  # Define secrets using standard sops-nix options
+  sops.secrets = {
+    # Host-specific secrets (use defaultSopsFile set by constellation.sops)
+    ntfy-env = {mode = "0444";};
+    siyuan-auth-code = {
+      owner = "root";
+      group = "root";
     };
   };
 

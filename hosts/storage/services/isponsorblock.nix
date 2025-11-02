@@ -1,12 +1,13 @@
+# iSponsorBlockTV service - Skip sponsored segments on YouTube for Apple TV
 {
   config,
   lib,
   pkgs,
   ...
 }: let
-  cfg = config.constellation.isponsorblock;
+  cfg = config.services.isponsorblock;
 in {
-  options.constellation.isponsorblock = {
+  options.services.isponsorblock = {
     enable = lib.mkEnableOption "iSponsorBlockTV - Skip sponsored segments on YouTube for Apple TV";
 
     port = lib.mkOption {
