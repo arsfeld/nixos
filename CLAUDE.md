@@ -17,14 +17,14 @@ nix develop
 ### Secret Management
 
 #### sops-nix (Preferred for new secrets)
-The repository is migrating to sops-nix for secret management. Currently in PoC phase on cloud host.
+The repository uses sops-nix for secret management via the constellation.sops module. Currently deployed on cloud host.
 
 ```bash
 # Configuration file: .sops.yaml defines encryption keys per host
 
 # Create or edit a secret (interactive)
-# Secrets are organized by host: secrets/sops/cloud-poc.yaml, secrets/sops/storage.yaml, etc.
-nix develop -c sops secrets/sops/cloud-poc.yaml
+# Secrets are organized by host: secrets/sops/cloud.yaml, secrets/sops/storage.yaml, etc.
+nix develop -c sops secrets/sops/cloud.yaml
 
 # Encrypt a new secret file
 # 1. Create plaintext YAML file with secrets
@@ -33,13 +33,17 @@ cp secrets/sops/my-secrets-plain.yaml secrets/sops/my-secrets.yaml
 nix develop -c sops --encrypt --in-place secrets/sops/my-secrets.yaml
 
 # View decrypted secrets (use with caution)
-nix develop -c sops --decrypt secrets/sops/cloud-poc.yaml
+nix develop -c sops --decrypt secrets/sops/cloud.yaml
 
-# Add secrets to a host configuration:
-# 1. Create or update hosts/<hostname>/sops.nix:
-#    sops.defaultSopsFile = "${self}/secrets/sops/<hostname>.yaml";
-#    sops.secrets.<secret-name> = { mode = "0444"; };
-# 2. Import sops.nix in hosts/<hostname>/configuration.nix
+# Add secrets to a host configuration using constellation.sops module:
+# 1. Enable the module in hosts/<hostname>/configuration.nix:
+#    constellation.sops = {
+#      enable = true;
+#      secretsConfig = {
+#        secret-name = { mode = "0444"; };  # Customize mode, owner, group as needed
+#      };
+#    };
+# 2. Secrets are automatically loaded from secrets/sops/<hostname>.yaml
 # 3. Use secret in services: config.sops.secrets.<secret-name>.path
 
 # Age keys location:
