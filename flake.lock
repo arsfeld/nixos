@@ -231,6 +231,7 @@
       "original": {
         "owner": "EHfive",
         "repo": "flakes",
+        "rev": "942b76edbd6983965ede6afe342aa676cb5917a2",
         "type": "github"
       }
     },
