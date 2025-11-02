@@ -1,6 +1,6 @@
 keys:
   # User keys
-  - &user_arsfeld age1zmev49pzr0wxqdw4m5t5pk0ma98dchmxlucl0u6w2ajj762624qq7v3u43
+  - &user_arosenfeld age1zmev49pzr0wxqdw4m5t5pk0ma98dchmxlucl0u6w2ajj762624qq7v3u43
 
   # Host keys (derived from ssh-ed25519 host keys in secrets/secrets.nix)
   - &host_cloud age1s9hjg4ls5k0wrd3rcsmtrywe6535907368druhpreg5c5lu2sguq2pdq0a
@@ -8,32 +8,25 @@ keys:
   - &host_raider age1heelrhsk3nv40ct8e4r0l4nt9hrd8a5x692w5z30vvhsgujfcc6q9a7c2m
 
 creation_rules:
-  # PoC secrets for cloud host (test migration)
-  - path_regex: secrets/sops/cloud-poc\.yaml$
-    key_groups:
-      - age:
-          - *user_arsfeld
-          - *host_cloud
-
-  # Future: all cloud secrets
+  # All cloud secrets
   - path_regex: secrets/sops/cloud\.yaml$
     key_groups:
       - age:
-          - *user_arsfeld
+          - *user_arosenfeld
           - *host_cloud
 
-  # Future: all storage secrets
+  # All storage secrets
   - path_regex: secrets/sops/storage\.yaml$
     key_groups:
       - age:
-          - *user_arsfeld
+          - *user_arosenfeld
           - *host_storage
 
-  # Future: secrets for all hosts
+  # Secrets for all hosts
   - path_regex: secrets/sops/common\.yaml$
     key_groups:
       - age:
-          - *user_arsfeld
+          - *user_arosenfeld
           - *host_cloud
           - *host_storage
           - *host_raider

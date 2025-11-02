@@ -8,7 +8,6 @@
     ./services
     ./services.nix
     ./containers.nix
-    ./sops.nix
   ];
 
   constellation.docker.enable = true;
@@ -46,6 +45,18 @@
   constellation.media.enable = true;
   # Enable Caddy metrics export (metrics-client and logs-client are enabled by default)
   constellation.metrics-client.caddy.enable = true;
+
+  # Enable sops-nix secret management
+  constellation.sops = {
+    enable = true;
+    secretsConfig = {
+      ntfy-env = {mode = "0444";};
+      siyuan-auth-code = {
+        owner = "root";
+        group = "root";
+      };
+    };
+  };
 
   media.config.enable = true;
 
