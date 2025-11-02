@@ -21,9 +21,9 @@
 #     # Host-specific secrets (uses defaultSopsFile)
 #     ntfy-env = { mode = "0444"; };
 #
-#     # Common secrets (explicit sopsFile)
+#     # Common secrets (use exposed commonSopsFile)
 #     shared-api-key = {
-#       sopsFile = ../../secrets/sops/common.yaml;
+#       sopsFile = config.constellation.sops.commonSopsFile;
 #       mode = "0400";
 #     };
 #   };
@@ -60,6 +60,16 @@ in {
         Defaults to config.networking.hostName if not set.
       '';
       default = null;
+    };
+
+    commonSopsFile = mkOption {
+      type = types.path;
+      description = ''
+        Path to the common secrets file shared across all hosts.
+        Use this in sops.secrets.<name>.sopsFile for cross-host secrets.
+      '';
+      default = "${self}/secrets/sops/common.yaml";
+      readOnly = true;
     };
   };
 
