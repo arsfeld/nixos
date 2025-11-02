@@ -6,6 +6,7 @@
 # Key features:
 # - Age key auto-generation from host SSH keys
 # - Host-specific secret files (secrets/sops/<hostname>.yaml)
+# - Shared secret files (secrets/sops/common.yaml) for cross-host secrets
 # - Flexible secret definition via secretsConfig option
 #
 # Usage:
@@ -15,6 +16,9 @@
 #     secretsConfig = {
 #       ntfy-env = { mode = "0444"; };
 #       siyuan-auth-code = { owner = "root"; group = "root"; };
+#     };
+#     commonSecretsConfig = {
+#       shared-api-key = { mode = "0400"; };
 #     };
 #   };
 {
@@ -71,7 +75,35 @@ in {
         };
       });
       description = ''
-        Attribute set of secrets to load from the sops file.
+        Attribute set of host-specific secrets to load from secrets/sops/<hostname>.yaml.
+        Each key is the secret name, and the value configures permissions.
+      '';
+      default = {};
+    };
+
+    commonSecretsConfig = mkOption {
+      type = types.attrsOf (types.submodule {
+        options = {
+          mode = mkOption {
+            type = types.str;
+            description = "File mode for the decrypted secret";
+            default = "0400";
+          };
+          owner = mkOption {
+            type = types.str;
+            description = "Owner of the decrypted secret file";
+            default = "root";
+          };
+          group = mkOption {
+            type = types.str;
+            description = "Group of the decrypted secret file";
+            default = "root";
+          };
+        };
+      });
+      description = ''
+        Attribute set of common secrets to load from secrets/sops/common.yaml.
+        These secrets are shared across multiple hosts.
         Each key is the secret name, and the value configures permissions.
       '';
       default = {};
@@ -90,14 +122,23 @@ in {
         generateKey = true;
       };
 
-      # Define secrets from the secrets file
+      # Define secrets from host-specific and common files
       secrets =
-        mapAttrs (name: secretCfg: {
-          mode = secretCfg.mode;
-          owner = secretCfg.owner;
-          group = secretCfg.group;
-        })
-        cfg.secretsConfig;
+        # Host-specific secrets (use default sops file)
+        (mapAttrs (name: secretCfg: {
+            mode = secretCfg.mode;
+            owner = secretCfg.owner;
+            group = secretCfg.group;
+          })
+          cfg.secretsConfig)
+        # Common secrets (explicitly set sops file)
+        // (mapAttrs (name: secretCfg: {
+            sopsFile = "${self}/secrets/sops/common.yaml";
+            mode = secretCfg.mode;
+            owner = secretCfg.owner;
+            group = secretCfg.group;
+          })
+          cfg.commonSecretsConfig);
     };
   };
 }
