@@ -232,8 +232,6 @@ in {
       serviceConfig = {
         ExecStart = "${sendmail} %i";
         Type = "oneshot";
-        # Set HOME so gh CLI can find authentication config at /root/.config/gh/hosts.yml
-        Environment = "HOME=/root";
       };
     };
   };
