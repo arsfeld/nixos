@@ -62,6 +62,11 @@ in {
   systemd.services.immich-server = {
     after = ["mnt-storage.mount"];
     requires = ["mnt-storage.mount"];
+    serviceConfig = {
+      # Create /run/immich directory for runtime configuration
+      RuntimeDirectory = "immich";
+      RuntimeDirectoryMode = "0755";
+    };
     preStart = ''
       # Inject OAuth client secret into config file
       ${pkgs.gnused}/bin/sed \
