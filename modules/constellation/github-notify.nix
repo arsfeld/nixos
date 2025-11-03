@@ -72,6 +72,9 @@ in {
     # Ensure gh is available system-wide
     environment.systemPackages = [pkgs.gh];
 
+    # Add gh to the email@ service path so create-github-issue can use it
+    systemd.services."email@".path = [pkgs.gh];
+
     # Enable GitHub issues for systemd failures if email notifications are configured
     systemdEmailNotify = mkIf (config.constellation.email.enable) {
       enableGitHubIssues = true;
