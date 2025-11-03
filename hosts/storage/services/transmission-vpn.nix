@@ -89,6 +89,12 @@ in {
       '';
 
       serviceConfig = {
+        # Bind mount storage directories for access from VPN namespace
+        BindPaths = [
+          "${vars.storageDir}/media"
+          "${vars.storageDir}/files"
+        ];
+
         # Additional security hardening
         PrivateTmp = true;
         NoNewPrivileges = true;
