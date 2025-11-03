@@ -444,11 +444,14 @@ in {
         mediamanager = {
           image = "ghcr.io/maxdorninger/mediamanager/mediamanager:latest";
           listenPort = 8000;
-          configDir = "/config";
+          configDir = null; # Explicitly set to null to avoid automatic configDir volume mount
           mediaVolumes = true;
           volumes = [
-            "${vars.storageDir}/data/mediamanager/images:/app/images"
+            # Mount persistent config directory first (order matters for overlapping mounts)
+            "${vars.configDir}/mediamanager:/config"
+            # Then mount the read-only config template file inside the config directory
             "/etc/mediamanager-config-template.toml:/config/config.toml:ro"
+            "${vars.storageDir}/data/mediamanager/images:/app/images"
           ];
           extraOptions = [
             "--add-host=host.containers.internal:host-gateway"
