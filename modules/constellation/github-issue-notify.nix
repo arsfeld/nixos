@@ -34,6 +34,14 @@ with lib; let
     STATE_DIR="/var/lib/github-notifier"
     TIMESTAMP_FILE="$STATE_DIR/failure_$SERVICE_NAME.timestamp"
     FAILURE_COUNT_FILE="$STATE_DIR/failure_$SERVICE_NAME.count"
+    MASS_FAILURE_LOG="$STATE_DIR/mass_failures.log"
+
+    # Filtering configuration
+    FILTERING_ENABLED="${toString cfg.filtering.enable}"
+    IGNORE_EXIT_CODES="${toString (builtins.concatStringsSep "," (map toString cfg.filtering.ignoreExitCodes))}"
+    TRANSIENT_WAIT_SECONDS="${toString cfg.filtering.transientWaitSeconds}"
+    MASS_FAILURE_THRESHOLD="${toString cfg.filtering.massFailureThreshold}"
+    MASS_FAILURE_WINDOW="${toString cfg.filtering.massFailureWindowSeconds}"
 
     # Ensure state directory exists
     mkdir -p "$STATE_DIR"
@@ -50,11 +58,111 @@ with lib; let
       [ $((CURRENT_TIME - LAST_NOTIFICATION)) -ge $COOLDOWN_SECONDS ]
     }
 
+    # Check for mass failure event
+    check_mass_failure() {
+      if [ "$FILTERING_ENABLED" != "1" ]; then
+        return 1  # Not a mass failure (filtering disabled)
+      fi
+
+      CURRENT_TIME=$(date +%s)
+      CUTOFF_TIME=$((CURRENT_TIME - MASS_FAILURE_WINDOW))
+
+      # Log this failure
+      echo "$CURRENT_TIME $SERVICE_NAME" >> "$MASS_FAILURE_LOG"
+
+      # Count recent failures
+      if [ -f "$MASS_FAILURE_LOG" ]; then
+        # Clean up old entries and count recent ones
+        RECENT_FAILURES=$(awk -v cutoff="$CUTOFF_TIME" '$1 >= cutoff { count++ } END { print count+0 }' "$MASS_FAILURE_LOG")
+
+        # Clean the log file to remove old entries
+        awk -v cutoff="$CUTOFF_TIME" '$1 >= cutoff' "$MASS_FAILURE_LOG" > "$MASS_FAILURE_LOG.tmp"
+        mv "$MASS_FAILURE_LOG.tmp" "$MASS_FAILURE_LOG"
+
+        if [ "$RECENT_FAILURES" -ge "$MASS_FAILURE_THRESHOLD" ]; then
+          echo "Mass failure event detected: $RECENT_FAILURES services failed within $MASS_FAILURE_WINDOW seconds"
+          return 0  # Is a mass failure
+        fi
+      fi
+
+      return 1  # Not a mass failure
+    }
+
+    # Extract exit code and result from systemctl
+    get_exit_info() {
+      EXIT_CODE=$(systemctl show "$SERVICE_NAME" --property=ExecMainStatus --value)
+      EXIT_RESULT=$(systemctl show "$SERVICE_NAME" --property=Result --value)
+
+      # Return exit code (or 0 if not available)
+      echo "''${EXIT_CODE:-0}"
+    }
+
+    # Check if exit code should be ignored
+    should_ignore_exit_code() {
+      if [ "$FILTERING_ENABLED" != "1" ]; then
+        return 1  # Don't ignore (filtering disabled)
+      fi
+
+      EXIT_CODE="$1"
+
+      # Check if exit code is in ignore list
+      for IGNORED in $(echo "$IGNORE_EXIT_CODES" | tr ',' ' '); do
+        if [ "$EXIT_CODE" = "$IGNORED" ]; then
+          echo "Ignoring exit code $EXIT_CODE for $SERVICE_NAME (normal shutdown signal)"
+          return 0  # Should ignore
+        fi
+      done
+
+      return 1  # Don't ignore
+    }
+
+    # Check if service has recovered
+    check_service_recovered() {
+      if systemctl is-active "$SERVICE_NAME" >/dev/null 2>&1; then
+        echo "Service $SERVICE_NAME has recovered (now active)"
+        return 0  # Service recovered
+      fi
+      return 1  # Still failed
+    }
+
     update_failure_count
 
     if ! check_cooldown; then
       echo "Rate limit: Not creating GitHub issue for service $SERVICE_NAME. Failure count: $FAILURE_COUNT"
       exit 0
+    fi
+
+    # Check for mass failure event
+    if check_mass_failure; then
+      echo "Skipping issue creation due to mass failure event (deployment likely in progress)"
+      exit 0
+    fi
+
+    # Get exit code information
+    EXIT_CODE=$(get_exit_info)
+
+    # Check if we should ignore this exit code
+    if should_ignore_exit_code "$EXIT_CODE"; then
+      # Wait to see if it's a transient failure
+      if [ "$TRANSIENT_WAIT_SECONDS" -gt 0 ]; then
+        echo "Waiting $TRANSIENT_WAIT_SECONDS seconds to check if service recovers..."
+        sleep "$TRANSIENT_WAIT_SECONDS"
+
+        if check_service_recovered; then
+          echo "Service recovered after exit code $EXIT_CODE - not creating issue"
+          exit 0
+        fi
+      fi
+    fi
+
+    # Wait for transient failures regardless of exit code
+    if [ "$FILTERING_ENABLED" = "1" ] && [ "$TRANSIENT_WAIT_SECONDS" -gt 0 ]; then
+      echo "Checking for transient failure (waiting $TRANSIENT_WAIT_SECONDS seconds)..."
+      sleep "$TRANSIENT_WAIT_SECONDS"
+
+      if check_service_recovered; then
+        exit 0
+      fi
     fi
 
     date +%s > "$TIMESTAMP_FILE"
@@ -74,7 +182,8 @@ with lib; let
       --status "$STATUS_FILE" \
       --journal "$LOG_FILE" \
       --failure-count "$FAILURE_COUNT" \
-      --update-interval ${toString cfg.updateInterval} || {
+      --update-interval ${toString cfg.updateInterval} \
+      --exit-code "$EXIT_CODE" || {
         echo "Failed to create GitHub issue for $SERVICE_NAME" >&2
         rm -f "$LOG_FILE" "$STATUS_FILE"
         exit 1
@@ -123,6 +232,55 @@ in {
         If a service fails multiple times within this interval, the existing
         issue will be updated with comments instead of creating duplicates.
       '';
+    };
+
+    filtering = {
+      enable = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Enable intelligent filtering of transient failures and deployment events.
+          When enabled, filters out normal shutdown signals, mass failures during
+          deployments, and services that auto-recover.
+        '';
+      };
+
+      ignoreExitCodes = mkOption {
+        type = types.listOf types.int;
+        default = [137 143]; # SIGKILL and SIGTERM
+        description = ''
+          Exit codes to ignore when filtering is enabled.
+          137 = SIGKILL (killed), 143 = SIGTERM (terminated gracefully).
+          These are normal during service restarts and deployments.
+        '';
+      };
+
+      transientWaitSeconds = mkOption {
+        type = types.int;
+        default = 60;
+        description = ''
+          Seconds to wait before creating an issue to see if service recovers.
+          Services that auto-recover within this time won't create issues.
+        '';
+      };
+
+      massFailureThreshold = mkOption {
+        type = types.int;
+        default = 5;
+        description = ''
+          Number of services that must fail within the time window to
+          trigger mass failure detection (likely a deployment event).
+        '';
+      };
+
+      massFailureWindowSeconds = mkOption {
+        type = types.int;
+        default = 120;
+        description = ''
+          Time window in seconds for detecting mass failure events.
+          If threshold is exceeded within this window, issue creation is suppressed.
+        '';
+      };
     };
   };
 
