@@ -95,38 +95,6 @@ with lib; {
     enable = true;
     notifications.mail.enable = true;
     notifications.test = true;
-    # Device-specific monitoring for drives with increasing Raw_Read_Error_Rate
-    # Note: Specifying devices disables auto-detection, so all drives must be listed
-    devices = [
-      {
-        device = "/dev/sda";
-        options = "-a -m <nomailer>";
-      }
-      {
-        device = "/dev/sdb";
-        options = "-a -m <nomailer>";
-      }
-      {
-        device = "/dev/sdc";
-        options = "-a -m <nomailer>";
-      }
-      {
-        device = "/dev/sdd";
-        options = "-a -R 1! -m <nomailer>"; # Alert on Raw_Read_Error_Rate changes
-      }
-      {
-        device = "/dev/sde";
-        options = "-a -R 1! -m <nomailer>"; # Alert on Raw_Read_Error_Rate changes
-      }
-      {
-        device = "/dev/sdf";
-        options = "-a -m <nomailer>";
-      }
-      {
-        device = "/dev/nvme0n1";
-        options = "-a -m <nomailer>";
-      }
-    ];
   };
 
   services.avahi = {
