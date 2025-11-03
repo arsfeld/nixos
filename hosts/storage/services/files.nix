@@ -1,9 +1,16 @@
 {
   config,
   pkgs,
+  inputs,
   ...
 }: let
   vars = config.media.config;
+  # Use nextcloud31 from nixpkgs-unstable to get the latest version
+  # This prevents downgrade issues when stable has an older version
+  pkgs-unstable = import inputs.nixpkgs-unstable {
+    system = pkgs.stdenv.hostPlatform.system;
+    config = pkgs.config;
+  };
 in {
   users.users.syncthing.extraGroups = ["nextcloud" "media"];
 
@@ -95,7 +102,7 @@ in {
     datadir = "/var/lib/nextcloud/data";
     hostName = "nextcloud.${vars.domain}";
     maxUploadSize = "10G";
-    package = pkgs.nextcloud31;
+    package = pkgs-unstable.nextcloud31;
     appstoreEnable = false; # Disable to avoid write permission issues with NixOS-managed apps
     autoUpdateApps.enable = false;
     configureRedis = true;
