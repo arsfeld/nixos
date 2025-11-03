@@ -48,18 +48,35 @@ def search_existing_issues(repo: str, service_name: str, hostname: str) -> Optio
     return None
 
 
-def create_issue_body(service_name: str, hostname: str, status_output: str, 
+def create_issue_body(service_name: str, hostname: str, status_output: str,
                      journal_output: str, llm_analysis: Optional[str] = None,
-                     failure_count: int = 1) -> str:
+                     failure_count: int = 1, exit_code: Optional[int] = None) -> str:
     """Create the issue body in Markdown format."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
+
     body = f"""## Service Failure Report
 
-**Service:** `{service_name}`  
-**Host:** `{hostname}`  
-**Time:** {timestamp}  
-**Failure Count:** {failure_count}
+**Service:** `{service_name}`
+**Host:** `{hostname}`
+**Time:** {timestamp}
+**Failure Count:** {failure_count}"""
+
+    if exit_code is not None:
+        body += f"""
+**Exit Code:** {exit_code}"""
+
+        # Add exit code interpretation
+        if exit_code == 137:
+            body += " (SIGKILL - killed)"
+        elif exit_code == 143:
+            body += " (SIGTERM - terminated)"
+
+    body += "\n\n"
+
+    # Add filtering note if this passed intelligent filtering
+    if exit_code is not None:
+        body += """> **Note:** This issue was created after intelligent filtering detected a persistent failure.
+> Transient failures, normal shutdowns, and mass deployment events are automatically filtered.
 
 """
     
@@ -96,7 +113,8 @@ def create_issue_body(service_name: str, hostname: str, status_output: str,
 
 def update_existing_issue(repo: str, issue_number: int, service_name: str,
                          hostname: str, status_output: str, journal_output: str,
-                         llm_analysis: Optional[str] = None, failure_count: int = 1) -> bool:
+                         llm_analysis: Optional[str] = None, failure_count: int = 1,
+                         exit_code: Optional[int] = None) -> bool:
     """Update an existing issue with a new failure comment including full details."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -105,9 +123,17 @@ def update_existing_issue(repo: str, issue_number: int, service_name: str,
 **Service:** `{service_name}`
 **Host:** `{hostname}`
 **Time:** {timestamp}
-**Total Failures:** {failure_count}
+**Total Failures:** {failure_count}"""
 
-"""
+    if exit_code is not None:
+        comment += f"""
+**Exit Code:** {exit_code}"""
+        if exit_code == 137:
+            comment += " (SIGKILL)"
+        elif exit_code == 143:
+            comment += " (SIGTERM)"
+
+    comment += "\n\n"
 
     if llm_analysis:
         comment += f"""### 🤖 AI Analysis
@@ -151,16 +177,16 @@ def update_existing_issue(repo: str, issue_number: int, service_name: str,
     return True
 
 
-def create_new_issue(repo: str, service_name: str, hostname: str, 
+def create_new_issue(repo: str, service_name: str, hostname: str,
                     status_output: str, journal_output: str,
                     llm_analysis: Optional[str] = None,
-                    failure_count: int = 1) -> bool:
+                    failure_count: int = 1, exit_code: Optional[int] = None) -> bool:
     """Create a new GitHub issue."""
     issue_hash = get_issue_hash(service_name, hostname)
     title = f"[{hostname}] {service_name} failed - {issue_hash}"
-    
-    body = create_issue_body(service_name, hostname, status_output, 
-                           journal_output, llm_analysis, failure_count)
+
+    body = create_issue_body(service_name, hostname, status_output,
+                           journal_output, llm_analysis, failure_count, exit_code)
     
     # Create labels based on service type and hostname
     labels = ["systemd-failure", f"host:{hostname}"]
@@ -212,9 +238,10 @@ def main():
     parser.add_argument("--journal", required=True, help="Path to journal output file")
     parser.add_argument("--llm-analysis", help="Path to LLM analysis file (optional)")
     parser.add_argument("--failure-count", type=int, default=1, help="Number of failures")
-    parser.add_argument("--update-interval", type=int, default=24, 
+    parser.add_argument("--update-interval", type=int, default=24,
                        help="Hours before creating new issue instead of updating (default: 24)")
-    
+    parser.add_argument("--exit-code", type=int, help="Service exit code (optional)")
+
     args = parser.parse_args()
     
     # Read input files
@@ -248,15 +275,16 @@ def main():
             if update_existing_issue(args.repo, existing_issue['number'],
                                    args.service, args.hostname,
                                    status_output, journal_output,
-                                   llm_analysis, args.failure_count):
+                                   llm_analysis, args.failure_count, args.exit_code):
                 return 0
             else:
                 return 1
-    
+
     # Create new issue
     print(f"Creating new issue for {args.service} on {args.hostname}")
-    if create_new_issue(args.repo, args.service, args.hostname, 
-                       status_output, journal_output, llm_analysis, args.failure_count):
+    if create_new_issue(args.repo, args.service, args.hostname,
+                       status_output, journal_output, llm_analysis, args.failure_count,
+                       args.exit_code):
         return 0
     else:
         return 1
