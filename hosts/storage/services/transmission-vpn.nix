@@ -34,7 +34,8 @@ in {
       settings = {
         # Download directories
         download-dir = "${vars.storageDir}/media/Downloads";
-        incomplete-dir = "${vars.storageDir}/media/incomplete";
+        incomplete-dir-enabled = false; # Use .part extension instead of separate directory
+        rename-partial-files = true; # Add .part extension to incomplete files
         watch-dir = "${vars.storageDir}/media/watch";
         watch-dir-enabled = true;
 
@@ -84,7 +85,6 @@ in {
         mkdir -p ${vars.storageDir}/media/Downloads
         mkdir -p ${vars.storageDir}/media/Downloads/radarr
         mkdir -p ${vars.storageDir}/media/Downloads/sonarr
-        mkdir -p ${vars.storageDir}/media/incomplete
         mkdir -p ${vars.storageDir}/media/watch
       '';
 
