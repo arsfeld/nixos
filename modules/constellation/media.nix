@@ -75,6 +75,12 @@ in {
       mode = "444";
     };
 
+    # Mydia secrets (SECRET_KEY_BASE, GUARDIAN_SECRET_KEY)
+    age.secrets.mydia-env = lib.mkIf (builtins.any (host: host == config.networking.hostName) ["storage"]) {
+      file = "${self}/secrets/mydia-env.age";
+      mode = "444";
+    };
+
     # MediaManager config.toml template
     environment.etc."mediamanager-config-template.toml" = lib.mkIf (builtins.any (host: host == config.networking.hostName) ["storage"]) {
       text = ''
@@ -465,6 +471,24 @@ in {
           ];
           settings = {
             bypassAuth = true; # Has built-in authentication with OIDC
+          };
+        };
+
+        # Mydia - Personal media companion for tracking and managing TV shows and movies
+        # Phoenix LiveView application with automated download integration
+        mydia = {
+          image = "ghcr.io/getmydia/mydia:latest";
+          listenPort = 4000;
+          mediaVolumes = true;
+          environment = {
+            PHX_HOST = "mydia.arsfeld.one";
+            PORT = "4000";
+          };
+          environmentFiles = [
+            config.age.secrets.mydia-env.path
+          ];
+          settings = {
+            bypassAuth = true; # Has built-in authentication with OIDC support
           };
         };
       };
