@@ -69,6 +69,9 @@ in {
   # MediaManager secrets
   "mediamanager-env.age".publicKeys = users ++ [storage];
 
+  # Mydia secrets
+  "mydia-env.age".publicKeys = users ++ [storage];
+
   # AirVPN secrets
   "airvpn-wireguard.age".publicKeys = users ++ [storage];
   "transmission-openvpn-airvpn.age".publicKeys = users ++ [storage];
