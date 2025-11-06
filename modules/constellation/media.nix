@@ -486,6 +486,8 @@ in {
           environment = {
             PHX_HOST = "mydia.arsfeld.one";
             PORT = "4000";
+            TV_PATH = "/media/Series";
+            MOVIES_PATH = "/media/Movies";
           };
           environmentFiles = [
             config.age.secrets.mydia-env.path
