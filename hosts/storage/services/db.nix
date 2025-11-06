@@ -40,29 +40,27 @@
         name = "openarchiver";
         ensureDBOwnership = true;
       }
-      {
-        name = "mediamanager";
-        ensureDBOwnership = true;
-      }
+      # DISABLED: MediaManager service commented out
+      # {
+      #   name = "mediamanager";
+      #   ensureDBOwnership = true;
+      # }
     ];
     ensureDatabases = [
       "openarchiver"
-      "mediamanager"
+      # DISABLED: MediaManager service commented out
+      # "mediamanager"
     ];
     # Allow media user to connect as immich database user for file permissions
     identMap = ''
       immich-users media immich
       openarchiver-users media openarchiver
-      mediamanager-users media mediamanager
     '';
     authentication = lib.mkAfter ''
       local immich immich peer map=immich-users
       local openarchiver openarchiver peer map=openarchiver-users
-      local mediamanager mediamanager peer map=mediamanager-users
       # Allow OpenArchiver container to connect from podman network without password (trust)
       host openarchiver openarchiver 10.88.0.0/16 trust
-      # Allow MediaManager container to connect from podman network without password (trust)
-      host mediamanager mediamanager 10.88.0.0/16 trust
     '';
   };
 
