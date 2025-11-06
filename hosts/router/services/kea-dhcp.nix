@@ -236,6 +236,10 @@ in {
 
   # Ensure Kea doesn't use DynamicUser so paths are predictable
   systemd.services.kea-dhcp4-server = {
+    # Wait for network interfaces to be ready before starting
+    after = ["network-online.target" "sys-subsystem-net-devices-br\\x2dlan.device"];
+    wants = ["network-online.target"];
+
     serviceConfig = {
       DynamicUser = lib.mkForce false;
       User = "kea";
