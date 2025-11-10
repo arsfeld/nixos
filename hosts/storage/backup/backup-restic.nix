@@ -50,9 +50,14 @@
         # Exclude local backup destinations to prevent recursion
         "/mnt/data/backups"
         "/mnt/storage/backups"
-        # Exclude bulk media (movies, TV, music) - replaceable content
-        "/mnt/storage/media"
-        "/mnt/storage/files"
+        # Note: /mnt/data and /mnt/storage are the same bcachefs filesystem mounted at different paths
+        # To avoid backing up data twice, we exclude /mnt/storage entirely and only backup via /mnt/data
+        "/mnt/storage"
+        # Exclude /mnt/data/homes since /home is a separate mount of the same subvolume
+        "/mnt/data/homes"
+        # Exclude bulk media (movies, TV, music) via /mnt/data path - replaceable content
+        "/mnt/data/media"
+        # Keep /mnt/data/files - this contains important user files (729GB) that should be backed up
       ];
       repository = "rest:https://servarica.bat-boa.ts.net/";
       passwordFile = config.age.secrets."restic-password".path;
@@ -68,6 +73,16 @@
         "--keep-weekly 4"
         "--keep-monthly 6"
       ];
+    };
+  };
+
+  # Set I/O priority for backup jobs to idle class to prevent disk I/O congestion
+  systemd.services = {
+    restic-backups-nas.serviceConfig = {
+      IOSchedulingClass = "idle";
+    };
+    restic-backups-servarica.serviceConfig = {
+      IOSchedulingClass = "idle";
     };
   };
 }
