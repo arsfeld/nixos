@@ -27,11 +27,8 @@ with lib; {
   # Enable Transmission with WireGuard VPN in network namespace
   services.transmission-vpn.enable = true;
 
-  # Observability: Central hub for metrics and logs
-  constellation.observability-hub.enable = true;
-  # Disable metrics-client on hub - observability-hub has its own node exporter
-  constellation.metrics-client.enable = false;
-  constellation.metrics-client.caddy.enable = true;
+  # Observability: Central hub for metrics and logs (disabled)
+  # constellation.observability-hub.enable = true;
 
   media.config.enable = true;
 

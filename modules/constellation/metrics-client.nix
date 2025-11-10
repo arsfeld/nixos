@@ -22,7 +22,7 @@
   options.constellation.metrics-client = {
     enable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = ''
         Enable Prometheus node exporter for system metrics collection.
         Metrics are exposed on port 9100 for scraping by the central
