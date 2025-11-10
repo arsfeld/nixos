@@ -64,10 +64,11 @@ in {
     };
 
     # OpenArchiver secrets (JWT, encryption keys, DB password, Meilisearch key, Redis password)
-    age.secrets.openarchiver-env = lib.mkIf (builtins.any (host: host == config.networking.hostName) ["storage"]) {
-      file = "${self}/secrets/openarchiver-env.age";
-      mode = "444";
-    };
+    # DISABLED: OpenArchiver service disabled
+    # age.secrets.openarchiver-env = lib.mkIf (builtins.any (host: host == config.networking.hostName) ["storage"]) {
+    #   file = "${self}/secrets/openarchiver-env.age";
+    #   mode = "444";
+    # };
 
     # MediaManager secrets (token secret, OIDC, database credentials)
     # DISABLED: Service commented out
@@ -282,7 +283,7 @@ in {
           image = "ghcr.io/actualbudget/actual-server:latest";
           listenPort = 5006;
           volumes = [
-            "${vars.storageDir}/data/actual:/data"
+            "${vars.configDir}/actual:/data"
           ];
           settings.bypassAuth = true;
         };
@@ -355,97 +356,101 @@ in {
         };
 
         # OpenArchiver - Email archiving and eDiscovery platform
+        # DISABLED: Service disabled due to cascading failure causing excessive logging and disk I/O
         # Dependencies: PostgreSQL (host), Meilisearch, Redis/Valkey, Apache Tika
-        openarchiver = {
-          image = "logiclabshq/open-archiver:latest";
-          listenPort = 3000;
-          volumes = [
-            "${vars.storageDir}/data/openarchiver:/var/data/open-archiver"
-          ];
-          extraOptions = [
-            "--add-host=host.containers.internal:host-gateway" # Allow container to access host PostgreSQL
-          ];
-          environment = {
-            NODE_ENV = "production";
-            PORT_BACKEND = "4000";
-            PORT_FRONTEND = "3000";
-            APP_URL = "https://openarchiver.arsfeld.one";
-            ORIGIN = "https://openarchiver.arsfeld.one";
-            # Host PostgreSQL connection via socket (media user maps to openarchiver DB user)
-            DATABASE_URL = "postgresql://openarchiver@host.containers.internal:5432/openarchiver";
-            # Meilisearch connection (container name resolves within podman network)
-            MEILI_HOST = "http://openarchiver-meilisearch:7700";
-            MEILI_INDEXING_BATCH = "500";
-            # Redis/Valkey connection (container name resolves within podman network)
-            REDIS_HOST = "openarchiver-redis";
-            REDIS_PORT = "6379";
-            REDIS_TLS_ENABLED = "false";
-            # Apache Tika for document parsing
-            TIKA_URL = "http://openarchiver-tika:9998";
-            # Storage configuration
-            STORAGE_TYPE = "local";
-            BODY_SIZE_LIMIT = "100M";
-            STORAGE_LOCAL_ROOT_PATH = "/var/data/open-archiver";
-            # Sync and archiving settings
-            SYNC_FREQUENCY = "*/15 * * * *"; # Every 15 minutes
-            ALL_INCLUSIVE_ARCHIVE = "false";
-            ENABLE_DELETION = "false";
-            # Rate limiting
-            RATE_LIMIT_WINDOW_MS = "60000";
-            RATE_LIMIT_MAX_REQUESTS = "100";
-          };
-          environmentFiles = [
-            config.age.secrets.openarchiver-env.path
-          ];
-          settings = {
-            bypassAuth = true; # Has built-in authentication
-          };
-        };
+        # openarchiver = {
+        #   image = "logiclabshq/open-archiver:latest";
+        #   listenPort = 3000;
+        #   volumes = [
+        #     "${vars.storageDir}/data/openarchiver:/var/data/open-archiver"
+        #   ];
+        #   extraOptions = [
+        #     "--add-host=host.containers.internal:host-gateway" # Allow container to access host PostgreSQL
+        #   ];
+        #   environment = {
+        #     NODE_ENV = "production";
+        #     PORT_BACKEND = "4000";
+        #     PORT_FRONTEND = "3000";
+        #     APP_URL = "https://openarchiver.arsfeld.one";
+        #     ORIGIN = "https://openarchiver.arsfeld.one";
+        #     # Host PostgreSQL connection via socket (media user maps to openarchiver DB user)
+        #     DATABASE_URL = "postgresql://openarchiver@host.containers.internal:5432/openarchiver";
+        #     # Meilisearch connection (container name resolves within podman network)
+        #     MEILI_HOST = "http://openarchiver-meilisearch:7700";
+        #     MEILI_INDEXING_BATCH = "500";
+        #     # Redis/Valkey connection (container name resolves within podman network)
+        #     REDIS_HOST = "openarchiver-redis";
+        #     REDIS_PORT = "6379";
+        #     REDIS_TLS_ENABLED = "false";
+        #     # Apache Tika for document parsing
+        #     TIKA_URL = "http://openarchiver-tika:9998";
+        #     # Storage configuration
+        #     STORAGE_TYPE = "local";
+        #     BODY_SIZE_LIMIT = "100M";
+        #     STORAGE_LOCAL_ROOT_PATH = "/var/data/open-archiver";
+        #     # Sync and archiving settings
+        #     SYNC_FREQUENCY = "*/15 * * * *"; # Every 15 minutes
+        #     ALL_INCLUSIVE_ARCHIVE = "false";
+        #     ENABLE_DELETION = "false";
+        #     # Rate limiting
+        #     RATE_LIMIT_WINDOW_MS = "60000";
+        #     RATE_LIMIT_MAX_REQUESTS = "100";
+        #   };
+        #   environmentFiles = [
+        #     config.age.secrets.openarchiver-env.path
+        #   ];
+        #   settings = {
+        #     bypassAuth = true; # Has built-in authentication
+        #   };
+        # };
 
         # Meilisearch - Full-text search engine for OpenArchiver
-        openarchiver-meilisearch = {
-          image = "getmeili/meilisearch:v1.15";
-          listenPort = 7700;
-          exposePort = null; # Internal service, not exposed to gateway
-          configDir = null;
-          volumes = [
-            "${vars.storageDir}/data/openarchiver-meilisearch:/meili_data"
-          ];
-          environmentFiles = [
-            config.age.secrets.openarchiver-env.path
-          ];
-          settings = {
-            bypassAuth = true;
-          };
-        };
+        # DISABLED: OpenArchiver dependency
+        # openarchiver-meilisearch = {
+        #   image = "getmeili/meilisearch:v1.15";
+        #   listenPort = 7700;
+        #   exposePort = null; # Internal service, not exposed to gateway
+        #   configDir = null;
+        #   volumes = [
+        #     "${vars.storageDir}/data/openarchiver-meilisearch:/meili_data"
+        #   ];
+        #   environmentFiles = [
+        #     config.age.secrets.openarchiver-env.path
+        #   ];
+        #   settings = {
+        #     bypassAuth = true;
+        #   };
+        # };
 
         # Redis (Valkey) - Job queue for OpenArchiver via BullMQ
-        openarchiver-redis = {
-          image = "valkey/valkey:8-alpine";
-          listenPort = 6379;
-          exposePort = null; # Internal service, not exposed to gateway
-          configDir = null;
-          volumes = [
-            "${vars.storageDir}/data/openarchiver-redis:/data"
-          ];
-          environmentFiles = [
-            config.age.secrets.openarchiver-env.path
-          ];
-          settings = {
-            bypassAuth = true;
-          };
-        };
+        # DISABLED: OpenArchiver dependency
+        # openarchiver-redis = {
+        #   image = "valkey/valkey:8-alpine";
+        #   listenPort = 6379;
+        #   exposePort = null; # Internal service, not exposed to gateway
+        #   configDir = null;
+        #   volumes = [
+        #     "${vars.storageDir}/data/openarchiver-redis:/data"
+        #   ];
+        #   environmentFiles = [
+        #     config.age.secrets.openarchiver-env.path
+        #   ];
+        #   settings = {
+        #     bypassAuth = true;
+        #   };
+        # };
 
         # Apache Tika - Document parsing and text extraction for OpenArchiver
-        openarchiver-tika = {
-          image = "apache/tika:3.2.2.0-full";
-          listenPort = 9998;
-          exposePort = null; # Internal service, not exposed to gateway
-          configDir = null;
-          settings = {
-            bypassAuth = true;
-          };
-        };
+        # DISABLED: OpenArchiver dependency
+        # openarchiver-tika = {
+        #   image = "apache/tika:3.2.2.0-full";
+        #   listenPort = 9998;
+        #   exposePort = null; # Internal service, not exposed to gateway
+        #   configDir = null;
+        #   settings = {
+        #     bypassAuth = true;
+        #   };
+        # };
 
         # MediaManager - Modern all-in-one media management system (alternative to Sonarr/Radarr/Overseerr)
         # DISABLED: Service commented out
