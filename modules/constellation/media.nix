@@ -550,6 +550,25 @@ in {
           };
         };
 
+        # Mydia metadata-relay - Centralized metadata caching and API aggregation
+        # Provides caching layer for TMDB and TVDB APIs to reduce API calls
+        metadata-relay = {
+          image = "ghcr.io/getmydia/mydia/metadata-relay";
+          listenPort = 4001;
+          configDir = null; # No persistent config needed
+          network = "host"; # Required to access localhost Redis
+          environment = {
+            PORT = "4001";
+            REDIS_URL = "redis://127.0.0.1:6380"; # Connect to host Redis instance
+          };
+          environmentFiles = [
+            config.sops.secrets.metadata-relay-env.path
+          ];
+          settings = {
+            bypassAuth = true; # API service with no built-in authentication
+          };
+        };
+
         # OwnTracks handled by hosts/cloud/services/owntracks.nix
       };
 

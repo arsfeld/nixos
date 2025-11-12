@@ -30,6 +30,7 @@ with lib; let
       dex = null;
       dns = null;
       invidious = null;
+      metadata-relay = 4001;
       metube = null;
       mqtt = 1883;
       ntfy = null;
@@ -110,6 +111,7 @@ with lib; let
     "harmonia"
     "immich"
     "jellyfin"
+    "metadata-relay"
     "mqtt"
     "nextcloud"
     "ntfy"
