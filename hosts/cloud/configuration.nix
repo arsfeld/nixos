@@ -57,6 +57,7 @@
       owner = "root";
       group = "root";
     };
+    metadata-relay-env = {mode = "0444";};
   };
 
   media.config.enable = true;

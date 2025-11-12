@@ -74,4 +74,16 @@ in {
       db.user = "invidious";
     };
   };
+
+  # Redis instance for metadata-relay service
+  services.redis.servers.metadata-relay = {
+    enable = true;
+    bind = "127.0.0.1";
+    port = 6380; # Use different port to avoid conflicts
+    save = [
+      [900 1] # Save after 900 seconds if at least 1 key changed
+      [300 10] # Save after 300 seconds if at least 10 keys changed
+      [60 10000] # Save after 60 seconds if at least 10000 keys changed
+    ];
+  };
 }
