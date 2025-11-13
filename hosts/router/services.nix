@@ -16,6 +16,7 @@
     ./services/caddy.nix
     ./services/router-dashboard.nix
     ./services/client-monitor.nix
+    ./services/omada-controller.nix
     ../../packages/network-metrics-exporter/module.nix
   ];
 }
