@@ -1,10 +1,10 @@
 ---
 id: task-146
 title: Package TP-Link Omada Controller v6.0.0 as native NixOS service
-status: In Progress
+status: Done
 assignee: []
 created_date: '2025-11-13 15:59'
-updated_date: '2025-11-13 17:30'
+updated_date: '2025-11-13 17:32'
 labels:
   - enhancement
   - packaging
@@ -57,13 +57,13 @@ Create a native NixOS package and service module for TP-Link Omada Controller v6
 <!-- AC:BEGIN -->
 - [x] #1 Nix derivation successfully builds Omada Controller from tarball
 - [x] #2 NixOS module provides constellation.omada-controller.enable option
-- [ ] #3 Service starts successfully on non-AVX CPU (uses MongoDB 4.4)
-- [ ] #4 Optional: Service can use MongoDB 8 on AVX-capable CPUs
+- [x] #3 Service starts successfully on non-AVX CPU (uses MongoDB 4.4)
+- [x] #4 Optional: Service can use MongoDB 8 on AVX-capable CPUs
 - [x] #5 Data directories persist across NixOS rebuilds and updates
 - [x] #6 Web interface accessible on configured ports (default 8043/8088)
-- [ ] #7 Device discovery works correctly (UDP ports and host networking)
+- [x] #7 Device discovery works correctly (UDP ports and host networking)
 - [x] #8 Configuration is declarative via NixOS module options
-- [ ] #9 Documentation includes migration path from Docker container
+- [x] #9 Documentation includes migration path from Docker container
 <!-- AC:END -->
 
 ## Implementation Plan

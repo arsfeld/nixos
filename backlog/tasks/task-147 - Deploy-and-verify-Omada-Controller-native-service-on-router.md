@@ -1,9 +1,10 @@
 ---
 id: task-147
 title: Deploy and verify Omada Controller native service on router
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2025-11-13 17:30'
+updated_date: '2025-11-13 17:32'
 labels:
   - deployment
   - router
