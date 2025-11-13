@@ -96,6 +96,8 @@ class FanController:
         output = self.run_command(["liquidctl", "initialize"])
         if output:
             logger.info("Device initialized successfully")
+            # Give the device a moment to be ready for status queries
+            time.sleep(1)
             return True
         return False
     
@@ -152,14 +154,15 @@ class FanController:
         
         return None
     
-    def get_current_fan_speeds(self) -> Dict[str, int]:
-        """Get current fan speeds from liquidctl"""
+    def get_current_fan_speeds(self) -> Optional[Dict[str, int]]:
+        """Get current fan speeds from liquidctl, returns None on failure"""
         output = self.run_command(["liquidctl", "status"])
-        speeds = {"fan1": 25, "fan2": 20}  # Defaults (quiet)
-        
+
         if not output:
-            return speeds
-        
+            logger.warning("Failed to read current fan speeds from device")
+            return None
+
+        speeds = {}
         for line in output.split('\n'):
             if 'Fan 1 duty' in line:
                 try:
@@ -177,8 +180,13 @@ class FanController:
                             speeds["fan2"] = int(parts[i+1])
                 except (ValueError, IndexError):
                     continue
-        
-        return speeds
+
+        # Only return speeds if we successfully parsed both fans
+        if "fan1" in speeds and "fan2" in speeds:
+            return speeds
+        else:
+            logger.warning("Failed to parse fan speeds from liquidctl output")
+            return None
     
     def set_fan_speed(self, fan: str, speed: int) -> bool:
         """Set fan speed for a specific fan"""
@@ -250,23 +258,43 @@ class FanController:
         
         # Get current fan speeds
         current_speeds = self.get_current_fan_speeds()
-        self.current_gpu_fan_speed = current_speeds["fan1"]
-        self.current_cpu_fan_speed = current_speeds["fan2"]
-        logger.info(f"Current fan speeds - GPU Fan (fan1): {self.current_gpu_fan_speed}%, CPU Fan (fan2): {self.current_cpu_fan_speed}%")
-        
-        # Set initial fan speeds based on temperatures
+
+        # Calculate target speeds based on current temperatures
         initial_gpu_target = self.get_target_speed(initial_gpu_temp, self.gpu_fan_curve)
         initial_cpu_target = self.get_target_speed(initial_cpu_temp, self.cpu_fan_curve)
-        
-        if initial_gpu_target != self.current_gpu_fan_speed:
+
+        if current_speeds:
+            # Successfully read current speeds
+            self.current_gpu_fan_speed = current_speeds["fan1"]
+            self.current_cpu_fan_speed = current_speeds["fan2"]
+            logger.info(f"Current fan speeds - GPU Fan (fan1): {self.current_gpu_fan_speed}%, CPU Fan (fan2): {self.current_cpu_fan_speed}%")
+
+            # Only set if different from target
+            if initial_gpu_target != self.current_gpu_fan_speed:
+                logger.info(f"Setting GPU fan to {initial_gpu_target}% (from {self.current_gpu_fan_speed}%) based on temp {initial_gpu_temp}°C")
+                if self.set_fan_speed("fan1", initial_gpu_target):
+                    self.current_gpu_fan_speed = initial_gpu_target
+
+            if initial_cpu_target != self.current_cpu_fan_speed:
+                logger.info(f"Setting CPU fan to {initial_cpu_target}% (from {self.current_cpu_fan_speed}%) based on temp {initial_cpu_temp}°C")
+                if self.set_fan_speed("fan2", initial_cpu_target):
+                    self.current_cpu_fan_speed = initial_cpu_target
+        else:
+            # Failed to read speeds - force set to target values
+            logger.warning("Could not read current fan speeds, forcing initial configuration")
             logger.info(f"Setting GPU fan to {initial_gpu_target}% based on temp {initial_gpu_temp}°C")
             if self.set_fan_speed("fan1", initial_gpu_target):
                 self.current_gpu_fan_speed = initial_gpu_target
-        
-        if initial_cpu_target != self.current_cpu_fan_speed:
+            else:
+                logger.error("Failed to set GPU fan speed")
+                self.current_gpu_fan_speed = 25  # Fallback default
+
             logger.info(f"Setting CPU fan to {initial_cpu_target}% based on temp {initial_cpu_temp}°C")
             if self.set_fan_speed("fan2", initial_cpu_target):
                 self.current_cpu_fan_speed = initial_cpu_target
+            else:
+                logger.error("Failed to set CPU fan speed")
+                self.current_cpu_fan_speed = 20  # Fallback default
         
         # Main control loop
         while True:
