@@ -80,3 +80,4 @@ blog/static/images/generated/
 scripts/backup-to-r2.sh
 scripts/recover-from-r2.sh
 *.ovpn
+.aye/

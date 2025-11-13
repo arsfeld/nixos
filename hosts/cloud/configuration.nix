@@ -11,7 +11,7 @@
   ];
 
   constellation.docker.enable = true;
-  # constellation.sites.arsfeld-dev.enable = true; # Disabled - conflicts with media.config.domain = "arsfeld.dev"
+  constellation.sites.arsfeld-dev.enable = true;
   constellation.sites.rosenfeld-one.enable = true;
 
   # Blog service
@@ -38,6 +38,12 @@
     domain = "siyuan.arsfeld.dev";
   };
 
+  # Enable Mydia metadata-relay service
+  services.metadata-relay = {
+    enable = true;
+    domain = "metadata-relay.arsfeld.dev";
+  };
+
   boot = {
     binfmt.emulatedSystems = ["x86_64-linux"];
   };
@@ -62,7 +68,7 @@
 
   media.config = {
     enable = true;
-    domain = "arsfeld.dev";
+    domain = "arsfeld.one";
   };
 
   # Enable dynamic Supabase management
