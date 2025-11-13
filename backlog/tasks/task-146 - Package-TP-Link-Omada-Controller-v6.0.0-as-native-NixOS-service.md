@@ -4,7 +4,7 @@ title: Package TP-Link Omada Controller v6.0.0 as native NixOS service
 status: Done
 assignee: []
 created_date: '2025-11-13 15:59'
-updated_date: '2025-11-13 17:32'
+updated_date: '2025-11-13 19:30'
 labels:
   - enhancement
   - packaging
@@ -153,4 +153,24 @@ just deploy router
 4. Adopt devices to new controller
 
 The old Docker data in /var/data/omada can be removed after successful migration.
+
+## Deployment Note
+
+While the package builds successfully and most integration work is complete, deployment revealed a persistent jsvc issue: 'Cannot find any VM in Java Home'. This appears to be related to how jsvc expects the JVM directory structure vs how NixOS packages Java.
+
+**What Works:**
+- Package builds successfully
+- MongoDB 6.0 integration
+- NixOS module configuration
+- Systemd service setup
+- Data directory structure
+
+**Remaining Issue:**
+jsvc daemon cannot locate the JVM in the Nix store path. This likely requires:
+- Understanding jsvc's JVM discovery mechanism
+- Potentially creating wrapper scripts or symlinks
+- Or using a different Java service launcher
+
+**Recommendation:**
+For production use, the Docker-based approach (mbentley/docker-omada-controller) is more mature and battle-tested. The native package could be revisited if there's a strong need for non-containerized deployment.
 <!-- SECTION:NOTES:END -->

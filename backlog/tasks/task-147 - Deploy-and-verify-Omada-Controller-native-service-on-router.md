@@ -1,10 +1,10 @@
 ---
 id: task-147
 title: Deploy and verify Omada Controller native service on router
-status: In Progress
+status: To Do
 assignee: []
 created_date: '2025-11-13 17:30'
-updated_date: '2025-11-13 17:32'
+updated_date: '2025-11-13 19:30'
 labels:
   - deployment
   - router
@@ -59,3 +59,31 @@ If deployment fails, revert to previous Docker-based configuration by:
 - [ ] #8 Configuration backup imported successfully (if applicable)
 - [ ] #9 Old Docker container stopped and cleaned up
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## Deployment Abandoned - Alternative Approach
+
+After multiple deployment attempts and troubleshooting, the native NixOS service deployment encountered persistent issues with jsvc daemon and Java VM configuration:
+
+**Issues Encountered:**
+1. Root permission check in control.sh (fixed)
+2. Bash function syntax errors (fixed)
+3. OMADA_HOME path resolution (fixed)
+4. OMADA_USER configuration (fixed)
+5. **jsvc 'Cannot find any VM in Java Home' error (unresolved)**
+
+The jsvc issue proved complex and requires deep understanding of:
+- jsvc's specific JVM directory structure requirements
+- How NixOS JDK packaging differs from traditional Linux layouts
+- Potential need for custom wrappers or symlinks
+
+**Decision:**
+Given the complexity and time investment (65+ minute rebuilds, multiple debugging cycles), we're pursuing an alternative approach: deploying the Docker-based Omada Controller on the storage host instead.
+
+See new task for Docker-based deployment on storage host.
+
+**Native Package Status:**
+The native package (task-146) successfully builds and most functionality works. The remaining jsvc issue could be resolved with more research into jsvc+NixOS integration, but the Docker approach is more pragmatic for now.
+<!-- SECTION:NOTES:END -->
