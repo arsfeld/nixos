@@ -528,6 +528,7 @@ in {
           settings = {
             bypassAuth = true; # Has built-in authentication
             funnel = false; # Keep on internal network only
+            insecureTls = true; # Backend uses HTTPS with self-signed certificate
           };
         };
       };
