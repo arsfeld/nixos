@@ -70,6 +70,7 @@ with lib; let
       nextcloud = 8099;
       ollama-api = 11434;
       ollama = 30198;
+      omada = 8043;
       openarchiver = 3000;
       photoprism = 2342;
       photos = 2342;
@@ -116,6 +117,7 @@ with lib; let
     "nextcloud"
     "ntfy"
     "ollama-api"
+    "omada"
     "openarchiver"
     "owntracks"
     "owntracks-ui"
