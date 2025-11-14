@@ -501,6 +501,35 @@ in {
             bypassAuth = true; # Has built-in authentication with OIDC support
           };
         };
+
+        # TP-Link Omada Controller - Network controller for Omada access points, switches, and routers
+        # Manages and monitors TP-Link Omada network devices with centralized configuration
+        omada = {
+          image = "mbentley/omada-controller:latest";
+          listenPort = 8043; # HTTPS web interface
+          configDir = null; # Using custom volume mounts instead
+          network = "host"; # Required for device discovery and adoption
+          volumes = [
+            "${vars.configDir}/omada/data:/opt/tplink/EAPController/data"
+            "${vars.configDir}/omada/logs:/opt/tplink/EAPController/logs"
+          ];
+          environment = {
+            TZ = "America/New_York";
+            MANAGE_HTTP_PORT = "8088";
+            MANAGE_HTTPS_PORT = "8043";
+            PORTAL_HTTPS_PORT = "8843";
+          };
+          extraOptions = [
+            "--ulimit"
+            "nofile=4096:8192"
+            "--stop-timeout"
+            "60"
+          ];
+          settings = {
+            bypassAuth = true; # Has built-in authentication
+            funnel = false; # Keep on internal network only
+          };
+        };
       };
 
       cloudServices = {
