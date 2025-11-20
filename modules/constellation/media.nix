@@ -485,7 +485,7 @@ in {
         # Mydia - Personal media companion for tracking and managing TV shows and movies
         # Phoenix LiveView application with automated download integration
         mydia = {
-          image = "ghcr.io/getmydia/mydia:latest";
+          image = "ghcr.io/getmydia/mydia:master";
           listenPort = 4000;
           mediaVolumes = true;
           environment = {
@@ -585,11 +585,15 @@ in {
         metadata-relay = {
           image = "ghcr.io/getmydia/mydia/metadata-relay";
           listenPort = 4001;
-          configDir = null; # No persistent config needed
+          configDir = null; # Using custom volume mount for database
           network = "host"; # Required to access localhost Redis
+          volumes = [
+            "${vars.configDir}/metadata-relay:/app/data"
+          ];
           environment = {
             PORT = "4001";
             REDIS_URL = "redis://127.0.0.1:6380"; # Connect to host Redis instance
+            SQLITE_DB_PATH = "/app/data/metadata_relay.db"; # SQLite database path
           };
           environmentFiles = [
             config.sops.secrets.metadata-relay-env.path
@@ -606,5 +610,15 @@ in {
       addHost = host: name: service: service // {host = host;};
     in
       lib.mapAttrs (addHost "storage") storageServices // lib.mapAttrs (addHost "cloud") cloudServices;
+
+    # Fix permissions for metadata-relay database directory
+    # The container runs as UID 1000 but doesn't honor PUID/PGID environment variables
+    systemd.services.docker-metadata-relay = lib.mkIf (builtins.any (host: host == config.networking.hostName) ["cloud"]) {
+      preStart = ''
+        # Ensure the data directory exists and has correct ownership for the relay user (UID 1000)
+        mkdir -p ${vars.configDir}/metadata-relay
+        chown -R 1000:1000 ${vars.configDir}/metadata-relay
+      '';
+    };
   };
 }
