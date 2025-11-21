@@ -119,6 +119,11 @@ in
             authConfig = optionalString (!cfg.settings.bypassAuth) ''
               forward_auth ${authHost}:${toString authPort} {
                 uri /api/authz/forward-auth?authelia_url=https://auth.${domain}
+                header_up X-Forwarded-Method {method}
+                header_up X-Forwarded-Proto {scheme}
+                header_up X-Forwarded-Host {host}
+                header_up X-Forwarded-Uri {uri}
+                header_up X-Original-URL {scheme}://{host}{uri}
                 copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
               }
             '';

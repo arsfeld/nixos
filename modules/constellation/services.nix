@@ -257,8 +257,8 @@ in {
     media.gateway = {
       enable = true;
 
-      authHost = "cloud.bat-boa.ts.net";
-      authPort = config.media.gateway.services.auth.port;
+      authHost = "cloud";
+      authPort = 9091;
 
       services = generateServices services;
     };
