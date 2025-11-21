@@ -4,7 +4,7 @@ title: Deploy Omada Controller Docker container on storage host
 status: In Progress
 assignee: []
 created_date: '2025-11-13 19:30'
-updated_date: '2025-11-14 15:10'
+updated_date: '2025-11-14 15:35'
 labels:
   - deployment
   - docker
@@ -121,4 +121,35 @@ Successfully configured TP-Link Omada Controller as a Docker container on the st
 - [x] #5 Integrated with constellation services framework (added to media.nix and services.nix)
 - [x] #6 Firewall rules configured for device communication (host networking provides all required ports)
 - [ ] #7 Documentation updated with access info (pending deployment verification)
+
+## Gateway Issue Investigation
+
+After extensive debugging, discovered that while the Omada Controller is running correctly and the backend HTTPS configuration is set up properly (insecureTls = true), requests through omada.arsfeld.one return:
+
+```
+Bad Request
+This combination of host and port requires TLS.
+```
+
+### What's Working
+- ✅ Omada Controller service running on storage (podman-omada.service)
+- ✅ Backend accessible at https://storage:8043 (verified from cloud host)
+- ✅ Caddy configuration includes correct insecureTls transport settings
+- ✅ TLS handshake successful for omada.arsfeld.one frontend
+- ✅ Other services through gateway work fine (tested jellyfin.arsfeld.one)
+
+### What's Not Working
+- ❌ Requests to https://omada.arsfeld.one fail with TLS error
+- ❌ Caddy access log for omada remains empty (requests not reaching virtual host)
+
+### Workaround
+Direct access works via:
+- Internal: https://storage.bat-boa.ts.net:8043
+- From storage host: https://localhost:8043
+
+### Next Steps for Followup
+- Investigate Caddy virtual host routing for omada.arsfeld.one
+- Check if wildcard *.arsfeld.one block is interfering
+- Consider testing with a different subdomain
+- May need to enable debug logging in Caddy to trace request routing
 <!-- SECTION:NOTES:END -->
