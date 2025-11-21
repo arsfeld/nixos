@@ -205,6 +205,7 @@ with lib; let
     "netdata"
     "stash"
     # Cloud host services
+    "auth"
     "ntfy"
     "yarr"
     "vault"
