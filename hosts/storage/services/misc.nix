@@ -15,6 +15,7 @@ in {
   # Reverting to tsnsrv until caddy-tailscale issues are resolved
   services.tsnsrv = {
     enable = true;
+    separateProcesses = true; # Create individual systemd service per tsnsrv service
     prometheusAddr = "127.0.0.1:9099";
     defaults = {
       tags = ["tag:service"];
