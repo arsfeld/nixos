@@ -163,22 +163,13 @@ in
     # Only creates config for services with exposeViaTailscale = true to reduce CPU overhead
     generateTsnsrvService = {cfg}:
       optionalAttrs (config.networking.hostName == cfg.host && cfg.exposeViaTailscale) {
-        "${cfg.name}" =
-          {
-            toURL = "http://127.0.0.1:${toString cfg.port}";
-            funnel = cfg.settings.funnel;
-          }
-          // (optionalAttrs (!cfg.settings.bypassAuth) {
-            authURL = "http://${authHost}:${toString authPort}";
-            authPath = "/api/authz/forward-auth";
-            authBypassForTailnet = true;
-            authCopyHeaders = {
-              "Remote-User" = "";
-              "Remote-Groups" = "";
-              "Remote-Name" = "";
-              "Remote-Email" = "";
-            };
-          });
+        "${cfg.name}" = {
+          toURL = "http://127.0.0.1:${toString cfg.port}";
+          funnel = cfg.settings.funnel;
+          # Use auth.bat-boa.ts.net for Tailscale-exposed services
+          # This ensures session cookies work correctly on *.bat-boa.ts.net domains
+          authURL = optionalString (!cfg.settings.bypassAuth) "https://auth.bat-boa.ts.net";
+        };
       };
 
     # generateTsnsrvConfigs: Creates tsnsrv service configurations from a list of configs
