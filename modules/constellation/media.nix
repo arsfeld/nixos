@@ -594,6 +594,9 @@ in {
             PORT = "4001";
             REDIS_URL = "redis://127.0.0.1:6380"; # Connect to host Redis instance
             SQLITE_DB_PATH = "/app/data/metadata_relay.db"; # SQLite database path
+            LOG_LEVEL = "debug"; # Enable verbose logging for troubleshooting
+            RELEASE_LEVEL = "debug"; # Elixir release log level
+            LOGGER_LEVEL = "debug"; # Additional logger level variable
           };
           environmentFiles = [
             config.sops.secrets.metadata-relay-env.path
