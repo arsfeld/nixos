@@ -21,6 +21,9 @@
       theme = "auto";
       server = {
         address = "tcp://0.0.0.0:${toString port}";
+        # Fix for Authelia 4.39: explicitly set only implementation, without authelia_url
+        # The authelia_url key is deprecated and should not be present
+        endpoints.authz.forward-auth.implementation = lib.mkForce "ForwardAuth";
       };
       log = {
         level = "debug";
@@ -95,7 +98,14 @@
         expiration = "7d";
         inactivity = "45m";
         remember_me_duration = "1M";
-        domain = domain;
+        # Modern session configuration for Authelia 4.38+
+        cookies = [
+          {
+            domain = domain;
+            authelia_url = "https://auth.${domain}";
+            default_redirection_url = "https://${domain}";
+          }
+        ];
         redis.host = "/run/redis-authelia-${domain}/redis.sock";
       };
       storage = {
