@@ -9,7 +9,7 @@
   vars = config.media.config;
   # Use unstable for Immich 2.0
   pkgs-unstable = import inputs.nixpkgs-unstable {
-    inherit (pkgs) system;
+    system = pkgs.stdenv.hostPlatform.system;
     config.allowUnfree = true;
   };
 
