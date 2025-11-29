@@ -1,5 +1,6 @@
 {pkgs, ...}: let
-  pythonEnv = pkgs.python3.withPackages (ps:
+  # Use python312 because mrml doesn't support Python 3.13 yet (PyO3 version issue)
+  pythonEnv = pkgs.python312.withPackages (ps:
     with ps; [
       playwright
       mrml

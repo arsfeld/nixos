@@ -53,6 +53,12 @@
       description = "Enable virtualization tools (virt-manager, quickemu)";
     };
 
+    wallpapers = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Install curated wallpaper collections (NixOS artwork, Fedora, Pop!_OS)";
+    };
+
     flatpakPackages = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [
@@ -217,6 +223,31 @@
       ++ lib.optionals config.constellation.gnome.virtualization [
         # Virtualization tools
         quickemu
+      ]
+      ++ lib.optionals config.constellation.gnome.wallpapers [
+        # Curated wallpaper collections
+        # NixOS artwork - Catppuccin themes
+        nixos-artwork.wallpapers.catppuccin-mocha
+        nixos-artwork.wallpapers.catppuccin-macchiato
+        nixos-artwork.wallpapers.catppuccin-frappe
+        nixos-artwork.wallpapers.catppuccin-latte
+        # NixOS artwork - 3D designs
+        nixos-artwork.wallpapers.gear
+        nixos-artwork.wallpapers.moonscape
+        nixos-artwork.wallpapers.recursive
+        nixos-artwork.wallpapers.waterfall
+        nixos-artwork.wallpapers.watersplash
+        # NixOS artwork - Other themes
+        nixos-artwork.wallpapers.dracula
+        nixos-artwork.wallpapers.nineish
+        nixos-artwork.wallpapers.nineish-dark-gray
+        nixos-artwork.wallpapers.mosaic-blue
+        # Fedora backgrounds (high-quality professional wallpapers)
+        fedora-backgrounds.f38
+        fedora-backgrounds.f37
+        fedora-backgrounds.f36
+        # Pop!_OS wallpapers
+        pop-hp-wallpapers
       ];
 
     # Gaming hardware support

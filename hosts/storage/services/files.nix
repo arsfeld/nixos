@@ -79,16 +79,6 @@ in {
     };
   };
 
-  services.seafile = {
-    enable = false;
-    adminEmail = vars.email;
-    initialAdminPassword = "password";
-    seafileSettings = {
-      fileserver.host = "0.0.0.0";
-    };
-    ccnetSettings.General.SERVICE_URL = "https://seafile.${vars.domain}";
-  };
-
   # Fix tmpfiles ownership issue by explicitly creating directories with correct ownership
   # This prevents systemd-tmpfiles from creating directories with incorrect ownership during activation
   systemd.tmpfiles.rules = [
@@ -102,7 +92,7 @@ in {
     datadir = "/var/lib/nextcloud/data";
     hostName = "nextcloud.${vars.domain}";
     maxUploadSize = "10G";
-    package = pkgs-unstable.nextcloud31;
+    package = pkgs-unstable.nextcloud32;
     appstoreEnable = false; # Disable to avoid write permission issues with NixOS-managed apps
     autoUpdateApps.enable = false;
     configureRedis = true;
