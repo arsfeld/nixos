@@ -55,7 +55,7 @@ in {
         devenv
         direnv
         dogdns
-        du-dust
+        dust
         jq
         just
         fastfetch
@@ -349,9 +349,11 @@ in {
   programs.git = {
     enable = true;
     #delta.enable = true;
-    userEmail = "arsfeld@gmail.com";
-    userName = "Alexandre Rosenfeld";
-    extraConfig = {
+    settings = {
+      user = {
+        email = "arsfeld@gmail.com";
+        name = "Alexandre Rosenfeld";
+      };
       credential = {
         helper = "store";
       };

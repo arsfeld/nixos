@@ -1,7 +1,7 @@
 {pkgs, ...}:
-# Build Caddy with Tailscale plugin using Go 1.25+ from nixpkgs-unstable
-# This eliminates the need for GOTOOLCHAIN workarounds and allows sandbox builds
-pkgs.buildGo125Module rec {
+# Build Caddy with Tailscale plugin
+# nixos-25.11+ uses Go 1.25 as default, so buildGoModule works directly
+pkgs.buildGoModule rec {
   pname = "caddy-with-tailscale";
   version = "2.9.1"; # Caddy version from go.mod
 

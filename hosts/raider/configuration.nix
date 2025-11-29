@@ -203,17 +203,15 @@
   networking.firewall.enable = false;
 
   # Disable suspend/hibernate
-  services.logind = {
-    lidSwitch = "ignore";
-    lidSwitchDocked = "ignore";
-    lidSwitchExternalPower = "ignore";
-    extraConfig = ''
-      HandlePowerKey=ignore
-      HandleSuspendKey=ignore
-      HandleHibernateKey=ignore
-      IdleAction=ignore
-      IdleActionSec=0
-    '';
+  services.logind.settings.Login = {
+    HandleLidSwitch = "ignore";
+    HandleLidSwitchDocked = "ignore";
+    HandleLidSwitchExternalPower = "ignore";
+    HandlePowerKey = "ignore";
+    HandleSuspendKey = "ignore";
+    HandleHibernateKey = "ignore";
+    IdleAction = "ignore";
+    IdleActionSec = 0;
   };
 
   # Disable power management features
@@ -223,7 +221,7 @@
   };
 
   # Disable GNOME auto-suspend
-  services.xserver.displayManager.gdm.autoSuspend = false;
+  services.displayManager.gdm.autoSuspend = false;
 
   # Environment variables for games
   environment.sessionVariables = {

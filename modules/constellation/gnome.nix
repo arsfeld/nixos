@@ -78,16 +78,14 @@
   config = lib.mkIf config.constellation.gnome.enable (let
     # Create unstable package set
     pkgs-unstable = import inputs.nixpkgs-unstable {
-      inherit (pkgs) system;
+      system = pkgs.stdenv.hostPlatform.system;
       config.allowUnfree = true;
     };
   in {
     # GNOME Desktop Environment
-    services.xserver = {
-      enable = true;
-      displayManager.gdm.enable = true;
-      desktopManager.gnome.enable = true;
-    };
+    services.xserver.enable = true;
+    services.displayManager.gdm.enable = true;
+    services.desktopManager.gnome.enable = true;
 
     # Theme and application settings
     programs.dconf.enable = true;
@@ -166,7 +164,6 @@
         celluloid
         mission-center
         variety
-        gradience
         gnome-tweaks
       ]
       ++ lib.optionals config.constellation.gnome.gnomeExtensions [
@@ -200,7 +197,7 @@
         goverlay
         vkbasalt
         protonplus
-        ryujinx
+        ryubing
         mupen64plus
         rpcs3
       ]
@@ -275,7 +272,7 @@
         inter
         jetbrains-mono
         roboto
-        ubuntu_font_family
+        ubuntu-classic
         cantarell-fonts
 
         # Nerd fonts for terminal use
@@ -286,20 +283,18 @@
         # Essential fonts
         noto-fonts
         noto-fonts-cjk-sans
-        noto-fonts-emoji
+        noto-fonts-color-emoji
         liberation_ttf
         dejavu_fonts
         freefont_ttf
 
-        # Japanese fonts
+        # Japanese fonts (source-han-sans/serif now include all variants)
         source-han-sans
         source-han-serif
-        source-han-sans-japanese
-        source-han-serif-japanese
 
         # Microsoft-compatible fonts
         corefonts
-        vistafonts
+        vista-fonts
 
         # Programming fonts
         cascadia-code
