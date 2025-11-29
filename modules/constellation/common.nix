@@ -170,7 +170,7 @@ with lib; {
       killall
       moreutils
       nano
-      ncdu_2
+      ncdu
       psmisc
       rclone
       tmux

@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05"; # Core nixpkgs - stable 25.05
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11"; # Core nixpkgs - stable 25.11
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable-small"; # Unstable packages for latest versions
     determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/*"; # Determinate Nix
     nixos-generators.url = "github:nix-community/nixos-generators"; # System image generators (ISO, SD card, etc.)
@@ -11,7 +11,7 @@
     ragenix.inputs.nixpkgs.follows = "nixpkgs";
     sops-nix.url = "github:Mic92/sops-nix"; # sops-nix secret management
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
-    home-manager.url = "github:nix-community/home-manager/release-25.05"; # User environment management
+    home-manager.url = "github:nix-community/home-manager/release-25.11";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     deploy-rs.url = "github:serokell/deploy-rs"; # Remote deployment tool
     deploy-rs.inputs.nixpkgs.follows = "nixpkgs";
@@ -50,17 +50,8 @@
         _module.args.pkgs = import inputs.nixpkgs {
           inherit system;
           overlays = [
-            # Provide Go 1.25+ from nixpkgs-unstable for packages that need it (must come first)
-            (final: prev: let
-              system = final.stdenv.hostPlatform.system;
-            in {
-              go_1_25 = inputs.nixpkgs-unstable.legacyPackages.${system}.go;
-              buildGo125Module = final.buildGoModule.override {
-                go = inputs.nixpkgs-unstable.legacyPackages.${system}.go;
-              };
-            })
             (import ./overlays/python-packages.nix)
-            # Caddy with Tailscale OAuth plugin (must come after buildGo125Module is available)
+            # Caddy with Tailscale OAuth plugin
             (final: prev: {
               caddy-tailscale = final.callPackage ./packages/caddy-tailscale {};
             })
@@ -99,7 +90,7 @@
               jq
               just
               openssl
-              inputs.ragenix.packages."${pkgs.stdenv.system}".default
+              ragenix # Use nixpkgs' ragenix for devShell (inputs.ragenix still used for NixOS module)
               inputs.sops-nix.packages."${pkgs.stdenv.system}".sops-import-keys-hook
               sops
               ssh-to-age
@@ -109,7 +100,7 @@
               black
               python3Packages.mkdocs
               python3Packages.mkdocs-material
-              python3Packages.mkdocs-awesome-pages-plugin
+              python3Packages.mkdocs-awesome-nav
               python3Packages.mkdocs-mermaid2-plugin
               python3Packages.mike
               python3Packages.pymdown-extensions
@@ -164,17 +155,8 @@
 
           # Common overlays used everywhere
           overlays = [
-            # Provide Go 1.25+ from nixpkgs-unstable for packages that need it (must come first)
-            (final: prev: let
-              system = final.stdenv.hostPlatform.system;
-            in {
-              go_1_25 = inputs.nixpkgs-unstable.legacyPackages.${system}.go;
-              buildGo125Module = final.buildGoModule.override {
-                go = inputs.nixpkgs-unstable.legacyPackages.${system}.go;
-              };
-            })
             (import ./overlays/python-packages.nix)
-            # Caddy with Tailscale OAuth plugin (must come after buildGo125Module is available)
+            # Caddy with Tailscale OAuth plugin
             (final: prev: {
               caddy-tailscale = final.callPackage ./packages/caddy-tailscale {};
             })

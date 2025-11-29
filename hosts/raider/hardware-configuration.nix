@@ -47,21 +47,15 @@
     enable32Bit = true;
 
     extraPackages = with pkgs; [
-      # AMD GPU packages
-      amdvlk
+      # AMD GPU packages (RADV is now default, amdvlk removed)
       rocmPackages.clr.icd
       mesa
 
       # Intel iGPU packages for hardware video decode/encode
       intel-media-driver # iHD driver for modern Intel GPUs (Gen 8+)
       intel-vaapi-driver # i965 driver (fallback)
-      vaapiIntel
-      vaapiVdpau
+      libva-vdpau-driver
       libvdpau-va-gl
-    ];
-
-    extraPackages32 = with pkgs; [
-      driversi686Linux.amdvlk
     ];
   };
 
