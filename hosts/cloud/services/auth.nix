@@ -129,6 +129,8 @@ in {
   age.secrets.dex-clients-qui-secret.file = "${self}/secrets/dex-clients-qui-secret.age";
   age.secrets.lldap-env.file = "${self}/secrets/lldap-env.age";
   age.secrets.lldap-env.mode = "444";
+  age.secrets.lldap-password.file = "${self}/secrets/lldap-password.age";
+  age.secrets.lldap-password.mode = "400";
   age.secrets.authelia-secrets.file = "${self}/secrets/authelia-secrets.age";
   # Mode 444 allows both Authelia instances to read the secrets
   age.secrets.authelia-secrets.mode = "444";
@@ -214,6 +216,7 @@ in {
       http_port = services.users.port;
     };
     environmentFile = config.age.secrets.lldap-env.path;
+    environment.LLDAP_LDAP_USER_PASS_FILE = config.age.secrets.lldap-password.path;
   };
 
   # Authelia instance for arsfeld.one domain
