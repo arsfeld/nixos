@@ -21,6 +21,7 @@ in {
   "gluetun-pia.age".publicKeys = users ++ systems;
   "homepage-env.age".publicKeys = users ++ systems;
   "lldap-env.age".publicKeys = users ++ [cloud];
+  "lldap-password.age".publicKeys = users ++ [cloud];
   "qbittorrent-pia.age".publicKeys = users ++ [storage];
   "rclone-idrive.age".publicKeys = users ++ systems;
   "restic-password.age".publicKeys = users ++ systems;
