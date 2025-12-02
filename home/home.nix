@@ -86,6 +86,7 @@ in {
 
         (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
         (writeScriptBin "running" (builtins.readFile ./scripts/running))
+        (writeScriptBin "claude-worktree" (builtins.readFile ./scripts/claude-worktree))
       ]
       ++ linuxOnlyPkgs; # Added linuxOnlyPkgs
     sessionVariables =
