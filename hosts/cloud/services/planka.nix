@@ -85,8 +85,9 @@ in {
     };
 
     # Set PostgreSQL password after database is created
+    # Note: $PSQL was removed in nixpkgs commit 41c5662, use psql directly
     systemd.services.postgresql.postStart = lib.mkAfter ''
-      $PSQL -tA <<EOF
+      psql -U postgres -tA <<EOF
         ALTER USER ${cfg.database.user} WITH PASSWORD '$(cat ${config.age.secrets.planka-db-password.path})';
       EOF
     '';
