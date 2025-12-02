@@ -75,7 +75,11 @@ in {
 
   # AirVPN secrets
   "airvpn-wireguard.age".publicKeys = users ++ [storage];
+  "airvpn-env.age".publicKeys = users ++ [storage]; # Environment variables format for gluetun
   "transmission-openvpn-airvpn.age".publicKeys = users ++ [storage];
+
+  # Tailscale exit node auth key (requires pre-approved exit node capability)
+  "tailscale-exit-key.age".publicKeys = users ++ [storage];
 
   # Attic binary cache secrets
   "attic-credentials.age".publicKeys = users ++ [storage];

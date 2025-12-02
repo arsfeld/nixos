@@ -287,7 +287,176 @@ When adding a new service:
      - `cloudServices`: Should use `${vars.configDir}` (defaults to `/var/data`) or direct paths - **do NOT use storageDir** as cloud host doesn't have `/mnt/storage` mount
      - `storageDir` is only for large media files/downloads, not regular container config/data
    - The service will automatically be added to the gateway
+
+## VPN Exit Nodes (Tailscale via AirVPN)
+
+The repository includes a module for creating Tailscale exit nodes that route traffic through AirVPN WireGuard tunnels. This allows Tailscale clients to exit through different countries.
+
+### Architecture
+
 ```
+[Tailscale Client] → [Tailscale Container] → [Gluetun Container] → [AirVPN WireGuard] → [Internet]
+```
+
+- **Gluetun** (`qmcgaw/gluetun`) - VPN client with native AirVPN support
+- **Tailscale** (`tailscale/tailscale`) - Runs in gluetun's network namespace, advertises as exit node
+
+### Module Location
+
+`modules/constellation/vpn-exit-nodes.nix`
+
+### Prerequisites
+
+1. **AirVPN subscription** with WireGuard access
+2. **Tailscale auth key** with:
+   - `tag:exit` tag (must match ACL configuration)
+   - Exit node pre-approval via ACL autoApprovers
+   - Reusable: Yes
+   - Pre-authorized: Yes
+
+### Tailscale ACL Configuration
+
+Ensure your Tailscale ACLs include:
+
+```json
+{
+  "tagOwners": {
+    "tag:exit": ["autogroup:admin"]
+  },
+  "autoApprovers": {
+    "exitNode": ["tag:exit"]
+  }
+}
+```
+
+### Generating AirVPN WireGuard Credentials
+
+1. Log into https://airvpn.org/
+2. Go to **Config Generator**: https://airvpn.org/generator/
+3. Select **"WireGuard UDP"** under Protocols
+4. Choose desired **country/server**
+5. Click **"Generate"** and download the `.conf` file
+6. Extract these values from the config:
+
+```ini
+[Interface]
+Address = 10.141.x.x/32    # → WIREGUARD_ADDRESSES
+PrivateKey = xxxxx         # → WIREGUARD_PRIVATE_KEY
+
+[Peer]
+PresharedKey = xxxxx       # → WIREGUARD_PRESHARED_KEY
+```
+
+7. Create an environment file with these values:
+
+```bash
+WIREGUARD_PRIVATE_KEY=<your-private-key>
+WIREGUARD_PRESHARED_KEY=<your-preshared-key>
+WIREGUARD_ADDRESSES=10.141.x.x/32
+```
+
+### Creating the Tailscale Auth Key
+
+You can create via the Tailscale API:
+
+```bash
+curl -X POST -u "YOUR_API_KEY:" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "capabilities": {
+      "devices": {
+        "create": {
+          "reusable": true,
+          "ephemeral": false,
+          "preauthorized": true,
+          "tags": ["tag:exit"]
+        }
+      }
+    },
+    "expirySeconds": 7776000,
+    "description": "VPN exit node auth key"
+  }' \
+  "https://api.tailscale.com/api/v2/tailnet/-/keys"
+```
+
+Or via the admin console at https://login.tailscale.com/admin/settings/keys
+
+### Adding Secrets (ragenix)
+
+```bash
+# 1. Add entry to secrets/secrets.nix
+"airvpn-<country>-env.age".publicKeys = users ++ [storage];
+"tailscale-exit-key.age".publicKeys = users ++ [storage];
+
+# 2. Stage the file
+git add secrets/secrets.nix
+
+# 3. Create the encrypted secrets
+echo "WIREGUARD_PRIVATE_KEY=xxx
+WIREGUARD_PRESHARED_KEY=xxx
+WIREGUARD_ADDRESSES=10.141.x.x/32" | nix develop -c ragenix --rules secrets/secrets.nix -e secrets/airvpn-brazil-env.age --editor -
+
+echo "tskey-auth-xxx" | nix develop -c ragenix --rules secrets/secrets.nix -e secrets/tailscale-exit-key.age --editor -
+```
+
+### Enabling an Exit Node
+
+In your host configuration (e.g., `hosts/storage/configuration.nix`):
+
+```nix
+# Declare secrets
+age.secrets.airvpn-env.file = "${self}/secrets/airvpn-env.age";
+age.secrets.tailscale-exit-key.file = "${self}/secrets/tailscale-exit-key.age";
+
+# Enable the module
+constellation.vpnExitNodes = {
+  enable = true;
+  tailscaleAuthKeyFile = config.age.secrets.tailscale-exit-key.path;
+
+  nodes.brazil = {
+    country = "Brazil";  # Gluetun server selection
+    tailscaleHostname = "brazil-exit";
+    credentialsFile = config.age.secrets.airvpn-env.path;
+  };
+
+  # Add more exit nodes as needed
+  nodes.us = {
+    country = "United States";
+    city = "New York";
+    tailscaleHostname = "us-exit";
+    credentialsFile = config.age.secrets.airvpn-us-env.path;
+  };
+};
+```
+
+### Using an Exit Node
+
+From any Tailscale client:
+
+```bash
+# Enable Brazil exit node
+tailscale set --exit-node=brazil-exit
+
+# Verify public IP
+curl ifconfig.me  # Should show Brazilian IP
+
+# Disable exit node
+tailscale set --exit-node=
+```
+
+### Troubleshooting
+
+**Container not starting:**
+- Check logs: `sudo podman logs tailscale-exit-<name>`
+- Verify gluetun is healthy: `sudo podman ps | grep gluetun`
+
+**Auth key errors:**
+- Ensure auth key has `tag:exit` with exit node pre-approval
+- Verify ACL has `autoApprovers.exitNode` including `tag:exit`
+
+**VPN not connecting:**
+- Check gluetun logs: `sudo podman logs gluetun-exit-<name>`
+- Verify AirVPN credentials are correct
 
 <!-- BACKLOG.MD MCP GUIDELINES START -->
 

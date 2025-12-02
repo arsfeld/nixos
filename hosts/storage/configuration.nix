@@ -1,6 +1,8 @@
 {
+  config,
   lib,
   pkgs,
+  self,
   ...
 }:
 with lib; {
@@ -20,6 +22,29 @@ with lib; {
   constellation.podman.enable = true;
   services.isponsorblock.enable = false;
   constellation.githubIssueNotify.enable = true; # Enable isolated GitHub issue creation for systemd failures
+
+  # Enable sops-nix for secrets management
+  constellation.sops.enable = true;
+
+  # Tailscale VPN exit nodes via AirVPN
+  # AirVPN credentials in env format for gluetun
+  age.secrets.airvpn-env.file = "${self}/secrets/airvpn-env.age";
+  # Tailscale auth key with pre-approved exit node capability
+  # Generate at: https://login.tailscale.com/admin/settings/keys
+  # Required settings: Reusable, Pre-approved, Exit node pre-approved
+  age.secrets.tailscale-exit-key.file = "${self}/secrets/tailscale-exit-key.age";
+
+  constellation.vpnExitNodes = {
+    enable = true;
+    # Use dedicated exit node auth key with pre-approved exit node capability
+    tailscaleAuthKeyFile = config.age.secrets.tailscale-exit-key.path;
+    nodes.brazil = {
+      country = "Brazil";
+      tailscaleHostname = "brazil-exit";
+      # Use env format credentials for gluetun server selection
+      credentialsFile = config.age.secrets.airvpn-env.path;
+    };
+  };
 
   # Enable qBittorrent with WireGuard VPN in network namespace
   services.qbittorrent-vpn.enable = true;
