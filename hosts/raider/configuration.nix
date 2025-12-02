@@ -42,31 +42,8 @@
     githubIssueNotify.enable = true; # Enable isolated GitHub issue creation for systemd failures
   };
 
-  # Disable Docker health alerts - raider is a dev machine with unstable containers
-  services.netdata.configDir."health.d/docker.conf" = pkgs.writeText "docker.conf" ''
-     # Disable all Docker container health alerts for this dev machine
-     template: docker_container_unhealthy
-           on: docker.container_health_status
-        class: Errors
-         type: Containers
-    component: Docker
-       lookup: average -1m unaligned of unhealthy
-        units: status
-        every: 10s
-         crit: 0
-      enabled: no
-
-     template: docker_container_health_status
-           on: docker.container_health_status
-        class: Errors
-         type: Containers
-    component: Docker
-       lookup: average -1m unaligned
-        units: status
-        every: 10s
-         crit: 0
-      enabled: no
-  '';
+  # Mark raider as a development machine for netdata alert filtering
+  services.netdata.config."host labels".environment = "development";
 
   # Enable media config for domain settings (required by constellation.services)
   media.config.enable = true;
