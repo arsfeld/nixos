@@ -1,0 +1,354 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# claude-worktree: Run Claude Code in a git worktree, then use Claude to commit and merge
+
+WORKTREES_DIR="${CLAUDE_WORKTREES_DIR:-$HOME/.local/share/claude-worktrees}"
+
+usage() {
+    echo "Usage: claude-worktree [options] [-- claude-args...]"
+    echo ""
+    echo "Creates a git worktree, runs Claude Code with --dangerously-skip-permissions,"
+    echo "then uses Claude to commit any changes and merge them back."
+    echo ""
+    echo "Options:"
+    echo "  -p, --prompt TEXT   Initial prompt to pass to Claude"
+    echo "  -n, --no-merge      Don't merge back, just commit and leave the branch"
+    echo "  -k, --keep          Keep the worktree after completion"
+    echo "  -d, --dir PATH      Custom worktrees directory (default: ~/.local/share/claude-worktrees)"
+    echo "  -s, --sibling       Create worktree as sibling to repo (../repo-claude-<timestamp>)"
+    echo "  -i, --in-place      Work in current directory on a new branch (for docker compose workflows)"
+    echo "  -c, --clean         Don't copy uncommitted changes to worktree"
+    echo "  -l, --list          List existing worktrees for current repo"
+    echo "  --rm NAME           Remove a worktree by name"
+    echo "  -h, --help          Show this help message"
+    echo ""
+    echo "Environment:"
+    echo "  CLAUDE_WORKTREES_DIR  Default worktrees directory"
+    echo ""
+    echo "Workflow modes:"
+    echo "  Default:    Worktree in ~/.local/share/claude-worktrees/<repo>/<branch>"
+    echo "  --sibling:  Worktree next to repo (good for relative docker mounts)"
+    echo "  --in-place: No worktree, just branch in current dir (hot reload compatible)"
+    echo ""
+    echo "Examples:"
+    echo "  claude-worktree                              # Standard worktree"
+    echo "  claude-worktree -i                           # In-place for docker compose"
+    echo "  claude-worktree -s -p 'Fix auth bug'         # Sibling worktree with prompt"
+    echo "  claude-worktree --list"
+}
+
+# Default values
+PROMPT=""
+NO_MERGE=false
+KEEP_WORKTREE=false
+SIBLING_MODE=false
+IN_PLACE_MODE=false
+CLEAN_MODE=false
+LIST_MODE=false
+REMOVE_NAME=""
+CLAUDE_ARGS=()
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -p|--prompt)
+            PROMPT="$2"
+            shift 2
+            ;;
+        -n|--no-merge)
+            NO_MERGE=true
+            shift
+            ;;
+        -k|--keep)
+            KEEP_WORKTREE=true
+            shift
+            ;;
+        -d|--dir)
+            WORKTREES_DIR="$2"
+            shift 2
+            ;;
+        -s|--sibling)
+            SIBLING_MODE=true
+            shift
+            ;;
+        -i|--in-place)
+            IN_PLACE_MODE=true
+            shift
+            ;;
+        -c|--clean)
+            CLEAN_MODE=true
+            shift
+            ;;
+        -l|--list)
+            LIST_MODE=true
+            shift
+            ;;
+        --rm)
+            REMOVE_NAME="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --)
+            shift
+            CLAUDE_ARGS=("$@")
+            break
+            ;;
+        *)
+            echo "Unknown option: $1"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+# Ensure we're in a git repository
+if ! git rev-parse --is-inside-work-tree &>/dev/null; then
+    echo "Error: Not in a git repository"
+    exit 1
+fi
+
+# Get repository info
+REPO_ROOT=$(git rev-parse --show-toplevel)
+REPO_NAME=$(basename "$REPO_ROOT")
+ORIGINAL_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+
+# Determine worktrees directory based on mode
+if [[ "$SIBLING_MODE" == "true" ]]; then
+    REPO_WORKTREES_DIR="$(dirname "$REPO_ROOT")"
+else
+    REPO_WORKTREES_DIR="${WORKTREES_DIR}/${REPO_NAME}"
+fi
+
+# Handle --list
+if [[ "$LIST_MODE" == "true" ]]; then
+    echo "Worktrees for $REPO_NAME:"
+    git worktree list
+    exit 0
+fi
+
+# Handle --rm
+if [[ -n "$REMOVE_NAME" ]]; then
+    # Try to find the worktree
+    REMOVE_PATH="${REPO_WORKTREES_DIR}/${REMOVE_NAME}"
+    if [[ ! -d "$REMOVE_PATH" ]]; then
+        # Try sibling directory
+        REMOVE_PATH="$(dirname "$REPO_ROOT")/${REMOVE_NAME}"
+    fi
+    if [[ ! -d "$REMOVE_PATH" ]]; then
+        echo "Error: Worktree not found: $REMOVE_NAME"
+        echo "Available worktrees:"
+        git worktree list
+        exit 1
+    fi
+    echo "Removing worktree: $REMOVE_NAME"
+    cd "$REPO_ROOT"
+    git worktree remove --force "$REMOVE_PATH"
+    echo "Done."
+    exit 0
+fi
+
+# Check for uncommitted changes
+HAS_CHANGES=false
+STASH_CREATED=false
+if ! git diff --quiet HEAD 2>/dev/null || ! git diff --staged --quiet 2>/dev/null; then
+    HAS_CHANGES=true
+fi
+
+# Generate branch name
+WORK_BRANCH="claude/${ORIGINAL_BRANCH}-${TIMESTAMP}"
+
+# ============================================================================
+# IN-PLACE MODE: Work in current directory on a new branch
+# ============================================================================
+if [[ "$IN_PLACE_MODE" == "true" ]]; then
+    echo "==> In-place mode: working in current directory"
+    echo "    Creating branch: $WORK_BRANCH"
+
+    # Create and switch to new branch
+    git checkout -b "$WORK_BRANCH"
+
+    # Cleanup function for in-place mode
+    cleanup_in_place() {
+        local exit_code=$?
+
+        if [[ "$NO_MERGE" == "true" ]] || [[ "$KEEP_WORKTREE" == "true" ]]; then
+            echo "==> Staying on branch: $WORK_BRANCH"
+            return
+        fi
+
+        # Switch back to original branch if merge succeeded
+        if [[ "$exit_code" -eq 0 ]]; then
+            CURRENT=$(git rev-parse --abbrev-ref HEAD)
+            if [[ "$CURRENT" == "$ORIGINAL_BRANCH" ]]; then
+                git branch -d "$WORK_BRANCH" 2>/dev/null || true
+            fi
+        fi
+    }
+    trap cleanup_in_place EXIT
+
+    WORKTREE_PATH="$REPO_ROOT"
+
+else
+    # ============================================================================
+    # WORKTREE MODE: Create isolated worktree
+    # ============================================================================
+
+    if [[ "$SIBLING_MODE" == "true" ]]; then
+        WORKTREE_NAME="${REPO_NAME}-claude-${TIMESTAMP}"
+    else
+        WORKTREE_NAME="${ORIGINAL_BRANCH//\//-}-${TIMESTAMP}"
+    fi
+    WORKTREE_PATH="${REPO_WORKTREES_DIR}/${WORKTREE_NAME}"
+
+    mkdir -p "$(dirname "$WORKTREE_PATH")"
+
+    echo "==> Creating worktree"
+    echo "    Branch: $WORK_BRANCH"
+    echo "    Path: $WORKTREE_PATH"
+
+    # Stash uncommitted changes if present and not in clean mode
+    if [[ "$HAS_CHANGES" == "true" ]] && [[ "$CLEAN_MODE" == "false" ]]; then
+        echo "==> Stashing uncommitted changes to copy to worktree..."
+        git stash push -u -m "claude-worktree-temp-${TIMESTAMP}"
+        STASH_CREATED=true
+    fi
+
+    # Create a new branch and worktree
+    git worktree add -b "$WORK_BRANCH" "$WORKTREE_PATH" HEAD
+
+    # Apply stashed changes to worktree
+    if [[ "$STASH_CREATED" == "true" ]]; then
+        echo "==> Applying uncommitted changes to worktree..."
+        # Apply to worktree
+        (cd "$WORKTREE_PATH" && git stash apply "stash@{0}") || {
+            echo "    Warning: Could not apply some changes cleanly"
+        }
+        # Restore original working directory
+        git stash pop || true
+    fi
+
+    # Cleanup function for worktree mode
+    cleanup_worktree() {
+        local exit_code=$?
+
+        if [[ "$KEEP_WORKTREE" == "true" ]]; then
+            echo "==> Keeping worktree at: $WORKTREE_PATH"
+            return
+        fi
+
+        echo "==> Cleaning up worktree..."
+        cd "$REPO_ROOT"
+        git worktree remove --force "$WORKTREE_PATH" 2>/dev/null || true
+
+        # Only delete the branch if merge was successful or no changes
+        if [[ "$exit_code" -eq 0 ]] && [[ "$NO_MERGE" == "false" ]]; then
+            git branch -d "$WORK_BRANCH" 2>/dev/null || true
+        fi
+    }
+    trap cleanup_worktree EXIT
+
+    # Change to worktree
+    cd "$WORKTREE_PATH"
+    echo "==> Changed to worktree directory"
+
+    # Copy config files that aren't in git
+    echo "==> Copying untracked config files..."
+    for pattern in ".env" ".env.*" ".envrc" "docker-compose.override.yml" ".local*"; do
+        for file in "$REPO_ROOT"/$pattern; do
+            if [[ -f "$file" ]]; then
+                filename=$(basename "$file")
+                if [[ ! -f "$WORKTREE_PATH/$filename" ]]; then
+                    cp "$file" "$WORKTREE_PATH/" 2>/dev/null && echo "    Copied: $filename" || true
+                fi
+            fi
+        done
+    done
+fi
+
+# Build claude command for the main work session
+CLAUDE_CMD=(npx -y @anthropic-ai/claude-code@latest --dangerously-skip-permissions)
+if [[ -n "$PROMPT" ]]; then
+    CLAUDE_CMD+=(-p "$PROMPT")
+fi
+CLAUDE_CMD+=("${CLAUDE_ARGS[@]}")
+
+echo ""
+echo "==> Running Claude Code..."
+echo "    Directory: $WORKTREE_PATH"
+echo "    Command: ${CLAUDE_CMD[*]}"
+echo ""
+
+# Run claude - let it take over the terminal
+(cd "$WORKTREE_PATH" && "${CLAUDE_CMD[@]}") || true
+
+echo ""
+echo "==> Claude Code session ended"
+
+# Check for changes (from worktree directory)
+cd "$WORKTREE_PATH"
+if git diff --quiet HEAD && git diff --staged --quiet; then
+    echo "==> No changes to commit"
+    exit 0
+fi
+
+# Show what changed
+echo "==> Changes detected:"
+git status --short
+
+# Build the commit/merge prompt for Claude
+if [[ "$NO_MERGE" == "true" ]]; then
+    COMMIT_PROMPT="Review the changes and create an appropriate commit. Use conventional commit format (e.g., feat:, fix:, chore:). Do not push or merge - just commit the changes. Stage all changes first with git add."
+else
+    if [[ "$IN_PLACE_MODE" == "true" ]]; then
+        COMMIT_PROMPT="Review the changes and:
+1. Stage all changes with git add
+2. Create an appropriate commit with a conventional commit message (feat:, fix:, chore:, etc.)
+3. Switch to $ORIGINAL_BRANCH: git checkout $ORIGINAL_BRANCH
+4. Merge this branch: git merge --no-edit $WORK_BRANCH
+5. Do not push anything
+
+Current branch: $WORK_BRANCH
+Target branch: $ORIGINAL_BRANCH"
+    else
+        COMMIT_PROMPT="Review the changes and:
+1. Stage all changes with git add
+2. Create an appropriate commit with a conventional commit message (feat:, fix:, chore:, etc.)
+3. Change to the main repo: cd $REPO_ROOT
+4. Merge this branch: git merge --no-edit $WORK_BRANCH
+5. Do not push anything
+
+Current worktree: $WORKTREE_PATH
+Current branch: $WORK_BRANCH
+Main repo: $REPO_ROOT
+Target branch: $ORIGINAL_BRANCH"
+    fi
+fi
+
+echo ""
+echo "==> Running Claude Code to commit and merge..."
+
+# Run Claude to handle commit and merge
+(cd "$WORKTREE_PATH" && npx -y @anthropic-ai/claude-code@latest \
+    --dangerously-skip-permissions \
+    -p "$COMMIT_PROMPT")
+
+# Check if merge was successful
+cd "$REPO_ROOT"
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [[ "$CURRENT_BRANCH" == "$ORIGINAL_BRANCH" ]] && [[ "$NO_MERGE" == "false" ]]; then
+    echo "==> Successfully merged changes into $ORIGINAL_BRANCH"
+else
+    echo "==> Commit completed on branch: $WORK_BRANCH"
+    if [[ "$NO_MERGE" == "false" ]]; then
+        echo "    Note: Manual merge may be required"
+        echo "    Run: git checkout $ORIGINAL_BRANCH && git merge $WORK_BRANCH"
+        KEEP_WORKTREE=true
+    fi
+fi
+
+echo "==> Done!"
