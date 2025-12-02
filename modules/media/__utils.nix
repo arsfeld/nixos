@@ -16,10 +16,17 @@
 {
   lib,
   config,
+  pkgs,
 }:
 with lib; let
   authHost = config.media.gateway.authHost;
   authPort = config.media.gateway.authPort;
+
+  # Minimal error pages without JavaScript
+  errorPages = pkgs.runCommand "error-pages" {} ''
+    mkdir -p $out
+    cp ${./error-pages}/*.html $out/
+  '';
 in
   with lib; rec {
     gatewayConfig = types.submodule {
@@ -235,11 +242,9 @@ in
 
       (errors) {
         handle_errors {
-          rewrite * /error-pages/l7/{err.status_code}.html
-          reverse_proxy https://tarampampam.github.io {
-            header_up Host {upstream_hostport}
-            replace_status {err.status_code}
-          }
+          root * ${errorPages}
+          rewrite * /{err.status_code}.html
+          file_server
         }
       }
 

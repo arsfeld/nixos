@@ -18,10 +18,11 @@
   self,
   lib,
   config,
+  pkgs,
   ...
 }:
 with lib; let
-  utils = import "${self}/modules/media/__utils.nix" {inherit config lib;};
+  utils = import "${self}/modules/media/__utils.nix" {inherit config lib pkgs;};
   nameToPort = import "${self}/common/nameToPort.nix";
   cfg = config.media.gateway;
   _config = config;

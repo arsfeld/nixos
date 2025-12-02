@@ -25,7 +25,7 @@
 with lib; let
   _config = config;
   vars = config.media.config;
-  utils = import "${self}/modules/media/__utils.nix" {inherit config lib;};
+  utils = import "${self}/modules/media/__utils.nix" {inherit config lib pkgs;};
   nameToPort = import "${self}/common/nameToPort.nix";
   cfg = config.media.containers;
   exposedContainers =
