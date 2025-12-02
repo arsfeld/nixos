@@ -493,6 +493,9 @@ in {
             PORT = "4000";
             TV_PATH = "/media/Series";
             MOVIES_PATH = "/media/Movies";
+            # Explicit OIDC redirect URI to ensure HTTPS is used
+            # Required because the container runs behind a reverse proxy
+            OIDC_REDIRECT_URI = "https://mydia.arsfeld.one/auth/oidc/callback";
           };
           environmentFiles = [
             config.age.secrets.mydia-env.path
