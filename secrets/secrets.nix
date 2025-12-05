@@ -18,6 +18,7 @@ in {
   "dex-clients-tailscale-secret.age".publicKeys = users ++ [cloud];
   "dex-clients-qui-secret.age".publicKeys = users ++ [cloud];
   "github-runner-token.age".publicKeys = users ++ systems;
+  "forgejo-runner-token.age".publicKeys = users ++ [cloud];
   "gluetun-pia.age".publicKeys = users ++ systems;
   "homepage-env.age".publicKeys = users ++ systems;
   "lldap-env.age".publicKeys = users ++ [cloud];
@@ -63,6 +64,9 @@ in {
 
   # Immich OIDC secrets
   "immich-oidc-secret.age".publicKeys = users ++ [storage];
+
+  # Forgejo OIDC secrets
+  "forgejo-oidc-secret.age".publicKeys = users ++ [storage];
 
   # OpenArchiver secrets
   "openarchiver-env.age".publicKeys = users ++ [storage];

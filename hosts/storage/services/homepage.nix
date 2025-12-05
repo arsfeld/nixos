@@ -121,9 +121,9 @@
       icon = "n8n.png";
       description = "Workflow automation";
     };
-    gitea = {
+    forgejo = {
       category = "Development";
-      icon = "gitea.png";
+      icon = "forgejo.png";
       description = "Git service";
     };
     code = {
