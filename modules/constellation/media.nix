@@ -292,12 +292,14 @@ in {
           image = "ghcr.io/arsfeld/ohdio:latest";
           listenPort = 4000;
           environment = {
-            PHX_HOST = "ohdio.bat-boa.ts.net";
+            PHX_HOST = "ohdio.arsfeld.one";
             PORT = "4000";
             MIX_ENV = "prod";
             DATABASE_PATH = "/config/db/ohdio_prod.db";
             STORAGE_PATH = "/config/downloads";
             MAX_CONCURRENT_DOWNLOADS = "3";
+            # Allow WebSocket connections from both domains
+            CHECK_ORIGIN = "https://ohdio.arsfeld.one,https://ohdio.bat-boa.ts.net";
           };
           environmentFiles = [
             config.age.secrets.ohdio-env.path
