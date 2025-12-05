@@ -54,7 +54,7 @@ with lib; let
       filerun = 6000;
       filestash = 8334;
       filebrowser = 38080;
-      gitea = 3001;
+      forgejo = 3001;
       grafana = 3010;
       grocy = 9283;
       hass = 8123;
@@ -149,7 +149,7 @@ with lib; let
     "hass"
     "grocy"
     "ntfy"
-    "gitea"
+    "forgejo"
     "code"
     "n8n"
     "netdata"
@@ -199,7 +199,7 @@ with lib; let
     "harmonia"
     "www"
     "code"
-    "gitea"
+    "forgejo"
     "n8n"
     "grafana"
     "netdata"

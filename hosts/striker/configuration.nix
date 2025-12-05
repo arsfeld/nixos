@@ -35,29 +35,29 @@
   boot.consoleLogLevel = 0;
   boot.kernelParams = ["quiet" "udev.log_level=3"];
 
-  users.users.gitea_act = {
-    description = "Gitea Act Runner Service";
-    home = "/var/lib/gitea_act";
+  users.users.forgejo_runner = {
+    description = "Forgejo Actions Runner Service";
+    home = "/var/lib/forgejo_runner";
     useDefaultShell = true;
-    group = "gitea_act";
+    group = "forgejo_runner";
     isSystemUser = true;
     extraGroups = ["docker"];
   };
 
-  users.groups.gitea_act = {};
+  users.groups.forgejo_runner = {};
 
-  systemd.services.gitea_act = {
+  systemd.services.forgejo_runner = {
     enable = true;
-    description = "Gitea act runner";
+    description = "Forgejo actions runner";
     serviceConfig = {
-      ExecStart = "${pkgs.gitea-actions-runner}/bin/act_runner daemon";
+      ExecStart = "${pkgs.forgejo-actions-runner}/bin/forgejo-runner daemon";
     };
     wantedBy = ["multi-user.target"];
     serviceConfig = {
       Type = "simple";
-      User = "gitea_act";
-      Group = "gitea_act";
-      WorkingDirectory = "/var/lib/gitea_act";
+      User = "forgejo_runner";
+      Group = "forgejo_runner";
+      WorkingDirectory = "/var/lib/forgejo_runner";
     };
   };
 
