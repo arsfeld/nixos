@@ -178,9 +178,7 @@ in
         "${cfg.name}" = {
           toURL = "http://127.0.0.1:${toString cfg.port}";
           funnel = cfg.settings.funnel;
-          # Use auth.bat-boa.ts.net for Tailscale-exposed services
-          # This ensures session cookies work correctly on *.bat-boa.ts.net domains
-          authURL = optionalString (!cfg.settings.bypassAuth) "https://auth.bat-boa.ts.net";
+          # No Authelia for bat-boa.ts.net - Tailscale provides network-level authentication
         };
       };
 

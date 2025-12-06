@@ -26,7 +26,7 @@
 with lib; let
   services = {
     cloud = {
-      auth = 9091; # Explicit port for arsfeld.one Authelia (bat-boa.ts.net uses 63836)
+      auth = 9091; # Authelia for arsfeld.one (bat-boa.ts.net uses Tailscale network auth)
       dex = null;
       dns = null;
       invidious = null;
