@@ -233,24 +233,9 @@ in {
     unixSocketPerm = 600;
   };
 
-  # Authelia instance for bat-boa.ts.net domain
-  # This instance handles authentication for services exposed via Tailscale
-  # Session cookies are scoped to *.bat-boa.ts.net to work with Tailscale domains
-  # Listens on port 9092 (used by tsnsrv)
-  services.authelia.instances."bat-boa.ts.net" = mkAutheliaInstance {
-    domain = "bat-boa.ts.net";
-    port = services.auth.port; # 9092
-  };
-
-  services.redis.servers."authelia-bat-boa.ts.net" = {
-    enable = true;
-    user = "authelia-bat-boa.ts.net";
-    port = 0;
-    unixSocketPerm = 600;
-  };
+  # bat-boa.ts.net does not use Authelia - Tailscale provides network-level authentication
 
   # Manual Caddy vhost for auth.arsfeld.one → port 9091
-  # This overrides the auto-generated vhost which would point to port 9092 (tsnsrv port)
   services.caddy.virtualHosts."auth.arsfeld.one" = lib.mkForce {
     useACMEHost = "arsfeld.one";
     extraConfig = ''
