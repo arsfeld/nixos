@@ -34,353 +34,385 @@
   };
 
   outputs = {self, ...} @ inputs:
-    inputs.flake-parts.lib.mkFlake {inherit inputs;} ({moduleWithSystem, ...}: {
-      imports = [];
+    inputs.flake-parts.lib.mkFlake {inherit inputs;} (
+      {moduleWithSystem, ...}: {
+        imports = [];
 
-      systems = ["x86_64-linux" "aarch64-linux" "aarch64-darwin"];
+        systems = [
+          "x86_64-linux"
+          "aarch64-linux"
+          "aarch64-darwin"
+        ];
 
-      perSystem = {
-        config,
-        self',
-        inputs',
-        pkgs,
-        system,
-        ...
-      }: {
-        _module.args.pkgs = import inputs.nixpkgs {
-          inherit system;
-          overlays = [
-            (import ./overlays/python-packages.nix)
-            # Caddy with Tailscale OAuth plugin
-            (final: prev: {
-              caddy-tailscale = final.callPackage ./packages/caddy-tailscale {};
-            })
-          ];
-        };
-        formatter = pkgs.alejandra;
-        checks = {
-          pre-commit-check = inputs.git-hooks.lib.${system}.run {
-            src = ./.;
-            hooks = {
-              alejandra.enable = true;
-              gptcommit = {
-                enable = false;
-                name = "gptcommit";
-                entry = "${pkgs.gptcommit}/bin/gptcommit prepare-commit-msg";
-                language = "system";
-                stages = ["prepare-commit-msg"];
-                always_run = true;
-                pass_filenames = false;
-                args = ["--commit-msg-file"];
+        perSystem = {
+          config,
+          self',
+          inputs',
+          pkgs,
+          system,
+          ...
+        }: {
+          _module.args.pkgs = import inputs.nixpkgs {
+            inherit system;
+            overlays = [
+              (import ./overlays/python-packages.nix)
+              # Caddy with Tailscale OAuth plugin
+              (final: prev: {
+                caddy-tailscale = final.callPackage ./packages/caddy-tailscale {};
+              })
+            ];
+          };
+          formatter = pkgs.alejandra;
+          checks = {
+            pre-commit-check = inputs.git-hooks.lib.${system}.run {
+              src = ./.;
+              hooks = {
+                alejandra.enable = true;
+                gptcommit = {
+                  enable = false;
+                  name = "gptcommit";
+                  entry = "${pkgs.gptcommit}/bin/gptcommit prepare-commit-msg";
+                  language = "system";
+                  stages = ["prepare-commit-msg"];
+                  always_run = true;
+                  pass_filenames = false;
+                  args = ["--commit-msg-file"];
+                };
               };
             };
           };
+          devShells.default = pkgs.mkShell {
+            inherit (config.checks.pre-commit-check) shellHook;
+            buildInputs = with pkgs;
+              [
+                # Nix tools
+                alejandra
+                attic-client
+                colmena
+                inputs.deploy-rs.packages."${pkgs.stdenv.hostPlatform.system}".default
+                disko
+                git
+                jq
+                just
+                openssl
+                ragenix # Use nixpkgs' ragenix for devShell (inputs.ragenix still used for NixOS module)
+                inputs.sops-nix.packages."${pkgs.stdenv.hostPlatform.system}".sops-import-keys-hook
+                sops
+                ssh-to-age
+                inputs.disko.packages."${pkgs.stdenv.hostPlatform.system}".default
+
+                # Python tools
+                black
+                python3Packages.mkdocs
+                python3Packages.mkdocs-material
+                python3Packages.mkdocs-awesome-nav
+                python3Packages.mkdocs-mermaid2-plugin
+                python3Packages.mike
+                python3Packages.pymdown-extensions
+
+                # Git commit tools
+                gptcommit
+              ]
+              ++ config.checks.pre-commit-check.enabledPackages;
+          };
+
+          # Expose packages loaded via haumea
+          packages = inputs.haumea.lib.load {
+            src = ./packages;
+            loader = inputs.haumea.lib.loaders.callPackage;
+            inputs = {inherit pkgs;};
+            transformer = inputs.haumea.lib.transformers.liftDefault;
+          };
+
+          legacyPackages.homeConfigurations.arosenfeld = inputs.home-manager.lib.homeManagerConfiguration {
+            inherit pkgs;
+            modules = [
+              inputs.nix-index-database.homeModules.nix-index
+              ./home/home.nix
+              {
+                # Specific to standalone home-manager
+                nixpkgs.config = {
+                  allowUnfree = true;
+                  android_sdk.accept_license = true;
+                };
+              }
+            ];
+          };
         };
-        devShells.default = pkgs.mkShell {
-          inherit (config.checks.pre-commit-check) shellHook;
-          buildInputs = with pkgs;
-            [
-              # Nix tools
-              alejandra
-              attic-client
-              colmena
-              deploy-rs
-              disko
-              git
-              jq
-              just
-              openssl
-              ragenix # Use nixpkgs' ragenix for devShell (inputs.ragenix still used for NixOS module)
-              inputs.sops-nix.packages."${pkgs.stdenv.hostPlatform.system}".sops-import-keys-hook
-              sops
-              ssh-to-age
-              inputs.disko.packages."${pkgs.stdenv.hostPlatform.system}".default
 
-              # Python tools
-              black
-              python3Packages.mkdocs
-              python3Packages.mkdocs-material
-              python3Packages.mkdocs-awesome-nav
-              python3Packages.mkdocs-mermaid2-plugin
-              python3Packages.mike
-              python3Packages.pymdown-extensions
-
-              # Git commit tools
-              gptcommit
-            ]
-            ++ config.checks.pre-commit-check.enabledPackages;
-        };
-
-        # Expose packages loaded via haumea
-        packages = inputs.haumea.lib.load {
-          src = ./packages;
-          loader = inputs.haumea.lib.loaders.callPackage;
-          inputs = {inherit pkgs;};
-          transformer = inputs.haumea.lib.transformers.liftDefault;
-        };
-
-        legacyPackages.homeConfigurations.arosenfeld = inputs.home-manager.lib.homeManagerConfiguration {
-          inherit pkgs;
-          modules = [
-            inputs.nix-index-database.homeModules.nix-index
-            ./home/home.nix
-            {
-              # Specific to standalone home-manager
-              nixpkgs.config = {
-                allowUnfree = true;
-                android_sdk.accept_license = true;
-              };
-            }
-          ];
-        };
-      };
-
-      flake = {
-        lib = let
-          # Define packages loading function once
-          loadPackages = pkgs: let
-            loaded = inputs.haumea.lib.load {
-              src = ./packages;
-              loader = inputs.haumea.lib.loaders.callPackage;
-              inputs = {inherit pkgs;};
-            };
-          in
-            builtins.mapAttrs (
-              name: value:
-                if value ? default
-                then value.default
-                else value
-            )
-            loaded;
-
-          # Common overlays used everywhere
-          overlays = [
-            (import ./overlays/python-packages.nix)
-            # Caddy with Tailscale OAuth plugin
-            (final: prev: {
-              caddy-tailscale = final.callPackage ./packages/caddy-tailscale {};
-            })
-            # Load packages from ./packages directory using haumea
-            (final: prev: loadPackages final)
-          ];
-
-          baseModules = inputs.nixpkgs.lib.flatten [
-            inputs.ragenix.nixosModules.default
-            inputs.sops-nix.nixosModules.sops
-            inputs.determinate.nixosModules.default
-            inputs.nix-flatpak.nixosModules.nix-flatpak
-            inputs.harmonia.nixosModules.harmonia
-            inputs.tsnsrv.nixosModules.default
-            inputs.vpn-confinement.nixosModules.default
-            {
-              nixpkgs.overlays = overlays;
-            }
-            # Load all modules from the modules directory
-            (let
-              getAllValues = set: let
-                recurse = value:
-                  if builtins.isAttrs value
-                  then builtins.concatLists (map recurse (builtins.attrValues value))
-                  else [value];
-              in
-                recurse set;
-              modules = inputs.haumea.lib.load {
-                src = ./modules;
-                loader = inputs.haumea.lib.loaders.path;
+        flake = {
+          lib = let
+            # Define packages loading function once
+            loadPackages = pkgs: let
+              loaded = inputs.haumea.lib.load {
+                src = ./packages;
+                loader = inputs.haumea.lib.loaders.callPackage;
+                inputs = {inherit pkgs;};
               };
             in
-              getAllValues modules)
-          ];
+              builtins.mapAttrs (name: value:
+                if value ? default
+                then value.default
+                else value)
+              loaded;
 
-          homeManagerModules = [
-            inputs.home-manager.nixosModules.home-manager
-            {
-              home-manager.sharedModules = [
-                inputs.nix-index-database.homeModules.nix-index
-              ];
-              home-manager.useGlobalPkgs = true;
-              home-manager.useUserPackages = false;
-              home-manager.backupFileExtension = "bak";
-              home-manager.users.arosenfeld = import ./home/home.nix;
-            }
-          ];
-        in {
-          inherit loadPackages overlays baseModules homeManagerModules;
+            # Common overlays used everywhere
+            overlays = [
+              (import ./overlays/python-packages.nix)
+              # Caddy with Tailscale OAuth plugin
+              (final: prev: {
+                caddy-tailscale = final.callPackage ./packages/caddy-tailscale {};
+              })
+              # Load packages from ./packages directory using haumea
+              (final: prev: loadPackages final)
+            ];
 
-          mkLinuxSystem = {mods}:
-            inputs.nixpkgs.lib.nixosSystem {
-              # Arguments to pass to all modules.
-              specialArgs = {inherit self inputs;};
-              modules =
-                baseModules
-                ++ homeManagerModules
-                ++ mods;
-            };
-        };
+            baseModules = inputs.nixpkgs.lib.flatten [
+              inputs.ragenix.nixosModules.default
+              inputs.sops-nix.nixosModules.sops
+              inputs.determinate.nixosModules.default
+              inputs.nix-flatpak.nixosModules.nix-flatpak
+              inputs.harmonia.nixosModules.harmonia
+              inputs.tsnsrv.nixosModules.default
+              inputs.vpn-confinement.nixosModules.default
+              {
+                nixpkgs.overlays = overlays;
+              }
+              # Load all modules from the modules directory
+              (
+                let
+                  getAllValues = set: let
+                    recurse = value:
+                      if builtins.isAttrs value
+                      then builtins.concatLists (map recurse (builtins.attrValues value))
+                      else [value];
+                  in
+                    recurse set;
+                  modules = inputs.haumea.lib.load {
+                    src = ./modules;
+                    loader = inputs.haumea.lib.loaders.path;
+                  };
+                in
+                  getAllValues modules
+              )
+            ];
 
-        # Auto-discover all hosts from the hosts/ directory
-        hosts = let
-          # Load all host directories
-          hostDirs = builtins.readDir ./hosts;
-          # Filter for directories that have configuration.nix
-          validHosts =
-            inputs.nixpkgs.lib.filterAttrs (
-              name: type:
-                type == "directory" && builtins.pathExists ./hosts/${name}/configuration.nix
-            )
-            hostDirs;
-        in
-          builtins.attrNames validHosts;
-
-        nixosConfigurations = builtins.listToAttrs (map (hostName: let
-            # Check if host has a disko config file
-            hasDisko = builtins.pathExists ./hosts/${hostName}/disko-config.nix;
+            homeManagerModules = [
+              inputs.home-manager.nixosModules.home-manager
+              {
+                home-manager.sharedModules = [
+                  inputs.nix-index-database.homeModules.nix-index
+                ];
+                home-manager.useGlobalPkgs = true;
+                home-manager.useUserPackages = false;
+                home-manager.backupFileExtension = "bak";
+                home-manager.users.arosenfeld = import ./home/home.nix;
+              }
+            ];
           in {
-            name = hostName;
-            value = self.lib.mkLinuxSystem {
-              mods =
-                (
+            inherit
+              loadPackages
+              overlays
+              baseModules
+              homeManagerModules
+              ;
+
+            mkLinuxSystem = {mods}:
+              inputs.nixpkgs.lib.nixosSystem {
+                # Arguments to pass to all modules.
+                specialArgs = {inherit self inputs;};
+                modules = baseModules ++ homeManagerModules ++ mods;
+              };
+          };
+
+          # Auto-discover all hosts from the hosts/ directory
+          hosts = let
+            # Load all host directories
+            hostDirs = builtins.readDir ./hosts;
+            # Filter for directories that have configuration.nix
+            validHosts =
+              inputs.nixpkgs.lib.filterAttrs (
+                name: type: type == "directory" && builtins.pathExists ./hosts/${name}/configuration.nix
+              )
+              hostDirs;
+          in
+            builtins.attrNames validHosts;
+
+          nixosConfigurations = builtins.listToAttrs (
+            map (
+              hostName: let
+                # Check if host has a disko config file
+                hasDisko = builtins.pathExists ./hosts/${hostName}/disko-config.nix;
+              in {
+                name = hostName;
+                value = self.lib.mkLinuxSystem {
+                  mods =
+                    (
+                      if hasDisko
+                      then [inputs.disko.nixosModules.disko]
+                      else []
+                    )
+                    ++ [
+                      ./hosts/${hostName}/configuration.nix
+                    ];
+                };
+              }
+            )
+            self.hosts
+          );
+
+          # Deploy-rs configuration
+          deploy = let
+            mkDeploy = hostName: let
+              # Get the system from the nixosConfiguration
+              hostConfig = self.nixosConfigurations.${hostName}.config;
+              system = hostConfig.nixpkgs.hostPlatform.system or "x86_64-linux";
+            in {
+              hostname = "${hostName}.bat-boa.ts.net";
+              fastConnection = true;
+              remoteBuild = hostName == "cloud"; # Enable remote build for cloud (aarch64)
+              profiles.system.path =
+                inputs.deploy-rs.lib.${system}.activate.nixos
+                self.nixosConfigurations.${hostName};
+            };
+          in {
+            sshUser = "root";
+            autoRollback = false;
+            magicRollback = false;
+            nodes = builtins.listToAttrs (
+              map (hostName: {
+                name = hostName;
+                value = mkDeploy hostName;
+              })
+              self.hosts
+            );
+          };
+
+          packages.aarch64-linux = {
+            raspi3 = inputs.nixos-generators.nixosGenerate {
+              system = "aarch64-linux";
+              modules =
+                self.lib.baseModules
+                ++ [
+                  ./hosts/raspi3/configuration.nix
+                ];
+              specialArgs = {inherit self inputs;};
+              format = "sd-aarch64";
+            };
+            octopi = inputs.nixos-generators.nixosGenerate {
+              system = "aarch64-linux";
+              modules =
+                self.lib.baseModules
+                ++ [
+                  ./hosts/octopi/configuration.nix
+                ];
+              specialArgs = {inherit self inputs;};
+              format = "sd-aarch64";
+            };
+          };
+
+          # Colmena deployment configuration
+          colmena = let
+            # Function to create colmena host configuration
+            mkColmenaHost = hostName: let
+              # Check if host has a disko config file
+              hasDisko = builtins.pathExists ./hosts/${hostName}/disko-config.nix;
+            in {
+              deployment = {
+                targetHost = "${hostName}.bat-boa.ts.net";
+                targetUser = "root";
+                buildOnTarget = false;
+              };
+              imports =
+                self.lib.baseModules
+                ++ self.lib.homeManagerModules
+                ++ (
                   if hasDisko
                   then [inputs.disko.nixosModules.disko]
                   else []
                 )
-                ++ [./hosts/${hostName}/configuration.nix];
+                ++ [
+                  ./hosts/${hostName}/configuration.nix
+                ];
             };
-          })
-          self.hosts);
 
-        # Deploy-rs configuration
-        deploy = let
-          mkDeploy = hostName: let
-            # Get the system from the nixosConfiguration
-            hostConfig = self.nixosConfigurations.${hostName}.config;
-            system = hostConfig.nixpkgs.hostPlatform.system or "x86_64-linux";
-          in {
-            hostname = "${hostName}.bat-boa.ts.net";
-            fastConnection = true;
-            remoteBuild = hostName == "cloud"; # Enable remote build for cloud (aarch64)
-            profiles.system.path = inputs.deploy-rs.lib.${system}.activate.nixos self.nixosConfigurations.${hostName};
-          };
-        in {
-          sshUser = "root";
-          autoRollback = false;
-          magicRollback = false;
-          nodes = builtins.listToAttrs (map (hostName: {
-              name = hostName;
-              value = mkDeploy hostName;
-            })
-            self.hosts);
-        };
-
-        packages.aarch64-linux = {
-          raspi3 = inputs.nixos-generators.nixosGenerate {
-            system = "aarch64-linux";
-            modules =
-              self.lib.baseModules
-              ++ [
-                ./hosts/raspi3/configuration.nix
-              ];
-            specialArgs = {inherit self inputs;};
-            format = "sd-aarch64";
-          };
-          octopi = inputs.nixos-generators.nixosGenerate {
-            system = "aarch64-linux";
-            modules =
-              self.lib.baseModules
-              ++ [
-                ./hosts/octopi/configuration.nix
-              ];
-            specialArgs = {inherit self inputs;};
-            format = "sd-aarch64";
-          };
-        };
-
-        # Colmena deployment configuration
-        colmena = let
-          # Function to create colmena host configuration
-          mkColmenaHost = hostName: let
-            # Check if host has a disko config file
-            hasDisko = builtins.pathExists ./hosts/${hostName}/disko-config.nix;
-          in {
-            deployment = {
-              targetHost = "${hostName}.bat-boa.ts.net";
-              targetUser = "root";
-              buildOnTarget = false;
-            };
-            imports =
-              self.lib.baseModules
-              ++ self.lib.homeManagerModules
-              ++ (
-                if hasDisko
-                then [inputs.disko.nixosModules.disko]
-                else []
+            # Find aarch64 hosts by checking their configurations
+            aarch64Hosts =
+              builtins.filter (
+                name: let
+                  hostConfig = self.nixosConfigurations.${name}.config;
+                  system = hostConfig.nixpkgs.hostPlatform.system or "x86_64-linux";
+                in
+                  system == "aarch64-linux"
               )
-              ++ [
-                ./hosts/${hostName}/configuration.nix
-              ];
-          };
+              self.hosts;
 
-          # Find aarch64 hosts by checking their configurations
-          aarch64Hosts = builtins.filter (name: let
-            hostConfig = self.nixosConfigurations.${name}.config;
-            system = hostConfig.nixpkgs.hostPlatform.system or "x86_64-linux";
+            # Define nixpkgs for each aarch64 host to enable cross-compilation
+            nodeNixpkgs = builtins.listToAttrs (
+              map (hostName: {
+                name = hostName;
+                value = import inputs.nixpkgs {
+                  system = "aarch64-linux";
+                  overlays = self.lib.overlays;
+                };
+              })
+              aarch64Hosts
+            );
           in
-            system == "aarch64-linux")
-          self.hosts;
+            {
+              meta = {
+                nixpkgs = import inputs.nixpkgs {
+                  system = "x86_64-linux";
+                  overlays = self.lib.overlays;
+                };
+                inherit nodeNixpkgs;
+                specialArgs = {inherit self inputs;};
+              };
+            }
+            // (builtins.listToAttrs (
+              map (hostName: {
+                name = hostName;
+                value = mkColmenaHost hostName;
+              })
+              self.hosts
+            ));
 
-          # Define nixpkgs for each aarch64 host to enable cross-compilation
-          nodeNixpkgs = builtins.listToAttrs (map (hostName: {
-              name = hostName;
-              value = import inputs.nixpkgs {
-                system = "aarch64-linux";
-                overlays = self.lib.overlays;
-              };
-            })
-            aarch64Hosts);
-        in
-          {
-            meta = {
-              nixpkgs = import inputs.nixpkgs {
-                system = "x86_64-linux";
-                overlays = self.lib.overlays;
-              };
-              inherit nodeNixpkgs;
-              specialArgs = {inherit self inputs;};
+          checks =
+            builtins.mapAttrs (
+              system: deployLib:
+                deployLib.deployChecks self.deploy
+                // {
+                  router-test = inputs.nixpkgs.legacyPackages.${system}.nixosTest (
+                    import ./tests/router-test.nix {inherit self inputs;}
+                  );
+                  router-test-production = inputs.nixpkgs.legacyPackages.${system}.nixosTest (
+                    import ./tests/router-test-production.nix
+                  );
+                  harmonia-cache-test = inputs.nixpkgs.legacyPackages.${system}.nixosTest (
+                    import ./tests/harmonia-cache-test.nix {inherit self inputs;}
+                  );
+                }
+            )
+            inputs.deploy-rs.lib;
+
+          # Testing configurations and packages
+          packages.x86_64-linux = {
+            # Add ARM images from above to ensure we have all the entries
+            inherit (self.packages.aarch64-linux) raspi3 octopi;
+
+            # Router QEMU test
+            router-test =
+              inputs.nixpkgs.legacyPackages.x86_64-linux.callPackage ./tests/router-qemu-test.nix
+              {};
+
+            # Custom kexec image with Tailscale for nixos-anywhere
+            kexec-tailscale = inputs.nixos-generators.nixosGenerate {
+              pkgs = inputs.nixpkgs.legacyPackages.x86_64-linux;
+              modules = [./kexec-tailscale.nix];
+              format = "kexec-bundle";
             };
-          }
-          // (builtins.listToAttrs (map (hostName: {
-              name = hostName;
-              value = mkColmenaHost hostName;
-            })
-            self.hosts));
-
-        checks =
-          builtins.mapAttrs (
-            system: deployLib:
-              deployLib.deployChecks self.deploy
-              // {
-                router-test = inputs.nixpkgs.legacyPackages.${system}.nixosTest (import ./tests/router-test.nix {inherit self inputs;});
-                router-test-production = inputs.nixpkgs.legacyPackages.${system}.nixosTest (import ./tests/router-test-production.nix);
-                harmonia-cache-test = inputs.nixpkgs.legacyPackages.${system}.nixosTest (import ./tests/harmonia-cache-test.nix {inherit self inputs;});
-              }
-          )
-          inputs.deploy-rs.lib;
-
-        # Testing configurations and packages
-        packages.x86_64-linux = {
-          # Add ARM images from above to ensure we have all the entries
-          inherit (self.packages.aarch64-linux) raspi3 octopi;
-
-          # Router QEMU test
-          router-test = inputs.nixpkgs.legacyPackages.x86_64-linux.callPackage ./tests/router-qemu-test.nix {};
-
-          # Custom kexec image with Tailscale for nixos-anywhere
-          kexec-tailscale = inputs.nixos-generators.nixosGenerate {
-            pkgs = inputs.nixpkgs.legacyPackages.x86_64-linux;
-            modules = [./kexec-tailscale.nix];
-            format = "kexec-bundle";
           };
         };
-      };
-    });
+      }
+    );
 }
