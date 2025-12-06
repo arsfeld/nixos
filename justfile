@@ -21,7 +21,7 @@ _format-targets +TARGETS:
 # This is the default since deploy-rs has issues with Nix 2.32+ (https://github.com/serokell/deploy-rs/issues/340)
 
 # Deploy using nixos-rebuild (switch to new configuration)
-deploy HOST:
+deploy-legacy HOST:
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -32,7 +32,7 @@ deploy HOST:
     nixos-rebuild switch --flake ".#{{ HOST }}" --target-host "root@${TARGET}" --use-remote-sudo
 
 # Deploy with boot activation (activates on next boot)
-boot HOST:
+boot-legacy HOST:
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -55,12 +55,12 @@ test HOST:
 # NOTE: deploy-rs has known issues with Nix 2.32+ (https://github.com/serokell/deploy-rs/issues/340)
 # Use these commands once the issue is resolved
 
-boot-rs +TARGETS:
+boot +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail # Enable strict error handling
     deploy {{ args }} --boot --targets $(just _format-targets {{ TARGETS }})
 
-deploy-rs +TARGETS:
+deploy +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail # Enable strict error handling
 
@@ -248,7 +248,7 @@ build-kexec:
 install HOST TARGET_IP KEXEC="":
     #!/usr/bin/env bash
     set -euo pipefail
-    
+
     echo "Installing {{ HOST }} configuration to {{ TARGET_IP }} using nixos-anywhere..."
     echo ""
     echo "⚠️  WARNING: This will COMPLETELY WIPE the target system!"
@@ -260,7 +260,7 @@ install HOST TARGET_IP KEXEC="":
     echo "  4. Partition and format the disk using disko"
     echo "  5. Install NixOS with the {{ HOST }} configuration"
     echo "  6. Restore preserved state and reboot"
-    
+
     # Check if using custom kexec
     if [ -n "{{ KEXEC }}" ]; then
         echo ""
@@ -294,11 +294,11 @@ install HOST TARGET_IP KEXEC="":
         echo "Aborted."
         exit 1
     fi
-    
+
     # Create temporary directory for state preservation
     TMPDIR=$(mktemp -d)
     trap 'rm -rf -- "$TMPDIR"' EXIT
-    
+
     # Detect if we're using a Tailscale IP
     if [[ {{ TARGET_IP }} == *.ts.net ]] || [[ {{ TARGET_IP }} == 100.* ]]; then
         echo ""
@@ -317,7 +317,7 @@ install HOST TARGET_IP KEXEC="":
             exit 1
         fi
     fi
-    
+
     # Try to preserve Tailscale state if it exists
     echo "Checking for existing Tailscale state..."
     if ssh root@{{ TARGET_IP }} "test -d /var/lib/tailscale || test -d /var/db/tailscale" 2>/dev/null; then
@@ -325,7 +325,7 @@ install HOST TARGET_IP KEXEC="":
         ssh root@{{ TARGET_IP }} "tar -czf - -C / var/lib/tailscale 2>/dev/null || tar -czf - -C / var/db/tailscale 2>/dev/null" > "$TMPDIR/tailscale-state.tar.gz" || {
             echo "Warning: Could not extract Tailscale state."
         }
-        
+
         if [ -f "$TMPDIR/tailscale-state.tar.gz" ]; then
             mkdir -p "$TMPDIR/extra-files"
             tar -xzf "$TMPDIR/tailscale-state.tar.gz" -C "$TMPDIR/extra-files"
@@ -334,29 +334,29 @@ install HOST TARGET_IP KEXEC="":
     else
         echo "No Tailscale state found on target"
     fi
-    
+
     # Build nixos-anywhere command
     NIXOS_ANYWHERE_CMD="nix run github:nix-community/nixos-anywhere -- --flake .#{{ HOST }}"
-    
+
     # Add custom kexec if provided
     if [ -n "{{ KEXEC }}" ]; then
         NIXOS_ANYWHERE_CMD="$NIXOS_ANYWHERE_CMD --kexec {{ KEXEC }}"
     fi
-    
+
     # Add extra files if we have them
     if [ -d "$TMPDIR/extra-files" ] && [ -n "$(ls -A "$TMPDIR/extra-files")" ]; then
         NIXOS_ANYWHERE_CMD="$NIXOS_ANYWHERE_CMD --extra-files $TMPDIR/extra-files"
     fi
-    
+
     # Always copy host keys if they exist
     NIXOS_ANYWHERE_CMD="$NIXOS_ANYWHERE_CMD --copy-host-keys"
-    
+
     # Install using nixos-anywhere
     echo ""
     echo "Starting installation..."
     echo "NOTE: You may see 'Connection closed' - this is expected during kexec."
     $NIXOS_ANYWHERE_CMD root@{{ TARGET_IP }}
-    
+
     echo ""
     echo "Installation complete! The system should automatically reboot."
     if [ -d "$TMPDIR/extra-files" ] && [ -n "$(ls -A "$TMPDIR/extra-files")" ]; then
@@ -374,7 +374,7 @@ install HOST TARGET_IP KEXEC="":
 install-infect HOST TARGET_HOST:
     #!/usr/bin/env bash
     set -euo pipefail
-    
+
     echo "Installing {{ HOST }} on {{ TARGET_HOST }} using nixos-infect..."
     echo ""
     echo "This method:"
@@ -394,11 +394,11 @@ install-infect HOST TARGET_HOST:
         echo "Aborted."
         exit 1
     fi
-    
+
     # Copy and run the install script
     echo "Copying installation script to target..."
     scp hosts/{{ HOST }}/install-nixos.sh root@{{ TARGET_HOST }}:/tmp/
-    
+
     echo "Running installation script..."
     echo "NOTE: You may temporarily lose connection during the conversion"
     ssh root@{{ TARGET_HOST }} "bash /tmp/install-nixos.sh" || {
@@ -416,15 +416,15 @@ install-infect HOST TARGET_HOST:
 hardware-config HOST TARGET_HOST:
     #!/usr/bin/env bash
     set -euo pipefail
-    
+
     echo "Generating hardware configuration for {{ HOST }} at {{ TARGET_HOST }}..."
-    
+
     # Create host directory if it doesn't exist
     mkdir -p hosts/{{ HOST }}
-    
+
     # Generate hardware config on the target
     ssh root@{{ TARGET_HOST }} nixos-generate-config --show-hardware-config > hosts/{{ HOST }}/hardware-configuration.nix
-    
+
     echo "Hardware configuration saved to hosts/{{ HOST }}/hardware-configuration.nix"
     echo "Review the file and commit it to the repository."
 
@@ -435,7 +435,7 @@ hardware-config HOST TARGET_HOST:
 disko HOST TARGET:
     #!/usr/bin/env bash
     set -euo pipefail
-    
+
     echo "Applying disko configuration for {{ HOST }} to {{ TARGET }}..."
     echo ""
     echo "⚠️  WARNING: This will DESTROY ALL DATA on the configured disks!"
@@ -447,13 +447,13 @@ disko HOST TARGET:
     echo "  4. Create filesystems (including ZFS pools if configured)"
     echo "  5. Mount everything according to the configuration"
     echo ""
-    
+
     # Check if disko config exists
     if [ ! -f "hosts/{{ HOST }}/disko-config.nix" ]; then
         echo "Error: No disko configuration found at hosts/{{ HOST }}/disko-config.nix"
         exit 1
     fi
-    
+
     # Show disk configuration summary
     echo "Disk configuration preview:"
     if grep -q "zpool" "hosts/{{ HOST }}/disko-config.nix"; then
@@ -465,26 +465,26 @@ disko HOST TARGET:
         grep -E "device = " "hosts/{{ HOST }}/disko-config.nix" | sed 's/^/    /'
     fi
     echo ""
-    
+
     read -p "Are you ABSOLUTELY SURE you want to continue? Type 'yes' to proceed: " confirmation
     if [[ "$confirmation" != "yes" ]]; then
         echo "Aborted."
         exit 1
     fi
-    
+
     echo ""
     echo "Copying disko configuration to target..."
-    
+
     # Copy the disko configuration to the target
     scp "hosts/{{ HOST }}/disko-config.nix" "{{ TARGET }}:/tmp/disko-config.nix"
-    
+
     echo "Running disko on the target system..."
-    
+
     # Run disko on the target system
     # Using --mode destroy,format,mount to wipe, format and mount
     # Add --debug for more verbose output if needed
     ssh "{{ TARGET }}" "nix run github:nix-community/disko -- --mode destroy,format,mount --yes-wipe-all-disks /tmp/disko-config.nix"
-    
+
     echo ""
     echo "✅ Disko configuration applied successfully!"
     echo ""
@@ -501,7 +501,7 @@ disko HOST TARGET:
 router-interfaces TARGET_HOST:
     #!/usr/bin/env bash
     set -euo pipefail
-    
+
     ssh root@{{ TARGET_HOST }} bash << 'EOF'
         # Get all physical interfaces
         interfaces=()
@@ -514,14 +514,14 @@ router-interfaces TARGET_HOST:
                 interfaces+=("$iface|$mac|$link_status")
             fi
         done
-        
+
         # Output in the desired format
         echo "  router.interfaces = {"
-        
+
         i=0
         for entry in "${interfaces[@]}"; do
             IFS='|' read -r iface mac link <<< "$entry"
-            
+
             case $i in
                 0) echo "    wan = \"$iface\";    # WAN interface (MAC: $mac, Link: $link)" ;;
                 1) echo "    lan1 = \"$iface\";   # First LAN port (MAC: $mac, Link: $link)" ;;
@@ -529,10 +529,10 @@ router-interfaces TARGET_HOST:
                 3) echo "    lan3 = \"$iface\";   # Third LAN port (MAC: $mac, Link: $link)" ;;
                 *) echo "    # Extra interface: $iface (MAC: $mac, Link: $link)" ;;
             esac
-            
+
             ((i++))
         done
-        
+
         echo "  };"
     EOF
 
@@ -569,62 +569,62 @@ secret-create SECRET_NAME:
 plausible-setup:
     #!/usr/bin/env bash
     set -euo pipefail
-    
+
     # Colors for output
     RED='\033[0;31m'
     GREEN='\033[0;32m'
     YELLOW='\033[1;33m'
     NC='\033[0m' # No Color
-    
+
     echo -e "${GREEN}Setting up Plausible Analytics secrets...${NC}"
-    
+
     # Check if ragenix is available
     if ! command -v ragenix &> /dev/null; then
         echo -e "${RED}Error: ragenix command not found. Please enter the development shell with 'nix develop'${NC}"
         exit 1
     fi
-    
+
     # Save the original directory
     ORIG_DIR=$(pwd)
-    
+
     # Generate SECRET_KEY_BASE
     echo -e "${YELLOW}Generating SECRET_KEY_BASE...${NC}"
     SECRET_KEY=$(openssl rand -base64 64 | tr -d '\n=')
     echo "SECRET_KEY_BASE=${SECRET_KEY}" > /tmp/plausible-secret-key.txt
-    
+
     # Encrypt the secret key
     echo -e "${YELLOW}Encrypting SECRET_KEY_BASE...${NC}"
     cd "$ORIG_DIR/secrets" && ragenix -e plausible-secret-key.age --editor "sh -c 'cat > \$1' --" < /tmp/plausible-secret-key.txt
     rm -f /tmp/plausible-secret-key.txt
-    
+
     echo -e "${GREEN}✓ SECRET_KEY_BASE generated and encrypted${NC}"
-    
+
     # Handle SMTP password
     echo -e "${YELLOW}Setting up SMTP password...${NC}"
     echo -e "Do you want to:"
     echo -e "1) Reuse the existing system SMTP password (smtp_password.age)"
     echo -e "2) Enter a new SMTP password for Plausible"
     read -p "Choose option (1 or 2): " choice
-    
+
     case $choice in
         1)
             # Reuse existing SMTP password
             echo -e "${YELLOW}Decrypting existing SMTP password...${NC}"
-            
+
             # Create a temporary file for the decrypted password
             TEMP_SMTP=$(mktemp)
             trap "rm -f ${TEMP_SMTP}" EXIT
-            
+
             # Decrypt the existing SMTP password
             cd "$ORIG_DIR/secrets" && age -d -i ~/.ssh/id_ed25519 smtp_password.age > "${TEMP_SMTP}"
-            
+
             # Format it for Plausible's environment variable
             echo "SMTP_USER_PWD=$(cat ${TEMP_SMTP})" > /tmp/plausible-smtp-password.txt
-            
+
             # Encrypt for Plausible
             cd "$ORIG_DIR/secrets" && ragenix -e plausible-smtp-password.age --editor "sh -c 'cat > \$1' --" < /tmp/plausible-smtp-password.txt
             rm -f /tmp/plausible-smtp-password.txt
-            
+
             echo -e "${GREEN}✓ Existing SMTP password reused for Plausible${NC}"
             ;;
         2)
@@ -632,14 +632,14 @@ plausible-setup:
             echo -e "${YELLOW}Enter the SMTP password for Plausible:${NC}"
             read -s smtp_password
             echo
-            
+
             # Create the environment variable file
             echo "SMTP_USER_PWD=${smtp_password}" > /tmp/plausible-smtp-password.txt
-            
+
             # Encrypt the SMTP password
             cd "$ORIG_DIR/secrets" && ragenix -e plausible-smtp-password.age --editor "sh -c 'cat > \$1' --" < /tmp/plausible-smtp-password.txt
             rm -f /tmp/plausible-smtp-password.txt
-            
+
             echo -e "${GREEN}✓ New SMTP password encrypted for Plausible${NC}"
             ;;
         *)
@@ -647,7 +647,7 @@ plausible-setup:
             exit 1
             ;;
     esac
-    
+
     echo -e "${GREEN}✅ All Plausible secrets have been set up successfully!${NC}"
     echo -e "${YELLOW}Next steps:${NC}"
     echo -e "1. Commit the new secret files: git add secrets/plausible-*.age"
