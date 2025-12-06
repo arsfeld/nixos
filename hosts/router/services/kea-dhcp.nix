@@ -244,6 +244,8 @@ in {
       DynamicUser = lib.mkForce false;
       User = "kea";
       Group = "kea";
+      # Wait for bridge to have IP and STP to converge before binding
+      ExecStartPre = "${pkgs.bash}/bin/bash -c 'until ${pkgs.iproute2}/bin/ip addr show br-lan | ${pkgs.gnugrep}/bin/grep -q \"inet \"; do sleep 1; done; sleep 5'";
     };
   };
 
