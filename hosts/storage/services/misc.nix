@@ -16,7 +16,7 @@ in {
   services.tsnsrv = {
     enable = true;
     separateProcesses = true; # Create individual systemd service per tsnsrv service
-    prometheusAddr = "127.0.0.1:9099";
+    prometheusAddr = "127.0.0.1:9500"; # Moved from 9099 to avoid conflict with OpenCloud (uses 9100-9300)
     defaults = {
       tags = ["tag:service"];
       authKeyPath = config.age.secrets.tailscale-key.path;
