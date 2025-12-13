@@ -19,7 +19,14 @@ Analyze the current git changes and create well-organized commits by grouping re
    - Change type (e.g., configuration changes vs secret updates vs documentation)
    - Dependencies (e.g., service config + secrets + backlog task)
 
-3. **For each logical group:**
+3. **Present the commit plan for approval:**
+   - Display a summary of proposed commits showing:
+     - Commit message for each group
+     - Files to be included in each commit
+   - **Ask the user for approval before proceeding** using AskUserQuestion
+   - Only continue to step 4 if the user approves
+
+4. **For each approved commit group:**
    - Stage only the files for that group using `git add <files>`
    - Create a commit with proper conventional commit format:
      - `type(scope): subject`
@@ -27,7 +34,7 @@ Analyze the current git changes and create well-organized commits by grouping re
      - Scope: hostname (storage, cloud), module name, or component
    - Verify the commit with `git log -1 --stat`
 
-4. **Verification:**
+5. **Verification:**
    - After all commits, run `git status` to ensure working tree is clean
    - Run `git log --oneline -n <num_commits>` to show the created commits
    - Provide a summary of what was committed
