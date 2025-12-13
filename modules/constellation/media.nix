@@ -498,6 +498,8 @@ in {
             # Explicit OIDC redirect URI to ensure HTTPS is used
             # Required because the container runs behind a reverse proxy
             OIDC_REDIRECT_URI = "https://mydia.arsfeld.one/auth/oidc/callback";
+            # FlareSolverr for bypassing Cloudflare protection on indexers
+            FLARESOLVERR_URL = "http://flaresolverr:8191";
           };
           environmentFiles = [
             config.age.secrets.mydia-env.path
@@ -505,6 +507,14 @@ in {
           settings = {
             bypassAuth = true; # Has built-in authentication with OIDC support
           };
+        };
+
+        # Termix - Self-hosted all-in-one server management platform
+        # Provides SSH terminal access, tunneling, file management, and server monitoring
+        termix = {
+          image = "ghcr.io/lukegus/termix:latest";
+          listenPort = 8080;
+          settings.bypassAuth = true; # Has built-in authentication
         };
 
         # TP-Link Omada Controller - Network controller for Omada access points, switches, and routers
