@@ -19,7 +19,7 @@ in {
   services.gitea-actions-runner = {
     package = pkgs.forgejo-runner;
     instances.cloud = {
-      enable = true;
+      enable = false; # TODO: Set a valid token in forgejo-runner-token.age to enable
       name = "cloud";
       url = "https://forgejo.${vars.domain}";
       tokenFile = config.age.secrets.forgejo-runner-token.path;
