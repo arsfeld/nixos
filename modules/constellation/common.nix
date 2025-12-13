@@ -100,7 +100,6 @@ with lib; {
 
     security.polkit.enable = true;
 
-    programs.zsh.enable = true;
     programs.fish.enable = true;
 
     # Configure SSH known hosts for remote builders
@@ -114,8 +113,6 @@ with lib; {
       "root"
       "@wheel"
     ];
-
-    environment.pathsToLink = ["/share/zsh"];
 
     environment.systemPackages = with pkgs; [
       # From base profile
@@ -140,6 +137,19 @@ with lib; {
       socat
       screen
       tcpdump
+      lsof
+      iftop
+      nmap
+      dnsutils
+      netcat
+      mtr
+      iproute2
+      ethtool
+
+      # System diagnostics and tracing
+      iotop
+      strace
+      sysstat
 
       # Hardware-related tools.
       sdparm
@@ -177,7 +187,6 @@ with lib; {
       usbutils
       wget
       zpaq
-      zsh
     ];
 
     programs.nix-ld.enable = true;
