@@ -26,6 +26,9 @@ with lib; {
   # Enable sops-nix for secrets management
   constellation.sops.enable = true;
 
+  # OpenCloud - lightweight file storage and collaboration platform
+  constellation.opencloud.enable = true;
+
   # Tailscale VPN exit nodes via AirVPN
   # AirVPN credentials in env format for gluetun
   age.secrets.airvpn-env.file = "${self}/secrets/airvpn-env.age";

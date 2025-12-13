@@ -45,6 +45,7 @@ with lib; let
     };
     storage = {
       attic = 8080;
+      opencloud = 9200;
       audiobookshelf = 13378;
       # beszel = 8090; # Disabled - monitoring service causing high CPU usage
       bitmagnet = 3333;
@@ -86,6 +87,7 @@ with lib; let
       speedtest = 8765;
       stash = 9999;
       stirling = 9284;
+      termix = null;
       syncthing = 8384;
       tautulli = 8181;
       threadfin = 34400;
@@ -119,11 +121,13 @@ with lib; let
     "ollama-api"
     "omada"
     "openarchiver"
+    "opencloud"
     "owntracks"
     "owntracks-ui"
     "qbittorrent"
     "search"
     "sudo-proxy"
+    "termix"
     "thelounge"
     "transmission"
     "vault"
@@ -158,6 +162,7 @@ with lib; let
     "filerun"
     "filestash"
     "mqtt"
+    "opencloud"
     "owntracks"
     "owntracks-ui"
     "seafile"
@@ -203,6 +208,7 @@ with lib; let
     "n8n"
     "grafana"
     "netdata"
+    "opencloud"
     "stash"
     # Cloud host services
     "auth"
