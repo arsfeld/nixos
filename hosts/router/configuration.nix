@@ -90,6 +90,7 @@
   # Disable virtualization to save disk space
   constellation.virtualization.enable = false;
   constellation.netdataClient.enable = false;
+  constellation.logs-client.enable = false; # Router has its own local Loki in log-monitoring.nix
 
   # Enable Podman for containerized services
   constellation.podman.enable = true;
