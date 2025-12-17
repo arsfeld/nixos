@@ -271,7 +271,7 @@ else
 fi
 
 # Build claude command for the main work session
-CLAUDE_CMD=(npx -y @anthropic-ai/claude-code@latest --dangerously-skip-permissions)
+CLAUDE_CMD=(bun x @anthropic-ai/claude-code@latest --dangerously-skip-permissions)
 if [[ -n "$PROMPT" ]]; then
     CLAUDE_CMD+=(-p "$PROMPT")
 fi
@@ -333,7 +333,7 @@ echo ""
 echo "==> Running Claude Code to commit and merge..."
 
 # Run Claude to handle commit and merge
-(cd "$WORKTREE_PATH" && npx -y @anthropic-ai/claude-code@latest \
+(cd "$WORKTREE_PATH" && bun x @anthropic-ai/claude-code@latest \
     --dangerously-skip-permissions \
     -p "$COMMIT_PROMPT")
 
