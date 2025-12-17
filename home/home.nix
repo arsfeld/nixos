@@ -87,6 +87,11 @@ in {
         (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
         (writeScriptBin "running" (builtins.readFile ./scripts/running))
         (writeScriptBin "claude-worktree" (builtins.readFile ./scripts/claude-worktree))
+        (writeScriptBin "claude" ''
+          #!/usr/bin/env bash
+          exec ${pkgs.bun}/bin/bun x @anthropic-ai/claude-code@latest "$@"
+        '')
+        bun
       ]
       ++ linuxOnlyPkgs; # Added linuxOnlyPkgs
     sessionVariables =
@@ -117,7 +122,6 @@ in {
       );
     shellAliases = {
       "df" = "df -h -x tmpfs";
-      "claude" = "${pkgs.nodejs}/bin/npx -y @anthropic-ai/claude-code@latest";
     };
 
     shell = {
@@ -171,6 +175,11 @@ in {
       if test -f /home/linuxbrew/.linuxbrew/bin/brew
         eval (/home/linuxbrew/.linuxbrew/bin/brew shellenv)
       end
+
+      # Auto-attach to zellij on SSH
+      if test -n "$SSH_TTY"; and test -z "$ZELLIJ"
+        zellij attach --create main
+      end
     '';
     functions = {
       backlog = ''
@@ -202,6 +211,55 @@ in {
           command ip $argv | awk '/^[0-9]+: (docker|veth|br-)/ { skip=1; next } /^[0-9]+: / { skip=0 } !skip'
         else
           command ip $argv
+        end
+      '';
+      cc = ''
+        # cc - Claude Code project launcher
+        # Usage: cc [project]
+        #   cc           - fuzzy select project, open in zellij + run claude
+        #   cc nixos     - open nixos project in zellij + run claude
+
+        set -l project $argv[1]
+
+        # Get project path
+        if test -z "$project"
+          # Fuzzy select with zoxide
+          set project (zoxide query -l | fzf --height 40% --reverse --prompt="Project: ")
+          if test -z "$project"
+            return 1
+          end
+        else
+          # Resolve via zoxide
+          set project (zoxide query $project 2>/dev/null)
+          if test $status -ne 0
+            echo "Project not found: $argv[1]"
+            return 1
+          end
+        end
+
+        set -l session_name (basename $project)
+
+        if test -n "$ZELLIJ"
+          # Already in zellij - create new tab and run claude
+          zellij action new-tab --layout default --name $session_name --cwd $project
+          zellij action write-chars "claude --dangerously-skip-permissions"
+          zellij action write 10
+        else
+          # Outside zellij - attach or create session with claude
+          if zellij list-sessions 2>/dev/null | grep -q "^$session_name\$"
+            zellij attach $session_name
+          else
+            cd $project && zellij --session $session_name options --default-shell fish -c "claude --dangerously-skip-permissions"
+          end
+        end
+      '';
+      ccs = ''
+        # ccs - Claude Code Sessions manager
+        # Usage: ccs [kill <name>]
+        if test "$argv[1]" = "kill"
+          zellij kill-session $argv[2]
+        else
+          zellij list-sessions
         end
       '';
     };
@@ -253,6 +311,49 @@ in {
           command ip "$@"
         fi
       }
+
+      # cc - Claude Code project launcher (always runs claude)
+      cc() {
+        local project="$1"
+
+        if [[ -z "$project" ]]; then
+          project=$(zoxide query -l | fzf --height 40% --reverse --prompt="Project: ")
+          [[ -z "$project" ]] && return 1
+        else
+          project=$(zoxide query "$project" 2>/dev/null) || {
+            echo "Project not found: $1"
+            return 1
+          }
+        fi
+
+        local session_name=$(basename "$project")
+
+        if [[ -n "$ZELLIJ" ]]; then
+          zellij action new-tab --layout default --name "$session_name" --cwd "$project"
+          zellij action write-chars "claude --dangerously-skip-permissions"
+          zellij action write 10
+        else
+          if zellij list-sessions 2>/dev/null | grep -q "^''${session_name}$"; then
+            zellij attach "$session_name"
+          else
+            cd "$project" && zellij --session "$session_name" -c "claude --dangerously-skip-permissions"
+          fi
+        fi
+      }
+
+      # ccs - Claude Code Sessions manager
+      ccs() {
+        if [[ "$1" == "kill" ]]; then
+          zellij kill-session "$2"
+        else
+          zellij list-sessions
+        fi
+      }
+
+      # Auto-attach to zellij on SSH
+      if [[ -n "$SSH_TTY" ]] && [[ -z "$ZELLIJ" ]]; then
+        zellij attach --create main
+      fi
     '';
     profileExtra = ''
       if [[ -s /etc/set-environment ]]; then
@@ -350,6 +451,10 @@ in {
       copy_on_select = true;
       pane_frames = false;
       scroll_buffer_size = 50000;
+      # Unbind keys that conflict with Claude Code (keep Ctrl+t for tab mode)
+      keybinds = {
+        unbind = ["Ctrl p" "Ctrl n" "Ctrl o"];
+      };
     };
   };
 
