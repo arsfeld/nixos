@@ -23,6 +23,13 @@ with lib; {
   services.isponsorblock.enable = false;
   constellation.githubIssueNotify.enable = true; # Enable isolated GitHub issue creation for systemd failures
 
+  # Enable Home Assistant home automation platform
+  constellation.home-assistant.enable = true;
+
+  # Enable tablet sync for offline media viewing
+  # Drop .sync files in media folders to mark for transcoding
+  constellation.tabletSync.enable = true;
+
   # Enable sops-nix for secrets management
   constellation.sops.enable = true;
 

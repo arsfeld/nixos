@@ -112,6 +112,7 @@ with lib; let
     "grafana"
     "ghost"
     "harmonia"
+    "hass"
     "immich"
     "jellyfin"
     "metadata-relay"
