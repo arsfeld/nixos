@@ -129,6 +129,7 @@ in {
       group = cfg.group;
       uid = cfg.puid;
       isSystemUser = true;
+      extraGroups = ["video" "render"]; # For hardware video encoding (VAAPI)
     };
 
     users.groups.${cfg.group} = {
