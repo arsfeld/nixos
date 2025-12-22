@@ -15,11 +15,11 @@
       description = "Enable Docker for containerized development";
     };
 
-    languages = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = ["nodejs" "python" "go" "rust"];
-      description = "Programming languages to install";
-    };
+    nodejs = lib.mkEnableOption "Node.js development" // {default = true;};
+    python = lib.mkEnableOption "Python development" // {default = true;};
+    go = lib.mkEnableOption "Go development" // {default = true;};
+    rust = lib.mkEnableOption "Rust development" // {default = true;};
+    elixir = lib.mkEnableOption "Elixir development" // {default = true;};
 
     cloudTools = lib.mkOption {
       type = lib.types.bool;
@@ -95,6 +95,14 @@
         zoxide
         fzf
         delta
+        just
+        hyperfine
+        tokei
+        procs
+        dust
+        bandwhich
+        grex
+        sd
 
         # System monitoring
         htop
@@ -103,21 +111,28 @@
         nethogs
         ctop
       ]
-      ++ lib.optionals (builtins.elem "nodejs" config.constellation.development.languages) [
+      ++ lib.optionals config.constellation.development.nodejs [
         nodejs_20
         nodePackages.pnpm
         nodePackages.yarn
+        bun
+        deno
       ]
-      ++ lib.optionals (builtins.elem "python" config.constellation.development.languages) [
+      ++ lib.optionals config.constellation.development.python [
         python3
         python3Packages.pip
         python3Packages.virtualenv
       ]
-      ++ lib.optionals (builtins.elem "go" config.constellation.development.languages) [
+      ++ lib.optionals config.constellation.development.go [
         go
       ]
-      ++ lib.optionals (builtins.elem "rust" config.constellation.development.languages) [
+      ++ lib.optionals config.constellation.development.rust [
         rustup
+      ]
+      ++ lib.optionals config.constellation.development.elixir [
+        elixir
+        erlang
+        elixir-ls
       ]
       ++ lib.optionals config.constellation.development.cloudTools [
         kubectl
@@ -154,7 +169,7 @@
     };
 
     # Environment variables for Rust development
-    environment.sessionVariables = lib.mkIf (builtins.elem "rust" config.constellation.development.languages) {
+    environment.sessionVariables = lib.mkIf config.constellation.development.rust {
       PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
       OPENSSL_DIR = "${pkgs.openssl.dev}";
       OPENSSL_LIB_DIR = "${pkgs.openssl.out}/lib";
