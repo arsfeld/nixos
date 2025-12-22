@@ -149,6 +149,7 @@ in
             '';
             proxyConfig = ''
               import errors
+              import strip_nextjs_exploit
               reverse_proxy ${protocol}://${cfg.host}:${toString cfg.port} {
                 ${insecureTlsConfig}
                 # Only convert 500/503 to errors for fancy error pages
@@ -219,6 +220,13 @@ in
     # Input: generateCaddyExtraConfig "example.com"
     # Output: "(cors) { ... } (errors) { ... } *.example.com { ... } example.com { ... }"
     generateCaddyExtraConfig = domain: ''
+      # CVE-2025-29927: Strip x-middleware-subrequest header to prevent Next.js middleware bypass
+      # This header is used internally by Next.js and should never come from external requests
+      # Affected apps: Immich, Planka, Actual Budget, and other Next.js-based services
+      (strip_nextjs_exploit) {
+        request_header -x-middleware-subrequest
+      }
+
       (cors) {
         @cors_preflight method OPTIONS
 
