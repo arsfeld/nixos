@@ -1,122 +1,66 @@
-# ZFS disko configuration for cottage
-# ZFS RAID array for storage only (boot disk managed separately)
+# Disko configuration for cottage
+# Boot: btrfs with subvolumes on Samsung SSD
+# Storage: bcachefs array will be configured after install (live ISO lacks bcachefs module)
 {...}: {
   disko.devices = {
     disk = {
-      # Data disks for ZFS RAID
-      # Using 4x 4TB drives for RAID-Z1 (equivalent to RAID-5, tolerates 1 disk failure)
-      # NOTE: Excluding failing drive ata-ST4000VN008-2DR166_WDH2Y01G (104 pending sectors)
-      data1 = {
+      # Boot disk - Samsung 512GB SSD
+      boot = {
         type = "disk";
-        device = "/dev/disk/by-id/ata-WDC_WD40EFRX-68N32N0_WD-WCC7K7HJ9TV6";
+        device = "/dev/disk/by-id/ata-SAMSUNG_MZ7LN512HMJP-000L1_S2URNX0HC00771";
         content = {
           type = "gpt";
           partitions = {
-            zfs = {
+            ESP = {
+              size = "512M";
+              type = "EF00";
+              content = {
+                type = "filesystem";
+                format = "vfat";
+                mountpoint = "/boot";
+                mountOptions = ["umask=0077"];
+              };
+            };
+            root = {
               size = "100%";
               content = {
-                type = "zfs";
-                pool = "tank";
+                type = "btrfs";
+                extraArgs = ["-f"];
+                subvolumes = {
+                  "@" = {
+                    mountpoint = "/";
+                    mountOptions = ["compress=zstd" "noatime"];
+                  };
+                  "@home" = {
+                    mountpoint = "/home";
+                    mountOptions = ["compress=zstd" "noatime"];
+                  };
+                  "@nix" = {
+                    mountpoint = "/nix";
+                    mountOptions = ["compress=zstd" "noatime"];
+                  };
+                  "@var" = {
+                    mountpoint = "/var";
+                    mountOptions = ["compress=zstd" "noatime"];
+                  };
+                  "@swap" = {
+                    mountpoint = "/.swap";
+                    swap.swapfile.size = "8G";
+                  };
+                };
               };
             };
           };
         };
       };
-      data2 = {
-        type = "disk";
-        device = "/dev/disk/by-id/ata-ST4000VN008-2DR166_WDH2WDVD";
-        content = {
-          type = "gpt";
-          partitions = {
-            zfs = {
-              size = "100%";
-              content = {
-                type = "zfs";
-                pool = "tank";
-              };
-            };
-          };
-        };
-      };
-      # data3 removed - failing drive with 104 pending sectors
-      # 3rd disk - Seagate 4TB
-      data3 = {
-        type = "disk";
-        device = "/dev/disk/by-id/ata-ST4000VN000-1H4168_Z304SS33";
-        content = {
-          type = "gpt";
-          partitions = {
-            zfs = {
-              size = "100%";
-              content = {
-                type = "zfs";
-                pool = "tank";
-              };
-            };
-          };
-        };
-      };
-      # 4th disk - Seagate 4TB
-      data4 = {
-        type = "disk";
-        device = "/dev/disk/by-id/ata-ST4000VN000-1H4168_Z3051HFQ";
-        content = {
-          type = "gpt";
-          partitions = {
-            zfs = {
-              size = "100%";
-              content = {
-                type = "zfs";
-                pool = "tank";
-              };
-            };
-          };
-        };
-      };
-    };
 
-    zpool = {
-      tank = {
-        type = "zpool";
-        mode = "raidz"; # RAID-Z1 equivalent to RAID-5, tolerates 1 disk failure
-        rootFsOptions = {
-          compression = "zstd";
-          atime = "off";
-          xattr = "sa";
-          acltype = "posix";
-        };
-        datasets = {
-          # Dataset for media files
-          media = {
-            type = "zfs_fs";
-            mountpoint = "/mnt/storage/media";
-            options = {
-              mountpoint = "legacy";
-              "com.sun:auto-snapshot" = "true";
-            };
-          };
-
-          # Dataset for backup storage
-          backups = {
-            type = "zfs_fs";
-            mountpoint = "/mnt/storage/backups";
-            options = {
-              mountpoint = "legacy";
-              "com.sun:auto-snapshot" = "false";
-            };
-          };
-
-          # Dataset for general data
-          data = {
-            type = "zfs_fs";
-            mountpoint = "/mnt/storage/data";
-            options = {
-              mountpoint = "legacy";
-              "com.sun:auto-snapshot" = "true";
-            };
-          };
-        };
-      };
+      # Data disks will be configured after install when bcachefs is available
+      # 4x 4TB drives for bcachefs replicas=2 array (~8TB usable)
+      # - ata-ST4000VN000-1H4168_Z3051HFQ
+      # - ata-ST4000VN008-2DR166_WDH2WDVD
+      # - ata-WDC_WD40EFRX-68N32N0_WD-WCC7K7HJ9TV6
+      # - ata-ST4000VN000-1H4168_Z304SS33
+      # Excluded: ata-ST4000VN008-2DR166_WDH2Y01G (failing - 104 pending sectors)
     };
   };
 }

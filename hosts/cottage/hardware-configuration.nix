@@ -1,5 +1,5 @@
-# Hardware configuration for cottage - nixos-infect version
-# This imports the existing ZFS boot-pool instead of creating new filesystems
+# Hardware configuration for cottage
+# Filesystems managed by disko-config.nix
 {
   config,
   lib,
@@ -12,25 +12,18 @@
   ];
 
   boot.initrd.availableKernelModules = ["xhci_pci" "ehci_pci" "ahci" "usb_storage" "sd_mod"];
-  boot.initrd.kernelModules = ["zfs"];
+  boot.initrd.kernelModules = [];
   boot.kernelModules = ["kvm-intel"];
   boot.extraModulePackages = [];
 
-  fileSystems."/" = {
-    device = "/dev/disk/by-uuid/02b6a197-04da-48a8-904a-96f9f4d810e6";
-    fsType = "ext4";
+  # Boot filesystems managed by disko-config.nix
+
+  # bcachefs storage array (4x 4TB, replicas=2, ~7TB usable)
+  fileSystems."/mnt/storage" = {
+    device = "UUID=61994cd0-27c3-4f00-a021-0c16840df463";
+    fsType = "bcachefs";
+    options = ["noatime" "nofail"];
   };
-
-  swapDevices = [
-    {device = "/dev/disk/by-uuid/323526ac-f79e-4557-af6a-82962bcb7dbb";}
-  ];
-
-  # Support ZFS
-  boot.supportedFilesystems = ["zfs"];
-
-  # Don't force import - the pool should be clean
-  boot.zfs.forceImportRoot = false;
-  boot.zfs.forceImportAll = false;
 
   # CPU microcode updates
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
@@ -40,18 +33,6 @@
 
   # Network interfaces
   networking.interfaces.eno1.useDHCP = lib.mkDefault true;
-  networking.interfaces.eth0.useDHCP = lib.mkDefault true;
-
-  # Enable Intel graphics support (Haswell generation)
-  hardware.graphics = {
-    enable = true;
-    extraPackages = with pkgs; [
-      intel-media-driver
-      vaapiIntel
-      vaapiVdpau
-      libvdpau-va-gl
-    ];
-  };
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
 }

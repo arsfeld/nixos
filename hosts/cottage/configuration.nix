@@ -35,7 +35,6 @@ with lib; {
   # Host-specific settings
   networking = {
     hostName = "cottage";
-    hostId = "d4c0ffee"; # Required for ZFS
 
     # Use DHCP as fallback on all interfaces
     useDHCP = true;
@@ -56,16 +55,18 @@ with lib; {
 
   nixpkgs.hostPlatform = "x86_64-linux";
 
-  # Bootloader.
-  boot.loader.grub.enable = true;
-  boot.loader.grub.device = "/dev/sda";
-  boot.loader.grub.useOSProber = true;
+  # Bootloader - systemd-boot for EFI
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+
+  # Use latest kernel for bcachefs support
+  boot.kernelPackages = pkgs.linuxPackages_latest;
+
+  # bcachefs support
+  boot.supportedFilesystems = ["bcachefs" "btrfs"];
 
   # Early OOM killer
   services.earlyoom.enable = true;
-
-  # Use latest kernel
-  #boot.kernelPackages = pkgs.linuxPackages_latest;
 
   # Disable network wait online service
   systemd.services.NetworkManager-wait-online.enable = false;
@@ -100,16 +101,11 @@ with lib; {
   };
 
   # Graphics support for hardware acceleration
-  nixpkgs.config.packageOverrides = pkgs: {
-    vaapiIntel = pkgs.vaapiIntel.override {enableHybridCodec = true;};
-  };
-
   hardware.graphics = {
     enable = true;
     extraPackages = with pkgs; [
       intel-media-driver
-      vaapiIntel
-      vaapiVdpau
+      intel-vaapi-driver
       libvdpau-va-gl
       intel-compute-runtime # OpenCL filter support (hardware tonemapping and subtitle burn-in)
       vpl-gpu-rt
