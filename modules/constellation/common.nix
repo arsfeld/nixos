@@ -49,13 +49,14 @@ with lib; {
         # Increase download buffer size to prevent "download buffer is full" warnings
         # Default is 64 MiB, increasing to 256 MiB
         download-buffer-size = 268435456; # 256 * 1024 * 1024
-        substituters = lib.mkAfter [
-          "https://harmonia.arsfeld.one"
-          "https://harmonia.bat-boa.ts.net"
-        ];
-        trusted-public-keys = lib.mkAfter [
-          "harmonia-raider-1:Cn74XNGOtXB2y3yHlU7uXoTpJqWA2p0l74Dcdwqt5aU="
-        ];
+        # TODO: Re-enable when raider is back online
+        # substituters = lib.mkAfter [
+        #   "https://harmonia.arsfeld.one"
+        #   "https://harmonia.bat-boa.ts.net"
+        # ];
+        # trusted-public-keys = lib.mkAfter [
+        #   "harmonia-raider-1:Cn74XNGOtXB2y3yHlU7uXoTpJqWA2p0l74Dcdwqt5aU="
+        # ];
       };
 
       # Configure remote builders (skip on cloud to avoid circular dependency)
