@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -124,7 +124,7 @@ func updateActiveMappingsMetrics(mappings []Mapping) {
 			udpCount++
 		}
 		clientCounts[m.InternalIP]++
-		
+
 		// Add individual mapping info
 		mappingInfo.WithLabelValues(
 			m.InternalIP,
@@ -153,11 +153,11 @@ func updatePortRangeUsage(mappings []Mapping, portRanges []PortRange) {
 				usedPorts[m.ExternalPort] = true
 			}
 		}
-		
+
 		totalPorts := float64(r.End - r.Start + 1)
 		usedCount := float64(len(usedPorts))
 		usage := (usedCount / totalPorts) * 100.0
-		
+
 		rangeLabel := fmt.Sprintf("%d-%d", r.Start, r.End)
 		portRangeUsage.WithLabelValues(rangeLabel).Set(usage)
 	}

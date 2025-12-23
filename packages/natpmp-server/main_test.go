@@ -39,7 +39,7 @@ func TestNATPMPProtocolParsing(t *testing.T) {
 			opcode:      0,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if len(tt.data) >= 2 {
@@ -60,7 +60,7 @@ func TestPortRangeValidation(t *testing.T) {
 			},
 		},
 	}
-	
+
 	tests := []struct {
 		port    uint16
 		allowed bool
@@ -71,7 +71,7 @@ func TestPortRangeValidation(t *testing.T) {
 		{8080, true},
 		{65535, true},
 	}
-	
+
 	for _, tt := range tests {
 		result := server.isPortAllowed(tt.port)
 		if result != tt.allowed {
@@ -82,7 +82,7 @@ func TestPortRangeValidation(t *testing.T) {
 
 func TestStateManager(t *testing.T) {
 	sm := NewStateManager("/tmp/test-natpmp")
-	
+
 	mapping := Mapping{
 		InternalIP:   "10.1.1.100",
 		InternalPort: 8080,
@@ -92,16 +92,16 @@ func TestStateManager(t *testing.T) {
 		CreatedAt:    time.Now(),
 		ExpiresAt:    time.Now().Add(time.Hour),
 	}
-	
+
 	if err := sm.AddMapping(mapping); err != nil {
 		t.Fatalf("failed to add mapping: %v", err)
 	}
-	
+
 	count := sm.CountMappingsForIP("10.1.1.100")
 	if count != 1 {
 		t.Errorf("expected 1 mapping, got %d", count)
 	}
-	
+
 	count = sm.CountMappingsForIP("10.1.1.101")
 	if count != 0 {
 		t.Errorf("expected 0 mappings for different IP, got %d", count)
@@ -110,29 +110,29 @@ func TestStateManager(t *testing.T) {
 
 func TestResponseGeneration(t *testing.T) {
 	externalIP := net.IPv4(1, 2, 3, 4)
-	
+
 	response := make([]byte, 12)
 	response[0] = NATPMP_VERSION
 	response[1] = OPCODE_INFO + 128
 	response[2] = 0
 	response[3] = RESPONSE_SUCCESS
-	
+
 	epoch := uint32(time.Now().Unix())
 	response[4] = byte(epoch >> 24)
 	response[5] = byte(epoch >> 16)
 	response[6] = byte(epoch >> 8)
 	response[7] = byte(epoch)
-	
+
 	copy(response[8:12], externalIP.To4())
-	
+
 	if response[0] != 0 {
 		t.Error("invalid version in response")
 	}
-	
+
 	if response[1] != 128 {
 		t.Error("invalid opcode in response")
 	}
-	
+
 	if !bytes.Equal(response[8:12], []byte{1, 2, 3, 4}) {
 		t.Error("invalid IP in response")
 	}

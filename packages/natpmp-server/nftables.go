@@ -20,9 +20,9 @@ func (nft *NFTablesManager) AddMapping(m *Mapping) error {
 		m.InternalIP,
 		m.InternalPort,
 	)
-	
+
 	log.Printf("Adding nftables rule: %s", cmd)
-	
+
 	_, err := nft.runNft(cmd)
 	if err != nil {
 		nftablesOperations.WithLabelValues("add", "error").Inc()
@@ -30,7 +30,7 @@ func (nft *NFTablesManager) AddMapping(m *Mapping) error {
 	}
 	nftablesOperations.WithLabelValues("add", "success").Inc()
 	log.Printf("Successfully added nftables rule")
-	
+
 	// Find the handle of the newly added rule
 	handle, err := nft.findRuleHandle(*m)
 	if err != nil {
@@ -38,7 +38,7 @@ func (nft *NFTablesManager) AddMapping(m *Mapping) error {
 	} else {
 		m.RuleHandle = handle
 	}
-	
+
 	return nil
 }
 
@@ -46,26 +46,26 @@ func (nft *NFTablesManager) RemoveMapping(m Mapping) error {
 	if m.RuleHandle == 0 {
 		log.Printf("Warning: no rule handle for mapping %s:%d -> %s:%d, trying to find it",
 			m.InternalIP, m.InternalPort, m.InternalIP, m.ExternalPort)
-		
+
 		handle, err := nft.findRuleHandle(m)
 		if err != nil {
 			return fmt.Errorf("failed to find rule handle: %w", err)
 		}
 		m.RuleHandle = handle
 	}
-	
+
 	cmd := fmt.Sprintf("delete rule ip %s %s handle %d",
 		nft.config.NatTable,
 		nft.config.NatChain,
 		m.RuleHandle,
 	)
-	
+
 	_, err := nft.runNft(cmd)
 	if err != nil {
 		nftablesOperations.WithLabelValues("delete", "error").Inc()
 		return fmt.Errorf("failed to delete nftables rule: %w", err)
 	}
-	
+
 	nftablesOperations.WithLabelValues("delete", "success").Inc()
 	return nil
 }
@@ -79,7 +79,7 @@ func (nft *NFTablesManager) EnsureTablesAndChains() error {
 		fmt.Sprintf("add chain ip %s %s { type filter hook forward priority filter; policy accept; }",
 			nft.config.FilterTable, nft.config.FilterChain),
 	}
-	
+
 	for _, cmd := range commands {
 		if _, err := nft.runNft(cmd); err != nil {
 			if !strings.Contains(err.Error(), "already exists") {
@@ -87,7 +87,7 @@ func (nft *NFTablesManager) EnsureTablesAndChains() error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -97,10 +97,10 @@ func (nft *NFTablesManager) CleanupAllMappings() error {
 	if err != nil {
 		return err
 	}
-	
+
 	re := regexp.MustCompile(`handle (\d+)`)
 	matches := re.FindAllStringSubmatch(output, -1)
-	
+
 	for _, match := range matches {
 		if len(match) > 1 {
 			handle := match[1]
@@ -109,14 +109,14 @@ func (nft *NFTablesManager) CleanupAllMappings() error {
 			nft.runNft(delCmd)
 		}
 	}
-	
+
 	return nil
 }
 
 func (nft *NFTablesManager) runNft(args string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	cmd := exec.CommandContext(ctx, "nft", strings.Fields(args)...)
 	output, err := cmd.CombinedOutput()
 	if ctx.Err() == context.DeadlineExceeded {
@@ -134,12 +134,12 @@ func (nft *NFTablesManager) extractHandle(output string) (uint64, error) {
 	if len(matches) < 2 {
 		return 0, fmt.Errorf("handle not found in output")
 	}
-	
+
 	handle, err := strconv.ParseUint(matches[1], 10, 64)
 	if err != nil {
 		return 0, err
 	}
-	
+
 	return handle, nil
 }
 
@@ -149,10 +149,10 @@ func (nft *NFTablesManager) findRuleHandle(m Mapping) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	
+
 	pattern := fmt.Sprintf("%s dport %d dnat to %s:%d",
 		m.Protocol, m.ExternalPort, m.InternalIP, m.InternalPort)
-	
+
 	lines := strings.Split(output, "\n")
 	for _, line := range lines {
 		if strings.Contains(line, pattern) {
@@ -163,6 +163,108 @@ func (nft *NFTablesManager) findRuleHandle(m Mapping) (uint64, error) {
 			}
 		}
 	}
-	
+
 	return 0, fmt.Errorf("rule not found")
+}
+
+// NftRule represents a parsed nftables rule
+type NftRule struct {
+	Protocol     string
+	ExternalPort uint16
+	InternalIP   string
+	InternalPort uint16
+	Handle       uint64
+}
+
+// ListRules returns all DNAT rules in the NAT-PMP chain
+func (nft *NFTablesManager) ListRules() ([]NftRule, error) {
+	cmd := fmt.Sprintf("-a list chain ip %s %s", nft.config.NatTable, nft.config.NatChain)
+	output, err := nft.runNft(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	var rules []NftRule
+	// Pattern: tcp dport 32400 dnat to 10.1.1.68:32400 # handle 123
+	re := regexp.MustCompile(`(tcp|udp) dport (\d+) dnat to ([\d.]+):(\d+).*handle (\d+)`)
+
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		matches := re.FindStringSubmatch(line)
+		if len(matches) == 6 {
+			extPort, _ := strconv.ParseUint(matches[2], 10, 16)
+			intPort, _ := strconv.ParseUint(matches[4], 10, 16)
+			handle, _ := strconv.ParseUint(matches[5], 10, 64)
+
+			rules = append(rules, NftRule{
+				Protocol:     matches[1],
+				ExternalPort: uint16(extPort),
+				InternalIP:   matches[3],
+				InternalPort: uint16(intPort),
+				Handle:       handle,
+			})
+		}
+	}
+
+	return rules, nil
+}
+
+// RemoveRuleByHandle removes a rule by its handle
+func (nft *NFTablesManager) RemoveRuleByHandle(handle uint64) error {
+	cmd := fmt.Sprintf("delete rule ip %s %s handle %d",
+		nft.config.NatTable, nft.config.NatChain, handle)
+
+	_, err := nft.runNft(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to delete rule handle %d: %w", handle, err)
+	}
+	return nil
+}
+
+// SyncWithState removes nftables rules that don't exist in the state mappings
+func (nft *NFTablesManager) SyncWithState(mappings []Mapping) (int, error) {
+	rules, err := nft.ListRules()
+	if err != nil {
+		return 0, fmt.Errorf("failed to list nftables rules: %w", err)
+	}
+
+	// Build a set of valid mappings for quick lookup
+	validRules := make(map[string]bool)
+	for _, m := range mappings {
+		key := fmt.Sprintf("%s:%d:%s:%d", m.Protocol, m.ExternalPort, m.InternalIP, m.InternalPort)
+		validRules[key] = true
+	}
+
+	// Remove orphaned rules
+	removed := 0
+	for _, rule := range rules {
+		key := fmt.Sprintf("%s:%d:%s:%d", rule.Protocol, rule.ExternalPort, rule.InternalIP, rule.InternalPort)
+		if !validRules[key] {
+			log.Printf("Removing orphaned rule: %s dport %d -> %s:%d (handle %d)",
+				rule.Protocol, rule.ExternalPort, rule.InternalIP, rule.InternalPort, rule.Handle)
+			if err := nft.RemoveRuleByHandle(rule.Handle); err != nil {
+				log.Printf("Warning: failed to remove orphaned rule: %v", err)
+			} else {
+				removed++
+			}
+		}
+	}
+
+	return removed, nil
+}
+
+// IsExternalPortInUse checks if an external port is already mapped (by any client)
+func (nft *NFTablesManager) IsExternalPortInUse(protocol string, externalPort uint16) (bool, *NftRule, error) {
+	rules, err := nft.ListRules()
+	if err != nil {
+		return false, nil, err
+	}
+
+	for _, rule := range rules {
+		if rule.Protocol == protocol && rule.ExternalPort == externalPort {
+			return true, &rule, nil
+		}
+	}
+
+	return false, nil, nil
 }
