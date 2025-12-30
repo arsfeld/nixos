@@ -183,6 +183,8 @@
       "fs.inotify.max_user_instances" = 512;
 
       # Better performance for containers
+      # Note: conf.all.forwarding must also be set, as it overrides ip_forward
+      "net.ipv4.conf.all.forwarding" = lib.mkDefault true;
       "net.ipv4.ip_forward" = lib.mkDefault 1;
       "net.bridge.bridge-nf-call-iptables" = lib.mkDefault 1;
       "net.bridge.bridge-nf-call-ip6tables" = lib.mkDefault 1;
