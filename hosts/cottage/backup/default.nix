@@ -8,6 +8,5 @@
     ./backup-server.nix
   ];
 
-  # Configure secrets for MinIO
-  age.secrets.minio-credentials.file = "${self}/secrets/minio-credentials.age";
+  # Garage secrets are configured in ../services/default.nix
 }

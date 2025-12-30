@@ -42,8 +42,11 @@ in {
   "plausible-secret-key.age".publicKeys = users ++ [cloud];
   "plausible-smtp-password.age".publicKeys = users ++ [cloud];
   "google-api-key.age".publicKeys = users ++ systems;
-  "minio-credentials.age".publicKeys = users ++ systems;
   "keycloak-pass.age".publicKeys = users ++ [cloud];
+
+  # Garage S3-compatible storage (replaces MinIO)
+  "garage-rpc-secret.age".publicKeys = users ++ [cottage];
+  "garage-admin-token.age".publicKeys = users ++ [cottage];
   "plausible-admin-password.age".publicKeys = users ++ [cloud];
   "restic-rest-auth.age".publicKeys = users ++ systems;
   "restic-rest-micro.age".publicKeys = users ++ [cottage];
