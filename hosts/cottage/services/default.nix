@@ -7,6 +7,7 @@
   vars = config.media.config;
 in {
   imports = [
+    ./plex.nix
   ];
 
   # Age secret for MinIO credentials
