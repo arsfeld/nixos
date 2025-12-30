@@ -25,6 +25,10 @@ with lib; {
     virtualization.enable = true;
   };
 
+  # Enable media sync from storage
+  # Syncs directories with .sync marker files to /mnt/storage/media
+  constellation.mediaSync.enable = true;
+
   # Enable media services with cottage-specific domain
   # Disabled until data pool is recreated
   # media.config = {
