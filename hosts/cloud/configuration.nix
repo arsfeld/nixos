@@ -44,6 +44,12 @@
     domain = "metadata-relay.arsfeld.dev";
   };
 
+  # Enable Plane project management
+  services.plane = {
+    enable = true;
+    domain = "plane.arsfeld.dev";
+  };
+
   boot = {
     binfmt.emulatedSystems = ["x86_64-linux"];
   };
@@ -64,6 +70,9 @@
       group = "root";
     };
     metadata-relay-env = {mode = "0444";};
+    # Plane project management secrets
+    plane-secret-key = {mode = "0400";};
+    plane-db-password = {mode = "0400";};
   };
 
   media.config = {

@@ -36,6 +36,7 @@ with lib; let
       ntfy = null;
       owntracks = 8083;
       owntracks-ui = 8084;
+      plane = 3000; # Plane project management
       search = null;
       thelounge = null;
       users = null;
@@ -125,6 +126,7 @@ with lib; let
     "opencloud"
     "owntracks"
     "owntracks-ui"
+    "plane"
     "qbittorrent"
     "search"
     "sudo-proxy"
