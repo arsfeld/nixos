@@ -21,7 +21,7 @@ _format-targets +TARGETS:
 # This is the default since deploy-rs has issues with Nix 2.32+ (https://github.com/serokell/deploy-rs/issues/340)
 
 # Deploy using nixos-rebuild (switch to new configuration)
-deploy-legacy HOST:
+deploy HOST:
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -32,7 +32,7 @@ deploy-legacy HOST:
     nixos-rebuild switch --flake ".#{{ HOST }}" --target-host "root@${TARGET}" --use-remote-sudo
 
 # Deploy with boot activation (activates on next boot)
-boot-legacy HOST:
+boot HOST:
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -55,12 +55,12 @@ test HOST:
 # NOTE: deploy-rs has known issues with Nix 2.32+ (https://github.com/serokell/deploy-rs/issues/340)
 # Use these commands once the issue is resolved
 
-boot +TARGETS:
+boot-rs +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail # Enable strict error handling
     deploy {{ args }} --boot --targets $(just _format-targets {{ TARGETS }})
 
-deploy +TARGETS:
+deploy-rs +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail # Enable strict error handling
 
