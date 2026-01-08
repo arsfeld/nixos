@@ -14,6 +14,7 @@
         --rm \
         --pull newer \
         --volume "${cacheDir}:${cacheDir}" \
+        --volume "/etc/finance-tracker/filter-config.yaml:/app/filter-config.yaml:ro" \
         --env XDG_CACHE_HOME="${cacheDir}" \
         --env-file "${config.age.secrets."finance-tracker-env".path}" \
         ghcr.io/arsfeld/finance-tracker:latest ./finance-tracker "$@"
@@ -22,6 +23,12 @@
 in {
   age.secrets."finance-tracker-env" = {
     file = "${self}/secrets/finance-tracker-env.age";
+  };
+
+  # Deploy filter configuration to /etc
+  environment.etc."finance-tracker/filter-config.yaml" = {
+    text = builtins.readFile ../files/finance-tracker-filter.yaml;
+    mode = "0444"; # read-only
   };
 
   # Create the finance-tracker script
