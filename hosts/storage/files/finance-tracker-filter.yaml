@@ -1,0 +1,4 @@
+excluded_transactions:
+  # Specific refunded plane ticket from Oct 28 ($4,998.91)
+  - pattern: "air liaison/udfdyh"
+    match_type: "substring"
