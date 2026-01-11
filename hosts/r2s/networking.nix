@@ -97,4 +97,33 @@ with import ./helpers.nix;
           };
         };
       };
+
+      # DNS server for intercepting and forwarding queries
+      services.dnsmasq = {
+        enable = true;
+        settings = {
+          # Listen only on internal interface
+          interface = internalInterface;
+          listen-address = gatewayIP;
+
+          # Don't read /etc/resolv.conf for upstream servers
+          no-resolv = true;
+
+          # Upstream DNS servers
+          server = dnsServers;
+
+          # Cache settings
+          cache-size = 1000;
+
+          # Don't forward plain names
+          domain-needed = true;
+
+          # Don't forward addresses in the non-routed address spaces
+          bogus-priv = true;
+
+          # Enable DNSSEC
+          dnssec = true;
+          trust-anchor = ".,19036,8,2,49AAC11D7B6F6446702E54A1607371607A1A41855200FD2CE1CDDE32F24E8FB5";
+        };
+      };
     }

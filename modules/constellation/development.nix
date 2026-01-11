@@ -138,7 +138,7 @@
         kubectl
         kubectx
         k9s
-        helm
+        kubernetes-helm
         terraform
         awscli2
         google-cloud-sdk
