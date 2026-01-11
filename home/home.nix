@@ -16,6 +16,8 @@
     exec "$@"
   '';
 
+  claude-notify = pkgs.writeScriptBin "claude-notify" (builtins.readFile ./scripts/claude-notify);
+
   linuxOnlyPkgs = with pkgs;
     optionals stdenv.isLinux [
       distrobox
@@ -87,6 +89,7 @@ in {
         (writeScriptBin "murder" (builtins.readFile ./scripts/murder))
         (writeScriptBin "running" (builtins.readFile ./scripts/running))
         (writeScriptBin "claude-worktree" (builtins.readFile ./scripts/claude-worktree))
+        claude-notify
         (writeScriptBin "claude" ''
           #!/usr/bin/env bash
           exec ${pkgs.bun}/bin/bun x @anthropic-ai/claude-code@latest "$@"
@@ -98,6 +101,7 @@ in {
       {
         PNPM_HOME = "$HOME/.local/share/pnpm";
         NPM_CONFIG_PREFIX = "$HOME/.npm-global";
+        CLAUDE_NTFY_TOPIC = "arosenfeld-claude";
       }
       // (
         if stdenv.isDarwin
@@ -156,7 +160,42 @@ in {
     source = ./files/htoprc;
   };
 
+  # Claude Code settings with notification hooks
+  home.file.".claude/settings.json".text = builtins.toJSON {
+    model = "claude-opus-4-5-20251101";
+    includeCoAuthoredBy = false;
+    hooks = {
+      PreToolUse = [
+        {
+          matcher = "AskUserQuestion";
+          hooks = [
+            {
+              type = "command";
+              command = "${claude-notify}/bin/claude-notify question arosenfeld-claude";
+            }
+          ];
+        }
+      ];
+    };
+  };
+
+  # Claude Code commands
+  home.file.".claude/commands/commit.md".source = ./files/claude-commands/commit.md;
+  home.file.".claude/commands/release.md".source = ./files/claude-commands/release.md;
+
   programs.home-manager.enable = true;
+
+  # Set default applications for XDG MIME types
+  xdg.mimeApps = {
+    enable = true;
+    defaultApplications = {
+      "text/html" = "app.zen_browser.zen.desktop";
+      "x-scheme-handler/http" = "app.zen_browser.zen.desktop";
+      "x-scheme-handler/https" = "app.zen_browser.zen.desktop";
+      "x-scheme-handler/about" = "app.zen_browser.zen.desktop";
+      "x-scheme-handler/unknown" = "app.zen_browser.zen.desktop";
+    };
+  };
 
   programs.fish = {
     enable = true;
@@ -176,9 +215,17 @@ in {
         eval (/home/linuxbrew/.linuxbrew/bin/brew shellenv)
       end
 
-      # Auto-attach to zellij on SSH
-      if test -n "$SSH_TTY"; and test -z "$ZELLIJ"
-        zellij attach --create main
+      # Auto-attach to zellij on SSH or mosh
+      # SSH sets SSH_TTY, mosh sets SSH_CONNECTION but not SSH_TTY
+      if test -z "$ZELLIJ"
+        if test -n "$SSH_TTY"; or test -n "$SSH_CONNECTION"
+          # Fix TERM for mosh which may not set proper TERM
+          switch "$TERM"
+            case "mosh*" "dumb" ""
+              set -gx TERM xterm-256color
+          end
+          zellij attach --create main
+        end
       end
     '';
     functions = {
@@ -350,9 +397,18 @@ in {
         fi
       }
 
-      # Auto-attach to zellij on SSH
-      if [[ -n "$SSH_TTY" ]] && [[ -z "$ZELLIJ" ]]; then
-        zellij attach --create main
+      # Auto-attach to zellij on SSH or mosh
+      # SSH sets SSH_TTY, mosh sets SSH_CONNECTION but not SSH_TTY
+      if [[ -z "$ZELLIJ" ]]; then
+        if [[ -n "$SSH_TTY" || -n "$SSH_CONNECTION" ]]; then
+          # Fix TERM for mosh which may not set proper TERM
+          case "$TERM" in
+            mosh*|dumb|"")
+              export TERM=xterm-256color
+              ;;
+          esac
+          zellij attach --create main
+        fi
       fi
     '';
     profileExtra = ''

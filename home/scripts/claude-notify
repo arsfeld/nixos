@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# Claude Code notification script - sends notifications via ntfy when Claude needs input
+#
+# Environment variables:
+#   CLAUDE_NTFY_TOPIC  - ntfy topic to publish to (required)
+#   CLAUDE_NTFY_SERVER - ntfy server URL (default: https://ntfy.sh)
+#   CLAUDE_PROJECT_DIR - set by Claude Code hook
+
+set -euo pipefail
+
+NTFY_SERVER="${CLAUDE_NTFY_SERVER:-https://ntfy.sh}"
+
+# The hook type is passed as the first argument, topic as second (or from env)
+HOOK_TYPE="${1:-unknown}"
+NTFY_TOPIC="${2:-${CLAUDE_NTFY_TOPIC:-}}"
+
+if [[ -z "$NTFY_TOPIC" ]]; then
+  echo "Error: NTFY topic not provided as argument or CLAUDE_NTFY_TOPIC env var" >&2
+  exit 1
+fi
+
+# Read the event data from stdin (Claude Code pipes it)
+EVENT_DATA=$(cat)
+
+# Extract project name from cwd field or CLAUDE_PROJECT_DIR
+PROJECT_NAME=$(echo "$EVENT_DATA" | jq -r '.cwd // empty' 2>/dev/null | xargs basename 2>/dev/null || true)
+if [[ -z "$PROJECT_NAME" ]]; then
+  PROJECT_NAME="${CLAUDE_PROJECT_DIR:-}"
+  if [[ -n "$PROJECT_NAME" ]]; then
+    PROJECT_NAME=$(basename "$PROJECT_NAME")
+  else
+    PROJECT_NAME="Claude"
+  fi
+fi
+
+# Helper to truncate long strings
+truncate() {
+  local str="$1"
+  local max="${2:-100}"
+  if [[ ${#str} -gt $max ]]; then
+    echo "${str:0:$max}..."
+  else
+    echo "$str"
+  fi
+}
+
+# Build the notification message based on hook type
+case "$HOOK_TYPE" in
+  question)
+    # Extract questions from AskUserQuestion tool
+    QUESTION_COUNT=$(echo "$EVENT_DATA" | jq -r '.tool_input.questions | length' 2>/dev/null || echo "0")
+
+    if [[ "$QUESTION_COUNT" -eq 1 ]]; then
+      # Single question - show question and options
+      QUESTION=$(echo "$EVENT_DATA" | jq -r '.tool_input.questions[0].question // "needs your input"' 2>/dev/null)
+      OPTIONS=$(echo "$EVENT_DATA" | jq -r '.tool_input.questions[0].options // [] | map(.label) | join(" | ")' 2>/dev/null || echo "")
+
+      TITLE="❓ $PROJECT_NAME"
+      if [[ -n "$OPTIONS" ]]; then
+        MESSAGE="$QUESTION
+
+Options: $OPTIONS"
+      else
+        MESSAGE="$QUESTION"
+      fi
+    else
+      # Multiple questions - summarize
+      QUESTIONS=$(echo "$EVENT_DATA" | jq -r '.tool_input.questions | map(.question) | join("\n• ")' 2>/dev/null || echo "needs your input")
+      TITLE="❓ $PROJECT_NAME ($QUESTION_COUNT questions)"
+      MESSAGE="• $QUESTIONS"
+    fi
+
+    TAGS="question"
+    PRIORITY="high"
+    ;;
+
+  permission)
+    # Permission request - show tool and relevant context
+    TOOL=$(echo "$EVENT_DATA" | jq -r '.tool_name // "unknown"' 2>/dev/null || echo "unknown")
+    TITLE="🔐 $PROJECT_NAME"
+
+    case "$TOOL" in
+      Bash)
+        CMD=$(echo "$EVENT_DATA" | jq -r '.tool_input.command // "unknown command"' 2>/dev/null)
+        CMD=$(truncate "$CMD" 150)
+        MESSAGE="Bash: $CMD"
+        ;;
+      Write)
+        FILE=$(echo "$EVENT_DATA" | jq -r '.tool_input.file_path // "unknown"' 2>/dev/null | xargs basename 2>/dev/null || echo "unknown")
+        MESSAGE="Write file: $FILE"
+        ;;
+      Edit)
+        FILE=$(echo "$EVENT_DATA" | jq -r '.tool_input.file_path // "unknown"' 2>/dev/null | xargs basename 2>/dev/null || echo "unknown")
+        OLD=$(echo "$EVENT_DATA" | jq -r '.tool_input.old_string // ""' 2>/dev/null)
+        OLD=$(truncate "$OLD" 50)
+        MESSAGE="Edit: $FILE
+Replace: $OLD"
+        ;;
+      Task)
+        DESC=$(echo "$EVENT_DATA" | jq -r '.tool_input.description // "unknown task"' 2>/dev/null)
+        MESSAGE="Launch agent: $DESC"
+        ;;
+      WebFetch)
+        URL=$(echo "$EVENT_DATA" | jq -r '.tool_input.url // "unknown"' 2>/dev/null)
+        MESSAGE="Fetch: $URL"
+        ;;
+      *)
+        # Generic - show tool name and first few input keys
+        KEYS=$(echo "$EVENT_DATA" | jq -r '.tool_input | keys | join(", ")' 2>/dev/null || echo "")
+        if [[ -n "$KEYS" ]]; then
+          MESSAGE="$TOOL ($KEYS)"
+        else
+          MESSAGE="$TOOL"
+        fi
+        ;;
+    esac
+
+    TAGS="warning"
+    PRIORITY="high"
+    ;;
+
+  notification)
+    # General notification
+    NOTIF_TYPE=$(echo "$EVENT_DATA" | jq -r '.notification_type // "unknown"' 2>/dev/null)
+    MSG=$(echo "$EVENT_DATA" | jq -r '.message // "needs attention"' 2>/dev/null)
+
+    case "$NOTIF_TYPE" in
+      permission_prompt)
+        TITLE="🔐 $PROJECT_NAME"
+        TAGS="warning"
+        PRIORITY="high"
+        ;;
+      idle_prompt)
+        TITLE="💤 $PROJECT_NAME"
+        TAGS="hourglass"
+        PRIORITY="default"
+        ;;
+      *)
+        TITLE="🤖 $PROJECT_NAME"
+        TAGS="robot"
+        PRIORITY="default"
+        ;;
+    esac
+
+    MESSAGE="$MSG"
+    ;;
+
+  *)
+    TITLE="🤖 $PROJECT_NAME"
+    MESSAGE="Claude Code needs attention"
+    TAGS="robot"
+    PRIORITY="default"
+    ;;
+esac
+
+# Send the notification via ntfy
+curl -s \
+  -H "Title: $TITLE" \
+  -H "Priority: $PRIORITY" \
+  -H "Tags: $TAGS" \
+  -d "$MESSAGE" \
+  "$NTFY_SERVER/$NTFY_TOPIC" > /dev/null 2>&1 || true
+
+# Always exit 0 so we don't block Claude Code
+exit 0
