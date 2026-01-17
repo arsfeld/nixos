@@ -126,6 +126,8 @@ in {
       );
     shellAliases = {
       "df" = "df -h -x tmpfs";
+      "terraform" = "tofu";
+      "tf" = "tofu";
     };
 
     shell = {
