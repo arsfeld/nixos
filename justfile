@@ -29,7 +29,7 @@ deploy HOST:
     TARGET="{{ HOST }}.bat-boa.ts.net"
 
     echo "Deploying {{ HOST }} using nixos-rebuild..."
-    nixos-rebuild switch --flake ".#{{ HOST }}" --target-host "root@${TARGET}" --use-remote-sudo
+    nixos-rebuild switch --flake ".#{{ HOST }}" --target-host "root@${TARGET}" --sudo
 
 # Deploy with boot activation (activates on next boot)
 boot HOST:
@@ -39,7 +39,7 @@ boot HOST:
     TARGET="{{ HOST }}.bat-boa.ts.net"
 
     echo "Deploying {{ HOST }} with boot activation using nixos-rebuild..."
-    nixos-rebuild boot --flake ".#{{ HOST }}" --target-host "root@${TARGET}" --use-remote-sudo
+    nixos-rebuild boot --flake ".#{{ HOST }}" --target-host "root@${TARGET}" --sudo
 
 # Test the configuration without activating it
 test HOST:
@@ -49,7 +49,7 @@ test HOST:
     TARGET="{{ HOST }}.bat-boa.ts.net"
 
     echo "Testing {{ HOST }} configuration using nixos-rebuild..."
-    nixos-rebuild test --flake ".#{{ HOST }}" --target-host "root@${TARGET}" --use-remote-sudo
+    nixos-rebuild test --flake ".#{{ HOST }}" --target-host "root@${TARGET}" --sudo
 
 # === Deploy-rs Deployment (currently broken with Nix 2.32+) ===
 # NOTE: deploy-rs has known issues with Nix 2.32+ (https://github.com/serokell/deploy-rs/issues/340)

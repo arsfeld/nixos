@@ -139,7 +139,7 @@
         kubectx
         k9s
         kubernetes-helm
-        terraform
+        opentofu
         awscli2
         google-cloud-sdk
         azure-cli

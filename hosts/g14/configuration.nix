@@ -269,11 +269,11 @@
   services.logind = {
     lidSwitch = lib.mkForce "hybrid-sleep";
     lidSwitchExternalPower = lib.mkForce "hybrid-sleep";
-    extraConfig = lib.mkForce ''
-      HandlePowerKey=hybrid-sleep
-      IdleAction=hybrid-sleep
-      IdleActionSec=30min
-    '';
+    settings.Login = lib.mkForce {
+      HandlePowerKey = "hybrid-sleep";
+      IdleAction = "hybrid-sleep";
+      IdleActionSec = "30min";
+    };
   };
 
   # Set your time zone
