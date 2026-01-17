@@ -9,7 +9,8 @@ let
   router = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA8n1XWNmEvEHAMxqAljnkFkfMZrOYeZ16BYtnzG9fop root@router";
   cottage = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXEJms65pl6Fikoz3c6NG9p574RTWgJR7oJ3mmtMrok root@cottage";
   raider = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE7ayPDvZPe5h8rWjmRn2GMCRaMvE4Lhxxd2JjhJFai3 root@raider";
-  systems = [storage cloud raspi3 r2s router cottage raider];
+  g14 = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJzzvpNcM8z3tBKOmt/OZ11hGSkroo8EvDECaFmGuQoI root@nixos";
+  systems = [storage cloud raspi3 r2s router cottage raider g14];
 in {
   "authelia-secrets.age".publicKeys = users ++ [cloud];
   "bitmagnet-env.age".publicKeys = users ++ [storage];
