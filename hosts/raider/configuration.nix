@@ -33,7 +33,15 @@
 
   # Enable constellation modules
   constellation = {
-    gnome.enable = true;
+    gnome = {
+      enable = true;
+      theme = {
+        gtk = "Yaru-purple-dark";
+        icon = "Yaru-purple";
+      };
+    };
+    niri.enable = false;
+    cosmic.enable = false;
     gaming.enable = true;
     development.enable = true;
     docker.enable = true; # Enable Docker runtime
