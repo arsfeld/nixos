@@ -20,6 +20,7 @@
     go = lib.mkEnableOption "Go development" // {default = true;};
     rust = lib.mkEnableOption "Rust development" // {default = true;};
     elixir = lib.mkEnableOption "Elixir development" // {default = true;};
+    flutter = lib.mkEnableOption "Flutter/Dart development" // {default = true;};
 
     cloudTools = lib.mkOption {
       type = lib.types.bool;
@@ -87,6 +88,9 @@
         openssl
         openssl.dev
 
+        # Pre-commit
+        prek
+
         # Modern CLI tools
         ripgrep
         fd
@@ -133,6 +137,10 @@
         elixir
         erlang
         elixir-ls
+      ]
+      ++ lib.optionals config.constellation.development.flutter [
+        flutter
+        dart
       ]
       ++ lib.optionals config.constellation.development.cloudTools [
         kubectl

@@ -13,9 +13,38 @@
   ];
 
   boot.initrd.availableKernelModules = ["xhci_pci" "nvme" "ahci" "usb_storage" "usbhid" "sd_mod"];
-  boot.initrd.kernelModules = [];
+  boot.initrd.kernelModules = ["amdgpu"]; # Early KMS for AMD iGPU
   boot.kernelModules = ["kvm-amd"];
   boot.extraModulePackages = [];
+
+  # Hybrid GPU configuration
+  # - AMD Renoir (Vega iGPU) at PCI 04:00.0 for daily use / power efficiency
+  # - NVIDIA GTX 1660 Ti Mobile at PCI 01:00.0 for gaming / compute
+  services.xserver.videoDrivers = ["nvidia"];
+
+  hardware.nvidia = {
+    modesetting.enable = true;
+    powerManagement.enable = true; # Enable D3 power management
+    powerManagement.finegrained = true; # Turn off GPU when not in use (PRIME offload)
+    open = true; # Use open kernel modules (recommended for Turing+)
+    nvidiaSettings = true;
+    package = config.boot.kernelPackages.nvidiaPackages.stable;
+
+    prime = {
+      offload = {
+        enable = true;
+        enableOffloadCmd = true; # Provides nvidia-offload command
+      };
+      amdgpuBusId = "PCI:4:0:0";
+      nvidiaBusId = "PCI:1:0:0";
+    };
+  };
+
+  # Hardware acceleration
+  hardware.graphics = {
+    enable = true;
+    enable32Bit = true;
+  };
 
   security.protectKernelImage = false;
 

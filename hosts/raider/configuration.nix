@@ -172,6 +172,7 @@
 
   # Bootloader
   boot.loader.systemd-boot.enable = true;
+  boot.loader.systemd-boot.configurationLimit = 5;
   boot.loader.efi.canTouchEfiVariables = true;
 
   # Boot appearance
@@ -210,6 +211,18 @@
   # Enable the OpenSSH daemon
   services.openssh.enable = true;
 
+  # Filebrowser - web-based file manager accessible from browser/iPhone
+  services.filebrowser = {
+    enable = true;
+    user = "arosenfeld";
+    group = "users";
+    settings = {
+      address = "0.0.0.0";
+      port = 8080;
+      root = "/home/arosenfeld";
+    };
+  };
+
   # Disable firewall for development
   networking.firewall.enable = false;
 
@@ -233,6 +246,13 @@
 
   # Disable GNOME auto-suspend
   services.displayManager.gdm.autoSuspend = false;
+
+  # Mount backup disk
+  fileSystems."/mnt/backup" = {
+    device = "/dev/sdb1";
+    fsType = "auto";
+    options = ["nofail" "x-systemd.device-timeout=5s"];
+  };
 
   # Environment variables for games
   environment.sessionVariables = {
