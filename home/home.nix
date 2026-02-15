@@ -90,10 +90,6 @@ in {
         (writeScriptBin "running" (builtins.readFile ./scripts/running))
         (writeScriptBin "claude-worktree" (builtins.readFile ./scripts/claude-worktree))
         claude-notify
-        (writeScriptBin "claude" ''
-          #!/usr/bin/env bash
-          exec ${pkgs.bun}/bin/bun x @anthropic-ai/claude-code@latest "$@"
-        '')
         bun
       ]
       ++ linuxOnlyPkgs; # Added linuxOnlyPkgs
@@ -115,6 +111,7 @@ in {
         "$HOME/.local/bin"
         "$HOME/.local/share/pnpm"
         "$HOME/.npm-global/bin"
+        "$HOME/.bun/bin"
       ]
       ++ (
         if stdenv.isDarwin
@@ -164,7 +161,6 @@ in {
 
   # Claude Code settings with notification hooks
   home.file.".claude/settings.json".text = builtins.toJSON {
-    model = "claude-opus-4-5-20251101";
     includeCoAuthoredBy = false;
     hooks = {
       PreToolUse = [
@@ -202,7 +198,10 @@ in {
   programs.fish = {
     enable = true;
     interactiveShellInit = ''
-      # Add npm global bin to PATH
+      # Add local bin directories to PATH
+      if test -d $HOME/.local/bin
+        fish_add_path -g $HOME/.local/bin
+      end
       if test -d $HOME/.npm-global/bin
         fish_add_path -g $HOME/.npm-global/bin
       end
