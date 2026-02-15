@@ -36,7 +36,7 @@ with lib; let
       ntfy = null;
       owntracks = 8083;
       owntracks-ui = 8084;
-      plane = 3000; # Plane project management
+      # plane = 3000; # Plane project management (disabled)
       search = null;
       thelounge = null;
       users = null;
@@ -46,6 +46,7 @@ with lib; let
     };
     storage = {
       attic = 8080;
+      cloud = 5212; # Cloudreve file management
       opencloud = 9200;
       audiobookshelf = 13378;
       # beszel = 8090; # Disabled - monitoring service causing high CPU usage
@@ -92,6 +93,7 @@ with lib; let
       syncthing = 8384;
       tautulli = 8181;
       threadfin = 34400;
+      transfer = 8281; # Transfer.sh file sharing
       transmission = 9091;
       whisparr = 6969;
       www = 8085;
@@ -108,6 +110,7 @@ with lib; let
     "audiobookshelf"
     "auth"
     "autobrr"
+    "cloud" # Cloudreve has built-in auth
     "dns"
     "flaresolverr"
     "grafana"
@@ -126,12 +129,13 @@ with lib; let
     "opencloud"
     "owntracks"
     "owntracks-ui"
-    "plane"
+    # "plane" # disabled
     "qbittorrent"
     "search"
     "sudo-proxy"
     "termix"
     "thelounge"
+    "transfer" # Transfer.sh public file sharing
     "transmission"
     "vault"
   ];

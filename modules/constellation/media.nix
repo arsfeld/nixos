@@ -500,6 +500,8 @@ in {
             OIDC_REDIRECT_URI = "https://mydia.arsfeld.one/auth/oidc/callback";
             # FlareSolverr for bypassing Cloudflare protection on indexers
             FLARESOLVERR_URL = "http://flaresolverr:8191";
+            # Enable remote access feature flag
+            ENABLE_REMOTE_ACCESS = "true";
           };
           environmentFiles = [
             config.age.secrets.mydia-env.path
@@ -515,6 +517,41 @@ in {
           image = "ghcr.io/lukegus/termix:latest";
           listenPort = 8080;
           settings.bypassAuth = true; # Has built-in authentication
+        };
+
+        # Cloudreve - Self-hosted file management and sharing system
+        # Supports multiple storage backends, WebDAV, sharing links with expiration
+        cloud = {
+          image = "cloudreve/cloudreve:latest";
+          listenPort = 5212;
+          configDir = null; # Using custom volume mounts
+          volumes = [
+            # Main data directory (config, database, avatars, temp files)
+            "${vars.configDir}/cloudreve:/cloudreve/data"
+            # Large file storage on storage volume
+            "${vars.storageDir}/cloudreve:/cloudreve/uploads"
+          ];
+          settings.bypassAuth = true; # Has built-in authentication
+        };
+
+        # Transfer.sh - Easy and fast file sharing from the command-line
+        # Simple curl-based uploads with expiration and download limits
+        transfer = {
+          image = "dutchcoders/transfer.sh:latest";
+          listenPort = 8080; # Container's internal port
+          exposePort = 8281; # Host port
+          configDir = null; # Using custom volume mount
+          volumes = [
+            "${vars.storageDir}/transfer:/tmp/transfer.sh"
+          ];
+          environment = {
+            PROVIDER = "local";
+            BASEDIR = "/tmp/transfer.sh";
+            # File retention settings
+            PURGE_DAYS = "14"; # Keep files for 14 days
+            MAX_UPLOAD_SIZE = "5368709120"; # 5GB max upload
+          };
+          settings.bypassAuth = true; # Public file sharing service
         };
 
         # TP-Link Omada Controller - Network controller for Omada access points, switches, and routers
@@ -609,9 +646,7 @@ in {
             PORT = "4001";
             REDIS_URL = "redis://127.0.0.1:6380"; # Connect to host Redis instance
             SQLITE_DB_PATH = "/app/data/metadata_relay.db"; # SQLite database path
-            LOG_LEVEL = "debug"; # Enable verbose logging for troubleshooting
-            RELEASE_LEVEL = "debug"; # Elixir release log level
-            LOGGER_LEVEL = "debug"; # Additional logger level variable
+            LOG_LEVEL = "info";
           };
           environmentFiles = [
             config.sops.secrets.metadata-relay-env.path
