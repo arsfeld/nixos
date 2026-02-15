@@ -12,9 +12,14 @@
 # - Volume management with proper permissions
 # - Environment variable and secrets handling
 # - Automatic container updates via watchtower
+# - Support for both Podman and Kubernetes backends
 #
 # Containers can be distributed across multiple hosts and are automatically
 # exposed through the gateway with proper authentication and SSL termination.
+#
+# Backend selection:
+# - podman (default): Uses Podman/Docker containers via virtualisation.oci-containers
+# - kubernetes: Deploys to k3s via services.k3s.manifests
 {
   self,
   config,
@@ -28,6 +33,7 @@ with lib; let
   utils = import "${self}/modules/media/__utils.nix" {inherit config lib pkgs;};
   nameToPort = import "${self}/common/nameToPort.nix";
   cfg = config.media.containers;
+  backend = config.media.backend;
   exposedContainers =
     filterAttrs
     (name: container: container.enable && container.listenPort != null)
@@ -36,11 +42,29 @@ with lib; let
     filterAttrs
     (name: container: container.enable && container.host == config.networking.hostName)
     cfg;
+
+  # Check if we should use Podman backend
+  usePodman = backend == "podman";
+  useKubernetes = backend == "kubernetes";
 in {
   imports = [
     ./config.nix
     ./gateway.nix
+    ./kubernetes.nix
   ];
+
+  options.media.backend = mkOption {
+    type = types.enum ["podman" "kubernetes"];
+    default = "podman";
+    description = ''
+      Backend to use for running containers.
+      - podman: Uses Podman containers via virtualisation.oci-containers (default)
+      - kubernetes: Deploys to k3s cluster via services.k3s.manifests
+
+      When switching backends, containers are automatically migrated.
+      Use "podman" for per-service rollback capability.
+    '';
+  };
 
   options.media.containers = mkOption {
     type = types.attrsOf (types.submodule ({config, ...}: {
@@ -179,6 +203,7 @@ in {
   };
 
   config = mkIf (cfg != {}) {
+    # Gateway configuration (shared between backends)
     media.gateway = {
       enable = mkDefault (length (attrValues exposedContainers) > 0);
 
@@ -191,7 +216,11 @@ in {
         exposedContainers;
     };
 
-    systemd.tmpfiles.rules = let
+    # Enable Kubernetes backend when selected
+    media.kubernetes.enable = mkIf useKubernetes true;
+
+    # Directory creation (shared between backends, but only for Podman backend to avoid duplication)
+    systemd.tmpfiles.rules = mkIf usePodman (let
       createDir = path: "d ${path} 0775 ${vars.user} ${vars.group} -";
       getVolumeDir = volume: builtins.head (builtins.split ":" volume);
     in
@@ -202,10 +231,10 @@ in {
             ++ (map (volume: createDir (getVolumeDir volume)) container.volumes)
         )
         deployedContainers
-      );
+      ));
 
-    # Add systemd dependencies for services with mediaVolumes enabled
-    systemd.services = mkMerge (
+    # Podman-specific systemd dependencies
+    systemd.services = mkIf usePodman (mkMerge (
       mapAttrsToList (
         name: container:
           mkIf (container.enable && container.mediaVolumes) {
@@ -216,12 +245,13 @@ in {
           }
       )
       deployedContainers
-    );
+    ));
 
     # Create services.json with debug information
     environment.etc."services.json".source = let
       debugInfo =
         mapAttrs (name: container: {
+          backend = backend;
           listenPort = container.listenPort;
           exposePort =
             if container.exposePort != null
@@ -237,7 +267,8 @@ in {
     in
       pkgs.writeText "services.json" (builtins.toJSON debugInfo);
 
-    virtualisation.oci-containers.containers = mkMerge (
+    # Podman backend: Use OCI containers
+    virtualisation.oci-containers.containers = mkIf usePodman (mkMerge (
       mapAttrsToList (
         name: container:
           mkIf container.enable {
@@ -275,6 +306,6 @@ in {
           }
       )
       deployedContainers
-    );
+    ));
   };
 }

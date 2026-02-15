@@ -26,6 +26,28 @@
     domain = "plausible.arsfeld.dev";
   };
 
+  # Ensure ClickHouse system log TTLs are set (prevents unbounded growth)
+  # TTLs are applied via SQL after ClickHouse starts
+  systemd.services.clickhouse-ttl = {
+    description = "Set ClickHouse system log TTLs";
+    after = ["clickhouse.service"];
+    wants = ["clickhouse.service"];
+    wantedBy = ["multi-user.target"];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      # Wait for ClickHouse to be ready
+      sleep 5
+      ${pkgs.clickhouse}/bin/clickhouse-client --query "ALTER TABLE system.trace_log MODIFY TTL event_date + INTERVAL 3 DAY" || true
+      ${pkgs.clickhouse}/bin/clickhouse-client --query "ALTER TABLE system.query_log MODIFY TTL event_date + INTERVAL 7 DAY" || true
+      ${pkgs.clickhouse}/bin/clickhouse-client --query "ALTER TABLE system.metric_log MODIFY TTL event_date + INTERVAL 7 DAY" || true
+      ${pkgs.clickhouse}/bin/clickhouse-client --query "ALTER TABLE system.asynchronous_metric_log MODIFY TTL event_date + INTERVAL 7 DAY" || true
+      ${pkgs.clickhouse}/bin/clickhouse-client --query "ALTER TABLE system.part_log MODIFY TTL event_date + INTERVAL 7 DAY" || true
+    '';
+  };
+
   # Enable Planka kanban board
   services.planka-board = {
     enable = true;
@@ -44,9 +66,9 @@
     domain = "metadata-relay.arsfeld.dev";
   };
 
-  # Enable Plane project management
+  # Plane project management (disabled, data preserved in /var/lib/plane)
   services.plane = {
-    enable = true;
+    enable = false;
     domain = "plane.arsfeld.dev";
   };
 
@@ -60,6 +82,19 @@
 
   # Enable sops-nix secret management
   constellation.sops.enable = true;
+
+  # k3s Kubernetes cluster (agent role)
+  # Enable to join the k3s cluster running on storage
+  constellation.k3s = {
+    enable = false; # Disabled by default, enable for k3s migration
+    role = "agent";
+    serverAddr = "https://storage.bat-boa.ts.net:6443";
+    # Agent node for gateway workloads
+  };
+
+  # Container backend: "podman" (default) or "kubernetes"
+  # Set to "kubernetes" to deploy containers to k3s instead of Podman
+  # media.backend = "kubernetes";
 
   # Define secrets using standard sops-nix options
   sops.secrets = {

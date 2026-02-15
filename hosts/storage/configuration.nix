@@ -3,9 +3,15 @@
   lib,
   pkgs,
   self,
+  inputs,
   ...
 }:
-with lib; {
+with lib; let
+  pkgs-unstable = import inputs.nixpkgs-unstable {
+    inherit (pkgs.stdenv.hostPlatform) system;
+    config.allowUnfree = true;
+  };
+in {
   imports = [
     ./disko-config.nix
     ./hardware-configuration.nix
@@ -41,6 +47,25 @@ with lib; {
 
   # OpenCloud - lightweight file storage and collaboration platform
   constellation.opencloud.enable = true;
+
+  # k3s Kubernetes cluster (server role)
+  # Enable to migrate from Podman containers to Kubernetes
+  # Set media.backend = "kubernetes" to deploy containers to k3s
+  constellation.k3s = {
+    enable = false; # Disabled by default, enable for k3s migration
+    role = "server";
+    # Storage has more resources and runs most workloads
+    disableTraefik = true; # Using Caddy gateway
+    disableServiceLB = true; # Using NodePort
+  };
+
+  # Tailscale Kubernetes Operator for service exposure (when k3s is enabled)
+  # Replaces tsnsrv for *.bat-boa.ts.net access
+  constellation.k8s-tailscale.enable = false; # Enable with k3s
+
+  # Container backend: "podman" (default) or "kubernetes"
+  # Set to "kubernetes" to deploy containers to k3s instead of Podman
+  # media.backend = "kubernetes";
 
   # Tailscale VPN exit nodes via AirVPN
   # AirVPN credentials in env format for gluetun
@@ -91,7 +116,10 @@ with lib; {
     enable = true;
   };
 
-  # boot.kernelPackages = pkgs.linuxPackages_6_12;
+  # Use latest kernel for bcachefs out-of-tree module (requires >= 6.16)
+  boot.kernelPackages = pkgs.linuxPackages_latest;
+  # Use unstable bcachefs-tools for latest out-of-tree kernel module
+  boot.bcachefs.package = pkgs-unstable.bcachefs-tools;
 
   boot = {
     binfmt.emulatedSystems = ["aarch64-linux"];

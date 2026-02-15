@@ -10,10 +10,19 @@
 # - Tailscale integration with optional public exposure
 # - CORS and security header management
 # - Error page handling
+# - Support for both Podman and Kubernetes backends
 #
 # The gateway acts as a reverse proxy, routing requests to services
 # based on subdomain (service.domain.com) and providing consistent
 # authentication and security policies across all services.
+#
+# Routing behavior:
+# - Podman backend: Routes to host:port where containers expose ports
+# - Kubernetes backend: Routes to host:nodePort where k3s exposes services
+#
+# Tailscale exposure:
+# - Podman backend: Uses tsnsrv for individual service nodes
+# - Kubernetes backend: Uses Tailscale Kubernetes Operator annotations
 {
   self,
   lib,
@@ -31,6 +40,11 @@ with lib; let
     services = cfg.services;
     domain = domain;
   };
+
+  # Check which backend is being used
+  backend = config.media.backend or "podman";
+  usePodman = backend == "podman";
+  useKubernetes = backend == "kubernetes";
 in {
   options.media.gateway = {
     enable = mkEnableOption "media gateway for service routing and authentication";
@@ -194,11 +208,13 @@ in {
       extraDomainNames = ["*.${domain}"];
     };
 
-    # Configure tsnsrv services for Tailscale access
+    # Configure tsnsrv services for Tailscale access (Podman backend only)
+    # When using Kubernetes backend, the Tailscale Kubernetes Operator handles
+    # service exposure via annotations on the Service resources.
     # Re-enabled as fallback from caddy-tailscale due to high CPU usage (task-48)
-    services.tsnsrv.services = utils.generateTsnsrvConfigs {
+    services.tsnsrv.services = mkIf usePodman (utils.generateTsnsrvConfigs {
       services = cfg.services;
-    };
+    });
 
     services.caddy.email = cfg.email;
 
