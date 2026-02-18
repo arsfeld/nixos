@@ -52,7 +52,7 @@ in {
   # Enable to migrate from Podman containers to Kubernetes
   # Set media.backend = "kubernetes" to deploy containers to k3s
   constellation.k3s = {
-    enable = false; # Disabled by default, enable for k3s migration
+    enable = true;
     role = "server";
     # Storage has more resources and runs most workloads
     disableTraefik = true; # Using Caddy gateway
