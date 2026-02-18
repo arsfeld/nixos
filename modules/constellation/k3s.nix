@@ -161,37 +161,34 @@ in {
       # Server address for agents
       serverAddr = mkIf (cfg.role == "agent") cfg.serverAddr;
 
-      # Build disabled components list
+      # Build disabled components list (server only - agents don't support --disable)
       disable = let
         components =
           (optional cfg.disableTraefik "traefik")
           ++ (optional cfg.disableServiceLB "servicelb")
           ++ (optional cfg.disableLocalStorage "local-storage");
       in
-        mkIf (components != []) components;
+        mkIf (cfg.role == "server" && components != []) components;
 
       # Extra flags based on role
+      # Note: advertise-address/node-ip are set via configPath (runtime-resolved Tailscale IP)
       extraFlags = let
         serverFlags =
           [
             "--flannel-backend=${cfg.flannelBackend}"
             "--cluster-cidr=${cfg.clusterCIDR}"
             "--service-cidr=${cfg.serviceCIDR}"
-            # Use Tailscale IP for node communication
-            "--advertise-address=$(${pkgs.tailscale}/bin/tailscale ip -4)"
             "--tls-san=${config.networking.hostName}.bat-boa.ts.net"
           ]
           ++ cfg.extraServerFlags;
-        agentFlags =
-          [
-            # Use Tailscale IP for node communication
-            "--node-ip=$(${pkgs.tailscale}/bin/tailscale ip -4)"
-          ]
-          ++ cfg.extraAgentFlags;
+        agentFlags = cfg.extraAgentFlags;
       in
         if cfg.role == "server"
         then serverFlags
         else agentFlags;
+
+      # Config file with runtime-resolved Tailscale IP (written by k3s-tailscale-ip service)
+      configPath = "/run/k3s-config.yaml";
 
       # Deploy manifests (server only)
       manifests = mkIf (cfg.role == "server") cfg.manifests;
@@ -204,14 +201,35 @@ in {
       };
     };
 
-    # Ensure k3s starts after Tailscale is up
-    systemd.services.k3s = {
+    # Resolve Tailscale IP and write k3s config before k3s starts
+    # systemd doesn't expand shell command substitutions in ExecStart,
+    # so we write the IP to a config file that k3s reads via --config
+    systemd.services.k3s-tailscale-ip = {
+      description = "Resolve Tailscale IP for k3s";
       after = ["tailscaled.service"];
       wants = ["tailscaled.service"];
-      # Add a brief delay to ensure Tailscale has acquired an IP
-      serviceConfig.ExecStartPre = mkIf (cfg.role == "server") [
-        "${pkgs.coreutils}/bin/sleep 5"
-      ];
+      before = ["k3s.service"];
+      requiredBy = ["k3s.service"];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        ExecStart = pkgs.writeShellScript "k3s-resolve-tailscale-ip" ''
+          # Brief delay to ensure Tailscale has acquired an IP
+          ${pkgs.coreutils}/bin/sleep 5
+          ip=$(${pkgs.tailscale}/bin/tailscale ip -4)
+          ${
+            if cfg.role == "server"
+            then ''echo "advertise-address: $ip" > /run/k3s-config.yaml''
+            else ''echo "node-ip: $ip" > /run/k3s-config.yaml''
+          }
+        '';
+      };
+    };
+
+    # Ensure k3s starts after Tailscale IP is resolved
+    systemd.services.k3s = {
+      after = ["tailscaled.service" "k3s-tailscale-ip.service"];
+      wants = ["tailscaled.service" "k3s-tailscale-ip.service"];
     };
 
     # Open firewall ports for k3s

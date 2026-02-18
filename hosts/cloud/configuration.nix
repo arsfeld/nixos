@@ -86,7 +86,7 @@
   # k3s Kubernetes cluster (agent role)
   # Enable to join the k3s cluster running on storage
   constellation.k3s = {
-    enable = false; # Disabled by default, enable for k3s migration
+    enable = true;
     role = "agent";
     serverAddr = "https://storage.bat-boa.ts.net:6443";
     # Agent node for gateway workloads
