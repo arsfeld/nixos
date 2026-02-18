@@ -118,8 +118,9 @@ in {
 
   # Use latest kernel for bcachefs out-of-tree module (requires >= 6.16)
   boot.kernelPackages = pkgs.linuxPackages_latest;
-  # Use unstable bcachefs-tools for latest out-of-tree kernel module
+  # Use unstable bcachefs-tools for latest out-of-tree kernel module and CLI
   boot.bcachefs.package = pkgs-unstable.bcachefs-tools;
+  environment.systemPackages = [pkgs-unstable.bcachefs-tools];
 
   boot = {
     binfmt.emulatedSystems = ["aarch64-linux"];
