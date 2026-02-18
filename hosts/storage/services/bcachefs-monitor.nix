@@ -7,7 +7,7 @@
   # Bcachefs I/O monitoring tool - iostat-like utility for bcachefs filesystems
   environment.systemPackages = with pkgs; [
     bc # Required for floating point calculations
-    bcachefs-tools # Required for bcachefs show-super
+    # bcachefs-tools provided by configuration.nix from pkgs-unstable
     (writeScriptBin "bcachefs-iostat" ''
       #!/usr/bin/env bash
       set -euo pipefail

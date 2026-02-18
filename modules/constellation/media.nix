@@ -489,7 +489,10 @@ in {
         mydia = {
           image = "ghcr.io/getmydia/mydia:master";
           listenPort = 4000;
+          exposePort = 4000;
           mediaVolumes = true;
+          network = "host";
+          devices = ["/dev/dri:/dev/dri"];
           environment = {
             PHX_HOST = "mydia.arsfeld.one";
             PORT = "4000";
