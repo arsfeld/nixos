@@ -4,6 +4,11 @@
   ...
 }: {
   age.secrets."restic-rest-auth".file = "${self}/secrets/restic-rest-auth.age";
+  age.secrets."hetzner-storagebox-ssh-key" = {
+    file = "${self}/secrets/hetzner-storagebox-ssh-key.age";
+    mode = "0400";
+    path = "/root/.ssh/hetzner_storagebox";
+  };
 
   services.restic.backups = {
     # Local backup: Root disk only (system state, no user data or media)
@@ -74,6 +79,22 @@
         "--keep-monthly 6"
       ];
     };
+
+    # Pre-migration backup: User data to Hetzner Storage Box via SFTP
+    hetzner = {
+      paths = [
+        "/mnt/storage/homes"
+        "/mnt/storage/files"
+      ];
+      exclude = [];
+      repository = "sftp:u547717@u547717.your-storagebox.de:backups/restic";
+      passwordFile = config.age.secrets."restic-password".path;
+      extraOptions = [
+        "sftp.command='ssh -p 23 -i /root/.ssh/hetzner_storagebox -o StrictHostKeyChecking=accept-new u547717@u547717.your-storagebox.de -s sftp'"
+      ];
+      initialize = true;
+      timerConfig = null; # Manual trigger only - no automatic schedule
+    };
   };
 
   # Set I/O priority for backup jobs to idle class to prevent disk I/O congestion
@@ -83,6 +104,9 @@
     };
     restic-backups-servarica.serviceConfig = {
       IOSchedulingClass = "idle";
+    };
+    restic-backups-hetzner.serviceConfig = {
+      TimeoutStartSec = "infinity";
     };
   };
 }
