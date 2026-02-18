@@ -99,6 +99,9 @@ in {
   "stash-session-secret.age".publicKeys = users ++ [raider];
   "stash-password.age".publicKeys = users ++ [raider];
 
+  # Hetzner Storage Box SSH key (for restic backup before ZFS migration)
+  "hetzner-storagebox-ssh-key.age".publicKeys = users ++ [storage];
+
   # GitHub notifications
   "github-token.age".publicKeys = users ++ [raider storage];
 }
