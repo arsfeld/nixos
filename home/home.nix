@@ -140,6 +140,7 @@ in {
 
   # Configure nix settings for user
   nix = {
+    package = pkgs.nix;
     settings =
       {
         builders-use-substitutes = true;
@@ -184,7 +185,7 @@ in {
   programs.home-manager.enable = true;
 
   # Set default applications for XDG MIME types
-  xdg.mimeApps = {
+  xdg.mimeApps = mkIf stdenv.isLinux {
     enable = true;
     defaultApplications = {
       "text/html" = "app.zen_browser.zen.desktop";
