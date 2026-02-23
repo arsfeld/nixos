@@ -90,7 +90,6 @@
                 attic-client
                 colmena
                 inputs.deploy-rs.packages."${pkgs.stdenv.hostPlatform.system}".default
-                disko
                 git
                 jq
                 just
@@ -99,7 +98,6 @@
                 inputs.sops-nix.packages."${pkgs.stdenv.hostPlatform.system}".sops-import-keys-hook
                 sops
                 ssh-to-age
-                inputs.disko.packages."${pkgs.stdenv.hostPlatform.system}".default
 
                 # Python tools
                 black
@@ -112,6 +110,10 @@
 
                 # Git commit tools
                 gptcommit
+              ]
+              ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
+                disko
+                inputs.disko.packages."${pkgs.stdenv.hostPlatform.system}".default
               ]
               ++ config.checks.pre-commit-check.enabledPackages;
           };
