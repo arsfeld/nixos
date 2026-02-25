@@ -18,6 +18,7 @@ in {
     ./users.nix
     ./services
     ./backup
+    ./scripts
   ];
 
   constellation.backup.enable = true;
