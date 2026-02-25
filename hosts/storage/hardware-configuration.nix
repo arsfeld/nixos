@@ -33,15 +33,9 @@
   };
 
   fileSystems."/mnt/storage" = {
-    fsType = "bcachefs";
-    device = "/dev/disk/by-uuid/ddd4e5fc-7046-4fb9-bc30-9bd856ee1c0e";
-    options = ["nofail"];
-  };
-
-  systemd.services.mount-storage = {
-    description = "mount storage";
-    script = "/run/current-system/sw/bin/mount /mnt/storage || true";
-    wantedBy = ["multi-user.target"];
+    fsType = "btrfs";
+    device = "/dev/disk/by-uuid/0ab1aa6e-aa33-4825-b7f9-10f9487d8713";
+    options = ["nofail" "compress=zstd"];
   };
 
   systemd.services.docker.after = ["mnt-storage.mount"];

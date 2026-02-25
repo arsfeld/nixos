@@ -37,32 +37,65 @@
       };
     };
 
-    # Remote backup: Full system including user data and critical media (Immich)
+    # Remote backup: User data and important files only (no system state or /nix)
     servarica = {
-      paths = ["/"];
+      paths = [
+        "/home"
+        "/mnt/data"
+      ];
       exclude = [
-        "/dev"
-        "/proc"
-        "/sys"
-        "/media"
-        "/tmp"
-        "/var/cache"
-        "/home/*/.cache"
-        "/run"
-        "/var/lib/docker"
-        "/var/lib/containers"
-        "/var/lib/lxcfs"
-        # Exclude local backup destinations to prevent recursion
+        # /mnt/data exclusions
         "/mnt/data/backups"
-        "/mnt/storage/backups"
-        # Note: /mnt/data and /mnt/storage are the same bcachefs filesystem mounted at different paths
-        # To avoid backing up data twice, we exclude /mnt/storage entirely and only backup via /mnt/data
-        "/mnt/storage"
-        # Exclude /mnt/data/homes since /home is a separate mount of the same subvolume
-        "/mnt/data/homes"
-        # Exclude bulk media (movies, TV, music) via /mnt/data path - replaceable content
         "/mnt/data/media"
-        # Keep /mnt/data/files - this contains important user files (729GB) that should be backed up
+        "/mnt/data/homes" # same as /home
+
+        # Caches
+        "/home/*/.cache"
+        "/home/*/.local/share/containers"
+
+        # Dev tooling (many small files, reinstallable)
+        "/home/*/.cargo"
+        "/home/*/.rustup"
+        "/home/*/.npm"
+        "/home/*/.npm-global"
+        "/home/*/.npm-packages"
+        "/home/*/.nvm"
+        "/home/*/.bun"
+        "/home/*/go"
+        "/home/*/.hex"
+        "/home/*/.mix"
+        "/home/*/.linuxbrew"
+        "/home/*/.local/share/pnpm"
+
+        # Remote IDE servers (reinstallable)
+        "/home/*/.vscode-server"
+        "/home/*/.cursor-server"
+        "/home/*/.openvscode-server"
+        "/home/*/.zed_server"
+        "/home/*/.devpod"
+
+        # AI tool caches (reinstallable)
+        "/home/*/.claude"
+        "/home/*/.claude-code-router"
+        "/home/*/.codex"
+        "/home/*/.copilot"
+        "/home/*/.gemini"
+        "/home/*/.qwen"
+        "/home/*/.tailout"
+
+        # Large dirs already stored elsewhere or replaceable
+        "/home/*/Takeout"
+        "/home/*/Backup"
+        "/home/*/Downloads"
+        "/home/*/torrents"
+
+        # Other regenerable state
+        "/home/*/.docker"
+        "/home/*/.dropbox-dist"
+        "/home/*/.wine"
+        "/home/*/.nix-defexpr"
+        "/home/*/.nix-profile"
+        "/home/*/.terraform.d"
       ];
       repository = "rest:https://servarica.bat-boa.ts.net/";
       passwordFile = config.age.secrets."restic-password".path;
