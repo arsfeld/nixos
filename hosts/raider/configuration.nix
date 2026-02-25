@@ -50,6 +50,97 @@
     githubIssueNotify.enable = true; # Enable isolated GitHub issue creation for systemd failures
   };
 
+  # Local home backup to /mnt/backup
+  services.rustic.profiles.local = {
+    timerConfig = {
+      OnCalendar = "daily";
+      RandomizedDelaySec = "1h";
+    };
+    repository = {
+      repository = "/mnt/backup/home-backup";
+      password-file = config.age.secrets."restic-password".path;
+      init = true;
+    };
+    backup = {
+      init = true;
+      snapshots = [
+        {
+          sources = ["/home"];
+          globs = [
+            # Caches
+            "!**/.cache"
+
+            # Package manager caches
+            "!**/node_modules"
+            "!**/.npm"
+            "!**/.npm-global"
+            "!**/.bun"
+            "!**/.pnpm-store"
+            "!**/.yarn"
+            "!**/.gradle"
+            "!**/.cargo/registry"
+            "!**/.cargo/git"
+            "!**/.rustup"
+            "!**/.nuget"
+            "!**/.m2"
+            "!**/.pub-cache"
+
+            # IDE/editor caches
+            "!**/.vscode/extensions"
+            "!**/.vscode-server"
+            "!**/.local/share/zed"
+
+            # Nix
+            "!**/.nix-profile"
+            "!**/.nix-defexpr"
+
+            # Flatpak & containers
+            "!**/.var"
+            "!**/.local/share/flatpak"
+            "!**/.local/share/Steam"
+            "!**/.local/share/containers"
+
+            # Trash
+            "!**/.local/share/Trash"
+
+            # Gaming (re-downloadable)
+            "!**/.local/share/umu"
+            "!**/.local/share/lutris"
+
+            # Media synced from storage
+            "!**/media/tv"
+            "!**/media/movies"
+            "!**/media/adult"
+
+            # Build outputs & targets
+            "!**/target/debug"
+            "!**/target/release"
+            "!**/.next"
+            "!**/.turbo"
+            "!**/dist"
+            "!**/__pycache__"
+            "!**/.tox"
+            "!**/.venv"
+            "!**/venv"
+
+            # AI/LLM caches
+            "!**/.claude"
+            "!**/.local/share/opencode"
+
+            # FUSE mounts
+            "!**/Google Drive"
+          ];
+          exclude-if-present = [".nobackup" "CACHEDIR.TAG"];
+        }
+      ];
+    };
+    forget = {
+      keep-daily = 7;
+      keep-weekly = 4;
+      keep-monthly = 6;
+    };
+  };
+
   # Mark raider as a development machine for netdata alert filtering
   services.netdata.config."host labels".environment = "development";
 
@@ -163,6 +254,7 @@
   # Additional packages
   environment.systemPackages = with pkgs; [
     anycubic-slicer
+    firefox
   ];
 
   # Basic system configuration
