@@ -90,6 +90,7 @@ in {
         (writeScriptBin "running" (builtins.readFile ./scripts/running))
         (writeScriptBin "claude-worktree" (builtins.readFile ./scripts/claude-worktree))
         claude-notify
+        pkgs.playwright-mcp
         bun
       ]
       ++ linuxOnlyPkgs; # Added linuxOnlyPkgs
