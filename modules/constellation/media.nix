@@ -213,6 +213,7 @@ in {
 
         prowlarr = {
           listenPort = 9696;
+          exposePort = 9696;
           settings.bypassAuth = true;
         };
 
@@ -502,7 +503,7 @@ in {
             # Required because the container runs behind a reverse proxy
             OIDC_REDIRECT_URI = "https://mydia.arsfeld.one/auth/oidc/callback";
             # FlareSolverr for bypassing Cloudflare protection on indexers
-            FLARESOLVERR_URL = "http://flaresolverr:8191";
+            FLARESOLVERR_URL = "http://localhost:8191";
             # Enable remote access feature flag
             ENABLE_REMOTE_ACCESS = "true";
           };
