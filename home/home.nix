@@ -141,7 +141,7 @@ in {
 
   # Configure nix settings for user
   nix = {
-    package = pkgs.nix;
+    package = lib.mkDefault pkgs.nix;
     settings =
       {
         builders-use-substitutes = true;
@@ -160,28 +160,6 @@ in {
   xdg.configFile."htop/htoprc" = {
     source = ./files/htoprc;
   };
-
-  # Claude Code settings with notification hooks
-  home.file.".claude/settings.json".text = builtins.toJSON {
-    includeCoAuthoredBy = false;
-    hooks = {
-      PreToolUse = [
-        {
-          matcher = "AskUserQuestion";
-          hooks = [
-            {
-              type = "command";
-              command = "${claude-notify}/bin/claude-notify question arosenfeld-claude";
-            }
-          ];
-        }
-      ];
-    };
-  };
-
-  # Claude Code commands
-  home.file.".claude/commands/commit.md".source = ./files/claude-commands/commit.md;
-  home.file.".claude/commands/release.md".source = ./files/claude-commands/release.md;
 
   programs.home-manager.enable = true;
 
