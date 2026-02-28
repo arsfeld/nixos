@@ -5,7 +5,7 @@
   ...
 }: let
   vars = config.media.config;
-  cacheDir = "/var/cache/finance-tracker";
+  dataDir = "/var/lib/finance-tracker";
   financeTrackerScript = pkgs.writeShellApplication {
     name = "finance-tracker";
     runtimeInputs = [pkgs.podman];
@@ -13,9 +13,8 @@
       exec podman run \
         --rm \
         --pull newer \
-        --volume "${cacheDir}:${cacheDir}" \
-        --volume "/etc/finance-tracker/filter-config.yaml:/app/filter-config.yaml:ro" \
-        --env XDG_CACHE_HOME="${cacheDir}" \
+        --volume "${dataDir}:/config" \
+        --env DATA_DIR=/config \
         --env-file "${config.age.secrets."finance-tracker-env".path}" \
         ghcr.io/arsfeld/finance-tracker:latest ./finance-tracker "$@"
     '';
@@ -25,15 +24,14 @@ in {
     file = "${self}/secrets/finance-tracker-env.age";
   };
 
-  # Deploy filter configuration to /etc
-  environment.etc."finance-tracker/filter-config.yaml" = {
-    text = builtins.readFile ../files/finance-tracker-filter.yaml;
-    mode = "0444"; # read-only
-  };
-
   # Create the finance-tracker script
   environment.systemPackages = [
     financeTrackerScript
+  ];
+
+  # Ensure data directory exists
+  systemd.tmpfiles.rules = [
+    "d ${dataDir} 0755 root root -"
   ];
 
   # Systemd service and timer for finance-tracker

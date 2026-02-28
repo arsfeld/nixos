@@ -21,7 +21,6 @@ in {
     ./scripts
   ];
 
-  constellation.backup.enable = true;
   # We're the netdata server, not a client.
   constellation.netdataClient.enable = false;
   constellation.services.enable = true;

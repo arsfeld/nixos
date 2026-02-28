@@ -3,7 +3,7 @@
   self,
   ...
 }: {
-  age.secrets."restic-rest-auth".file = "${self}/secrets/restic-rest-auth.age";
+  age.secrets."restic-password".file = "${self}/secrets/restic-password.age";
   age.secrets."hetzner-storagebox-ssh-key" = {
     file = "${self}/secrets/hetzner-storagebox-ssh-key.age";
     mode = "0400";
@@ -18,6 +18,7 @@
         "/dev"
         "/proc"
         "/sys"
+        "/nix"
         "/mnt"
         "/media"
         "/tmp"
@@ -29,25 +30,31 @@
         "/var/lib/containers"
         "/var/lib/lxcfs"
       ];
-      repository = "/mnt/data/backups/restic";
+      repository = "/mnt/storage/backups/restic";
       passwordFile = config.age.secrets."restic-password".path;
+      initialize = true;
       timerConfig = {
         OnCalendar = "daily";
         RandomizedDelaySec = "5h";
       };
+      pruneOpts = [
+        "--keep-daily 7"
+        "--keep-weekly 5"
+        "--keep-monthly 12"
+      ];
     };
 
     # Remote backup: User data and important files only (no system state or /nix)
-    servarica = {
+    hetzner = {
       paths = [
         "/home"
-        "/mnt/data"
+        "/mnt/storage"
       ];
       exclude = [
-        # /mnt/data exclusions
-        "/mnt/data/backups"
-        "/mnt/data/media"
-        "/mnt/data/homes" # same as /home
+        # /mnt/storage exclusions
+        "/mnt/storage/backups"
+        "/mnt/storage/media"
+        "/mnt/storage/homes" # same as /home
 
         # Caches
         "/home/*/.cache"
@@ -86,7 +93,6 @@
         # Large dirs already stored elsewhere or replaceable
         "/home/*/Takeout"
         "/home/*/Backup"
-        "/home/*/Downloads"
         "/home/*/torrents"
 
         # Other regenerable state
@@ -97,11 +103,14 @@
         "/home/*/.nix-profile"
         "/home/*/.terraform.d"
       ];
-      repository = "rest:https://servarica.bat-boa.ts.net/";
+
+      # Hetzner Storage Box via SFTP
+      repository = "sftp:u547717@u547717.your-storagebox.de:backups/restic";
       passwordFile = config.age.secrets."restic-password".path;
-      extraOptions = ["sftp.command='ssh restic@servarica.bat-boa.ts.net'"];
-      environmentFile = config.age.secrets."restic-rest-auth".path;
-      initialize = false; # Repository already exists
+      extraOptions = [
+        "sftp.command='ssh -p 23 -i /root/.ssh/hetzner_storagebox -o StrictHostKeyChecking=accept-new u547717@u547717.your-storagebox.de -s sftp'"
+      ];
+      initialize = true;
       timerConfig = {
         OnCalendar = "weekly";
         RandomizedDelaySec = "1h";
@@ -112,30 +121,11 @@
         "--keep-monthly 6"
       ];
     };
-
-    # Pre-migration backup: User data to Hetzner Storage Box via SFTP
-    hetzner = {
-      paths = [
-        "/mnt/storage/homes"
-        "/mnt/storage/files"
-      ];
-      exclude = [];
-      repository = "sftp:u547717@u547717.your-storagebox.de:backups/restic";
-      passwordFile = config.age.secrets."restic-password".path;
-      extraOptions = [
-        "sftp.command='ssh -p 23 -i /root/.ssh/hetzner_storagebox -o StrictHostKeyChecking=accept-new u547717@u547717.your-storagebox.de -s sftp'"
-      ];
-      initialize = true;
-      timerConfig = null; # Manual trigger only - no automatic schedule
-    };
   };
 
   # Set I/O priority for backup jobs to idle class to prevent disk I/O congestion
   systemd.services = {
     restic-backups-nas.serviceConfig = {
-      IOSchedulingClass = "idle";
-    };
-    restic-backups-servarica.serviceConfig = {
       IOSchedulingClass = "idle";
     };
     restic-backups-hetzner.serviceConfig = {
