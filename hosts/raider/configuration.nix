@@ -50,6 +50,12 @@
     githubIssueNotify.enable = true; # Enable isolated GitHub issue creation for systemd failures
   };
 
+  # Project Isolation VMs (Tailscale disabled for now — uses libvirt network SSH)
+  constellation.projectVms = {
+    enable = true;
+    sshPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBDeQP9ZHuDegrcgBEAuLpCWEK0v8eIBAgaLMSquCP0w arsfeld@gmail.com";
+  };
+
   # Local home backup to /mnt/backup
   services.rustic.profiles.local = {
     timerConfig = {
