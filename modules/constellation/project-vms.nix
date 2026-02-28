@@ -39,7 +39,7 @@ with lib; let
   cfg = config.constellation.projectVms;
 
   # Debian cloud image URL and filename
-  debianImageUrl = "https://cloud.debian.org/images/cloud/trixie/daily/latest/debian-trixie-genericcloud-amd64-daily.qcow2";
+  debianImageUrl = "https://cloud.debian.org/images/cloud/trixie/daily/latest/debian-13-genericcloud-amd64-daily.qcow2";
   debianImageName = "debian-testing.qcow2";
 
   # Type for a single project VM configuration (for future declarative projects)
@@ -104,7 +104,7 @@ with lib; let
       DEFAULT_CPUS="${toString cfg.defaultCpus}"
       DEFAULT_DISK="${cfg.defaultDiskSize}"
       SSH_PUBLIC_KEY="${cfg.sshPublicKey}"
-      TAILSCALE_AUTH_KEY_FILE="${cfg.tailscaleAuthKeyFile}"
+      TAILSCALE_AUTH_KEY_FILE="${optionalString (cfg.tailscaleAuthKeyFile != null) cfg.tailscaleAuthKeyFile}"
 
       usage() {
         echo "Usage: project-vm <command> [args]"
@@ -142,8 +142,10 @@ with lib; let
       generate_cloud_init() {
         local name="$1"
         local project_dir="$STORAGE_DIR/$name"
-        local tailscale_key
-        tailscale_key=$(cat "$TAILSCALE_AUTH_KEY_FILE")
+        local tailscale_key=""
+        if [[ -n "$TAILSCALE_AUTH_KEY_FILE" && -f "$TAILSCALE_AUTH_KEY_FILE" ]]; then
+          tailscale_key=$(cat "$TAILSCALE_AUTH_KEY_FILE")
+        fi
 
         mkdir -p "$project_dir"
 
@@ -205,21 +207,37 @@ with lib; let
 
         # Install Nix (multi-user)
         - |
-          curl -L https://nixos.org/nix/install | sh -s -- --daemon --yes
+          set -ex
+          curl -L -o /tmp/nix-install.sh https://nixos.org/nix/install
+          chmod +x /tmp/nix-install.sh
+          /tmp/nix-install.sh --daemon --yes
+          rm -f /tmp/nix-install.sh
+          # Source nix for interactive and login shells
           echo '. /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' >> /home/dev/.bashrc
-
-        # Install Tailscale
-        - curl -fsSL https://tailscale.com/install.sh | sh
-        - tailscale up --authkey=$tailscale_key --hostname=project-$name --ssh
+          echo '. /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' >> /home/dev/.profile
 
         # Install Claude Code CLI via npm
         - |
           curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
           apt-get install -y nodejs
           npm install -g @anthropic-ai/claude-code
+      EOF
+
+        # Conditionally add Tailscale section
+        if [[ -n "$tailscale_key" ]]; then
+          # Insert Tailscale runcmd before the final EOF-terminated content
+          cat >> "$project_dir/user-data" << EOF
+        - curl -fsSL https://tailscale.com/install.sh | sh
+        - tailscale up --authkey=$tailscale_key --hostname=project-$name --ssh
 
       final_message: "Project VM '$name' is ready! Connect via: ssh dev@project-$name.bat-boa.ts.net"
       EOF
+        else
+          cat >> "$project_dir/user-data" << EOF
+
+      final_message: "Project VM '$name' is ready! Connect via: project-vm ssh $name (using libvirt network)"
+      EOF
+        fi
 
         # Create cloud-init ISO
         cloud-localds "$project_dir/cloud-init.iso" "$project_dir/user-data" "$project_dir/meta-data"
@@ -234,7 +252,7 @@ with lib; let
 
         check_base_image
 
-        if virsh dominfo "project-$name" &>/dev/null; then
+        if virsh -c qemu:///system dominfo "project-$name" &>/dev/null; then
           echo "Error: VM 'project-$name' already exists"
           exit 1
         fi
@@ -303,7 +321,7 @@ with lib; let
       EOF
 
         # Define the VM
-        virsh define "$project_dir/domain.xml"
+        virsh -c qemu:///system define "$project_dir/domain.xml"
         echo ""
         echo "VM 'project-$name' created successfully!"
         echo "Start it with: project-vm start $name"
@@ -311,12 +329,12 @@ with lib; let
 
       start_vm() {
         local name="$1"
-        if ! virsh dominfo "project-$name" &>/dev/null; then
+        if ! virsh -c qemu:///system dominfo "project-$name" &>/dev/null; then
           echo "Error: VM 'project-$name' does not exist"
           exit 1
         fi
         echo "Starting VM 'project-$name'..."
-        virsh start "project-$name"
+        virsh -c qemu:///system start "project-$name"
         echo ""
         echo "VM is starting. It may take a few minutes for cloud-init to complete."
         echo "Once ready, connect with: project-vm ssh $name"
@@ -324,28 +342,28 @@ with lib; let
 
       stop_vm() {
         local name="$1"
-        if ! virsh dominfo "project-$name" &>/dev/null; then
+        if ! virsh -c qemu:///system dominfo "project-$name" &>/dev/null; then
           echo "Error: VM 'project-$name' does not exist"
           exit 1
         fi
 
         # Check if VM is running
         local state
-        state=$(virsh domstate "project-$name" 2>/dev/null || echo "unknown")
+        state=$(virsh -c qemu:///system domstate "project-$name" 2>/dev/null || echo "unknown")
         if [[ "$state" != "running" ]]; then
           echo "VM 'project-$name' is not running (state: $state)"
           exit 0
         fi
 
         echo "Stopping VM 'project-$name'..."
-        virsh shutdown "project-$name"
+        virsh -c qemu:///system shutdown "project-$name"
 
         # Wait for graceful shutdown with timeout
         local timeout=60
         local elapsed=0
         echo "Waiting for graceful shutdown (timeout: ''${timeout}s)..."
         while [[ $elapsed -lt $timeout ]]; do
-          state=$(virsh domstate "project-$name" 2>/dev/null || echo "unknown")
+          state=$(virsh -c qemu:///system domstate "project-$name" 2>/dev/null || echo "unknown")
           if [[ "$state" != "running" ]]; then
             echo "VM stopped gracefully."
             exit 0
@@ -355,7 +373,7 @@ with lib; let
         done
 
         echo "Graceful shutdown timed out, forcing stop..."
-        virsh destroy "project-$name"
+        virsh -c qemu:///system destroy "project-$name"
         echo "VM force-stopped."
       }
 
@@ -379,11 +397,11 @@ with lib; let
           esac
         done
 
-        if virsh dominfo "project-$name" &>/dev/null; then
+        if virsh -c qemu:///system dominfo "project-$name" &>/dev/null; then
           echo "Stopping VM if running..."
-          virsh destroy "project-$name" 2>/dev/null || true
+          virsh -c qemu:///system destroy "project-$name" 2>/dev/null || true
           echo "Removing VM definition..."
-          virsh undefine "project-$name"
+          virsh -c qemu:///system undefine "project-$name"
         fi
 
         if [[ -d "$project_dir" ]]; then
@@ -406,8 +424,20 @@ with lib; let
 
       ssh_vm() {
         local name="$1"
-        echo "Connecting to project-$name.bat-boa.ts.net..."
-        ssh -o StrictHostKeyChecking=accept-new "dev@project-$name.bat-boa.ts.net"
+        if [[ -n "$TAILSCALE_AUTH_KEY_FILE" ]]; then
+          echo "Connecting to project-$name.bat-boa.ts.net..."
+          ssh -o StrictHostKeyChecking=accept-new "dev@project-$name.bat-boa.ts.net"
+        else
+          # Get VM IP from libvirt DHCP leases
+          local ip
+          ip=$(virsh -c qemu:///system domifaddr "project-$name" 2>/dev/null | awk '/ipv4/ {split($4,a,"/"); print a[1]}')
+          if [[ -z "$ip" ]]; then
+            echo "Error: Could not determine IP for project-$name. Is the VM running?"
+            exit 1
+          fi
+          echo "Connecting to project-$name at $ip..."
+          ssh -o StrictHostKeyChecking=accept-new "dev@$ip"
+        fi
       }
 
       list_vms() {
@@ -418,8 +448,8 @@ with lib; let
             local name
             name=$(basename "$dir")
             local state="undefined"
-            if virsh dominfo "project-$name" &>/dev/null; then
-              state=$(virsh domstate "project-$name" 2>/dev/null || echo "unknown")
+            if virsh -c qemu:///system dominfo "project-$name" &>/dev/null; then
+              state=$(virsh -c qemu:///system domstate "project-$name" 2>/dev/null || echo "unknown")
             fi
             printf "  %-20s %s\n" "$name" "$state"
           fi
@@ -429,36 +459,48 @@ with lib; let
       status_vm() {
         local name="$1"
         local project_dir="$STORAGE_DIR/$name"
+        local state="unknown"
 
         echo "Project VM: $name"
         echo ""
 
-        if virsh dominfo "project-$name" &>/dev/null; then
-          virsh dominfo "project-$name"
+        if virsh -c qemu:///system dominfo "project-$name" &>/dev/null; then
+          virsh -c qemu:///system dominfo "project-$name"
+          state=$(virsh -c qemu:///system domstate "project-$name" 2>/dev/null || echo "unknown")
         else
           echo "VM is not defined in libvirt"
         fi
 
         echo ""
         echo "Disk usage:"
-        if [[ -f "$project_dir/disk.qcow2" ]]; then
-          qemu-img info "$project_dir/disk.qcow2" | grep -E '(virtual size|disk size)'
-        fi
-        if [[ -f "$project_dir/project.qcow2" ]]; then
-          echo ""
-          echo "Project disk:"
-          qemu-img info "$project_dir/project.qcow2" | grep -E '(virtual size|disk size)'
+        if [[ "$state" == "running" ]]; then
+          # Can't use qemu-img on locked files, show file sizes instead
+          if [[ -f "$project_dir/disk.qcow2" ]]; then
+            echo "  System disk: $(numfmt --to=iec "$(stat -c%s "$project_dir/disk.qcow2")") (on-disk, VM running)"
+          fi
+          if [[ -f "$project_dir/project.qcow2" ]]; then
+            echo "  Project disk: $(numfmt --to=iec "$(stat -c%s "$project_dir/project.qcow2")") (on-disk, VM running)"
+          fi
+        else
+          if [[ -f "$project_dir/disk.qcow2" ]]; then
+            echo "  System disk:"
+            qemu-img info "$project_dir/disk.qcow2" | grep -E '(virtual size|disk size)'
+          fi
+          if [[ -f "$project_dir/project.qcow2" ]]; then
+            echo "  Project disk:"
+            qemu-img info "$project_dir/project.qcow2" | grep -E '(virtual size|disk size)'
+          fi
         fi
       }
 
       console_vm() {
         local name="$1"
-        if ! virsh dominfo "project-$name" &>/dev/null; then
+        if ! virsh -c qemu:///system dominfo "project-$name" &>/dev/null; then
           echo "Error: VM 'project-$name' does not exist"
           exit 1
         fi
         echo "Attaching to console (Ctrl+] to exit)..."
-        virsh console "project-$name"
+        virsh -c qemu:///system console "project-$name"
       }
 
       # Main command dispatch
@@ -529,9 +571,11 @@ in {
     };
 
     tailscaleAuthKeyFile = mkOption {
-      type = types.path;
+      type = types.nullOr types.path;
+      default = null;
       description = ''
         Path to a file containing the Tailscale auth key.
+        If null, Tailscale will not be installed in VMs.
         This key should be reusable and pre-authorized with appropriate tags.
         Generate one at: https://login.tailscale.com/admin/settings/keys
       '';
@@ -542,6 +586,12 @@ in {
       type = types.str;
       description = "SSH public key to authorize for the 'dev' user in VMs.";
       example = "ssh-ed25519 AAAA... user@host";
+    };
+
+    user = mkOption {
+      type = types.str;
+      default = "arosenfeld";
+      description = "User to grant project-vm management permissions (added to libvirtd group).";
     };
 
     projects = mkOption {
@@ -563,6 +613,9 @@ in {
   config = mkIf cfg.enable {
     # Ensure virtualization is enabled
     constellation.virtualization.enable = true;
+
+    # Allow the configured user to manage VMs without sudo
+    users.groups.libvirtd.members = [cfg.user];
 
     # Install the CLI tool
     environment.systemPackages = [projectVmCli];
@@ -609,8 +662,8 @@ in {
     };
 
     # Ensure libvirt default network is available
-    systemd.services.libvirtd-config = {
-      description = "Configure libvirt default network";
+    systemd.services.project-vm-network = {
+      description = "Configure libvirt default network for project VMs";
       after = ["libvirtd.service"];
       requires = ["libvirtd.service"];
       wantedBy = ["multi-user.target"];
