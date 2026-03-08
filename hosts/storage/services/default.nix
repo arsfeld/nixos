@@ -16,6 +16,7 @@
     ./misc.nix
     ./qbittorrent-vpn.nix
     ./transmission-vpn.nix
+    ./nfs.nix
     ./samba.nix
   ];
 }
