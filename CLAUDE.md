@@ -4,459 +4,184 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is a personal NixOS configuration repository that manages multiple machines using Nix Flakes. It includes configurations for servers (storage, cloud), embedded devices (R2S, Raspberry Pi), and desktop systems.
+This is a personal NixOS configuration repository that manages multiple machines using Nix Flakes and flake-parts. It includes configurations for servers (storage, cloud), embedded devices (R2S, Raspberry Pi), and desktop systems (raider, core, g14, striker).
 
 ## Key Commands
 
 ### Development Environment
 ```bash
-# Enter development shell (required for most operations)
-nix develop
+nix develop                    # Enter dev shell (required for most operations)
+just fmt                       # Format all Nix files with alejandra
+just build <hostname>          # Build a host config locally
+```
+
+### Deployment (via nixos-rebuild, default)
+```bash
+just deploy <hostname>         # Deploy to host (switch activation)
+just boot <hostname>           # Deploy with boot activation (kernel/bootloader changes)
+just test <hostname>           # Test config without activating
+```
+
+deploy-rs is available but currently broken with Nix 2.32+ (`just deploy-rs`, `just boot-rs`). Colmena is an alternative (`just colmena-deploy`, `just colmena-boot`, `just colmena-build`).
+
+All hosts are reached via Tailscale: `<hostname>.bat-boa.ts.net`.
+
+### Testing Changes
+```bash
+nix build .#nixosConfigurations.<hostname>.config.system.build.toplevel
 ```
 
 ### Secret Management
 
-#### sops-nix (Preferred for new secrets)
-The repository uses sops-nix for secret management via the constellation.sops module. Currently deployed on cloud host.
-
+#### sops-nix (preferred for new secrets)
 ```bash
-# Configuration file: .sops.yaml defines encryption keys per host
-
-# Create or edit a secret (interactive)
-# Secrets are organized by host: secrets/sops/cloud.yaml, secrets/sops/storage.yaml, etc.
-nix develop -c sops secrets/sops/cloud.yaml
-
-# Encrypt a new secret file
-# 1. Create plaintext YAML file with secrets
-# 2. Copy to target location and encrypt in place
-cp secrets/sops/my-secrets-plain.yaml secrets/sops/my-secrets.yaml
-nix develop -c sops --encrypt --in-place secrets/sops/my-secrets.yaml
-
-# View decrypted secrets (use with caution)
-nix develop -c sops --decrypt secrets/sops/cloud.yaml
-
-# Add secrets to a host configuration:
-# 1. Enable constellation.sops in hosts/<hostname>/configuration.nix (infrastructure setup):
-#    constellation.sops.enable = true;
-#
-# 2. Define secrets using standard sops-nix options:
-#    sops.secrets = {
-#      # Host-specific secrets (uses defaultSopsFile = secrets/sops/<hostname>.yaml)
-#      secret-name = { mode = "0444"; };
-#
-#      # Common secrets shared across hosts
-#      shared-api-key = {
-#        sopsFile = config.constellation.sops.commonSopsFile;
-#        mode = "0400";
-#      };
-#    };
-#
-# 3. Use secret in services: config.sops.secrets.<secret-name>.path
-#
-# Note: constellation.sops only sets up infrastructure (age keys, default paths).
-# Use standard sops.secrets for full flexibility (restartUnits, path, etc.).
-# Common secrets path: config.constellation.sops.commonSopsFile
-
-# Age keys location:
-# - User: ~/.config/sops/age/keys.txt (auto-generated from SSH key)
-# - Host: /var/lib/sops-nix/key.txt (auto-generated on first boot)
+nix develop -c sops secrets/sops/<hostname>.yaml    # Create/edit host secrets
+nix develop -c sops --decrypt secrets/sops/cloud.yaml  # View decrypted
 ```
 
-#### ragenix (Legacy - being phased out)
+Configured via `.sops.yaml`. Enable on a host with `constellation.sops.enable = true`, then use standard `sops.secrets` options. Common secrets: `config.constellation.sops.commonSopsFile`.
+
+#### ragenix (legacy, being phased out)
 ```bash
-# Create a new secret (proper workflow):
-# 1. Add entry to secrets/secrets.nix
-# 2. Stage the secrets.nix change (DO NOT commit yet)
+# 1. Add entry to secrets/secrets.nix, then stage it
 git add secrets/secrets.nix
-
-# 3. Create the encrypted secret file
-# Use --rules to point to secrets/secrets.nix when in repo root
+# 2. Create encrypted secret
 openssl rand -base64 32 | nix develop -c ragenix --rules secrets/secrets.nix -e secret-name.age --editor -
-
-# Edit an encrypted secret interactively
-ragenix --rules secrets/secrets.nix -e secret-name.age
-
-# Edit/update a secret programmatically (using stdin)
-echo "new-secret-value" | ragenix --rules secrets/secrets.nix -e secret-name.age --editor -
-
-# View decrypted secret (use with caution)
-nix develop -c ragenix --rules secrets/secrets.nix -d secret-name.age
-
-# Rekey all secrets (after adding/removing keys in secrets.nix)
+# 3. Edit existing secret
+nix develop -c ragenix --rules secrets/secrets.nix -e secret-name.age
+# 4. Rekey all (after key changes)
 ragenix --rules secrets/secrets.nix -r
 ```
 
-### Deployment Commands
-
-#### Using deploy-rs (default)
-```bash
-# Deploy to a specific host
-just deploy <hostname>
-
-# Deploy with boot activation (for kernel/bootloader changes)
-just boot <hostname>
-
-# Build and push to cache
-just build <hostname>
-```
-
-#### Using Colmena (alternative)
-```bash
-# Deploy to one or more hosts
-just colmena-deploy <hostname1> <hostname2>
-
-# Deploy with reboot
-just colmena-boot <hostname>
-
-# Build without deploying
-just colmena-build <hostname>
-
-# Interactive deployment (select hosts interactively)
-just colmena-interactive
-
-# Show all available hosts
-just colmena-info
-```
-
-#### General Commands
-```bash
-# Format all Nix files
-just fmt
-```
-
 ### Available Hosts
-- storage (main server)
-- cloud (cloud server)
-- router
-- r2s (ARM-based router)
-- raspi3 (Raspberry Pi 3)
-- core, hpe, g14, raider, striker (various desktops/laptops)
+- **storage** - Main server: media services, databases, backups, k3s server
+- **cloud** - Cloud gateway: reverse proxy, k3s agent, public-facing services
+- **raider** - Desktop workstation: GNOME, gaming, development
+- **router** - Custom network device (no constellation modules, standalone config)
+- **r2s** - ARM-based router (NanoPi R2S)
+- **raspi3** - Raspberry Pi 3
+- **core, hpe, g14, striker** - Various desktops/laptops
 
 ## Architecture Overview
 
+### Flake Structure
+
+The flake uses **flake-parts** to organize outputs into modules under `flake-modules/`:
+- **`lib.nix`** - Core utilities: `mkLinuxSystem`, overlays, `baseModules`, `homeManagerModules`. Uses **haumea** to recursively auto-load all files from `modules/` and `packages/` directories.
+- **`hosts.nix`** - Auto-discovers hosts by scanning `hosts/` for directories with `configuration.nix`. Automatically includes `disko-config.nix` if present.
+- **`deploy.nix`** - deploy-rs configuration for each host
+- **`colmena.nix`** - Colmena deployment with cross-compilation support for aarch64
+- **`dev.nix`** - Development shell, formatter, git hooks, custom packages
+- **`checks.nix`** - Flake checks (router NixOS test)
+- **`images.nix`** - System image generators (SD cards, kexec)
+
+### Module Auto-Discovery
+
+All `.nix` files under `modules/` are loaded automatically by haumea - no explicit imports needed. To add a new module, create a file in `modules/` (or a subdirectory) and it will be available to all hosts. Hosts then selectively enable modules via `constellation.<module>.enable = true`.
+
+### Constellation Modules (`modules/constellation/`)
+
+Opt-in feature modules that hosts compose. Key modules:
+
+| Module | Purpose |
+|--------|---------|
+| `common.nix` | Base config: Nix flakes, caches, SSH, Tailscale, Avahi |
+| `users.nix` | User accounts, SSH keys, sudo |
+| `sops.nix` | sops-nix infrastructure (age keys, default paths) |
+| `services.nix` | **Central service registry**: ports, auth, CORS, Tailscale exposure |
+| `media.nix` | **Container orchestration**: Plex, *arr, Stash, Nextcloud, etc. |
+| `podman.nix` / `docker.nix` | Container runtimes |
+| `backup.nix` | Automated rustic/restic backups |
+| `k3s.nix` | Kubernetes cluster (server/agent roles) |
+| `vpn-exit-nodes.nix` | Tailscale exit nodes via AirVPN/Gluetun |
+| `gnome.nix` / `cosmic.nix` / `niri.nix` | Desktop environments |
+| `development.nix` | Dev tools (Docker, Node, Python, Go, Rust) |
+| `gaming.nix` | Gaming environment |
+| `metrics-client.nix` / `logs-client.nix` | Observability agents |
+| `observability-hub.nix` | Central Prometheus/Loki hub |
+| `home-assistant.nix` | Home automation |
+| `virtualization.nix` / `project-vms.nix` | KVM/libvirt VMs |
+
+### Media Configuration Variables (`modules/media/config.nix`)
+
+Shared variables consumed by media services via `config.media.config`:
+- `configDir` = `/var/data` - Service config/data directory
+- `storageDir` = `/mnt/storage` - Large media files (**storage host only**, not available on cloud)
+- `dataDir` = `/mnt/storage` - Primary data directory
+- `puid`/`pgid` = `5000` - UID/GID for all media services
+- `user`/`group` = `"media"` - Service user
+- `domain` = `"arsfeld.one"` - Primary domain
+- `tsDomain` = `"bat-boa.ts.net"` - Tailscale domain
+
+### Service and Network Architecture
+
+#### Service Registry (`modules/constellation/services.nix`)
+Central source of truth for all service metadata. Controls:
+- Port assignments per host (cloud vs storage)
+- `bypassAuth` - Services with own auth (skip Authelia)
+- `tailscaleExposed` - Services with dedicated `*.bat-boa.ts.net` nodes
+- `funnels` - Public Tailscale Funnel services
+- `cors` - CORS-enabled services
+
+#### Container Orchestration (`modules/constellation/media.nix`)
+Defines containerized services in `storageServices` and `cloudServices` sections. Each service gets container image, ports, volumes, env vars. Uses `media.config` variables for paths.
+
+**Volume path rules:**
+- `storageServices`: Use `${vars.storageDir}` for media, `${vars.configDir}` for config
+- `cloudServices`: Use `${vars.configDir}` only - **never** `storageDir` (no `/mnt/storage` on cloud)
+
+#### Gateway (`modules/media/gateway.nix`)
+Caddy reverse proxy consuming service definitions. Generates TLS configs, error pages, tsnsrv integration.
+
+#### DNS & Routing (Split-Horizon)
+- `*.arsfeld.one` domains:
+  - **External**: Cloudflare -> cloud (gateway) -> storage
+  - **Internal** (tailnet): Tailscale MagicDNS -> storage directly (no cloud hop)
+- `*.bat-boa.ts.net`: Tailscale-only access (or public via Funnel)
+
 ### Remote Builders
-The repository is configured to use `cloud` (aarch64-linux) as a remote builder:
-- When in `nix develop` shell, aarch64 packages are automatically built on cloud
-- This avoids slow emulation when building from x86_64 machines
-- CI environments don't use remote builders and build locally instead
-- Configuration is in `nix-builders.conf`
+`cloud` (aarch64-linux) serves as remote builder. When in `nix develop`, aarch64 packages build on cloud automatically via `nix-builders.conf`.
 
 ### Directory Structure
-- `/hosts/` - Machine-specific configurations. Each host has its own directory with configuration.nix and hardware-configuration.nix
-- `/modules/` - Reusable NixOS modules, especially the `constellation/` modules that provide opt-in features
-- `/secrets/` - Encrypted secrets
-  - `*.age` - Legacy ragenix secrets (being phased out)
-  - `sops/*.yaml` - sops-nix encrypted secrets (preferred)
-  - `secrets.nix` - ragenix key configuration (legacy)
-- `.sops.yaml` - sops-nix configuration defining encryption keys per host
-- `/home/` - Home Manager configuration for user environments
-
-### Key Configuration Patterns
-
-1. **Constellation Modules**: The repository uses a modular system where features are opt-in via constellation modules:
-   - `constellation.common` - Base configuration
-   - `constellation.backup` - Backup system
-   - `constellation.services` - Service configurations
-   - `constellation.media` - Media server stack
-   - `constellation.podman` - Container runtime
-
-2. **Secret Management**: The repository is migrating from ragenix to sops-nix. Currently:
-   - **sops-nix** (preferred): Used on cloud host, secrets in `secrets/sops/*.yaml`, configured via `.sops.yaml`
-   - **ragenix** (legacy): Used on other hosts, secrets in `secrets/*.age`, defined in `secrets/secrets.nix`
-
-3. **Deployment**: Supports both deploy-rs and Colmena for remote deployment. All hosts are accessible via Tailscale VPN (*.bat-boa.ts.net)
-
-## Important Notes
-
-- All hosts use Tailscale networking for secure communication
-- The repository uses Attic for binary caching to speed up builds
-- Disk partitioning is declarative using disko
-- Services often use Podman containers
-- The storage host runs most services including media servers, databases, and backup systems
-
-## Service and Network Details
-
-### Media Gateway Architecture
-
-The repository uses a centralized gateway system for exposing services:
-
-**Service Configuration Files:**
-
-1. **`modules/constellation/services.nix`** - Central service registry
-   - Add **native systemd services** here (e.g., Attic, duplicati, gitea)
-   - Defines service ports for each host (cloud vs storage)
-   - Controls authentication (`bypassAuth` list)
-   - Controls public access (`funnels` list for Tailscale Funnel)
-   - Controls Tailscale node creation (`tailscaleExposed` list)
-   - This is the **primary place to add new services**
-
-2. **`modules/constellation/media.nix`** - Container orchestration
-   - Add **containerized services** here (e.g., Plex, Jellyfin, Overseerr)
-   - Defines `storageServices` and `cloudServices` sections
-   - Automatically adds host attribution to each service
-   - Sets up volume mounts, environment variables, and container settings
-   - Only for services running in containers, not native systemd services
-
-3. **`modules/media/gateway.nix`** - Gateway implementation
-   - Consumes service definitions from `media.gateway.services`
-   - Generates Caddy reverse proxy configuration
-   - Runs on **cloud** host and proxies to services on storage
-   - Handles TLS certificates and error pages
-   - Integrates with tsnsrv for Tailscale node management
-
-**Service Access:**
-- `*.arsfeld.one` domains use **split-horizon DNS** for optimal routing:
-  - **Public access** (outside tailnet): Cloudflare → cloud (gateway) → storage
-  - **Internal access** (inside tailnet): Tailscale MagicDNS → storage (direct, no cloud hop)
-  - Both storage and cloud run Caddy with identical service configurations
-  - This avoids unnecessary cloud roundtrips for internal network traffic
-- `*.bat-boa.ts.net` domains (if in `tailscaleExposed`):
-  - With `funnel = false`: Only accessible within the tailnet
-  - With `funnel = true`: Publicly accessible via Tailscale Funnel
-
-## Testing Changes
-
-Before deploying:
-1. Test build locally: `nix build .#nixosConfigurations.<hostname>.config.system.build.toplevel`
-2. Format code: `just fmt`
-3. Deploy to test system first if available
-
-## Commit Message Format
-
-**IMPORTANT**: All commits must follow conventional commit format.
-
-### Format
-```
-<type>(<scope>): <subject>
-
-[optional body]
-```
-
-### Types
-- `feat`: New feature or functionality
-- `fix`: Bug fix
-- `chore`: Maintenance tasks (secrets, dependencies, etc.)
-- `docs`: Documentation changes
-- `refactor`: Code refactoring without changing behavior
-- `test`: Adding or updating tests
-- `ci`: CI/CD changes
-
-### Scopes
-Use the hostname or module being modified:
-- `(raider)`, `(storage)`, `(cloud)` - Host-specific changes
-- `(secrets)` - Secret management changes
-- `(modules)` - Module changes
-- `(home)` - Home Manager changes
-
-### Examples
-```bash
-feat(raider): add Stash media organizer service
-fix(storage): resolve bcachefs mount timeout issue
-chore(secrets): add stash authentication secrets
-docs(readme): update deployment instructions
-```
-
-### Rewriting Recent Commits
-If commits don't follow the format:
-```bash
-# Soft reset to before the commits
-git reset --soft HEAD~N
-
-# Recommit with proper format
-git add <files>
-git commit -m "type(scope): subject"
-```
+- `hosts/` - Per-machine configs (auto-discovered by `flake-modules/hosts.nix`)
+- `modules/` - All NixOS modules (auto-loaded by haumea)
+  - `constellation/` - Opt-in feature modules
+  - `media/` - Media stack (config, gateway, components)
+- `packages/` - Custom Nix derivations (auto-loaded by haumea)
+- `home/` - Home Manager config (`home.nix` for user `arosenfeld`)
+- `secrets/` - Encrypted secrets (`*.age` legacy, `sops/*.yaml` preferred)
+- `flake-modules/` - Flake-parts modules
+- `just/` - Justfile submodules (blog, secrets, docs)
 
 ## Adding New Services
 
-When adding a new service:
+### Native systemd services
+1. Add to `modules/constellation/services.nix` in the appropriate host section
+2. Add to `bypassAuth` if service has its own auth
+3. Add to `tailscaleExposed` for dedicated Tailscale node
+4. Add to `funnels` for public access via `*.bat-boa.ts.net`
+5. Deploy to **cloud** to update gateway
 
-1. **For native systemd services** (Attic, gitea, duplicati, etc.):
-   - Add to `modules/constellation/services.nix` in the appropriate host section (cloud or storage)
-   - Add to `bypassAuth` list if the service has its own authentication
-   - Add to `tailscaleExposed` list if it needs a dedicated Tailscale node (creates `service.bat-boa.ts.net`)
-   - Add to `funnels` list if `bat-boa.ts.net` should be publicly accessible (not just tailnet)
-   - Note: All services are accessible via `service.arsfeld.one` through cloud gateway regardless of these settings
-   - Deploy to **cloud** host to update the gateway configuration
+### Containerized services
+1. Add to `modules/constellation/media.nix` in `storageServices` or `cloudServices`
+2. Define image, ports, volumes, environment variables
+3. Service is automatically added to the gateway
 
-2. **For containerized services** (Plex, Jellyfin, etc.):
-   - Add to `modules/constellation/media.nix` in `storageServices` or `cloudServices`
-   - Define image, ports, volumes, and environment variables
-   - **Volume paths**:
-     - `storageServices`: Can use `${vars.storageDir}` for large media files (defaults to `/mnt/storage` on storage host)
-     - `cloudServices`: Should use `${vars.configDir}` (defaults to `/var/data`) or direct paths - **do NOT use storageDir** as cloud host doesn't have `/mnt/storage` mount
-     - `storageDir` is only for large media files/downloads, not regular container config/data
-   - The service will automatically be added to the gateway
+## Commit Message Format
 
-## VPN Exit Nodes (Tailscale via AirVPN)
+Conventional commits required: `<type>(<scope>): <subject>`
 
-The repository includes a module for creating Tailscale exit nodes that route traffic through AirVPN WireGuard tunnels. This allows Tailscale clients to exit through different countries.
+**Types**: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `ci`
+**Scopes**: hostname (`raider`, `storage`, `cloud`), or `secrets`, `modules`, `home`
 
-### Architecture
+Never mention Claude in commit messages or author.
 
-```
-[Tailscale Client] → [Tailscale Container] → [Gluetun Container] → [AirVPN WireGuard] → [Internet]
-```
+## CI/CD (.github/workflows/)
 
-- **Gluetun** (`qmcgaw/gluetun`) - VPN client with native AirVPN support
-- **Tailscale** (`tailscale/tailscale`) - Runs in gluetun's network namespace, advertises as exit node
-
-### Module Location
-
-`modules/constellation/vpn-exit-nodes.nix`
-
-### Prerequisites
-
-1. **AirVPN subscription** with WireGuard access
-2. **Tailscale auth key** with:
-   - `tag:exit` tag (must match ACL configuration)
-   - Exit node pre-approval via ACL autoApprovers
-   - Reusable: Yes
-   - Pre-authorized: Yes
-
-### Tailscale ACL Configuration
-
-Ensure your Tailscale ACLs include:
-
-```json
-{
-  "tagOwners": {
-    "tag:exit": ["autogroup:admin"]
-  },
-  "autoApprovers": {
-    "exitNode": ["tag:exit"]
-  }
-}
-```
-
-### Generating AirVPN WireGuard Credentials
-
-1. Log into https://airvpn.org/
-2. Go to **Config Generator**: https://airvpn.org/generator/
-3. Select **"WireGuard UDP"** under Protocols
-4. Choose desired **country/server**
-5. Click **"Generate"** and download the `.conf` file
-6. Extract these values from the config:
-
-```ini
-[Interface]
-Address = 10.141.x.x/32    # → WIREGUARD_ADDRESSES
-PrivateKey = xxxxx         # → WIREGUARD_PRIVATE_KEY
-
-[Peer]
-PresharedKey = xxxxx       # → WIREGUARD_PRESHARED_KEY
-```
-
-7. Create an environment file with these values:
-
-```bash
-WIREGUARD_PRIVATE_KEY=<your-private-key>
-WIREGUARD_PRESHARED_KEY=<your-preshared-key>
-WIREGUARD_ADDRESSES=10.141.x.x/32
-```
-
-### Creating the Tailscale Auth Key
-
-You can create via the Tailscale API:
-
-```bash
-curl -X POST -u "YOUR_API_KEY:" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "capabilities": {
-      "devices": {
-        "create": {
-          "reusable": true,
-          "ephemeral": false,
-          "preauthorized": true,
-          "tags": ["tag:exit"]
-        }
-      }
-    },
-    "expirySeconds": 7776000,
-    "description": "VPN exit node auth key"
-  }' \
-  "https://api.tailscale.com/api/v2/tailnet/-/keys"
-```
-
-Or via the admin console at https://login.tailscale.com/admin/settings/keys
-
-### Adding Secrets (ragenix)
-
-```bash
-# 1. Add entry to secrets/secrets.nix
-"airvpn-<country>-env.age".publicKeys = users ++ [storage];
-"tailscale-exit-key.age".publicKeys = users ++ [storage];
-
-# 2. Stage the file
-git add secrets/secrets.nix
-
-# 3. Create the encrypted secrets
-echo "WIREGUARD_PRIVATE_KEY=xxx
-WIREGUARD_PRESHARED_KEY=xxx
-WIREGUARD_ADDRESSES=10.141.x.x/32" | nix develop -c ragenix --rules secrets/secrets.nix -e secrets/airvpn-brazil-env.age --editor -
-
-echo "tskey-auth-xxx" | nix develop -c ragenix --rules secrets/secrets.nix -e secrets/tailscale-exit-key.age --editor -
-```
-
-### Enabling an Exit Node
-
-In your host configuration (e.g., `hosts/storage/configuration.nix`):
-
-```nix
-# Declare secrets
-age.secrets.airvpn-env.file = "${self}/secrets/airvpn-env.age";
-age.secrets.tailscale-exit-key.file = "${self}/secrets/tailscale-exit-key.age";
-
-# Enable the module
-constellation.vpnExitNodes = {
-  enable = true;
-  tailscaleAuthKeyFile = config.age.secrets.tailscale-exit-key.path;
-
-  nodes.brazil = {
-    country = "Brazil";  # Gluetun server selection
-    tailscaleHostname = "brazil-exit";
-    credentialsFile = config.age.secrets.airvpn-env.path;
-  };
-
-  # Add more exit nodes as needed
-  nodes.us = {
-    country = "United States";
-    city = "New York";
-    tailscaleHostname = "us-exit";
-    credentialsFile = config.age.secrets.airvpn-us-env.path;
-  };
-};
-```
-
-### Using an Exit Node
-
-From any Tailscale client:
-
-```bash
-# Enable Brazil exit node
-tailscale set --exit-node=brazil-exit
-
-# Verify public IP
-curl ifconfig.me  # Should show Brazilian IP
-
-# Disable exit node
-tailscale set --exit-node=
-```
-
-### Troubleshooting
-
-**Container not starting:**
-- Check logs: `sudo podman logs tailscale-exit-<name>`
-- Verify gluetun is healthy: `sudo podman ps | grep gluetun`
-
-**Auth key errors:**
-- Ensure auth key has `tag:exit` with exit node pre-approval
-- Verify ACL has `autoApprovers.exitNode` including `tag:exit`
-
-**VPN not connecting:**
-- Check gluetun logs: `sudo podman logs gluetun-exit-<name>`
-- Verify AirVPN credentials are correct
+- **build.yml** - Matrix build for cloud (aarch64) and storage (x86_64) via Tailscale SSH
+- **format.yml** - Auto-formats with alejandra on push to master
+- **update.yml** - Weekly flake input updates with automatic build testing and deployment
+- **gitleaks.yml** - Secret scanning
 
 <!-- BACKLOG.MD MCP GUIDELINES START -->
 
