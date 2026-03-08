@@ -9,6 +9,10 @@
     mode = "0400";
     path = "/root/.ssh/hetzner_storagebox";
   };
+  age.secrets."hetzner-webdav-env" = {
+    file = "${self}/secrets/hetzner-webdav-env.age";
+    mode = "0400";
+  };
 
   services.restic.backups = {
     # Local backup: Root disk only (system state, no user data or media)
@@ -55,6 +59,7 @@
         "/mnt/storage/backups"
         "/mnt/storage/media"
         "/mnt/storage/homes" # same as /home
+        "/mnt/storage/legacy"
 
         # Caches
         "/home/*/.cache"
@@ -104,12 +109,10 @@
         "/home/*/.terraform.d"
       ];
 
-      # Hetzner Storage Box via SFTP
-      repository = "sftp:u547717@u547717.your-storagebox.de:backups/restic";
+      # Hetzner Storage Box via WebDAV (rclone backend)
+      repository = "rclone:hetzner:backups/restic";
       passwordFile = config.age.secrets."restic-password".path;
-      extraOptions = [
-        "sftp.command='ssh -p 23 -i /root/.ssh/hetzner_storagebox -o StrictHostKeyChecking=accept-new u547717@u547717.your-storagebox.de -s sftp'"
-      ];
+      environmentFile = config.age.secrets."hetzner-webdav-env".path;
       initialize = true;
       timerConfig = {
         OnCalendar = "weekly";
