@@ -102,6 +102,9 @@ in {
   # Hetzner Storage Box SSH key (for restic backup before ZFS migration)
   "hetzner-storagebox-ssh-key.age".publicKeys = users ++ [storage];
 
+  # Hetzner Storage Box WebDAV env (rclone config for restic)
+  "hetzner-webdav-env.age".publicKeys = users ++ [storage];
+
   # GitHub notifications
   "github-token.age".publicKeys = users ++ [raider storage];
 }
