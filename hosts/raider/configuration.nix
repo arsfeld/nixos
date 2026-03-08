@@ -12,6 +12,7 @@
     ./fontconfig.nix
     ./harmonia.nix
     ./scheduler-tuning.nix
+    ./samba.nix
   ];
 
   # Age secrets for Stash
@@ -279,8 +280,8 @@
   boot.initrd.verbose = false;
   boot.consoleLogLevel = 0;
 
-  # Remove zfs
-  boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "ntfs" "reiserfs" "vfat" "xfs" "bcachefs"];
+  # Remove zfs, add nfs for media mount
+  boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "nfs" "ntfs" "reiserfs" "vfat" "xfs" "bcachefs"];
 
   # Disable aggressive SATA power management to prevent SSD freezing
   boot.kernelParams = ["ahci.mobile_lpm_policy=0"];
