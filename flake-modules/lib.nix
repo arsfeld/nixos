@@ -35,7 +35,6 @@
       inputs.determinate.nixosModules.default
       inputs.nix-flatpak.nixosModules.nix-flatpak
       inputs.harmonia.nixosModules.harmonia
-      inputs.tsnsrv.nixosModules.default
       inputs.vpn-confinement.nixosModules.default
       {
         nixpkgs.overlays = overlays;

@@ -22,8 +22,6 @@
     git-hooks.url = "github:cachix/git-hooks.nix"; # Git hooks framework
     git-hooks.inputs.nixpkgs.follows = "nixpkgs";
     nix-flatpak.url = "github:gmodena/nix-flatpak"; # Flatpak support for NixOS
-    tsnsrv.url = "github:arsfeld/tsnsrv"; # Tailscale name server
-    tsnsrv.inputs.nixpkgs.follows = "nixpkgs";
     nix-index-database.url = "github:nix-community/nix-index-database"; # Faster command-not-found
     nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
     harmonia.url = "github:nix-community/harmonia"; # Binary cache server
