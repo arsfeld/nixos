@@ -12,18 +12,18 @@ let
   g14 = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJzzvpNcM8z3tBKOmt/OZ11hGSkroo8EvDECaFmGuQoI root@nixos";
   systems = [storage cloud raspi3 r2s router cottage raider g14];
 in {
-  "authelia-secrets.age".publicKeys = users ++ [cloud];
+  "authelia-secrets.age".publicKeys = users ++ [storage];
   "bitmagnet-env.age".publicKeys = users ++ [storage];
   "borg-passkey.age".publicKeys = users ++ systems;
   "cloudflare.age".publicKeys = users ++ systems;
-  "dex-clients-tailscale-secret.age".publicKeys = users ++ [cloud];
-  "dex-clients-qui-secret.age".publicKeys = users ++ [cloud];
+  "dex-clients-tailscale-secret.age".publicKeys = users ++ [storage];
+  "dex-clients-qui-secret.age".publicKeys = users ++ [storage];
   "github-runner-token.age".publicKeys = users ++ systems;
   "forgejo-runner-token.age".publicKeys = users ++ [cloud];
   "gluetun-pia.age".publicKeys = users ++ systems;
   "homepage-env.age".publicKeys = users ++ systems;
-  "lldap-env.age".publicKeys = users ++ [cloud];
-  "lldap-password.age".publicKeys = users ++ [cloud];
+  "lldap-env.age".publicKeys = users ++ [storage];
+  "lldap-password.age".publicKeys = users ++ [storage];
   "qbittorrent-pia.age".publicKeys = users ++ [storage];
   "rclone-idrive.age".publicKeys = users ++ systems;
   "restic-password.age".publicKeys = users ++ systems;
@@ -65,9 +65,6 @@ in {
 
   # Qui OIDC secrets
   "qui-oidc-env.age".publicKeys = users ++ [storage];
-
-  # Immich OIDC secrets
-  "immich-oidc-secret.age".publicKeys = users ++ [storage];
 
   # Forgejo OIDC secrets
   "forgejo-oidc-secret.age".publicKeys = users ++ [storage];
