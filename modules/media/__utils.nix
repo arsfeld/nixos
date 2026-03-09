@@ -67,8 +67,6 @@ in
     };
 
     # generateTailscaleNodes: Creates named Tailscale node configurations for each service
-    # Input: generateTailscaleNodes { radarr = { name = "radarr"; host = "storage"; exposeViaTailscale = true; ... }; sonarr = { name = "sonarr"; exposeViaTailscale = false; ... }; }
-    # Output: "radarr { hostname radarr state_dir /var/lib/caddy/tailscale/radarr }" (sonarr excluded)
     # Only creates nodes for services with exposeViaTailscale = true AND host = current hostname
     generateTailscaleNodes = services: let
       currentHost = config.networking.hostName;
@@ -123,8 +121,12 @@ in
                 get_certificate tailscale
               }
             '';
+            authScheme =
+              if authHost == "127.0.0.1"
+              then ""
+              else "https://";
             authConfig = optionalString (!cfg.settings.bypassAuth) ''
-              forward_auth ${authHost}:${toString authPort} {
+              forward_auth ${authScheme}${authHost}:${toString authPort} {
                 uri /api/authz/forward-auth?authelia_url=https://auth.${domain}
                 header_up X-Forwarded-Method {method}
                 header_up X-Forwarded-Proto {scheme}

@@ -5,7 +5,7 @@
   self,
   ...
 }: let
-  services = config.media.gateway.services;
+  port = 7070;
   yarr-overlay = final: prev: {
     yarr = prev.buildGoModule rec {
       pname = "yarr";
@@ -36,6 +36,12 @@
 in {
   nixpkgs.overlays = [yarr-overlay];
 
+  media.gateway.services.yarr = {
+    inherit port;
+    exposeViaTailscale = true;
+    settings.funnel = true;
+  };
+
   # Yarr service
   users.users.yarr = {
     group = "yarr";
@@ -55,7 +61,7 @@ in {
       Type = "simple";
       User = "yarr";
       Group = "yarr";
-      ExecStart = "${pkgs.yarr}/bin/yarr -addr 0.0.0.0:${toString services.yarr.port} -db /var/lib/yarr/yarr.db";
+      ExecStart = "${pkgs.yarr}/bin/yarr -addr 0.0.0.0:${toString port} -db /var/lib/yarr/yarr.db";
       Restart = "on-failure";
       RestartSec = "5s";
       WorkingDirectory = "/var/lib/yarr";

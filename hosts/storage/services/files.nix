@@ -12,6 +12,19 @@
     config = pkgs.config;
   };
 in {
+  media.gateway.services.syncthing = {
+    port = 8384;
+    settings.funnel = true;
+  };
+  media.gateway.services.filebrowser = {
+    port = 38080;
+    settings.funnel = true;
+  };
+  media.gateway.services.nextcloud = {
+    port = 8099;
+    settings.bypassAuth = true;
+  };
+
   users.users.syncthing.extraGroups = ["nextcloud" "media"];
 
   services.minio = {
@@ -140,11 +153,6 @@ in {
   services.nginx.defaultHTTPListenPort = 8099;
 
   systemd.services."nextcloud-setup" = {
-    requires = ["postgresql.service"];
-    after = ["postgresql.service"];
-  };
-
-  systemd.services."podman-immich" = {
     requires = ["postgresql.service"];
     after = ["postgresql.service"];
   };

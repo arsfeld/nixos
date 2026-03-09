@@ -4,6 +4,15 @@
   lib,
   ...
 }: {
+  media.gateway.services.n8n = {
+    port = 5678;
+    exposeViaTailscale = true;
+    settings.funnel = true;
+  };
+  media.gateway.services.ollama-api = {
+    port = 11434;
+    settings.bypassAuth = true;
+  };
   # services.ollama = {
   #   enable = true;
   #   loadModels = ["llama3.1"];

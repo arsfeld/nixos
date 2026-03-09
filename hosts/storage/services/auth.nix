@@ -11,7 +11,6 @@
   inherit (domains) mediaDomain authDomain;
 
   # Helper function to generate Authelia instance configuration
-  # This keeps the configuration DRY by defining shared settings once
   mkAutheliaInstance = {
     domain,
     port,
@@ -21,8 +20,6 @@
       theme = "auto";
       server = {
         address = "tcp://0.0.0.0:${toString port}";
-        # Fix for Authelia 4.39: explicitly set only implementation, without authelia_url
-        # The authelia_url key is deprecated and should not be present
         endpoints.authz.forward-auth.implementation = lib.mkForce "ForwardAuth";
       };
       log = {
@@ -98,7 +95,6 @@
         expiration = "7d";
         inactivity = "45m";
         remember_me_duration = "1M";
-        # Modern session configuration for Authelia 4.38+
         cookies = [
           {
             domain = domain;
@@ -113,11 +109,8 @@
           path = "/var/lib/authelia-${domain}/db.sqlite3";
         };
       };
-      # OIDC configuration - all secrets (hmac_secret, jwks, clients) are in authelia-secrets.age
       identity_providers.oidc = {
-        # Enable PKCE to protect against authorization code interception
         enforce_pkce = "public_clients_only";
-        # Validate nonce/state parameter length
         minimum_parameter_entropy = 8;
       };
     };
@@ -125,6 +118,15 @@
     secrets.manual = true;
   };
 in {
+  # Gateway entries for auth services
+  media.gateway.services.auth = {
+    port = 9091;
+    exposeViaTailscale = true;
+    settings.bypassAuth = true;
+  };
+  media.gateway.services.dex = {};
+  media.gateway.services.users = {};
+
   age.secrets.dex-clients-tailscale-secret.file = "${self}/secrets/dex-clients-tailscale-secret.age";
   age.secrets.dex-clients-qui-secret.file = "${self}/secrets/dex-clients-qui-secret.age";
   age.secrets.lldap-env.file = "${self}/secrets/lldap-env.age";
@@ -132,7 +134,6 @@ in {
   age.secrets.lldap-password.file = "${self}/secrets/lldap-password.age";
   age.secrets.lldap-password.mode = "400";
   age.secrets.authelia-secrets.file = "${self}/secrets/authelia-secrets.age";
-  # Mode 444 allows both Authelia instances to read the secrets
   age.secrets.authelia-secrets.mode = "444";
 
   services.dex = {
@@ -176,7 +177,7 @@ in {
           id = "ldap";
           name = "LDAP";
           config = {
-            host = "cloud.bat-boa.ts.net:3890";
+            host = "127.0.0.1:3890";
             insecureNoSSL = true;
             insecureSkipVerify = true;
             bindDN = "uid=admin,ou=people,dc=rosenfeld,dc=one";
@@ -220,7 +221,6 @@ in {
   };
 
   # Authelia instance for arsfeld.one domain
-  # Listens on port 9091 (used by Caddy gateway)
   services.authelia.instances."${autheliaConfig}" = mkAutheliaInstance {
     domain = mediaDomain;
     port = 9091;
@@ -231,16 +231,5 @@ in {
     user = "authelia-${autheliaConfig}";
     port = 0;
     unixSocketPerm = 600;
-  };
-
-  # bat-boa.ts.net does not use Authelia - Tailscale provides network-level authentication
-
-  # Manual Caddy vhost for auth.arsfeld.one → port 9091
-  services.caddy.virtualHosts."auth.arsfeld.one" = lib.mkForce {
-    useACMEHost = "arsfeld.one";
-    extraConfig = ''
-      import errors
-      reverse_proxy http://127.0.0.1:9091
-    '';
   };
 }

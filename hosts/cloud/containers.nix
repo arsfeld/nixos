@@ -1,20 +1,15 @@
 {
-  config,
   self,
+  lib,
   ...
 }: let
-  services = config.media.gateway.services;
-in {
-  virtualisation.oci-containers.containers = {
-    whoogle = {
-      image = "benbusby/whoogle-search:latest";
-      ports = ["${toString services.whoogle.port}:5000"];
-    };
-
-    metube = {
-      image = "ghcr.io/alexta69/metube";
+  mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
+in
+  mkService "metube" {
+    port = 8081;
+    image = "ghcr.io/alexta69/metube";
+    container = {
+      configDir = null;
       volumes = ["/var/lib/metube:/downloads"];
-      ports = ["${toString services.metube.port}:8081"];
     };
-  };
-}
+  }
