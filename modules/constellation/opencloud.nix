@@ -82,6 +82,15 @@ in {
   };
 
   config = mkIf cfg.enable {
+    media.gateway.services.opencloud = {
+      port = 9200;
+      exposeViaTailscale = true;
+      settings = {
+        bypassAuth = true;
+        funnel = true;
+      };
+    };
+
     # Ensure the media user/group exists
     assertions = [
       {

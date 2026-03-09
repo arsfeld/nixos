@@ -1,4 +1,17 @@
 {pkgs, ...}: {
+  media.gateway.services.netdata = {
+    port = 19999;
+    exposeViaTailscale = true;
+    settings.funnel = true;
+  };
+  media.gateway.services.grafana = {
+    port = 3010;
+    exposeViaTailscale = true;
+    settings = {
+      bypassAuth = true;
+      funnel = true;
+    };
+  };
   services.netdata = {
     enable = true;
     package = pkgs.netdata.override {

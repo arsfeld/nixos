@@ -7,6 +7,19 @@
 }: let
   vars = config.media.config;
 in {
+  media.gateway.services.romm = {
+    port = 8998;
+    settings.funnel = true;
+  };
+  media.gateway.services.speedtest = {
+    port = 8765;
+    settings.funnel = true;
+  };
+  media.gateway.services.filestash = {
+    port = 8334;
+    settings.funnel = true;
+  };
+
   age.secrets.tailscale-key.file = "${self}/secrets/tailscale-key.age";
   age.secrets.tailscale-env.file = "${self}/secrets/tailscale-env.age";
   age.secrets.romm-env.file = "${self}/secrets/romm-env.age";

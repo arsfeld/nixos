@@ -36,6 +36,15 @@
   };
 
   config = lib.mkIf config.constellation.home-assistant.enable {
+    media.gateway.services.hass = {
+      port = 8123;
+      exposeViaTailscale = true;
+      settings = {
+        bypassAuth = true;
+        funnel = true;
+      };
+    };
+
     services.home-assistant = {
       enable = true;
 

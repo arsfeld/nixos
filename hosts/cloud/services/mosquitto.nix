@@ -3,6 +3,13 @@
   lib,
   ...
 }: {
+  media.gateway.services.mqtt = {
+    port = 1883;
+    settings = {
+      bypassAuth = true;
+      funnel = true;
+    };
+  };
   # Enable Mosquitto MQTT broker
   services.mosquitto = {
     enable = true;

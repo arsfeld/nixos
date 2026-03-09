@@ -3,6 +3,20 @@
   pkgs,
   ...
 }: {
+  media.gateway.services.owntracks = {
+    port = 8083;
+    settings = {
+      bypassAuth = true;
+      funnel = true;
+    };
+  };
+  media.gateway.services.owntracks-ui = {
+    port = 8084;
+    settings = {
+      bypassAuth = true;
+      funnel = true;
+    };
+  };
   # Install and configure owntracks-recorder with podman (simpler than OCI-containers)
   virtualisation.podman.enable = true;
 

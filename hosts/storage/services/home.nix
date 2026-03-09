@@ -4,7 +4,6 @@
   pkgs,
   ...
 }: let
-  vars = config.media.config;
   dataDir = "/var/lib/finance-tracker";
   financeTrackerScript = pkgs.writeShellApplication {
     name = "finance-tracker";
@@ -20,6 +19,16 @@
     '';
   };
 in {
+  media.gateway.services.home = {
+    port = 8085;
+    exposeViaTailscale = true;
+    settings.funnel = true;
+  };
+  media.gateway.services.www = {
+    port = 8085;
+    exposeViaTailscale = true;
+  };
+
   age.secrets."finance-tracker-env" = {
     file = "${self}/secrets/finance-tracker-env.age";
   };
@@ -50,70 +59,6 @@ in {
       OnCalendar = "*-*-1/2 17:00:00";
       Persistent = true; # Run if missed
       RandomizedDelaySec = "1h"; # Random delay up to 1 hour
-    };
-  };
-
-  # Enable and configure Kestra
-  services.kestra = {
-    enable = false;
-
-    # Database configuration
-    database = {
-      createLocally = true; # Create PostgreSQL database on this host
-      host = "localhost"; # Use localhost since we're creating the database locally
-      name = "kestra"; # Database name
-      username = "kestra"; # Database username
-      password = "kestra"; # Database password - consider using a more secure password
-    };
-
-    # Kestra configuration (optional - these are the defaults)
-    port = 8080;
-    adminPort = 8081;
-    basicAuth = false;
-    basicAuthUsername = "admin@localhost.dev";
-    basicAuthPassword = "kestra";
-  };
-
-  virtualisation.oci-containers.containers = {
-    audiobookshelf = {
-      image = "ghcr.io/advplyr/audiobookshelf:latest";
-      environment = {
-        PUID = toString vars.puid;
-        PGID = toString vars.pgid;
-        TZ = vars.tz;
-      };
-      volumes = [
-        "${vars.configDir}/audiobookshelf/config:/config"
-        "${vars.configDir}/audiobookshelf/metadata:/metadata"
-        "${vars.dataDir}/media/audiobooks:/audiobooks"
-        "${vars.dataDir}/media/podcasts:/podcasts"
-      ];
-      ports = ["13378:80"];
-      extraOptions = [
-        "--label"
-        "io.containers.autoupdate=image"
-      ];
-    };
-
-    grocy = {
-      image = "lscr.io/linuxserver/grocy:latest";
-      environment = {
-        PUID = toString vars.puid;
-        PGID = toString vars.pgid;
-        TZ = vars.tz;
-      };
-      volumes = [
-        "${vars.configDir}/grocy:/config"
-      ];
-      ports = ["9283:80"];
-    };
-
-    stirling = {
-      image = "frooodle/s-pdf:latest";
-      volumes = [
-        "${vars.configDir}/stirling:/configs"
-      ];
-      ports = ["9284:8080"];
     };
   };
 }

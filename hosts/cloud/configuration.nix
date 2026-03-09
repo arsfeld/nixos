@@ -60,41 +60,18 @@
     domain = "siyuan.arsfeld.dev";
   };
 
-  # Enable Mydia metadata-relay service
-  services.metadata-relay = {
-    enable = true;
-    domain = "metadata-relay.arsfeld.dev";
-  };
-
-  # Plane project management (disabled, data preserved in /var/lib/plane)
-  services.plane = {
-    enable = false;
-    domain = "plane.arsfeld.dev";
-  };
-
   boot = {
     binfmt.emulatedSystems = ["x86_64-linux"];
   };
 
   constellation.backup.enable = true;
-  constellation.services.enable = true;
-  constellation.media.enable = true;
+  # Gateway for cloud services — auth forwarded to storage's Authelia via tsnsrv
+  media.gateway.enable = true;
+  media.gateway.authHost = "auth.bat-boa.ts.net";
+  media.gateway.authPort = 443;
 
   # Enable sops-nix secret management
   constellation.sops.enable = true;
-
-  # k3s Kubernetes cluster (agent role)
-  # Enable to join the k3s cluster running on storage
-  constellation.k3s = {
-    enable = true;
-    role = "agent";
-    serverAddr = "https://storage.bat-boa.ts.net:6443";
-    # Agent node for gateway workloads
-  };
-
-  # Container backend: "podman" (default) or "kubernetes"
-  # Set to "kubernetes" to deploy containers to k3s instead of Podman
-  # media.backend = "kubernetes";
 
   # Define secrets using standard sops-nix options
   sops.secrets = {
@@ -104,10 +81,6 @@
       owner = "root";
       group = "root";
     };
-    metadata-relay-env = {mode = "0444";};
-    # Plane project management secrets
-    plane-secret-key = {mode = "0400";};
-    plane-db-password = {mode = "0400";};
   };
 
   media.config = {

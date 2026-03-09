@@ -18,7 +18,8 @@
   self,
   ...
 }: let
-  services = config.media.gateway.services;
+  nameToPort = import "${self}/common/nameToPort.nix";
+  dnsPort = nameToPort "dns";
 in {
   options.blocky = {
     enable = lib.mkEnableOption "Blocky DNS server with ad-blocking capabilities";
@@ -38,6 +39,10 @@ in {
   };
 
   config = lib.mkIf config.blocky.enable {
+    media.gateway.services.dns = {
+      port = dnsPort;
+      settings.bypassAuth = true;
+    };
     services.redis = {
       servers = {
         blocky = {
@@ -60,7 +65,7 @@ in {
           };
         };
         ports = {
-          http = ":${toString services.dns.port}";
+          http = ":${toString dnsPort}";
         };
         redis = {
           address = "100.66.38.77:6378";

@@ -23,9 +23,20 @@ in {
 
   # We're the netdata server, not a client.
   constellation.netdataClient.enable = false;
-  constellation.services.enable = true;
-  constellation.media.enable = true;
+  # Gateway configuration (auth handled by Authelia on storage)
+  media.gateway = {
+    enable = true;
+    authHost = "127.0.0.1";
+    authPort = 9091;
+  };
   constellation.podman.enable = true;
+
+  # Service modules (migrated from constellation.media)
+  constellation.mediaStreaming.enable = true;
+  constellation.mediaAutomation.enable = true;
+  constellation.mediaApps.enable = true;
+  constellation.homeApps.enable = true;
+  constellation.networkTools.enable = true;
 
   # Development environment with packages but using podman (not docker)
   constellation.development = {
@@ -47,25 +58,6 @@ in {
 
   # OpenCloud - lightweight file storage and collaboration platform
   constellation.opencloud.enable = true;
-
-  # k3s Kubernetes cluster (server role)
-  # Enable to migrate from Podman containers to Kubernetes
-  # Set media.backend = "kubernetes" to deploy containers to k3s
-  constellation.k3s = {
-    enable = true;
-    role = "server";
-    # Storage has more resources and runs most workloads
-    disableTraefik = true; # Using Caddy gateway
-    disableServiceLB = true; # Using NodePort
-  };
-
-  # Tailscale Kubernetes Operator for service exposure (when k3s is enabled)
-  # Replaces tsnsrv for *.bat-boa.ts.net access
-  constellation.k8s-tailscale.enable = false; # Enable with k3s
-
-  # Container backend: "podman" (default) or "kubernetes"
-  # Set to "kubernetes" to deploy containers to k3s instead of Podman
-  # media.backend = "kubernetes";
 
   # Tailscale VPN exit nodes via AirVPN
   # AirVPN credentials in env format for gluetun

@@ -6,7 +6,9 @@
   ...
 }: let
   vars = config.media.config;
-  services = config.media.gateway.services;
+  nameToPort = import "${self}/common/nameToPort.nix";
+  komgaPort = nameToPort "komga";
+  headphonesPort = 8787;
 
   plex-trakt-sync = {interactive ? false}: ''    ${pkgs.podman}/bin/podman run ${
       if interactive
@@ -16,6 +18,19 @@
                 -v ${vars.configDir}/plex-track-sync:/app/config \
                 ghcr.io/taxel/plextraktsync'';
 in {
+  media.gateway.services.komga = {
+    port = komgaPort;
+    settings.funnel = true;
+  };
+  media.gateway.services.lidarr = {port = 8686;};
+  media.gateway.services.tautulli = {port = 8181;};
+  media.gateway.services.headphones = {port = headphonesPort;};
+  media.gateway.services.resilio = {
+    port = 9000;
+    settings.funnel = true;
+  };
+  media.gateway.services.fileflows = {port = 19200;};
+
   services.lidarr = {
     enable = true;
     user = vars.user;
@@ -26,7 +41,7 @@ in {
     enable = true;
     user = vars.user;
     group = vars.group;
-    settings.server.port = services.komga.port;
+    settings.server.port = komgaPort;
   };
 
   services.tautulli = {
@@ -39,7 +54,7 @@ in {
     enable = true;
     user = vars.user;
     group = vars.group;
-    port = services.headphones.port;
+    port = headphonesPort;
   };
 
   services.bitmagnet = {

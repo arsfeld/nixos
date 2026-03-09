@@ -26,7 +26,11 @@ in {
     # Override qbittorrent gateway config to use namespace IP instead of localhost
     # This is necessary because storage's Caddy needs to proxy to the VPN namespace
     # (192.168.15.1) rather than localhost (which doesn't go through DNAT rules)
-    media.gateway.services.qbittorrent.host = lib.mkForce "192.168.15.1";
+    media.gateway.services.qbittorrent = {
+      port = 8080;
+      host = lib.mkForce "192.168.15.1";
+      settings.bypassAuth = true;
+    };
 
     # VPN namespace configuration using VPN-Confinement
     vpnNamespaces.wg = {

@@ -4,7 +4,7 @@
   ...
 }: {
   imports = [
-    ./services/auth.nix
+    ./services/cloudflared.nix
     ./services/development.nix
     ./services/mosquitto.nix
     ./services/owntracks.nix
