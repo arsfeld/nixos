@@ -42,7 +42,6 @@ in {
   "romm-env.age".publicKeys = users ++ [storage];
   "plausible-secret-key.age".publicKeys = users ++ [cloud];
   "plausible-smtp-password.age".publicKeys = users ++ [cloud];
-  "google-api-key.age".publicKeys = users ++ systems;
   "keycloak-pass.age".publicKeys = users ++ [cloud];
 
   # Garage S3-compatible storage (replaces MinIO)
@@ -101,7 +100,4 @@ in {
 
   # Hetzner Storage Box WebDAV env (rclone config for restic)
   "hetzner-webdav-env.age".publicKeys = users ++ [storage];
-
-  # GitHub notifications
-  "github-token.age".publicKeys = users ++ [raider storage];
 }

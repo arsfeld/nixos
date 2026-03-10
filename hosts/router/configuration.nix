@@ -56,13 +56,6 @@
   # Enable SSH
   services.openssh.enable = true;
 
-  # Garbage collection to save disk space
-  nix.gc = {
-    automatic = true;
-    dates = lib.mkForce "weekly"; # Override common module's schedule
-    options = lib.mkForce "--delete-older-than 7d"; # Override common module's 30d
-  };
-
   # Optimize nix store regularly
   nix.optimise.automatic = true;
 
@@ -104,9 +97,6 @@
     fromEmail = "router-alerts@rosenfeld.one";
     toEmail = "alex@rosenfeld.one"; # Change to your email
   };
-
-  # Enable LLM-powered crash log analysis
-  constellation.llmEmail.enable = true;
 
   # Traffic shaping configuration
   router.trafficShaping = {

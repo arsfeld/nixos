@@ -48,7 +48,6 @@
     docker.enable = true; # Enable Docker runtime
     backup.enable = true; # Enable automated backups
     services.enable = true; # Enable service gateway for harmonia tsnsrv integration
-    githubIssueNotify.enable = true; # Enable isolated GitHub issue creation for systemd failures
   };
 
   # Project Isolation VMs (Tailscale disabled for now — uses libvirt network SSH)
