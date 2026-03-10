@@ -4,13 +4,8 @@
   ...
 }: {
   imports = [
-    ./services/cloudflared.nix
     ./services/development.nix
-    ./services/mosquitto.nix
-    ./services/owntracks.nix
     ./services/rustdesk.nix
-    ./services/utility.nix
-    ./services/vault.nix
   ];
 
   age.secrets.tailscale-key.file = "${self}/secrets/tailscale-key.age";

@@ -19,5 +19,7 @@
     ./transmission-vpn.nix
     ./nfs.nix
     ./samba.nix
+    ./vault.nix
+    ./yarr.nix
   ];
 }
