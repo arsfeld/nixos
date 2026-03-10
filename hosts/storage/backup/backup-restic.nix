@@ -48,6 +48,52 @@
       ];
     };
 
+    # Remote backup: NVMe system state (service configs + databases)
+    hetzner-system = {
+      paths = ["/"];
+      exclude = [
+        # Already backed up remotely in `hetzner` profile
+        "/home"
+        "/mnt"
+
+        # Virtual/runtime filesystems
+        "/dev"
+        "/proc"
+        "/sys"
+        "/run"
+        "/tmp"
+
+        # Nix store (reproducible from flake)
+        "/nix"
+
+        # Caches
+        "/var/cache"
+
+        # Container layers (regenerable, large)
+        "/var/lib/docker"
+        "/var/lib/containers"
+        "/var/lib/lxcfs"
+
+        # Metrics/logs (regenerable)
+        "/var/lib/loki"
+        "/var/lib/prometheus2"
+      ];
+
+      repository = "rclone:hetzner:backups/restic-system";
+      passwordFile = config.age.secrets."restic-password".path;
+      environmentFile = config.age.secrets."hetzner-webdav-env".path;
+      initialize = true;
+      timerConfig = {
+        OnCalendar = "weekly";
+        RandomizedDelaySec = "1h";
+      };
+      pruneOpts = [
+        "--keep-daily 7"
+        "--keep-weekly 4"
+        "--keep-monthly 6"
+      ];
+    };
+
     # Remote backup: User data and important files only (no system state or /nix)
     hetzner = {
       paths = [
@@ -133,6 +179,10 @@
     };
     restic-backups-hetzner.serviceConfig = {
       TimeoutStartSec = "infinity";
+    };
+    restic-backups-hetzner-system.serviceConfig = {
+      TimeoutStartSec = "infinity";
+      IOSchedulingClass = "idle";
     };
   };
 }

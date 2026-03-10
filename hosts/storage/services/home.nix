@@ -14,6 +14,7 @@
         --pull newer \
         --volume "${dataDir}:/config" \
         --env DATA_DIR=/config \
+        --env FILTER_CONFIG_PATH=/config/filter-config.yaml \
         --env-file "${config.age.secrets."finance-tracker-env".path}" \
         ghcr.io/arsfeld/finance-tracker:latest ./finance-tracker "$@"
     '';
