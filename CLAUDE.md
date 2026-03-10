@@ -54,8 +54,8 @@ ragenix --rules secrets/secrets.nix -r
 ```
 
 ### Available Hosts
-- **storage** - Main server: media services, databases, backups, k3s server
-- **cloud** - Cloud gateway: reverse proxy, k3s agent, public-facing services
+- **storage** - Main server: media services, databases, backups, k3s server. Hosts internal services on `*.arsfeld.one` via cloudflared tunnel (wildcard ingress)
+- **cloud** - Cloud server: hosts public-facing services on `*.arsfeld.dev` (blog, plausible, planka, siyuan, supabase)
 - **raider** - Desktop workstation: GNOME, gaming, development
 - **router** - Custom network device (no constellation modules, standalone config)
 - **r2s** - ARM-based router (NanoPi R2S)
@@ -124,20 +124,18 @@ Central source of truth for all service metadata. Controls:
 - `cors` - CORS-enabled services
 
 #### Container Orchestration (`modules/constellation/media.nix`)
-Defines containerized services in `storageServices` and `cloudServices` sections. Each service gets container image, ports, volumes, env vars. Uses `media.config` variables for paths.
+Defines containerized services in `storageServices` section. Each service gets container image, ports, volumes, env vars. Uses `media.config` variables for paths.
 
 **Volume path rules:**
-- `storageServices`: Use `${vars.storageDir}` for media, `${vars.configDir}` for config
-- `cloudServices`: Use `${vars.configDir}` only - **never** `storageDir` (no `/mnt/storage` on cloud)
+- Use `${vars.storageDir}` for media, `${vars.configDir}` for config
 
 #### Gateway (`modules/media/gateway.nix`)
 Caddy reverse proxy consuming service definitions. Generates TLS configs, error pages, tsnsrv integration.
 
-#### DNS & Routing (Split-Horizon)
-- `*.arsfeld.one` domains:
-  - **External**: Cloudflare -> cloud (gateway) -> storage
-  - **Internal** (tailnet): Tailscale MagicDNS -> storage directly (no cloud hop)
-- `*.bat-boa.ts.net`: Tailscale-only access (or public via Funnel)
+#### DNS & Routing
+- `*.arsfeld.one` — internal services hosted on **storage**, routed via Cloudflare → storage's cloudflared tunnel (wildcard ingress)
+- `*.arsfeld.dev` — public services hosted on **cloud** (blog, plausible, planka, siyuan, supabase)
+- `*.bat-boa.ts.net` — Tailscale-only access (or public via Funnel)
 
 ### Remote Builders
 `cloud` (aarch64-linux) serves as remote builder. When in `nix develop`, aarch64 packages build on cloud automatically via `nix-builders.conf`.
@@ -155,15 +153,17 @@ Caddy reverse proxy consuming service definitions. Generates TLS configs, error 
 
 ## Adding New Services
 
-### Native systemd services
-1. Add to `modules/constellation/services.nix` in the appropriate host section
-2. Add to `bypassAuth` if service has its own auth
-3. Add to `tailscaleExposed` for dedicated Tailscale node
-4. Add to `funnels` for public access via `*.bat-boa.ts.net`
-5. Deploy to **cloud** to update gateway
+### `*.arsfeld.one` services (on storage)
+1. Create a service file in `hosts/storage/services/` and add to `default.nix` imports
+2. Register in `media.gateway.services` with port, auth, and Tailscale exposure settings
+3. Storage's wildcard cloudflared tunnel routes traffic automatically
 
-### Containerized services
-1. Add to `modules/constellation/media.nix` in `storageServices` or `cloudServices`
+### `*.arsfeld.dev` services (on cloud)
+1. Create a service file in `hosts/cloud/services/` and add to `default.nix` imports
+2. Cloud uses dedicated Caddy vhosts for `arsfeld.dev` subdomains
+
+### Containerized services (on storage)
+1. Add to `modules/constellation/media.nix` in `storageServices`
 2. Define image, ports, volumes, environment variables
 3. Service is automatically added to the gateway
 

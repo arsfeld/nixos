@@ -212,7 +212,7 @@ with lib; {
     nix.gc = {
       automatic = true;
       dates = "Sat *-*-* 03:15:00";
-      options = "--delete-older-than 30d";
+      options = "--delete-older-than 7d";
     };
 
     system.stateVersion = lib.mkDefault "22.05";

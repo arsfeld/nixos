@@ -118,7 +118,7 @@ with lib; let
       # Advanced options
       gluetunImage = mkOption {
         type = types.str;
-        default = "qmcgaw/gluetun:latest";
+        default = "qmcgaw/gluetun:v3.40.0";
         description = "Docker image for the gluetun VPN container.";
       };
 
