@@ -7,7 +7,6 @@
     ./hardware-configuration.nix
     ./services
     ./services.nix
-    ./containers.nix
   ];
 
   constellation.docker.enable = true;
@@ -76,7 +75,6 @@
   # Define secrets using standard sops-nix options
   sops.secrets = {
     # Host-specific secrets (use defaultSopsFile set by constellation.sops)
-    ntfy-env = {mode = "0444";};
     siyuan-auth-code = {
       owner = "root";
       group = "root";

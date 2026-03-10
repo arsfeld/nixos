@@ -5,7 +5,7 @@
   ...
 }: let
   mediaDomain = config.media.config.domain;
-  port = 8000;
+  port = 8002;
 in {
   media.gateway.services.vault = {
     inherit port;
