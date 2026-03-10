@@ -44,7 +44,6 @@ in {
     docker = false; # Keep using podman as the container runtime
   };
   services.isponsorblock.enable = false;
-  constellation.githubIssueNotify.enable = true; # Enable isolated GitHub issue creation for systemd failures
 
   # Enable Home Assistant home automation platform
   constellation.home-assistant.enable = true;
