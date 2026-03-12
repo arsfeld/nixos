@@ -77,6 +77,7 @@ with lib; let
       path = [pkgs.rclone];
       serviceConfig = {
         Type = "oneshot";
+        ExecStartPre = "-${pkgs.rustic}/bin/rustic -P ${name} init";
         ExecStart = "${pkgs.rustic}/bin/rustic -P ${name} backup";
         EnvironmentFile = mkIf (profile.environmentFile != null) profile.environmentFile;
         Nice = 10;
