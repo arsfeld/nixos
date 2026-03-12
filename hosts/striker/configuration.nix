@@ -7,11 +7,7 @@
   ...
 }: {
   imports = [
-    # Include the results of the hardware scan.
     ./hardware-configuration.nix
-    ../../common/common.nix
-    ../../common/services.nix
-    ../../common/users.nix
   ];
 
   # Bootloader.

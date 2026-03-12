@@ -146,7 +146,7 @@ in {
         config.host = "/var/lib/dex/dex.db";
       };
       web = {
-        http = "127.0.0.1:${toString services.dex.port}";
+        http = "0.0.0.0:${toString services.dex.port}";
       };
       enablePasswordDB = true;
       staticClients = [

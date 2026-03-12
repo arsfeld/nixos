@@ -5,6 +5,7 @@
   ...
 }:
 with lib; let
+  cfg = config.constellation.sites.rosenfeld-one;
   domain = "rosenfeld.one";
   nameToPort = import "${self}/common/nameToPort.nix";
   dexPort = nameToPort "dex";
@@ -12,9 +13,19 @@ with lib; let
 in {
   options.constellation.sites.rosenfeld-one = {
     enable = lib.mkEnableOption "rosenfeld-one";
+    dexUpstream = lib.mkOption {
+      type = lib.types.str;
+      default = "localhost:${toString dexPort}";
+      description = "Upstream address for dex OIDC provider";
+    };
+    usersUpstream = lib.mkOption {
+      type = lib.types.str;
+      default = "localhost:${toString usersPort}";
+      description = "Upstream address for LLDAP users interface";
+    };
   };
 
-  config = lib.mkIf config.constellation.sites.rosenfeld-one.enable {
+  config = lib.mkIf cfg.enable {
     security.acme.certs."${domain}" = {
       extraDomainNames = ["*.${domain}"];
     };
@@ -36,12 +47,12 @@ in {
                 }
               ` 200
           }
-          reverse_proxy localhost:${toString dexPort}
+          reverse_proxy ${cfg.dexUpstream}
         '';
       };
       "users.${domain}" = {
         useACMEHost = domain;
-        extraConfig = "reverse_proxy localhost:${toString usersPort}";
+        extraConfig = "reverse_proxy ${cfg.usersUpstream}";
       };
     };
   };
