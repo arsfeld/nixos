@@ -54,9 +54,13 @@
       cursor-style-blink = true
 
       # Transparency and blur settings
-      background-opacity = 0.85
+      background-opacity = 0.93
       background-blur-radius = 20
       unfocused-split-opacity = 0.9
+
+      # Color readability
+      minimum-contrast = 1.1
+      bold-is-bright = true
 
       # Ensure proper terminal behavior for Zellij
       window-decoration = true

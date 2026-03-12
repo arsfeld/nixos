@@ -45,8 +45,8 @@
 
   # Networking
   networking = {
-    # Use DHCP for all interfaces
-    useDHCP = true;
+    # Use DHCP for all interfaces (mkForce needed to override NetworkManager from netboot profile)
+    useDHCP = lib.mkForce true;
     useNetworkd = true;
     # Don't block on network
     dhcpcd.wait = "background";
