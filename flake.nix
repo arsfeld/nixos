@@ -3,8 +3,6 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11"; # Core nixpkgs - stable 25.11
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable-small"; # Unstable packages for latest versions
     determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/*"; # Determinate Nix
-    nixos-generators.url = "github:nix-community/nixos-generators"; # System image generators (ISO, SD card, etc.)
-    nixos-generators.inputs.nixpkgs.follows = "nixpkgs";
     disko.url = "github:nix-community/disko"; # Declarative disk partitioning
     disko.inputs.nixpkgs.follows = "nixpkgs";
     ragenix.url = "github:arsfeld/ragenix/add-decrypt-flag"; # Rust-based age secret management (faster and more reliable)

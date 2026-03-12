@@ -21,10 +21,6 @@
     # Common overlays used everywhere
     overlays = [
       (import ../overlays/python-packages.nix)
-      # Caddy with Tailscale OAuth plugin
-      (final: prev: {
-        caddy-tailscale = final.callPackage ../packages/caddy-tailscale {};
-      })
       # Load packages from ./packages directory using haumea
       (final: prev: loadPackages final)
     ];
@@ -70,19 +66,31 @@
         home-manager.users.arosenfeld = import ../home/home.nix;
       }
     ];
+    lightHosts = ["raspi3" "octopi" "r2s"];
   in {
     inherit
       loadPackages
       overlays
       baseModules
       homeManagerModules
+      lightHosts
       ;
 
-    mkLinuxSystem = {mods}:
+    mkLinuxSystem = {
+      mods,
+      enableHomeManager ? true,
+    }:
       inputs.nixpkgs.lib.nixosSystem {
         # Arguments to pass to all modules.
         specialArgs = {inherit self inputs;};
-        modules = baseModules ++ homeManagerModules ++ mods;
+        modules =
+          baseModules
+          ++ (
+            if enableHomeManager
+            then homeManagerModules
+            else []
+          )
+          ++ mods;
       };
   };
 }

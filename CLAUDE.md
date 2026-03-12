@@ -15,14 +15,20 @@ just fmt                       # Format all Nix files with alejandra
 just build <hostname>          # Build a host config locally
 ```
 
-### Deployment (via nixos-rebuild, default)
+### Deployment (via Colmena, default)
 ```bash
-just deploy <hostname>         # Deploy to host (switch activation)
-just boot <hostname>           # Deploy with boot activation (kernel/bootloader changes)
-just test <hostname>           # Test config without activating
+just deploy storage            # Deploy to one host
+just deploy storage cloud      # Deploy to multiple hosts in parallel
+just boot storage              # Boot activation (next reboot)
+just test storage              # Test without activating
+just deploy-all                # Deploy to all hosts
+just reboot storage            # Deploy and reboot (kernel changes)
+just info                      # List all known hosts
 ```
 
-deploy-rs is available but currently broken with Nix 2.32+ (`just deploy-rs`, `just boot-rs`). Colmena is an alternative (`just colmena-deploy`, `just colmena-boot`, `just colmena-build`).
+nixos-rebuild fallback: `just nr-deploy <host>`, `just nr-boot <host>`, `just nr-test <host>`
+
+deploy-rs is available but currently broken with Nix 2.32+ (`just deploy-rs`, `just boot-rs`).
 
 All hosts are reached via Tailscale: `<hostname>.bat-boa.ts.net`.
 
