@@ -47,104 +47,12 @@
     development.enable = true;
     docker.enable = true; # Enable Docker runtime
     backup.enable = true; # Enable automated backups
-    services.enable = true; # Enable service gateway for harmonia tsnsrv integration
   };
 
   # Project Isolation VMs (Tailscale disabled for now — uses libvirt network SSH)
   constellation.projectVms = {
     enable = true;
     sshPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBDeQP9ZHuDegrcgBEAuLpCWEK0v8eIBAgaLMSquCP0w arsfeld@gmail.com";
-  };
-
-  # Local home backup to /mnt/backup
-  services.rustic.profiles.local = {
-    timerConfig = {
-      OnCalendar = "daily";
-      RandomizedDelaySec = "1h";
-    };
-    repository = {
-      repository = "/mnt/backup/home-backup";
-      password-file = config.age.secrets."restic-password".path;
-      init = true;
-    };
-    backup = {
-      init = true;
-      snapshots = [
-        {
-          sources = ["/home"];
-          globs = [
-            # Caches
-            "!**/.cache"
-
-            # Package manager caches
-            "!**/node_modules"
-            "!**/.npm"
-            "!**/.npm-global"
-            "!**/.bun"
-            "!**/.pnpm-store"
-            "!**/.yarn"
-            "!**/.gradle"
-            "!**/.cargo/registry"
-            "!**/.cargo/git"
-            "!**/.rustup"
-            "!**/.nuget"
-            "!**/.m2"
-            "!**/.pub-cache"
-
-            # IDE/editor caches
-            "!**/.vscode/extensions"
-            "!**/.vscode-server"
-            "!**/.local/share/zed"
-
-            # Nix
-            "!**/.nix-profile"
-            "!**/.nix-defexpr"
-
-            # Flatpak & containers
-            "!**/.var"
-            "!**/.local/share/flatpak"
-            "!**/.local/share/Steam"
-            "!**/.local/share/containers"
-
-            # Trash
-            "!**/.local/share/Trash"
-
-            # Gaming (re-downloadable)
-            "!**/.local/share/umu"
-            "!**/.local/share/lutris"
-
-            # Media synced from storage
-            "!**/media/tv"
-            "!**/media/movies"
-            "!**/media/adult"
-
-            # Build outputs & targets
-            "!**/target/debug"
-            "!**/target/release"
-            "!**/.next"
-            "!**/.turbo"
-            "!**/dist"
-            "!**/__pycache__"
-            "!**/.tox"
-            "!**/.venv"
-            "!**/venv"
-
-            # AI/LLM caches
-            "!**/.claude"
-            "!**/.local/share/opencode"
-
-            # FUSE mounts
-            "!**/Google Drive"
-          ];
-          exclude-if-present = [".nobackup" "CACHEDIR.TAG"];
-        }
-      ];
-    };
-    forget = {
-      keep-daily = 7;
-      keep-weekly = 4;
-      keep-monthly = 6;
-    };
   };
 
   # Mark raider as a development machine for netdata alert filtering
@@ -280,7 +188,7 @@
   boot.consoleLogLevel = 0;
 
   # Remove zfs, add nfs for media mount
-  boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "nfs" "ntfs" "reiserfs" "vfat" "xfs" "bcachefs"];
+  boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "nfs" "ntfs" "reiserfs" "vfat" "xfs"];
 
   # Disable aggressive SATA power management to prevent SSD freezing
   boot.kernelParams = ["ahci.mobile_lpm_policy=0"];
@@ -344,13 +252,6 @@
 
   # Disable GNOME auto-suspend
   services.displayManager.gdm.autoSuspend = false;
-
-  # Mount backup disk
-  fileSystems."/mnt/backup" = {
-    device = "/dev/sdb1";
-    fsType = "auto";
-    options = ["nofail" "x-systemd.device-timeout=5s"];
-  };
 
   # Environment variables for games
   environment.sessionVariables = {

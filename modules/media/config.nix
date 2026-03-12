@@ -137,11 +137,14 @@ in {
       gid = cfg.pgid;
     };
 
-    age.secrets.cloudflare = {
-      file = "${self}/secrets/cloudflare.age";
-      owner = "acme";
-      group = "acme";
-    };
+    age.secrets.cloudflare =
+      {
+        file = "${self}/secrets/cloudflare.age";
+      }
+      // lib.optionalAttrs (config.security.acme.certs != {}) {
+        owner = "acme";
+        group = "acme";
+      };
 
     security.acme.acceptTerms = true;
 

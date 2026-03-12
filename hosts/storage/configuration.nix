@@ -67,7 +67,7 @@ in {
   age.secrets.tailscale-exit-key.file = "${self}/secrets/tailscale-exit-key.age";
 
   constellation.vpnExitNodes = {
-    enable = true;
+    enable = false;
     # Use dedicated exit node auth key with pre-approved exit node capability
     tailscaleAuthKeyFile = config.age.secrets.tailscale-exit-key.path;
     nodes.brazil = {
@@ -107,12 +107,6 @@ in {
     enable = true;
   };
 
-  # Use latest kernel for bcachefs out-of-tree module (requires >= 6.16)
-  boot.kernelPackages = pkgs.linuxPackages_latest;
-  # Use unstable bcachefs-tools for latest out-of-tree kernel module and CLI
-  boot.bcachefs.package = pkgs-unstable.bcachefs-tools;
-  environment.systemPackages = [pkgs-unstable.bcachefs-tools];
-
   boot = {
     binfmt.emulatedSystems = ["aarch64-linux"];
     # Kernel modules for containers with iptables (qbittorrent VPN)
@@ -120,7 +114,6 @@ in {
     kernelModules = [
       "kvm-intel"
     ];
-    supportedFilesystems = ["bcachefs"];
   };
 
   services.earlyoom.enable = true;
@@ -140,11 +133,6 @@ in {
 
   services.caddy = {
     enable = true;
-    # Use caddy-tailscale plugin WITH OAuth support to make Caddy join Tailnet as a single node
-    # This replaces 64 separate tsnsrv instances, reducing CPU from 60.5% to ~2-5%
-    # Using vendored erikologic/caddy-tailscale fork (PR #109) with OAuth client credentials support
-    # OAuth allows ephemeral node registration with TS_API_CLIENT_ID + TS_API_CLIENT_SECRET
-    package = pkgs.caddy-tailscale;
   };
 
   services.tailscale.permitCertUid = "caddy";

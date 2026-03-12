@@ -19,9 +19,7 @@ with lib; {
     backup.enable = false; # Disabled until data pool is recreated
     common.enable = true;
     email.enable = true;
-    media.enable = false; # Disabled until data pool is recreated
     podman.enable = true;
-    services.enable = false; # Disabled until data pool is recreated (requires media.config for ACME)
     virtualization.enable = true;
   };
 
@@ -63,11 +61,7 @@ with lib; {
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  # Use latest kernel for bcachefs support
-  boot.kernelPackages = pkgs.linuxPackages_latest;
-
-  # bcachefs support
-  boot.supportedFilesystems = ["bcachefs" "btrfs"];
+  boot.supportedFilesystems = ["btrfs"];
 
   # Early OOM killer
   services.earlyoom.enable = true;

@@ -1,6 +1,6 @@
 # Disko configuration for raider gaming system
 # Main disk: XrayDisk 512GB NVMe SSD (system partitions)
-# Home disk: Samsung MZ7LN512HAJQ 512GB SATA SSD (/home)
+# Home disk: Samsung 850 EVO 1TB SATA SSD (/home)
 {
   disko.devices = {
     disk = {
@@ -58,7 +58,7 @@
       # Samsung SSD for /home
       home = {
         type = "disk";
-        device = "/dev/disk/by-id/ata-SAMSUNG_MZ7LN512HAJQ-000H1_S3TANA0KA01037";
+        device = "/dev/disk/by-id/ata-Samsung_SSD_850_EVO_1TB_S3PJNF0J907619X";
         content = {
           type = "gpt";
           partitions = {

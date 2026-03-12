@@ -89,7 +89,7 @@
   };
 
   # Remove zfs support
-  boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "ntfs" "reiserfs" "vfat" "xfs" "bcachefs"];
+  boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "ntfs" "reiserfs" "vfat" "xfs"];
 
   # ASUS G14 specific hardware support
   services.supergfxd.enable = true; # ASUS GPU switching

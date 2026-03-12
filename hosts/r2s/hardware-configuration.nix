@@ -2,14 +2,26 @@
   config,
   pkgs,
   lib,
+  modulesPath,
   ...
 }: {
+  imports = [
+    (modulesPath + "/installer/sd-card/sd-image-aarch64.nix")
+  ];
+
+  # NanoPi R2S requires u-boot for SD card booting (RK3328 SoC)
+  # firmwarePartitionOffset must be past u-boot.itb (which ends before sector 32768 = 16 MiB)
+  # populateRootCommands must NOT be overridden — it generates extlinux.conf for u-boot
+  sdImage = {
+    firmwarePartitionOffset = 16; # 16 MiB, past the u-boot.itb region
+    populateFirmwareCommands = lib.mkForce "";
+    postBuildCommands = ''
+      dd if=${pkgs.ubootNanopiR2s}/idbloader.img of=$img conv=fsync,notrunc bs=512 seek=64
+      dd if=${pkgs.ubootNanopiR2s}/u-boot.itb of=$img conv=fsync,notrunc bs=512 seek=16384
+    '';
+  };
+
   hardware.deviceTree.name = "rockchip/rk3328-nanopi-r2s.dtb";
-  # hardware.deviceTree.filter = "*rk3328-nanopi-r2s.dtb";
-  # hardware.deviceTree.overlays = [{
-  #   name = "sysled";
-  #   dtsFile = ./files/sysled.dts;
-  # }];
 
   # NanoPi R2S's DTS has not been actively updated, so just use the prebuilt one to avoid rebuilding
   hardware.deviceTree.package = pkgs.lib.mkForce (
@@ -31,18 +43,10 @@
   ];
 
   fileSystems = {
-    # "/boot" = {
-    #   device = "/dev/disk/by-label/NIXOS_BOOT";
-    #   fsType = "ext4";
-    # };
-    # "/" = {
-    #   device = "/dev/disk/by-label/NIXOS_SD";
-    #   fsType = "f2fs";
-    #   options = ["compress_algorithm=zstd:6" "compress_chksum" "atgc" "gc_merge" "lazytime"];
-    # };
     "/" = {
       device = "/dev/disk/by-label/NIXOS_SD";
       fsType = "ext4";
+      options = ["noatime"];
     };
   };
 
@@ -62,7 +66,6 @@
       "mitigations=off"
     ];
     initrd = {
-      includeDefaultModules = false;
       kernelModules = ["ledtrig-netdev"];
     };
     blacklistedKernelModules = ["hantro_vpu" "drm" "lima" "videodev"];

@@ -57,71 +57,26 @@ with import ./helpers.nix;
         };
       };
 
-      services.kea = {
-        dhcp4 = {
-          enable = true;
-          settings = {
-            interfaces-config = {
-              interfaces = [
-                internalInterface
-              ];
-            };
-            lease-database = {
-              name = "/var/lib/kea/dhcp4.leases";
-              persist = true;
-              type = "memfile";
-            };
-            rebind-timer = 2000;
-            renew-timer = 1000;
-            subnet4 = [
-              {
-                pools = [
-                  {
-                    pool = "${ipRangePrefix + "10"} - ${ipRangePrefix + "254"}";
-                  }
-                ];
-                subnet = ipRange;
-                "option-data" = [
-                  {
-                    "name" = "routers";
-                    "data" = gatewayIP;
-                  }
-                  {
-                    "name" = "domain-name-servers";
-                    "data" = gatewayIP;
-                  }
-                ];
-              }
-            ];
-            valid-lifetime = 4000;
-          };
-        };
-      };
-
-      # DNS server for intercepting and forwarding queries
       services.dnsmasq = {
         enable = true;
         settings = {
-          # Listen only on internal interface
           interface = internalInterface;
           listen-address = gatewayIP;
+          bind-interfaces = true;
 
-          # Don't read /etc/resolv.conf for upstream servers
+          # DHCP
+          dhcp-range = "${ipRangePrefix}10,${ipRangePrefix}254,12h";
+          dhcp-option = [
+            "option:router,${gatewayIP}"
+            "option:dns-server,${gatewayIP}"
+          ];
+
+          # DNS
           no-resolv = true;
-
-          # Upstream DNS servers
           server = dnsServers;
-
-          # Cache settings
           cache-size = 1000;
-
-          # Don't forward plain names
           domain-needed = true;
-
-          # Don't forward addresses in the non-routed address spaces
           bogus-priv = true;
-
-          # Enable DNSSEC
           dnssec = true;
           trust-anchor = ".,19036,8,2,49AAC11D7B6F6446702E54A1607371607A1A41855200FD2CE1CDDE32F24E8FB5";
         };

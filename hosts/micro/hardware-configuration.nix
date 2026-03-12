@@ -1,4 +1,8 @@
-{modulesPath, ...}: {
+{
+  modulesPath,
+  lib,
+  ...
+}: {
   imports = [(modulesPath + "/profiles/qemu-guest.nix")];
   boot.loader.grub = {
     efiSupport = true;
@@ -22,4 +26,5 @@
       size = 2 * 1024;
     }
   ];
+  nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
 }

@@ -11,7 +11,11 @@
 
   constellation.docker.enable = true;
   constellation.sites.arsfeld-dev.enable = true;
-  constellation.sites.rosenfeld-one.enable = true;
+  constellation.sites.rosenfeld-one = {
+    enable = true;
+    dexUpstream = "storage.bat-boa.ts.net:36958";
+    usersUpstream = "storage.bat-boa.ts.net:64459";
+  };
 
   # Blog service
   services.blog = {
