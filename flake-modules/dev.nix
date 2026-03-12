@@ -15,10 +15,6 @@
       inherit system;
       overlays = [
         (import ../overlays/python-packages.nix)
-        # Caddy with Tailscale OAuth plugin
-        (final: prev: {
-          caddy-tailscale = final.callPackage ../packages/caddy-tailscale {};
-        })
       ];
     };
     formatter = pkgs.alejandra;

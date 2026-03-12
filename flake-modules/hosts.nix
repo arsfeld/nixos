@@ -25,6 +25,7 @@
         in {
           name = hostName;
           value = self.lib.mkLinuxSystem {
+            enableHomeManager = !(builtins.elem hostName self.lib.lightHosts);
             mods =
               (
                 if hasDisko

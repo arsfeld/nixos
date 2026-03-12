@@ -14,38 +14,97 @@ _format-targets +TARGETS:
     #!/usr/bin/env bash
     printf ".#%s " {{ TARGETS }} | sed 's/ $//'
 
-# === nixos-rebuild Deployment (default) ===
-# Direct deployment using nixos-rebuild
-# This is the default since deploy-rs has issues with Nix 2.32+ (https://github.com/serokell/deploy-rs/issues/340)
+# === Colmena Deployment (default) ===
+# Parallel deployment to one or more hosts
 
-# Deploy using nixos-rebuild (switch to new configuration)
-deploy HOST:
+# Deploy to one or more hosts (switch activation)
+deploy +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail
+    # Cache built paths to attic in background
+    attic watch-store system &
+    WATCH_PID=$!
+    trap 'kill $WATCH_PID 2>/dev/null || true; wait $WATCH_PID 2>/dev/null || true' EXIT INT TERM
+    sleep 1
+    TARGETS_CSV=$(echo "{{ TARGETS }}" | tr ' ' ',')
+    echo "Deploying ${TARGETS_CSV} using Colmena..."
+    colmena apply --impure --on "${TARGETS_CSV}"
 
-    # Determine the target host address
+# Deploy with boot activation (activates on next reboot)
+boot +TARGETS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Cache built paths to attic in background
+    attic watch-store system &
+    WATCH_PID=$!
+    trap 'kill $WATCH_PID 2>/dev/null || true; wait $WATCH_PID 2>/dev/null || true' EXIT INT TERM
+    sleep 1
+    TARGETS_CSV=$(echo "{{ TARGETS }}" | tr ' ' ',')
+    colmena apply --impure --on "${TARGETS_CSV}" boot
+
+# Test the configuration without making it permanent
+test +TARGETS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Cache built paths to attic in background
+    attic watch-store system &
+    WATCH_PID=$!
+    trap 'kill $WATCH_PID 2>/dev/null || true; wait $WATCH_PID 2>/dev/null || true' EXIT INT TERM
+    sleep 1
+    TARGETS_CSV=$(echo "{{ TARGETS }}" | tr ' ' ',')
+    colmena apply --impure --on "${TARGETS_CSV}" test
+
+# Deploy to all hosts
+deploy-all:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Cache built paths to attic in background
+    attic watch-store system &
+    WATCH_PID=$!
+    trap 'kill $WATCH_PID 2>/dev/null || true; wait $WATCH_PID 2>/dev/null || true' EXIT INT TERM
+    sleep 1
+    colmena apply --impure
+
+# Deploy and reboot (for kernel/bootloader changes)
+reboot +TARGETS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Cache built paths to attic in background
+    attic watch-store system &
+    WATCH_PID=$!
+    trap 'kill $WATCH_PID 2>/dev/null || true; wait $WATCH_PID 2>/dev/null || true' EXIT INT TERM
+    sleep 1
+    TARGETS_CSV=$(echo "{{ TARGETS }}" | tr ' ' ',')
+    colmena apply --impure --on "${TARGETS_CSV}" --reboot
+
+# Show deployment information
+info:
+    colmena eval --impure -E '{ nodes, ... }: builtins.attrNames nodes'
+
+# === nixos-rebuild Fallback ===
+# Single-host deployment using nixos-rebuild
+
+# Deploy using nixos-rebuild (switch to new configuration)
+nr-deploy HOST:
+    #!/usr/bin/env bash
+    set -euo pipefail
     TARGET="{{ HOST }}.bat-boa.ts.net"
-
     echo "Deploying {{ HOST }} using nixos-rebuild..."
     nixos-rebuild switch --flake ".#{{ HOST }}" --target-host "root@${TARGET}" --sudo
 
-# Deploy with boot activation (activates on next boot)
-boot HOST:
+# Deploy with boot activation using nixos-rebuild
+nr-boot HOST:
     #!/usr/bin/env bash
     set -euo pipefail
-
     TARGET="{{ HOST }}.bat-boa.ts.net"
-
     echo "Deploying {{ HOST }} with boot activation using nixos-rebuild..."
     nixos-rebuild boot --flake ".#{{ HOST }}" --target-host "root@${TARGET}" --sudo
 
-# Test the configuration without activating it
-test HOST:
+# Test configuration using nixos-rebuild
+nr-test HOST:
     #!/usr/bin/env bash
     set -euo pipefail
-
     TARGET="{{ HOST }}.bat-boa.ts.net"
-
     echo "Testing {{ HOST }} configuration using nixos-rebuild..."
     nixos-rebuild test --flake ".#{{ HOST }}" --target-host "root@${TARGET}" --sudo
 
@@ -84,31 +143,6 @@ deploy-rs +TARGETS:
     echo "Running: $cmd"
     eval $cmd
 
-# Deploy using Colmena (alternative to deploy-rs)
-colmena-deploy +TARGETS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    colmena apply --impure --on {{ TARGETS }} --verbose
-
-# Deploy with boot activation using Colmena
-colmena-boot +TARGETS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    colmena apply --impure --on {{ TARGETS }} --reboot --verbose
-
-# Build configuration using Colmena without deploying
-colmena-build +TARGETS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    colmena build --impure --on {{ TARGETS }}
-
-# Show Colmena deployment information
-colmena-info:
-    colmena eval --impure -E '{ nodes, ... }: builtins.attrNames nodes'
-
-# Interactive Colmena deployment
-colmena-interactive:
-    colmena apply --impure --interactive
 
 trace-rs +TARGETS:
     #!/usr/bin/env bash
@@ -132,76 +166,23 @@ cache HOST:
     rm -f result-{{ HOST }}
     echo "✅ {{ HOST }} built and cached successfully"
 
-r2s:
+# Build NanoPi R2S SD card image
+build-r2s:
     #!/usr/bin/env bash
-    set -euo pipefail # Enable strict error handling
+    set -euo pipefail
 
-    # --- Configuration ---
-    # Define the output directory for the final image
-    FINAL_OUTPUT_DIR="r2s-output"
-    # NixOS configuration file for the SD image
-    SD_IMAGE_CONFIG="./hosts/r2s/sd-image.nix"
-    # U-Boot flake reference
-    UBOOT_FLAKE_REF="github:EHfive/flakes#packages.aarch64-linux.ubootNanopiR2s"
-    # Target architecture
-    TARGET_ARCH="aarch64-linux"
+    echo "Building NanoPi R2S SD card image..."
+    nix build ".#r2s" -L
 
-    # --- Setup ---
-    # Create a temporary directory for build artifacts and ensure cleanup on exit
-    TMPDIR=$(mktemp -d)
-    trap 'rm -rf -- "$TMPDIR"' EXIT
-    echo "Working in temporary directory: $TMPDIR"
-
-    # Create the final output directory if it doesn't exist
-    mkdir -p "$FINAL_OUTPUT_DIR"
-
-    # --- Build Nix Artefacts ---
-    echo "Building NixOS SD image..."
-    nix build --impure --expr "(import <nixpkgs/nixos> { system = \"$TARGET_ARCH\"; configuration = $SD_IMAGE_CONFIG; }).config.system.build.sdImage" --out-link "$TMPDIR/sd-image-result"
-
-    echo "Building U-Boot..."
-    nix build "$UBOOT_FLAKE_REF" --out-link "$TMPDIR/uboot-result"
-
-    # --- Prepare File Paths ---
-    # Get the full path to the compressed SD image
-    SD_IMAGE_ZST_PATH=$(readlink -f "$TMPDIR/sd-image-result"/sd-image/*)
-    SD_IMAGE_ZST_NAME=$(basename "$SD_IMAGE_ZST_PATH")
-    # Derive the uncompressed image name
-    SD_IMAGE_NAME="${SD_IMAGE_ZST_NAME%.zst}"
-    # Full path for the uncompressed image in the temporary directory
-    RAW_IMAGE_PATH="$TMPDIR/$SD_IMAGE_NAME"
-    # Paths to the bootloader components
-    IDBLOADER_PATH=$(readlink -f "$TMPDIR/uboot-result/idbloader.img")
-    UBOOT_ITB_PATH=$(readlink -f "$TMPDIR/uboot-result/u-boot.itb")
-    # Final path for the compressed image in the output directory
-    FINAL_ZST_PATH="$FINAL_OUTPUT_DIR/$SD_IMAGE_NAME.zst"
-
-    # --- Image Manipulation ---
-    echo "Extracting SD image..."
-    unzstd -f "$SD_IMAGE_ZST_PATH" -o "$RAW_IMAGE_PATH"
-
-    echo "Writing bootloaders to image..."
-    # Write idbloader.img (U-Boot SPL) to sector 64 (offset 32 KiB)
-    dd if="$IDBLOADER_PATH" of="$RAW_IMAGE_PATH" conv=fsync,notrunc bs=512 seek=64
-    # Write u-boot.itb (main U-Boot image) to sector 16384 (offset 8 MiB)
-    dd if="$UBOOT_ITB_PATH" of="$RAW_IMAGE_PATH" conv=fsync,notrunc bs=512 seek=16384
-
-    echo "Compressing final image..."
-    # Compress the modified raw image and place it in the final output directory
-    zstd -f "$RAW_IMAGE_PATH" -o "$FINAL_ZST_PATH"
-
-    # --- Completion ---
-    # Cleanup: The trap command automatically removes $TMPDIR on script exit (success or failure)
-    echo "✅ Image built successfully: $FINAL_ZST_PATH"
     echo ""
-    echo "To burn the image to an SD card (replace /dev/sdX):"
-    echo "  sudo dd if='$FINAL_ZST_PATH' of=/dev/sdX bs=16M status=progress conv=fsync"
+    echo "Image built successfully!"
+    echo "Output: ./result/sd-image/"
     echo ""
-    echo "To create a compressed archive:"
-    ARCHIVE_NAME="nanopi-nixos-$(date --rfc-3339=date).img.xz"
-    echo "  tar -c -I 'xz -9 -T0' -f '$ARCHIVE_NAME' '$FINAL_ZST_PATH'"
-
-# The trap ensures TMPDIR is cleaned up automatically
+    echo "To flash the image to an SD card (replace /dev/sdX with your SD card device):"
+    echo "  sudo zstdcat ./result/sd-image/*.img.zst | sudo dd of=/dev/sdX bs=16M status=progress conv=fsync"
+    echo ""
+    echo "After flashing, insert the SD card into the NanoPi R2S and power it on."
+    echo "Serial console: 1500000 baud on ttyS2"
 
 # Router testing commands
 router-test:

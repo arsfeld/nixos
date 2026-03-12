@@ -9,6 +9,7 @@
     mkColmenaHost = hostName: let
       # Check if host has a disko config file
       hasDisko = builtins.pathExists ../hosts/${hostName}/disko-config.nix;
+      enableHM = !(builtins.elem hostName self.lib.lightHosts);
     in {
       deployment = {
         targetHost = "${hostName}.bat-boa.ts.net";
@@ -17,7 +18,11 @@
       };
       imports =
         self.lib.baseModules
-        ++ self.lib.homeManagerModules
+        ++ (
+          if enableHM
+          then self.lib.homeManagerModules
+          else []
+        )
         ++ (
           if hasDisko
           then [inputs.disko.nixosModules.disko]

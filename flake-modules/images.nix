@@ -5,32 +5,15 @@
 }: {
   flake = {
     packages.aarch64-linux = {
-      raspi3 = inputs.nixos-generators.nixosGenerate {
-        system = "aarch64-linux";
-        modules =
-          self.lib.baseModules
-          ++ [
-            ../hosts/raspi3/configuration.nix
-          ];
-        specialArgs = {inherit self inputs;};
-        format = "sd-aarch64";
-      };
-      octopi = inputs.nixos-generators.nixosGenerate {
-        system = "aarch64-linux";
-        modules =
-          self.lib.baseModules
-          ++ [
-            ../hosts/octopi/configuration.nix
-          ];
-        specialArgs = {inherit self inputs;};
-        format = "sd-aarch64";
-      };
+      raspi3 = self.nixosConfigurations.raspi3.config.system.build.sdImage;
+      octopi = self.nixosConfigurations.octopi.config.system.build.sdImage;
+      r2s = self.nixosConfigurations.r2s.config.system.build.sdImage;
     };
 
     # Testing configurations and packages
     packages.x86_64-linux = {
       # Add ARM images from above to ensure we have all the entries
-      inherit (self.packages.aarch64-linux) raspi3 octopi;
+      inherit (self.packages.aarch64-linux) raspi3 octopi r2s;
 
       # Router QEMU test
       router-test =
@@ -38,11 +21,11 @@
         {};
 
       # Custom kexec image with Tailscale for nixos-anywhere
-      kexec-tailscale = inputs.nixos-generators.nixosGenerate {
-        pkgs = inputs.nixpkgs.legacyPackages.x86_64-linux;
-        modules = [../kexec-tailscale.nix];
-        format = "kexec-bundle";
-      };
+      kexec-tailscale =
+        (inputs.nixpkgs.lib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [../kexec.nix];
+        }).config.system.build.kexecTarball;
     };
   };
 }
