@@ -61,29 +61,43 @@ in
     '';
 
     installPhase = ''
-      mkdir -p $out
+            mkdir -p $out
 
-      # Copy usr contents
-      if [ -d usr ]; then
-        cp -r usr/* $out/
-      fi
+            # Copy usr contents
+            if [ -d usr ]; then
+              cp -r usr/* $out/
+            fi
 
-      # Make the binary executable
-      if [ -f $out/bin/AnycubicSlicerNext ]; then
-        chmod +x $out/bin/AnycubicSlicerNext
-      fi
+            # Make the binary executable
+            if [ -f $out/bin/AnycubicSlicerNext ]; then
+              chmod +x $out/bin/AnycubicSlicerNext
+            fi
 
-      # Fix paths in desktop file if it exists
-      if [ -f $out/share/applications/AnycubicSlicer.desktop ]; then
-        substituteInPlace $out/share/applications/AnycubicSlicer.desktop \
-          --replace /usr/bin/AnycubicSlicerNext $out/bin/anycubic-slicer \
-          --replace /usr $out
-      fi
+            # Fix paths in desktop file if it exists
+            if [ -f $out/share/applications/AnycubicSlicer.desktop ]; then
+              substituteInPlace $out/share/applications/AnycubicSlicer.desktop \
+                --replace /usr/bin/AnycubicSlicerNext $out/bin/anycubic-slicer \
+                --replace /usr $out
+            fi
 
-      # Create wrapper script with library path
-      mv $out/bin/AnycubicSlicerNext $out/bin/.AnycubicSlicerNext-unwrapped
-      makeWrapper $out/bin/.AnycubicSlicerNext-unwrapped $out/bin/anycubic-slicer \
-        --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath buildInputs}"
+            # The binary uses /proc/self/exe to find resources relative to itself.
+            # With makeWrapper, /proc/self/exe points to bash so resolution fails.
+            # Fix: place the real binary at $out/share/AnycubicSlicerNext/bin/ so that
+            # going up one dir finds share/AnycubicSlicerNext/resources/.
+            # Then use a manual wrapper script that sets env and exec's the binary.
+            mkdir -p $out/share/AnycubicSlicerNext/bin
+            mv $out/bin/AnycubicSlicerNext $out/share/AnycubicSlicerNext/bin/AnycubicSlicerNext
+            chmod +x $out/share/AnycubicSlicerNext/bin/AnycubicSlicerNext
+
+            # Create a manual wrapper script
+            mkdir -p $out/bin
+            cat > $out/bin/anycubic-slicer <<'WRAPPER'
+      #!/bin/sh
+      WRAPPER
+            # Append the dynamic parts
+            echo "export LD_LIBRARY_PATH=\"${lib.makeLibraryPath buildInputs}:/run/opengl-driver/lib\''${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}\"" >> $out/bin/anycubic-slicer
+            echo "exec $out/share/AnycubicSlicerNext/bin/AnycubicSlicerNext \"\$@\"" >> $out/bin/anycubic-slicer
+            chmod +x $out/bin/anycubic-slicer
     '';
 
     meta = with lib; {
