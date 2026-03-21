@@ -15,14 +15,15 @@
     ./samba.nix
   ];
 
-  # Age secrets for Stash
-  age.secrets."stash-jwt-secret" = {
-    file = "${self}/secrets/stash-jwt-secret.age";
+  # Enable sops-nix for secrets management
+  constellation.sops.enable = true;
+
+  # Stash secrets
+  sops.secrets."stash-jwt-secret" = {
     owner = "media";
     group = "media";
   };
-  age.secrets."stash-session-secret" = {
-    file = "${self}/secrets/stash-session-secret.age";
+  sops.secrets."stash-session-secret" = {
     owner = "media";
     group = "media";
   };
@@ -121,8 +122,8 @@
     group = "media";
     username = "dummy"; # Required by assertion, but empty password = no auth
     passwordFile = emptyPasswordFile; # Dummy file to work around module bug
-    jwtSecretKeyFile = "/run/agenix/stash-jwt-secret";
-    sessionStoreKeyFile = "/run/agenix/stash-session-secret";
+    jwtSecretKeyFile = config.sops.secrets."stash-jwt-secret".path;
+    sessionStoreKeyFile = config.sops.secrets."stash-session-secret".path;
     mutablePlugins = false;
     mutableSettings = false; # Force config.yml regeneration to include plugins_path
     plugins = [
