@@ -8,6 +8,8 @@
     ./hardware-configuration.nix
   ];
 
+  constellation.sops.enable = true;
+
   nixpkgs.hostPlatform = "x86_64-linux";
 
   networking.firewall.enable = true;

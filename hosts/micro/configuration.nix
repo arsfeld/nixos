@@ -5,6 +5,8 @@
 }: {
   imports = [./hardware-configuration.nix];
 
+  constellation.sops.enable = true;
+
   services.journald.extraConfig = "SystemMaxUse=1G";
 
   services.tailscale.enable = true;
@@ -58,11 +60,11 @@
     '';
   };
 
-  age.secrets."restic-password".file = ../../secrets/restic-password.age;
-  age.secrets."restic-password".mode = "444";
-
-  age.secrets."restic-rest-micro".file = ../../secrets/restic-rest-micro.age;
-  age.secrets."restic-rest-micro".mode = "444";
+  sops.secrets."restic-password" = {
+    mode = "0444";
+    sopsFile = config.constellation.sops.commonSopsFile;
+  };
+  sops.secrets."restic-rest-micro".mode = "0444";
 
   services.restic.backups = {
     micro = {
@@ -80,8 +82,8 @@
         "'**/.cache'"
         "'**/.nix-profile'"
       ];
-      passwordFile = config.age.secrets."restic-password".path;
-      environmentFile = config.age.secrets."restic-rest-micro".path;
+      passwordFile = config.sops.secrets."restic-password".path;
+      environmentFile = config.sops.secrets."restic-rest-micro".path;
       repository = "rest:https://restic.arsfeld.one/micro";
       initialize = true;
       timerConfig = {

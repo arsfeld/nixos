@@ -11,18 +11,20 @@
 
   nixpkgs.hostPlatform = "aarch64-linux";
 
+  constellation.sops.enable = true;
+
   networking.hostName = "raspi3";
   time.timeZone = "America/Toronto";
 
   services.tailscale.enable = true;
 
-  age.secrets.tailscale-key.file = "${self}/secrets/tailscale-key.age";
+  sops.secrets.tailscale-key.sopsFile = config.constellation.sops.commonSopsFile;
 
   services.tsnsrv = {
     enable = true;
     defaults = {
       tags = ["tag:service"];
-      authKeyPath = config.age.secrets.tailscale-key.path;
+      authKeyPath = config.sops.secrets.tailscale-key.path;
       ephemeral = true;
     };
     services = {

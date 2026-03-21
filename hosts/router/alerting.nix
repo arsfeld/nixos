@@ -80,7 +80,7 @@ in {
           smtp_from = config.constellation.email.fromEmail;
           smtp_smarthost = "smtp.purelymail.com:587";
           smtp_auth_username = config.constellation.email.toEmail;
-          smtp_auth_password_file = config.age.secrets.smtp_password.path;
+          smtp_auth_password_file = config.sops.secrets.smtp_password.path;
           smtp_require_tls = true;
         };
 
