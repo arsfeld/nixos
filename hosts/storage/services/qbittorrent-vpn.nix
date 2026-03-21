@@ -18,10 +18,7 @@ in {
 
   config = lib.mkIf cfg.enable {
     # Load AirVPN WireGuard secret
-    age.secrets."airvpn-wireguard" = {
-      file = "${self}/secrets/airvpn-wireguard.age";
-      mode = "400";
-    };
+    sops.secrets."airvpn-wireguard".mode = "0400";
 
     # Override qbittorrent gateway config to use namespace IP instead of localhost
     # This is necessary because storage's Caddy needs to proxy to the VPN namespace
@@ -35,7 +32,7 @@ in {
     # VPN namespace configuration using VPN-Confinement
     vpnNamespaces.wg = {
       enable = true;
-      wireguardConfigFile = config.age.secrets.airvpn-wireguard.path;
+      wireguardConfigFile = config.sops.secrets.airvpn-wireguard.path;
 
       # Allow access from Tailscale network, Podman network, and local LAN
       accessibleFrom = [
@@ -151,7 +148,7 @@ in {
         # Parse wireguard INI config file
         # shellcheck disable=SC1090
         source <( \
-          grep -e "DNS" -e "Address" -e "Endpoint" ${config.age.secrets.airvpn-wireguard.path} \
+          grep -e "DNS" -e "Address" -e "Endpoint" ${config.sops.secrets.airvpn-wireguard.path} \
             | tr -d ' ' \
         )
 
@@ -210,7 +207,7 @@ in {
         # Set wireguard config
         ip netns exec wg \
           wg setconf wg0 \
-            <(strip_wgquick_config ${config.age.secrets.airvpn-wireguard.path})
+            <(strip_wgquick_config ${config.sops.secrets.airvpn-wireguard.path})
 
         ip -n wg link set wg0 up
 

@@ -3,11 +3,12 @@
   self,
   ...
 }: {
-  age.secrets."restic-password".file = "${self}/secrets/restic-password.age";
-  age.secrets."restic-password".mode = "444";
+  sops.secrets."restic-password" = {
+    mode = "0444";
+    sopsFile = config.constellation.sops.commonSopsFile;
+  };
 
-  age.secrets."restic-rest-cloud".file = "${self}/secrets/restic-rest-cloud.age";
-  age.secrets."restic-rest-cloud".mode = "444";
+  sops.secrets."restic-rest-cloud".mode = "0444";
 
   services.restic.backups = {
     cloud = {
@@ -24,8 +25,8 @@
         "'**/.cache'"
         "'**/.nix-profile'"
       ];
-      environmentFile = config.age.secrets."restic-rest-cloud".path;
-      passwordFile = config.age.secrets."restic-password".path;
+      environmentFile = config.sops.secrets."restic-rest-cloud".path;
+      passwordFile = config.sops.secrets."restic-password".path;
       repository = "rest:https://restic.arsfeld.one/cloud";
       initialize = true;
       timerConfig = {

@@ -114,7 +114,7 @@
         minimum_parameter_entropy = 8;
       };
     };
-    settingsFiles = [config.age.secrets.authelia-secrets.path];
+    settingsFiles = [config.sops.secrets.authelia-secrets.path];
     secrets.manual = true;
   };
 in {
@@ -127,18 +127,15 @@ in {
   media.gateway.services.dex = {};
   media.gateway.services.users = {};
 
-  age.secrets.dex-clients-tailscale-secret.file = "${self}/secrets/dex-clients-tailscale-secret.age";
-  age.secrets.dex-clients-qui-secret.file = "${self}/secrets/dex-clients-qui-secret.age";
-  age.secrets.lldap-env.file = "${self}/secrets/lldap-env.age";
-  age.secrets.lldap-env.mode = "444";
-  age.secrets.lldap-password.file = "${self}/secrets/lldap-password.age";
-  age.secrets.lldap-password.mode = "400";
-  age.secrets.authelia-secrets.file = "${self}/secrets/authelia-secrets.age";
-  age.secrets.authelia-secrets.mode = "444";
+  sops.secrets.dex-clients-tailscale-secret = {};
+  sops.secrets.dex-clients-qui-secret = {};
+  sops.secrets.lldap-env.mode = "0444";
+  sops.secrets.lldap-password.mode = "0400";
+  sops.secrets.authelia-secrets.mode = "0444";
 
   services.dex = {
     enable = true;
-    environmentFile = config.age.secrets.lldap-env.path;
+    environmentFile = config.sops.secrets.lldap-env.path;
     settings = {
       issuer = "https://${authDomain}";
       storage = {
@@ -154,13 +151,13 @@ in {
           id = "tailscale";
           name = "Tailscale";
           redirectURIs = ["https://login.tailscale.com/a/oauth_response"];
-          secretFile = config.age.secrets.dex-clients-tailscale-secret.path;
+          secretFile = config.sops.secrets.dex-clients-tailscale-secret.path;
         }
         {
           id = "qui";
           name = "Qui";
           redirectURIs = ["https://qui.arsfeld.one/api/auth/oidc/callback"];
-          secretFile = config.age.secrets.dex-clients-qui-secret.path;
+          secretFile = config.sops.secrets.dex-clients-qui-secret.path;
         }
       ];
       staticPasswords = [
@@ -216,8 +213,8 @@ in {
       ldap_base_dn = "dc=rosenfeld,dc=one";
       http_port = services.users.port;
     };
-    environmentFile = config.age.secrets.lldap-env.path;
-    environment.LLDAP_LDAP_USER_PASS_FILE = config.age.secrets.lldap-password.path;
+    environmentFile = config.sops.secrets.lldap-env.path;
+    environment.LLDAP_LDAP_USER_PASS_FILE = config.sops.secrets.lldap-password.path;
   };
 
   # Authelia instance for arsfeld.one domain

@@ -88,7 +88,7 @@ in {
     # Note: $PSQL was removed in nixpkgs commit 41c5662, use psql directly
     systemd.services.postgresql.postStart = lib.mkAfter ''
       psql -U postgres -tA <<EOF
-        ALTER USER ${cfg.database.user} WITH PASSWORD '$(cat ${config.age.secrets.planka-db-password.path})';
+        ALTER USER ${cfg.database.user} WITH PASSWORD '$(cat ${config.sops.secrets.planka-db-password.path})';
       EOF
     '';
 
@@ -124,11 +124,11 @@ in {
       requires = ["postgresql.service"];
       after = ["postgresql.service"];
       preStart = lib.mkAfter ''
-        PASSWORD=$(cat ${config.age.secrets.planka-db-password.path})
+        PASSWORD=$(cat ${config.sops.secrets.planka-db-password.path})
         ENCODED_PASSWORD=$(${pkgs.python3}/bin/python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.stdin.read().strip()))" <<< "$PASSWORD")
         cat > /run/planka/env <<EOF
         DATABASE_URL=postgresql://${cfg.database.user}:$ENCODED_PASSWORD@${cfg.database.host}:${toString cfg.database.port}/${cfg.database.name}
-        SECRET_KEY=$(cat ${config.age.secrets.planka-secret-key.path})
+        SECRET_KEY=$(cat ${config.sops.secrets.planka-secret-key.path})
         EOF
       '';
     };
@@ -155,18 +155,11 @@ in {
     };
 
     # Secrets
-    age.secrets = {
-      planka-db-password = {
-        file = ../../../secrets/planka-db-password.age;
-        owner = "postgres";
-        group = "postgres";
-        mode = "0400";
-      };
-      planka-secret-key = {
-        file = ../../../secrets/planka-secret-key.age;
-        owner = "root";
-        group = "root";
-      };
+    sops.secrets.planka-db-password = {
+      owner = "postgres";
+      group = "postgres";
+      mode = "0400";
     };
+    sops.secrets.planka-secret-key = {};
   };
 }

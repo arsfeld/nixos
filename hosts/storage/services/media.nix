@@ -62,7 +62,7 @@ in {
   };
 
   #age.secrets."bitmagnet-env".file = "${self}/secrets/bitmagnet-env.age";
-  #systemd.services.bitmagnet.serviceConfig.EnvironmentFile = config.age.secrets.bitmagnet-env.path;
+  #systemd.services.bitmagnet.serviceConfig.EnvironmentFile = config.sops.secrets.bitmagnet-env.path;
 
   services.resilio = {
     enable = true;
@@ -72,10 +72,10 @@ in {
 
   users.users.rslsync.extraGroups = ["nextcloud" "media"];
 
-  age.secrets."transmission-openvpn-pia".file = "${self}/secrets/transmission-openvpn-pia.age";
-  age.secrets."qbittorrent-pia".file = "${self}/secrets/qbittorrent-pia.age";
-  age.secrets."airvpn-wireguard".file = "${self}/secrets/airvpn-wireguard.age";
-  age.secrets."transmission-openvpn-airvpn".file = "${self}/secrets/transmission-openvpn-airvpn.age";
+  sops.secrets."transmission-openvpn-pia" = {};
+  sops.secrets."qbittorrent-pia" = {};
+  sops.secrets."airvpn-wireguard" = {};
+  sops.secrets."transmission-openvpn-airvpn" = {};
 
   # Required sysctl for VPN containers (qbittorrent, transmission-openvpn)
   boot.kernel.sysctl = {
@@ -114,7 +114,7 @@ in {
   # systemd.services.podman-qbittorrent.serviceConfig.ExecStartPre = lib.mkAfter [
   #   "${pkgs.writeShellScript "copy-airvpn-config-qbittorrent" ''
   #     ${pkgs.coreutils}/bin/rm -f ${vars.configDir}/qbittorrent/wireguard/wg0.conf
-  #     ${pkgs.coreutils}/bin/cp ${config.age.secrets.airvpn-wireguard.path} ${vars.configDir}/qbittorrent/wireguard/wg0.conf
+  #     ${pkgs.coreutils}/bin/cp ${config.sops.secrets.airvpn-wireguard.path} ${vars.configDir}/qbittorrent/wireguard/wg0.conf
   #     ${pkgs.coreutils}/bin/chown ${toString vars.puid}:${toString vars.pgid} ${vars.configDir}/qbittorrent/wireguard/wg0.conf
   #     ${pkgs.coreutils}/bin/chmod 600 ${vars.configDir}/qbittorrent/wireguard/wg0.conf
   #   ''}"
@@ -129,7 +129,7 @@ in {
   systemd.services.podman-transmission.serviceConfig.ExecStartPre = lib.mkAfter [
     "${pkgs.writeShellScript "copy-airvpn-config-transmission" ''
       ${pkgs.coreutils}/bin/rm -f ${vars.configDir}/transmission-openvpn/openvpn/airvpn.ovpn
-      ${pkgs.coreutils}/bin/cp ${config.age.secrets.transmission-openvpn-airvpn.path} ${vars.configDir}/transmission-openvpn/openvpn/airvpn.ovpn
+      ${pkgs.coreutils}/bin/cp ${config.sops.secrets.transmission-openvpn-airvpn.path} ${vars.configDir}/transmission-openvpn/openvpn/airvpn.ovpn
       ${pkgs.coreutils}/bin/chown ${toString vars.puid}:${toString vars.pgid} ${vars.configDir}/transmission-openvpn/openvpn/airvpn.ovpn
       ${pkgs.coreutils}/bin/chmod 600 ${vars.configDir}/transmission-openvpn/openvpn/airvpn.ovpn
     ''}"

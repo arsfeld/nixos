@@ -22,9 +22,14 @@
   ...
 }:
 with lib; let
+  useSops = config.constellation.sops.enable;
+  resticPasswordPath =
+    if useSops
+    then config.sops.secrets."restic-password".path
+    else config.age.secrets."restic-password".path;
   opts = {
     repository = {
-      password-file = config.age.secrets."restic-password".path;
+      password-file = resticPasswordPath;
     };
     backup = {
       init = true;
@@ -71,23 +76,31 @@ in {
     };
   };
 
-  config = mkIf config.constellation.backup.enable {
-    age.secrets."restic-password".file = "${self}/secrets/restic-password.age";
-
-    services.rustic = {
-      enable = true;
-      profiles = {
-        storage =
-          recursiveUpdate
-          opts
-          {
-            repository = {
-              repository = "rest:http://storage.bat-boa.ts.net:8000/";
-              password-file = config.age.secrets."restic-password".path;
-              init = true;
-            };
-          };
+  config = mkIf config.constellation.backup.enable (lib.mkMerge [
+    (lib.mkIf useSops {
+      sops.secrets."restic-password" = {
+        sopsFile = config.constellation.sops.commonSopsFile;
       };
-    };
-  };
+    })
+    (lib.mkIf (!useSops) {
+      age.secrets."restic-password".file = "${self}/secrets/restic-password.age";
+    })
+    {
+      services.rustic = {
+        enable = true;
+        profiles = {
+          storage =
+            recursiveUpdate
+            opts
+            {
+              repository = {
+                repository = "rest:http://storage.bat-boa.ts.net:8000/";
+                password-file = resticPasswordPath;
+                init = true;
+              };
+            };
+        };
+      };
+    }
+  ]);
 }

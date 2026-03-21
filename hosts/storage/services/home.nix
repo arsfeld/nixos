@@ -18,9 +18,7 @@ in
         exposeViaTailscale = true;
       };
 
-      age.secrets."finance-tracker-env" = {
-        file = "${self}/secrets/finance-tracker-env.age";
-      };
+      sops.secrets."finance-tracker-env" = {};
     }
 
     (mkService "finance-tracker" {
@@ -28,7 +26,7 @@ in
       image = "ghcr.io/arsfeld/finance-tracker:latest";
       container = {
         environmentFiles = [
-          config.age.secrets."finance-tracker-env".path
+          config.sops.secrets."finance-tracker-env".path
         ];
         environment = {
           SYNC_SCHEDULE = "0 0 17 */2 * *";

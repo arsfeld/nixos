@@ -20,9 +20,9 @@ in {
     settings.funnel = true;
   };
 
-  age.secrets.tailscale-key.file = "${self}/secrets/tailscale-key.age";
-  age.secrets.tailscale-env.file = "${self}/secrets/tailscale-env.age";
-  age.secrets.romm-env.file = "${self}/secrets/romm-env.age";
+  sops.secrets.tailscale-key.sopsFile = config.constellation.sops.commonSopsFile;
+  sops.secrets.tailscale-env = {};
+  sops.secrets.romm-env = {};
 
   # tsnsrv re-enabled - caddy-tailscale causing high CPU usage and TLS cert issues (task-48)
   # Reverting to tsnsrv until caddy-tailscale issues are resolved
@@ -32,7 +32,7 @@ in {
     prometheusAddr = "127.0.0.1:9500"; # Moved from 9099 to avoid conflict with OpenCloud (uses 9100-9300)
     defaults = {
       tags = ["tag:service"];
-      authKeyPath = config.age.secrets.tailscale-key.path;
+      authKeyPath = config.sops.secrets.tailscale-key.path;
       ephemeral = true;
     };
   };
@@ -46,7 +46,7 @@ in {
         DB_USER = "romm";
       };
       environmentFiles = [
-        config.age.secrets.romm-env.path
+        config.sops.secrets.romm-env.path
       ];
       volumes = [
         "${vars.configDir}/romm/resources:/romm/resources" # Resources fetched from IGDB (covers, screenshots, etc.)

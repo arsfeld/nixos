@@ -57,17 +57,8 @@ in {
 
   config = lib.mkIf cfg.enable {
     # Secrets
-    age.secrets.plausible-secret-key = {
-      file = ../../../secrets/plausible-secret-key.age;
-      owner = "plausible";
-      group = "plausible";
-    };
-
-    age.secrets.plausible-smtp-password = {
-      file = ../../../secrets/plausible-smtp-password.age;
-      owner = "plausible";
-      group = "plausible";
-    };
+    sops.secrets.plausible-secret-key.mode = "0440";
+    sops.secrets.plausible-smtp-password.mode = "0440";
 
     # Use the native NixOS Plausible service
     services.plausible = {
@@ -77,7 +68,7 @@ in {
         baseUrl = "https://${cfg.domain}";
         disableRegistration = false; # Temporarily enable to create admin user
         port = 8100; # Avoid conflict with Vaultwarden on 8000
-        secretKeybaseFile = config.age.secrets.plausible-secret-key.path;
+        secretKeybaseFile = config.sops.secrets.plausible-secret-key.path;
       };
 
       mail = {
@@ -87,7 +78,7 @@ in {
           hostPort = cfg.smtp.port;
           enableSSL = cfg.smtp.ssl;
           user = cfg.smtp.username;
-          passwordFile = config.age.secrets.plausible-smtp-password.path;
+          passwordFile = config.sops.secrets.plausible-smtp-password.path;
         };
       };
     };

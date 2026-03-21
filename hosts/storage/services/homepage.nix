@@ -230,7 +230,7 @@
     )
     groupedServices;
 in {
-  age.secrets.homepage-env.file = "${self}/secrets/homepage-env.age";
+  sops.secrets.homepage-env = {};
 
   systemd.services.homepage-dashboard.serviceConfig = {
     SupplementaryGroups = "podman";
@@ -239,7 +239,7 @@ in {
   services.homepage-dashboard = {
     enable = true;
     listenPort = 8085;
-    environmentFile = config.age.secrets.homepage-env.path;
+    environmentFile = config.sops.secrets.homepage-env.path;
     docker = {
       "my-docker" = {
         socket = "/run/podman/podman.sock";

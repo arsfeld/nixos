@@ -8,8 +8,8 @@
     ./services/rustdesk.nix
   ];
 
-  age.secrets.tailscale-key.file = "${self}/secrets/tailscale-key.age";
-  age.secrets.tailscale-env.file = "${self}/secrets/tailscale-env.age";
+  sops.secrets.tailscale-key.sopsFile = config.constellation.sops.commonSopsFile;
+  sops.secrets.tailscale-env = {};
 
   # tsnsrv re-enabled - provides Tailscale node management for cloud services (task-100)
   # Runs alongside storage host's tsnsrv to expose cloud services via Tailscale
@@ -19,7 +19,7 @@
     prometheusAddr = "127.0.0.1:9500"; # Moved from 9099 to avoid conflict with OpenCloud (uses 9100-9300)
     defaults = {
       tags = ["tag:service"];
-      authKeyPath = config.age.secrets.tailscale-key.path;
+      authKeyPath = config.sops.secrets.tailscale-key.path;
       ephemeral = true;
     };
   };
