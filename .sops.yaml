@@ -22,6 +22,13 @@ creation_rules:
           - *user_arosenfeld
           - *host_storage
 
+  # All raider secrets
+  - path_regex: secrets/sops/raider\.yaml$
+    key_groups:
+      - age:
+          - *user_arosenfeld
+          - *host_raider
+
   # Secrets for all hosts
   - path_regex: secrets/sops/common\.yaml$
     key_groups:

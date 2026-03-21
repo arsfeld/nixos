@@ -19,19 +19,13 @@
       >/dev/null
   '';
 in {
-  age.secrets."harmonia-cache-key" = {
-    file = "${self}/secrets/harmonia-cache-key.age";
-    mode = "0400";
-  };
-
-  age.secrets."tailscale-key" = {
-    file = "${self}/secrets/tailscale-key.age";
-  };
+  sops.secrets."harmonia-cache-key".mode = "0400";
+  sops.secrets."tailscale-key".sopsFile = config.constellation.sops.commonSopsFile;
 
   services.harmonia-dev = {
     cache = {
       enable = true;
-      signKeyPaths = [config.age.secrets."harmonia-cache-key".path];
+      signKeyPaths = [config.sops.secrets."harmonia-cache-key".path];
       settings = {
         bind = "[::]:${toString harmoniaPort}";
         enable_compression = true;
@@ -91,7 +85,7 @@ in {
     prometheusAddr = "127.0.0.1:9099";
     defaults = {
       tags = ["tag:service"];
-      authKeyPath = config.age.secrets."tailscale-key".path;
+      authKeyPath = config.sops.secrets."tailscale-key".path;
       ephemeral = true;
     };
   };
