@@ -20,11 +20,6 @@
   ...
 }: let
   cfg = config.media.config;
-  useSops = config.constellation.sops.enable;
-  cloudflarePath =
-    if useSops
-    then config.sops.secrets.cloudflare.path
-    else config.age.secrets.cloudflare.path;
 in {
   options.media.config = with lib; {
     enable = mkEnableOption "media service configuration";
@@ -128,49 +123,36 @@ in {
     };
   };
 
-  config = lib.mkIf cfg.enable (lib.mkMerge [
-    (lib.mkIf useSops {
-      sops.secrets.cloudflare =
-        {
-          sopsFile = config.constellation.sops.commonSopsFile;
-        }
-        // lib.optionalAttrs (config.security.acme.certs != {}) {
-          owner = "acme";
-          group = "acme";
-        };
-    })
-    (lib.mkIf (!useSops) {
-      age.secrets.cloudflare =
-        {
-          file = "${self}/secrets/cloudflare.age";
-        }
-        // lib.optionalAttrs (config.security.acme.certs != {}) {
-          owner = "acme";
-          group = "acme";
-        };
-    })
-    {
-      users.users.${cfg.user} = {
-        name = cfg.user;
-        group = cfg.group;
-        uid = cfg.puid;
-        isSystemUser = true;
-        extraGroups = ["video" "render"]; # For hardware video encoding (VAAPI)
+  config = lib.mkIf cfg.enable {
+    sops.secrets.cloudflare =
+      {
+        sopsFile = config.constellation.sops.commonSopsFile;
+      }
+      // lib.optionalAttrs (config.security.acme.certs != {}) {
+        owner = "acme";
+        group = "acme";
       };
 
-      users.groups.${cfg.group} = {
-        name = cfg.group;
-        gid = cfg.pgid;
-      };
+    users.users.${cfg.user} = {
+      name = cfg.user;
+      group = cfg.group;
+      uid = cfg.puid;
+      isSystemUser = true;
+      extraGroups = ["video" "render"]; # For hardware video encoding (VAAPI)
+    };
 
-      security.acme.acceptTerms = true;
+    users.groups.${cfg.group} = {
+      name = cfg.group;
+      gid = cfg.pgid;
+    };
 
-      security.acme.defaults = {
-        email = cfg.email;
-        dnsResolver = "1.1.1.1:53";
-        dnsProvider = "cloudflare";
-        credentialsFile = cloudflarePath;
-      };
-    }
-  ]);
+    security.acme.acceptTerms = true;
+
+    security.acme.defaults = {
+      email = cfg.email;
+      dnsResolver = "1.1.1.1:53";
+      dnsProvider = "cloudflare";
+      credentialsFile = config.sops.secrets.cloudflare.path;
+    };
+  };
 }

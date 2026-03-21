@@ -23,11 +23,6 @@
 }:
 with lib; let
   sendEmailEvent = "${pkgs.send-email-event}/bin/send-email-event --email-from ${config.constellation.email.fromEmail} --email-to ${config.constellation.email.toEmail}";
-  useSops = config.constellation.sops.enable;
-  smtpPasswordPath =
-    if useSops
-    then config.sops.secrets.smtp_password.path
-    else config.age.secrets.smtp_password.path;
 in {
   options.constellation.email = with lib; {
     enable = mkOption {
@@ -61,69 +56,62 @@ in {
     };
   };
 
-  config = lib.mkIf config.constellation.email.enable (lib.mkMerge [
-    (lib.mkIf useSops {
-      sops.secrets.smtp_password = {
-        mode = "0444";
-        sopsFile = config.constellation.sops.commonSopsFile;
-      };
-    })
-    (lib.mkIf (!useSops) {
-      age.secrets.smtp_password.file = "${self}/secrets/smtp_password.age";
-      age.secrets.smtp_password.mode = "444";
-    })
-    {
-      programs.msmtp = {
-        enable = true;
-        accounts = {
-          default = {
-            auth = true;
-            tls = true;
-            from = config.constellation.email.fromEmail;
-            host = "smtp.purelymail.com";
-            port = 587;
-            user = config.constellation.email.toEmail;
-            passwordeval = "cat ${smtpPasswordPath}";
-          };
-        };
-        defaults = {
-          aliases = builtins.toFile "aliases" ''
-            default: ${config.constellation.email.fromEmail}
-            root: ${config.constellation.email.fromEmail}
-          '';
-        };
-      };
+  config = lib.mkIf config.constellation.email.enable {
+    sops.secrets.smtp_password = {
+      mode = "0444";
+      sopsFile = config.constellation.sops.commonSopsFile;
+    };
 
-      systemd.services."boot-mail-alert" = {
-        wantedBy = ["multi-user.target"];
-        after = ["network-online.target"];
-        wants = ["network-online.target"];
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
+    programs.msmtp = {
+      enable = true;
+      accounts = {
+        default = {
+          auth = true;
+          tls = true;
+          from = config.constellation.email.fromEmail;
+          host = "smtp.purelymail.com";
+          port = 587;
+          user = config.constellation.email.toEmail;
+          passwordeval = "cat ${config.sops.secrets.smtp_password.path}";
         };
-        script = "${sendEmailEvent} 'just booted'";
       };
-      systemd.services."shutdown-mail-alert" = {
-        wantedBy = ["multi-user.target"];
-        after = ["network-online.target"];
-        wants = ["network-online.target"];
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-        };
-        script = "true";
-        preStop = "${sendEmailEvent} 'is shutting down'";
+      defaults = {
+        aliases = builtins.toFile "aliases" ''
+          default: ${config.constellation.email.fromEmail}
+          root: ${config.constellation.email.fromEmail}
+        '';
       };
-      systemd.services."weekly-mail-alert" = {
-        serviceConfig.Type = "oneshot";
-        script = "${sendEmailEvent} 'is still alive'";
+    };
+
+    systemd.services."boot-mail-alert" = {
+      wantedBy = ["multi-user.target"];
+      after = ["network-online.target"];
+      wants = ["network-online.target"];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
       };
-      systemd.timers."weekly-mail-alert" = {
-        wantedBy = ["timers.target"];
-        partOf = ["weekly-mail-alert.service"];
-        timerConfig.OnCalendar = "weekly";
+      script = "${sendEmailEvent} 'just booted'";
+    };
+    systemd.services."shutdown-mail-alert" = {
+      wantedBy = ["multi-user.target"];
+      after = ["network-online.target"];
+      wants = ["network-online.target"];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
       };
-    }
-  ]);
+      script = "true";
+      preStop = "${sendEmailEvent} 'is shutting down'";
+    };
+    systemd.services."weekly-mail-alert" = {
+      serviceConfig.Type = "oneshot";
+      script = "${sendEmailEvent} 'is still alive'";
+    };
+    systemd.timers."weekly-mail-alert" = {
+      wantedBy = ["timers.target"];
+      partOf = ["weekly-mail-alert.service"];
+      timerConfig.OnCalendar = "weekly";
+    };
+  };
 }
