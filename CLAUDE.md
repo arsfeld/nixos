@@ -39,25 +39,13 @@ nix build .#nixosConfigurations.<hostname>.config.system.build.toplevel
 
 ### Secret Management
 
-#### sops-nix (preferred for new secrets)
 ```bash
 nix develop -c sops secrets/sops/<hostname>.yaml    # Create/edit host secrets
 nix develop -c sops --decrypt secrets/sops/cloud.yaml  # View decrypted
+nix develop -c sops updatekeys secrets/sops/<file>.yaml  # Re-encrypt after key changes
 ```
 
-Configured via `.sops.yaml`. Enable on a host with `constellation.sops.enable = true`, then use standard `sops.secrets` options. Common secrets: `config.constellation.sops.commonSopsFile`.
-
-#### ragenix (legacy, being phased out)
-```bash
-# 1. Add entry to secrets/secrets.nix, then stage it
-git add secrets/secrets.nix
-# 2. Create encrypted secret
-openssl rand -base64 32 | nix develop -c ragenix --rules secrets/secrets.nix -e secret-name.age --editor -
-# 3. Edit existing secret
-nix develop -c ragenix --rules secrets/secrets.nix -e secret-name.age
-# 4. Rekey all (after key changes)
-ragenix --rules secrets/secrets.nix -r
-```
+Configured via `.sops.yaml`. All hosts use `constellation.sops.enable = true`. Use standard `sops.secrets` options. Common/shared secrets: `config.constellation.sops.commonSopsFile`.
 
 ### Available Hosts
 - **storage** - Main server: media services, databases, backups, k3s server. Hosts internal services on `*.arsfeld.one` via cloudflared tunnel (wildcard ingress)
@@ -153,7 +141,7 @@ Caddy reverse proxy consuming service definitions. Generates TLS configs, error 
   - `media/` - Media stack (config, gateway, components)
 - `packages/` - Custom Nix derivations (auto-loaded by haumea)
 - `home/` - Home Manager config (`home.nix` for user `arosenfeld`)
-- `secrets/` - Encrypted secrets (`*.age` legacy, `sops/*.yaml` preferred)
+- `secrets/` - Encrypted secrets (`sops/*.yaml` managed by sops-nix)
 - `flake-modules/` - Flake-parts modules
 - `just/` - Justfile submodules (blog, secrets, docs)
 

@@ -317,7 +317,7 @@ in {
         (name: _:
           nameValuePair "podman-gluetun-exit-${name}" {
             # Secrets should be available before containers start
-            # Works with both ragenix (secrets in /run/agenix) and sops-nix
+            # Secrets (via sops-nix) should be available before containers start
             after = ["network-online.target"];
             wants = ["network-online.target"];
           })

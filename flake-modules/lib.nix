@@ -26,7 +26,6 @@
     ];
 
     baseModules = inputs.nixpkgs.lib.flatten [
-      inputs.ragenix.nixosModules.default
       inputs.sops-nix.nixosModules.sops
       inputs.determinate.nixosModules.default
       inputs.nix-flatpak.nixosModules.nix-flatpak
