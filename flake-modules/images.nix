@@ -26,6 +26,13 @@
           system = "x86_64-linux";
           modules = [../kexec.nix];
         }).config.system.build.kexecTarball;
+
+      # Custom installer ISO with disko and automated install script
+      installer-iso =
+        (inputs.nixpkgs.lib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [../installer-iso.nix];
+        }).config.system.build.isoImage;
     };
   };
 }
