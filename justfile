@@ -232,6 +232,25 @@ build-kexec:
     echo "Or manually:"
     echo "  nixos-anywhere --kexec ./result --flake .#<host> root@<target>"
 
+# Build custom installer ISO with disko and automated install script
+# Flash to USB for bare-metal NixOS installation
+build-installer-iso:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo "Building custom NixOS installer ISO..."
+    nix build ".#installer-iso" -L
+
+    echo ""
+    echo "Installer ISO built successfully!"
+    echo "Output: ./result/iso/"
+    echo ""
+    echo "To flash to a USB drive (replace /dev/sdX with your USB device):"
+    echo "  sudo dd if=./result/iso/nixos-*.iso of=/dev/sdX bs=4M status=progress conv=fsync"
+    echo ""
+    echo "After booting from USB:"
+    echo "  1. Connect to WiFi: nmtui"
+    echo "  2. Run installer:   sudo /etc/install-nixos.sh g14"
 
 # Install any host configuration to a running system via SSH using nixos-anywhere
 # WARNING: This will completely wipe and reinstall the target system!
