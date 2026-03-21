@@ -17,9 +17,8 @@ in {
   };
 
   # Forgejo OIDC secret (client secret for Authelia)
-  age.secrets.forgejo-oidc-secret = {
-    file = "${self}/secrets/forgejo-oidc-secret.age";
-    mode = "400";
+  sops.secrets.forgejo-oidc-secret = {
+    mode = "0400";
     owner = "forgejo";
   };
   services.code-server = {

@@ -116,15 +116,6 @@ in {
       '';
     };
 
-    # Secrets
-    # NOTE: siyuan-auth-code is now managed via sops on hosts that enable it
-    # For hosts using ragenix, keep this configuration:
-    age.secrets = lib.mkIf (!config.sops.secrets ? siyuan-auth-code) {
-      siyuan-auth-code = {
-        file = ../../../secrets/siyuan-auth-code.age;
-        owner = "root";
-        group = "root";
-      };
-    };
+    # siyuan-auth-code is managed via sops (declared in cloud/configuration.nix)
   };
 }

@@ -7,17 +7,43 @@
 }: let
   cfg = config.constellation.mediaApps;
   mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
+  useSops = config.constellation.sops.enable;
+  ohdioEnvPath =
+    if useSops
+    then config.sops.secrets.ohdio-env.path
+    else config.age.secrets.ohdio-env.path;
+  quiOidcEnvPath =
+    if useSops
+    then config.sops.secrets.qui-oidc-env.path
+    else config.age.secrets.qui-oidc-env.path;
+  mydiaEnvPath =
+    if useSops
+    then config.sops.secrets.mydia-env.path
+    else config.age.secrets.mydia-env.path;
 in {
   options.constellation.mediaApps.enable = lib.mkEnableOption "media applications (Ohdio, Qui, Mydia)";
 
   config = lib.mkIf cfg.enable (lib.mkMerge [
-    # Ohdio secrets
-    {
+    # Secrets (conditional sops/age)
+    (lib.mkIf useSops {
+      sops.secrets.ohdio-env.mode = "0444";
+      sops.secrets.qui-oidc-env.mode = "0444";
+      sops.secrets.mydia-env.mode = "0444";
+    })
+    (lib.mkIf (!useSops) {
       age.secrets.ohdio-env = {
         file = "${self}/secrets/ohdio-env.age";
         mode = "444";
       };
-    }
+      age.secrets.qui-oidc-env = {
+        file = "${self}/secrets/qui-oidc-env.age";
+        mode = "444";
+      };
+      age.secrets.mydia-env = {
+        file = "${self}/secrets/mydia-env.age";
+        mode = "444";
+      };
+    })
 
     (mkService "ohdio" {
       port = 4000;
@@ -33,19 +59,11 @@ in {
           CHECK_ORIGIN = "https://ohdio.arsfeld.one,https://ohdio.bat-boa.ts.net";
         };
         environmentFiles = [
-          config.age.secrets.ohdio-env.path
+          ohdioEnvPath
         ];
       };
       bypassAuth = true;
     })
-
-    # Qui OIDC secrets
-    {
-      age.secrets.qui-oidc-env = {
-        file = "${self}/secrets/qui-oidc-env.age";
-        mode = "444";
-      };
-    }
 
     (mkService "qui" {
       port = 7476;
@@ -61,7 +79,7 @@ in {
           QUI__OIDC_DISABLE_BUILT_IN_LOGIN = "false";
         };
         environmentFiles = [
-          config.age.secrets.qui-oidc-env.path
+          quiOidcEnvPath
         ];
         extraOptions = [
           "--no-healthcheck"
@@ -70,14 +88,6 @@ in {
       bypassAuth = true;
       funnel = true;
     })
-
-    # Mydia secrets
-    {
-      age.secrets.mydia-env = {
-        file = "${self}/secrets/mydia-env.age";
-        mode = "444";
-      };
-    }
 
     (mkService "mydia" {
       port = 4000;
@@ -97,7 +107,7 @@ in {
           ENABLE_REMOTE_ACCESS = "true";
         };
         environmentFiles = [
-          config.age.secrets.mydia-env.path
+          mydiaEnvPath
         ];
       };
       bypassAuth = true;

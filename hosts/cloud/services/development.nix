@@ -6,13 +6,13 @@
 }: let
   vars = config.media.config;
 in {
-  age.secrets.github-runner-token.file = "${self}/secrets/github-runner-token.age";
-  age.secrets.forgejo-runner-token.file = "${self}/secrets/forgejo-runner-token.age";
+  sops.secrets.github-runner-token = {};
+  sops.secrets.forgejo-runner-token = {};
 
   # services.github-runners.cloud = {
   #   enable = false;
   #   extraLabels = ["nixos" "cloud" "aarch64"];
-  #   tokenFile = config.age.secrets.github-runner-token.path;
+  #   tokenFile = config.sops.secrets.github-runner-token.path;
   #   url = "https://github.com/arsfeld/nixos";
   # };
 
@@ -22,7 +22,7 @@ in {
       enable = false; # TODO: Set a valid token in forgejo-runner-token.age to enable
       name = "cloud";
       url = "https://forgejo.${vars.domain}";
-      tokenFile = config.age.secrets.forgejo-runner-token.path;
+      tokenFile = config.sops.secrets.forgejo-runner-token.path;
       labels = [
         "ubuntu-latest:docker://node:20-bookworm"
         "nix:docker://nixos/nix:latest"

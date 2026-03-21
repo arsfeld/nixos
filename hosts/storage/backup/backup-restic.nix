@@ -3,14 +3,12 @@
   self,
   ...
 }: {
-  age.secrets."restic-password".file = "${self}/secrets/restic-password.age";
-  age.secrets."hetzner-storagebox-ssh-key" = {
-    file = "${self}/secrets/hetzner-storagebox-ssh-key.age";
+  sops.secrets."restic-password" = {};
+  sops.secrets."hetzner-storagebox-ssh-key" = {
     mode = "0400";
     path = "/root/.ssh/hetzner_storagebox";
   };
-  age.secrets."hetzner-webdav-env" = {
-    file = "${self}/secrets/hetzner-webdav-env.age";
+  sops.secrets."hetzner-webdav-env" = {
     mode = "0400";
   };
 
@@ -35,7 +33,7 @@
         "/var/lib/lxcfs"
       ];
       repository = "/mnt/storage/backups/restic";
-      passwordFile = config.age.secrets."restic-password".path;
+      passwordFile = config.sops.secrets."restic-password".path;
       initialize = true;
       timerConfig = {
         OnCalendar = "daily";
@@ -80,8 +78,8 @@
       ];
 
       repository = "rclone:hetzner:backups/restic-system";
-      passwordFile = config.age.secrets."restic-password".path;
-      environmentFile = config.age.secrets."hetzner-webdav-env".path;
+      passwordFile = config.sops.secrets."restic-password".path;
+      environmentFile = config.sops.secrets."hetzner-webdav-env".path;
       initialize = true;
       timerConfig = {
         OnCalendar = "weekly";
@@ -157,8 +155,8 @@
 
       # Hetzner Storage Box via WebDAV (rclone backend)
       repository = "rclone:hetzner:backups/restic";
-      passwordFile = config.age.secrets."restic-password".path;
-      environmentFile = config.age.secrets."hetzner-webdav-env".path;
+      passwordFile = config.sops.secrets."restic-password".path;
+      environmentFile = config.sops.secrets."hetzner-webdav-env".path;
       initialize = true;
       timerConfig = {
         OnCalendar = "weekly";
