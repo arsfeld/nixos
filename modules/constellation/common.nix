@@ -193,6 +193,7 @@ with lib; {
     time.timeZone = "America/Toronto";
     i18n.defaultLocale = "en_CA.UTF-8";
     zramSwap.enable = true;
+    services.earlyoom.enable = lib.mkDefault true;
     networking.nftables.enable = true;
     networking.firewall.allowedTCPPorts = [22];
 
