@@ -50,11 +50,8 @@
         "rd.udev.log_level=3"
         "systemd.show_status=false"
 
-        # ZRAM compression
-        "zswap.enabled=1"
-        "zswap.compressor=lz4"
-        "zswap.max_pool_percent=20"
-        "zswap.zpool=z3fold"
+        # Disable zswap - conflicts with zram (double compression wastes RAM)
+        "zswap.enabled=0"
       ];
 
       kernel.sysctl = {
@@ -62,8 +59,9 @@
         "net.core.default_qdisc" = "cake";
         "net.ipv4.tcp_congestion" = "bbr";
 
-        # Memory management
-        "vm.swappiness" = 10;
+        # Memory management (zram is RAM-backed, not disk; higher swappiness
+        # encourages compressing cold pages to free RAM for active use)
+        "vm.swappiness" = lib.mkDefault 100;
         "vm.vfs_cache_pressure" = 50;
         "vm.dirty_background_ratio" = 5;
         "vm.dirty_ratio" = 10;
@@ -113,6 +111,27 @@
       enable = true;
       algorithm = "zstd";
       memoryPercent = 25;
+    };
+
+    # OOM protection - prevent system freeze under memory pressure
+    services.earlyoom = {
+      enable = true;
+      freeMemThreshold = 5;
+      freeMemKillThreshold = 2;
+      freeSwapThreshold = 10;
+      enableNotifications = true;
+      extraArgs = [
+        "--prefer"
+        "(^|/)(nix-daemon|cc1plus|cc1|c\\+\\+|ld|lld)$"
+        "--avoid"
+        "(^|/)(Xwayland|gnome-shell|gamescope|steam)$"
+      ];
+    };
+
+    # Per-slice memory pressure monitoring
+    systemd.oomd = {
+      enableRootSlice = true;
+      enableUserSlices = true;
     };
 
     # Core Gaming Software
