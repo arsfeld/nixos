@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-NTFY_SERVER="${CLAUDE_NTFY_SERVER:-https://ntfy.sh}"
+NTFY_SERVER="${CLAUDE_NTFY_SERVER:-https://ntfy.arsfeld.one}"
 
 # The hook type is passed as the first argument, topic as second (or from env)
 HOOK_TYPE="${1:-unknown}"
