@@ -25,12 +25,14 @@
     inputs.eh5.overlays.default
   ];
 
+  constellation.sops.enable = true;
+
   networking.hostName = "r2s";
   networking.useNetworkd = true;
   networking.useDHCP = false;
   networking.firewall.enable = false;
 
-  age.secrets.tailscale-key.file = "${self}/secrets/tailscale-key.age";
+  sops.secrets.tailscale-key.sopsFile = config.constellation.sops.commonSopsFile;
 
   users.extraUsers.root.openssh.authorizedKeys.keys = [
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBDeQP9ZHuDegrcgBEAuLpCWEK0v8eIBAgaLMSquCP0w"

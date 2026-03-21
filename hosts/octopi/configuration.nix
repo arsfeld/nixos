@@ -11,20 +11,22 @@
 
   nixpkgs.hostPlatform = "aarch64-linux";
 
+  constellation.sops.enable = true;
+
   networking.hostName = "octopi";
   time.timeZone = "America/Toronto";
 
   # Tailscale configuration
   services.tailscale.enable = true;
 
-  age.secrets.tailscale-key.file = "${self}/secrets/tailscale-key.age";
+  sops.secrets.tailscale-key.sopsFile = config.constellation.sops.commonSopsFile;
 
   # Expose OctoPrint via Tailscale Funnel
   services.tsnsrv = {
     enable = true;
     defaults = {
       tags = ["tag:service"];
-      authKeyPath = config.age.secrets.tailscale-key.path;
+      authKeyPath = config.sops.secrets.tailscale-key.path;
       ephemeral = true;
     };
     services = {

@@ -16,6 +16,7 @@ with lib; {
 
   # Enable all constellation modules
   constellation = {
+    sops.enable = true;
     backup.enable = false; # Disabled until data pool is recreated
     common.enable = true;
     email.enable = true;

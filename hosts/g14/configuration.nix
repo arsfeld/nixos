@@ -11,6 +11,7 @@
 
   # Enable constellation modules
   constellation = {
+    sops.enable = true;
     gnome = {
       enable = true;
       theme = {
@@ -60,11 +61,8 @@
 
   # Kernel parameters for performance and power management
   boot.kernelParams = [
-    # Configure zswap for better performance
-    "zswap.enabled=1"
-    "zswap.compressor=zstd"
-    "zswap.max_pool_percent=25"
-    "zswap.zpool=z3fold"
+    # Disable zswap - conflicts with zram (double compression wastes RAM)
+    "zswap.enabled=0"
     "mitigations=off"
     "splash"
     "quiet"
@@ -76,17 +74,6 @@
     "i915.enable_psr=2"
     "nmi_watchdog=0"
   ];
-
-  # Memory management settings to prevent swap thrashing - G14 specific overrides
-  boot.kernel.sysctl = {
-    # Reduce swappiness - only swap when really necessary (default is 60)
-    "vm.swappiness" = lib.mkForce 10;
-    # Don't swap out pages unless memory pressure is high
-    "vm.vfs_cache_pressure" = lib.mkForce 50;
-    # Prefer to reclaim page cache over swap
-    "vm.dirty_ratio" = lib.mkForce 15;
-    "vm.dirty_background_ratio" = lib.mkForce 5;
-  };
 
   # Remove zfs support
   boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "ntfs" "reiserfs" "vfat" "xfs"];

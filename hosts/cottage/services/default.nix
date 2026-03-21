@@ -15,17 +15,12 @@
   };
   users.groups.garage = {};
 
-  # Age secret for Garage RPC secret (32-byte hex string)
-  age.secrets."garage-rpc-secret" = {
-    file = "${self}/secrets/garage-rpc-secret.age";
+  sops.secrets."garage-rpc-secret" = {
     owner = "garage";
     group = "garage";
     mode = "0400";
   };
-
-  # Age secret for Garage admin token
-  age.secrets."garage-admin-token" = {
-    file = "${self}/secrets/garage-admin-token.age";
+  sops.secrets."garage-admin-token" = {
     owner = "garage";
     group = "garage";
     mode = "0400";
@@ -44,7 +39,7 @@
 
       rpc_bind_addr = "[::]:3901";
       rpc_public_addr = "127.0.0.1:3901";
-      rpc_secret_file = config.age.secrets.garage-rpc-secret.path;
+      rpc_secret_file = config.sops.secrets.garage-rpc-secret.path;
 
       s3_api = {
         api_bind_addr = "[::]:3900";
@@ -59,7 +54,7 @@
 
       admin = {
         api_bind_addr = "[::]:3903";
-        admin_token_file = config.age.secrets.garage-admin-token.path;
+        admin_token_file = config.sops.secrets.garage-admin-token.path;
       };
     };
   };
