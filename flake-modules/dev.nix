@@ -49,7 +49,6 @@
           jq
           just
           openssl
-          ragenix # Use nixpkgs' ragenix for devShell (inputs.ragenix still used for NixOS module)
           inputs.sops-nix.packages."${pkgs.stdenv.hostPlatform.system}".sops-import-keys-hook
           sops
           ssh-to-age

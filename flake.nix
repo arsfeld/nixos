@@ -5,8 +5,6 @@
     determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/*"; # Determinate Nix
     disko.url = "github:nix-community/disko"; # Declarative disk partitioning
     disko.inputs.nixpkgs.follows = "nixpkgs";
-    ragenix.url = "github:arsfeld/ragenix/add-decrypt-flag"; # Rust-based age secret management (faster and more reliable)
-    ragenix.inputs.nixpkgs.follows = "nixpkgs";
     sops-nix.url = "github:Mic92/sops-nix"; # sops-nix secret management
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
     home-manager.url = "github:nix-community/home-manager/release-25.11";
