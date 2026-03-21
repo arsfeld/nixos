@@ -98,7 +98,7 @@ in {
       {
         PNPM_HOME = "$HOME/.local/share/pnpm";
         NPM_CONFIG_PREFIX = "$HOME/.npm-global";
-        CLAUDE_NTFY_TOPIC = "arosenfeld-claude";
+        CLAUDE_NTFY_TOPIC = "claude";
       }
       // (
         if stdenv.isDarwin

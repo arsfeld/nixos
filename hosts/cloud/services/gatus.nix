@@ -49,6 +49,7 @@
     "lidarr"
     "n8n"
     "netdata"
+    "ntfy"
     "nextcloud"
     "opencloud"
     "resilio"
@@ -118,8 +119,8 @@ in {
 
       alerting = {
         ntfy = {
-          topic = "arsfeld-gatus";
-          url = "https://ntfy.sh";
+          topic = "gatus";
+          url = "https://ntfy.arsfeld.one";
           priority = 3;
           default-alert = {
             enabled = true;

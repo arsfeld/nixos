@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 def send_notification_ntfy(url, title, server="ntfy.sh"):
     servers = {
-        "ntfy.sh": "https://ntfy.sh/arsfeld-product-available",
+        "ntfy.sh": "https://ntfy.arsfeld.one/product-available",
         "personal": "https://ntfy.arsfeld.one/product-available",
     }
 
