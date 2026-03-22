@@ -101,7 +101,7 @@
       owner = "stashapp";
       repo = "CommunityScripts";
       rev = "refs/heads/main";
-      hash = "sha256-Eajj2mwYAiMjprJtxdR4MNHBr2oIf2OCgHAVLzuJhu4=";
+      hash = "sha256-QOtT6S1hB0O8k1VNgyAD6kYa9DPk9BW1pRtYylCxBjg=";
       sparseCheckout = ["plugins"];
     };
 
