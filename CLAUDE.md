@@ -172,10 +172,9 @@ Never mention Claude in commit messages or author.
 
 ## CI/CD (.github/workflows/)
 
-- **build.yml** - Matrix build for cloud (aarch64) and storage (x86_64) via Tailscale SSH
-- **format.yml** - Auto-formats with alejandra on push to master
-- **update.yml** - Weekly flake input updates with automatic build testing and deployment
-- **gitleaks.yml** - Secret scanning
+- **build.yml** - Builds cloud (aarch64), storage (x86_64), raider (x86_64) closures and pushes to Attic cache
+- **format.yml** - Checks formatting with alejandra (fails if unformatted, run `just fmt` locally)
+- **update.yml** - Weekly flake input updates with automatic build testing, commits flake.lock if all hosts build
 
 <!-- BACKLOG.MD MCP GUIDELINES START -->
 
