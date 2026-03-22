@@ -49,7 +49,10 @@ jobs:
 
       - uses: cachix/install-nix-action@v31
         with:
-          extra_nix_config: extra-platforms = aarch64-linux i686-linux
+          extra_nix_config: |
+            extra-platforms = aarch64-linux i686-linux
+            extra-substituters = https://attic.arsfeld.dev/system
+            extra-trusted-public-keys = system:mUX40QMM+dqZ0wQaHp7sH50UgiZnSXsInzc9/MvaZRc=
 
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
