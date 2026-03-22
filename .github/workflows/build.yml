@@ -27,6 +27,12 @@ jobs:
             platform: x86_64-linux
           - host: raider
             platform: x86_64-linux
+          - host: r2s
+            platform: aarch64-linux
+          - host: raspi3
+            platform: aarch64-linux
+          - host: octopi
+            platform: aarch64-linux
 
     name: ${{ matrix.host }}
     runs-on: ubuntu-latest
