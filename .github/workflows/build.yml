@@ -47,11 +47,11 @@ jobs:
           sudo apt-get clean
           docker image prune --all --force
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup QEMU for aarch64
         if: matrix.platform == 'aarch64-linux'
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - uses: cachix/install-nix-action@v31
         with:
@@ -60,7 +60,7 @@ jobs:
             extra-substituters = https://attic.arsfeld.dev/system
             extra-trusted-public-keys = system:mUX40QMM+dqZ0wQaHp7sH50UgiZnSXsInzc9/MvaZRc=
 
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@v13
 
       - name: Override flake.lock
         if: inputs.flake_lock
