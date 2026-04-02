@@ -9,8 +9,11 @@
   ...
 }: {
   imports = [
-    (modulesPath + "/installer/cd-dvd/installation-cd-minimal.nix")
+    (modulesPath + "/installer/cd-dvd/installation-cd-graphical-gnome.nix")
   ];
+
+  # Enable flakes so nixos-install --flake works
+  nix.settings.experimental-features = ["nix-command" "flakes"];
 
   # System identification
   system.stateVersion = config.system.nixos.release;
@@ -60,17 +63,19 @@
       #!/usr/bin/env bash
       set -euo pipefail
 
-      HOSTNAME="''${1:-g14}"
+      # Re-exec as root if not already
+      if [ "$(id -u)" -ne 0 ]; then
+        exec sudo NIX_CONFIG="experimental-features = nix-command flakes" "$0" "$@"
+      fi
+
+      export NIX_CONFIG="experimental-features = nix-command flakes"
+
       REPO_URL="https://github.com/arsfeld/nixos.git"
       REPO_DIR="/tmp/nixos-config"
-
-      echo "=== NixOS Installer ==="
-      echo ""
-      echo "Target host: $HOSTNAME"
-      echo ""
+      REMOTE_SCRIPT="$REPO_DIR/scripts/install-nixos.sh"
 
       # Step 1: Check network connectivity
-      echo "[1/4] Checking network connectivity..."
+      echo "[1/2] Checking network connectivity..."
       if ! ping -c1 -W5 github.com &>/dev/null; then
         echo ""
         echo "ERROR: No network connectivity."
@@ -84,63 +89,16 @@
       fi
       echo "  Network OK."
 
-      # Step 2: Clone the configuration repo
-      echo "[2/4] Cloning configuration repository..."
+      # Step 2: Fetch latest installer from repo
+      echo "[2/2] Fetching latest installer from repository..."
       if [ -d "$REPO_DIR" ]; then
-        echo "  Updating existing clone..."
         git -C "$REPO_DIR" pull --ff-only
       else
         git clone "$REPO_URL" "$REPO_DIR"
       fi
 
-      # Verify host configuration exists
-      if [ ! -f "$REPO_DIR/hosts/$HOSTNAME/configuration.nix" ]; then
-        echo "ERROR: No configuration found for host '$HOSTNAME'"
-        echo "Available hosts:"
-        for d in "$REPO_DIR"/hosts/*/; do
-          [ -f "$d/configuration.nix" ] && echo "  - $(basename "$d")"
-        done
-        exit 1
-      fi
-      echo "  Host configuration found: $HOSTNAME"
-
-      # Step 3: Run disko to partition and format
-      echo "[3/4] Partitioning and formatting disks with disko..."
-      echo ""
-      echo "WARNING: This will DESTROY ALL DATA on the target disk(s)!"
-      echo ""
-
-      if [ -f "$REPO_DIR/hosts/$HOSTNAME/disko-config.nix" ]; then
-        echo "Disk configuration:"
-        grep 'device = ' "$REPO_DIR/hosts/$HOSTNAME/disko-config.nix" | sed 's/^/  /'
-      fi
-      echo ""
-
-      read -p "Continue with disk formatting? (y/N) " -n 1 -r
-      echo
-      if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Aborted."
-        exit 1
-      fi
-
-      nix run github:nix-community/disko -- \
-        --mode destroy,format,mount \
-        --yes-wipe-all-disks \
-        "$REPO_DIR/hosts/$HOSTNAME/disko-config.nix"
-
-      echo "  Disks partitioned and mounted at /mnt."
-
-      # Step 4: Install NixOS
-      echo "[4/4] Installing NixOS configuration '$HOSTNAME'..."
-      nixos-install --flake "$REPO_DIR#$HOSTNAME" --no-root-password
-
-      echo ""
-      echo "=== Installation complete! ==="
-      echo ""
-      echo "Next steps:"
-      echo "  1. reboot"
-      echo "  2. Remove the USB drive"
-      echo "  3. Run 'tailscale up' for Tailscale access"
+      # Hand off to the repo's install script
+      exec bash "$REMOTE_SCRIPT" "$@"
     '';
   };
 
@@ -150,8 +108,8 @@
     === NixOS Custom Installer ===
 
     1. Connect to WiFi:  nmtui  (or: nmcli device wifi connect SSID password PASSWORD)
-    2. Run installer:    sudo /etc/install-nixos.sh [hostname]
-                         (default hostname: g14)
+    2. Run installer:    /etc/install-nixos.sh [hostname]
+                         (default hostname: g14, fetches latest from git)
 
     SSH is enabled. The "nixos" and "root" accounts have empty passwords.
   '';
