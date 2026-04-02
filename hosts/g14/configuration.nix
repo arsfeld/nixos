@@ -19,13 +19,15 @@
         icon = "Yaru-purple";
       };
     };
-    gaming.enable = true;
+    gaming = {
+      enable = true;
+      cpuVendor = "amd";
+    };
     development.enable = true;
     virtualization.enable = true;
   };
 
-  # Display scaling configuration for GNOME
-  # Note: mutter experimental-features moved to constellation gnome module dconf database
+  # Display scaling for high-DPI laptop screen
   services.xserver.desktopManager.gnome.extraGSettingsOverrides = ''
     [org.gnome.desktop.interface]
     text-scaling-factor=1.25
