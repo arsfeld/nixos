@@ -50,9 +50,6 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  # Use Zen kernel for better desktop performance
-  boot.kernelPackages = pkgs.linuxPackages_zen;
-
   # Boot appearance
   boot.plymouth.enable = true;
   boot.plymouth.theme = "bgrt";
