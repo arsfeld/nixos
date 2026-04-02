@@ -35,6 +35,10 @@ with lib; let
     filterAttrs
     (name: container: container.enable)
     cfg;
+  watchedContainers =
+    filterAttrs
+    (name: container: container.enable && container.watchImage)
+    cfg;
 in {
   imports = [
     ./config.nix
@@ -164,6 +168,24 @@ in {
           default = {};
           description = "Extra settings for the media gateway";
         };
+        watchImage = mkOption {
+          type = types.bool;
+          default = false;
+          description = ''
+            Whether to watch for new container images and auto-restart.
+            When enabled, a systemd timer polls the registry at the configured
+            interval and restarts the container when a new image is detected.
+          '';
+        };
+        watchImageInterval = mkOption {
+          type = types.str;
+          default = "5min";
+          description = ''
+            How often to check for new container images.
+            Uses systemd time span format (e.g. "5min", "15min", "1h").
+            Only used when watchImage is true.
+          '';
+        };
       };
     }));
     default = {};
@@ -199,16 +221,100 @@ in {
 
     # Systemd dependencies for containers with media volumes
     systemd.services = mkMerge (
-      mapAttrsToList (
-        name: container:
-          mkIf (container.enable && container.mediaVolumes) {
-            "podman-${name}" = {
-              after = ["mnt-storage.mount"];
-              requires = ["mnt-storage.mount"];
+      (mapAttrsToList (
+          name: container:
+            mkIf (container.enable && container.mediaVolumes) {
+              "podman-${name}" = {
+                after = ["mnt-storage.mount"];
+                requires = ["mnt-storage.mount"];
+              };
+            }
+        )
+        deployedContainers)
+      ++ (mapAttrsToList (
+          name: container: {
+            "image-watch-${name}" = {
+              description = "Watch for container image updates: ${name}";
+              script = ''
+                # Wait for podman
+                while ! ${pkgs.podman}/bin/podman info >/dev/null 2>&1; do
+                  sleep 1
+                done
+
+                image_name="${container.image}"
+                container_name="${name}"
+
+                # Get current image ID if container is running
+                current_id=$(${pkgs.podman}/bin/podman inspect "$container_name" -f '{{.Image}}' 2>/dev/null || echo "none")
+
+                # Pull new image
+                if ! ${pkgs.podman}/bin/podman pull "$image_name"; then
+                  echo "Failed to pull $image_name"
+                  ${pkgs.curl}/bin/curl -s \
+                    -d "Failed to pull $image_name" \
+                    -H "Title: Image Pull Failed: $container_name" \
+                    -H "Priority: 4" \
+                    -H "Tags: warning" \
+                    https://ntfy.arsfeld.one/container-updates || true
+                  exit 1
+                fi
+
+                # Get new image ID
+                new_id=$(${pkgs.podman}/bin/podman inspect "$image_name" -f '{{.Id}}' 2>/dev/null)
+                if [ $? -ne 0 ]; then
+                  echo "Failed to inspect new image $image_name"
+                  exit 1
+                fi
+
+                echo "Current: $current_id"
+                echo "New:     $new_id"
+
+                if [ "$current_id" != "none" ] && [ "$current_id" != "$new_id" ]; then
+                  echo "New image detected for $container_name, restarting..."
+                  if ${pkgs.systemd}/bin/systemctl restart "podman-$container_name"; then
+                    ${pkgs.curl}/bin/curl -s \
+                      -d "Updated $image_name (''${current_id:0:12} → ''${new_id:0:12})" \
+                      -H "Title: Container Updated: $container_name" \
+                      -H "Priority: 3" \
+                      -H "Tags: package,white_check_mark" \
+                      https://ntfy.arsfeld.one/container-updates || true
+                  else
+                    ${pkgs.curl}/bin/curl -s \
+                      -d "Pulled new image but restart failed for $container_name" \
+                      -H "Title: Container Restart Failed: $container_name" \
+                      -H "Priority: 4" \
+                      -H "Tags: warning" \
+                      https://ntfy.arsfeld.one/container-updates || true
+                    exit 1
+                  fi
+                fi
+              '';
+              serviceConfig = {
+                Type = "oneshot";
+                User = "root";
+              };
+              wants = ["podman.service"];
+              after = ["podman.service" "network-online.target"];
             };
           }
+        )
+        watchedContainers)
+    );
+
+    # Systemd timers for image-watched containers
+    systemd.timers = mkMerge (
+      mapAttrsToList (
+        name: container: {
+          "image-watch-${name}" = {
+            wantedBy = ["timers.target"];
+            timerConfig = {
+              OnBootSec = "2min";
+              OnUnitActiveSec = container.watchImageInterval;
+            };
+          };
+        }
       )
-      deployedContainers
+      watchedContainers
     );
 
     # Create services.json with debug information

@@ -82,7 +82,16 @@ in {
       };
     };
 
-    systemd.services."podman-image-pull" = {
+    systemd.services."podman-image-pull" = let
+      # Exclude containers managed by per-service image watchers
+      watchedNames =
+        lib.optionalAttrs (config ? media && config.media ? containers)
+        (lib.filterAttrs (_: c: c.watchImage or false) config.media.containers);
+      containerNames =
+        lib.filter
+        (name: !(watchedNames ? ${name}))
+        (builtins.attrNames config.virtualisation.oci-containers.containers);
+    in {
       script = ''
         # Wait for podman to be available
         while ! ${pkgs.podman}/bin/podman info >/dev/null 2>&1; do
@@ -92,47 +101,48 @@ in {
         exit_code=0
 
         ${lib.concatMapStrings (name: let
-          container = config.virtualisation.oci-containers.containers.${name};
-        in ''
-          image_name="${container.image}"
-          echo "Checking $image_name..."
+            container = config.virtualisation.oci-containers.containers.${name};
+          in ''
+            image_name="${container.image}"
+            echo "Checking $image_name..."
 
-          # Get current image ID if container is running
-          current_id=$(${pkgs.podman}/bin/podman inspect "${name}" -f '{{.Image}}' 2>/dev/null || echo "none")
+            # Get current image ID if container is running
+            current_id=$(${pkgs.podman}/bin/podman inspect "${name}" -f '{{.Image}}' 2>/dev/null || echo "none")
 
-          # Pull new image
-          if ! ${pkgs.podman}/bin/podman pull "$image_name"; then
-            echo "Failed to pull $image_name"
-            exit_code=1
-            continue
-          fi
-
-          # Get new image ID
-          new_id=$(${pkgs.podman}/bin/podman inspect "$image_name" -f '{{.Id}}' 2>/dev/null)
-          if [ $? -ne 0 ]; then
-            echo "Failed to inspect new image $image_name"
-            exit_code=1
-            continue
-          fi
-
-          echo "--------------------------------"
-          echo "Current: $current_id"
-          echo "New:     $new_id"
-          echo "--------------------------------"
-          echo ""
-
-          if [ "$current_id" != "none" ] && [ "$current_id" != "$new_id" ]; then
-            echo "New version available for $image_name"
-            echo "Current: $current_id"
-            echo "New: $new_id"
-            echo "Restarting container ${name}..."
-            if ! ${pkgs.systemd}/bin/systemctl restart "podman-${name}"; then
-              echo "Failed to restart podman-${name}"
+            # Pull new image
+            if ! ${pkgs.podman}/bin/podman pull "$image_name"; then
+              echo "Failed to pull $image_name"
               exit_code=1
               continue
             fi
-          fi
-        '') (builtins.attrNames config.virtualisation.oci-containers.containers)}
+
+            # Get new image ID
+            new_id=$(${pkgs.podman}/bin/podman inspect "$image_name" -f '{{.Id}}' 2>/dev/null)
+            if [ $? -ne 0 ]; then
+              echo "Failed to inspect new image $image_name"
+              exit_code=1
+              continue
+            fi
+
+            echo "--------------------------------"
+            echo "Current: $current_id"
+            echo "New:     $new_id"
+            echo "--------------------------------"
+            echo ""
+
+            if [ "$current_id" != "none" ] && [ "$current_id" != "$new_id" ]; then
+              echo "New version available for $image_name"
+              echo "Current: $current_id"
+              echo "New: $new_id"
+              echo "Restarting container ${name}..."
+              if ! ${pkgs.systemd}/bin/systemctl restart "podman-${name}"; then
+                echo "Failed to restart podman-${name}"
+                exit_code=1
+                continue
+              fi
+            fi
+          '')
+          containerNames}
 
         exit $exit_code
       '';
