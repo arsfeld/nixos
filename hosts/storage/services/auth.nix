@@ -80,7 +80,7 @@
           {
             domain = ["yarr.${domain}"];
             policy = "bypass";
-            resources = ["^/fever/.*$"];
+            resources = ["^/fever/.*$" "^/accounts/ClientLogin$" "^/reader/.*$"];
           }
         ];
       };

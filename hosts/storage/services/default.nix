@@ -2,6 +2,7 @@
   imports = [
     ./ai.nix
     ./auth.nix
+    ./bitmagnet.nix
     ./cloud-sync.nix
     ./cloudflared.nix
     ./db.nix
@@ -20,6 +21,7 @@
     ./transmission-vpn.nix
     ./nfs.nix
     ./samba.nix
+    ./seafile.nix
     ./vault.nix
     ./yarr.nix
   ];
