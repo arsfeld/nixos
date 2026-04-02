@@ -12,8 +12,12 @@
     (modulesPath + "/installer/cd-dvd/installation-cd-graphical-gnome.nix")
   ];
 
-  # Enable flakes so nixos-install --flake works
-  nix.settings.experimental-features = ["nix-command" "flakes"];
+  # Enable flakes and Attic cache so nixos-install fetches pre-built packages
+  nix.settings = {
+    experimental-features = ["nix-command" "flakes"];
+    extra-substituters = ["https://attic.arsfeld.dev/system"];
+    extra-trusted-public-keys = ["system:mUX40QMM+dqZ0wQaHp7sH50UgiZnSXsInzc9/MvaZRc="];
+  };
 
   # System identification
   system.stateVersion = config.system.nixos.release;
