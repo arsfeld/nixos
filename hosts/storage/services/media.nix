@@ -57,13 +57,6 @@ in {
     port = headphonesPort;
   };
 
-  services.bitmagnet = {
-    enable = false;
-  };
-
-  #age.secrets."bitmagnet-env".file = "${self}/secrets/bitmagnet-env.age";
-  #systemd.services.bitmagnet.serviceConfig.EnvironmentFile = config.sops.secrets.bitmagnet-env.path;
-
   services.resilio = {
     enable = true;
     enableWebUI = true;

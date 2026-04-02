@@ -92,6 +92,7 @@ in {
         claude-notify
         pkgs.playwright-mcp
         bun
+        seafile-shared
       ]
       ++ linuxOnlyPkgs; # Added linuxOnlyPkgs
     sessionVariables =
@@ -515,6 +516,43 @@ in {
   # services.syncthing = {
   #   enable = pkgs.stdenv.isLinux;
   # };
+
+  systemd.user.services.rclone-gdrive = mkIf stdenv.isLinux {
+    Unit = {
+      Description = "Mount Google Drive via rclone";
+      After = ["network-online.target"];
+    };
+    Service = {
+      Type = "notify";
+      ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p %h/gdrive";
+      ExecStart = "${pkgs.rclone}/bin/rclone mount gdrive: %h/gdrive --vfs-cache-mode full --vfs-cache-max-age 72h --dir-cache-time 5m";
+      ExecStop = "/run/wrappers/bin/fusermount3 -u %h/gdrive";
+      Restart = "on-failure";
+      RestartSec = 5;
+      Environment = ["PATH=/run/wrappers/bin"];
+    };
+    Install = {
+      WantedBy = ["default.target"];
+    };
+  };
+
+  systemd.user.services.seafile-cli = mkIf stdenv.isLinux {
+    Unit = {
+      Description = "Seafile CLI sync daemon";
+      After = ["network-online.target"];
+    };
+    Service = {
+      Type = "forking";
+      ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p %h/Seafile %h/seafile-client";
+      ExecStart = "${pkgs.seafile-shared}/bin/seaf-cli start";
+      ExecStop = "${pkgs.seafile-shared}/bin/seaf-cli stop";
+      Restart = "on-failure";
+      RestartSec = 10;
+    };
+    Install = {
+      WantedBy = ["default.target"];
+    };
+  };
 
   programs.atuin = {
     enable = true;
