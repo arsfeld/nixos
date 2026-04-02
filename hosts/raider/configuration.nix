@@ -12,7 +12,6 @@
     ./fan-control.nix
     ./fontconfig.nix
     ./harmonia.nix
-    ./scheduler-tuning.nix
     ./samba.nix
   ];
 
@@ -45,7 +44,10 @@
     };
     niri.enable = false;
     cosmic.enable = false;
-    gaming.enable = true;
+    gaming = {
+      enable = true;
+      cpuVendor = "intel";
+    };
     development.enable = true;
     docker.enable = true; # Enable Docker runtime
     backup.enable = true; # Enable automated backups

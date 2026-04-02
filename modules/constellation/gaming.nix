@@ -20,6 +20,12 @@
       default = true;
       description = "Enable gaming mode toggle for stopping development services";
     };
+
+    cpuVendor = lib.mkOption {
+      type = lib.types.enum ["amd" "intel" "none"];
+      default = "amd";
+      description = "CPU vendor for frequency driver selection (amd_pstate or intel_pstate)";
+    };
   };
 
   config = lib.mkIf config.constellation.gaming.enable {
@@ -27,32 +33,35 @@
     boot = lib.mkIf config.constellation.gaming.kernelOptimizations {
       kernelPackages = lib.mkOverride 990 pkgs.linuxPackages_xanmod_latest;
 
-      kernelParams = [
-        # Performance optimizations
-        "mitigations=off"
-        "nowatchdog"
-        "nmi_watchdog=0"
+      kernelParams =
+        [
+          # Performance optimizations
+          "mitigations=off"
+          "nowatchdog"
+          "nmi_watchdog=0"
 
-        # CPU frequency scaling
-        "intel_pstate=active"
+          # Memory and I/O optimizations
+          "transparent_hugepage=always"
+          "vm.max_map_count=2147483642"
 
-        # Memory and I/O optimizations
-        "transparent_hugepage=always"
-        "vm.max_map_count=2147483642"
+          # Gaming-specific tweaks from SteamOS
+          "split_lock_detect=off"
+          "pci=noaer"
+          "preempt=full"
 
-        # Gaming-specific tweaks from SteamOS
-        "split_lock_detect=off"
-        "pci=noaer"
-        "preempt=full"
+          # Disable debug features
+          "loglevel=3"
+          "rd.udev.log_level=3"
+          "systemd.show_status=false"
 
-        # Disable debug features
-        "loglevel=3"
-        "rd.udev.log_level=3"
-        "systemd.show_status=false"
+          # Disable zswap - conflicts with zram (double compression wastes RAM)
+          "zswap.enabled=0"
 
-        # Disable zswap - conflicts with zram (double compression wastes RAM)
-        "zswap.enabled=0"
-      ];
+          # Enable Pressure Stall Information for systemd-oomd
+          "psi=1"
+        ]
+        ++ lib.optional (config.constellation.gaming.cpuVendor == "amd") "amd_pstate=active"
+        ++ lib.optional (config.constellation.gaming.cpuVendor == "intel") "intel_pstate=active";
 
       kernel.sysctl = {
         # Network optimizations (BBR congestion control)
@@ -65,11 +74,18 @@
         "vm.vfs_cache_pressure" = 50;
         "vm.dirty_background_ratio" = 5;
         "vm.dirty_ratio" = 10;
+        "vm.dirty_writeback_centisecs" = 1500; # 15s periodic writeback (reduces I/O stutter)
+        "vm.compaction_proactiveness" = 0; # Disable proactive THP compaction (reduces latency spikes)
 
         # Gaming performance
         "kernel.sched_child_runs_first" = 0;
         "kernel.sched_autogroup_enabled" = 1;
         "kernel.split_lock_mitigate" = 0;
+
+        # BORE scheduler tuning for desktop interactivity
+        "kernel.sched_latency_ns" = lib.mkDefault 1000000; # 1ms
+        "kernel.sched_min_granularity_ns" = lib.mkDefault 100000; # 0.1ms
+        "kernel.sched_wakeup_granularity_ns" = lib.mkDefault 500000; # 0.5ms
 
         # File system
         "fs.file-max" = 2097152;
@@ -105,6 +121,16 @@
         "sp5100_tco" # AMD watchdog
       ];
     };
+
+    # I/O scheduler tuning per device type
+    services.udev.extraRules = lib.mkIf config.constellation.gaming.kernelOptimizations ''
+      # NVMe: bypass scheduler (hardware handles queuing)
+      ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="nvme[0-9]*n[0-9]*", ATTR{queue/scheduler}="none"
+      # SATA SSD: mq-deadline (low overhead, good for random I/O)
+      ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="mq-deadline"
+      # HDD: bfq (fair queuing, good for rotational)
+      ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", ATTR{queue/scheduler}="bfq"
+    '';
 
     # Enable ZRAM for better memory management
     zramSwap = {
