@@ -20,6 +20,7 @@
   funnel ? false,
   insecureTls ? false,
   tailscaleExposed ? false,
+  watchImage ? false,
 }: let
   settings = {inherit bypassAuth cors funnel insecureTls;};
 in
@@ -30,7 +31,7 @@ in
       media.containers.${name} =
         {
           listenPort = port;
-          inherit image settings;
+          inherit image settings watchImage;
         }
         // container;
     }

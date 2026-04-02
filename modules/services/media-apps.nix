@@ -64,6 +64,7 @@ in {
     (mkService "mydia" {
       port = 4000;
       image = "ghcr.io/getmydia/mydia:master";
+      watchImage = true;
       container = {
         exposePort = 4000;
         mediaVolumes = true;

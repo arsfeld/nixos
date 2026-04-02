@@ -24,6 +24,7 @@ in
     (mkService "finance-tracker" {
       port = 8080;
       image = "ghcr.io/arsfeld/finance-tracker:latest";
+      watchImage = true;
       container = {
         environmentFiles = [
           config.sops.secrets."finance-tracker-env".path
