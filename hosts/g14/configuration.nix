@@ -25,12 +25,10 @@
   };
 
   # Display scaling configuration for GNOME
+  # Note: mutter experimental-features moved to constellation gnome module dconf database
   services.xserver.desktopManager.gnome.extraGSettingsOverrides = ''
     [org.gnome.desktop.interface]
     text-scaling-factor=1.25
-
-    [org.gnome.mutter]
-    experimental-features=['scale-monitor-framebuffer']
   '';
 
   # Basic system configuration
@@ -170,13 +168,11 @@
     ui.enable = true;
   };
 
-  # Power management - enable hybrid sleep
+  # Power management - suspend then hibernate after delay
   systemd.sleep.extraConfig = ''
-    HibernateDelaySec=60min
+    HibernateDelaySec=30min
     SuspendState=mem
     HibernateState=disk
-    HybridSleepState=disk
-    HybridSleepMode=suspend platform shutdown
   '';
 
   # Advanced Power Management with TLP
@@ -249,13 +245,13 @@
   # Power profiles daemon (works with GNOME)
   services.power-profiles-daemon.enable = false; # Disabled as TLP handles this
 
-  # Enable hybrid-sleep target for power button and lid actions
+  # Suspend then hibernate for power button and lid actions
   services.logind = {
-    lidSwitch = lib.mkForce "hybrid-sleep";
-    lidSwitchExternalPower = lib.mkForce "hybrid-sleep";
-    settings.Login = lib.mkForce {
-      HandlePowerKey = "hybrid-sleep";
-      IdleAction = "hybrid-sleep";
+    lidSwitch = "suspend-then-hibernate";
+    lidSwitchExternalPower = "suspend-then-hibernate";
+    settings.Login = {
+      HandlePowerKey = "suspend-then-hibernate";
+      IdleAction = "suspend-then-hibernate";
       IdleActionSec = "30min";
     };
   };

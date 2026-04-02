@@ -52,19 +52,6 @@
 
   boot.resumeDevice = "/dev/disk/by-partlabel/disk-main-swap";
 
-  services.logind = {
-    lidSwitch = "suspend-then-hibernate";
-    settings.Login = {
-      HandlePowerKey = "suspend-then-hibernate";
-      IdleAction = "suspend-then-hibernate";
-      IdleActionSec = "2m";
-    };
-  };
-
-  systemd.sleep.extraConfig = ''
-    HibernateDelaySec=30m
-  '';
-
   # Enables DHCP on each ethernet and wireless interface. In case of scripted networking
   # (the default) this is the recommended approach. When using systemd-networkd it's
   # still possible to use this option, but it's recommended to use it in conjunction
