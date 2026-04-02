@@ -16,14 +16,31 @@ def running?(pid)
 end
 
 def go_ahead?
-  %w(y yes yas).include? $stdin.gets.strip.downcase
+  input = $stdin.gets
+  return false unless input
+
+  %w(y yes yas).include? input.strip.downcase
+end
+
+def my_pid?(pid)
+  pid = pid.to_i
+  return false if pid == Process.pid
+
+  uid = `ps -p #{pid} -o 'uid='`.strip
+  uid == Process.uid.to_s
 end
 
 def kill(pid, code)
   `kill -#{code} #{pid}`
 end
 
-def murder_pid(pid)
+def murder_pid(pid, verbose: false)
+  pid = pid.to_i
+  unless my_pid?(pid)
+    puts "skipping pid #{pid} — not owned by you" if verbose
+    return
+  end
+
   SIGNALS.each do |signal|
     break unless running? pid
 
@@ -40,7 +57,7 @@ def murder_names(name)
   running.lines.each do |line|
     pid, fullname = line.split(nil, 2)
 
-    next if Process.pid == pid.to_i
+    next unless my_pid?(pid)
 
     print "murder #{fullname.chomp} (pid #{pid})? "
     murder_pid(pid) if go_ahead?
@@ -50,11 +67,13 @@ end
 def murder_port(arg)
   lsofs = `lsof -i #{arg}`
   lsofs.lines.drop(1).each do |line|
-    pid = line.split(nil, 3)[1]
+    pid = line.split(nil, 3)[1].to_i
 
-    fullname = `ps -eo 'command' #{pid}`.lines.drop(1).first
+    next unless my_pid?(pid)
 
-    print "murder #{fullname.chomp} (pid #{pid})? "
+    fullname = `ps -p #{pid} -o 'command='`.chomp
+
+    print "murder #{fullname} (pid #{pid})? "
     murder_pid(pid) if go_ahead?
   end
 end
@@ -64,7 +83,7 @@ def main(arg)
   is_port = arg[0] == ':' && i?(arg.slice(1, arg.size))
 
   if is_pid
-    murder_pid arg
+    murder_pid arg, verbose: true
   elsif is_port
     murder_port arg
   else
