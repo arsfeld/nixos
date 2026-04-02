@@ -8,6 +8,7 @@
   imports = [
     ./hardware-configuration.nix
     ./disko-config.nix
+    ./btrbk.nix
     ./fan-control.nix
     ./fontconfig.nix
     ./harmonia.nix
@@ -167,9 +168,13 @@
   };
 
   # Additional packages
+  # Web apps via firefoxpwa (install PWAs from Firefox extension)
+  programs.firefox.nativeMessagingHosts.packages = [pkgs.firefoxpwa];
+
   environment.systemPackages = with pkgs; [
     anycubic-slicer
     firefox
+    firefoxpwa
   ];
 
   # Basic system configuration
