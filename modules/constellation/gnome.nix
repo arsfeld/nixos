@@ -235,6 +235,14 @@
     # Essential desktop packages
     environment.systemPackages = with pkgs;
       [
+        # Hide built-in GNOME Extensions app (replaced by Extension Manager flatpak)
+        (writeTextDir "share/applications/org.gnome.Extensions.desktop" ''
+          [Desktop Entry]
+          Type=Application
+          Name=Extensions
+          NoDisplay=true
+        '')
+
         # Core applications
         pkgs-unstable.zed-editor
         pkgs-unstable.ghostty
