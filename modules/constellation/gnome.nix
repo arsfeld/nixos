@@ -277,7 +277,6 @@
         pantheon.elementary-sound-theme
         pantheon.elementary-gtk-theme
         pantheon.elementary-icon-theme
-        pantheon.elementary-wallpapers
       ]
       ++ lib.optionals config.constellation.gnome.gaming [
         # Gaming support
@@ -329,8 +328,11 @@
         fedora-backgrounds.f38
         fedora-backgrounds.f37
         fedora-backgrounds.f36
-        # Pop!_OS wallpapers
-        pop-hp-wallpapers
+        # Landscape photography collections
+        budgie-backgrounds
+        fedora-backgrounds.f32
+        # Elementary wallpapers (no GNOME XML, available for slideshow/manual)
+        pantheon.elementary-wallpapers
       ];
 
     # Gaming hardware support
