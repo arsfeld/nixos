@@ -76,6 +76,7 @@
         "app.devsuite.Ptyxis"
         "app.zen_browser.zen"
         "io.github.kolunmi.Bazaar"
+        "com.mattjakeman.ExtensionManager"
       ];
       description = "Flatpak packages to install";
     };
@@ -102,19 +103,88 @@
           "org/gnome/desktop/interface" = {
             gtk-theme = config.constellation.gnome.theme.gtk;
             icon-theme = config.constellation.gnome.theme.icon;
+            enable-hot-corners = false;
           };
 
-          # Enable variable refresh rate (VRR) support
+          # Mutter: VRR, fractional scaling, center new windows
           "org/gnome/mutter" = {
             experimental-features = ["variable-refresh-rate" "scale-monitor-framebuffer"];
+            center-new-windows = true;
           };
 
-          # Dark mode for Nautilus (Files)
+          # Window management: Alt+Tab switches windows, Super+Tab switches apps
+          "org/gnome/desktop/wm/keybindings" = {
+            switch-applications = ["<Super>Tab"];
+            switch-applications-backward = ["<Shift><Super>Tab"];
+            switch-windows = ["<Alt>Tab"];
+            switch-windows-backward = ["<Shift><Alt>Tab"];
+          };
+
+          # Window decorations: minimize + maximize + close buttons
+          "org/gnome/desktop/wm/preferences" = {
+            button-layout = "appmenu:minimize,maximize,close";
+          };
+
+          # Nautilus: list view, create link option
           "org/gnome/nautilus/preferences" = {
             default-folder-viewer = "list-view";
+            show-create-link = true;
           };
           "org/gnome/nautilus/gtk" = {
             application-prefer-dark-theme = true;
+          };
+
+          # File chooser: directories first
+          "org/gtk/Settings/FileChooser" = {
+            sort-directories-first = true;
+          };
+          "org/gtk/gtk4/Settings/FileChooser" = {
+            sort-directories-first = true;
+          };
+
+          # Custom keyboard shortcuts
+          "org/gnome/settings-daemon/plugins/media-keys" = {
+            custom-keybindings = [
+              "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/"
+              "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1/"
+            ];
+          };
+          "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0" = {
+            name = "Terminal";
+            command = "ghostty";
+            binding = "<Control><Alt>t";
+          };
+          "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1" = {
+            name = "Mission Center";
+            command = "missioncenter";
+            binding = "<Control><Shift>Escape";
+          };
+
+          # Auto-enable GNOME extensions
+          "org/gnome/shell" = {
+            enabled-extensions = [
+              "logomenu@aryan_k"
+              "hotedge@jonathan.jdoda.ca"
+              "caffeine@patapon.info"
+              "compiz-alike-magic-lamp-effect@hermes83.github.com"
+              "paperwm@paperwm.github.com"
+              "appindicatorsupport@rgcjonas.gmail.com"
+              "blur-my-shell@aunetx"
+              "dash-to-dock@micxgx.gmail.com"
+              "azwallpaper@azwallpaper.gitlab.com"
+              "gsconnect@andyholmes.github.io"
+              "xwayland-indicator@swsnr.de"
+              "Vitals@CoreCoding.com"
+              "user-theme@gnome-shell-extensions.gcampax.github.com"
+            ];
+          };
+
+          # Logo Menu extension configuration
+          "org/gnome/shell/extensions/logo-menu" = {
+            menu-button-terminal = "ghostty";
+            menu-button-system-monitor = "missioncenter";
+            menu-button-extensions-app = "com.mattjakeman.ExtensionManager.desktop";
+            menu-button-software-center = "bazaar";
           };
 
           # Dark mode for Ptyxis (Console)
@@ -141,6 +211,9 @@
       extraPackages32 = with pkgs; [];
     };
 
+    # Disable GNOME Software (replaced by Bazaar flatpak)
+    services.gnome.gnome-software.enable = false;
+
     # Remove unwanted GNOME apps
     environment.gnome.excludePackages = with pkgs; [
       gnome-music
@@ -149,6 +222,7 @@
       gnome-console
       gnome-terminal
       gnome-system-monitor
+      gnome-software
       geary
       evince
       totem
@@ -179,13 +253,14 @@
         gnomeExtensions.dash-to-dock
         gnomeExtensions.wallpaper-slideshow
         gnomeExtensions.gsconnect
-        gnomeExtensions.gtile
         gnomeExtensions.xwayland-indicator
         gnomeExtensions.vitals
-        gnomeExtensions.window-gestures
         gnomeExtensions.user-themes
-        gnomeExtensions.tiling-shell
-        gnomeExtensions.search-light
+        gnomeExtensions.logo-menu
+        gnomeExtensions.hot-edge
+        gnomeExtensions.caffeine
+        gnomeExtensions.compiz-alike-magic-lamp-effect
+        gnomeExtensions.paperwm
 
         # Theming
         yaru-theme
