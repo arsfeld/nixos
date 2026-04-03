@@ -43,7 +43,10 @@
           # Nix tools
           alejandra
           attic-client
-          colmena
+          (colmena.override {
+            nix = inputs.determinate.inputs.nix.packages.${system}.nix;
+            nix-eval-jobs = inputs.det-nix-eval-jobs.packages.${system}.default;
+          })
           inputs.deploy-rs.packages."${pkgs.stdenv.hostPlatform.system}".default
           git
           jq
