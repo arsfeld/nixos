@@ -26,6 +26,12 @@
       default = "amd";
       description = "CPU vendor for frequency driver selection (amd_pstate or intel_pstate)";
     };
+
+    performanceOsd = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Enable MangoHud performance overlay with Steam Deck-style preset cycling";
+    };
   };
 
   config = lib.mkIf config.constellation.gaming.enable {
@@ -175,6 +181,9 @@
 
         # Native GTK theme for Steam
         package = pkgs.steam.override {
+          extraEnv = lib.optionalAttrs config.constellation.gaming.performanceOsd {
+            MANGOHUD = "1";
+          };
           extraPkgs = pkgs:
             with pkgs; [
               adwsteamgtk # Adwaita theme manager for Steam

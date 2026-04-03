@@ -28,7 +28,7 @@
   };
 
   # Display scaling for high-DPI laptop screen
-  services.xserver.desktopManager.gnome.extraGSettingsOverrides = ''
+  services.desktopManager.gnome.extraGSettingsOverrides = ''
     [org.gnome.desktop.interface]
     text-scaling-factor=1.25
   '';
@@ -80,6 +80,31 @@
   services.asusd = {
     enable = true;
     enableUserService = true;
+    fanCurvesConfig = {
+      text = ''
+        (
+            profiles: (
+                balanced: [
+                    (
+                        fan: CPU,
+                        pwm: (0, 0, 0, 38, 89, 128, 191, 255),
+                        temp: (30, 40, 50, 65, 75, 80, 90, 100),
+                        enabled: true,
+                    ),
+                    (
+                        fan: GPU,
+                        pwm: (0, 0, 0, 26, 77, 115, 179, 255),
+                        temp: (30, 40, 50, 65, 75, 80, 90, 100),
+                        enabled: true,
+                    ),
+                ],
+                performance: [],
+                quiet: [],
+                custom: [],
+            ),
+        )
+      '';
+    };
   };
 
   # Audio enhancements for G14 speakers
@@ -193,9 +218,8 @@
       CPU_BOOST_ON_AC = 0; # Disable boost on AC for quieter operation
       CPU_BOOST_ON_BAT = 0; # Keep boost disabled on battery for better efficiency
 
-      # Platform profiles
-      PLATFORM_PROFILE_ON_AC = "balanced"; # Balanced for quieter operation
-      PLATFORM_PROFILE_ON_BAT = "balanced"; # Changed from low-power to balanced
+      # PLATFORM_PROFILE removed: changing platform profile via TLP
+      # disables asusd custom fan curves (ACPI firmware behavior)
 
       # Disk power management
       DISK_IDLE_SECS_ON_AC = 0;
@@ -241,21 +265,19 @@
     };
   };
 
-  # Thermald for thermal management
-  services.thermald.enable = true;
+  # thermald disabled: Intel daemon, unnecessary on AMD Ryzen 5900HS
+  services.thermald.enable = false;
 
   # Power profiles daemon (works with GNOME)
   services.power-profiles-daemon.enable = false; # Disabled as TLP handles this
 
   # Suspend then hibernate for power button and lid actions
-  services.logind = {
-    lidSwitch = "suspend-then-hibernate";
-    lidSwitchExternalPower = "suspend-then-hibernate";
-    settings.Login = {
-      HandlePowerKey = "suspend-then-hibernate";
-      IdleAction = "suspend-then-hibernate";
-      IdleActionSec = "30min";
-    };
+  services.logind.settings.Login = {
+    HandleLidSwitch = "suspend-then-hibernate";
+    HandleLidSwitchExternalPower = "suspend-then-hibernate";
+    HandlePowerKey = "suspend-then-hibernate";
+    IdleAction = "suspend-then-hibernate";
+    IdleActionSec = "30min";
   };
 
   # Set your time zone
