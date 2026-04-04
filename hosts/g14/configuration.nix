@@ -199,7 +199,6 @@
   systemd.sleep.extraConfig = ''
     HibernateDelaySec=30min
     SuspendState=mem
-    HibernateState=disk
   '';
 
   # Advanced Power Management with TLP
@@ -271,13 +270,13 @@
   # Power profiles daemon (works with GNOME)
   services.power-profiles-daemon.enable = false; # Disabled as TLP handles this
 
-  # Suspend then hibernate for power button and lid actions
+  # Suspend then hibernate for lid/power button actions
+  # Note: IdleAction removed - it counts suspend time as idle time, causing
+  # immediate re-suspend after resume. GNOME handles idle suspend on its own.
   services.logind.settings.Login = {
     HandleLidSwitch = "suspend-then-hibernate";
     HandleLidSwitchExternalPower = "suspend-then-hibernate";
     HandlePowerKey = "suspend-then-hibernate";
-    IdleAction = "suspend-then-hibernate";
-    IdleActionSec = "30min";
   };
 
   # Set your time zone
