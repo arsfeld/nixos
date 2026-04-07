@@ -19,13 +19,9 @@ graph TB
     subgraph "Workstations"
         Raider[Raider<br/>Gaming Desktop]
         G14[G14<br/>Laptop]
-        Striker[Striker<br/>Desktop]
     end
     
     subgraph "Special Purpose"
-        Core[Core<br/>Test System]
-        HPE[HPE<br/>Server]
-        Micro[Micro<br/>Compact]
         Raspi3[Raspi3<br/>ARM Device]
     end
     
@@ -57,15 +53,11 @@ graph TB
 |------|------|--------------|----------|
 | **[Raider](desktop.md#raider)** | Gaming desktop | x86_64 | NVIDIA GPU, Steam |
 | **[G14](desktop.md#g14)** | Laptop | x86_64 | Portable development |
-| **[Striker](desktop.md#striker)** | Desktop | x86_64 | General purpose |
 
 ### 🔧 Special Purpose
 
 | Host | Role | Architecture | Purpose |
 |------|------|--------------|---------|
-| **[Core](embedded.md#core)** | Test system | x86_64 | Development testing |
-| **[HPE](embedded.md#hpe)** | Server | x86_64 | Experimental |
-| **[Micro](embedded.md#micro)** | Compact PC | x86_64 | Low-power services |
 | **[Raspi3](embedded.md#raspi3)** | Raspberry Pi | aarch64 | IoT projects |
 
 ## Common Configuration

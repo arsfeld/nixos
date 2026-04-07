@@ -38,11 +38,6 @@ creation_rules:
           - *user_arosenfeld
           - *host_cottage
 
-  - path_regex: secrets/sops/micro\.yaml$
-    key_groups:
-      - age:
-          - *user_arosenfeld
-
   - path_regex: secrets/sops/common\.yaml$
     key_groups:
       - age:

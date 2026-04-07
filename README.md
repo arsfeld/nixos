@@ -12,7 +12,6 @@ Personal NixOS configuration managing multiple machines using Nix Flakes.
 - 💾 **storage** - NAS server (Intel 13th gen, 12c/24t, 32GB, ~500GB) - media services and backups
 - ☁️ **cloud** - Gateway proxy (ARM Neoverse, 4c, 24GB) - public services reverse proxy
 - 🏡 **cottage** - Secondary server with ZFS storage *(offline)*
-- 📧 **micro** - Mail server running mox *(offline)*
 - 🔀 **router** - Network router (Intel N5105, 4c, 8GB)
 - 🏠 **r2s** - Backup router + home automation (Rockchip RK3328 ARM, 4c, 1GB) - Home Assistant
 
@@ -20,15 +19,9 @@ Personal NixOS configuration managing multiple machines using Nix Flakes.
 - 🖨️ **octopi** - Raspberry Pi running OctoPrint *(offline)*
 - 🍓 **raspi3** - Raspberry Pi 3 *(offline)*
 
-### ☁️ Cloud
-- 🌐 **cloud-br** - Oracle Cloud ARM instance *(offline)*
-- 🖥️ **core** - Minimal server instance *(offline)*
-- 🏢 **hpe** - HPE server for virtualization *(offline)*
-
 ### 🖥️ Desktops & Laptops
 - 🎮 **raider** - ITX desktop (ERYING G660, i5-12500H 12c/24t, RX 6650 XT, 32GB, 500GB+2TB NVMe)
 - 💻 **g14** - ASUS ROG Zephyrus G14 laptop *(offline)*
-- 🎯 **striker** - Gaming desktop *(offline)*
 
 ## ✨ Features
 

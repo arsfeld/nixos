@@ -26,7 +26,7 @@ The `agenix -r` command appears to have failed silently, encrypting empty conten
 - keycloak-pass.age
 - plausible-admin-password.age
 - restic-rest-auth.age
-- restic-rest-micro.age
+- restic-rest-micro.age (decommissioned)
 - tailscale-env.age
 
 ### Partially Working (Lower Priority)
