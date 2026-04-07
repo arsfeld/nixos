@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is a personal NixOS configuration repository that manages multiple machines using Nix Flakes and flake-parts. It includes configurations for servers (storage, cloud), embedded devices (R2S, Raspberry Pi), and desktop systems (raider, core, g14, striker).
+This is a personal NixOS configuration repository that manages multiple machines using Nix Flakes and flake-parts. It includes configurations for servers (storage, cloud), embedded devices (R2S, Raspberry Pi), and desktop systems (raider, g14).
 
 ## Key Commands
 
@@ -54,7 +54,11 @@ Configured via `.sops.yaml`. All hosts use `constellation.sops.enable = true`. U
 - **router** - Custom network device (no constellation modules, standalone config)
 - **r2s** - ARM-based router (NanoPi R2S)
 - **raspi3** - Raspberry Pi 3
-- **core, hpe, g14, striker** - Various desktops/laptops
+- **g14** - ASUS ROG Zephyrus G14 laptop
+- **cottage** - Cottage system
+- **octopi** - OctoPrint device
+
+For hardware specs (CPU, RAM, disks), see [HARDWARE.md](HARDWARE.md).
 
 ## Architecture Overview
 

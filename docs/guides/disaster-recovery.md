@@ -24,16 +24,15 @@ REPO="https://github.com/arsfeld/nixos.git"
 ### Host Disk Configuration
 ```bash
 # Hosts using disko (automated partitioning)
-DISKO_HOSTS="storage hpe g14 router"
+DISKO_HOSTS="storage g14 router"
 
 # Default devices for disko hosts
 # storage: /dev/nvme0n1 (or check disko-config.nix)
-# hpe: /dev/sda
 # g14: check disko-config.nix
 # router: /dev/nvme0n1
 
 # Hosts requiring manual partitioning
-MANUAL_HOSTS="cloud raider striker core micro raspi3 r2s"
+MANUAL_HOSTS="cloud raider raspi3 r2s"
 ```
 
 ## Scenario 1: Storage Server Failure
@@ -51,7 +50,7 @@ dd if=latest-nixos-minimal-x86_64-linux.iso of=/dev/sdX bs=4M status=progress
 
 #### Partition New Disk
 
-For hosts with disko configuration (storage, hpe, g14, router):
+For hosts with disko configuration (storage, g14, router):
 
 ```bash
 # Clone repository to get disko config
@@ -64,7 +63,6 @@ nix run github:nix-community/disko -- \
   /dev/nvme0n1
 
 # For other disko-enabled hosts
-# hpe: /dev/sda
 # g14: check disko-config.nix for device
 # router: /dev/nvme0n1
 ```
@@ -127,7 +125,7 @@ nixos-generate-config --root /mnt
 cp /mnt/etc/nixos/hardware-configuration.nix /mnt/nixos/hosts/storage/
 
 # Install NixOS
-# For disko hosts (storage, hpe, g14, router):
+# For disko hosts (storage, g14, router):
 nixos-install --flake /tmp/nixos-config#storage --no-root-passwd
 
 # For non-disko hosts:

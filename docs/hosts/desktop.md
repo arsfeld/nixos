@@ -84,40 +84,6 @@ The desktop systems are personal workstations used for development, gaming, and 
 - Light gaming
 - Battery life optimization
 
-### Striker - Development Desktop
-
-#### Hardware Specifications
-- **CPU**: AMD Ryzen 7 5800X (8 cores)
-- **GPU**: AMD RX 6700 XT
-- **RAM**: 32GB DDR4
-- **Storage**: 512GB NVMe + 2TB SSD
-- **Monitors**: Dual 27" 1440p
-
-#### Configuration Focus
-```nix
-{
-  # Development tools
-  virtualisation = {
-    docker.enable = true;
-    libvirtd.enable = true;
-    podman.enable = true;
-  };
-  
-  # AMD GPU
-  hardware.opengl = {
-    enable = true;
-    driSupport = true;
-    extraPackages = [ pkgs.amdvlk ];
-  };
-}
-```
-
-#### Development Environment
-- **IDEs**: VS Code, IntelliJ IDEA
-- **Containers**: Docker, Podman
-- **VMs**: libvirt/QEMU
-- **Languages**: Nix, Rust, Go, Python
-
 ## Common Configuration
 
 ### Base Desktop Module
