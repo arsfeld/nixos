@@ -103,8 +103,8 @@
     communityScripts = pkgs.fetchFromGitHub {
       owner = "stashapp";
       repo = "CommunityScripts";
-      rev = "refs/heads/main";
-      hash = "sha256-QOtT6S1hB0O8k1VNgyAD6kYa9DPk9BW1pRtYylCxBjg=";
+      rev = "eff9999aa884f030701f70dee36711603bab8b6d";
+      hash = "sha256-Bx4C1Ms5ziQAQTvdhgvIM4ZlBS3IqWNiJK0VEypKxEA=";
       sparseCheckout = ["plugins"];
     };
 
