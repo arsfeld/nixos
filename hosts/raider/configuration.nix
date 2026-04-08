@@ -89,10 +89,8 @@
       stashPython = prev.python3.withPackages (ps:
         with ps; [
           final.stashapp-tools
-          aiohttp # Required by AITagger plugin
-          pydantic # Required by AITagger plugin
-          imageio # Required by AITagger plugin (base package)
-          imageio-ffmpeg # Required by AITagger plugin (ffmpeg extra)
+          aiohttp
+          pydantic
         ]);
     })
   ];
@@ -132,7 +130,6 @@
     plugins = [
       (mkStashPlugin "CommunityScriptsUILibrary") # UI library used by other community plugins
       (mkStashPlugin "stashAI") # AI-powered features
-      (mkStashPlugin "AITagger") # AI-based tagging
     ];
     settings = {
       host = "0.0.0.0";
