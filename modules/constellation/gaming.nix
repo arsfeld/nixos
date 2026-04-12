@@ -426,6 +426,46 @@
       };
     };
 
+    # Process priority daemon — lowers Steam client/download CPU priority
+    # while leaving games at normal priority. CachyOS rules cover game
+    # processes (wine_proton/linux-native) with "Game" type (nice -5), so
+    # games launched by Steam get boosted back up even if they inherit
+    # Steam's nice value at fork time.
+    services.ananicy = {
+      enable = true;
+      package = pkgs.ananicy-cpp;
+      rulesProvider = pkgs.ananicy-rules-cachyos;
+      # Native Linux Steam client rules — CachyOS rules only cover Windows
+      # Steam.exe under Wine. We use nice+ionice (not SCHED_IDLE) so that
+      # games inheriting policy aren't stuck at idle priority.
+      extraRules = [
+        {
+          name = "steam";
+          nice = 15;
+          ioclass = "best-effort";
+          ionice = 7;
+        }
+        {
+          name = "steamwebhelper";
+          nice = 15;
+          ioclass = "best-effort";
+          ionice = 7;
+        }
+        {
+          name = "steam-runtime-l";
+          nice = 15;
+          ioclass = "best-effort";
+          ionice = 7;
+        }
+        {
+          name = "srt-bwrap";
+          nice = 15;
+          ioclass = "best-effort";
+          ionice = 7;
+        }
+      ];
+    };
+
     # Gaming-related aliases
     programs.bash.shellAliases = lib.mkIf config.constellation.gaming.gamingMode {
       gaming-on = "sudo systemctl start gaming-mode";

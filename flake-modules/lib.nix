@@ -21,6 +21,7 @@
     # Common overlays used everywhere
     overlays = [
       (import ../overlays/python-packages.nix)
+      (import ../overlays/ananicy-cpp.nix)
       # Load packages from ./packages directory using haumea
       (final: prev: loadPackages final)
     ];
