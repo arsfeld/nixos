@@ -55,8 +55,8 @@
       )
     ];
 
-    homeManagerModules = [
-      inputs.home-manager.nixosModules.home-manager
+    homeManagerModulesFor = hmInput: [
+      hmInput.nixosModules.home-manager
       {
         home-manager.sharedModules = [
           inputs.nix-index-database.homeModules.nix-index
@@ -67,12 +67,14 @@
         home-manager.users.arosenfeld = import ../home/home.nix;
       }
     ];
+    homeManagerModules = homeManagerModulesFor inputs.home-manager;
     lightHosts = ["raspi3" "octopi" "r2s"];
   in {
     inherit
       loadPackages
       overlays
       baseModules
+      homeManagerModulesFor
       homeManagerModules
       lightHosts
       ;
@@ -80,15 +82,17 @@
     mkLinuxSystem = {
       mods,
       enableHomeManager ? true,
+      nixpkgsInput ? inputs.nixpkgs,
+      homeManagerInput ? inputs.home-manager,
     }:
-      inputs.nixpkgs.lib.nixosSystem {
+      nixpkgsInput.lib.nixosSystem {
         # Arguments to pass to all modules.
         specialArgs = {inherit self inputs;};
         modules =
           baseModules
           ++ (
             if enableHomeManager
-            then homeManagerModules
+            then homeManagerModulesFor homeManagerInput
             else []
           )
           ++ mods;

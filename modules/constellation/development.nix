@@ -117,8 +117,8 @@
       ]
       ++ lib.optionals config.constellation.development.nodejs [
         nodejs_20
-        nodePackages.pnpm
-        nodePackages.yarn
+        pnpm
+        yarn
         bun
         deno
       ]

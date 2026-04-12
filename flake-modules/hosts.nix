@@ -17,15 +17,27 @@
     in
       builtins.attrNames validHosts;
 
+    # Hosts that use nixpkgs-unstable instead of stable nixpkgs
+    unstableHosts = ["raider"];
+
     nixosConfigurations = builtins.listToAttrs (
       map (
         hostName: let
           # Check if host has a disko config file
           hasDisko = builtins.pathExists ../hosts/${hostName}/disko-config.nix;
+          isUnstable = builtins.elem hostName self.unstableHosts;
         in {
           name = hostName;
           value = self.lib.mkLinuxSystem {
             enableHomeManager = !(builtins.elem hostName self.lib.lightHosts);
+            nixpkgsInput =
+              if isUnstable
+              then inputs.nixpkgs-unstable
+              else inputs.nixpkgs;
+            homeManagerInput =
+              if isUnstable
+              then inputs.home-manager-unstable
+              else inputs.home-manager;
             mods =
               (
                 if hasDisko
