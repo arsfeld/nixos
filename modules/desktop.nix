@@ -28,10 +28,8 @@
     constellation.gnome = {
       enable = true;
       gnomeExtensions = true;
-      gaming = true;
       multimedia = true;
       virtualization = true;
-      # Keep the default flatpak packages from constellation.gnome
     };
   };
 }
