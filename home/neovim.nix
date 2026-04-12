@@ -342,7 +342,7 @@
     extraPackages = with pkgs; [
       # LSP servers
       nil
-      nodePackages.typescript-language-server
+      typescript-language-server
       pyright
       rust-analyzer
       gopls
@@ -352,7 +352,7 @@
       alejandra
       rustfmt
       black
-      nodePackages.prettier
+      prettierd
 
       # For telescope
       ripgrep

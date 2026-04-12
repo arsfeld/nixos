@@ -10,6 +10,11 @@
       # Check if host has a disko config file
       hasDisko = builtins.pathExists ../hosts/${hostName}/disko-config.nix;
       enableHM = !(builtins.elem hostName self.lib.lightHosts);
+      isUnstable = builtins.elem hostName self.unstableHosts;
+      hmModules =
+        if isUnstable
+        then self.lib.homeManagerModulesFor inputs.home-manager-unstable
+        else self.lib.homeManagerModules;
     in {
       deployment = {
         targetHost = "${hostName}.bat-boa.ts.net";
@@ -20,7 +25,7 @@
         self.lib.baseModules
         ++ (
           if enableHM
-          then self.lib.homeManagerModules
+          then hmModules
           else []
         )
         ++ (
@@ -44,17 +49,28 @@
       )
       self.hosts;
 
-    # Define nixpkgs for each aarch64 host to enable cross-compilation
-    nodeNixpkgs = builtins.listToAttrs (
-      map (hostName: {
-        name = hostName;
-        value = import inputs.nixpkgs {
-          system = "aarch64-linux";
-          overlays = self.lib.overlays;
-        };
-      })
-      aarch64Hosts
-    );
+    # Define nixpkgs overrides: aarch64 hosts for cross-compilation, unstable hosts for latest packages
+    nodeNixpkgs =
+      builtins.listToAttrs (
+        map (hostName: {
+          name = hostName;
+          value = import inputs.nixpkgs {
+            system = "aarch64-linux";
+            overlays = self.lib.overlays;
+          };
+        })
+        aarch64Hosts
+      )
+      // builtins.listToAttrs (
+        map (hostName: {
+          name = hostName;
+          value = import inputs.nixpkgs-unstable {
+            system = "x86_64-linux";
+            overlays = self.lib.overlays;
+          };
+        })
+        self.unstableHosts
+      );
   in
     {
       meta = {
