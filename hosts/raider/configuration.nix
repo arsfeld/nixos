@@ -1,5 +1,6 @@
 {
   self,
+  inputs,
   config,
   lib,
   pkgs,
@@ -35,13 +36,7 @@
 
   # Enable constellation modules
   constellation = {
-    gnome = {
-      enable = true;
-      theme = {
-        gtk = "Yaru-purple-dark";
-        icon = "Yaru-purple";
-      };
-    };
+    gnome.enable = true;
     niri.enable = false;
     cosmic.enable = false;
     gaming = {
@@ -67,6 +62,14 @@
 
   # Create stashapp-tools Python package (needed by AI Tagger plugin)
   nixpkgs.overlays = [
+    # Pull gamescope from nixpkgs-unstable for a newer release than stable ships
+    (final: prev: {
+      gamescope =
+        (import inputs.nixpkgs-unstable {
+          inherit (prev.stdenv.hostPlatform) system;
+          config.allowUnfree = true;
+        }).gamescope;
+    })
     (final: prev: {
       stashapp-tools = prev.python3Packages.buildPythonPackage rec {
         pname = "stashapp-tools";
@@ -254,9 +257,6 @@
     enable = true;
     powertop.enable = false; # Disabled - causes aggressive power management that freezes input
   };
-
-  # Disable GNOME auto-suspend
-  services.displayManager.gdm.autoSuspend = false;
 
   # Environment variables for games
   environment.sessionVariables = {

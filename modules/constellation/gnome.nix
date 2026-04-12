@@ -35,12 +35,6 @@
       description = "Install GNOME extensions and tweaks";
     };
 
-    gaming = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = "Enable gaming support (Steam, Wine, emulators, game launchers)";
-    };
-
     multimedia = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -278,17 +272,6 @@
         pantheon.elementary-gtk-theme
         pantheon.elementary-icon-theme
       ]
-      ++ lib.optionals config.constellation.gnome.gaming [
-        # Gaming support
-        wineWowPackages.stable
-        gamescope
-        goverlay
-        vkbasalt
-        protonplus
-        ryubing
-        mupen64plus
-        rpcs3
-      ]
       ++ lib.optionals config.constellation.gnome.multimedia [
         # Multimedia support
         plex-mpv-shim
@@ -334,9 +317,6 @@
         # Elementary wallpapers (no GNOME XML, available for slideshow/manual)
         pantheon.elementary-wallpapers
       ];
-
-    # Gaming hardware support
-    hardware.steam-hardware.enable = lib.mkIf config.constellation.gnome.gaming true;
 
     # Virtual machine management
     programs.virt-manager.enable = lib.mkIf config.constellation.gnome.virtualization true;

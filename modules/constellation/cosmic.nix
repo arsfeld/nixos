@@ -10,12 +10,6 @@
   options.constellation.cosmic = {
     enable = lib.mkEnableOption "COSMIC desktop environment";
 
-    gaming = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Enable gaming support (Steam, Wine, gamescope)";
-    };
-
     multimedia = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -72,14 +66,6 @@
         vim
         wget
       ]
-      ++ lib.optionals cfg.gaming [
-        # Gaming support
-        wineWowPackages.stable
-        gamescope
-        goverlay
-        vkbasalt
-        protonplus
-      ]
       ++ lib.optionals cfg.multimedia [
         # Multimedia support
         celluloid
@@ -91,9 +77,6 @@
         gst_all_1.gst-libav
         gst_all_1.gst-vaapi
       ];
-
-    # Gaming hardware support
-    hardware.steam-hardware.enable = lib.mkIf cfg.gaming true;
 
     # Flatpak support with configured packages
     services.flatpak = {
