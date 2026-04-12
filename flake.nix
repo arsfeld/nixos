@@ -25,6 +25,7 @@
     eh5.url = "github:EHfive/flakes"; # EH5's flake collection (fake-hwclock module)
     eh5.inputs.nixpkgs.follows = "nixpkgs";
     vpn-confinement.url = "github:Maroka-chan/VPN-Confinement"; # VPN namespace confinement for services
+    niri.url = "github:sodiboo/niri-flake"; # Niri compositor with declarative Nix config
     det-nix-eval-jobs.url = "https://flakehub.com/f/DeterminateSystems/nix-eval-jobs/*"; # Determinate Nix eval-jobs
   };
 

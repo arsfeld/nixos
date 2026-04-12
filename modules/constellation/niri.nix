@@ -1,5 +1,5 @@
 # Niri Wayland compositor configuration for constellation
-# Provides a scrollable-tiling Wayland compositor with GNOME-like defaults
+# Uses niri-flake for declarative, build-time-validated configuration
 {
   config,
   pkgs,
@@ -80,8 +80,23 @@
       config.allowUnfree = true;
     };
   in {
-    # Enable niri compositor
+    # Mutual exclusion with other desktop environments
+    assertions = [
+      {
+        assertion = !config.constellation.gnome.enable;
+        message = "constellation.niri and constellation.gnome cannot be enabled simultaneously";
+      }
+      {
+        assertion = !config.constellation.cosmic.enable;
+        message = "constellation.niri and constellation.cosmic cannot be enabled simultaneously";
+      }
+    ];
+
+    # Enable niri compositor (provided by niri-flake, replaces nixpkgs module)
     programs.niri.enable = true;
+
+    # Enable niri-flake binary cache on niri hosts
+    niri-flake.cache.enable = true;
 
     # Display manager configuration
     services.xserver.enable = true;
@@ -139,7 +154,7 @@
       enable32Bit = true;
     };
 
-    # Audio with PipeWire (GNOME default)
+    # Audio with PipeWire
     services.pipewire = {
       enable = true;
       alsa.enable = true;
@@ -147,7 +162,7 @@
       pulse.enable = true;
       jack.enable = true;
     };
-    security.rtkit.enable = true; # For PipeWire realtime scheduling
+    security.rtkit.enable = true;
 
     # Bluetooth support
     hardware.bluetooth = {
@@ -179,20 +194,19 @@
     environment.systemPackages = with pkgs;
       [
         # Core compositor utilities
-        xwayland-satellite # XWayland support for legacy apps
+        xwayland-satellite # XWayland support (auto-managed by niri v25.08+, but must be installed)
         wl-clipboard # Clipboard support
         cliphist # Clipboard history
+
+        # Status bar with native niri support
+        waybar
 
         # Terminal
         pkgs-unstable.ghostty
         alacritty # Backup terminal
 
-        # Application launcher - anyrun for polished look
-        anyrun
-        fuzzel # Backup launcher
-
-        # Bar and widgets - eww for declarative configuration
-        eww
+        # Application launcher
+        fuzzel
 
         # Notifications
         mako
@@ -201,7 +215,6 @@
         # Screen locking and idle
         swaylock
         swayidle
-        swaylock-effects # Fancy lock screen
 
         # Wallpaper
         swaybg
@@ -211,25 +224,18 @@
         grim # Screenshot
         slurp # Region selection
         swappy # Screenshot annotation
-        wf-recorder # Screen recording
-        wl-screenrec # Alternative screen recorder
+        wl-screenrec # Hardware-accelerated screen recording
 
         # Audio control
         pavucontrol
         playerctl
-        pamixer
 
         # Brightness control
         brightnessctl
         wlsunset # Night light / blue light filter
 
-        # Polkit authentication agent
-        polkit_gnome
-
-        # File manager
-        xfce.thunar
-        xfce.thunar-volman
-        xfce.thunar-archive-plugin
+        # Polkit authentication agent (GTK, actively maintained)
+        mate.mate-polkit
 
         # System utilities
         networkmanagerapplet
@@ -296,7 +302,6 @@
         nixos-artwork.wallpapers.moonscape
         nixos-artwork.wallpapers.nineish-dark-gray
         fedora-backgrounds.f38
-        pop-hp-wallpapers
       ];
 
     # Gaming hardware support
@@ -308,7 +313,7 @@
       packages = cfg.flatpakPackages;
     };
 
-    # Font configuration (same as GNOME module)
+    # Font configuration
     fonts = {
       fontconfig = {
         enable = true;

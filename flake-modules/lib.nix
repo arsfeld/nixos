@@ -31,6 +31,8 @@
       inputs.nix-flatpak.nixosModules.nix-flatpak
       inputs.harmonia.nixosModules.harmonia
       inputs.vpn-confinement.nixosModules.default
+      inputs.niri.nixosModules.niri
+      {niri-flake.cache.enable = inputs.nixpkgs.lib.mkDefault false;} # Disable niri cachix globally; enabled per-host in constellation.niri
       {
         nixpkgs.overlays = overlays;
       }
