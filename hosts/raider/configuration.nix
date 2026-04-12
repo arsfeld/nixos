@@ -46,7 +46,6 @@
     development.enable = true;
     docker.enable = true; # Enable Docker runtime
     backup.enable = true; # Enable automated backups
-    logs-client.enable = false; # Promtail removed in nixpkgs-unstable; TODO: migrate to alloy
   };
 
   # Project Isolation VMs (Tailscale disabled for now — uses libvirt network SSH)

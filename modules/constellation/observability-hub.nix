@@ -11,8 +11,7 @@
 # - Alertmanager: Alert routing and notifications
 #
 # The hub automatically scrapes all constellation hosts that have
-# metrics-client enabled and collects logs from all hosts with
-# logs-client enabled. It also supports federation with the router's
+# metrics-client enabled. It also supports federation with the router's
 # VictoriaMetrics instance for network-wide observability.
 {
   pkgs,
