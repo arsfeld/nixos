@@ -218,11 +218,18 @@
       # Gamescope compositor
       gamescope = {
         enable = true;
-        capSysNice = true;
+        capSysNice = false;
         args = [
           "--adaptive-sync"
           "--immediate-flips"
           "--force-grab-cursor"
+          # FSR upscaling — sharp Lanczos+RCAS instead of blurry bilinear
+          # when a game's render resolution doesn't match the output.
+          "-F fsr"
+          "-W 3440"
+          "-H 1440"
+          "-r 144"
+          "-f"
         ];
       };
 
