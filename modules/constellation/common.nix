@@ -69,15 +69,13 @@ with lib; {
         }
       ];
 
-      #registry.nixpkgs.flake = inputs.nixpkgs;
-
-      # This will add each flake input as a registry
-      # To make nix3 commands consistent with your flake
-      registry = lib.mapAttrs (_: value: {flake = value;}) inputs;
+      # Add each flake input as a registry entry.
+      # Exclude nixpkgs/nixpkgs-unstable — handled by nixpkgs' built-in nixpkgs-flake module.
+      registry = lib.mapAttrs (_: value: {flake = value;}) (builtins.removeAttrs inputs ["nixpkgs" "nixpkgs-unstable"]);
 
       # This will additionally add your inputs to the system's legacy channels
       # Making legacy nix commands consistent as well, awesome!
-      nixPath = lib.mapAttrsToList (key: value: "${key}=${value.to.path}") config.nix.registry;
+      nixPath = lib.mapAttrsToList (key: value: "${key}=${value.to.path}") (lib.filterAttrs (_: value: value.to ? path) config.nix.registry);
     };
 
     services.avahi = {

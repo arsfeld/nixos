@@ -46,6 +46,7 @@
     development.enable = true;
     docker.enable = true; # Enable Docker runtime
     backup.enable = true; # Enable automated backups
+    logs-client.enable = false; # Promtail removed in nixpkgs-unstable; TODO: migrate to alloy
   };
 
   # Project Isolation VMs (Tailscale disabled for now — uses libvirt network SSH)
@@ -62,14 +63,6 @@
 
   # Create stashapp-tools Python package (needed by AI Tagger plugin)
   nixpkgs.overlays = [
-    # Pull gamescope from nixpkgs-unstable for a newer release than stable ships
-    (final: prev: {
-      gamescope =
-        (import inputs.nixpkgs-unstable {
-          inherit (prev.stdenv.hostPlatform) system;
-          config.allowUnfree = true;
-        }).gamescope;
-    })
     (final: prev: {
       stashapp-tools = prev.python3Packages.buildPythonPackage rec {
         pname = "stashapp-tools";

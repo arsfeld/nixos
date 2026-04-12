@@ -58,7 +58,7 @@ in {
         devbox
         devenv
         direnv
-        dogdns
+        doggo
         dust
         jq
         just
