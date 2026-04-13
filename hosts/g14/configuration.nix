@@ -22,6 +22,9 @@
     gaming = {
       enable = true;
       cpuVendor = "amd";
+      # Don't run a Sunshine streaming host on a laptop — it binds to a
+      # graphical session and would idle-drain the battery.
+      streaming.enable = false;
     };
     development.enable = true;
     virtualization.enable = true;
