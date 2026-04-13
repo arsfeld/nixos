@@ -585,26 +585,21 @@
     networking.firewall = {
       allowedTCPPorts = [27036 27037]; # Steam
       allowedUDPPorts = [27031 27036]; # Steam
-
-      # Sunshine ports scoped to the Tailscale interface only — no LAN or
-      # public exposure. Ports are the default-port (47989) offsets documented
-      # at https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/advanced_usage.html#port
-      interfaces."tailscale0" = lib.mkIf config.constellation.gaming.streaming.enable {
-        allowedTCPPorts = [47984 47989 47990 48010];
-        allowedUDPPorts = [47998 47999 48000 48002 48010];
-      };
     };
 
     # Sunshine: self-hosted Moonlight stream host. Runs as a systemd user
     # service bound to graphical-session.target, so it only starts after a
     # graphical login. capSysAdmin installs a setuid wrapper needed for
-    # Wayland KMS screen capture. First-time pairing is manual: browse to
-    # http://<host>.bat-boa.ts.net:47990 once from a Tailscale peer, create
-    # an admin account, then pair Moonlight clients from the web UI.
+    # Wayland KMS screen capture. openFirewall lets the nixpkgs module
+    # open the port offsets it knows about (47984, 47989, 47990, 48010
+    # and UDP 47998-48002, 48010) on all interfaces - reachable from LAN
+    # and Tailscale alike. First-time pairing is manual: browse to
+    # http://<host>:47990, create an admin account, then pair Moonlight
+    # clients from the web UI.
     services.sunshine = lib.mkIf config.constellation.gaming.streaming.enable {
       enable = true;
       capSysAdmin = true;
-      openFirewall = false; # firewall scoped to tailscale0 above
+      openFirewall = true;
     };
 
     # Fonts for game compatibility
