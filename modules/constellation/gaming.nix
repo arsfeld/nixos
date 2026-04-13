@@ -32,6 +32,45 @@
       default = true;
       description = "Enable MangoHud performance overlay with Steam Deck-style preset cycling";
     };
+
+    scheduler = lib.mkOption {
+      type = lib.types.enum ["none" "lavd" "bpfland" "rusty"];
+      default = "lavd";
+      description = ''
+        sched_ext BPF scheduler to run via services.scx.
+        - lavd: Latency-Aware Virtual Deadline (recommended, mixed desktop + dev + gaming)
+        - bpfland: Simpler priority model, pure gaming boxes
+        - rusty: Multi-domain round-robin, heavy compile workloads (hurts game latency)
+        - none: Stock CFS (no scx daemon)
+        The scx daemon auto-unloads the BPF program on failure, falling back to CFS.
+      '';
+    };
+
+    wineTuning = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Wine/Proton performance tuning: ntsync kernel module (+ uaccess udev
+          rule), UMU launcher, moonlight-qt client, and relocation of DXVK/
+          VKD3D/Mesa shader caches to /var/cache with higher size limits.
+        '';
+      };
+    };
+
+    streaming = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Sunshine game streaming host for Moonlight clients. Firewall is
+          scoped to the Tailscale interface only — no LAN exposure. Runs as
+          a user service bound to graphical-session.target, so a graphical
+          login is required before it's reachable. First-time pairing is a
+          manual one-time step via http://HOST.bat-boa.ts.net:47990.
+        '';
+      };
+    };
   };
 
   config = lib.mkIf config.constellation.gaming.enable {
@@ -122,21 +161,49 @@
         v4l2loopback # Virtual camera support for streaming
       ];
 
+      # ntsync: Wine/Proton synchronization primitive, in-tree since 6.14.
+      # Loading the module eagerly exposes /dev/ntsync to the udev rule below.
+      kernelModules = lib.mkIf config.constellation.gaming.wineTuning.enable ["ntsync"];
+
       blacklistedKernelModules = [
         "iTCO_wdt" # Disable watchdog
         "sp5100_tco" # AMD watchdog
       ];
     };
 
-    # I/O scheduler tuning per device type
-    services.udev.extraRules = lib.mkIf config.constellation.gaming.kernelOptimizations ''
-      # NVMe: bypass scheduler (hardware handles queuing)
-      ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="nvme[0-9]*n[0-9]*", ATTR{queue/scheduler}="none"
-      # SATA SSD: mq-deadline (low overhead, good for random I/O)
-      ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="mq-deadline"
-      # HDD: bfq (fair queuing, good for rotational)
-      ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", ATTR{queue/scheduler}="bfq"
-    '';
+    # I/O scheduler tuning per device type + ntsync access for the active session
+    services.udev.extraRules =
+      lib.optionalString config.constellation.gaming.kernelOptimizations ''
+        # NVMe: bypass scheduler (hardware handles queuing)
+        ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="nvme[0-9]*n[0-9]*", ATTR{queue/scheduler}="none"
+        # SATA SSD: mq-deadline (low overhead, good for random I/O)
+        ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="mq-deadline"
+        # HDD: bfq (fair queuing, good for rotational)
+        ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", ATTR{queue/scheduler}="bfq"
+      ''
+      + lib.optionalString config.constellation.gaming.wineTuning.enable ''
+        # ntsync: grant active login session access to the Wine sync device
+        KERNEL=="ntsync", MODE="0660", TAG+="uaccess"
+      '';
+
+    # Wine/Proton tuning: relocate DXVK/VKD3D/Mesa shader caches to /var/cache
+    # (on the fast NVMe), raise size limits so AAA titles don't thrash, and
+    # tell Proton to use ntsync. 1777 sticky mode matches /tmp's trust model
+    # so multiple users can populate caches without cross-user delete.
+    environment.sessionVariables = lib.mkIf config.constellation.gaming.wineTuning.enable {
+      DXVK_STATE_CACHE_PATH = "/var/cache/dxvk";
+      DXVK_STATE_CACHE_MAX_ENTRIES = "2000000";
+      __GL_SHADER_DISK_CACHE_PATH = "/var/cache/gl-shaders";
+      MESA_SHADER_CACHE_DIR = "/var/cache/mesa-shaders";
+      MESA_SHADER_CACHE_MAX_SIZE = "2G";
+      PROTON_USE_NTSYNC = "1";
+    };
+
+    systemd.tmpfiles.rules = lib.mkIf config.constellation.gaming.wineTuning.enable [
+      "d /var/cache/dxvk 1777 root root - -"
+      "d /var/cache/gl-shaders 1777 root root - -"
+      "d /var/cache/mesa-shaders 1777 root root - -"
+    ];
 
     # Enable ZRAM for better memory management
     zramSwap = {
@@ -238,73 +305,80 @@
     };
 
     # Gaming packages
-    environment.systemPackages = with pkgs; [
-      # Gaming platforms
-      lutris
-      bottles
-      heroic
-      itch
+    environment.systemPackages = with pkgs;
+      [
+        # Gaming platforms
+        lutris
+        bottles
+        heroic
+        itch
 
-      # Wine and compatibility
-      wineWowPackages.stagingFull
-      winetricks
-      protontricks
+        # Wine and compatibility
+        wineWowPackages.stagingFull
+        winetricks
+        protontricks
 
-      # Performance monitoring
-      goverlay
-      vkbasalt
+        # Performance monitoring
+        goverlay
+        vkbasalt
 
-      # System monitoring
-      mission-center
-      resources
-      nvtopPackages.full
+        # System monitoring
+        mission-center
+        resources
+        nvtopPackages.full
 
-      # Input management
-      antimicrox
-      sc-controller
-      jstest-gtk
-      game-devices-udev-rules
+        # Input management
+        antimicrox
+        sc-controller
+        jstest-gtk
+        game-devices-udev-rules
 
-      # Streaming and recording
-      obs-studio
-      obs-studio-plugins.obs-vkcapture
-      obs-studio-plugins.obs-vaapi
-      obs-studio-plugins.obs-pipewire-audio-capture
-      gpu-screen-recorder
-      gpu-screen-recorder-gtk
+        # Streaming and recording
+        obs-studio
+        obs-studio-plugins.obs-vkcapture
+        obs-studio-plugins.obs-vaapi
+        obs-studio-plugins.obs-pipewire-audio-capture
+        gpu-screen-recorder
+        gpu-screen-recorder-gtk
 
-      # Discord
-      (discord.override {
-        withOpenASAR = true;
-        withVencord = true;
-      })
+        # Discord
+        (discord.override {
+          withOpenASAR = true;
+          withVencord = true;
+        })
 
-      # Vulkan tools
-      vulkan-tools
-      vulkan-loader
-      vulkan-validation-layers
-      vulkan-extension-layer
+        # Vulkan tools
+        vulkan-tools
+        vulkan-loader
+        vulkan-validation-layers
+        vulkan-extension-layer
 
-      # Additional gaming tools
-      r2modman
-      steamtinkerlaunch
-      legendary-gl
-      rare
+        # Additional gaming tools
+        r2modman
+        steamtinkerlaunch
+        legendary-gl
+        rare
 
-      # Steam theming
-      adwsteamgtk # GUI tool to install and manage Adwaita theme for Steam
+        # Steam theming
+        adwsteamgtk # GUI tool to install and manage Adwaita theme for Steam
 
-      # Emulation
-      retroarch
-      retroarch-assets
-      retroarch-joypad-autoconfig
+        # Emulation
+        retroarch
+        retroarch-assets
+        retroarch-joypad-autoconfig
 
-      # RGB and hardware control
-      openrgb-with-all-plugins
-      piper
-      solaar
-      liquidctl
-    ];
+        # RGB and hardware control
+        openrgb-with-all-plugins
+        piper
+        solaar
+        liquidctl
+      ]
+      ++ lib.optionals config.constellation.gaming.wineTuning.enable [
+        # Unified launcher for non-Steam Proton games (upstream for Lutris/Heroic/Bottles).
+        pkgs.umu-launcher
+        # Moonlight client so raider can also receive streams from other Sunshine hosts.
+        pkgs.moonlight-qt
+      ];
 
     # Hardware support
     hardware = {
@@ -357,8 +431,14 @@
       ratbagd.enable = true;
       joycond.enable = true;
 
-      # System optimization
-      system76-scheduler.enable = false; # Disabled - causes high context switches and freezing
+      # sched_ext BPF scheduler (replaces the old system76-scheduler, which
+      # caused high context switches and freezing). scx_lavd is CachyOS/Bazzite's
+      # default for mixed desktop + dev + gaming workloads. Auto-falls back to
+      # CFS if the BPF program errors. Requires kernel >= 6.12 (xanmod_latest).
+      scx = lib.mkIf (config.constellation.gaming.scheduler != "none") {
+        enable = true;
+        scheduler = "scx_${config.constellation.gaming.scheduler}";
+      };
 
       # Power management for gaming
       tlp = {
@@ -505,6 +585,26 @@
     networking.firewall = {
       allowedTCPPorts = [27036 27037]; # Steam
       allowedUDPPorts = [27031 27036]; # Steam
+
+      # Sunshine ports scoped to the Tailscale interface only — no LAN or
+      # public exposure. Ports are the default-port (47989) offsets documented
+      # at https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/advanced_usage.html#port
+      interfaces."tailscale0" = lib.mkIf config.constellation.gaming.streaming.enable {
+        allowedTCPPorts = [47984 47989 47990 48010];
+        allowedUDPPorts = [47998 47999 48000 48002 48010];
+      };
+    };
+
+    # Sunshine: self-hosted Moonlight stream host. Runs as a systemd user
+    # service bound to graphical-session.target, so it only starts after a
+    # graphical login. capSysAdmin installs a setuid wrapper needed for
+    # Wayland KMS screen capture. First-time pairing is manual: browse to
+    # http://<host>.bat-boa.ts.net:47990 once from a Tailscale peer, create
+    # an admin account, then pair Moonlight clients from the web UI.
+    services.sunshine = lib.mkIf config.constellation.gaming.streaming.enable {
+      enable = true;
+      capSysAdmin = true;
+      openFirewall = false; # firewall scoped to tailscale0 above
     };
 
     # Fonts for game compatibility
