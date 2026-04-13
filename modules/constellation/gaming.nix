@@ -182,8 +182,10 @@
         ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", ATTR{queue/scheduler}="bfq"
       ''
       + lib.optionalString config.constellation.gaming.wineTuning.enable ''
-        # ntsync: grant active login session access to the Wine sync device
-        KERNEL=="ntsync", MODE="0660", TAG+="uaccess"
+        # ntsync: world-accessible Wine sync device. uaccess doesn't work
+        # here because ntsync is a virtual misc device, not seat-bound, so
+        # logind won't grant per-session ACLs. 0666 is what Arch/Bazzite ship.
+        KERNEL=="ntsync", MODE="0666"
       '';
 
     # Wine/Proton tuning: relocate DXVK/VKD3D/Mesa shader caches to /var/cache
