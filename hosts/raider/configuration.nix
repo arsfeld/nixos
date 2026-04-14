@@ -36,9 +36,10 @@
 
   # Enable constellation modules
   constellation = {
-    gnome.enable = true;
-    niri.enable = false;
-    cosmic.enable = false;
+    desktop = {
+      enable = true;
+      variant = "gnome";
+    };
     gaming = {
       enable = true;
       cpuVendor = "intel";

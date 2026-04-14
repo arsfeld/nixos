@@ -8,7 +8,11 @@
   ...
 }: let
   # Check if niri is enabled in the system configuration
-  niriEnabled = osConfig != null && osConfig.constellation.niri.enable or false;
+  niriEnabled =
+    osConfig
+    != null
+    && (osConfig.constellation.desktop.enable or false)
+    && (osConfig.constellation.desktop.variant or null) == "niri";
   # programs.niri.settings is only available when niri-flake's HM module is loaded
   # (auto-imported by niri-flake's NixOS module on Linux). Guard against macOS/standalone HM.
   hasNiriModule = config.programs ? niri;
