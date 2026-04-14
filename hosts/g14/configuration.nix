@@ -23,18 +23,24 @@
     gaming = {
       enable = true;
       cpuVendor = "amd";
-      # Don't run a Sunshine streaming host on a laptop — it binds to a
-      # graphical session and would idle-drain the battery.
-      streaming.enable = false;
     };
     development.enable = true;
     virtualization.enable = true;
   };
 
-  # Display scaling for high-DPI laptop screen
+  # Display scaling for high-DPI laptop screen.
+  # sleep-inactive-*-type='nothing' works around gsd-power bug
+  # https://gitlab.gnome.org/GNOME/gnome-settings-daemon/-/issues/903 (fixed in
+  # gsd 50, not yet in nixpkgs). On NVIDIA-hybrid laptops the VT switch during
+  # resume makes gsd-power store "sleep" as previous_idle_mode and re-suspend
+  # ~15s after wake. Lid/power-button suspend still works via logind below.
   services.desktopManager.gnome.extraGSettingsOverrides = ''
     [org.gnome.desktop.interface]
     text-scaling-factor=1.25
+
+    [org.gnome.settings-daemon.plugins.power]
+    sleep-inactive-ac-type='nothing'
+    sleep-inactive-battery-type='nothing'
   '';
 
   # Basic system configuration
@@ -274,9 +280,10 @@
   # Power profiles daemon (works with GNOME)
   services.power-profiles-daemon.enable = false; # Disabled as TLP handles this
 
-  # Suspend then hibernate for lid/power button actions
-  # Note: IdleAction removed - it counts suspend time as idle time, causing
-  # immediate re-suspend after resume. GNOME handles idle suspend on its own.
+  # Suspend then hibernate for lid/power button actions.
+  # No IdleAction: logind counts suspend time as idle, and GNOME's own idle
+  # suspend (gsd-power issue #903) misfires on NVIDIA-hybrid resume. Both
+  # auto-idle paths are disabled; suspend is triggered only by lid or key.
   services.logind.settings.Login = {
     HandleLidSwitch = "suspend-then-hibernate";
     HandleLidSwitchExternalPower = "suspend-then-hibernate";
