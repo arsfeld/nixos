@@ -57,20 +57,6 @@
         '';
       };
     };
-
-    streaming = {
-      enable = lib.mkOption {
-        type = lib.types.bool;
-        default = true;
-        description = ''
-          Sunshine game streaming host for Moonlight clients. Firewall is
-          scoped to the Tailscale interface only — no LAN exposure. Runs as
-          a user service bound to graphical-session.target, so a graphical
-          login is required before it's reachable. First-time pairing is a
-          manual one-time step via http://HOST.bat-boa.ts.net:47990.
-        '';
-      };
-    };
   };
 
   config = lib.mkIf config.constellation.gaming.enable {
@@ -589,19 +575,41 @@
       allowedUDPPorts = [27031 27036]; # Steam
     };
 
-    # Sunshine: self-hosted Moonlight stream host. Runs as a systemd user
-    # service bound to graphical-session.target, so it only starts after a
-    # graphical login. capSysAdmin installs a setuid wrapper needed for
-    # Wayland KMS screen capture. openFirewall lets the nixpkgs module
-    # open the port offsets it knows about (47984, 47989, 47990, 48010
-    # and UDP 47998-48002, 48010) on all interfaces - reachable from LAN
-    # and Tailscale alike. First-time pairing is manual: browse to
-    # http://<host>:47990, create an admin account, then pair Moonlight
-    # clients from the web UI.
-    services.sunshine = lib.mkIf config.constellation.gaming.streaming.enable {
-      enable = true;
-      capSysAdmin = true;
-      openFirewall = true;
+    # Sunshine: install the LizardByte prerelease Flatpak bundle that ships
+    # XDG portal + PipeWire capture (upstream PR #4417). The Flathub stable
+    # branch is still on v2025.924.154138 which only supports KMS/wlr
+    # capture — neither works on GNOME Wayland with Mutter. The master
+    # bundle uses portal capture, which Mutter implements, so streaming
+    # works without leaving Wayland or touching KMS capabilities.
+    services.flatpak.packages = [
+      {
+        appId = "dev.lizardbyte.app.Sunshine";
+        bundle = "${pkgs.fetchurl {
+          url = "https://github.com/LizardByte/Sunshine/releases/download/v2026.412.25828/sunshine_x86_64.flatpak";
+          hash = "sha256-9QFEK46jWKikHwPrqbhe6esniAQi6KlV8n9szEtzdQo=";
+        }}";
+        # nix-flatpak uses the sha256 field to detect bundle changes and
+        # trigger uninstall+reinstall. Without this it skips bundles entirely.
+        sha256 = "f501442b8ea358a8a41f03eba9b85ee9eb27880422e8a955f27f6ccc4b73750a";
+      }
+    ];
+
+    # Autostart the Sunshine Flatpak in the user's graphical session.
+    # First-run still requires manual portal consent via the monitor-
+    # selection dialog from xdg-desktop-portal-gnome; the token persists
+    # under ~/.var/app/dev.lizardbyte.app.Sunshine after that.
+    systemd.user.services.sunshine = {
+      description = "Sunshine self-hosted game stream host for Moonlight";
+      wantedBy = ["graphical-session.target"];
+      partOf = ["graphical-session.target"];
+      after = ["graphical-session.target"];
+      serviceConfig = {
+        ExecStartPre = "${pkgs.coreutils}/bin/sleep 5";
+        ExecStart = "${pkgs.flatpak}/bin/flatpak run --branch=master --command=sunshine dev.lizardbyte.app.Sunshine";
+        ExecStop = "${pkgs.flatpak}/bin/flatpak kill dev.lizardbyte.app.Sunshine";
+        Restart = "on-failure";
+        RestartSec = "5s";
+      };
     };
 
     # Fonts for game compatibility
