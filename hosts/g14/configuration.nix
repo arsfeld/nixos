@@ -12,9 +12,10 @@
   # Enable constellation modules
   constellation = {
     sops.enable = true;
-    gnome = {
+    desktop = {
       enable = true;
-      theme = {
+      variant = "gnome";
+      gnome.theme = {
         gtk = "Yaru-purple-dark";
         icon = "Yaru-purple";
       };
