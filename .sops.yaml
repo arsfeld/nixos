@@ -51,3 +51,18 @@ creation_rules:
           - *host_cottage
           - *host_g14
           - *host_octopi
+
+  # ntfy publisher credentials — intentionally narrower than common.yaml.
+  # Only hosts that publish to ntfy.arsfeld.one are recipients; embedded
+  # appliances (raspi3, r2s, octopi) do not publish and are excluded to
+  # keep the credential off their disk.
+  - path_regex: secrets/sops/ntfy-client\.yaml$
+    key_groups:
+      - age:
+          - *user_arosenfeld
+          - *host_cloud
+          - *host_storage
+          - *host_raider
+          - *host_router
+          - *host_cottage
+          - *host_g14
