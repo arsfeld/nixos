@@ -11,17 +11,30 @@ with lib; {
     ./hardware-configuration.nix
     ./disko-config.nix
     ./services
-    # ./backup  # Disabled until data pool is recreated
+    ./backup
   ];
 
   # Enable all constellation modules
   constellation = {
     sops.enable = true;
-    backup.enable = false; # Disabled until data pool is recreated
+    backup.enable = true;
     common.enable = true;
     email.enable = true;
     podman.enable = true;
     virtualization.enable = true;
+  };
+
+  # nofail is deliberate: cottage must boot without the data pool.
+  # Services that need the pool gate themselves via RequiresMountsFor.
+  fileSystems."/mnt/storage" = {
+    device = "/dev/disk/by-uuid/01cdd316-d539-42a4-b87c-de5d14d40c94";
+    fsType = "btrfs";
+    options = [
+      "compress=zstd"
+      "noatime"
+      "nofail"
+      "x-systemd.device-timeout=30s"
+    ];
   };
 
   # Enable media sync from storage
