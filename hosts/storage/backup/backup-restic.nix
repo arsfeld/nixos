@@ -1,8 +1,122 @@
 {
   config,
-  self,
+  lib,
   ...
-}: {
+}: let
+  # Shared excludes. The two system profiles (hetzner-system,
+  # cottage-system) back up root state only — /home and /mnt live in
+  # the user profile. The two user profiles (hetzner, cottage) back
+  # up /home + /mnt/storage with a big reinstallable-state exclusion
+  # list.
+  systemExcludes = [
+    # Already backed up in the user profile
+    "/home"
+    "/mnt"
+
+    # Virtual/runtime filesystems
+    "/dev"
+    "/proc"
+    "/sys"
+    "/run"
+    "/tmp"
+
+    # Nix store (reproducible from flake)
+    "/nix"
+
+    # Caches
+    "/var/cache"
+
+    # Container layers (regenerable, large)
+    "/var/lib/docker"
+    "/var/lib/containers"
+    "/var/lib/lxcfs"
+
+    # Metrics/logs (regenerable)
+    "/var/lib/loki"
+    "/var/lib/prometheus2"
+  ];
+
+  userExcludes = [
+    # /mnt/storage exclusions
+    "/mnt/storage/backups"
+    "/mnt/storage/media"
+    "/mnt/storage/homes" # same as /home
+    "/mnt/storage/legacy"
+
+    # Caches
+    "/home/*/.cache"
+    "/home/*/.local/share/containers"
+
+    # Dev tooling (many small files, reinstallable)
+    "/home/*/.cargo"
+    "/home/*/.rustup"
+    "/home/*/.npm"
+    "/home/*/.npm-global"
+    "/home/*/.npm-packages"
+    "/home/*/.nvm"
+    "/home/*/.bun"
+    "/home/*/go"
+    "/home/*/.hex"
+    "/home/*/.mix"
+    "/home/*/.linuxbrew"
+    "/home/*/.local/share/pnpm"
+
+    # Remote IDE servers (reinstallable)
+    "/home/*/.vscode-server"
+    "/home/*/.cursor-server"
+    "/home/*/.openvscode-server"
+    "/home/*/.zed_server"
+    "/home/*/.devpod"
+
+    # AI tool caches (reinstallable)
+    "/home/*/.claude"
+    "/home/*/.claude-code-router"
+    "/home/*/.codex"
+    "/home/*/.copilot"
+    "/home/*/.gemini"
+    "/home/*/.qwen"
+    "/home/*/.tailout"
+
+    # Large dirs already stored elsewhere or replaceable
+    "/home/*/Takeout"
+    "/home/*/Backup"
+    "/home/*/torrents"
+
+    # Other regenerable state
+    "/home/*/.docker"
+    "/home/*/.dropbox-dist"
+    "/home/*/.wine"
+    "/home/*/.nix-defexpr"
+    "/home/*/.nix-profile"
+    "/home/*/.terraform.d"
+  ];
+
+  # All four remote profiles share schedule + retention.
+  mkRemoteProfile = {
+    paths,
+    exclude,
+    repository,
+    environmentFile ? null,
+  }:
+    {
+      inherit paths exclude repository;
+      passwordFile = config.sops.secrets."restic-password".path;
+      initialize = true;
+      timerConfig = {
+        OnCalendar = "weekly";
+        RandomizedDelaySec = "1h";
+      };
+      pruneOpts = [
+        "--keep-daily 7"
+        "--keep-weekly 4"
+        "--keep-monthly 6"
+      ];
+    }
+    // lib.optionalAttrs (environmentFile != null) {inherit environmentFile;};
+
+  systemPaths = ["/"];
+  userPaths = ["/home" "/mnt/storage"];
+in {
   sops.secrets."restic-password" = {};
   sops.secrets."hetzner-storagebox-ssh-key" = {
     mode = "0400";
@@ -13,7 +127,9 @@
   };
 
   services.restic.backups = {
-    # Local backup: Root disk only (system state, no user data or media)
+    # Local backup: daily, long retention, root system state only.
+    # Distinct schedule and retention from the remote profiles, so
+    # it stays hand-written rather than using mkRemoteProfile.
     nas = {
       paths = ["/"];
       exclude = [
@@ -46,270 +162,45 @@
       ];
     };
 
-    # Remote backup: NVMe system state (service configs + databases)
-    hetzner-system = {
-      paths = ["/"];
-      exclude = [
-        # Already backed up remotely in `hetzner` profile
-        "/home"
-        "/mnt"
-
-        # Virtual/runtime filesystems
-        "/dev"
-        "/proc"
-        "/sys"
-        "/run"
-        "/tmp"
-
-        # Nix store (reproducible from flake)
-        "/nix"
-
-        # Caches
-        "/var/cache"
-
-        # Container layers (regenerable, large)
-        "/var/lib/docker"
-        "/var/lib/containers"
-        "/var/lib/lxcfs"
-
-        # Metrics/logs (regenerable)
-        "/var/lib/loki"
-        "/var/lib/prometheus2"
-      ];
-
+    hetzner-system = mkRemoteProfile {
+      paths = systemPaths;
+      exclude = systemExcludes;
       repository = "rclone:hetzner:backups/restic-system";
-      passwordFile = config.sops.secrets."restic-password".path;
       environmentFile = config.sops.secrets."hetzner-webdav-env".path;
-      initialize = true;
-      timerConfig = {
-        OnCalendar = "weekly";
-        RandomizedDelaySec = "1h";
-      };
-      pruneOpts = [
-        "--keep-daily 7"
-        "--keep-weekly 4"
-        "--keep-monthly 6"
-      ];
     };
 
-    # Remote backup: User data and important files only (no system state or /nix)
-    hetzner = {
-      paths = [
-        "/home"
-        "/mnt/storage"
-      ];
-      exclude = [
-        # /mnt/storage exclusions
-        "/mnt/storage/backups"
-        "/mnt/storage/media"
-        "/mnt/storage/homes" # same as /home
-        "/mnt/storage/legacy"
-
-        # Caches
-        "/home/*/.cache"
-        "/home/*/.local/share/containers"
-
-        # Dev tooling (many small files, reinstallable)
-        "/home/*/.cargo"
-        "/home/*/.rustup"
-        "/home/*/.npm"
-        "/home/*/.npm-global"
-        "/home/*/.npm-packages"
-        "/home/*/.nvm"
-        "/home/*/.bun"
-        "/home/*/go"
-        "/home/*/.hex"
-        "/home/*/.mix"
-        "/home/*/.linuxbrew"
-        "/home/*/.local/share/pnpm"
-
-        # Remote IDE servers (reinstallable)
-        "/home/*/.vscode-server"
-        "/home/*/.cursor-server"
-        "/home/*/.openvscode-server"
-        "/home/*/.zed_server"
-        "/home/*/.devpod"
-
-        # AI tool caches (reinstallable)
-        "/home/*/.claude"
-        "/home/*/.claude-code-router"
-        "/home/*/.codex"
-        "/home/*/.copilot"
-        "/home/*/.gemini"
-        "/home/*/.qwen"
-        "/home/*/.tailout"
-
-        # Large dirs already stored elsewhere or replaceable
-        "/home/*/Takeout"
-        "/home/*/Backup"
-        "/home/*/torrents"
-
-        # Other regenerable state
-        "/home/*/.docker"
-        "/home/*/.dropbox-dist"
-        "/home/*/.wine"
-        "/home/*/.nix-defexpr"
-        "/home/*/.nix-profile"
-        "/home/*/.terraform.d"
-      ];
-
-      # Hetzner Storage Box via WebDAV (rclone backend)
+    hetzner = mkRemoteProfile {
+      paths = userPaths;
+      exclude = userExcludes;
       repository = "rclone:hetzner:backups/restic";
-      passwordFile = config.sops.secrets."restic-password".path;
       environmentFile = config.sops.secrets."hetzner-webdav-env".path;
-      initialize = true;
-      timerConfig = {
-        OnCalendar = "weekly";
-        RandomizedDelaySec = "1h";
-      };
-      pruneOpts = [
-        "--keep-daily 7"
-        "--keep-weekly 4"
-        "--keep-monthly 6"
-      ];
     };
 
-    # Second offsite copy of system state, mirroring hetzner-system.
-    # Runs in parallel with the Hetzner profile until cottage is
-    # validated and Hetzner can be decommissioned.
-    cottage-system = {
-      paths = ["/"];
-      exclude = [
-        # Already backed up remotely in `cottage` profile
-        "/home"
-        "/mnt"
-
-        # Virtual/runtime filesystems
-        "/dev"
-        "/proc"
-        "/sys"
-        "/run"
-        "/tmp"
-
-        # Nix store (reproducible from flake)
-        "/nix"
-
-        # Caches
-        "/var/cache"
-
-        # Container layers (regenerable, large)
-        "/var/lib/docker"
-        "/var/lib/containers"
-        "/var/lib/lxcfs"
-
-        # Metrics/logs (regenerable)
-        "/var/lib/loki"
-        "/var/lib/prometheus2"
-      ];
-
+    cottage-system = mkRemoteProfile {
+      paths = systemPaths;
+      exclude = systemExcludes;
       repository = "rest:http://cottage.bat-boa.ts.net:8000/";
-      passwordFile = config.sops.secrets."restic-password".path;
-      initialize = true;
-      timerConfig = {
-        OnCalendar = "weekly";
-        RandomizedDelaySec = "1h";
-      };
-      pruneOpts = [
-        "--keep-daily 7"
-        "--keep-weekly 4"
-        "--keep-monthly 6"
-      ];
     };
 
-    # Second offsite copy of user data, mirroring the hetzner profile.
-    cottage = {
-      paths = [
-        "/home"
-        "/mnt/storage"
-      ];
-      exclude = [
-        # /mnt/storage exclusions
-        "/mnt/storage/backups"
-        "/mnt/storage/media"
-        "/mnt/storage/homes" # same as /home
-        "/mnt/storage/legacy"
-
-        # Caches
-        "/home/*/.cache"
-        "/home/*/.local/share/containers"
-
-        # Dev tooling (many small files, reinstallable)
-        "/home/*/.cargo"
-        "/home/*/.rustup"
-        "/home/*/.npm"
-        "/home/*/.npm-global"
-        "/home/*/.npm-packages"
-        "/home/*/.nvm"
-        "/home/*/.bun"
-        "/home/*/go"
-        "/home/*/.hex"
-        "/home/*/.mix"
-        "/home/*/.linuxbrew"
-        "/home/*/.local/share/pnpm"
-
-        # Remote IDE servers (reinstallable)
-        "/home/*/.vscode-server"
-        "/home/*/.cursor-server"
-        "/home/*/.openvscode-server"
-        "/home/*/.zed_server"
-        "/home/*/.devpod"
-
-        # AI tool caches (reinstallable)
-        "/home/*/.claude"
-        "/home/*/.claude-code-router"
-        "/home/*/.codex"
-        "/home/*/.copilot"
-        "/home/*/.gemini"
-        "/home/*/.qwen"
-        "/home/*/.tailout"
-
-        # Large dirs already stored elsewhere or replaceable
-        "/home/*/Takeout"
-        "/home/*/Backup"
-        "/home/*/torrents"
-
-        # Other regenerable state
-        "/home/*/.docker"
-        "/home/*/.dropbox-dist"
-        "/home/*/.wine"
-        "/home/*/.nix-defexpr"
-        "/home/*/.nix-profile"
-        "/home/*/.terraform.d"
-      ];
-
+    cottage = mkRemoteProfile {
+      paths = userPaths;
+      exclude = userExcludes;
       repository = "rest:http://cottage.bat-boa.ts.net:8000/";
-      passwordFile = config.sops.secrets."restic-password".path;
-      initialize = true;
-      timerConfig = {
-        OnCalendar = "weekly";
-        RandomizedDelaySec = "1h";
-      };
-      pruneOpts = [
-        "--keep-daily 7"
-        "--keep-weekly 4"
-        "--keep-monthly 6"
-      ];
     };
   };
 
-  # Set I/O priority for backup jobs to idle class to prevent disk I/O congestion
-  systemd.services = {
-    restic-backups-nas.serviceConfig = {
-      IOSchedulingClass = "idle";
-    };
-    restic-backups-hetzner.serviceConfig = {
-      TimeoutStartSec = "infinity";
-    };
-    restic-backups-hetzner-system.serviceConfig = {
-      TimeoutStartSec = "infinity";
-      IOSchedulingClass = "idle";
-    };
-    restic-backups-cottage.serviceConfig = {
-      TimeoutStartSec = "infinity";
-    };
-    restic-backups-cottage-system.serviceConfig = {
-      TimeoutStartSec = "infinity";
-      IOSchedulingClass = "idle";
-    };
+  # I/O priority and timeout overrides for backup units.
+  # User-data profiles need infinite start timeout for multi-day
+  # initial seeds; system profiles additionally run as idle I/O so
+  # they don't step on interactive workloads.
+  systemd.services = let
+    slow = {TimeoutStartSec = "infinity";};
+    slowIdle = slow // {IOSchedulingClass = "idle";};
+  in {
+    restic-backups-nas.serviceConfig.IOSchedulingClass = "idle";
+    restic-backups-hetzner.serviceConfig = slow;
+    restic-backups-hetzner-system.serviceConfig = slowIdle;
+    restic-backups-cottage.serviceConfig = slow;
+    restic-backups-cottage-system.serviceConfig = slowIdle;
   };
 }
