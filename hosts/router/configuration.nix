@@ -149,8 +149,9 @@
     # Webhook notifications (Discord, Slack, etc)
     # webhookUrl = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL";
 
-    # ntfy.sh push notifications (mobile app)
-    ntfyUrl = "https://ntfy.sh/arsfeld-router";
+    # Local authenticated ntfy (was public ntfy.sh/arsfeld-router).
+    # Credential lives in sops ntfy-publisher-env; see ntfy-webhook.nix.
+    ntfyUrl = "https://ntfy.arsfeld.one/router-alerts";
 
     # Alert thresholds
     thresholds = {

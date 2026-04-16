@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import base64
 import json
 import os
 import time
@@ -7,15 +8,29 @@ import subprocess
 import socket
 from pathlib import Path
 from typing import Dict, Set
-import urllib.request
+import urllib.error
 import urllib.parse
+import urllib.request
 
 # Configuration
 STATE_FILE = '/var/lib/router-client-monitor/known_clients.json'
-NTFY_TOPIC = 'arsfeld-router'
-NTFY_URL = f'https://ntfy.sh/{NTFY_TOPIC}'
+# Use a topic distinct from router-alerts so subscribers can mute one
+# without losing the other (client-connect notifications vs Alertmanager
+# fires have very different signal-to-noise properties).
+NTFY_TOPIC = os.environ.get('NTFY_TOPIC', 'router-clients')
+NTFY_SERVER = os.environ.get('NTFY_SERVER', 'https://ntfy.arsfeld.one')
+NTFY_URL = f'{NTFY_SERVER}/{NTFY_TOPIC}'
+NTFY_USER = os.environ.get('NTFY_PUBLISHER_USER')
+NTFY_PASS = os.environ.get('NTFY_PUBLISHER_PASS')
 CHECK_INTERVAL = 60  # Check every 60 seconds
 COOLDOWN_PERIOD = 3600  # Don't re-notify about same client for 1 hour
+
+if not NTFY_USER or not NTFY_PASS:
+    print(
+        f"warning: NTFY_PUBLISHER_USER/NTFY_PUBLISHER_PASS not set; "
+        f"publishing to {NTFY_URL} without authentication",
+        flush=True,
+    )
 
 class ClientMonitor:
     def __init__(self):
@@ -160,7 +175,7 @@ class ClientMonitor:
         return 'Unknown'
     
     def send_notification(self, title: str, message: str, priority: str = 'default', tags: str = ''):
-        """Send notification via ntfy.sh"""
+        """Send notification via authenticated ntfy.arsfeld.one."""
         try:
             data = message.encode('utf-8')
             headers = {
@@ -169,12 +184,22 @@ class ClientMonitor:
             }
             if tags:
                 headers['Tags'] = tags
-            
+            if NTFY_USER and NTFY_PASS:
+                token = base64.b64encode(
+                    f'{NTFY_USER}:{NTFY_PASS}'.encode('utf-8')
+                ).decode('ascii')
+                headers['Authorization'] = f'Basic {token}'
+
             req = urllib.request.Request(NTFY_URL, data=data, headers=headers)
             with urllib.request.urlopen(req, timeout=10) as response:
                 if response.status == 200:
                     print(f"Notification sent: {title}")
                     return True
+                print(f"Notification returned unexpected status {response.status}: {title}")
+        except urllib.error.HTTPError as e:
+            # urllib raises on 4xx/5xx before reaching the response.status
+            # check above, so any 401/403 auth failure lands here.
+            print(f"Failed to send notification ({e.code} {e.reason}): {title}")
         except Exception as e:
             print(f"Failed to send notification: {e}")
         return False
@@ -235,11 +260,16 @@ class ClientMonitor:
                         hostname = info.get('hostname', 'Unknown')
                         title = f"🆕 New device connected: {hostname if hostname != 'Unknown' else mac[:8]}"
                         message = self.format_client_info(mac, info)
-                        
-                        # Send notification
+
+                        # Send notification. Apply cooldown even on failure
+                        # so a persistent 401 (misconfigured credential) does
+                        # not loop-spam the send path every CHECK_INTERVAL.
                         if self.send_notification(title, message, priority='default', tags='computer,new'):
                             self.last_notification[mac] = current_time
                             print(f"New client notification sent: {mac} ({hostname})")
+                        else:
+                            self.last_notification[mac] = current_time
+                            print(f"New client notification failed for {mac} ({hostname}); cooldown applied")
                     else:
                         remaining = COOLDOWN_PERIOD - (current_time - last_notif)
                         print(f"New client {mac} in cooldown period ({remaining}s remaining)")
