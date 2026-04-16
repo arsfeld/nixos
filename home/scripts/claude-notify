@@ -10,6 +10,17 @@ set -euo pipefail
 
 NTFY_SERVER="${CLAUDE_NTFY_SERVER:-https://ntfy.arsfeld.one}"
 
+# Publisher credential for authenticated ntfy.arsfeld.one publishes.
+# The file is a systemd env-file shaped sops secret materialized at
+# /run/secrets/ntfy-publisher-env on every workstation that runs
+# home-manager for this user. Missing credentials are non-fatal — auth
+# failures must never block Claude Code.
+NTFY_CREDENTIALS_FILE="${NTFY_CREDENTIALS_FILE:-/run/secrets/ntfy-publisher-env}"
+if [[ -r "$NTFY_CREDENTIALS_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$NTFY_CREDENTIALS_FILE"
+fi
+
 # The hook type is passed as the first argument, topic as second (or from env)
 HOOK_TYPE="${1:-unknown}"
 NTFY_TOPIC="${2:-${CLAUDE_NTFY_TOPIC:-}}"
@@ -153,8 +164,17 @@ Replace: $OLD"
     ;;
 esac
 
+# Build the Authorization header via the explicit `-H` form, never -u.
+# Using `curl -u user:pass` would land the plaintext password in
+# /proc/<pid>/cmdline, which is world-readable on Linux.
+AUTH_HEADER=""
+if [[ -n "${NTFY_PUBLISHER_USER:-}" && -n "${NTFY_PUBLISHER_PASS:-}" ]]; then
+  AUTH_HEADER="Authorization: Basic $(printf '%s:%s' "$NTFY_PUBLISHER_USER" "$NTFY_PUBLISHER_PASS" | base64 -w0)"
+fi
+
 # Send the notification via ntfy
 curl -s \
+  ${AUTH_HEADER:+-H "$AUTH_HEADER"} \
   -H "Title: $TITLE" \
   -H "Priority: $PRIORITY" \
   -H "Tags: $TAGS" \
