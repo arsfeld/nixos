@@ -13,6 +13,10 @@
     serviceConfig = {
       Type = "simple";
       ExecStart = "${pkgs.python3}/bin/python3 ${./client-monitor.py}";
+      # Publisher credential for authenticated ntfy.arsfeld.one publishes.
+      # Same sops secret as ntfy-webhook — systemd reads the file as root
+      # so DynamicUser is fine.
+      EnvironmentFile = config.sops.secrets."ntfy-publisher-env".path;
       Restart = "always";
       RestartSec = 30;
 

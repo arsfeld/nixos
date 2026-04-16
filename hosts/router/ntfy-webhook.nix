@@ -9,7 +9,9 @@
 
   ntfyWebhookScript = pkgs.writeScript "ntfy-webhook" ''
     #!${python3WithPackages}/bin/python3
+    import base64
     import json
+    import os
     import sys
     import urllib.request
     import urllib.parse
@@ -19,6 +21,26 @@
     from http.server import HTTPServer, BaseHTTPRequestHandler
 
     NTFY_URL = "${config.router.alerting.ntfyUrl}"
+
+    # Compute the Authorization: Basic header once at module scope, not per
+    # request. Credentials come from /run/secrets/ntfy-publisher-env via
+    # systemd EnvironmentFile=. Missing credentials are non-fatal — the
+    # service is Restart=always, so sys.exit here would loop-spin.
+    def _build_auth_header():
+        user = os.environ.get("NTFY_PUBLISHER_USER")
+        password = os.environ.get("NTFY_PUBLISHER_PASS")
+        if not user or not password:
+            return None
+        token = base64.b64encode(f"{user}:{password}".encode("utf-8")).decode("ascii")
+        return f"Basic {token}"
+
+    AUTH_HEADER = _build_auth_header()
+    if AUTH_HEADER is None:
+        print(
+            "warning: NTFY_PUBLISHER_{USER,PASS} not set; "
+            "publishing to " + NTFY_URL + " without authentication",
+            file=sys.stderr, flush=True,
+        )
 
     class WebhookHandler(BaseHTTPRequestHandler):
         def do_POST(self):
@@ -80,6 +102,8 @@
                         'Priority': priority,
                         'Tags': tags,
                     }
+                    if AUTH_HEADER is not None:
+                        headers['Authorization'] = AUTH_HEADER
 
                     # Add actions for alert management
                     if status != 'resolved':
@@ -113,7 +137,7 @@
                     )
 
                     try:
-                        urllib.request.urlopen(req)
+                        urllib.request.urlopen(req, timeout=10)
                     except Exception as e:
                         print(f"Failed to send to ntfy: {e}", file=sys.stderr)
 
@@ -151,6 +175,15 @@ in {
 
     users.groups.ntfy-webhook = {};
 
+    # Publisher credential for the authenticated ntfy.arsfeld.one topics.
+    # Default owner (root) + mode 0400 is fine here — the router doesn't
+    # run claude-notify, and systemd reads EnvironmentFile= as PID 1
+    # (root), so neither ntfy-webhook nor the client-monitor
+    # DynamicUser need direct file access.
+    sops.secrets."ntfy-publisher-env" = {
+      sopsFile = ../../secrets/sops/ntfy-client.yaml;
+    };
+
     # Run the ntfy webhook proxy service
     systemd.services.ntfy-webhook-proxy = {
       description = "ntfy webhook proxy for Alertmanager";
@@ -160,6 +193,7 @@ in {
       serviceConfig = {
         Type = "simple";
         ExecStart = ntfyWebhookScript;
+        EnvironmentFile = config.sops.secrets."ntfy-publisher-env".path;
         Restart = "always";
         RestartSec = "10s";
         User = "ntfy-webhook";
