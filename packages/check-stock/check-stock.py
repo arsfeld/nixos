@@ -29,6 +29,17 @@ def send_notification_ntfy(url, title, server="ntfy.sh"):
         "personal": "https://ntfy.arsfeld.one/product-available",
     }
 
+    # Basic auth credentials come from /run/secrets/ntfy-publisher-env via
+    # the systemd EnvironmentFile wired in modules/check-stock.nix.
+    ntfy_user = os.environ.get("NTFY_PUBLISHER_USER")
+    ntfy_pass = os.environ.get("NTFY_PUBLISHER_PASS")
+    auth = (ntfy_user, ntfy_pass) if ntfy_user and ntfy_pass else None
+    if auth is None:
+        logger.warning(
+            "NTFY_PUBLISHER_USER/NTFY_PUBLISHER_PASS not set; "
+            "publishing to ntfy without authentication"
+        )
+
     try:
         # Determine which servers to notify
         targets = []
@@ -47,6 +58,8 @@ def send_notification_ntfy(url, title, server="ntfy.sh"):
                     "Priority": "high",
                     "Email": "alex@rosenfeld.one",
                 },
+                auth=auth,
+                timeout=10,
             )
             server_name = target.split("//")[1].split("/")[0]  # Extract domain from URL
             logger.info(f"{server_name} response status: {response.status_code}")
