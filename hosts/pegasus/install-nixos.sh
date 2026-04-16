@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Automated NixOS installation script for cottage using nixos-infect
+# Automated NixOS installation script for pegasus using nixos-infect
 # This script converts TrueNAS SCALE to NixOS while preserving Tailscale state
 
 set -euo pipefail
@@ -8,7 +8,7 @@ set -euo pipefail
 NIXOS_CHANNEL="${NIXOS_CHANNEL:-nixos-24.11}"
 FLAKE_REPO="${FLAKE_REPO:-https://github.com/arsfeld/nixos.git}"  # Can be overridden
 FLAKE_REF="${FLAKE_REF:-master}"  # Can be overridden
-HOST_NAME="cottage"
+HOST_NAME="pegasus"
 
 # Colors for output
 RED='\033[0;31m'
@@ -34,7 +34,7 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
-log "Starting automated NixOS installation for cottage"
+log "Starting automated NixOS installation for pegasus"
 log "This will convert TrueNAS SCALE to NixOS"
 echo ""
 warn "This will COMPLETELY REPLACE TrueNAS SCALE with NixOS!"
@@ -102,7 +102,7 @@ cat > /etc/nixos/configuration.nix << 'EOF'
   boot.supportedFilesystems = [ "zfs" ];
   boot.zfs.forceImportRoot = false;
   
-  networking.hostName = "cottage";
+  networking.hostName = "pegasus";
   networking.hostId = "d4c0ffee";
   
   # Enable SSH for remote access
@@ -135,7 +135,7 @@ EOF
 
 # Create hardware configuration
 cat > /etc/nixos/hardware-configuration.nix << 'EOF'
-# Hardware configuration for cottage
+# Hardware configuration for pegasus
 { config, lib, pkgs, modulesPath, ... }:
 
 {

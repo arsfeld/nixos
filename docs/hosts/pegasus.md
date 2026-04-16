@@ -1,6 +1,6 @@
-# Cottage Host
+# Pegasus Host
 
-This document describes the setup and configuration of the "cottage" host, which is an x86_64 system primarily used for:
+This document describes the setup and configuration of the "pegasus" host (formerly "cottage"), which is an x86_64 system primarily used for:
 
 1. Hosting backups using Garage (S3-compatible storage)
 2. Running media services as a backup Plex system (using the *arr stack)
@@ -46,8 +46,8 @@ To install this system:
 3. Update the device paths in `disko-config.nix` to match the actual hardware
 4. Run the installation with:
    ```
-   nix --extra-experimental-features "nix-command flakes" run github:nix-community/disko -- --mode disko ./hosts/cottage/disko-config.nix
-   nixos-install --flake .#cottage
+   nix --extra-experimental-features "nix-command flakes" run github:nix-community/disko -- --mode disko ./hosts/pegasus/disko-config.nix
+   nixos-install --flake .#pegasus
    ```
 
 ## Maintenance

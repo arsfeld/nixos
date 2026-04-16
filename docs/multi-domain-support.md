@@ -59,7 +59,7 @@ The constellation modules provide opt-in features and service configurations:
 - Plausible at: `plausible.arsfeld.dev`
 - Auth services use `rosenfeld.one`
 
-### Cottage Host
+### Pegasus Host
 - Currently has domain configuration disabled
 - Intended to use `arsfeld.com` when enabled
 
@@ -72,9 +72,9 @@ The modules **already support** multiple domains through proper configuration. H
 Configure domains at the host level by overriding the media.config options:
 
 ```nix
-# hosts/cottage/configuration.nix
+# hosts/pegasus/configuration.nix
 {
-  # Enable media services with cottage-specific domain
+  # Enable media services with pegasus-specific domain
   media.config = {
     enable = true;
     domain = "arsfeld.com";  # Override default domain
@@ -92,7 +92,7 @@ Configure domains at the host level by overriding the media.config options:
 For services that expose domain options (like blog and plausible):
 
 ```nix
-# hosts/cottage/configuration.nix
+# hosts/pegasus/configuration.nix
 {
   constellation.blog = {
     enable = true;
@@ -143,18 +143,18 @@ To run services on multiple domains from the same host, you'll need to:
 2. **Service registry**: The constellation.services module doesn't support domain overrides per service
 3. **Hardcoded auth domain**: Some services have hardcoded references to specific domains
 
-### Recommended Approach for Cottage
+### Recommended Approach for Pegasus
 
-For the cottage host, the simplest approach is:
+For the pegasus host, the simplest approach is:
 
 ```nix
-# hosts/cottage/configuration.nix
+# hosts/pegasus/configuration.nix
 {
-  # Use cottage-specific domain
+  # Use pegasus-specific domain
   media.config = {
     enable = true;
     domain = "arsfeld.com";
-    tsDomain = "cottage.bat-boa.ts.net";  # If using different Tailscale network
+    tsDomain = "pegasus.bat-boa.ts.net";  # If using different Tailscale network
   };
 
   # Enable desired constellation modules

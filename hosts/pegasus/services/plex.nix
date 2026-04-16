@@ -1,4 +1,4 @@
-# Plex Media Server for cottage
+# Plex Media Server for pegasus
 #
 # This provides a local Plex instance for media synced from storage.
 # Uses Intel QuickSync for hardware transcoding.

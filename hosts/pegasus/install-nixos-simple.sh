@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Simplified NixOS installation script for cottage using nixos-infect
+# Simplified NixOS installation script for pegasus using nixos-infect
 # This version prepares the full configuration before running nixos-infect
 
 set -euo pipefail
 
 # Configuration
 NIXOS_CHANNEL="${NIXOS_CHANNEL:-nixos-24.11}"
-HOST_NAME="cottage"
+HOST_NAME="pegasus"
 
 # Colors for output
 RED='\033[0;31m'
@@ -32,7 +32,7 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
-log "Starting automated NixOS installation for cottage"
+log "Starting automated NixOS installation for pegasus"
 log "This will convert TrueNAS SCALE to NixOS"
 echo ""
 warn "This will COMPLETELY REPLACE TrueNAS SCALE with NixOS!"
@@ -68,7 +68,7 @@ mkdir -p /etc/nixos
 
 # Create the main configuration - this is what will be used after nixos-infect
 cat > /etc/nixos/configuration.nix << 'EOF'
-# NixOS configuration for cottage
+# NixOS configuration for pegasus
 # Converted from TrueNAS SCALE using nixos-infect
 { config, pkgs, lib, ... }:
 
@@ -98,7 +98,7 @@ cat > /etc/nixos/configuration.nix << 'EOF'
   ];
   
   # Networking
-  networking.hostName = "cottage";
+  networking.hostName = "pegasus";
   networking.hostId = "d4c0ffee";
   networking.useDHCP = true;
   networking.nftables.enable = true;
@@ -185,7 +185,7 @@ log "Detecting hardware configuration..."
 EFI_UUID=$(blkid -s UUID -o value /dev/sde2)
 
 cat > /etc/nixos/hardware-configuration.nix << EOF
-# Hardware configuration for cottage
+# Hardware configuration for pegasus
 { config, lib, pkgs, modulesPath, ... }:
 
 {
@@ -250,7 +250,7 @@ root/.ssh
 home
 EOF
 
-# Step 4: Create a marker file to indicate this is a cottage installation
+# Step 4: Create a marker file to indicate this is a pegasus installation
 echo "$HOST_NAME" > /etc/nixos/hostname
 
 # Step 5: Run nixos-infect

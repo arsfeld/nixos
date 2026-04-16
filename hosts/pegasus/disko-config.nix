@@ -1,4 +1,4 @@
-# Disko configuration for cottage
+# Disko configuration for pegasus
 # Boot: btrfs with subvolumes on Samsung SSD
 # Storage disks not managed by disko
 {...}: {
