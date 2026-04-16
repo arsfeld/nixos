@@ -94,7 +94,7 @@ nav:
   - Hosts:
     - Overview: hosts/overview.md
     - Storage Server: hosts/storage.md
-    - Cloud Server: hosts/cloud.md
+    - Basestar Server: hosts/basestar.md
     - Router: hosts/router.md
     - Desktop Systems: hosts/desktop.md
     - Embedded Devices: hosts/embedded.md

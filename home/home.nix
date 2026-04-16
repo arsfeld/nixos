@@ -149,8 +149,8 @@ in {
       {
         builders-use-substitutes = true;
       }
-      // (lib.optionalAttrs (osConfig != null && osConfig.networking.hostName != "cloud") {
-        # Use remote builders configuration (skip on cloud to avoid circular dependency)
+      // (lib.optionalAttrs (osConfig != null && osConfig.networking.hostName != "basestar") {
+        # Use remote builders configuration (skip on basestar to avoid circular dependency)
         builders = "@${../nix-builders.conf}";
       });
   };

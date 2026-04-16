@@ -43,10 +43,10 @@ All services are accessible at `https://service.arsfeld.one` unless otherwise no
 
 | Service | Purpose | URL | Auth | Host |
 |---------|---------|-----|------|------|
-| **Authelia** | Authentication portal | [auth.arsfeld.one](https://auth.arsfeld.one) | ✗ | cloud |
-| **LLDAP** | User directory | [users.arsfeld.one](https://users.arsfeld.one) | ✓ | cloud |
-| **Dex** | OIDC provider | [rosenfeld.one](https://rosenfeld.one) | ✗ | cloud |
-| **Vault** | Secret management | [vault.arsfeld.one](https://vault.arsfeld.one) | ✗ | cloud |
+| **Authelia** | Authentication portal | [auth.arsfeld.one](https://auth.arsfeld.one) | ✗ | basestar |
+| **LLDAP** | User directory | [users.arsfeld.one](https://users.arsfeld.one) | ✓ | basestar |
+| **Dex** | OIDC provider | [rosenfeld.one](https://rosenfeld.one) | ✗ | basestar |
+| **Vault** | Secret management | [vault.arsfeld.one](https://vault.arsfeld.one) | ✗ | basestar |
 
 ### 📊 Monitoring & Infrastructure
 
@@ -83,9 +83,9 @@ All services are accessible at `https://service.arsfeld.one` unless otherwise no
 
 | Service | Purpose | URL | Auth | Host |
 |---------|---------|-----|------|------|
-| **Mattermost** | Team chat | [chat.arsfeld.one](https://chat.arsfeld.one) | ✓ | cloud |
-| **Ntfy** | Push notifications | [ntfy.arsfeld.one](https://ntfy.arsfeld.one) | ✗ | cloud |
-| **Yarr** | RSS reader | [yarr.arsfeld.one](https://yarr.arsfeld.one) | ✓ | cloud |
+| **Mattermost** | Team chat | [chat.arsfeld.one](https://chat.arsfeld.one) | ✓ | basestar |
+| **Ntfy** | Push notifications | [ntfy.arsfeld.one](https://ntfy.arsfeld.one) | ✗ | basestar |
+| **Yarr** | RSS reader | [yarr.arsfeld.one](https://yarr.arsfeld.one) | ✓ | basestar |
 
 ### 🌐 Network Services
 
@@ -113,11 +113,11 @@ All services are accessible at `https://service.arsfeld.one` unless otherwise no
 
 | Service | Purpose | URL | Auth | Host |
 |---------|---------|-----|------|------|
-| **2FAuth** | 2FA management | [2fauth.arsfeld.one](https://2fauth.arsfeld.one) | ✓ | cloud |
-| **Firefly III** | Personal finance | [finance.arsfeld.one](https://finance.arsfeld.one) | ✓ | cloud |
-| **SearXNG** | Meta search engine | [search.arsfeld.one](https://search.arsfeld.one) | ✗ | cloud |
-| **Excalidraw** | Collaborative drawing | [draw.arsfeld.one](https://draw.arsfeld.one) | ✓ | cloud |
-| **Firefox Sync** | Browser sync | [firefox-syncserver.arsfeld.one](https://firefox-syncserver.arsfeld.one) | ✓ | cloud |
+| **2FAuth** | 2FA management | [2fauth.arsfeld.one](https://2fauth.arsfeld.one) | ✓ | basestar |
+| **Firefly III** | Personal finance | [finance.arsfeld.one](https://finance.arsfeld.one) | ✓ | basestar |
+| **SearXNG** | Meta search engine | [search.arsfeld.one](https://search.arsfeld.one) | ✗ | basestar |
+| **Excalidraw** | Collaborative drawing | [draw.arsfeld.one](https://draw.arsfeld.one) | ✓ | basestar |
+| **Firefox Sync** | Browser sync | [firefox-syncserver.arsfeld.one](https://firefox-syncserver.arsfeld.one) | ✓ | basestar |
 
 ## Service Access Patterns
 
@@ -182,4 +182,4 @@ All services use the `arsfeld.one` domain with SSL certificates from Let's Encry
 ### Internal Access
 Services can be accessed directly via Tailscale:
 - `http://storage.bat-boa.ts.net:port`
-- `http://cloud.bat-boa.ts.net:port`
+- `http://basestar.bat-boa.ts.net:port`

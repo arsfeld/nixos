@@ -11,7 +11,7 @@
   sops.secrets."restic-rest-cloud".mode = "0444";
 
   services.restic.backups = {
-    cloud = {
+    basestar = {
       paths = [
         "/var/lib"
         "/root"
@@ -27,7 +27,7 @@
       ];
       environmentFile = config.sops.secrets."restic-rest-cloud".path;
       passwordFile = config.sops.secrets."restic-password".path;
-      repository = "rest:https://restic.arsfeld.one/cloud";
+      repository = "rest:https://restic.arsfeld.one/basestar";
       initialize = true;
       timerConfig = {
         OnCalendar = "daily";

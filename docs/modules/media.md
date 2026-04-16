@@ -94,7 +94,7 @@ Manages reverse proxy and authentication:
 media.gateway = {
   enable = true;
   domain = "arsfeld.one";
-  authHost = "cloud.bat-boa.ts.net";
+  authHost = "basestar.bat-boa.ts.net";
   authPort = 443;
   email = "arsfeld@gmail.com";
   
@@ -187,7 +187,7 @@ Media and content management services:
 | flaresolverr | 8191 | - | Cloudflare solver |
 | kavita | 5000 | custom volumes | Digital library |
 
-#### Cloud Services (host: "cloud")
+#### Basestar Services (host: "basestar")
 Blog and content services:
 
 | Service | Port | Features | Description |
@@ -270,10 +270,10 @@ Different services on different hosts:
 ```nix
 # In constellation/media.nix
 storageServices = { /* media services */ };
-cloudServices = { /* blog services */ };
+basestarServices = { /* blog services */ };
 
 lib.mapAttrs (addHost "storage") storageServices // 
-lib.mapAttrs (addHost "cloud") cloudServices;
+lib.mapAttrs (addHost "basestar") basestarServices;
 ```
 
 ## Authentication Integration

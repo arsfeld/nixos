@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - host: cloud
+          - host: basestar
             platform: aarch64-linux
           - host: storage
             platform: x86_64-linux

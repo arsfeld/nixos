@@ -55,10 +55,10 @@ with lib; {
         ];
       };
 
-      # Configure remote builders (skip on cloud to avoid circular dependency)
-      buildMachines = lib.optionals (config.networking.hostName != "cloud") [
+      # Configure remote builders (skip on basestar to avoid circular dependency)
+      buildMachines = lib.optionals (config.networking.hostName != "basestar") [
         {
-          hostName = "cloud.bat-boa.ts.net";
+          hostName = "basestar.bat-boa.ts.net";
           system = "aarch64-linux";
           protocol = "ssh";
           sshUser = "root";
@@ -99,7 +99,7 @@ with lib; {
 
     # Configure SSH known hosts for remote builders
     programs.ssh.knownHosts = {
-      "cloud.bat-boa.ts.net" = {
+      "basestar.bat-boa.ts.net" = {
         publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH51UBt4enqaDYdbEaBD1I1ef+wZGFmkjv68Mv4bnVWA";
       };
     };

@@ -1,6 +1,6 @@
 # RustDesk Server Configuration
 
-This configuration sets up a complete RustDesk server using the built-in NixOS modules, with both the signal server (ID/registration) and relay server components running natively on the cloud host.
+This configuration sets up a complete RustDesk server using the built-in NixOS modules, with both the signal server (ID/registration) and relay server components running natively on the basestar host.
 
 ## Components
 
@@ -45,8 +45,8 @@ When configuring RustDesk clients, use:
 - **Key**: `_` (key verification disabled for easier setup)
 
 Or if using Tailscale:
-- **ID Server**: `cloud.bat-boa.ts.net:21116`
-- **Relay Server**: `cloud.bat-boa.ts.net:21117`
+- **ID Server**: `basestar.bat-boa.ts.net:21116`
+- **Relay Server**: `basestar.bat-boa.ts.net:21117`
 
 ## Security Features
 - Key verification disabled (`-k "_"`) for simplified setup

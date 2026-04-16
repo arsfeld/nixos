@@ -11,8 +11,8 @@
   sops.secrets.tailscale-key.sopsFile = config.constellation.sops.commonSopsFile;
   sops.secrets.tailscale-env = {};
 
-  # tsnsrv re-enabled - provides Tailscale node management for cloud services (task-100)
-  # Runs alongside storage host's tsnsrv to expose cloud services via Tailscale
+  # tsnsrv re-enabled - provides Tailscale node management for basestar services (task-100)
+  # Runs alongside storage host's tsnsrv to expose basestar services via Tailscale
   services.tsnsrv = {
     enable = true;
     separateProcesses = true; # Create individual systemd service per tsnsrv service

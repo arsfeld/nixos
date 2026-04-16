@@ -1,8 +1,8 @@
-# Cloud Server
+# Basestar Server
 
 ## Overview
 
-The cloud server hosts all public-facing services and authentication infrastructure. It's a lightweight ARM64 virtual machine optimized for low resource usage while providing critical services.
+The basestar server hosts all public-facing services and authentication infrastructure. It's a lightweight ARM64 virtual machine optimized for low resource usage while providing critical services.
 
 ## Hardware Specifications
 
@@ -29,7 +29,7 @@ Network: <100GB/month
 ```nix
 {
   system.stateVersion = "23.11";
-  networking.hostName = "cloud";
+  networking.hostName = "basestar";
   nixpkgs.hostPlatform = "aarch64-linux";
   time.timeZone = "America/New_York";
 }
@@ -38,14 +38,14 @@ Network: <100GB/month
 ### Network Configuration
 - **Public IP**: Static IPv4 via Oracle Cloud
 - **Private IP**: 10.0.0.33 (VCN subnet)
-- **Tailscale**: cloud.bat-boa.ts.net
+- **Tailscale**: basestar.bat-boa.ts.net
 - **Firewall**: Restrictive with specific port allowances
 
 ## Services Hosted
 
 ### 🔐 Authentication Infrastructure
 
-The cloud server is the authentication hub for the entire infrastructure:
+The basestar server is the authentication hub for the entire infrastructure:
 
 #### LLDAP (Lightweight LDAP)
 - **Purpose**: Central user directory
