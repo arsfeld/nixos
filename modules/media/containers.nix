@@ -241,6 +241,16 @@ in {
                   sleep 1
                 done
 
+                # Build basic-auth header once. NTFY_PUBLISHER_{USER,PASS}
+                # come from /run/secrets/ntfy-publisher-env via
+                # serviceConfig.EnvironmentFile below. Fall back to
+                # unauthenticated if either is missing so a deploy-time
+                # regression doesn't crash the watcher.
+                NTFY_AUTH=""
+                if [ -n "''${NTFY_PUBLISHER_USER:-}" ] && [ -n "''${NTFY_PUBLISHER_PASS:-}" ]; then
+                  NTFY_AUTH="Authorization: Basic $(printf '%s:%s' "$NTFY_PUBLISHER_USER" "$NTFY_PUBLISHER_PASS" | ${pkgs.coreutils}/bin/base64 -w0)"
+                fi
+
                 image_name="${container.image}"
                 container_name="${name}"
 
@@ -251,6 +261,7 @@ in {
                 if ! ${pkgs.podman}/bin/podman pull "$image_name"; then
                   echo "Failed to pull $image_name"
                   ${pkgs.curl}/bin/curl -s \
+                    ''${NTFY_AUTH:+-H "$NTFY_AUTH"} \
                     -d "Failed to pull $image_name" \
                     -H "Title: Image Pull Failed: $container_name" \
                     -H "Priority: 4" \
@@ -273,6 +284,7 @@ in {
                   echo "New image detected for $container_name, restarting..."
                   if ${pkgs.systemd}/bin/systemctl restart "podman-$container_name"; then
                     ${pkgs.curl}/bin/curl -s \
+                      ''${NTFY_AUTH:+-H "$NTFY_AUTH"} \
                       -d "Updated $image_name (''${current_id:0:12} → ''${new_id:0:12})" \
                       -H "Title: Container Updated: $container_name" \
                       -H "Priority: 3" \
@@ -280,6 +292,7 @@ in {
                       https://ntfy.arsfeld.one/container-updates || true
                   else
                     ${pkgs.curl}/bin/curl -s \
+                      ''${NTFY_AUTH:+-H "$NTFY_AUTH"} \
                       -d "Pulled new image but restart failed for $container_name" \
                       -H "Title: Container Restart Failed: $container_name" \
                       -H "Priority: 4" \
@@ -292,6 +305,7 @@ in {
               serviceConfig = {
                 Type = "oneshot";
                 User = "root";
+                EnvironmentFile = "/run/secrets/ntfy-publisher-env";
               };
               wants = ["podman.service"];
               after = ["podman.service" "network-online.target"];

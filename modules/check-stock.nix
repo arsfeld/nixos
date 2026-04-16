@@ -70,6 +70,11 @@ with lib; let
     "check-stock-${name}" = {
       serviceConfig = {
         ExecStart = ["${pkgs.check-stock}/bin/check-stock ${url}"];
+        # Publisher credentials for authenticated ntfy.arsfeld.one publishes.
+        # File is populated by sops-nix at activation time on hosts that
+        # declare sops.secrets."ntfy-publisher-env"; systemd reads the env
+        # file as PID 1 (root), so the child process UID is irrelevant.
+        EnvironmentFile = "/run/secrets/ntfy-publisher-env";
       };
     };
   };
