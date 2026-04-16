@@ -38,7 +38,7 @@ graph TB
 | Host | Role | Architecture | Key Services |
 |------|------|--------------|--------------|
 | **[Storage](storage.md)** | Primary server | x86_64 | Media, files, databases |
-| **[Cloud](cloud.md)** | Public services | x86_64 | Auth, websites, APIs |
+| **[Basestar](basestar.md)** | Public services | aarch64 | Auth, websites, APIs |
 
 ### 🌐 Network Devices
 
@@ -80,7 +80,7 @@ All hosts share certain base configurations through the constellation common mod
 ## Host Naming Convention
 
 Hosts follow a consistent naming pattern:
-- **Infrastructure**: Functional names (storage, cloud, router)
+- **Infrastructure**: BSG ship names (storage→galactica, basestar, pegasus, router→colonialone)
 - **Workstations**: Model or codenames (raider, g14, striker)
 - **Embedded**: Device type (raspi3, r2s)
 

@@ -12,7 +12,7 @@ Personal NixOS configuration managing multiple machines using Nix Flakes and [fl
 | Host | Role | Hardware | Status |
 |------|------|----------|--------|
 | **storage** | Main server (media, databases, backups, k3s) | Intel i5-1340P, 12c/16t, 32GB, ~45TB | Online |
-| **cloud** | Public-facing services (`*.arsfeld.dev`) | ARM Neoverse-N1, 4c, 24GB (Oracle Cloud) | Online |
+| **basestar** | Public-facing services (`*.arsfeld.dev`) | ARM Neoverse-N1, 4c, 24GB (Oracle Cloud) | Online |
 | **router** | Network router | Intel N5105, 4c, 8GB | Offline |
 | **r2s** | Backup router + home automation | Rockchip RK3328 ARM, 4c, 1GB | Offline |
 | **pegasus** | Secondary server | - | Offline |
@@ -41,7 +41,7 @@ See [HARDWARE.md](HARDWARE.md) for detailed disk and CPU specs.
 - **Automated Deployments** - Colmena (primary) with aarch64 cross-compilation, nixos-rebuild fallback
 - **Secret Management** - sops-nix with per-host and shared secrets
 - **Binary Caching** - Attic server for faster builds
-- **Remote Builders** - aarch64 builds via cloud host
+- **Remote Builders** - aarch64 builds via basestar host
 - **Declarative Everything** - Including disk partitioning (disko)
 - **CI/CD** - GitHub Actions builds all hosts, pushes to Attic cache, weekly flake updates
 
@@ -53,7 +53,7 @@ nix develop
 
 # Deploy to one or more hosts
 just deploy storage
-just deploy storage cloud
+just deploy storage basestar
 
 # Build locally without deploying
 just build <hostname>

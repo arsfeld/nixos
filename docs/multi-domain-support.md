@@ -10,7 +10,7 @@ The system currently uses the following domain configuration:
 
 1. **Primary Domain**: `arsfeld.one` - Used by storage host for media services
 2. **Auth Domain**: `rosenfeld.one` - Used for authentication services  
-3. **Secondary Domain**: `arsfeld.dev` - Used by cloud host for public services
+3. **Secondary Domain**: `arsfeld.dev` - Used by basestar host for public services
 4. **Tailscale Domain**: `bat-boa.ts.net` - Used for internal Tailscale access
 
 ### Module Architecture
@@ -38,7 +38,7 @@ The media modules provide infrastructure for media services with centralized con
 The constellation modules provide opt-in features and service configurations:
 
 - **`services.nix`**: Central service registry that:
-  - Defines services by host (cloud, storage)
+  - Defines services by host (basestar, storage)
   - Configures authentication bypass rules
   - Manages Tailscale Funnel exposure
   - Automatically generates media.gateway service configurations
@@ -53,7 +53,7 @@ The constellation modules provide opt-in features and service configurations:
 - Services accessible at: `jellyfin.arsfeld.one`, `plex.arsfeld.one`, etc.
 - Also accessible via Tailscale: `jellyfin.bat-boa.ts.net`
 
-### Cloud Host  
+### Basestar Host  
 - Uses `arsfeld.dev` for public services
 - Blog at: `blog.arsfeld.dev`
 - Plausible at: `plausible.arsfeld.dev`

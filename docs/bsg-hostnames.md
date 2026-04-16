@@ -6,7 +6,7 @@ Proposed rename of all machines to BSG ship names.
 | ---------- | -------------- | -------------------------------------------------------------------- |
 | `storage`  | `galactica`    | Current flagship — media, databases, k3s server, backups             |
 | ~~`cottage`~~ | **`pegasus`** | The old Galactica hardware — returned from retirement, still a battlestar (done) |
-| `cloud`    | `basestar`     | Different architecture (aarch64 vs x86 = Cylon vs Colonial), remote, public-facing |
+| ~~`cloud`~~ | **`basestar`** | Different architecture (aarch64 vs x86 = Cylon vs Colonial), remote, public-facing (done) |
 | `raider`   | `raider`       | Already a Cylon fighter — keep it, perfect for the gaming/dev rig    |
 | `router`   | `colonialone`  | Civilian command ship — directs traffic, doesn't fight               |
 | `r2s`      | `raptor`       | Small, nimble ARM recon/utility craft                                |

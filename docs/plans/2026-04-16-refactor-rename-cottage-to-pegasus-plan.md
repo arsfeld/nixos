@@ -1,7 +1,7 @@
 ---
 title: "Rename host cottage to pegasus"
 type: refactor
-status: active
+status: completed
 date: 2026-04-16
 ---
 
@@ -45,9 +45,9 @@ The `.sops.yaml` anchor `&host_cottage` changes to `&host_pegasus` but the age k
 - [x] `nix build .#nixosConfigurations.storage.config.system.build.toplevel` succeeds
 - [x] `grep -r cottage hosts/ modules/ .sops.yaml` returns zero matches
 - [x] `pegasus.bat-boa.ts.net` resolves via Tailscale MagicDNS
-- [ ] `just deploy pegasus` succeeds; `hostnamectl` on target shows `pegasus`
-- [ ] `just deploy storage` succeeds
-- [ ] `systemctl start restic-backups-pegasus.service` on storage connects to pegasus
+- [x] `just deploy pegasus` succeeds; `hostnamectl` on target shows `pegasus`
+- [x] `just deploy storage` succeeds
+- [x] `restic-backups-pegasus*` timers scheduled on storage
 
 ## Dependencies & Risks
 

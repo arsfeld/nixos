@@ -61,7 +61,7 @@
     "yarr"
   ];
 
-  cloudServiceNames = [
+  basestarServiceNames = [
     "blog"
     "planka"
     "plausible"
@@ -77,13 +77,13 @@
     })
   storageServiceNames;
 
-  cloudEndpoints = map (name:
+  basestarEndpoints = map (name:
     mkEndpoint {
       inherit name;
       url = "https://${name}.arsfeld.dev";
-      group = "cloud";
+      group = "basestar";
     })
-  cloudServiceNames;
+  basestarServiceNames;
 
   infraEndpoints = [
     (mkEndpoint {
@@ -159,7 +159,7 @@ in {
         };
       };
 
-      endpoints = storageEndpoints ++ cloudEndpoints ++ infraEndpoints;
+      endpoints = storageEndpoints ++ basestarEndpoints ++ infraEndpoints;
     };
   };
 

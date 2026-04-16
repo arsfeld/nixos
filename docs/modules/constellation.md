@@ -231,7 +231,7 @@ Each site module defines a complete web application:
 # sites/arsfeld-dev.nix
 constellation.sites.arsfeld-dev = {
   enable = true;
-  host = "cloud";
+  host = "basestar";
   domain = "arsfeld.dev";
   service = "ghost";
 };
