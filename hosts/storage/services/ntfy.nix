@@ -10,7 +10,13 @@ in {
   # variables (ntfy >= v2.14.0 supports NTFY_AUTH_USERS / NTFY_AUTH_ACCESS
   # / NTFY_AUTH_DEFAULT_ACCESS). Declarative provisioning is authoritative:
   # removing a user from NTFY_AUTH_USERS deletes the DB row on restart.
-  sops.secrets."ntfy-server-env" = {};
+  # restartUnits forces an ntfy-sh restart whenever this secret changes —
+  # without it, sops-nix quietly writes the new file and the already-running
+  # ntfy process keeps its stale environment. Rotation and default-access
+  # flips need the restart to take effect.
+  sops.secrets."ntfy-server-env" = {
+    restartUnits = ["ntfy-sh.service"];
+  };
 
   # Publisher credential, consumed by every storage service that posts to
   # ntfy.arsfeld.one (image-watch, check-stock, claude-notify). owner =
