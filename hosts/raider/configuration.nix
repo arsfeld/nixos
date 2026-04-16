@@ -29,6 +29,14 @@
     group = "media";
   };
 
+  # Publisher credential for claude-notify (authenticated ntfy.arsfeld.one
+  # publishes). owner + mode let the user-mode script read it directly.
+  sops.secrets."ntfy-publisher-env" = {
+    sopsFile = ../../secrets/sops/ntfy-client.yaml;
+    owner = "arosenfeld";
+    mode = "0400";
+  };
+
   # Allow insecure packages
   nixpkgs.config.permittedInsecurePackages = [
     "mbedtls-2.28.10"

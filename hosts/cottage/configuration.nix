@@ -24,6 +24,14 @@ with lib; {
     virtualization.enable = true;
   };
 
+  # Publisher credential for claude-notify (authenticated ntfy.arsfeld.one
+  # publishes). owner + mode let the user-mode script read it directly.
+  sops.secrets."ntfy-publisher-env" = {
+    sopsFile = ../../secrets/sops/ntfy-client.yaml;
+    owner = "arosenfeld";
+    mode = "0400";
+  };
+
   # nofail is deliberate: cottage must boot without the data pool.
   # Services that need the pool gate themselves via RequiresMountsFor.
   fileSystems."/mnt/storage" = {
