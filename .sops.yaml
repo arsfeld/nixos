@@ -9,7 +9,7 @@ keys:
   - &host_raspi3 age17y8vddr4fjxxx7awm6qamcuckh6etme2fpay7a80gjev0z4xyaeqcstpds
   - &host_r2s age1qgp8m729pgef4pmz9fdje029pmsa9zp46u00ld8g6kzhf2ufs4sqphyy9w
   - &host_router age15masa7pw2dmr456hx2tk0uhx8vjup9dflfjeq6mey7v0335r2qnqjj6e90
-  - &host_cottage age16663xfcw6jc4k49yfanpcvapym8phkgy57k5f56wzdyl9ty7vdequu6wm4
+  - &host_pegasus age16663xfcw6jc4k49yfanpcvapym8phkgy57k5f56wzdyl9ty7vdequu6wm4
   - &host_g14 age1a0gfmynj3yplx9w5gapnuwftpz68up7swjcqukh6d7cstualsalsgn0366
   - &host_octopi age17vmpwxh5uaqke3sxyc4ehj5pun4mr85x9w93s40rg7s4pyaph5xscf9wsa
 
@@ -32,11 +32,11 @@ creation_rules:
           - *user_arosenfeld
           - *host_raider
 
-  - path_regex: secrets/sops/cottage\.yaml$
+  - path_regex: secrets/sops/pegasus\.yaml$
     key_groups:
       - age:
           - *user_arosenfeld
-          - *host_cottage
+          - *host_pegasus
 
   - path_regex: secrets/sops/common\.yaml$
     key_groups:
@@ -48,7 +48,7 @@ creation_rules:
           - *host_raspi3
           - *host_r2s
           - *host_router
-          - *host_cottage
+          - *host_pegasus
           - *host_g14
           - *host_octopi
 
@@ -64,5 +64,5 @@ creation_rules:
           - *host_storage
           - *host_raider
           - *host_router
-          - *host_cottage
+          - *host_pegasus
           - *host_g14

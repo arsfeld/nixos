@@ -4,8 +4,8 @@
   ...
 }: let
   # Shared excludes. The two system profiles (hetzner-system,
-  # cottage-system) back up root state only — /home and /mnt live in
-  # the user profile. The two user profiles (hetzner, cottage) back
+  # pegasus-system) back up root state only — /home and /mnt live in
+  # the user profile. The two user profiles (hetzner, pegasus) back
   # up /home + /mnt/storage with a big reinstallable-state exclusion
   # list.
   systemExcludes = [
@@ -176,16 +176,16 @@ in {
       environmentFile = config.sops.secrets."hetzner-webdav-env".path;
     };
 
-    cottage-system = mkRemoteProfile {
+    pegasus-system = mkRemoteProfile {
       paths = systemPaths;
       exclude = systemExcludes;
-      repository = "rest:http://cottage.bat-boa.ts.net:8000/";
+      repository = "rest:http://pegasus.bat-boa.ts.net:8000/";
     };
 
-    cottage = mkRemoteProfile {
+    pegasus = mkRemoteProfile {
       paths = userPaths;
       exclude = userExcludes;
-      repository = "rest:http://cottage.bat-boa.ts.net:8000/";
+      repository = "rest:http://pegasus.bat-boa.ts.net:8000/";
     };
   };
 
@@ -200,7 +200,7 @@ in {
     restic-backups-nas.serviceConfig.IOSchedulingClass = "idle";
     restic-backups-hetzner.serviceConfig = slow;
     restic-backups-hetzner-system.serviceConfig = slowIdle;
-    restic-backups-cottage.serviceConfig = slow;
-    restic-backups-cottage-system.serviceConfig = slowIdle;
+    restic-backups-pegasus.serviceConfig = slow;
+    restic-backups-pegasus-system.serviceConfig = slowIdle;
   };
 }

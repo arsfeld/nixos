@@ -1,4 +1,4 @@
-# Hardware configuration for cottage
+# Hardware configuration for pegasus
 # Filesystems managed by disko-config.nix
 {
   config,

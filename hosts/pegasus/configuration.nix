@@ -32,7 +32,7 @@ with lib; {
     mode = "0400";
   };
 
-  # nofail is deliberate: cottage must boot without the data pool.
+  # nofail is deliberate: pegasus must boot without the data pool.
   # Services that need the pool gate themselves via RequiresMountsFor.
   fileSystems."/mnt/storage" = {
     device = "/dev/disk/by-uuid/01cdd316-d539-42a4-b87c-de5d14d40c94";
@@ -49,7 +49,7 @@ with lib; {
   # Syncs directories with .sync marker files to /mnt/storage/media
   constellation.mediaSync.enable = true;
 
-  # Enable media services with cottage-specific domain
+  # Enable media services with pegasus-specific domain
   # Disabled until data pool is recreated
   # media.config = {
   #   enable = true;
@@ -58,7 +58,7 @@ with lib; {
 
   # Host-specific settings
   networking = {
-    hostName = "cottage";
+    hostName = "pegasus";
 
     # Use DHCP as fallback on all interfaces
     useDHCP = true;

@@ -91,8 +91,8 @@ services.rustic.backups = {
 - **Retention**: 4 weeks
 - **Size**: ~500GB
 
-### 2. S3-Compatible Storage (Cottage)
-- **Location**: Self-hosted S3 at cottage
+### 2. S3-Compatible Storage (Pegasus)
+- **Location**: Self-hosted S3 at pegasus
 - **Purpose**: Off-site backup
 - **Retention**: 3 months
 - **Size**: ~1TB
@@ -309,7 +309,7 @@ services.rustic.backups.system = {
 
 ### Storage Costs
 - Local: $0 (existing infrastructure)
-- S3 Cottage: $0 (self-hosted)
+- S3 Pegasus: $0 (self-hosted)
 - IDrive: ~$5/month for 2TB
 
 ### Total Monthly Cost: <$10

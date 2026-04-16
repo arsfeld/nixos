@@ -55,7 +55,7 @@ Configured via `.sops.yaml`. All hosts use `constellation.sops.enable = true`. U
 - **r2s** - ARM-based router (NanoPi R2S)
 - **raspi3** - Raspberry Pi 3
 - **g14** - ASUS ROG Zephyrus G14 laptop
-- **cottage** - Cottage system
+- **pegasus** - Secondary server (BSG Battlestar Pegasus)
 - **octopi** - OctoPrint device
 
 For hardware specs (CPU, RAM, disks), see [HARDWARE.md](HARDWARE.md).

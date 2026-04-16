@@ -15,7 +15,7 @@ Personal NixOS configuration managing multiple machines using Nix Flakes and [fl
 | **cloud** | Public-facing services (`*.arsfeld.dev`) | ARM Neoverse-N1, 4c, 24GB (Oracle Cloud) | Online |
 | **router** | Network router | Intel N5105, 4c, 8GB | Offline |
 | **r2s** | Backup router + home automation | Rockchip RK3328 ARM, 4c, 1GB | Offline |
-| **cottage** | Secondary server | - | Offline |
+| **pegasus** | Secondary server | - | Offline |
 
 ### Embedded
 | Host | Role | Status |

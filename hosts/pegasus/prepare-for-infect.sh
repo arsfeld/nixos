@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Prepare cottage for nixos-infect by creating the necessary ZFS dataset
+# Prepare pegasus for nixos-infect by creating the necessary ZFS dataset
 
 set -euo pipefail
 
-echo "This script prepares the cottage system for nixos-infect"
+echo "This script prepares the pegasus system for nixos-infect"
 echo "It will create a new ZFS dataset for NixOS root filesystem"
 echo ""
 echo "Current ZFS datasets in boot-pool:"
