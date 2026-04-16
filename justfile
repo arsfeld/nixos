@@ -227,7 +227,7 @@ build-kexec:
     echo "  just install <host> <target> ./result"
     echo ""
     echo "Example:"
-    echo "  just install cottage cottage.bat-boa.ts.net ./result"
+    echo "  just install pegasus pegasus.bat-boa.ts.net ./result"
     echo ""
     echo "Or manually:"
     echo "  nixos-anywhere --kexec ./result --flake .#<host> root@<target>"
@@ -443,7 +443,7 @@ hardware-config HOST TARGET_HOST:
 # Apply disko configuration to format and partition disks on a host
 # WARNING: This will DESTROY ALL DATA on the configured disks!
 # Usage: just disko <host> <target>
-# Example: just disko cottage root@cottage.bat-boa.ts.net
+# Example: just disko pegasus root@pegasus.bat-boa.ts.net
 disko HOST TARGET:
     #!/usr/bin/env bash
     set -euo pipefail

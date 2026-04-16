@@ -20,7 +20,7 @@ The `agenix -r` command appears to have failed silently, encrypting empty conten
 - ghost-session-secret.age
 - ghost-smtp-env.age
 - lldap-env.age
-- restic-cottage-minio.age
+- restic-pegasus-minio.age
 
 ### Errors During Decryption (Missing from secrets.nix)
 - keycloak-pass.age
@@ -93,7 +93,7 @@ git checkout 98b2157 -- secrets/minio-credentials.age
 git checkout 98b2157 -- secrets/rclone-idrive.age
 git checkout 98b2157 -- secrets/restic-truenas.age
 
-# Note: restic-cottage-minio.age was created in 8586c69, needs manual recreation
+# Note: restic-pegasus-minio.age was created in 8586c69, needs manual recreation
 ```
 
 ### Step 3: Verify Restored Secrets

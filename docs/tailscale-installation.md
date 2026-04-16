@@ -30,7 +30,7 @@ We've created a custom kexec image that includes Tailscale, allowing you to main
 just build-kexec
 
 # Install using the Tailscale-enabled kexec
-just install cottage cottage.bat-boa.ts.net ./result
+just install pegasus pegasus.bat-boa.ts.net ./result
 ```
 
 ### Method 2: Manual nixos-anywhere
@@ -42,8 +42,8 @@ nix build .#kexec-tailscale
 # Run nixos-anywhere with the custom kexec
 nixos-anywhere \
   --kexec ./result \
-  --flake .#cottage \
-  root@cottage.bat-boa.ts.net
+  --flake .#pegasus \
+  root@pegasus.bat-boa.ts.net
 ```
 
 ## How It Works
@@ -74,7 +74,7 @@ If you don't need to maintain Tailscale connectivity during installation:
 
 ```bash
 # Standard installation (will lose Tailscale connection during kexec)
-just install cottage 192.168.1.100
+just install pegasus 192.168.1.100
 ```
 
 ## Customizing the Kexec Image
