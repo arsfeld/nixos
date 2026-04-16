@@ -28,6 +28,7 @@ in
       container = {
         environmentFiles = [
           config.sops.secrets."finance-tracker-env".path
+          config.sops.secrets."ntfy-publisher-env".path
         ];
         environment = {
           SYNC_SCHEDULE = "0 0 17 */2 * *";
