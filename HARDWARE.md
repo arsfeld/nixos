@@ -19,8 +19,8 @@ Last updated: 2026-04-07
   - `sdf` 14 TB - Seagate ST14000NM0121 (HDD)
 - **Total raw storage**: ~45 TB
 
-### cloud
-- **Role**: Cloud server (public-facing services)
+### basestar
+- **Role**: Public-facing server (BSG Cylon Basestar)
 - **Architecture**: aarch64
 - **CPU**: ARM Neoverse-N1 - 4 cores / 4 threads
 - **RAM**: 24 GB

@@ -3,7 +3,7 @@ keys:
   - &user_arosenfeld age1zmev49pzr0wxqdw4m5t5pk0ma98dchmxlucl0u6w2ajj762624qq7v3u43
 
   # Host keys (derived from ssh-ed25519 host keys via ssh-to-age)
-  - &host_cloud age1s9hjg4ls5k0wrd3rcsmtrywe6535907368druhpreg5c5lu2sguq2pdq0a
+  - &host_basestar age1s9hjg4ls5k0wrd3rcsmtrywe6535907368druhpreg5c5lu2sguq2pdq0a
   - &host_storage age1cclv24tdyu7t95utdzmtlp0a6mmku277sjckftlf7ldd8r487d5synct7g
   - &host_raider age1heelrhsk3nv40ct8e4r0l4nt9hrd8a5x692w5z30vvhsgujfcc6q9a7c2m
   - &host_raspi3 age17y8vddr4fjxxx7awm6qamcuckh6etme2fpay7a80gjev0z4xyaeqcstpds
@@ -14,11 +14,11 @@ keys:
   - &host_octopi age17vmpwxh5uaqke3sxyc4ehj5pun4mr85x9w93s40rg7s4pyaph5xscf9wsa
 
 creation_rules:
-  - path_regex: secrets/sops/cloud\.yaml$
+  - path_regex: secrets/sops/basestar\.yaml$
     key_groups:
       - age:
           - *user_arosenfeld
-          - *host_cloud
+          - *host_basestar
 
   - path_regex: secrets/sops/storage\.yaml$
     key_groups:
@@ -42,7 +42,7 @@ creation_rules:
     key_groups:
       - age:
           - *user_arosenfeld
-          - *host_cloud
+          - *host_basestar
           - *host_storage
           - *host_raider
           - *host_raspi3
@@ -60,7 +60,7 @@ creation_rules:
     key_groups:
       - age:
           - *user_arosenfeld
-          - *host_cloud
+          - *host_basestar
           - *host_storage
           - *host_raider
           - *host_router

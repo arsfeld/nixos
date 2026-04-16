@@ -9,18 +9,18 @@ in {
   sops.secrets.github-runner-token = {};
   sops.secrets.forgejo-runner-token = {};
 
-  # services.github-runners.cloud = {
+  # services.github-runners.basestar = {
   #   enable = false;
-  #   extraLabels = ["nixos" "cloud" "aarch64"];
+  #   extraLabels = ["nixos" "basestar" "aarch64"];
   #   tokenFile = config.sops.secrets.github-runner-token.path;
   #   url = "https://github.com/arsfeld/nixos";
   # };
 
   services.gitea-actions-runner = {
     package = pkgs.forgejo-runner;
-    instances.cloud = {
+    instances.basestar = {
       enable = false; # TODO: Set a valid token in forgejo-runner-token.age to enable
-      name = "cloud";
+      name = "basestar";
       url = "https://forgejo.${vars.domain}";
       tokenFile = config.sops.secrets.forgejo-runner-token.path;
       labels = [

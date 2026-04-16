@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is a personal NixOS configuration repository that manages multiple machines using Nix Flakes and flake-parts. It includes configurations for servers (storage, cloud), embedded devices (R2S, Raspberry Pi), and desktop systems (raider, g14).
+This is a personal NixOS configuration repository that manages multiple machines using Nix Flakes and flake-parts. It includes configurations for servers (storage, basestar), embedded devices (R2S, Raspberry Pi), and desktop systems (raider, g14).
 
 ## Key Commands
 
@@ -18,7 +18,7 @@ just build <hostname>          # Build a host config locally
 ### Deployment (via Colmena, default)
 ```bash
 just deploy storage            # Deploy to one host
-just deploy storage cloud      # Deploy to multiple hosts in parallel
+just deploy storage basestar   # Deploy to multiple hosts in parallel
 just boot storage              # Boot activation (next reboot)
 just test storage              # Test without activating
 just deploy-all                # Deploy to all hosts
@@ -41,7 +41,7 @@ nix build .#nixosConfigurations.<hostname>.config.system.build.toplevel
 
 ```bash
 nix develop -c sops secrets/sops/<hostname>.yaml    # Create/edit host secrets
-nix develop -c sops --decrypt secrets/sops/cloud.yaml  # View decrypted
+nix develop -c sops --decrypt secrets/sops/basestar.yaml  # View decrypted
 nix develop -c sops updatekeys secrets/sops/<file>.yaml  # Re-encrypt after key changes
 ```
 
@@ -49,7 +49,7 @@ Configured via `.sops.yaml`. All hosts use `constellation.sops.enable = true`. U
 
 ### Available Hosts
 - **storage** - Main server: media services, databases, backups, k3s server. Hosts internal services on `*.arsfeld.one` via cloudflared tunnel (wildcard ingress)
-- **cloud** - Cloud server: hosts public-facing services on `*.arsfeld.dev` (blog, plausible, planka, siyuan, supabase)
+- **basestar** - Public-facing server (BSG Cylon Basestar): hosts services on `*.arsfeld.dev` (blog, plausible, planka, siyuan, supabase)
 - **raider** - Desktop workstation: GNOME, gaming, development
 - **router** - Custom network device (no constellation modules, standalone config)
 - **r2s** - ARM-based router (NanoPi R2S)
@@ -104,7 +104,7 @@ Opt-in feature modules that hosts compose. Key modules:
 
 Shared variables consumed by media services via `config.media.config`:
 - `configDir` = `/var/data` - Service config/data directory
-- `storageDir` = `/mnt/storage` - Large media files (**storage host only**, not available on cloud)
+- `storageDir` = `/mnt/storage` - Large media files (**storage host only**, not available on basestar)
 - `dataDir` = `/mnt/storage` - Primary data directory
 - `puid`/`pgid` = `5000` - UID/GID for all media services
 - `user`/`group` = `"media"` - Service user
@@ -115,7 +115,7 @@ Shared variables consumed by media services via `config.media.config`:
 
 #### Service Registry (`modules/constellation/services.nix`)
 Central source of truth for all service metadata. Controls:
-- Port assignments per host (cloud vs storage)
+- Port assignments per host (basestar vs storage)
 - `bypassAuth` - Services with own auth (skip Authelia)
 - `tailscaleExposed` - Services with dedicated `*.bat-boa.ts.net` nodes
 - `funnels` - Public Tailscale Funnel services
@@ -132,11 +132,11 @@ Caddy reverse proxy consuming service definitions. Generates TLS configs, error 
 
 #### DNS & Routing
 - `*.arsfeld.one` — internal services hosted on **storage**, routed via Cloudflare → storage's cloudflared tunnel (wildcard ingress)
-- `*.arsfeld.dev` — public services hosted on **cloud** (blog, plausible, planka, siyuan, supabase)
+- `*.arsfeld.dev` — public services hosted on **basestar** (blog, plausible, planka, siyuan, supabase)
 - `*.bat-boa.ts.net` — Tailscale-only access (or public via Funnel)
 
 ### Remote Builders
-`cloud` (aarch64-linux) serves as remote builder. When in `nix develop`, aarch64 packages build on cloud automatically via `nix-builders.conf`.
+`basestar` (aarch64-linux) serves as remote builder. When in `nix develop`, aarch64 packages build on basestar automatically via `nix-builders.conf`.
 
 ### Directory Structure
 - `hosts/` - Per-machine configs (auto-discovered by `flake-modules/hosts.nix`)
@@ -156,9 +156,9 @@ Caddy reverse proxy consuming service definitions. Generates TLS configs, error 
 2. Register in `media.gateway.services` with port, auth, and Tailscale exposure settings
 3. Storage's wildcard cloudflared tunnel routes traffic automatically
 
-### `*.arsfeld.dev` services (on cloud)
-1. Create a service file in `hosts/cloud/services/` and add to `default.nix` imports
-2. Cloud uses dedicated Caddy vhosts for `arsfeld.dev` subdomains
+### `*.arsfeld.dev` services (on basestar)
+1. Create a service file in `hosts/basestar/services/` and add to `default.nix` imports
+2. Basestar uses dedicated Caddy vhosts for `arsfeld.dev` subdomains
 
 ### Containerized services (on storage)
 1. Add to `modules/constellation/media.nix` in `storageServices`
@@ -170,13 +170,13 @@ Caddy reverse proxy consuming service definitions. Generates TLS configs, error 
 Conventional commits required: `<type>(<scope>): <subject>`
 
 **Types**: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `ci`
-**Scopes**: hostname (`raider`, `storage`, `cloud`), or `secrets`, `modules`, `home`
+**Scopes**: hostname (`raider`, `storage`, `basestar`), or `secrets`, `modules`, `home`
 
 Never mention Claude in commit messages or author.
 
 ## CI/CD (.github/workflows/)
 
-- **build.yml** - Builds cloud (aarch64), storage (x86_64), raider (x86_64) closures and pushes to Attic cache
+- **build.yml** - Builds basestar (aarch64), storage (x86_64), raider (x86_64) closures and pushes to Attic cache
 - **format.yml** - Checks formatting with alejandra (fails if unformatted, run `just fmt` locally)
 - **update.yml** - Weekly flake input updates with automatic build testing, commits flake.lock if all hosts build
 

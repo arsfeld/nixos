@@ -12,7 +12,7 @@
     in {
       hostname = "${hostName}.bat-boa.ts.net";
       fastConnection = true;
-      remoteBuild = hostName == "cloud"; # Enable remote build for cloud (aarch64)
+      remoteBuild = hostName == "basestar"; # Enable remote build for basestar (aarch64)
       profiles.system.path =
         inputs.deploy-rs.lib.${system}.activate.nixos
         self.nixosConfigurations.${hostName};

@@ -68,7 +68,7 @@
   };
 
   constellation.backup.enable = true;
-  # Gateway for cloud services — auth forwarded to storage's Authelia via tsnsrv
+  # Gateway for basestar services — auth forwarded to storage's Authelia via tsnsrv
   media.gateway.enable = true;
   media.gateway.authHost = "auth.bat-boa.ts.net";
   media.gateway.authPort = 443;
@@ -108,7 +108,7 @@
   # systemd.email-notify.mailTo = "arsfeld@gmail.com";
 
   boot.tmp.cleanOnBoot = true;
-  networking.hostName = "cloud";
+  networking.hostName = "basestar";
 
   networking.firewall = {
     enable = true;
