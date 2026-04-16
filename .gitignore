@@ -75,6 +75,9 @@ blog/static/images/generated/
 # Tailscale API key (for cleanup script)
 .tailscale-api-key
 
+# Local ntfy reader password (also stored in password manager)
+.ntfy-reader-password
+
 # Code CLI artifacts
 .code/
 scripts/backup-to-r2.sh
