@@ -48,7 +48,7 @@ nix develop -c sops updatekeys secrets/sops/<file>.yaml  # Re-encrypt after key 
 Configured via `.sops.yaml`. All hosts use `constellation.sops.enable = true`. Use standard `sops.secrets` options. Common/shared secrets: `config.constellation.sops.commonSopsFile`.
 
 ### Available Hosts
-- **storage** - Main server: media services, databases, backups, k3s server. Hosts internal services on `*.arsfeld.one` via cloudflared tunnel (wildcard ingress)
+- **storage** - Main server: media services, databases, backups. Hosts internal services on `*.arsfeld.one` via cloudflared tunnel (wildcard ingress)
 - **basestar** - Public-facing server (BSG Cylon Basestar): hosts services on `*.arsfeld.dev` (blog, plausible, planka, siyuan, supabase)
 - **raider** - Desktop workstation: GNOME, gaming, development
 - **router** - Custom network device (no constellation modules, standalone config)
@@ -90,7 +90,6 @@ Opt-in feature modules that hosts compose. Key modules:
 | `media.nix` | **Container orchestration**: Plex, *arr, Stash, Nextcloud, etc. |
 | `podman.nix` / `docker.nix` | Container runtimes |
 | `backup.nix` | Automated rustic/restic backups |
-| `k3s.nix` | Kubernetes cluster (server/agent roles) |
 | `vpn-exit-nodes.nix` | Tailscale exit nodes via AirVPN/Gluetun |
 | `gnome.nix` / `cosmic.nix` / `niri.nix` | Desktop environments |
 | `development.nix` | Dev tools (Docker, Node, Python, Go, Rust) |
