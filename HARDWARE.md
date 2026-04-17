@@ -5,7 +5,7 @@ Last updated: 2026-04-07
 ## Online Hosts
 
 ### storage
-- **Role**: Main server (media, databases, backups, k3s)
+- **Role**: Main server (media, databases, backups)
 - **Architecture**: x86_64
 - **CPU**: Intel Core i5-1340P (ES, mobile CPU in mATX desktop board) - 12 cores / 16 threads
 - **RAM**: 32 GB
