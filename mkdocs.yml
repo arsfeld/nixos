@@ -83,34 +83,25 @@ nav:
   - Architecture:
     - Overview: architecture/overview.md
     - Authentication System: architecture/authentication.md
-    - Service Architecture: architecture/services.md
     - Network Design: architecture/network.md
     - Backup Strategy: architecture/backup.md
   - Modules:
-    - Constellation Modules: modules/constellation.md
     - Media Stack: modules/media.md
-    - Desktop Configuration: modules/desktop.md
-    - Custom Modules: modules/custom.md
   - Hosts:
     - Overview: hosts/overview.md
     - Storage Server: hosts/storage.md
     - Basestar Server: hosts/basestar.md
+    - Pegasus Server: hosts/pegasus.md
     - Router: hosts/router.md
     - Desktop Systems: hosts/desktop.md
     - Embedded Devices: hosts/embedded.md
   - Services:
     - Service Catalog: services/catalog.md
-    - Media Services: services/media.md
-    - Infrastructure: services/infrastructure.md
-    - Development Tools: services/development.md
-    - Authentication: services/authentication.md
   - Guides:
     - Getting Started: guides/getting-started.md
-    - Adding a New Host: guides/new-host.md
-    - Adding a Service: guides/new-service.md
-    - Managing Secrets: guides/secrets.md
     - Harmonia Binary Cache: guides/harmonia-cache.md
-    - Deployment: guides/deployment.md
     - Disaster Recovery: guides/disaster-recovery.md
-    - Kubernetes Migration: guides/k8s-migration.md
-  - Roadmap: roadmap.md
+    - Router Installation: guides/router-installation.md
+    - Router Testing: guides/router-testing.md
+    - Tailscale Installation: tailscale-installation.md
+    - Tailscale Node Cleanup: tailscale-cleanup-setup.md

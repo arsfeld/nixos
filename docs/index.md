@@ -19,7 +19,7 @@ This infrastructure consists of:
 - :material-server: **[Hosts](hosts/overview.md)**  
   Documentation for each system in the infrastructure
 
-- :material-puzzle: **[Modules](modules/constellation.md)**  
+- :material-puzzle: **[Media Stack](modules/media.md)**  
   Reusable NixOS modules and configurations
 
 - :material-cloud: **[Services](services/catalog.md)**  
@@ -30,9 +30,6 @@ This infrastructure consists of:
 
 - :material-book-open: **[Guides](guides/getting-started.md)**  
   How-to guides and tutorials
-
-- :material-road: **[Roadmap](roadmap.md)**  
-  Future improvements and plans
 
 </div>
 
@@ -60,8 +57,7 @@ Netdata, Grafana, and custom alerts keep track of system health.
 
 1. **[Architecture Overview](architecture/overview.md)** - Understand the system design
 2. **[Service Catalog](services/catalog.md)** - Explore available services
-3. **[Deployment Guide](guides/deployment.md)** - Learn how to deploy changes
-4. **[Adding a Service](guides/new-service.md)** - Add your own services
+3. **[Getting Started](guides/getting-started.md)** - Set up your environment
 
 ## Repository Structure
 
@@ -70,8 +66,8 @@ nixos/
 ├── hosts/          # Machine-specific configurations
 ├── modules/        # Reusable NixOS modules
 ├── home/           # Home Manager configurations
-├── secrets/        # Encrypted secrets (agenix)
+├── secrets/        # Encrypted secrets (sops-nix)
 ├── overlays/       # Nixpkgs overlays
 ├── flake.nix       # Flake definition
-└── deploy.nix      # Deployment configuration
+└── flake-modules/  # Flake-parts modules (deployment, dev, etc.)
 ```
