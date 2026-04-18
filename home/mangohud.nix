@@ -16,7 +16,7 @@
     if osConfig != null
     then osConfig.networking.hostName
     else "";
-  isG14 = hostname == "g14";
+  isG14 = hostname == "blackbird";
 in {
   config = lib.mkIf gamingEnabled {
     programs.mangohud = {

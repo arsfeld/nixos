@@ -11,7 +11,7 @@ Proposed rename of all machines to BSG ship names.
 | `router`   | `colonialone`  | Civilian command ship — directs traffic, doesn't fight               |
 | `r2s`      | `raptor`       | Small, nimble ARM recon/utility craft                                |
 | `raspi3`   | `viper`        | Tiny fighter, one job                                                |
-| `g14`      | `blackbird`    | Custom stealth ship — the portable/laptop outlier                    |
+| ~~`g14`~~  | **`blackbird`** | Custom stealth ship — the portable/laptop outlier (done) |
 | `octopi`   | `demetrius`    | Small support vessel on a specialized mission (3D printing)          |
 
 ## Notes

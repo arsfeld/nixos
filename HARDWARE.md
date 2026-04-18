@@ -49,6 +49,6 @@ The following hosts were not reachable on 2026-04-07:
 | router | Timeout | Custom network device |
 | r2s | Timeout | NanoPi R2S ARM router |
 | raspi3 | Timeout | Raspberry Pi 3 |
-| g14 | Timeout | ASUS ROG Zephyrus G14 laptop |
+| blackbird | Timeout | ASUS ROG Zephyrus G14 laptop |
 | pegasus | Timeout | Secondary server (BSG Pegasus) |
 | octopi | Timeout | OctoPrint device |
