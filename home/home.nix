@@ -160,6 +160,10 @@ in {
   xdg.configFile."starship.toml" = {
     source = ./files/starship.toml;
   };
+  home.file.".claude/statusline-command.sh" = {
+    source = ./files/claude-statusline.sh;
+    executable = true;
+  };
   xdg.configFile."htop/htoprc" = {
     source = ./files/htoprc;
   };
