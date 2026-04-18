@@ -250,7 +250,7 @@ build-installer-iso:
     echo ""
     echo "After booting from USB:"
     echo "  1. Connect to WiFi: nmtui"
-    echo "  2. Run installer:   sudo /etc/install-nixos.sh g14"
+    echo "  2. Run installer:   sudo /etc/install-nixos.sh blackbird"
 
 # Install any host configuration to a running system via SSH using nixos-anywhere
 # WARNING: This will completely wipe and reinstall the target system!

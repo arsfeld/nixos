@@ -113,7 +113,7 @@
 
     1. Connect to WiFi:  nmtui  (or: nmcli device wifi connect SSID password PASSWORD)
     2. Run installer:    /etc/install-nixos.sh [hostname]
-                         (default hostname: g14, fetches latest from git)
+                         (default hostname: blackbird, fetches latest from git)
 
     SSH is enabled. The "nixos" and "root" accounts have empty passwords.
   '';

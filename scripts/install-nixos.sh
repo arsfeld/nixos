@@ -8,7 +8,7 @@ fi
 
 export NIX_CONFIG="experimental-features = nix-command flakes"
 
-HOSTNAME="${1:-g14}"
+HOSTNAME="${1:-blackbird}"
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "=== NixOS Installer ==="

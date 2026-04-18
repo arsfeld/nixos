@@ -52,7 +52,7 @@
   '';
 
   # Basic system configuration
-  networking.hostName = "g14";
+  networking.hostName = "blackbird";
 
   # Additional packages
   environment.systemPackages = with pkgs; [
@@ -142,7 +142,7 @@
 
     # Install the ASUS G14 preset (from RaduTek's EasyEffects-Presets)
     if [ ! -f /home/arosenfeld/.config/easyeffects/output/ASUS_G14_2020.json ]; then
-      cp ${./easyeffects-g14-preset.json} /home/arosenfeld/.config/easyeffects/output/ASUS_G14_2020.json
+      cp ${./easyeffects-blackbird-preset.json} /home/arosenfeld/.config/easyeffects/output/ASUS_G14_2020.json
       chown arosenfeld:users /home/arosenfeld/.config/easyeffects/output/ASUS_G14_2020.json
     fi
 
