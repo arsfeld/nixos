@@ -342,10 +342,8 @@ Ensure backups are current before significant updates.
 
 ## Next Steps
 
-1. **[Add a New Host](new-host.md)** - Set up a new system
-2. **[Add a Service](new-service.md)** - Deploy a new application
-3. **[Service Catalog](../services/catalog.md)** - Explore available services
-4. **[Architecture Overview](../architecture/overview.md)** - Understand the system design
+1. **[Service Catalog](../services/catalog.md)** - Explore available services
+2. **[Architecture Overview](../architecture/overview.md)** - Understand the system design
 
 ## Getting Help
 

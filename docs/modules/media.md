@@ -424,7 +424,6 @@ journalctl -u podman-<service-name>
 
 ## Related Documentation
 
-- [Constellation Modules](constellation.md) - High-level module system
 - [Storage Host](../hosts/storage.md) - Primary media server configuration
 - [Authentication](../architecture/authentication.md) - Authentication system
 - [Network Architecture](../architecture/network.md) - Network design
