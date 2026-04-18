@@ -130,7 +130,7 @@ in {
         "raspi3:9100"
         "core:9100"
         "hpe:9100"
-        "g14:9100"
+        "blackbird:9100"
         "raider:9100"
         "striker:9100"
       ];

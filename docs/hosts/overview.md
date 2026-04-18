@@ -18,7 +18,7 @@ graph TB
     
     subgraph "Workstations"
         Raider[Raider<br/>Gaming Desktop]
-        G14[G14<br/>Laptop]
+        Blackbird[Blackbird<br/>Laptop]
     end
     
     subgraph "Special Purpose"
@@ -52,7 +52,7 @@ graph TB
 | Host | Role | Architecture | Features |
 |------|------|--------------|----------|
 | **[Raider](desktop.md#raider)** | Gaming desktop | x86_64 | NVIDIA GPU, Steam |
-| **[G14](desktop.md#g14)** | Laptop | x86_64 | Portable development |
+| **[Blackbird](desktop.md#blackbird)** | Laptop | x86_64 | Portable development |
 
 ### 🔧 Special Purpose
 
@@ -81,7 +81,7 @@ All hosts share certain base configurations through the constellation common mod
 
 Hosts follow a consistent naming pattern:
 - **Infrastructure**: BSG ship names (storage→galactica, basestar, pegasus, router→colonialone)
-- **Workstations**: Model or codenames (raider, g14, striker)
+- **Workstations**: Model or codenames (raider, blackbird, striker)
 - **Embedded**: Device type (raspi3, r2s)
 
 ## Network Addressing
@@ -107,7 +107,7 @@ Internal LAN addresses:
 | Router | ✅ Production | Yes | Basic |
 | R2S | ⚠️ Standby | No | Basic |
 | Raider | ✅ Active | No | Basic |
-| G14 | ✅ Active | No | Basic |
+| Blackbird | ✅ Active | No | Basic |
 | Others | 🔄 Various | No | None |
 
 ## Resource Allocation

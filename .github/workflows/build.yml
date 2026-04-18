@@ -27,7 +27,7 @@ jobs:
             platform: x86_64-linux
           - host: raider
             platform: x86_64-linux
-          - host: g14
+          - host: blackbird
             platform: x86_64-linux
           - host: r2s
             platform: aarch64-linux

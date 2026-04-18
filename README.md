@@ -27,7 +27,7 @@ Personal NixOS configuration managing multiple machines using Nix Flakes and [fl
 | Host | Role | Hardware | Status |
 |------|------|----------|--------|
 | **raider** | Desktop (GNOME, gaming, dev) | i5-12500H, RX 6650 XT, 32GB, ~4TB | Online |
-| **g14** | ASUS ROG Zephyrus G14 laptop | - | Active |
+| **blackbird** | ASUS ROG Zephyrus G14 laptop | - | Active |
 
 See [HARDWARE.md](HARDWARE.md) for detailed disk and CPU specs.
 

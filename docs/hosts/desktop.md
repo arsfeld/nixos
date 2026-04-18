@@ -43,7 +43,7 @@ The desktop systems are personal workstations used for development, gaming, and 
 - **Development**: VS Code, Docker
 - **Media**: Discord, Spotify
 
-### G14 - Portable Laptop
+### Blackbird - Portable Laptop
 
 #### Hardware Specifications
 - **Model**: ASUS ROG Zephyrus G14
@@ -337,7 +337,7 @@ sudo nix-collect-garbage -d
 
 ### Hardware Upgrades
 - **Raider**: External GPU dock
-- **G14**: RAM upgrade to 32GB
+- **Blackbird**: RAM upgrade to 32GB
 - **Striker**: Optimize 2.5Gb networking
 
 ### Software Improvements
