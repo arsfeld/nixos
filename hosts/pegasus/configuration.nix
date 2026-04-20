@@ -17,7 +17,6 @@ with lib; {
   # Enable all constellation modules
   constellation = {
     sops.enable = true;
-    backup.enable = true;
     common.enable = true;
     email.enable = true;
     podman.enable = true;
