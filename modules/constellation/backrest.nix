@@ -98,6 +98,11 @@ with lib; let
       ++ repo.env;
     flags = repo.flags;
     autoUnlock = repo.autoUnlock;
+    # Without this, Backrest requires a pre-populated guid field
+    # (derived from `restic cat config --json`). autoInitialize tells
+    # Backrest to initialize new repos and derive the guid from existing
+    # ones on first connect — matches how restic's own `init` flag works.
+    autoInitialize = true;
   };
 
   renderPlan = name: plan: {
