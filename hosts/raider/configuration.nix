@@ -54,7 +54,37 @@
     };
     development.enable = true;
     docker.enable = true; # Enable Docker runtime
-    backup.enable = true; # Enable automated backups
+    backrest = {
+      # Interval-based scheduler matches laptop usage: runs ~24h after the
+      # last successful run, catches up once after long suspensions
+      # instead of stacking skipped cron entries.
+      enable = true;
+      repos.storage = {
+        uri = "rest:http://storage.bat-boa.ts.net:8000/";
+        passwordFile = config.sops.secrets."restic-password".path;
+      };
+      plans.system = {
+        repo = "storage";
+        paths = ["/var/lib" "/home" "/root"];
+        excludes = [
+          "/var/lib/docker"
+          "/var/lib/containers"
+          "/var/lib/systemd"
+          "/var/lib/libvirt"
+          "/var/lib/lxcfs"
+          "/var/cache"
+          "/nix"
+          "/mnt"
+          "**/.cache"
+          "**/.nix-profile"
+        ];
+        excludeIfPresent = [".nobackup" "CACHEDIR.TAG"];
+        schedule = {
+          maxFrequencyHours = 24;
+          clock = "last-run";
+        };
+      };
+    };
   };
 
   # Project Isolation VMs (Tailscale disabled for now — uses libvirt network SSH)
