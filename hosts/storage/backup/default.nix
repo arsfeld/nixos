@@ -1,6 +1,6 @@
 {
   imports = [
     ./backup-server.nix
-    ./backup-restic.nix
+    ./backrest-client.nix
   ];
 }
