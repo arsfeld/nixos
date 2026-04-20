@@ -2,6 +2,7 @@
   imports = [
     ./ai.nix
     ./auth.nix
+    ./backrest-portal.nix
     ./bitmagnet.nix
     ./cloud-sync.nix
     ./cloudflared.nix
