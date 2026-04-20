@@ -114,7 +114,7 @@ in {
     # Firewall rules
     networking.firewall.allowedTCPPorts = [80 443];
 
-    # Note: Plausible data in /var/lib/plausible will be automatically backed up
-    # by the constellation.backup module when enabled, as it backs up all of /var/lib
+    # Note: Plausible data in /var/lib/plausible is covered by constellation.backrest
+    # (basestar's system plan backs up /var/lib).
   };
 }

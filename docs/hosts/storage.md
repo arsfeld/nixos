@@ -201,29 +201,14 @@ All services run in Podman containers with:
 
 ## Backup Configuration
 
-### Backup Schedule
-Weekly automated backups via Rustic:
-```nix
-services.rustic.backups = {
-  storage = {
-    paths = [
-      "/mnt/data"
-      "/etc"
-      "/home"
-    ];
-    exclude = [
-      "*/cache/*"
-      "*/tmp/*"
-      "*.tmp"
-    ];
-  };
-};
-```
+Storage runs `constellation.backrest` as a client, pushing five plans
+(`nas`, `hetzner-system`, `hetzner`, `pegasus-system`, `pegasus`) to
+the local NAS disk, hetzner rclone repos, and pegasus's restic REST
+server. See `docs/architecture/backup.md` and
+`hosts/storage/backup/backrest-client.nix`.
 
-### Backup Destinations
-1. **Local**: Fast recovery backup on separate disk
-2. **Cottage S3**: Primary off-site backup
-3. **IDrive**: Cloud backup for critical data
+Storage also runs `services.restic.server` on `:8000` (Tailscale,
+`--no-auth`) as the write target for basestar, pegasus, and raider.
 
 ## Performance Optimization
 
