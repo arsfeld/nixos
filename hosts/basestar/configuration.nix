@@ -1,5 +1,6 @@
 {
   pkgs,
+  config,
   self,
   ...
 }: {
@@ -67,7 +68,37 @@
     binfmt.emulatedSystems = ["x86_64-linux"];
   };
 
-  constellation.backup.enable = true;
+  # Backrest replaces the previous rustic profile (which wrote to the same
+  # repo on a weekly cadence). Daily cron is finer resolution.
+  # Retention left empty to match the old rustic behavior — no client-side
+  # prune — until Phase B decides on a coordinated retention policy for
+  # the shared storage repo.
+  constellation.backrest = {
+    enable = true;
+    repos.storage = {
+      uri = "rest:http://storage.bat-boa.ts.net:8000/";
+      passwordFile = config.sops.secrets."restic-password".path;
+    };
+    plans.system = {
+      repo = "storage";
+      paths = ["/var/lib" "/home" "/root"];
+      excludes = [
+        "/var/lib/docker"
+        "/var/lib/containers"
+        "/var/lib/systemd"
+        "/var/lib/libvirt"
+        "/var/lib/lxcfs"
+        "/var/cache"
+        "/nix"
+        "/mnt"
+        "**/.cache"
+        "**/.nix-profile"
+      ];
+      excludeIfPresent = [".nobackup" "CACHEDIR.TAG"];
+      schedule.cron = "30 3 * * *";
+    };
+  };
+
   # Gateway for basestar services — auth forwarded to storage's Authelia via tsnsrv
   media.gateway.enable = true;
   media.gateway.authHost = "auth.bat-boa.ts.net";
