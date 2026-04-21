@@ -6,6 +6,15 @@
 }: let
   httpPort = 3333;
   dhtPort = 3334;
+  bitmagnetConfig = pkgs.writeText "bitmagnet-config.yml" ''
+    classifier:
+      delete_xxx: true
+      flags:
+        delete_content_types:
+          - xxx
+          - music
+          - ebook
+  '';
 in {
   sops.secrets."bitmagnet-env" = {};
 
@@ -21,6 +30,9 @@ in {
       POSTGRES_NAME = "bitmagnet";
       POSTGRES_USER = "bitmagnet";
     };
+    volumes = [
+      "${bitmagnetConfig}:/root/.config/bitmagnet/config.yml:ro"
+    ];
     extraOptions = [
       "--add-host=host.containers.internal:host-gateway"
       "--publish=${toString dhtPort}:${toString dhtPort}/tcp"
