@@ -85,7 +85,7 @@ with lib; let
           -H "Title: Backrest ${cfg.instance}: {{.Repo.Id}}/{{.Plan.Id}} failed" \
           -H "Tags: floppy_disk,warning" \
           --data-binary '{{.Event}} on {{.Repo.Id}}/{{.Plan.Id}} (host ${cfg.instance}): {{.Error}}' \
-          https://ntfy.arsfeld.one/backups
+          ${cfg.ntfyUrl}
       '';
     };
   };
@@ -141,7 +141,7 @@ with lib; let
   # On a fresh install the dest doesn't exist yet — just copy.
   mergeConfigScript = pkgs.writeShellScript "backrest-merge-config" ''
     set -euo pipefail
-    DEST=/var/lib/backrest/config.json
+    DEST=${cfg.dataDir}/config.json
     LIVE=$([ -f "$DEST" ] && cat "$DEST" || echo '{}')
     echo "$LIVE" | ${pkgs.jq}/bin/jq -s '
       .[0] as $tpl | .[1] as $live |
@@ -315,6 +315,30 @@ in {
       description = "Open 9898 on tailscale0 so storage's Caddy can proxy the UI.";
     };
 
+    dataDir = mkOption {
+      type = types.str;
+      default = "/var/lib/backrest";
+      description = "Directory where Backrest stores its config and state.";
+    };
+
+    cacheDir = mkOption {
+      type = types.str;
+      default = "/var/cache/backrest";
+      description = "Directory used by restic for its cache.";
+    };
+
+    ntfyUrl = mkOption {
+      type = types.str;
+      default = "https://ntfy.arsfeld.one/backups";
+      description = "ntfy topic URL for backup failure notifications.";
+    };
+
+    ntfyPublisherEnvFile = mkOption {
+      type = types.nullOr types.path;
+      default = null;
+      description = "EnvironmentFile providing NTFY_BASIC_AUTH_B64 for the failure hook. Defaults to the sops ntfy-publisher-env secret.";
+    };
+
     repos = mkOption {
       type = types.attrsOf repoType;
       default = {};
@@ -348,24 +372,29 @@ in {
       path = [pkgs.rclone pkgs.openssh pkgs.coreutils pkgs.curl];
 
       environment = {
-        BACKREST_DATA = "/var/lib/backrest";
-        BACKREST_CONFIG = "/var/lib/backrest/config.json";
+        BACKREST_DATA = cfg.dataDir;
+        BACKREST_CONFIG = "${cfg.dataDir}/config.json";
         BACKREST_PORT = cfg.bindAddress;
         BACKREST_RESTIC_COMMAND = "${pkgs.restic}/bin/restic";
-        XDG_CACHE_HOME = "/var/cache/backrest";
+        XDG_CACHE_HOME = cfg.cacheDir;
       };
 
-      serviceConfig = {
+      serviceConfig = let
+        ntfyEnvFile =
+          if cfg.ntfyPublisherEnvFile != null
+          then cfg.ntfyPublisherEnvFile
+          else config.sops.secrets."ntfy-publisher-env".path;
+      in {
         Type = "simple";
-        StateDirectory = "backrest";
+        StateDirectory = lib.removePrefix "/var/lib/" cfg.dataDir;
         StateDirectoryMode = "0700";
-        CacheDirectory = "backrest";
+        CacheDirectory = lib.removePrefix "/var/cache/" cfg.cacheDir;
         CacheDirectoryMode = "0700";
         # ntfy-publisher-env provides NTFY_BASIC_AUTH_B64 for the failure hook.
         # Per-repo envFiles (e.g. hetzner-webdav-env) flow through to restic
         # via env inheritance.
         EnvironmentFile =
-          [config.sops.secrets."ntfy-publisher-env".path]
+          [ntfyEnvFile]
           ++ repoEnvFiles;
         # Merge Nix template into live config on every start, preserving
         # repo guids, modno, and sync.identity written by Backrest at runtime.
