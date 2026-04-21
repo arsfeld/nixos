@@ -7,10 +7,11 @@
 # Design notes:
 #   - Runs as root (matches rustic/restic convention; needs read on /var/lib
 #     /home /root and in some cases /).
-#   - Config.json is mutated by the daemon at runtime, so it can't live in
-#     the Nix store. ExecStartPre copies the Nix-rendered template onto
-#     /var/lib/backrest/config.json on every start. Treat the Backrest web
-#     UI as read-only; any config change goes through Nix.
+#   - Config.json is mutated by the daemon at runtime (repo guids, modno,
+#     sync.identity), so it can't live in the Nix store. ExecStartPre runs a
+#     jq merge script that applies the Nix template while preserving those
+#     runtime-written fields. Treat the Backrest web UI as read-only; any
+#     structural config change goes through Nix.
 #   - No secrets in the rendered config. Passwords are read by restic from
 #     RESTIC_PASSWORD_FILE (set in repo env). Ntfy credentials are read by
 #     the failure hook's shell command from env (loaded via EnvironmentFile).
@@ -135,6 +136,30 @@ with lib; let
   };
 
   configTemplate = pkgs.writeText "backrest-config.json" (builtins.toJSON configAttrs);
+
+  # Merge script: apply the Nix template on every start while preserving the
+  # fields Backrest writes at runtime (repo guids derived from restic, modno
+  # optimistic-lock counter, and the sync identity keypair).
+  # On a fresh install the dest doesn't exist yet — just copy.
+  mergeConfigScript = pkgs.writeShellScript "backrest-merge-config" ''
+    set -euo pipefail
+    DEST=/var/lib/backrest/config.json
+    if [ ! -f "$DEST" ]; then
+      install -m 0600 ${configTemplate} "$DEST"
+      exit 0
+    fi
+    ${pkgs.jq}/bin/jq -s '
+      .[0] as $tpl | .[1] as $live |
+      $tpl
+      | .modno = ($live.modno // 0)
+      | .repos = (.repos | map(
+          . as $r |
+          ($live.repos // [] | map(select(.id == $r.id)) | first) as $lr |
+          if $lr.guid then . + {guid: $lr.guid} else . end
+        ))
+      | if $live.sync then . + {sync: $live.sync} else . end
+    ' ${configTemplate} "$DEST" > "$DEST.tmp" && mv "$DEST.tmp" "$DEST"
+  '';
 
   # Per-repo envFiles (rclone creds etc.) flow through to restic via
   # Backrest's env inheritance (the daemon's env is passed to restic).
@@ -343,10 +368,9 @@ in {
         EnvironmentFile =
           [config.sops.secrets."ntfy-publisher-env".path]
           ++ repoEnvFiles;
-        # Install the Nix-rendered config into the writable state dir on
-        # every start. Backrest mutates it in place (modno/guid) so it
-        # can't live in the Nix store.
-        ExecStartPre = "${pkgs.coreutils}/bin/install -m 0600 ${configTemplate} /var/lib/backrest/config.json";
+        # Merge Nix template into live config on every start, preserving
+        # repo guids, modno, and sync.identity written by Backrest at runtime.
+        ExecStartPre = "${mergeConfigScript}";
         ExecStart = "${cfg.package}/bin/backrest";
         Restart = "on-failure";
         RestartSec = "30s";
