@@ -3,6 +3,7 @@
     ./ai.nix
     ./auth.nix
     ./backrest-portal.nix
+    ./backrest-public-vhosts.nix
     ./bitmagnet.nix
     ./cloud-sync.nix
     ./cloudflared.nix
