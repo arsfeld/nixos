@@ -207,8 +207,10 @@ in {
       }
 
       header {
-        Content-Security-Policy "frame-ancestors 'none'"
-        X-Frame-Options "DENY"
+        # `>` prefix forces replace semantics (default `header` appends,
+        # which would duplicate XFO since Authelia's 302 already sets it).
+        >Content-Security-Policy "frame-ancestors 'none'"
+        >X-Frame-Options "DENY"
       }
 
       root * ${indexHtml}
