@@ -1,7 +1,7 @@
 # Storage as a backup *client*: runs five Backrest plans pushing to
-# four repos — local NAS, hetzner (system + user), and pegasus (one
-# repo holding both system + user snapshots, distinguished by path
-# set). Replaces the previous hand-rolled services.restic.backups
+# three repos — local NAS, hetzner, and pegasus. Both the system and
+# user plans for hetzner/pegasus share the same repo (distinguished
+# by path set). Replaces the previous hand-rolled services.restic.backups
 # profiles in backup-restic.nix.
 #
 # Retention, exclusion lists, and destination URIs are preserved 1:1
@@ -118,14 +118,9 @@ in {
     enable = true;
 
     repos = {
-      local-system = {
+      local = {
         uri = "/mnt/storage/backups/restic";
         passwordFile = config.sops.secrets."restic-password".path;
-      };
-      hetzner-system = {
-        uri = "rclone:hetzner:backups/restic-system";
-        passwordFile = config.sops.secrets."restic-password".path;
-        envFile = config.sops.secrets."hetzner-webdav-env".path;
       };
       hetzner = {
         uri = "rclone:hetzner:backups/restic";
@@ -140,7 +135,7 @@ in {
 
     plans = {
       local-system = {
-        repo = "local-system";
+        repo = "local";
         paths = ["/"];
         excludes = localSystemExcludes;
         schedule.cron = "30 2 * * *";
@@ -152,7 +147,7 @@ in {
       };
 
       hetzner-system = {
-        repo = "hetzner-system";
+        repo = "hetzner";
         paths = ["/"];
         excludes = systemExcludes;
         schedule.cron = "30 4 * * 0";
