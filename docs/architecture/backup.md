@@ -106,10 +106,31 @@ Source: `modules/constellation/backrest.nix`.
   ACL restricting `tcp:9898` to operator devices — configured in the
   Tailscale admin console, outside this repo.
 - Backrest's built-in auth is disabled (`auth.disabled: true`).
-- The unified `backrest.arsfeld.one` landing page on storage's Caddy
-  is gated by Authelia. Cards on that page link to each host's
-  tailnet endpoint (`http://<host>.bat-boa.ts.net:9898/`) — so the
-  actual Backrest UIs are only reachable from the tailnet.
+- **Public access**. The unified `backrest.arsfeld.one` portal on
+  storage's Caddy is an iframe shell that loads each host's UI from
+  its own per-host subdomain (`backrest-<host>.arsfeld.one`). The
+  portal vhost and every per-host subdomain are Authelia-gated. All
+  four hosts (storage, basestar, pegasus, raider) are reachable from
+  any browser regardless of client-side Tailscale state, eliminating
+  the previous tailnet-only click-through.
+  - Storage's Caddy reverse-proxies each subdomain to the upstream
+    daemon over the tailnet (`<host>.bat-boa.ts.net:9898`). The
+    daemons themselves still bind `tailscale0` only.
+  - The portal vhost itself sets `frame-ancestors 'none'` /
+    `X-Frame-Options: DENY`. Per-host subdomains set
+    `frame-ancestors https://backrest.arsfeld.one`. Storage's Caddy
+    strips any upstream `X-Frame-Options` so the CSP directive is
+    the sole framing authority.
+- **Single Authelia gate.** Defense-in-depth via Backrest's built-in
+  auth was considered and rejected (see brainstorm R3). Authelia
+  bypass equals restore/mutate access across the fleet — harden
+  Authelia (2FA, lockout) before reintroducing weak per-host
+  credentials.
+- **Storage Caddy SPOF.** When storage is down, no host's Backrest
+  UI is reachable publicly. Tailnet remains the recovery path.
+- See `docs/brainstorms/2026-04-20-backrest-public-ui-portal-brainstorm.md`
+  and `docs/plans/2026-04-20-002-feat-backrest-public-ui-portal-plan.md`
+  for the full design rationale.
 
 ## Repositories
 
