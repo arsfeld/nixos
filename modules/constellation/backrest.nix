@@ -99,11 +99,9 @@ with lib; let
       ++ repo.env;
     flags = repo.flags;
     autoUnlock = repo.autoUnlock;
-    # Without this, Backrest requires a pre-populated guid field
-    # (derived from `restic cat config --json`). autoInitialize tells
-    # Backrest to initialize new repos and derive the guid from existing
-    # ones on first connect — matches how restic's own `init` flag works.
-    autoInitialize = true;
+    # autoInitialize is set by the merge script for repos that have no guid
+    # yet (new repos). Once a guid is present autoInitialize must be absent —
+    # Backrest rejects configs that set both.
   };
 
   renderPlan = name: plan: {
@@ -144,21 +142,22 @@ with lib; let
   mergeConfigScript = pkgs.writeShellScript "backrest-merge-config" ''
     set -euo pipefail
     DEST=/var/lib/backrest/config.json
-    if [ ! -f "$DEST" ]; then
-      install -m 0600 ${configTemplate} "$DEST"
-      exit 0
-    fi
-    ${pkgs.jq}/bin/jq -s '
+    LIVE=$([ -f "$DEST" ] && cat "$DEST" || echo '{}')
+    echo "$LIVE" | ${pkgs.jq}/bin/jq -s '
       .[0] as $tpl | .[1] as $live |
       $tpl
       | .modno = ($live.modno // 0)
       | .repos = (.repos | map(
           . as $r |
           ($live.repos // [] | map(select(.id == $r.id)) | first) as $lr |
-          if $lr.guid then . + {guid: $lr.guid} else . end
+          if $lr.guid
+          then . + {guid: $lr.guid}
+          else . + {autoInitialize: true}
+          end
         ))
       | if $live.sync then . + {sync: $live.sync} else . end
-    ' ${configTemplate} "$DEST" > "$DEST.tmp" && mv "$DEST.tmp" "$DEST"
+    ' ${configTemplate} - > "$DEST.tmp" && mv "$DEST.tmp" "$DEST"
+    chmod 0600 "$DEST"
   '';
 
   # Per-repo envFiles (rclone creds etc.) flow through to restic via
