@@ -18,10 +18,10 @@
   lib,
   ...
 }: let
-  # Kept separate from the system/user exclude lists because the nas
-  # plan's geometry is unique (daily, all-paths-from-root, explicit
-  # /home and /nix exclusion).
-  nasExcludes = [
+  # Kept separate from the system/user exclude lists because the
+  # local-system plan's geometry is unique (daily, all-paths-from-root,
+  # explicit /home and /nix exclusion).
+  localSystemExcludes = [
     "/dev"
     "/proc"
     "/sys"
@@ -118,7 +118,7 @@ in {
     enable = true;
 
     repos = {
-      nas = {
+      local-system = {
         uri = "/mnt/storage/backups/restic";
         passwordFile = config.sops.secrets."restic-password".path;
       };
@@ -139,10 +139,10 @@ in {
     };
 
     plans = {
-      nas = {
-        repo = "nas";
+      local-system = {
+        repo = "local-system";
         paths = ["/"];
-        excludes = nasExcludes;
+        excludes = localSystemExcludes;
         schedule.cron = "30 2 * * *";
         retention = {
           daily = 7;

@@ -44,7 +44,7 @@ graph LR
 
 | Host     | Plans                                                     | Destinations |
 |----------|-----------------------------------------------------------|--------------|
-| storage  | `nas`, `hetzner-system`, `hetzner`, `pegasus-system`, `pegasus` | local NAS, hetzner (×2), pegasus REST |
+| storage  | `local-system`, `hetzner-system`, `hetzner`, `pegasus-system`, `pegasus` | local NAS, hetzner (×2), pegasus REST |
 | basestar | `system` (daily)                                          | storage REST |
 | pegasus  | `system` (weekly)                                         | storage REST |
 | raider   | `system` (every 24h, interval scheduler for laptop)       | storage REST |
@@ -120,7 +120,7 @@ REST) is the mitigation.
 
 | Repo name        | URI                                                | Owner    | Notes |
 |------------------|----------------------------------------------------|----------|-------|
-| `nas`            | `/mnt/storage/backups/restic`                      | storage  | Local, daily |
+| `local-system`   | `/mnt/storage/backups/restic`                      | storage  | Local, daily |
 | `hetzner-system` | `rclone:hetzner:backups/restic-system`             | storage  | rclone creds via `hetzner-webdav-env` |
 | `hetzner`        | `rclone:hetzner:backups/restic`                    | storage  | rclone creds via `hetzner-webdav-env` |
 | pegasus REST     | `rest:http://pegasus.bat-boa.ts.net:8000/`         | storage  | two plans share the URI; `pegasus-system` + `pegasus` (user data) |
@@ -150,7 +150,7 @@ Defaults carried over from the prior restic config:
 
 - **Remote weekly plans** (`hetzner*`, `pegasus*`, basestar, pegasus,
   raider): `--keep-daily 7 --keep-weekly 4 --keep-monthly 6`.
-- **Local nas plan** (daily): `--keep-daily 7 --keep-weekly 5
+- **local-system plan** (daily): `--keep-daily 7 --keep-weekly 5
   --keep-monthly 12`.
 
 Retention changes go through Nix; UI edits are lost on next deploy.
