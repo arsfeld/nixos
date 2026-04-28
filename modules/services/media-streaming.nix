@@ -23,7 +23,6 @@ in {
         };
       };
       bypassAuth = true;
-      funnel = true;
       tailscaleExposed = true;
     })
 
@@ -36,7 +35,6 @@ in {
         devices = ["/dev/dri:/dev/dri"];
         environment.VERSION = "latest";
       };
-      funnel = true;
       tailscaleExposed = true;
     })
 
@@ -50,7 +48,6 @@ in {
         network = "host";
         devices = ["/dev/dri:/dev/dri"];
       };
-      funnel = true;
       tailscaleExposed = true;
     })
 

@@ -20,14 +20,12 @@
 in {
   media.gateway.services.komga = {
     port = komgaPort;
-    settings.funnel = true;
   };
   media.gateway.services.lidarr = {port = 8686;};
   media.gateway.services.tautulli = {port = 8181;};
   media.gateway.services.headphones = {port = headphonesPort;};
   media.gateway.services.resilio = {
     port = 9000;
-    settings.funnel = true;
   };
   media.gateway.services.fileflows = {port = 19200;};
 
