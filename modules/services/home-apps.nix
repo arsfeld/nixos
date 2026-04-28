@@ -30,7 +30,6 @@ in {
         ];
       };
       bypassAuth = true;
-      funnel = true;
       tailscaleExposed = true;
     })
 
@@ -40,7 +39,6 @@ in {
       container = {
         exposePort = 9283;
       };
-      funnel = true;
       tailscaleExposed = true;
     })
 
@@ -51,7 +49,6 @@ in {
         exposePort = 9284;
         configDir = "/configs";
       };
-      funnel = true;
     })
 
     (mkService "actual" {

@@ -11,7 +11,6 @@ in
       media.gateway.services.home = {
         port = 8085;
         exposeViaTailscale = true;
-        settings.funnel = true;
       };
       media.gateway.services.www = {
         port = 8085;

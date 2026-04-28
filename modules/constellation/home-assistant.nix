@@ -41,7 +41,6 @@
       exposeViaTailscale = true;
       settings = {
         bypassAuth = true;
-        funnel = true;
       };
     };
 

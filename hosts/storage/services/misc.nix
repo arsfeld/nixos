@@ -9,15 +9,12 @@
 in {
   media.gateway.services.romm = {
     port = 8998;
-    settings.funnel = true;
   };
   media.gateway.services.speedtest = {
     port = 8765;
-    settings.funnel = true;
   };
   media.gateway.services.filestash = {
     port = 8334;
-    settings.funnel = true;
   };
 
   sops.secrets.tailscale-key.sopsFile = config.constellation.sops.commonSopsFile;

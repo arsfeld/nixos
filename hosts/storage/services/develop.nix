@@ -8,12 +8,10 @@ in {
   media.gateway.services.code = {
     port = 4444;
     exposeViaTailscale = true;
-    settings.funnel = true;
   };
   media.gateway.services.forgejo = {
     port = 3001;
     exposeViaTailscale = true;
-    settings.funnel = true;
   };
 
   # Forgejo OIDC secret (client secret for Authelia)
