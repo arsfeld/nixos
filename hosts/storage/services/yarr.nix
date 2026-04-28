@@ -17,7 +17,6 @@ in {
     environmentFiles = [
       config.sops.secrets."yarr-env".path
     ];
-    settings.funnel = true;
   };
 
   media.gateway.services.yarr.exposeViaTailscale = true;

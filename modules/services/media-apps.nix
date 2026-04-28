@@ -58,7 +58,6 @@ in {
         ];
       };
       bypassAuth = true;
-      funnel = true;
     })
 
     (mkService "mydia" {
