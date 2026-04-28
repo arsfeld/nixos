@@ -24,6 +24,7 @@
     ./nfs.nix
     ./samba.nix
     ./seafile.nix
+    ./stashfin.nix
     ./vault.nix
     ./yarr.nix
   ];
