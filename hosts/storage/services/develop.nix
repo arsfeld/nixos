@@ -1,17 +1,15 @@
 {
   config,
+  pkgs,
   self,
   ...
 }: let
   vars = config.media.config;
 in {
-  media.gateway.services.code = {
-    port = 4444;
-    exposeViaTailscale = true;
-  };
   media.gateway.services.forgejo = {
     port = 3001;
     exposeViaTailscale = true;
+    settings.bypassAuth = true;
   };
 
   # Forgejo OIDC secret (client secret for Authelia)
@@ -19,17 +17,10 @@ in {
     mode = "0400";
     owner = "forgejo";
   };
-  services.code-server = {
-    enable = true;
-    user = "arosenfeld";
-    host = "0.0.0.0";
-    port = 4444;
-    auth = "none";
-    proxyDomain = "code.${vars.domain}";
-  };
 
   services.forgejo = {
     enable = true;
+    package = pkgs.forgejo;
     settings = {
       DEFAULT = {
         APP_NAME = "Forgejo";
