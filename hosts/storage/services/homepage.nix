@@ -126,12 +126,6 @@
       icon = "forgejo.png";
       description = "Git service";
     };
-    code = {
-      name = "Code Server";
-      category = "Development";
-      icon = "visual-studio-code";
-      description = "VS Code in browser";
-    };
     speedtest = {
       name = "Speedtest Tracker";
       category = "Utilities";
