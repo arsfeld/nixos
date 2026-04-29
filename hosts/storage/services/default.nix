@@ -1,6 +1,7 @@
 {
   imports = [
     ./ai.nix
+    ./ask.nix
     ./auth.nix
     ./backrest-portal.nix
     ./backrest-public-vhosts.nix
@@ -23,6 +24,7 @@
     ./transmission-vpn.nix
     ./nfs.nix
     ./samba.nix
+    ./search.nix
     ./seafile.nix
     ./stashfin.nix
     ./vault.nix
