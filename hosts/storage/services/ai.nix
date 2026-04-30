@@ -53,12 +53,31 @@
       };
 
       ollama = {
-        image = "ollama/ollama:latest";
+        # IPEX-LLM build of ollama for Intel iGPU acceleration (Iris Xe via SYCL).
+        # Storage CPU is Raptor Lake-P; the iGPU shares system RAM, so the speedup
+        # is modest (mostly prompt processing). To revert: switch image back to
+        # ollama/ollama:latest and drop the env vars and device mappings below.
+        image = "ghcr.io/ava-agentone/ollama-intel:latest";
+        environment = {
+          OLLAMA_HOST = "0.0.0.0:11434";
+          OLLAMA_NUM_GPU = "999";
+          OLLAMA_KEEP_ALIVE = "30s";
+          ONEAPI_DEVICE_SELECTOR = "level_zero:0";
+          ZES_ENABLE_SYSMAN = "1";
+          SYCL_CACHE_PERSISTENT = "1";
+        };
         volumes = [
           "${config.media.config.configDir}/ollama:/root/.ollama"
         ];
         ports = ["11434:11434"];
-        extraOptions = ["--network=ai"];
+        extraOptions = [
+          "--network=ai"
+          "--device=/dev/dri/card1"
+          "--device=/dev/dri/renderD128"
+          "--group-add=303" # render
+          "--group-add=26" # video
+          "--shm-size=4g"
+        ];
       };
     };
   };
