@@ -11,6 +11,7 @@
     ./db.nix
     ./develop.nix
     ./files.nix
+    ./forgejo-runner.nix
     ./home.nix
     ./homepage.nix
     ./immich.nix
