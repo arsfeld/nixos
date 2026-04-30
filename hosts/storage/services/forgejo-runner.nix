@@ -4,6 +4,6 @@ in {
   constellation.forgejo-runner = {
     enable = true;
     url = "https://forgejo.${vars.domain}";
-    capacity = 2;
+    capacity = 3;
   };
 }
