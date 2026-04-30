@@ -65,8 +65,7 @@ in
         environment = {
           OLLAMA_HOST = "0.0.0.0:11434";
           OLLAMA_NUM_GPU = "999";
-          # Keep loaded models warm — qwen3:8b takes ~22s to reload otherwise.
-          OLLAMA_KEEP_ALIVE = "24h";
+          OLLAMA_KEEP_ALIVE = "5m";
           # Default context. Clients (e.g. Vane) request 32k+ which blows the
           # KV cache to 9GB on this 8B model; cap to 8k unless overridden.
           OLLAMA_CONTEXT_LENGTH = "8192";
