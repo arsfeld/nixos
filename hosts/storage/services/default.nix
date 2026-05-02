@@ -5,6 +5,7 @@
     ./auth.nix
     ./backrest-portal.nix
     ./backrest-public-vhosts.nix
+    ./beszel.nix
     ./bitmagnet.nix
     ./cloud-sync.nix
     ./cloudflared.nix
