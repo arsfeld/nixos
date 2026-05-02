@@ -218,6 +218,10 @@
       category = "System";
       icon = "di:netdata";
     };
+    beszel = {
+      category = "System";
+      icon = "di:beszel";
+    };
     ntfy = {
       category = "System";
       icon = "di:ntfy";
