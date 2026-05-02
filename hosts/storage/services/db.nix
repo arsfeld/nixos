@@ -8,7 +8,10 @@
   services.redis.servers.seafile = {
     enable = true;
     port = 6379;
-    bind = "127.0.0.1 10.88.0.1";
+    # `-10.88.0.1` (leading dash) marks the Podman bridge address as optional.
+    # The bridge is created lazily by Podman, so it may not exist when Redis
+    # starts at boot — without this, the unit fails until first manual restart.
+    bind = "127.0.0.1 -10.88.0.1";
     settings.protected-mode = "no";
   };
 
