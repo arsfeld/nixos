@@ -1,7 +1,7 @@
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11"; # Core nixpkgs - stable 25.11
-    nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable-small"; # Unstable packages for latest versions
+    nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable"; # Unstable packages for latest versions
     determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/*"; # Determinate Nix
     disko.url = "github:nix-community/disko"; # Declarative disk partitioning
     disko.inputs.nixpkgs.follows = "nixpkgs";
