@@ -12,8 +12,8 @@
     ./develop.nix
     ./files.nix
     ./forgejo-runner.nix
+    ./glance.nix
     ./home.nix
-    ./homepage.nix
     ./immich.nix
     ./infra.nix
     ./isponsorblock.nix
