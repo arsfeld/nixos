@@ -78,9 +78,6 @@ in {
   # Enable Transmission with WireGuard VPN in network namespace
   services.transmission-vpn.enable = true;
 
-  # Observability: Central hub for metrics and logs (disabled)
-  # constellation.observability-hub.enable = true;
-
   media.config.enable = true;
 
   networking.hostName = "storage";
