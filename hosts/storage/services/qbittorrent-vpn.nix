@@ -95,6 +95,15 @@ in {
       };
     };
 
+    # network-online.target alone doesn't guarantee DNS is usable, and wg-up
+    # resolves the AirVPN endpoint hostname before bringing the tunnel up.
+    # Without nss-lookup.target the resolver can fail with "Name or service
+    # not known" at boot.
+    systemd.services.wg = {
+      after = ["nss-lookup.target"];
+      wants = ["nss-lookup.target"];
+    };
+
     # Override wg-up script to remove ping check which fails on some AirVPN servers (e.g. ca3)
     systemd.services.wg.serviceConfig.ExecStart = let
       script = pkgs.writeShellScript "wg-up" ''
