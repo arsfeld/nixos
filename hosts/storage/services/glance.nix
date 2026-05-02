@@ -303,16 +303,35 @@
   in
     known ++ extra;
 
-  bookmarkGroups =
-    map (cat: {
+  # Per-category accent colors for bookmark groups. HSL ("hue saturation lightness")
+  # tuned for legibility on Catppuccin Mocha; categories without an entry use the
+  # theme's default primary color.
+  categoryColors = {
+    Media = "10 70 65";
+    Downloads = "30 80 65";
+    Management = "200 65 65";
+    Files = "140 50 60";
+    Photos = "190 70 65";
+    Home = "275 55 70";
+    Development = "220 75 70";
+    System = "30 15 70";
+    Security = "0 65 65";
+    Utilities = "170 45 60";
+  };
+
+  bookmarkGroups = map (cat: let
+    color = categoryColors.${cat} or null;
+  in
+    {
       title = cat;
       links =
         map (e: {
           inherit (e) title url icon;
         })
         (lib.sort (a: b: a.title < b.title) byCategory.${cat});
-    })
-    sortedCategoryNames;
+    }
+    // (lib.optionalAttrs (color != null) {inherit color;}))
+  sortedCategoryNames;
 
   # Per-service monitor probe overrides. Glance's monitor widget does not
   # follow redirects, so services that auth-redirect (302) or path-redirect
@@ -375,9 +394,87 @@ in {
         app-name = "Storage";
         logo-text = "S";
       };
+
+      # Catppuccin Mocha as the default; presets let the user theme-switch
+      # via the picker without redeploying.
+      theme = {
+        background-color = "240 21 15";
+        primary-color = "217 92 83";
+        positive-color = "115 54 76";
+        negative-color = "347 70 65";
+        contrast-multiplier = 1.2;
+        presets = {
+          "catppuccin-frappe" = {
+            background-color = "229 19 23";
+            primary-color = "222 74 74";
+            positive-color = "96 44 68";
+            negative-color = "359 68 71";
+            contrast-multiplier = 1.2;
+          };
+          "catppuccin-macchiato" = {
+            background-color = "232 23 18";
+            primary-color = "220 83 75";
+            positive-color = "105 48 72";
+            negative-color = "351 74 73";
+            contrast-multiplier = 1.2;
+          };
+          "gruvbox-dark" = {
+            background-color = "0 0 16";
+            primary-color = "43 59 81";
+            positive-color = "61 66 44";
+            negative-color = "6 96 59";
+          };
+          "dracula" = {
+            background-color = "231 15 21";
+            primary-color = "265 89 79";
+            positive-color = "135 94 66";
+            negative-color = "0 100 67";
+            contrast-multiplier = 1.2;
+          };
+          "teal-city" = {
+            background-color = "225 14 15";
+            primary-color = "157 47 65";
+            contrast-multiplier = 1.1;
+          };
+        };
+      };
+
       pages = [
         {
           name = "Home";
+
+          # Sticky full-width search across the top of the page.
+          head-widgets = [
+            {
+              type = "search";
+              search-engine = "https://www.perplexity.ai/search?q={QUERY}";
+              placeholder = "Ask anything…";
+              new-tab = true;
+              bangs = [
+                {
+                  title = "GitHub";
+                  shortcut = "!gh";
+                  url = "https://github.com/search?q={QUERY}";
+                }
+                {
+                  title = "Forgejo";
+                  shortcut = "!fj";
+                  url = "https://forgejo.${vars.domain}/-/explore/repos?q={QUERY}";
+                }
+                {
+                  title = "Plex";
+                  shortcut = "!p";
+                  url = "https://plex.${vars.domain}/web/index.html#!/search?query={QUERY}";
+                }
+                {
+                  title = "YouTube";
+                  shortcut = "!yt";
+                  url = "https://www.youtube.com/results?search_query={QUERY}";
+                }
+              ];
+            }
+          ];
+
           columns = [
             {
               size = "small";
@@ -395,12 +492,6 @@ in {
                   location = "Rouyn-Noranda, Quebec, Canada";
                   units = "metric";
                   hour-format = "24h";
-                }
-                {
-                  type = "search";
-                  search-engine = "https://www.perplexity.ai/search?q={QUERY}";
-                  placeholder = "Ask Perplexity…";
-                  new-tab = true;
                 }
               ];
             }
