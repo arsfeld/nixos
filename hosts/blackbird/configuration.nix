@@ -54,6 +54,9 @@
   # Basic system configuration
   networking.hostName = "blackbird";
 
+  # Ventoy bundles an older GTK3 flagged insecure by nixpkgs
+  nixpkgs.config.permittedInsecurePackages = ["ventoy-gtk3-1.1.10"];
+
   # Additional packages
   environment.systemPackages = with pkgs; [
     powertop
@@ -62,6 +65,7 @@
     easyeffects # Audio enhancement for G14 speakers
     alsa-utils # Audio utilities
     librepods # Open-source AirPods client
+    ventoy-full-gtk # Multiboot USB creator (CLI + GTK GUI, all plugins)
   ];
 
   # Bootloader
@@ -82,13 +86,31 @@
     "splash"
     "quiet"
     "udev.log_level=0"
-    # Additional power saving parameters
-    "pcie_aspm=force"
-    "pcie_aspm.policy=powersupersave"
+    # i915 frame buffer + panel self-refresh: iGPU-only, safe for dGPU
     "i915.enable_fbc=1"
     "i915.enable_psr=2"
     "nmi_watchdog=0"
+    # Note: pcie_aspm=force + pcie_aspm.policy=powersupersave were removed -
+    # they renegotiated the GTX 1660 Ti Max-Q link to PCIe 2.0 x8 and pinned
+    # the dGPU in P5 / 30W TGP under load (Forza was VRAM-bandwidth starved).
+    # TLP's PCIE_ASPM_ON_AC handles per-AC tuning instead.
   ];
+
+  # NVIDIA PowerMizer: force highest performance level when the dGPU is in
+  # use. Without this, the proprietary driver runs PowerMizer in adaptive
+  # mode and refuses to leave P5 even at 97% utilization (memory clock stuck
+  # at 810/6001 MHz under DXVK/Wine workloads on Wayland-Hybrid Optimus).
+  # nvidia-settings/X11 GpuPowerMizerMode is unavailable on Wayland, so set
+  # it via the kernel module's RegistryDwords. Dynamic Power Management is
+  # left at its default (0x02) so the dGPU still suspends when unused.
+  boot.extraModprobeConfig = ''
+    options nvidia NVreg_RegistryDwords="PowerMizerEnable=0x1;PerfLevelSrc=0x3322;PowerMizerLevel=0x1;PowerMizerDefault=0x1;PowerMizerDefaultAC=0x1"
+  '';
+
+  # Run nvidia-persistenced so PowerMizer settings and any nvidia-smi -lgc
+  # locks survive across application opens (Steam/Proton spawning Wine
+  # processes otherwise tears the driver up/down).
+  hardware.nvidia.nvidiaPersistenced = true;
 
   # Remove zfs support
   boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "ntfs" "reiserfs" "vfat" "xfs"];
@@ -219,21 +241,29 @@
     SuspendState=mem
   '';
 
-  # Advanced Power Management with TLP
+  # Advanced Power Management with TLP. Disabled for the open-vs-proprietary
+  # NVIDIA A/B test - we ruled out TLP as the cause of the dGPU memory clock
+  # pinned at 810 MHz, but keeping it off rules it out as a confounder while
+  # we test the driver swap.
   services.tlp = {
-    enable = true;
+    enable = false;
     settings = {
-      # CPU power management - balanced for both AC and battery
-      CPU_SCALING_GOVERNOR_ON_AC = "schedutil"; # More balanced, less aggressive
-      CPU_SCALING_GOVERNOR_ON_BAT = "schedutil"; # More balanced than powersave
-      CPU_ENERGY_PERF_POLICY_ON_AC = "balance_performance"; # Quieter operation on AC
-      CPU_ENERGY_PERF_POLICY_ON_BAT = "balance_performance"; # Better balance
+      # CPU power management. On AC we run unrestricted: boost on, EPP at
+      # "performance". This is required for NVIDIA Dynamic Boost to give the
+      # dGPU its full TGP allocation -- with CPU boost off and EPP balanced,
+      # the EC keeps the 1660 Ti Max-Q clamped to ~30W (vs 60W default),
+      # which pins it in P5 with memory at 810/6001 MHz under load. Battery
+      # stays on schedutil/balanced for longevity.
+      CPU_SCALING_GOVERNOR_ON_AC = "performance";
+      CPU_SCALING_GOVERNOR_ON_BAT = "schedutil";
+      CPU_ENERGY_PERF_POLICY_ON_AC = "performance";
+      CPU_ENERGY_PERF_POLICY_ON_BAT = "balance_performance";
       CPU_MIN_PERF_ON_AC = 0;
       CPU_MAX_PERF_ON_AC = 100;
-      CPU_MIN_PERF_ON_BAT = 20; # Higher minimum for better responsiveness
-      CPU_MAX_PERF_ON_BAT = 100; # Full performance available when needed
-      CPU_BOOST_ON_AC = 0; # Disable boost on AC for quieter operation
-      CPU_BOOST_ON_BAT = 0; # Keep boost disabled on battery for better efficiency
+      CPU_MIN_PERF_ON_BAT = 20;
+      CPU_MAX_PERF_ON_BAT = 100;
+      CPU_BOOST_ON_AC = 1;
+      CPU_BOOST_ON_BAT = 0;
 
       # PLATFORM_PROFILE removed: changing platform profile via TLP
       # disables asusd custom fan curves (ACPI firmware behavior)
@@ -244,10 +274,11 @@
       DISK_APM_LEVEL_ON_AC = "254 254";
       DISK_APM_LEVEL_ON_BAT = "128 128";
 
-      # PCIe power management
+      # PCIe power management. ASPM on AC is "performance" (disabled) so the
+      # dGPU's link stays at PCIe 3.0 x8/x16 instead of dropping to 2.0 x8.
       RUNTIME_PM_ON_AC = "auto";
       RUNTIME_PM_ON_BAT = "auto";
-      PCIE_ASPM_ON_AC = "default";
+      PCIE_ASPM_ON_AC = "performance";
       PCIE_ASPM_ON_BAT = "powersupersave";
 
       # USB autosuspend
@@ -297,6 +328,55 @@
     HandleLidSwitchExternalPower = "suspend-then-hibernate";
     HandlePowerKey = "suspend-then-hibernate";
   };
+
+  # NVIDIA + suspend-then-hibernate needs two pieces that NixOS doesn't wire
+  # by default:
+  #
+  # 1. The NVIDIA driver ships a system-sleep hook (lib/systemd/system-sleep/
+  #    nvidia) that handles the inner suspend->hibernate and post-resume
+  #    transitions of suspend-then-hibernate by writing the right value to
+  #    /proc/driver/nvidia/suspend based on $SYSTEMD_SLEEP_ACTION. NixOS's
+  #    systemd.packages = [ nvidia_x11 ] only links systemd units, not
+  #    system-sleep scripts, so install it explicitly.
+  #
+  # 2. The hook intentionally does NOT cover the initial pre:suspend phase,
+  #    expecting nvidia-suspend.service to handle it. But systemd-suspend-
+  #    then-hibernate.service doesn't pull in systemd-suspend.service, so
+  #    nvidia-suspend.service never fires and the proprietary driver aborts
+  #    the kernel suspend with EIO ("System Power Management attempted
+  #    without driver procfs suspend interface"). Wire it explicitly. Do NOT
+  #    add nvidia-hibernate.service here -- the inner hibernate transition
+  #    is handled by the system-sleep hook above, and adding it caused both
+  #    services to race and clobber each other's procfs writes.
+  environment.etc."systemd/system-sleep/nvidia".source = "${config.hardware.nvidia.package.out}/lib/systemd/system-sleep/nvidia";
+
+  systemd.services.nvidia-suspend = {
+    before = ["systemd-suspend-then-hibernate.service"];
+    requiredBy = ["systemd-suspend-then-hibernate.service"];
+  };
+  systemd.services.nvidia-resume = {
+    after = ["systemd-suspend-then-hibernate.service"];
+    requiredBy = ["systemd-suspend-then-hibernate.service"];
+  };
+
+  # On GA401IU, the keyboard backlight goes dark across suspend/hibernate
+  # cycles -- writes to /sys/class/leds/asus::kbd_backlight/brightness keep
+  # reporting the correct value but the LEDs themselves stop responding.
+  # Rebinding the asus HID driver (the one that exposes the kbd_backlight
+  # LED via HID feature reports) reinitializes the path and brings the
+  # lights back. Run on post-sleep for any sleep action.
+  environment.etc."systemd/system-sleep/asus-kbd-rebind".source = pkgs.writeShellScript "asus-kbd-rebind" ''
+    case "$1" in
+      post)
+        for dev in /sys/bus/hid/drivers/asus/*0B05:1866*; do
+          [ -L "$dev" ] || continue
+          id=$(basename "$dev")
+          echo "$id" > /sys/bus/hid/drivers/asus/unbind 2>/dev/null || true
+          echo "$id" > /sys/bus/hid/drivers/asus/bind 2>/dev/null || true
+        done
+        ;;
+    esac
+  '';
 
   # Set your time zone
   time.timeZone = "America/Toronto";
