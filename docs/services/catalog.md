@@ -57,7 +57,6 @@ All services are accessible at `https://service.arsfeld.one` unless otherwise no
 | **Homepage** | Service dashboard | [home.arsfeld.one](https://home.arsfeld.one) | ✓ | storage |
 | **Beszel** | Service monitoring | [beszel.arsfeld.one](https://beszel.arsfeld.one) | ✓ | storage |
 | **Scrutiny** | Disk health monitoring | [scrutiny.arsfeld.one](https://scrutiny.arsfeld.one) | ✓ | storage |
-| **Harmonia** | Nix binary cache | [harmonia.arsfeld.one](https://harmonia.arsfeld.one) | ✓ | raider |
 
 ### 💾 Storage & Files
 
