@@ -120,6 +120,14 @@ in {
             For example: ["--gpus=all"] for GPU support.
           '';
         };
+        cmd = mkOption {
+          type = types.listOf types.str;
+          default = [];
+          description = ''
+            Command to run in the container. Forwarded to
+            virtualisation.oci-containers.containers.<name>.cmd.
+          '';
+        };
         configDir = mkOption {
           type = types.nullOr types.str;
           default = "/config";
@@ -357,6 +365,7 @@ in {
           mkIf container.enable {
             ${name} = {
               image = container.image;
+              cmd = container.cmd;
               environment =
                 {
                   PUID = toString vars.puid;
