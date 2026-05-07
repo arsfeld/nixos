@@ -7,6 +7,7 @@
     ./backrest-public-vhosts.nix
     ./beszel.nix
     ./bitmagnet.nix
+    ./cinephage.nix
     ./cloud-sync.nix
     ./cloudflared.nix
     ./db.nix
