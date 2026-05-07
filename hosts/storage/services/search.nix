@@ -1,10 +1,12 @@
 {
+  self,
   config,
   pkgs,
   inputs,
   lib,
   ...
 }: let
+  mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
   port = 8888;
   # Pull searxng from nixpkgs-unstable for engine fixes:
   # - duckduckgo: Sec-Fetch-* headers (e92f6b7, 2026-04-04) — fixes constant CAPTCHAs
@@ -16,60 +18,63 @@
     config = pkgs.config;
   };
   searxng = pkgs-unstable.searxng.override {python3 = pkgs.python3;};
-in {
-  sops.secrets.searxng-env = {
-    owner = "searx";
-  };
+in
+  lib.mkMerge [
+    (mkService "search" {
+      inherit port;
+      tailscaleExposed = true;
+    })
 
-  services.searx = {
-    enable = true;
-    package = searxng;
-    runInUwsgi = true;
-    redisCreateLocally = true;
-    environmentFile = config.sops.secrets.searxng-env.path;
+    {
+      sops.secrets.searxng-env = {
+        owner = "searx";
+      };
 
-    uwsgiConfig = {
-      http = ":${toString port}";
-      disable-logging = true;
-    };
+      services.searx = {
+        enable = true;
+        package = searxng;
+        runInUwsgi = true;
+        redisCreateLocally = true;
+        environmentFile = config.sops.secrets.searxng-env.path;
 
-    settings = {
-      general = {
-        instance_name = "Search";
-        privacypolicy_url = false;
-        donation_url = false;
-        contact_url = false;
-        enable_metrics = false;
-      };
-      server = {
-        secret_key = "$SEARXNG_SECRET_KEY";
-        limiter = false;
-        image_proxy = true;
-        method = "GET";
-      };
-      ui = {
-        static_use_hash = true;
-        default_theme = "simple";
-        theme_args.simple_style = "dark";
-      };
-      search = {
-        safe_search = 0;
-        autocomplete = "duckduckgo";
-        formats = ["html" "json"];
-      };
-      # Brave rate-limits this IP (HTTP 429) with no engine-level fix.
-      # Re-enable via `braveapi` engine + API key if desired.
-      engines = [
-        {
-          name = "brave";
-          disabled = true;
-        }
-      ];
-    };
-  };
+        uwsgiConfig = {
+          http = ":${toString port}";
+          disable-logging = true;
+        };
 
-  media.gateway.services.search = {
-    inherit port;
-    exposeViaTailscale = true;
-  };
-}
+        settings = {
+          general = {
+            instance_name = "Search";
+            privacypolicy_url = false;
+            donation_url = false;
+            contact_url = false;
+            enable_metrics = false;
+          };
+          server = {
+            secret_key = "$SEARXNG_SECRET_KEY";
+            limiter = false;
+            image_proxy = true;
+            method = "GET";
+          };
+          ui = {
+            static_use_hash = true;
+            default_theme = "simple";
+            theme_args.simple_style = "dark";
+          };
+          search = {
+            safe_search = 0;
+            autocomplete = "duckduckgo";
+            formats = ["html" "json"];
+          };
+          # Brave rate-limits this IP (HTTP 429) with no engine-level fix.
+          # Re-enable via `braveapi` engine + API key if desired.
+          engines = [
+            {
+              name = "brave";
+              disabled = true;
+            }
+          ];
+        };
+      };
+    }
+  ]

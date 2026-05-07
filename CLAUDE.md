@@ -112,16 +112,44 @@ Shared variables consumed by media services via `config.media.config`:
 
 ### Service and Network Architecture
 
-#### Service Registry (`modules/constellation/services.nix`)
-Central source of truth for all service metadata. Controls:
-- Port assignments per host (basestar vs storage)
-- `bypassAuth` - Services with own auth (skip Authelia)
-- `tailscaleExposed` - Services with dedicated `*.bat-boa.ts.net` nodes
-- `funnels` - Public Tailscale Funnel services
-- `cors` - CORS-enabled services
+#### `mkService` is the only way to declare a service
+All service declarations on storage/basestar go through the `mkService` helper at `modules/media/__mkService.nix`. It writes to `media.containers.<name>` for containers (which auto-populates `media.gateway.services.<name>`) or directly to `media.gateway.services.<name>` for native/gateway-only services. Do **not** write to `virtualisation.oci-containers.containers` or to `media.gateway.services` by hand — those are implementation details and bypassing `mkService` will silently miss the standardized PUID/PGID/TZ env, the auto-tmpfiles config dir, the gateway entry, and image-watching.
 
-#### Container Orchestration (`modules/constellation/media.nix`)
-Defines containerized services in `storageServices` section. Each service gets container image, ports, volumes, env vars. Uses `media.config` variables for paths.
+```nix
+let mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
+in lib.mkMerge [
+  (mkService "myapp" {
+    port = 8080;                    # required for containers; optional for gateway-only (auto-assigned)
+    image = "ghcr.io/.../myapp";    # defaults to ghcr.io/linuxserver/<name>
+    bypassAuth = true;              # skip Authelia
+    tailscaleExposed = true;        # creates a *.bat-boa.ts.net node via tsnsrv
+    cors = true;                    # enable CORS
+    funnel = true;                  # public via Tailscale Funnel
+    insecureTls = true;             # backend has self-signed cert
+    host = "192.168.15.1";          # gateway-host override (e.g. VPN namespace IP)
+    container = {                   # omit for gateway-only services
+      exposePort = 38080;           # host port (defaults to nameToPort <name>)
+      mediaVolumes = true;          # mount /media + /files
+      configDir = "/config";        # default; set null to skip the auto config-dir mount
+      cmd = ["worker" "run"];       # container command
+      devices = ["/dev/dri:/dev/dri"];
+      network = "ai";               # podman network
+      environment = { FOO = "bar"; };
+      environmentFiles = [config.sops.secrets.foo.path];
+      volumes = ["/host:/container"];
+      extraOptions = ["--add-host=host.containers.internal:host-gateway"];
+    };
+    watchImage = true;              # poll registry & restart on new image
+  })
+]
+```
+
+The mkService settings (`bypassAuth`, `cors`, `funnel`, `insecureTls`) are forwarded to `media.gateway.services.<name>.settings`. `tailscaleExposed` and `host` are caller-only and don't have container equivalents.
+
+For containers without a gateway entry (e.g. headscale-ui, qdrant), set `container.extraOptions = ["--publish=HOST:CONTAINER"]` and leave `port = null`. mkService then registers the container without auto-creating a gateway service.
+
+#### Container Module (`modules/media/containers.nix`)
+Backs `media.containers.*`. Auto-creates the matching `media.gateway.services.<name>` entry when `listenPort != null`, mounts `${configDir}/<name>:<container.configDir>`, sets PUID/PGID/TZ from `media.config`, and wires image-watching when `watchImage = true`.
 
 **Volume path rules:**
 - Use `${vars.storageDir}` for media, `${vars.configDir}` for config
@@ -150,19 +178,16 @@ Caddy reverse proxy consuming service definitions. Generates TLS configs, error 
 
 ## Adding New Services
 
+Always declare services with `mkService` (see "Service and Network Architecture" above). The pattern below applies to both containers and native NixOS services — only the `container` attr differs.
+
 ### `*.arsfeld.one` services (on storage)
-1. Create a service file in `hosts/storage/services/` and add to `default.nix` imports
-2. Register in `media.gateway.services` with port, auth, and Tailscale exposure settings
-3. Storage's wildcard cloudflared tunnel routes traffic automatically
+1. Create a service file in `hosts/storage/services/` and add it to `default.nix` imports.
+2. Wrap the file body in `lib.mkMerge` and call `mkService "<name>" { … }` for the gateway/container declaration.
+3. Storage's wildcard cloudflared tunnel routes traffic automatically; the gateway entry is created by `mkService`.
 
 ### `*.arsfeld.dev` services (on basestar)
-1. Create a service file in `hosts/basestar/services/` and add to `default.nix` imports
-2. Basestar uses dedicated Caddy vhosts for `arsfeld.dev` subdomains
-
-### Containerized services (on storage)
-1. Add to `modules/constellation/media.nix` in `storageServices`
-2. Define image, ports, volumes, environment variables
-3. Service is automatically added to the gateway
+1. Create a service file in `hosts/basestar/services/` and add it to `default.nix` imports.
+2. Use `mkService` the same way; basestar uses dedicated Caddy vhosts for `arsfeld.dev` subdomains.
 
 ## Commit Message Format
 
