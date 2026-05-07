@@ -5,6 +5,7 @@
   lib,
   ...
 }: let
+  mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
   cfg = config.services.transmission-vpn;
   vars = config.media.config;
 in {
@@ -16,97 +17,98 @@ in {
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    # Override transmission gateway config to use namespace IP instead of localhost
-    # This is necessary because storage's Caddy needs to proxy to the VPN namespace
-    # (192.168.15.1) rather than localhost (which doesn't go through DNAT rules)
-    media.gateway.services.transmission = {
+  config = lib.mkIf cfg.enable (lib.mkMerge [
+    # Caddy must proxy to the VPN namespace (192.168.15.1), not localhost,
+    # because the local loopback bypasses the DNAT rules on PREROUTING.
+    (mkService "transmission" {
       port = 9091;
-      host = lib.mkForce "192.168.15.1";
-      settings.bypassAuth = true;
-    };
+      host = "192.168.15.1";
+      bypassAuth = true;
+    })
 
-    # Configure Transmission service with VPN confinement
-    # Uses the shared "wg" VPN namespace configured in qbittorrent-vpn.nix
-    services.transmission = {
-      enable = true;
-      package = pkgs.transmission_4;
-
-      # Use Flood UI
-      webHome = pkgs.flood-for-transmission;
-
-      settings = {
-        # Download directories
-        download-dir = "${vars.storageDir}/media/Downloads";
-        incomplete-dir-enabled = false; # Use .part extension instead of separate directory
-        rename-partial-files = true; # Add .part extension to incomplete files
-        watch-dir = "${vars.storageDir}/media/watch";
-        watch-dir-enabled = true;
-
-        # RPC/WebUI settings
-        rpc-bind-address = "0.0.0.0";
-        rpc-port = 9091;
-        rpc-host-whitelist-enabled = false;
-        rpc-whitelist-enabled = false;
-
-        # AirVPN static port forwarding
-        peer-port = 30158;
-        peer-port-random-on-start = false;
-
-        # Performance settings
-        download-queue-enabled = true;
-        download-queue-size = 10;
-        seed-queue-enabled = true;
-        seed-queue-size = 50;
-
-        # Ratio and seed settings
-        ratio-limit-enabled = false;
-        idle-seeding-limit-enabled = false;
-
-        # Misc settings
-        umask = 2;
-        encryption = 2; # Require encryption
-      };
-
-      # Set proper permissions for download directory
-      downloadDirPermissions = "775";
-
-      # Run as media user/group
-      user = vars.user;
-      group = vars.group;
-    };
-
-    # Override transmission service to add VPN confinement
-    systemd.services.transmission = {
-      # VPN confinement configuration - uses shared "wg" namespace
-      vpnConfinement = {
+    {
+      # Configure Transmission service with VPN confinement
+      # Uses the shared "wg" VPN namespace configured in qbittorrent-vpn.nix
+      services.transmission = {
         enable = true;
-        vpnNamespace = "wg";
+        package = pkgs.transmission_4;
+
+        # Use Flood UI
+        webHome = pkgs.flood-for-transmission;
+
+        settings = {
+          # Download directories
+          download-dir = "${vars.storageDir}/media/Downloads";
+          incomplete-dir-enabled = false; # Use .part extension instead of separate directory
+          rename-partial-files = true; # Add .part extension to incomplete files
+          watch-dir = "${vars.storageDir}/media/watch";
+          watch-dir-enabled = true;
+
+          # RPC/WebUI settings
+          rpc-bind-address = "0.0.0.0";
+          rpc-port = 9091;
+          rpc-host-whitelist-enabled = false;
+          rpc-whitelist-enabled = false;
+
+          # AirVPN static port forwarding
+          peer-port = 30158;
+          peer-port-random-on-start = false;
+
+          # Performance settings
+          download-queue-enabled = true;
+          download-queue-size = 10;
+          seed-queue-enabled = true;
+          seed-queue-size = 50;
+
+          # Ratio and seed settings
+          ratio-limit-enabled = false;
+          idle-seeding-limit-enabled = false;
+
+          # Misc settings
+          umask = 2;
+          encryption = 2; # Require encryption
+        };
+
+        # Set proper permissions for download directory
+        downloadDirPermissions = "775";
+
+        # Run as media user/group
+        user = vars.user;
+        group = vars.group;
       };
 
-      # Ensure directories exist before starting
-      preStart = ''
-        mkdir -p ${vars.storageDir}/media/Downloads
-        mkdir -p ${vars.storageDir}/media/Downloads/radarr
-        mkdir -p ${vars.storageDir}/media/Downloads/sonarr
-        mkdir -p ${vars.storageDir}/media/watch
-      '';
+      # Override transmission service to add VPN confinement
+      systemd.services.transmission = {
+        # VPN confinement configuration - uses shared "wg" namespace
+        vpnConfinement = {
+          enable = true;
+          vpnNamespace = "wg";
+        };
 
-      serviceConfig = {
-        # Bind mount storage directories for access from VPN namespace
-        BindPaths = [
-          "${vars.storageDir}/media"
-          "${vars.storageDir}/files"
-        ];
+        # Ensure directories exist before starting
+        preStart = ''
+          mkdir -p ${vars.storageDir}/media/Downloads
+          mkdir -p ${vars.storageDir}/media/Downloads/radarr
+          mkdir -p ${vars.storageDir}/media/Downloads/sonarr
+          mkdir -p ${vars.storageDir}/media/watch
+        '';
 
-        # Additional security hardening
-        PrivateTmp = true;
-        NoNewPrivileges = true;
+        serviceConfig = {
+          # Bind mount storage directories for access from VPN namespace
+          BindPaths = [
+            "${vars.storageDir}/media"
+            "${vars.storageDir}/files"
+          ];
 
-        # Restart on failure
-        Restart = lib.mkForce "on-failure";
-        RestartSec = "5s";
+          # Additional security hardening
+          PrivateTmp = true;
+          NoNewPrivileges = true;
+
+          # Restart on failure
+          Restart = lib.mkForce "on-failure";
+          RestartSec = "5s";
+        };
       };
-    };
-  };
+    }
+  ]);
 }

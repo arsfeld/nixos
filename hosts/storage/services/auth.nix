@@ -5,6 +5,7 @@
   lib,
   ...
 }: let
+  mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
   domains = import "${self}/common/domains.nix";
   services = config.media.gateway.services;
   autheliaConfig = domains.mediaDomain;
@@ -117,116 +118,118 @@
     settingsFiles = [config.sops.secrets.authelia-secrets.path];
     secrets.manual = true;
   };
-in {
-  # Gateway entries for auth services
-  media.gateway.services.auth = {
-    port = 9091;
-    exposeViaTailscale = true;
-    settings.bypassAuth = true;
-  };
-  media.gateway.services.dex = {};
-  media.gateway.services.users = {};
+in
+  lib.mkMerge [
+    (mkService "auth" {
+      port = 9091;
+      bypassAuth = true;
+      tailscaleExposed = true;
+    })
+    (mkService "dex" {})
+    (mkService "users" {})
 
-  sops.secrets.dex-clients-tailscale-secret = {};
-  sops.secrets.dex-clients-qui-secret = {};
-  sops.secrets.lldap-env.mode = "0444";
-  sops.secrets.lldap-password.mode = "0400";
-  sops.secrets.authelia-secrets.mode = "0444";
+    {
+      sops.secrets.dex-clients-tailscale-secret = {};
+      sops.secrets.dex-clients-qui-secret = {};
+      sops.secrets.lldap-env.mode = "0444";
+      sops.secrets.lldap-password.mode = "0400";
+      sops.secrets.authelia-secrets.mode = "0444";
 
-  services.dex = {
-    enable = true;
-    environmentFile = config.sops.secrets.lldap-env.path;
-    settings = {
-      issuer = "https://${authDomain}";
-      storage = {
-        type = "sqlite3";
-        config.host = "/var/lib/dex/dex.db";
-      };
-      web = {
-        http = "0.0.0.0:${toString services.dex.port}";
-      };
-      enablePasswordDB = true;
-      staticClients = [
-        {
-          id = "tailscale";
-          name = "Tailscale";
-          redirectURIs = ["https://login.tailscale.com/a/oauth_response"];
-          secretFile = config.sops.secrets.dex-clients-tailscale-secret.path;
-        }
-        {
-          id = "qui";
-          name = "Qui";
-          redirectURIs = ["https://qui.arsfeld.one/api/auth/oidc/callback"];
-          secretFile = config.sops.secrets.dex-clients-qui-secret.path;
-        }
-      ];
-      staticPasswords = [
-        {
-          email = "alex@${authDomain}";
-          hash = "$2y$10$vTnuL0D2crbZIBOgE3TpK.vD9dzwDDt3c8YxGvTNSaYbvfJf7hWSi";
-          username = "admin";
-          userID = "1847de6f-4be1-4dac-8de0-acdf57b01952";
-        }
-      ];
-      connectors = [
-        {
-          type = "ldap";
-          id = "ldap";
-          name = "LDAP";
-          config = {
-            host = "127.0.0.1:3890";
-            insecureNoSSL = true;
-            insecureSkipVerify = true;
-            bindDN = "uid=admin,ou=people,dc=rosenfeld,dc=one";
-            bindPW = "$LLDAP_LDAP_USER_PASS";
-            userSearch = {
-              baseDN = "ou=people,dc=rosenfeld,dc=one";
-              username = "uid";
-              idAttr = "uid";
-              emailAttr = "mail";
-              nameAttr = "displayName";
-              preferredUsernameAttr = "uid";
-            };
-            groupSearch = {
-              baseDN = "ou=groups,dc=rosenfeld,dc=one";
-              filter = "(objectClass=groupOfUniqueNames)";
-              userMatchers = [
-                {
-                  userAttr = "DN";
-                  groupAttr = "member";
-                }
-              ];
-              nameAttr = "cn";
-            };
+      services.dex = {
+        enable = true;
+        environmentFile = config.sops.secrets.lldap-env.path;
+        settings = {
+          issuer = "https://${authDomain}";
+          storage = {
+            type = "sqlite3";
+            config.host = "/var/lib/dex/dex.db";
           };
-        }
-      ];
-    };
-  };
+          web = {
+            http = "0.0.0.0:${toString services.dex.port}";
+          };
+          enablePasswordDB = true;
+          staticClients = [
+            {
+              id = "tailscale";
+              name = "Tailscale";
+              redirectURIs = ["https://login.tailscale.com/a/oauth_response"];
+              secretFile = config.sops.secrets.dex-clients-tailscale-secret.path;
+            }
+            {
+              id = "qui";
+              name = "Qui";
+              redirectURIs = ["https://qui.arsfeld.one/api/auth/oidc/callback"];
+              secretFile = config.sops.secrets.dex-clients-qui-secret.path;
+            }
+          ];
+          staticPasswords = [
+            {
+              email = "alex@${authDomain}";
+              hash = "$2y$10$vTnuL0D2crbZIBOgE3TpK.vD9dzwDDt3c8YxGvTNSaYbvfJf7hWSi";
+              username = "admin";
+              userID = "1847de6f-4be1-4dac-8de0-acdf57b01952";
+            }
+          ];
+          connectors = [
+            {
+              type = "ldap";
+              id = "ldap";
+              name = "LDAP";
+              config = {
+                host = "127.0.0.1:3890";
+                insecureNoSSL = true;
+                insecureSkipVerify = true;
+                bindDN = "uid=admin,ou=people,dc=rosenfeld,dc=one";
+                bindPW = "$LLDAP_LDAP_USER_PASS";
+                userSearch = {
+                  baseDN = "ou=people,dc=rosenfeld,dc=one";
+                  username = "uid";
+                  idAttr = "uid";
+                  emailAttr = "mail";
+                  nameAttr = "displayName";
+                  preferredUsernameAttr = "uid";
+                };
+                groupSearch = {
+                  baseDN = "ou=groups,dc=rosenfeld,dc=one";
+                  filter = "(objectClass=groupOfUniqueNames)";
+                  userMatchers = [
+                    {
+                      userAttr = "DN";
+                      groupAttr = "member";
+                    }
+                  ];
+                  nameAttr = "cn";
+                };
+              };
+            }
+          ];
+        };
+      };
 
-  services.lldap = {
-    enable = true;
-    settings = {
-      http_url = "https://users.${mediaDomain}";
-      ldap_user_email = "admin@${authDomain}";
-      ldap_user_dn = "admin";
-      ldap_base_dn = "dc=rosenfeld,dc=one";
-      http_port = services.users.port;
-    };
-    environmentFile = config.sops.secrets.lldap-env.path;
-    environment.LLDAP_LDAP_USER_PASS_FILE = config.sops.secrets.lldap-password.path;
-  };
+      services.lldap = {
+        enable = true;
+        settings = {
+          http_url = "https://users.${mediaDomain}";
+          ldap_user_email = "admin@${authDomain}";
+          ldap_user_dn = "admin";
+          ldap_base_dn = "dc=rosenfeld,dc=one";
+          http_port = services.users.port;
+        };
+        environmentFile = config.sops.secrets.lldap-env.path;
+        environment.LLDAP_LDAP_USER_PASS_FILE = config.sops.secrets.lldap-password.path;
+      };
 
-  # Authelia instance for arsfeld.one domain
-  services.authelia.instances."${autheliaConfig}" = mkAutheliaInstance {
-    domain = mediaDomain;
-    port = 9091;
-  };
+      # Authelia instance for arsfeld.one domain
+      services.authelia.instances."${autheliaConfig}" = mkAutheliaInstance {
+        domain = mediaDomain;
+        port = 9091;
+      };
 
-  services.redis.servers."authelia-${autheliaConfig}" = {
-    enable = true;
-    user = "authelia-${autheliaConfig}";
-    port = 0;
-    unixSocketPerm = 600;
-  };
-}
+      services.redis.servers."authelia-${autheliaConfig}" = {
+        enable = true;
+        user = "authelia-${autheliaConfig}";
+        port = 0;
+        unixSocketPerm = 600;
+      };
+    }
+  ]

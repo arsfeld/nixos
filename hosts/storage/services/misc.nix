@@ -5,141 +5,88 @@
   pkgs,
   ...
 }: let
+  mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
   vars = config.media.config;
-in {
-  media.gateway.services.romm = {
-    port = 8998;
-  };
-  media.gateway.services.speedtest = {
-    port = 8765;
-  };
-  media.gateway.services.filestash = {
-    port = 8334;
-  };
+in
+  lib.mkMerge [
+    {
+      sops.secrets.tailscale-key.sopsFile = config.constellation.sops.commonSopsFile;
+      sops.secrets.tailscale-env = {};
+      sops.secrets.romm-env = {};
 
-  sops.secrets.tailscale-key.sopsFile = config.constellation.sops.commonSopsFile;
-  sops.secrets.tailscale-env = {};
-  sops.secrets.romm-env = {};
+      # tsnsrv re-enabled - caddy-tailscale causing high CPU usage and TLS cert issues (task-48)
+      # Reverting to tsnsrv until caddy-tailscale issues are resolved
+      services.tsnsrv = {
+        enable = true;
+        separateProcesses = true; # Create individual systemd service per tsnsrv service
+        prometheusAddr = "127.0.0.1:9500"; # Moved from 9099 to avoid conflict with OpenCloud (uses 9100-9300)
+        defaults = {
+          tags = ["tag:service"];
+          authKeyPath = config.sops.secrets.tailscale-key.path;
+          ephemeral = true;
+        };
+      };
+    }
 
-  # tsnsrv re-enabled - caddy-tailscale causing high CPU usage and TLS cert issues (task-48)
-  # Reverting to tsnsrv until caddy-tailscale issues are resolved
-  services.tsnsrv = {
-    enable = true;
-    separateProcesses = true; # Create individual systemd service per tsnsrv service
-    prometheusAddr = "127.0.0.1:9500"; # Moved from 9099 to avoid conflict with OpenCloud (uses 9100-9300)
-    defaults = {
-      tags = ["tag:service"];
-      authKeyPath = config.sops.secrets.tailscale-key.path;
-      ephemeral = true;
-    };
-  };
-
-  virtualisation.oci-containers.containers = {
-    romm = {
+    (mkService "romm" {
+      port = 8080;
       image = "rommapp/romm:latest";
-      environment = {
-        DB_HOST = "host.docker.internal";
-        DB_NAME = "romm";
-        DB_USER = "romm";
+      container = {
+        exposePort = 8998;
+        configDir = null;
+        environment = {
+          DB_HOST = "host.docker.internal";
+          DB_NAME = "romm";
+          DB_USER = "romm";
+        };
+        environmentFiles = [
+          config.sops.secrets.romm-env.path
+        ];
+        volumes = [
+          "${vars.configDir}/romm/resources:/romm/resources"
+          "${vars.configDir}/romm/redis:/redis-data"
+          "${vars.configDir}/romm/assets:/romm/assets"
+          "${vars.configDir}/romm/config:/romm/config"
+          "${vars.dataDir}/files/Emulation:/romm/library"
+        ];
+        extraOptions = [
+          "--add-host=host.docker.internal:host-gateway"
+        ];
       };
-      environmentFiles = [
-        config.sops.secrets.romm-env.path
-      ];
-      volumes = [
-        "${vars.configDir}/romm/resources:/romm/resources" # Resources fetched from IGDB (covers, screenshots, etc.)
-        "${vars.configDir}/romm/redis:/redis-data" # Cached data for background tasks
-        "${vars.configDir}/romm/assets:/romm/assets" # Uploaded saves, states, etc.
-        "${vars.configDir}/romm/config:/romm/config" # Path where config.yml is stored
-        "${vars.dataDir}/files/Emulation:/romm/library"
-      ];
-      ports = [
-        "8998:8080"
-      ];
-      extraOptions = [
-        "--add-host"
-        "host.docker.internal:host-gateway"
-      ];
-    };
+    })
 
-    # watchyourlan = {
-    #   volumes = ["/var/lib/watchyourlan:/data/WatchYourLAN"];
-    #   environment = {
-    #     IFACES = "enp4s0";
-    #     TZ = "America/Toronto";
-    #   };
-    #   image = "aceberg/watchyourlan";
-    #   extraOptions = [
-    #     "--network=host"
-    #   ];
-    # };
-
-    speedtest = {
+    (mkService "speedtest" {
+      port = 80;
       image = "lscr.io/linuxserver/speedtest-tracker:latest";
-      volumes = ["${vars.configDir}/speedtest:/config"];
-      ports = ["8765:80"];
-      environment = {
-        "APP_KEY" = "base64:MGxwY3Y1OHZpMnJwN2s2dGtkdnJ6dm40ODEwd3J4eGI=";
-        "DB_CONNECTION" = "sqlite";
-        "SPEEDTEST_SCHEDULE" = "5 4 * * *";
+      container = {
+        exposePort = 8765;
+        environment = {
+          APP_KEY = "base64:MGxwY3Y1OHZpMnJwN2s2dGtkdnJ6dm40ODEwd3J4eGI=";
+          DB_CONNECTION = "sqlite";
+          SPEEDTEST_SCHEDULE = "5 4 * * *";
+        };
       };
-    };
+    })
 
-    # netbootxyz = {
-    #   image = "lscr.io/linuxserver/netbootxyz:latest";
-    #   environment = {
-    #     PUID = vars.puid;
-    #     PGID = vars.pgid;
-    #     TZ = vars.tz;
-    #     # - MENU_VERSION=1.9.9 #optional
-    #     # - PORT_RANGE=30000:30010 #optional
-    #     # - SUBFOLDER=/ #optional
-    #   };
-    #   volumes = [
-    #     "${vars.configDir}/netbootxyz:/config"
-    #     "${vars.dataDir}/files/ISO:/assets"
-    #   ];
-    #   ports = [
-    #     "3000:3000"
-    #     "69:69/udp"
-    #     "8080:80"
-    #   ];
-    # };
-
-    # photoprism = {
-    #   image = "photoprism/photoprism:latest";
-    #   ports = ["2342:2342"];
-    #   environment = {
-    #     PHOTOPRISM_SITE_URL = "https://photoprism.arsfeld.one/";
-    #     PHOTOPRISM_UPLOAD_NSFW = "true";
-    #     PHOTOPRISM_ADMIN_PASSWORD = "password";
-    #   };
-    #   volumes = [
-    #     "${vars.configDir}/photoprism:/photoprism/storage"
-    #     "/home/arosenfeld/Pictures:/photoprism/originals"
-    #   ];
-    #   extraOptions = [
-    #     "--security-opt"
-    #     "seccomp=unconfined"
-    #     "--security-opt"
-    #     "apparmor=unconfined"
-    #   ];
-    # };
-
-    filestash = {
+    (mkService "filestash" {
+      port = 8334;
       image = "machines/filestash";
-      ports = ["8334:8334"];
-      volumes = [
-        "${vars.configDir}/filestash:/app/data/state"
-        "${vars.dataDir}/media:/mnt/data/media"
-        "${vars.dataDir}/files:/mnt/data/files"
-      ];
-    };
+      container = {
+        exposePort = 8334;
+        configDir = "/app/data/state";
+        volumes = [
+          "${vars.dataDir}/media:/mnt/data/media"
+          "${vars.dataDir}/files:/mnt/data/files"
+        ];
+      };
+    })
 
-    headscale-ui = {
+    # headscale-ui has no gateway entry: bind directly to host port 9899.
+    (mkService "headscale-ui" {
       image = "ghcr.io/gurucomputing/headscale-ui:latest";
-      ports = [
-        "9899:80"
-      ];
-    };
-  };
-}
+      container = {
+        configDir = null;
+        extraOptions = ["--publish=9899:80"];
+      };
+    })
+  ]

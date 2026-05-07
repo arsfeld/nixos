@@ -7,18 +7,17 @@
   mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
 in
   lib.mkMerge [
-    {
-      media.gateway.services.home = {
-        port = 8085;
-        exposeViaTailscale = true;
-      };
-      media.gateway.services.www = {
-        port = 8085;
-        exposeViaTailscale = true;
-      };
+    {sops.secrets."finance-tracker-env" = {};}
 
-      sops.secrets."finance-tracker-env" = {};
-    }
+    (mkService "home" {
+      port = 8085;
+      tailscaleExposed = true;
+    })
+
+    (mkService "www" {
+      port = 8085;
+      tailscaleExposed = true;
+    })
 
     (mkService "finance-tracker" {
       port = 8080;
