@@ -13,7 +13,7 @@ in
 
     (mkService "stashfin" {
       port = proxyPort;
-      image = "ghcr.io/feldorn/stash-jellyfin-proxy:latest";
+      image = "ghcr.io/arsfeld/stash-jellyfin-proxy:latest";
       # Jellyfin clients (Swiftfin/Infuse/Senplayer) can't follow Authelia's
       # redirect flow; the proxy enforces SJS_USER/SJS_PASSWORD itself.
       bypassAuth = true;
