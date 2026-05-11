@@ -2,16 +2,10 @@
   port = 3000;
 in {
   media.containers.ask = {
-    image = "itzcrazykns1337/vane:slim-latest";
+    image = "itzcrazykns1337/vane:latest";
     listenPort = port;
     exposePort = port;
     configDir = "/home/vane/data";
-    environment = {
-      SEARXNG_API_URL = "http://host.containers.internal:8888";
-    };
-    extraOptions = [
-      "--add-host=host.containers.internal:host-gateway"
-    ];
     watchImage = true;
   };
 
