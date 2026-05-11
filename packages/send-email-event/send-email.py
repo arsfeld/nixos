@@ -9,6 +9,91 @@ import logging
 import argparse
 from textwrap import dedent
 
+
+def _read_proc_uptime():
+    try:
+        with open("/proc/uptime") as f:
+            return float(f.read().split()[0])
+    except Exception:
+        return 0.0
+
+
+def _read_meminfo():
+    info = {}
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                k, _, v = line.partition(":")
+                info[k.strip()] = int(v.strip().split()[0])  # kB
+    except Exception:
+        pass
+    return info
+
+
+def _format_uptime(secs):
+    days = int(secs // 86400)
+    hours = int((secs % 86400) // 3600)
+    mins = int((secs % 3600) // 60)
+    if days >= 1:
+        return f"{days}d {hours}h", f"{mins}m"
+    if hours >= 1:
+        return f"{hours}h {mins}m", "since boot"
+    return f"{mins}m", "since boot"
+
+
+def _bar_color(percent):
+    return "#ef4444" if percent >= 85 else "#4f46e5"
+
+
+def collect_stats():
+    stats = {}
+
+    cpu = (
+        get_command_output("lscpu | grep 'Model name' | cut -f 2 -d ':'")
+        .strip()
+        or "Unknown"
+    )
+    stats["cpu"] = {"label": "Processor", "value": cpu}
+
+    uptime_value, uptime_sub = _format_uptime(_read_proc_uptime())
+    stats["uptime"] = {"label": "Uptime", "value": uptime_value, "sub": uptime_sub}
+
+    stats["kernel"] = {
+        "label": "Kernel",
+        "value": get_command_output("uname -r") or "?",
+        "sub": get_command_output("uname -s") or "",
+    }
+
+    mem = _read_meminfo()
+    total_kb = mem.get("MemTotal", 0)
+    avail_kb = mem.get("MemAvailable", mem.get("MemFree", 0))
+    if total_kb:
+        used_kb = max(total_kb - avail_kb, 0)
+        pct = round(used_kb / total_kb * 100)
+        stats["memory"] = {
+            "label": "Memory",
+            "value": f"{used_kb / 1024 / 1024:.1f} / {total_kb / 1024 / 1024:.1f} GiB",
+            "percent": pct,
+            "color": _bar_color(pct),
+        }
+
+    try:
+        s = os.statvfs("/")
+        total = s.f_blocks * s.f_frsize
+        free = s.f_bavail * s.f_frsize
+        used = max(total - free, 0)
+        pct = round(used / total * 100) if total else 0
+        stats["disk"] = {
+            "label": "Disk /",
+            "value": f"{used / 1024**3:.0f} / {total / 1024**3:.0f} GiB",
+            "percent": pct,
+            "color": _bar_color(pct),
+        }
+    except OSError:
+        pass
+
+    return stats
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -36,19 +121,7 @@ def get_command_output(command):
 def send_email_event(event, extra_content="", email_from=None, email_to=None):
     hostname = socket.gethostname()
     current_date = datetime.datetime.now().isoformat()
-    figlet_output = get_command_output(f"figlet -f slant '{hostname}'")
-    system_info = {
-        "OS": get_command_output("uname -s"),
-        "Kernel": get_command_output("uname -r"),
-        "Uptime": get_command_output("uptime"),
-        "CPU": get_command_output("lscpu | grep 'Model name' | cut -f 2 -d ':'"),
-        "Memory": get_command_output(
-            'free -h | awk \'/^Mem:/ {print $2 " total, " $3 " used, " $4 " free"}\''
-        ),
-        "Disk": get_command_output(
-            'df -h / | awk \'NR==2 {print $2 " total, " $3 " used, " $4 " free"}\''
-        ),
-    }
+    stats = collect_stats()
 
     subject = f"[{hostname}] {event} {current_date}"
 
@@ -58,11 +131,10 @@ def send_email_event(event, extra_content="", email_from=None, email_to=None):
     try:
         template = Template(html_template)
         html_content = template.render(
-            FIGLET_OUTPUT=figlet_output,
             EVENT=event,
             HOSTNAME=hostname,
             CURRENT_DATE=current_date,
-            SYSTEM_INFO=system_info,
+            STATS=stats,
             EXTRA_CONTENT=extra_content,
         )
     except Exception as e:
@@ -72,11 +144,10 @@ def send_email_event(event, extra_content="", email_from=None, email_to=None):
         <body>
             <h1>System Event Notification</h1>
             <h2>{event}</h2>
-            <pre>{figlet_output}</pre>
             <p>Hostname: {hostname}</p>
             <p>Date: {current_date}</p>
             <h3>System Information:</h3>
-            <pre>{system_info}</pre>
+            <pre>{stats}</pre>
             {'<h3>Extra Content:</h3><p>' + extra_content + '</p>' if extra_content else ''}
         </body>
         </html>
