@@ -162,6 +162,7 @@ with lib; {
       ghostty
 
       binutils
+      bubblewrap
       dosfstools
       duf
       exiftool
