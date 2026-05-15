@@ -93,6 +93,19 @@ in {
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
+  # Mirror systemd-boot to the second SSD's ESP so either disk can boot the
+  # system on its own. We sync the loader entries and kernels after the main
+  # bootctl install, and ensure a UEFI Boot#### entry exists per ESP so the
+  # firmware falls through if one disk is missing.
+  boot.loader.systemd-boot.extraInstallCommands = ''
+    set -eu
+    if mountpoint -q /boot-fallback; then
+      ${pkgs.systemd}/bin/bootctl --esp-path=/boot-fallback install \
+        || ${pkgs.systemd}/bin/bootctl --esp-path=/boot-fallback update
+      ${pkgs.rsync}/bin/rsync -aH --delete /boot/loader/ /boot-fallback/loader/
+      ${pkgs.rsync}/bin/rsync -aH --delete /boot/EFI/nixos/ /boot-fallback/EFI/nixos/
+    fi
+  '';
 
   virtualisation.incus = {
     enable = true;
