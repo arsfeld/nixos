@@ -94,6 +94,9 @@ with lib; {
     # and experimental-features automatically
 
     security.polkit.enable = true;
+    security.pki.certificateFiles = [
+      ./certs/controld-root-x1.pem
+    ];
 
     programs.fish.enable = true;
 
