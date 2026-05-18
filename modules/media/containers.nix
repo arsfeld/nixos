@@ -216,13 +216,23 @@ in {
     # Directory creation for container volumes
     systemd.tmpfiles.rules = let
       createDir = path: "d ${path} 0775 ${vars.user} ${vars.group} -";
-      getVolumeDir = volume: builtins.head (builtins.split ":" volume);
+      getVolumeSource = volume: builtins.head (builtins.split ":" volume);
+      isAbsolutePath = path: lib.hasPrefix "/" path;
+      looksLikeFileMount = path: builtins.match ".*/[^/]+\\.[^/]+$" path != null;
+      getManagedVolumePath = volume: let
+        source = getVolumeSource volume;
+      in
+        if !isAbsolutePath source
+        then null
+        else if looksLikeFileMount source
+        then builtins.dirOf source
+        else source;
     in
       flatten (
         mapAttrsToList (
           name: container:
             (optional (container.configDir != null) (createDir "${vars.configDir}/${name}"))
-            ++ (map (volume: createDir (getVolumeDir volume)) container.volumes)
+            ++ (map (path: createDir path) (lib.filter (path: path != null) (map getManagedVolumePath container.volumes)))
         )
         deployedContainers
       );
