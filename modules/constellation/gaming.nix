@@ -302,7 +302,7 @@
         itch
 
         # Wine and compatibility
-        wineWowPackages.stagingFull
+        wineWow64Packages.stagingFull
         winetricks
         protontricks
 
