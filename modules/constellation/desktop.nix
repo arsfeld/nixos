@@ -548,7 +548,7 @@ in {
             gnome-settings-daemon
           ]
           ++ lib.optionals cfg.niri.gaming [
-            wineWowPackages.stable
+            wineWow64Packages.stable
             gamescope
             goverlay
             vkbasalt

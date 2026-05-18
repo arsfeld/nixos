@@ -28,15 +28,15 @@ in
       libsoup_3
       libnotify
       libappindicator-gtk3
-      xorg.libX11
-      xorg.libXrandr
-      xorg.libXext
-      xorg.libXi
-      xorg.libXtst
-      xorg.libXcursor
-      xorg.libXdamage
-      xorg.libXfixes
-      xorg.libXcomposite
+      libx11
+      libxrandr
+      libxext
+      libxi
+      libxtst
+      libxcursor
+      libxdamage
+      libxfixes
+      libxcomposite
       mesa
       libGL
       libGLU
