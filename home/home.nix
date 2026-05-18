@@ -112,10 +112,11 @@ in {
       );
     sessionPath =
       [
+        "$HOME/.bun/bin"
+        "$HOME/.cargo/bin"
         "$HOME/.local/bin"
         "$HOME/.local/share/pnpm"
         "$HOME/.npm-global/bin"
-        "$HOME/.bun/bin"
       ]
       ++ (
         if stdenv.isDarwin

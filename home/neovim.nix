@@ -9,6 +9,8 @@
     viAlias = true;
     vimAlias = true;
     vimdiffAlias = true;
+    withRuby = false;
+    withPython3 = false;
 
     # Essential plugins for VS Code-like navigation
     plugins = with pkgs.vimPlugins; [
