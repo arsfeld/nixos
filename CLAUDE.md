@@ -49,7 +49,7 @@ Configured via `.sops.yaml`. All hosts use `constellation.sops.enable = true`. U
 
 ### Available Hosts
 - **storage** - Main server: media services, databases, backups. Hosts internal services on `*.arsfeld.one` via cloudflared tunnel (wildcard ingress)
-- **basestar** - Public-facing server (BSG Cylon Basestar): hosts services on `*.arsfeld.dev` (blog, plausible, planka, siyuan, supabase)
+- **basestar** - Public-facing server (BSG Cylon Basestar): hosts services on `*.arsfeld.dev` (blog, plausible, planka, siyuan)
 - **raider** - Desktop workstation: GNOME, gaming, development
 - **router** - Custom network device (no constellation modules, standalone config)
 - **r2s** - ARM-based router (NanoPi R2S)
@@ -159,7 +159,7 @@ Caddy reverse proxy consuming service definitions. Generates TLS configs, error 
 
 #### DNS & Routing
 - `*.arsfeld.one` — internal services hosted on **storage**, routed via Cloudflare → storage's cloudflared tunnel (wildcard ingress)
-- `*.arsfeld.dev` — public services hosted on **basestar** (blog, plausible, planka, siyuan, supabase)
+- `*.arsfeld.dev` — public services hosted on **basestar** (blog, plausible, planka, siyuan)
 - `*.bat-boa.ts.net` — Tailscale-only access (or public via Funnel)
 
 ### Remote Builders

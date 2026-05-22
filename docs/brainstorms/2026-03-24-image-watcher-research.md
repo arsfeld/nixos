@@ -141,7 +141,7 @@ curl -d "message body" \
 ---
 
 ### 4. Systemd Timer Patterns (EXISTING)
-**Source:** Multiple modules - tablet-sync, media-sync, email, podman-image-pull, check-stock, supabase-maintenance, rustic
+**Source:** Multiple modules - tablet-sync, media-sync, email, podman-image-pull, check-stock, rustic
 
 #### Standard Timer + Service Pattern
 ```nix
