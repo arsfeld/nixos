@@ -60,7 +60,6 @@
   # Additional packages
   environment.systemPackages = with pkgs; [
     powertop
-    tlp # Advanced power management
     acpi # Battery status monitoring
     easyeffects # Audio enhancement for G14 speakers
     alsa-utils # Audio utilities
@@ -108,6 +107,10 @@
     "i915.enable_fbc=1"
     "i915.enable_psr=2"
     "nmi_watchdog=0"
+    # Use the active AMD P-state driver so power-profiles-daemon can steer
+    # EPP directly. Without this the kernel falls back to acpi-cpufreq and PPD
+    # only flips platform_profile, leaving CPU at a fixed governor.
+    "amd_pstate=active"
     # Note: pcie_aspm=force + pcie_aspm.policy=powersupersave were removed -
     # they renegotiated the GTX 1660 Ti Max-Q link to PCIe 2.0 x8 and pinned
     # the dGPU in P5 / 30W TGP under load (Forza was VRAM-bandwidth starved).
@@ -259,83 +262,14 @@
     SuspendState=mem
   '';
 
-  # Advanced Power Management with TLP. Disabled for the open-vs-proprietary
-  # NVIDIA A/B test - we ruled out TLP as the cause of the dGPU memory clock
-  # pinned at 810 MHz, but keeping it off rules it out as a confounder while
-  # we test the driver swap.
-  services.tlp = {
-    enable = false;
-    settings = {
-      # CPU power management. On AC we run unrestricted: boost on, EPP at
-      # "performance". This is required for NVIDIA Dynamic Boost to give the
-      # dGPU its full TGP allocation -- with CPU boost off and EPP balanced,
-      # the EC keeps the 1660 Ti Max-Q clamped to ~30W (vs 60W default),
-      # which pins it in P5 with memory at 810/6001 MHz under load. Battery
-      # stays on schedutil/balanced for longevity.
-      CPU_SCALING_GOVERNOR_ON_AC = "performance";
-      CPU_SCALING_GOVERNOR_ON_BAT = "schedutil";
-      CPU_ENERGY_PERF_POLICY_ON_AC = "performance";
-      CPU_ENERGY_PERF_POLICY_ON_BAT = "balance_performance";
-      CPU_MIN_PERF_ON_AC = 0;
-      CPU_MAX_PERF_ON_AC = 100;
-      CPU_MIN_PERF_ON_BAT = 20;
-      CPU_MAX_PERF_ON_BAT = 100;
-      CPU_BOOST_ON_AC = 1;
-      CPU_BOOST_ON_BAT = 0;
-
-      # PLATFORM_PROFILE removed: changing platform profile via TLP
-      # disables asusd custom fan curves (ACPI firmware behavior)
-
-      # Disk power management
-      DISK_IDLE_SECS_ON_AC = 0;
-      DISK_IDLE_SECS_ON_BAT = 2;
-      DISK_APM_LEVEL_ON_AC = "254 254";
-      DISK_APM_LEVEL_ON_BAT = "128 128";
-
-      # PCIe power management. ASPM on AC is "performance" (disabled) so the
-      # dGPU's link stays at PCIe 3.0 x8/x16 instead of dropping to 2.0 x8.
-      RUNTIME_PM_ON_AC = "auto";
-      RUNTIME_PM_ON_BAT = "auto";
-      PCIE_ASPM_ON_AC = "performance";
-      PCIE_ASPM_ON_BAT = "powersupersave";
-
-      # USB autosuspend
-      USB_AUTOSUSPEND = 1;
-      USB_EXCLUDE_PHONE = 1;
-
-      # WiFi power saving
-      WIFI_PWR_ON_AC = "off";
-      WIFI_PWR_ON_BAT = "on";
-
-      # Sound power management
-      SOUND_POWER_SAVE_ON_AC = 0;
-      SOUND_POWER_SAVE_ON_BAT = 1;
-      SOUND_POWER_SAVE_CONTROLLER = "Y";
-
-      # Battery charge thresholds disabled for full charging
-    };
-  };
-
-  # Auto-cpufreq as alternative/addition to TLP (comment out if conflicts arise)
-  services.auto-cpufreq = {
-    enable = false; # Set to true if you prefer this over TLP's CPU management
-    settings = {
-      battery = {
-        governor = "powersave";
-        turbo = "never";
-      };
-      charger = {
-        governor = "performance";
-        turbo = "auto";
-      };
-    };
-  };
-
-  # thermald disabled: Intel daemon, unnecessary on AMD Ryzen 5900HS
-  services.thermald.enable = false;
-
-  # Power profiles daemon (works with GNOME)
-  services.power-profiles-daemon.enable = false; # Disabled as TLP handles this
+  # Fedora-on-ASUS power management: plain power-profiles-daemon (NOT
+  # tuned-ppd). The asus-linux.org Fedora guide explicitly tells G14 owners to
+  # `dnf swap tuned-ppd power-profiles-daemon` because tuned-ppd's tuned
+  # profiles fight asusd over platform_profile, making the GNOME slider snap
+  # back to Balanced within ~40ms. PPD writes platform_profile + amd_pstate
+  # EPP directly (no tuned in the middle); asusd reacts via inotify to apply
+  # the matching fan curve. Pairs with amd_pstate=active in kernelParams.
+  services.power-profiles-daemon.enable = true;
 
   # Suspend then hibernate for lid/power button actions.
   # No IdleAction: logind counts suspend time as idle, and GNOME's own idle
