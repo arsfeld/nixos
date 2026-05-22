@@ -14,6 +14,20 @@ _format-targets +TARGETS:
     #!/usr/bin/env bash
     printf ".#%s " {{ TARGETS }} | sed 's/ $//'
 
+# Private recipe to nudge systems back into the default target after activation
+_poke-targets *TARGETS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    targets=({{ TARGETS }})
+    if [ ${#targets[@]} -eq 0 ]; then
+        mapfile -t targets < <(find hosts -mindepth 2 -maxdepth 2 -name configuration.nix -printf '%h\n' | xargs -r -n1 basename | sort)
+    fi
+
+    for target in "${targets[@]}"; do
+        echo "Poking multi-user.target on ${target}..."
+        ssh "root@${target}.bat-boa.ts.net" sudo systemctl start multi-user.target
+    done
+
 # === Colmena Deployment (default) ===
 # Parallel deployment to one or more hosts
 
@@ -29,6 +43,7 @@ deploy +TARGETS:
     TARGETS_CSV=$(echo "{{ TARGETS }}" | tr ' ' ',')
     echo "Deploying ${TARGETS_CSV} using Colmena..."
     colmena apply --impure --on "${TARGETS_CSV}"
+    just _poke-targets {{ TARGETS }}
 
 # Deploy with boot activation (activates on next reboot)
 boot +TARGETS:
@@ -64,6 +79,7 @@ deploy-all:
     trap 'kill $WATCH_PID 2>/dev/null || true; wait $WATCH_PID 2>/dev/null || true' EXIT INT TERM
     sleep 1
     colmena apply --impure
+    just _poke-targets
 
 # Deploy and reboot (for kernel/bootloader changes)
 reboot +TARGETS:
@@ -576,4 +592,3 @@ secret-create SECRET_NAME:
 
     echo "✅ Secret '{{ SECRET_NAME }}.age' created successfully"
     echo "Don't forget to add it to secrets/secrets.nix if needed!"
-
