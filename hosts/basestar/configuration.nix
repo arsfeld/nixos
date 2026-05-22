@@ -121,12 +121,6 @@
     domain = "arsfeld.one";
   };
 
-  # Enable dynamic Supabase management
-  services.supabase = {
-    enable = true;
-    domain = "arsfeld.dev";
-  };
-
   nixpkgs.hostPlatform = "aarch64-linux";
 
   #boot.kernelPackages = pkgs.linuxPackages_latest;
