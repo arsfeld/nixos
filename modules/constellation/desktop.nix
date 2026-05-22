@@ -320,11 +320,24 @@ in {
                 ];
               };
 
-              "org/gnome/shell/extensions/logo-menu" = {
+              # Schema id is `logo-menu` but the dconf PATH is `Logo-menu`
+              # (capital L). Writing to lowercase silently no-ops.
+              "org/gnome/shell/extensions/Logo-menu" = {
+                # Match Bazzite: colored distro logo, ~20px, with shadow.
+                symbolic-icon = false;
+                menu-button-icon-image = lib.gvariant.mkInt32 18; # NixOS color logo in ColouredDistroIcons
+                menu-button-icon-size = lib.gvariant.mkInt32 20;
+                hide-icon-shadow = false;
+                # App targets — we keep ghostty instead of Bazzite's ptyxis.
                 menu-button-terminal = "ghostty";
                 menu-button-system-monitor = "missioncenter";
                 menu-button-extensions-app = "com.mattjakeman.ExtensionManager.desktop";
                 menu-button-software-center = "bazaar";
+                # Bazzite hides Force Quit and the power/lock entries, keeps Activities.
+                show-activities-button = true;
+                hide-forcequit = true;
+                show-lockscreen = false;
+                show-power-options = false;
               };
 
               "app/devsuite/Ptyxis" = {
