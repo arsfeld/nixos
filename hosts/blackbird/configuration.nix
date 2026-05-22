@@ -68,9 +68,27 @@
     ventoy-full-gtk # Multiboot USB creator (CLI + GTK GUI, all plugins)
   ];
 
-  # Bootloader
-  boot.loader.systemd-boot.enable = true;
+  # Bootloader: rEFInd as the boot menu (replaces systemd-boot). The rEFInd
+  # NixOS module wipes anything in /boot/efi/refind/ that it didn't install,
+  # so the previous manual install is cleanly superseded. dont_scan_dirs hides
+  # the stale systemd-boot binary and orphan /EFI/nixos/*.efi kernels that the
+  # old systemd-boot left behind on the ESP. use_nvram false keeps rEFInd's
+  # own variables on the ESP instead of motherboard NVRAM.
+  boot.loader.systemd-boot.enable = false;
+  boot.loader.grub.enable = false;
   boot.loader.efi.canTouchEfiVariables = true;
+  boot.loader.refind = {
+    enable = true;
+    extraConfig = ''
+      use_nvram false
+      dont_scan_dirs +,EFI/systemd,EFI/nixos,EFI/Microsoft/Recovery
+    '';
+  };
+  services.refind-theme-regular = {
+    enable = true;
+    size = "medium";
+    variant = "dark";
+  };
 
   # Boot appearance
   boot.plymouth.enable = true;
