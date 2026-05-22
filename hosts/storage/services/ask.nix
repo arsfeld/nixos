@@ -7,6 +7,9 @@ in {
     exposePort = port;
     configDir = "/home/vane/data";
     watchImage = true;
+    environment = {
+      SEARXNG_API_URL = "http://host.containers.internal:8888";
+    };
   };
 
   media.gateway.services.ask.exposeViaTailscale = true;
