@@ -38,7 +38,6 @@ in {
       };
 
       # blog.${domain} is now handled directly by constellation.blog module
-      # Supabase instances are now handled dynamically by services.supabase
     };
   };
 }
