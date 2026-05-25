@@ -15,12 +15,12 @@
   ];
 
   services.btrbk.instances."home" = {
-    onCalendar = "hourly";
+    onCalendar = "*-*-* 00/6:00:00";
     snapshotOnly = true;
     settings = {
       timestamp_format = "long";
       snapshot_preserve_min = "2d";
-      snapshot_preserve = "48h 7d 4w";
+      snapshot_preserve = "12h 5d 2w";
       volume."/mnt/btrfs-home" = {
         snapshot_dir = ".snapshots";
         subvolume."home" = {};
