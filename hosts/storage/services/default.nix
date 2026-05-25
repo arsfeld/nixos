@@ -27,7 +27,6 @@
     ./transmission-vpn.nix
     ./nfs.nix
     ./samba.nix
-    ./scira.nix
     ./search.nix
     ./seafile.nix
     ./stashfin.nix
