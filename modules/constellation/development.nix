@@ -116,7 +116,7 @@
         ctop
       ]
       ++ lib.optionals config.constellation.development.nodejs [
-        nodejs_20
+        nodejs
         pnpm
         yarn
         bun
