@@ -21,11 +21,13 @@
     ./isponsorblock.nix
     ./media.nix
     ./misc.nix
+    ./morphic.nix
     ./ntfy.nix
     ./qbittorrent-vpn.nix
     ./transmission-vpn.nix
     ./nfs.nix
     ./samba.nix
+    ./scira.nix
     ./search.nix
     ./seafile.nix
     ./stashfin.nix

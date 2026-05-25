@@ -92,12 +92,22 @@
       #   name = "mediamanager";
       #   ensureDBOwnership = true;
       # }
+      {
+        name = "morphic";
+        ensureDBOwnership = true;
+      }
+      {
+        name = "scira";
+        ensureDBOwnership = true;
+      }
     ];
     ensureDatabases = [
       "bitmagnet"
       "openarchiver"
       # DISABLED: MediaManager service commented out
       # "mediamanager"
+      "morphic"
+      "scira"
     ];
     # Allow media user to connect as immich database user for file permissions
     identMap = ''
@@ -110,6 +120,8 @@
       # Allow containers to connect from podman network without password (trust)
       host bitmagnet bitmagnet 10.88.0.0/16 trust
       host openarchiver openarchiver 10.88.0.0/16 trust
+      host morphic morphic 10.88.0.0/16 trust
+      host scira scira 10.88.0.0/16 trust
     '';
   };
 
