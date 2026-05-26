@@ -173,17 +173,27 @@ Content-Type: text/html; charset="utf-8"
 
     logger.info(f"Email content: {email_content}")
 
-    # Send the email using msmtp
+    # Queue the email via msmtpq (never fails – mail lands on disk).
+    subprocess.run(
+        ["msmtpq"],
+        input=email_content,
+        text=True,
+        check=True,
+    )
+    logger.info("Email queued successfully")
+
+    # Best-effort immediate flush.  If the network isn't ready the queue
+    # timer will pick it up on the next tick.
     try:
         subprocess.run(
-            ["msmtp", "-t"],
-            input=email_content,
+            ["msmtp-queue", "-r"],
+            capture_output=True,
             text=True,
             check=True,
         )
-        logger.info("Email sent successfully")
+        logger.info("Queue flushed after queuing")
     except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to send email: {e}")
+        logger.warning(f"Queue flush deferred (network not ready?): {e.stderr.strip()}")
 
 
 if __name__ == "__main__":

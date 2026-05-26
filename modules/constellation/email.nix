@@ -85,18 +85,21 @@ in {
 
     systemd.services."boot-mail-alert" = {
       wantedBy = ["multi-user.target"];
-      after = ["network-online.target"];
-      wants = ["network-online.target"];
+      after = ["nss-lookup.target"];
+      wants = ["nss-lookup.target"];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
       };
-      script = "${sendEmailEvent} 'just booted'";
+      script = ''
+        ${sendEmailEvent} 'just booted'
+        ${pkgs.msmtp}/bin/msmtp-queue -r
+      '';
     };
     systemd.services."shutdown-mail-alert" = {
       wantedBy = ["multi-user.target"];
-      after = ["network-online.target"];
-      wants = ["network-online.target"];
+      after = ["nss-lookup.target"];
+      wants = ["nss-lookup.target"];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -112,6 +115,26 @@ in {
       wantedBy = ["timers.target"];
       partOf = ["weekly-mail-alert.service"];
       timerConfig.OnCalendar = "weekly";
+    };
+
+    # Flush the msmtpq queue every minute so transient DNS / network
+    # outages are absorbed without losing mail.
+    systemd.tmpfiles.rules = [
+      "d /root/.msmtp.queue 0700 root root - -"
+    ];
+    systemd.services."flush-email-queue" = {
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "${pkgs.msmtp}/bin/msmtp-queue -r";
+      };
+    };
+    systemd.timers."flush-email-queue" = {
+      wantedBy = ["timers.target"];
+      partOf = ["flush-email-queue.service"];
+      timerConfig = {
+        OnBootSec = "1m";
+        OnUnitActiveSec = "1m";
+      };
     };
   };
 }
