@@ -94,6 +94,12 @@ with lib; {
   systemd = {
     # Allow boot to continue even if some units fail
     enableEmergencyMode = false; # Don't drop to emergency shell
+
+    # Home Manager needs DNS at boot for nix cache downloads
+    services.home-manager-arosenfeld = {
+      after = ["nss-lookup.target"];
+      wants = ["nss-lookup.target"];
+    };
   };
 
   # SMART monitoring
