@@ -50,9 +50,9 @@ in {
           "router.lan" = routerIp;
           "router" = routerIp;
           # Static entries
-          "storage.lan" = "${netConfig.prefix}.5";
-          "storage" = "${netConfig.prefix}.5";
-          # Redirect arsfeld.one and subdomains to storage via Tailscale
+          "galactica.lan" = "${netConfig.prefix}.5";
+          "galactica" = "${netConfig.prefix}.5";
+          # Redirect arsfeld.one and subdomains to galactica via Tailscale
           "arsfeld.one" = "100.118.254.136";
           "*.arsfeld.one" = "100.118.254.136";
         };

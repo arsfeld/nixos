@@ -12,7 +12,7 @@
   sops.secrets.tailscale-env = {};
 
   # tsnsrv re-enabled - provides Tailscale node management for basestar services (task-100)
-  # Runs alongside storage host's tsnsrv to expose basestar services via Tailscale
+  # Runs alongside galactica host's tsnsrv to expose basestar services via Tailscale
   services.tsnsrv = {
     enable = true;
     separateProcesses = true; # Create individual systemd service per tsnsrv service

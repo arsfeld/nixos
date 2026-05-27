@@ -19,10 +19,10 @@
       mac = null; # Router doesn't need MAC
       aliases = ["router" "router.lan"];
     };
-    storage = {
+    galactica = {
       ip = "${netConfig.prefix}.5";
       mac = "00:e0:4c:bb:00:e3";
-      aliases = ["storage" "storage.lan"];
+      aliases = ["galactica" "galactica.lan"];
     };
     # Add more static hosts here as needed
     # laptop = {

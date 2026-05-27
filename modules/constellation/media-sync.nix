@@ -214,7 +214,7 @@ in {
 
     sourceHost = mkOption {
       type = types.str;
-      default = "storage.bat-boa.ts.net";
+      default = "galactica.bat-boa.ts.net";
       description = ''
         Remote host to sync from (Tailscale hostname or IP).
       '';

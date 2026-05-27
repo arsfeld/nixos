@@ -21,7 +21,7 @@
 #   IDM_ADMIN_PASSWORD=your-secure-admin-password
 #
 # To create with sops:
-#   1. Add to secrets/sops/storage.yaml:
+#   1. Add to secrets/sops/galactica.yaml:
 #      opencloud-env: |
 #        IDM_ADMIN_PASSWORD=your-secure-password
 #   2. The module will automatically use it when constellation.sops is enabled

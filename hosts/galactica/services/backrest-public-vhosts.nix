@@ -1,12 +1,12 @@
 # Public per-host Backrest subdomains.
 #
-# Each host running constellation.backrest gets a Caddy vhost on storage at
-# `backrest-<host>.arsfeld.one`. Storage's Caddy reverse-proxies over the
-# tailnet to <host>.bat-boa.ts.net:9898 (localhost for storage's own
+# Each host running constellation.backrest gets a Caddy vhost on galactica at
+# `backrest-<host>.arsfeld.one`. Galactica's Caddy reverse-proxies over the
+# tailnet to <host>.bat-boa.ts.net:9898 (localhost for galactica's own
 # daemon to skip the loopback). Authelia gates every subdomain via the
 # same forward_auth pattern as the other internal services.
 #
-# Two header concerns under storage's authority (R11):
+# Two header concerns under galactica's authority (R11):
 #   - CSP `frame-ancestors https://backrest.arsfeld.one` so only the
 #     portal page may iframe these subdomains.
 #   - Top-level `header { -X-Frame-Options }` strips any upstream value
@@ -24,7 +24,7 @@
   lib,
   ...
 }: let
-  backrestHosts = ["storage" "basestar" "pegasus" "raider"];
+  backrestHosts = ["galactica" "basestar" "pegasus" "raider"];
 
   authHost = config.media.gateway.authHost;
   authPort = config.media.gateway.authPort;
@@ -34,7 +34,7 @@
     else "https://";
 
   upstream = host:
-    if host == "storage"
+    if host == "galactica"
     then "localhost:9898"
     else "${host}.bat-boa.ts.net:9898";
 

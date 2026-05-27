@@ -43,7 +43,7 @@ in {
       '';
       example = {
         jellyfin = {
-          host = "storage";
+          host = "galactica";
           port = 8096;
         };
       };
@@ -83,7 +83,7 @@ in {
               Hostname where this service is running.
               The gateway will proxy requests to this host.
             '';
-            example = "storage";
+            example = "galactica";
           };
           port = mkOption {
             type = types.int;

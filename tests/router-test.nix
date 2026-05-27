@@ -11,8 +11,8 @@
   name = "router-test";
 
   nodes = {
-    # Storage server with static IP
-    storage = {
+    # Galactica server with static IP
+    galactica = {
       config,
       pkgs,
       ...
@@ -45,13 +45,13 @@
         };
       };
 
-      # Simple service to identify this as storage
-      systemd.services.storage-marker = {
+      # Simple service to identify this as galactica
+      systemd.services.galactica-marker = {
         wantedBy = ["multi-user.target"];
         serviceConfig = {
           Type = "oneshot";
           RemainAfterExit = true;
-          ExecStart = "${pkgs.coreutils}/bin/echo 'Storage server with static IP 10.1.1.5'";
+          ExecStart = "${pkgs.coreutils}/bin/echo 'Galactica server with static IP 10.1.1.5'";
         };
       };
     };
@@ -354,7 +354,7 @@
     # Wait for all machines to be ready
     external.wait_for_unit("multi-user.target")
     router.wait_for_unit("multi-user.target")
-    storage.wait_for_unit("multi-user.target")
+    galactica.wait_for_unit("multi-user.target")
     client1.wait_for_unit("multi-user.target")
     client2.wait_for_unit("multi-user.target")
 
@@ -393,27 +393,27 @@
     client2.wait_for_unit("test-http-server.service")
 
     # Give DHCP time to assign addresses
-    storage.wait_until_succeeds("ip addr show eth1 | grep 10.1.1.5")  # Static IP
+    galactica.wait_until_succeeds("ip addr show eth1 | grep 10.1.1.5")  # Static IP
     client1.wait_until_succeeds("ip addr show eth1 | grep 10.1.1")
     client2.wait_until_succeeds("ip addr show eth1 | grep 10.1.1")
 
     # Test basic connectivity
-    with subtest("Clients and storage can ping router"):
-        storage.succeed("ping -c 1 10.1.1.1")
+    with subtest("Clients and galactica can ping router"):
+        galactica.succeed("ping -c 1 10.1.1.1")
         client1.succeed("ping -c 1 10.1.1.1")
         client2.succeed("ping -c 1 10.1.1.1")
 
-    with subtest("Storage has correct static IP"):
-        # Verify storage got the static IP 10.1.1.5
-        storage_ip = storage.succeed("ip -4 addr show eth1 | grep inet | awk '{print $2}' | cut -d'/' -f1").strip()
-        assert storage_ip == "10.1.1.5", f"Storage IP is {storage_ip}, expected 10.1.1.5"
-        print(f"Storage server has static IP: {storage_ip}")
+    with subtest("Galactica has correct static IP"):
+        # Verify galactica got the static IP 10.1.1.5
+        galactica_ip = galactica.succeed("ip -4 addr show eth1 | grep inet | awk '{print $2}' | cut -d'/' -f1").strip()
+        assert galactica_ip == "10.1.1.5", f"Galactica IP is {galactica_ip}, expected 10.1.1.5"
+        print(f"Galactica server has static IP: {galactica_ip}")
 
     with subtest("DNS resolution for static hosts"):
         # Test that static hosts are resolvable
-        storage_resolved = client1.succeed("nslookup storage.lan 10.1.1.1 | grep Address | tail -1 | awk '{print $2}'").strip()
-        assert storage_resolved == "10.1.1.5", f"storage.lan resolved to {storage_resolved}, expected 10.1.1.5"
-        print("✓ storage.lan resolves correctly")
+        galactica_resolved = client1.succeed("nslookup galactica.lan 10.1.1.1 | grep Address | tail -1 | awk '{print $2}'").strip()
+        assert galactica_resolved == "10.1.1.5", f"galactica.lan resolved to {galactica_resolved}, expected 10.1.1.5"
+        print("✓ galactica.lan resolves correctly")
 
         router_resolved = client1.succeed("nslookup router.lan 10.1.1.1 | grep Address | tail -1 | awk '{print $2}'").strip()
         assert router_resolved == "10.1.1.1", f"router.lan resolved to {router_resolved}, expected 10.1.1.1"
@@ -427,7 +427,7 @@
         hosts_content = router.succeed("cat /var/lib/kea/dhcp-hosts")
         print(f"Hosts file content:\n{hosts_content}")
         assert "10.1.1.1 router router.lan" in hosts_content, "Router entry not in hosts file"
-        assert "10.1.1.5 storage storage.lan" in hosts_content, "Storage entry not in hosts file"
+        assert "10.1.1.5 galactica galactica.lan" in hosts_content, "Galactica entry not in hosts file"
 
         # Test reverse DNS for clients (should work after they get DHCP leases)
         client1_ip = client1.succeed("ip -4 addr show eth1 | grep inet | awk '{print $2}' | cut -d'/' -f1").strip()

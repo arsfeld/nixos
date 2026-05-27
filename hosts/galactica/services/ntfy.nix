@@ -18,7 +18,7 @@ in {
     restartUnits = ["ntfy-sh.service"];
   };
 
-  # Publisher credential, consumed by every storage service that posts to
+  # Publisher credential, consumed by every galactica service that posts to
   # ntfy.arsfeld.one (image-watch, check-stock, claude-notify). owner =
   # arosenfeld + mode 0400 lets the user-mode claude-notify read it directly
   # while systemd services (run as root) can still load it via

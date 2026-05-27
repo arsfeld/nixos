@@ -512,7 +512,7 @@ in {
                   servers = [
                     {
                       type = "local";
-                      name = "storage";
+                      name = "galactica";
                       mountpoints = {
                         "/" = {name = "Root";};
                         "/mnt/storage" = {name = "Storage";};

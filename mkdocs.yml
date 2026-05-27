@@ -89,7 +89,7 @@ nav:
     - Media Stack: modules/media.md
   - Hosts:
     - Overview: hosts/overview.md
-    - Storage Server: hosts/storage.md
+    - Galactica Server: hosts/galactica.md
     - Basestar Server: hosts/basestar.md
     - Pegasus Server: hosts/pegasus.md
     - Router: hosts/router.md

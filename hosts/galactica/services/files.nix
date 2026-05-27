@@ -117,7 +117,7 @@ in
         settings = {
           mail_smtpmode = "sendmail";
           mail_sendmailmode = "pipe";
-          trusted_domains = ["storage" "storage.bat-boa.ts.net" "nextcloud.bat-boa.ts.net" "nextcloud.arsfeld.one"];
+          trusted_domains = ["galactica" "galactica.bat-boa.ts.net" "nextcloud.bat-boa.ts.net" "nextcloud.arsfeld.one"];
           trusted_proxies = ["100.66.83.36"];
           overwriteprotocol = "https";
           overwritehost = "nextcloud.arsfeld.one";

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is a personal NixOS configuration repository that manages multiple machines using Nix Flakes and flake-parts. It includes configurations for servers (storage, basestar), embedded devices (R2S, Raspberry Pi), and desktop systems (raider, blackbird).
+This is a personal NixOS configuration repository that manages multiple machines using Nix Flakes and flake-parts. It includes configurations for servers (galactica, basestar), embedded devices (R2S, Raspberry Pi), and desktop systems (raider, blackbird).
 
 ## Key Commands
 
@@ -17,12 +17,12 @@ just build <hostname>          # Build a host config locally
 
 ### Deployment (via Colmena, default)
 ```bash
-just deploy storage            # Deploy to one host
-just deploy storage basestar   # Deploy to multiple hosts in parallel
-just boot storage              # Boot activation (next reboot)
-just test storage              # Test without activating
-just deploy-all                # Deploy to all hosts
-just reboot storage            # Deploy and reboot (kernel changes)
+just deploy galactica           # Deploy to one host
+just deploy galactica basestar  # Deploy to multiple hosts in parallel
+just boot galactica             # Boot activation (next reboot)
+just test galactica             # Test without activating
+just dry-run galactica          # Show changes without downloading/building
+just reboot galactica           # Deploy and reboot (kernel changes)
 just info                      # List all known hosts
 ```
 
@@ -48,7 +48,7 @@ nix develop -c sops updatekeys secrets/sops/<file>.yaml  # Re-encrypt after key 
 Configured via `.sops.yaml`. All hosts use `constellation.sops.enable = true`. Use standard `sops.secrets` options. Common/shared secrets: `config.constellation.sops.commonSopsFile`.
 
 ### Available Hosts
-- **storage** - Main server: media services, databases, backups. Hosts internal services on `*.arsfeld.one` via cloudflared tunnel (wildcard ingress)
+- **galactica** - Main server: media services, databases, backups. Hosts internal services on `*.arsfeld.one` via cloudflared tunnel (wildcard ingress)
 - **basestar** - Public-facing server (BSG Cylon Basestar): hosts services on `*.arsfeld.dev` (blog, plausible, planka, siyuan)
 - **raider** - Desktop workstation: GNOME, gaming, development
 - **router** - Custom network device (no constellation modules, standalone config)
@@ -103,7 +103,7 @@ Opt-in feature modules that hosts compose. Key modules:
 
 Shared variables consumed by media services via `config.media.config`:
 - `configDir` = `/var/data` - Service config/data directory
-- `storageDir` = `/mnt/storage` - Large media files (**storage host only**, not available on basestar)
+- `storageDir` = `/mnt/storage` - Large media files (**galactica host only**, not available on basestar)
 - `dataDir` = `/mnt/storage` - Primary data directory
 - `puid`/`pgid` = `5000` - UID/GID for all media services
 - `user`/`group` = `"media"` - Service user
@@ -113,7 +113,7 @@ Shared variables consumed by media services via `config.media.config`:
 ### Service and Network Architecture
 
 #### `mkService` is the only way to declare a service
-All service declarations on storage/basestar go through the `mkService` helper at `modules/media/__mkService.nix`. It writes to `media.containers.<name>` for containers (which auto-populates `media.gateway.services.<name>`) or directly to `media.gateway.services.<name>` for native/gateway-only services. Do **not** write to `virtualisation.oci-containers.containers` or to `media.gateway.services` by hand — those are implementation details and bypassing `mkService` will silently miss the standardized PUID/PGID/TZ env, the auto-tmpfiles config dir, the gateway entry, and image-watching.
+All service declarations on galactica/basestar go through the `mkService` helper at `modules/media/__mkService.nix`. It writes to `media.containers.<name>` for containers (which auto-populates `media.gateway.services.<name>`) or directly to `media.gateway.services.<name>` for native/gateway-only services. Do **not** write to `virtualisation.oci-containers.containers` or to `media.gateway.services` by hand — those are implementation details and bypassing `mkService` will silently miss the standardized PUID/PGID/TZ env, the auto-tmpfiles config dir, the gateway entry, and image-watching.
 
 ```nix
 let mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
@@ -158,7 +158,7 @@ Backs `media.containers.*`. Auto-creates the matching `media.gateway.services.<n
 Caddy reverse proxy consuming service definitions. Generates TLS configs, error pages, tsnsrv integration.
 
 #### DNS & Routing
-- `*.arsfeld.one` — internal services hosted on **storage**, routed via Cloudflare → storage's cloudflared tunnel (wildcard ingress)
+- `*.arsfeld.one` — internal services hosted on **galactica**, routed via Cloudflare → galactica's cloudflared tunnel (wildcard ingress)
 - `*.arsfeld.dev` — public services hosted on **basestar** (blog, plausible, planka, siyuan)
 - `*.bat-boa.ts.net` — Tailscale-only access (or public via Funnel)
 
@@ -180,10 +180,11 @@ Caddy reverse proxy consuming service definitions. Generates TLS configs, error 
 
 Always declare services with `mkService` (see "Service and Network Architecture" above). The pattern below applies to both containers and native NixOS services — only the `container` attr differs.
 
-### `*.arsfeld.one` services (on storage)
-1. Create a service file in `hosts/storage/services/` and add it to `default.nix` imports.
-2. Wrap the file body in `lib.mkMerge` and call `mkService "<name>" { … }` for the gateway/container declaration.
-3. Storage's wildcard cloudflared tunnel routes traffic automatically; the gateway entry is created by `mkService`.
+### `*.arsfeld.one` services (on galactica)
+
+1. Create a service file in `hosts/galactica/services/` and add it to `default.nix` imports.
+2. Define the service using the `mkService` helper.
+3. Galactica's wildcard cloudflared tunnel routes traffic automatically; the gateway entry is created by `mkService`.
 
 ### `*.arsfeld.dev` services (on basestar)
 1. Create a service file in `hosts/basestar/services/` and add it to `default.nix` imports.
@@ -194,12 +195,12 @@ Always declare services with `mkService` (see "Service and Network Architecture"
 Conventional commits required: `<type>(<scope>): <subject>`
 
 **Types**: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `ci`
-**Scopes**: hostname (`raider`, `storage`, `basestar`), or `secrets`, `modules`, `home`
+**Scopes**: hostname (`raider`, `galactica`, `basestar`), or `secrets`, `modules`, `home`
 
 Never mention Claude in commit messages or author.
 
 ## CI/CD (.github/workflows/)
 
-- **build.yml** - Builds basestar (aarch64), storage (x86_64), raider (x86_64) closures and pushes to Attic cache
+- **build.yml** - Builds basestar (aarch64), galactica (x86_64), raider (x86_64) closures and pushes to Attic cache
 - **format.yml** - Checks formatting with alejandra (fails if unformatted, run `just fmt` locally)
 - **update.yml** - Weekly flake input updates with automatic build testing, commits flake.lock if all hosts build
