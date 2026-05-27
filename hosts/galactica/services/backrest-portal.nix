@@ -33,7 +33,7 @@
   # Hosts that run constellation.backrest. Update this list as hosts
   # are migrated or retired. Pills render in this order.
   # NOTE: keep in sync with the same literal in backrest-public-vhosts.nix.
-  backrestHosts = ["storage" "basestar" "pegasus" "raider"];
+  backrestHosts = ["galactica" "basestar" "pegasus" "raider"];
 
   renderPill = host: ''
     <div class="pill" role="group">

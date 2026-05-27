@@ -1,7 +1,7 @@
 # Constellation Metrics Client Module
 #
 # This module configures Prometheus node exporter on constellation hosts
-# to expose system metrics for the central Prometheus server on storage to scrape.
+# to expose system metrics for the central Prometheus server on galactica to scrape.
 #
 # Key features:
 # - Comprehensive system metrics collection (CPU, memory, disk, network, systemd)
@@ -11,7 +11,7 @@
 # - Textfile collector support for custom metrics
 #
 # Metrics are exposed on port 9100 and scraped by the central Prometheus
-# instance running on the storage host. All communication happens over
+# instance running on the galactica host. All communication happens over
 # the Tailscale network for security.
 {
   pkgs,
@@ -26,7 +26,7 @@
       description = ''
         Enable Prometheus node exporter for system metrics collection.
         Metrics are exposed on port 9100 for scraping by the central
-        Prometheus server on the storage host.
+        Prometheus server on the galactica host.
       '';
     };
 

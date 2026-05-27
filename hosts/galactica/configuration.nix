@@ -23,7 +23,7 @@ in {
 
   # We're the netdata server, not a client.
   constellation.netdataClient.enable = false;
-  # Gateway configuration (auth handled by Authelia on storage)
+  # Gateway configuration (auth handled by Authelia on galactica)
   media.gateway = {
     enable = true;
     authHost = "127.0.0.1";
@@ -80,7 +80,7 @@ in {
 
   media.config.enable = true;
 
-  networking.hostName = "storage";
+  networking.hostName = "galactica";
   networking.firewall.enable = false;
   # Enable IP forwarding for container networking and VPN exit nodes
   services.tailscale.useRoutingFeatures = "server";

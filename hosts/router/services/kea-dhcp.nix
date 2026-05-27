@@ -20,10 +20,10 @@
       aliases = ["router" "router.lan"];
       deviceType = "router";
     };
-    storage = {
+    galactica = {
       ip = "${netConfig.prefix}.5";
       mac = "00:e0:4c:bb:00:e3";
-      aliases = ["storage" "storage.lan"];
+      aliases = ["galactica" "galactica.lan"];
       deviceType = "server";
     };
   };

@@ -137,9 +137,9 @@ deploy-rs +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail # Enable strict error handling
 
-    # Start attic watch-store in background if on storage host
+    # Start attic watch-store in background if on galactica host
     WATCH_PID=""
-    if [[ "$(hostname)" == "storage" ]]; then
+    if [[ "$(hostname)" == "galactica" ]]; then
         echo "Starting attic watch-store to cache builds..."
         attic watch-store system &
         WATCH_PID=$!

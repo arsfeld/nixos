@@ -60,7 +60,7 @@
       # instead of stacking skipped cron entries.
       enable = true;
       repos.storage = {
-        uri = "rest:http://storage.bat-boa.ts.net:8000/";
+        uri = "rest:http://galactica.bat-boa.ts.net:8000/";
         passwordFile = config.sops.secrets."restic-password".path;
       };
       plans.system = {
