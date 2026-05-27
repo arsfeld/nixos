@@ -3,22 +3,17 @@ description:
 globs: 
 alwaysApply: true
 ---
-Git commit messages follow the angular way, with emojis for the type
+Git commit messages use conventional commits (Angular style) without emojis.
 
-Here's the complete list of emoji types for Angular-style git commits:
+Format: `type(scope): subject`
 
-| Type | Emoji | Description |
-|------|-------|-------------|
-| feat | ✨ | A new feature |
-| fix | 🐛 | A bug fix |
-| docs | 📚 | Documentation changes |
-| style | 💎 | Changes that don't affect code (formatting, missing semi-colons, etc) |
-| refactor | 📦 | Code change that neither fixes a bug nor adds a feature |
-| perf | 🚀 | Performance improvements |
-| test | 🧪 | Adding missing or correcting existing tests |
-| build | 🛠️ | Changes that affect the build system or external dependencies |
-| ci | 👷 | Changes to CI configuration files and scripts |
-| chore | 🧹 | Other changes that don't modify src or test files |
-| revert | ⏪ | Reverts a previous commit |
+**Types**: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`, `perf`, `build`, `style`, `revert`
 
-Example of usage: `git commit -m "✨ feat: add new login feature"`
+**Scopes** (this repo): hostname (`raider`, `galactica`, `basestar`), or `secrets`, `modules`, `home`, `reasonix`
+
+Examples:
+- `feat(galactica): add morphic service`
+- `fix(modules): correct colmena deploy target`
+- `chore(reasonix): add agent skills`
+
+Subject line: imperative mood, under 72 characters, explain why when a body is needed. Never mention AI tools in messages.
