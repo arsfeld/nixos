@@ -11,7 +11,7 @@ Personal NixOS configuration managing multiple machines using Nix Flakes and [fl
 ### Infrastructure
 | Host | Role | Hardware | Status |
 |------|------|----------|--------|
-| **storage** | Main server (media, databases, backups) | Intel i5-1340P, 12c/16t, 32GB, ~45TB | Online |
+| **galactica** | Main server (media, databases, backups) | Intel i5-1340P, 12c/16t, 32GB, ~45TB | Online |
 | **basestar** | Public-facing services (`*.arsfeld.dev`) | ARM Neoverse-N1, 4c, 24GB (Oracle Cloud) | Online |
 | **router** | Network router | Intel N5105, 4c, 8GB | Offline |
 | **r2s** | Backup router + home automation | Rockchip RK3328 ARM, 4c, 1GB | Offline |
@@ -52,8 +52,8 @@ See [HARDWARE.md](HARDWARE.md) for detailed disk and CPU specs.
 nix develop
 
 # Deploy to one or more hosts
-just deploy storage
-just deploy storage basestar
+just deploy galactica
+just deploy galactica basestar
 
 # Build locally without deploying
 just build <hostname>

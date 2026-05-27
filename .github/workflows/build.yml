@@ -23,7 +23,7 @@ jobs:
         include:
           - host: basestar
             platform: aarch64-linux
-          - host: storage
+          - host: galactica
             platform: x86_64-linux
           - host: raider
             platform: x86_64-linux

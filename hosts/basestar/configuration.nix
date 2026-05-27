@@ -14,8 +14,8 @@
   constellation.sites.arsfeld-dev.enable = true;
   constellation.sites.rosenfeld-one = {
     enable = true;
-    dexUpstream = "storage.bat-boa.ts.net:36958";
-    usersUpstream = "storage.bat-boa.ts.net:64459";
+    dexUpstream = "galactica.bat-boa.ts.net:36958";
+    usersUpstream = "galactica.bat-boa.ts.net:64459";
   };
 
   # Blog service
@@ -76,7 +76,7 @@
   constellation.backrest = {
     enable = true;
     repos.storage = {
-      uri = "rest:http://storage.bat-boa.ts.net:8000/";
+      uri = "rest:http://galactica.bat-boa.ts.net:8000/";
       passwordFile = config.sops.secrets."restic-password".path;
     };
     plans.system = {
@@ -99,7 +99,7 @@
     };
   };
 
-  # Gateway for basestar services — auth forwarded to storage's Authelia via tsnsrv
+  # Gateway for basestar services — auth forwarded to galactica's Authelia via tsnsrv
   media.gateway.enable = true;
   media.gateway.authHost = "auth.bat-boa.ts.net";
   media.gateway.authPort = 443;

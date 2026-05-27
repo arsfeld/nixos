@@ -6,7 +6,7 @@
 # Storage services use an external DNS resolver (8.8.8.8) to bypass
 # Tailscale MagicDNS, which would resolve *.arsfeld.one to Tailscale IPs
 # instead of Cloudflare proxy IPs. This ensures we test the actual public
-# path: Cloudflare -> cloudflared tunnel -> storage.
+# path: Cloudflare -> cloudflared tunnel -> galactica.
 {
   config,
   lib,
@@ -34,7 +34,7 @@
   # External DNS resolver to bypass Tailscale MagicDNS
   externalDns = {dns-resolver = "tcp://8.8.8.8:53";};
 
-  storageServiceNames = [
+  galacticaServiceNames = [
     "auth"
     "code"
     "filebrowser"
@@ -68,14 +68,14 @@
     "siyuan"
   ];
 
-  storageEndpoints = map (name:
+  galacticaEndpoints = map (name:
     mkEndpoint {
       inherit name;
       url = "https://${name}.arsfeld.one";
-      group = "storage";
+      group = "galactica";
       client = externalDns;
     })
-  storageServiceNames;
+  galacticaServiceNames;
 
   basestarEndpoints = map (name:
     mkEndpoint {
@@ -101,8 +101,8 @@
       client = externalDns;
     })
     (mkEndpoint {
-      name = "Tailscale - Storage";
-      url = "tcp://storage.bat-boa.ts.net:22";
+      name = "Tailscale - Galactica";
+      url = "tcp://galactica.bat-boa.ts.net:22";
       group = "infrastructure";
       interval = "120s";
       conditions = ["[CONNECTED] == true"];
@@ -145,11 +145,12 @@ in {
           headers = {
             "Content-Type" = "text/plain";
             "Authorization" = "Basic \${NTFY_BASIC_AUTH_B64}";
-            "Title" = "Gatus: [ENDPOINT_NAME]";
+            # Gatus only expands [PLACEHOLDERS] in body/url, not headers.
+            "Title" = "Gatus Alert";
             "Priority" = "3";
             "Tags" = "warning";
           };
-          body = "[ALERT_DESCRIPTION]";
+          body = "[ALERT_TRIGGERED_OR_RESOLVED]: [ENDPOINT_GROUP] / [ENDPOINT_NAME]";
           default-alert = {
             enabled = true;
             failure-threshold = 2;
@@ -159,7 +160,7 @@ in {
         };
       };
 
-      endpoints = storageEndpoints ++ basestarEndpoints ++ infraEndpoints;
+      endpoints = galacticaEndpoints ++ basestarEndpoints ++ infraEndpoints;
     };
   };
 

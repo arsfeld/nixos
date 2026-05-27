@@ -4,7 +4,7 @@ keys:
 
   # Host keys (derived from ssh-ed25519 host keys via ssh-to-age)
   - &host_basestar age1s9hjg4ls5k0wrd3rcsmtrywe6535907368druhpreg5c5lu2sguq2pdq0a
-  - &host_storage age1cclv24tdyu7t95utdzmtlp0a6mmku277sjckftlf7ldd8r487d5synct7g
+  - &host_galactica age1cclv24tdyu7t95utdzmtlp0a6mmku277sjckftlf7ldd8r487d5synct7g
   - &host_raider age1heelrhsk3nv40ct8e4r0l4nt9hrd8a5x692w5z30vvhsgujfcc6q9a7c2m
   - &host_raspi3 age17y8vddr4fjxxx7awm6qamcuckh6etme2fpay7a80gjev0z4xyaeqcstpds
   - &host_r2s age1qgp8m729pgef4pmz9fdje029pmsa9zp46u00ld8g6kzhf2ufs4sqphyy9w
@@ -20,11 +20,11 @@ creation_rules:
           - *user_arosenfeld
           - *host_basestar
 
-  - path_regex: secrets/sops/storage\.yaml$
+  - path_regex: secrets/sops/galactica\.yaml$
     key_groups:
       - age:
           - *user_arosenfeld
-          - *host_storage
+          - *host_galactica
 
   - path_regex: secrets/sops/raider\.yaml$
     key_groups:
@@ -43,7 +43,7 @@ creation_rules:
       - age:
           - *user_arosenfeld
           - *host_basestar
-          - *host_storage
+          - *host_galactica
           - *host_raider
           - *host_raspi3
           - *host_r2s
@@ -61,7 +61,7 @@ creation_rules:
       - age:
           - *user_arosenfeld
           - *host_basestar
-          - *host_storage
+          - *host_galactica
           - *host_raider
           - *host_router
           - *host_pegasus

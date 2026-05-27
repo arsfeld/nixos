@@ -312,7 +312,7 @@ in {
     openFirewall = mkOption {
       type = types.bool;
       default = true;
-      description = "Open 9898 on tailscale0 so storage's Caddy can proxy the UI.";
+      description = "Open 9898 on tailscale0 so galactica's Caddy can proxy the UI.";
     };
 
     dataDir = mkOption {
