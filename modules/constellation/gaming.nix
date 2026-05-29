@@ -149,7 +149,10 @@
 
       # ntsync: Wine/Proton synchronization primitive, in-tree since 6.14.
       # Loading the module eagerly exposes /dev/ntsync to the udev rule below.
-      kernelModules = lib.mkIf config.constellation.gaming.wineTuning.enable ["ntsync"];
+      kernelModules =
+        lib.optionals config.constellation.gaming.wineTuning.enable ["ntsync"]
+        # bfq must be loaded for the SATA-SSD/HDD scheduler rules below to apply.
+        ++ lib.optionals config.constellation.gaming.kernelOptimizations ["bfq"];
 
       blacklistedKernelModules = [
         "iTCO_wdt" # Disable watchdog
@@ -162,8 +165,13 @@
       lib.optionalString config.constellation.gaming.kernelOptimizations ''
         # NVMe: bypass scheduler (hardware handles queuing)
         ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="nvme[0-9]*n[0-9]*", ATTR{queue/scheduler}="none"
-        # SATA SSD: mq-deadline (low overhead, good for random I/O)
-        ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="mq-deadline"
+        # SATA SSD: bfq. This module also runs ananicy-cpp, which tags build
+        # tools (rustc, cc1, cargo, ld, …) with the idle IO class so heavy
+        # background builds yield the disk to interactive apps. mq-deadline
+        # ignores IO priorities, so that tag did nothing on a SATA SSD (e.g.
+        # /home) and a build there would freeze the desktop. bfq honours the
+        # priorities and is built for interactivity under load.
+        ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="bfq"
         # HDD: bfq (fair queuing, good for rotational)
         ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", ATTR{queue/scheduler}="bfq"
       ''
