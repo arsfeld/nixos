@@ -57,6 +57,29 @@
         '';
       };
     };
+
+    gamescope = {
+      width = lib.mkOption {
+        type = lib.types.nullOr lib.types.int;
+        default = null;
+        description = ''
+          Forced gamescope output width (-W). Null leaves it unset so gamescope
+          uses the native display resolution — correct default for laptops and
+          anything that isn't a fixed known panel. Set per-host (e.g. an
+          ultrawide desktop) when you want to pin the output mode.
+        '';
+      };
+      height = lib.mkOption {
+        type = lib.types.nullOr lib.types.int;
+        default = null;
+        description = "Forced gamescope output height (-H). Null = native resolution.";
+      };
+      refreshRate = lib.mkOption {
+        type = lib.types.nullOr lib.types.int;
+        default = null;
+        description = "Forced gamescope refresh rate (-r). Null = native refresh rate.";
+      };
+    };
   };
 
   config = lib.mkIf config.constellation.gaming.enable {
@@ -88,7 +111,7 @@
           # Disable zswap - conflicts with zram (double compression wastes RAM)
           "zswap.enabled=0"
 
-          # Enable Pressure Stall Information for systemd-oomd
+          # Enable Pressure Stall Information (PSI metrics for monitoring)
           "psi=1"
         ]
         ++ lib.optional (config.constellation.gaming.cpuVendor == "amd") "amd_pstate=active"
@@ -97,26 +120,27 @@
       kernel.sysctl = {
         # Network optimizations (BBR congestion control)
         "net.core.default_qdisc" = "cake";
-        "net.ipv4.tcp_congestion" = "bbr";
+        "net.ipv4.tcp_congestion_control" = "bbr";
 
-        # Memory management (zram is RAM-backed, not disk; higher swappiness
-        # encourages compressing cold pages to free RAM for active use)
-        "vm.swappiness" = lib.mkDefault 100;
+        # Memory management (zram is RAM-backed, not disk; a moderately high
+        # swappiness encourages compressing cold pages to free RAM for active
+        # use). 100 was too aggressive — it evicted warm file-cache pages of
+        # interactive apps under build load, causing major-fault storms and
+        # desktop stalls. 80 still favours zram compression without thrashing.
+        "vm.swappiness" = lib.mkDefault 80;
         "vm.vfs_cache_pressure" = 50;
         "vm.dirty_background_ratio" = 5;
         "vm.dirty_ratio" = 10;
         "vm.dirty_writeback_centisecs" = 1500; # 15s periodic writeback (reduces I/O stutter)
         "vm.compaction_proactiveness" = 0; # Disable proactive THP compaction (reduces latency spikes)
 
-        # Gaming performance
-        "kernel.sched_child_runs_first" = 0;
+        # Gaming performance.
+        # NOTE: the old kernel.sched_child_runs_first / sched_latency_ns /
+        # sched_min_granularity_ns / sched_wakeup_granularity_ns knobs were
+        # removed — they don't exist on EEVDF kernels (xanmod 6.6+) and are
+        # doubly moot here since scx_lavd (services.scx) replaces CFS entirely.
         "kernel.sched_autogroup_enabled" = 1;
         "kernel.split_lock_mitigate" = 0;
-
-        # BORE scheduler tuning for desktop interactivity
-        "kernel.sched_latency_ns" = lib.mkDefault 1000000; # 1ms
-        "kernel.sched_min_granularity_ns" = lib.mkDefault 100000; # 0.1ms
-        "kernel.sched_wakeup_granularity_ns" = lib.mkDefault 500000; # 0.5ms
 
         # File system
         "fs.file-max" = 2097152;
@@ -223,11 +247,12 @@
       ];
     };
 
-    # Per-slice memory pressure monitoring
-    systemd.oomd = {
-      enableRootSlice = true;
-      enableUserSlices = true;
-    };
+    # earlyoom (above) is our single userspace OOM killer: it acts on real
+    # free-memory + free-swap thresholds with the prefer/avoid lists tuned for
+    # build-vs-game contention. NixOS enables systemd-oomd by default, which
+    # would be a second killer racing on PSI pressure with different policy —
+    # disable it so kill decisions come from one place.
+    systemd.oomd.enable = lib.mkForce false;
 
     # Core Gaming Software
     programs = {
@@ -279,21 +304,28 @@
       };
 
       # Gamescope compositor
-      gamescope = {
+      gamescope = let
+        gs = config.constellation.gaming.gamescope;
+      in {
         enable = true;
         capSysNice = false;
-        args = [
-          "--adaptive-sync"
-          "--immediate-flips"
-          "--force-grab-cursor"
-          # FSR upscaling — sharp Lanczos+RCAS instead of blurry bilinear
-          # when a game's render resolution doesn't match the output.
-          "-F fsr"
-          "-W 3440"
-          "-H 1440"
-          "-r 144"
-          "-f"
-        ];
+        # Output mode (-W/-H/-r) is host-configurable via
+        # constellation.gaming.gamescope.*. When unset, gamescope picks the
+        # native display mode — the right default for laptops. Pin it per-host
+        # for fixed panels (e.g. raider's 3440x1440@144 ultrawide).
+        args =
+          [
+            "--adaptive-sync"
+            "--immediate-flips"
+            "--force-grab-cursor"
+            # FSR upscaling — sharp Lanczos+RCAS instead of blurry bilinear
+            # when a game's render resolution doesn't match the output.
+            "-F fsr"
+          ]
+          ++ lib.optional (gs.width != null) "-W ${toString gs.width}"
+          ++ lib.optional (gs.height != null) "-H ${toString gs.height}"
+          ++ lib.optional (gs.refreshRate != null) "-r ${toString gs.refreshRate}"
+          ++ ["-f"];
       };
 
       # CoreCtrl for GPU management

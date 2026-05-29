@@ -51,6 +51,12 @@
     gaming = {
       enable = true;
       cpuVendor = "intel";
+      # 3440x1440@144 ultrawide — pin gamescope's output mode to the panel.
+      gamescope = {
+        width = 3440;
+        height = 1440;
+        refreshRate = 144;
+      };
     };
     development.enable = true;
     docker.enable = true; # Enable Docker runtime
