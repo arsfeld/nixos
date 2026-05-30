@@ -152,7 +152,7 @@ in {
       email = cfg.email;
       dnsResolver = "1.1.1.1:53";
       dnsProvider = "cloudflare";
-      credentialsFile = config.sops.secrets.cloudflare.path;
+      environmentFile = config.sops.secrets.cloudflare.path;
     };
   };
 }
