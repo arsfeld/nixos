@@ -1,13 +1,13 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11"; # Core nixpkgs - stable 25.11
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05"; # Core nixpkgs - stable 26.05
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable"; # Unstable packages for latest versions
     determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/*"; # Determinate Nix
     disko.url = "github:nix-community/disko"; # Declarative disk partitioning
     disko.inputs.nixpkgs.follows = "nixpkgs";
     sops-nix.url = "github:Mic92/sops-nix"; # sops-nix secret management
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
-    home-manager.url = "github:nix-community/home-manager/release-25.11";
+    home-manager.url = "github:nix-community/home-manager/release-26.05";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     home-manager-unstable.url = "github:nix-community/home-manager"; # Unstable HM for hosts on nixpkgs-unstable
     home-manager-unstable.inputs.nixpkgs.follows = "nixpkgs-unstable";
