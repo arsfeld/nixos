@@ -38,8 +38,7 @@ in
         user = vars.user;
         group = vars.group;
         database = {
-          enableVectorChord = true;
-          enableVectors = false; # Use VectorChord instead of old pgvecto-rs
+          # VectorChord is always enabled as of NixOS 26.05 (pgvecto.rs removed)
           user = "immich"; # Keep using immich database role while service runs as media user
         };
         # Override DB_URL to include the immich username for proper PostgreSQL authentication
