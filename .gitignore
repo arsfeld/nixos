@@ -87,3 +87,9 @@ scripts/backup-to-r2.sh
 scripts/recover-from-r2.sh
 *.ovpn
 .aye/
+
+# Reasonix agent tooling artifacts
+.reasonix/truncated-results/
+
+# Scira build env (service reverted)
+scira-build-env
