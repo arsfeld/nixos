@@ -28,6 +28,7 @@ in {
   imports = [
     ./ghostty.nix
     ./helix.nix
+    ./jujutsu.nix
     ./mangohud.nix
     ./neovim.nix
     ./niri.nix
