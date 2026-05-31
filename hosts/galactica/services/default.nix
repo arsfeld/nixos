@@ -19,6 +19,7 @@
     ./immich.nix
     ./infra.nix
     ./isponsorblock.nix
+    ./linkding.nix
     ./media.nix
     ./misc.nix
     ./morphic.nix
