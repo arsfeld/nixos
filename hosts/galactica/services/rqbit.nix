@@ -36,8 +36,9 @@
       --tcp-min-port "$P" \
       --tcp-max-port "$P" \
       --disable-upnp-port-forward \
+      server start \
       --persistence-location /var/lib/rqbit \
-      server start ${downloadDir}
+      ${downloadDir}
   '';
 in {
   options.services.rqbit-vpn = {
