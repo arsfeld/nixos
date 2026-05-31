@@ -59,7 +59,11 @@ in {
         enable = true;
         consumers.rqbit = {
           port = webPort;
-          onPortChange = "systemctl restart rqbit";
+          # --no-block: the hook runs inside pia-portforward's ExecStart, and
+          # rqbit requires pia-portforward to be active. A blocking restart would
+          # deadlock (pia-portforward waits on rqbit, rqbit waits on
+          # pia-portforward going active). Fire-and-forget breaks the cycle.
+          onPortChange = "systemctl restart --no-block rqbit";
         };
       };
 
