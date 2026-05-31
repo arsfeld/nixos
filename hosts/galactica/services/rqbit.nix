@@ -66,8 +66,12 @@ in {
       systemd.services.rqbit = {
         description = "rqbit BitTorrent client confined to PIA VPN";
         wantedBy = ["multi-user.target"];
+        # Start only after the forwarded port is bound; the PIA consumer hook
+        # restarts rqbit on port change. No start limiter so that hook-driven
+        # restart is never rate-limited.
         after = ["pia-portforward.service"];
-        wants = ["pia-portforward.service"];
+        requires = ["pia-portforward.service"];
+        startLimitIntervalSec = 0;
 
         vpnConfinement = {
           enable = true;
