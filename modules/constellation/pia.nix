@@ -355,8 +355,8 @@ in {
       description = "PIA: authenticate and generate WireGuard tunnel config";
       after = ["network-online.target" "nss-lookup.target"];
       wants = ["network-online.target" "nss-lookup.target"];
-      before = ["${ns}-up.service"];
-      requiredBy = ["${ns}-up.service"];
+      before = ["${ns}.service"];
+      requiredBy = ["${ns}.service"];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -367,9 +367,9 @@ in {
 
     systemd.services.pia-portforward = {
       description = "PIA: acquire and bind the forwarded port";
-      after = ["${ns}-up.service"];
-      requires = ["${ns}-up.service"];
-      wantedBy = ["${ns}-up.service"];
+      after = ["${ns}.service"];
+      requires = ["${ns}.service"];
+      wantedBy = ["${ns}.service"];
       vpnConfinement = {
         enable = true;
         vpnNamespace = ns;
