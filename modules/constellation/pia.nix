@@ -153,7 +153,7 @@ with lib; let
   # tunnel).
   portforwardScript = pkgs.writeShellApplication {
     name = "pia-portforward";
-    runtimeInputs = with pkgs; [curl jq coreutils iptables];
+    runtimeInputs = with pkgs; [curl jq coreutils iptables iproute2];
     text = ''
       set -euo pipefail
 
@@ -166,6 +166,12 @@ with lib; let
       signature=$(echo "$state" | jq -r '.signature // empty')
       expires=$(echo "$state" | jq -r '.expires_at // empty')
       applied=$(echo "$state" | jq -r '.applied_port // empty')
+
+      # The namespace's accessibleFrom 10.0.0.0/8 route (to the host bridge) would
+      # otherwise capture the PF gateway VIP (also in 10/8) and send getSignature
+      # back out the veth instead of through the tunnel. Pin a /32 host route via
+      # the tunnel so the more-specific route wins.
+      ip route replace "$gateway/32" dev ${ns}0
 
       now=$(date -u +%s)
       need_sig=1
@@ -370,12 +376,17 @@ in {
       after = ["${ns}.service"];
       requires = ["${ns}.service"];
       wantedBy = ["${ns}.service"];
+      # No start-rate limiter: a transient getSignature failure should be freely
+      # retriable by the timer and by re-activation.
+      startLimitIntervalSec = 0;
       vpnConfinement = {
         enable = true;
         vpnNamespace = ns;
       };
       serviceConfig = {
         Type = "oneshot";
+        # Stay "active (exited)" so consumers can hard-require a bound port.
+        RemainAfterExit = true;
         ExecStart = "${portforwardScript}/bin/pia-portforward";
         StateDirectory = "pia";
       };
