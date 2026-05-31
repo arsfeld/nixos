@@ -78,6 +78,9 @@ in {
   # Enable Transmission with WireGuard VPN in network namespace
   services.transmission-vpn.enable = true;
 
+  # Enable rqbit confined to the PIA VPN namespace (enables constellation.pia)
+  services.rqbit-vpn.enable = true;
+
   media.config.enable = true;
 
   networking.hostName = "galactica";
