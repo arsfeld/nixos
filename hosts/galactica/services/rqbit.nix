@@ -31,10 +31,12 @@
       echo "rqbit: no PIA forwarded port available yet (is pia-portforward up?)" >&2
       exit 1
     fi
+    # rqbit's port range is exclusive of max, so min==max is an empty range
+    # ("no free TCP ports"). Use [P, P+1) so it binds exactly the forwarded port.
     exec ${pkgs.rqbit}/bin/rqbit \
       --http-api-listen-addr 0.0.0.0:${toString webPort} \
       --tcp-min-port "$P" \
-      --tcp-max-port "$P" \
+      --tcp-max-port "$((P + 1))" \
       --disable-upnp-port-forward \
       server start \
       --persistence-location /var/lib/rqbit \
