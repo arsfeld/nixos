@@ -51,197 +51,336 @@ with lib; let
       cfg.consumers)}
   '';
 
-  # U3: authenticate to PIA, register an ephemeral WireGuard key, and write the
-  # tunnel config + state cache. Runs in the host netns before the tunnel is up.
-  connectScript = pkgs.writeShellApplication {
-    name = "pia-connect";
-    runtimeInputs = with pkgs; [curl jq wireguard-tools coreutils gnugrep];
-    text = ''
-      set -euo pipefail
+  # PIA control-plane script with two subcommands:
+  #   connect      (U3, host netns) authenticate, register an ephemeral
+  #                WireGuard key, write the tunnel config + state cache.
+  #   portforward  (U4, inside <ns>) acquire/refresh the PF signature, bind it
+  #                (15-min keepalive), open the dynamic port on the tunnel
+  #                interface, and dispatch consumer hooks on change.
+  #
+  # HTTPS still goes through curl so PIA's --connect-to (pin to the gateway IP
+  # but validate the cert against the server CN) and pinned-CA behavior are
+  # preserved byte-for-byte; Python owns the JSON, state, and control flow.
+  # wg/ip/iptables are invoked by absolute path. The consumer hook stays shell
+  # since onPortChange is arbitrary user shell.
+  piaScript = pkgs.writeScriptBin "pia" ''
+    #!${pkgs.python3}/bin/python3
+    import base64
+    import datetime
+    import json
+    import os
+    import subprocess
+    import sys
+    import time
 
-      # shellcheck source=/dev/null
-      source "${cfg.credentialsFile}"
-      : "''${PIA_USER:?missing PIA_USER in credentials file}"
-      : "''${PIA_PASS:?missing PIA_PASS in credentials file}"
+    CURL = "${pkgs.curl}/bin/curl"
+    WG = "${pkgs.wireguard-tools}/bin/wg"
+    IP = "${pkgs.iproute2}/bin/ip"
+    IPTABLES = "${pkgs.iptables}/bin/iptables"
 
-      # /run/pia is traversable so consumers can read the bare port file;
-      # wg0.conf inside it stays 0600 (holds the private key).
-      install -d -m 0755 /run/pia
-      install -d -m 0700 /var/lib/pia
+    CRED_FILE = "${cfg.credentialsFile}"
+    REGION = "${cfg.region}"
+    CA_CERT = "${caCert}"
+    WG_CONF = "${wgConfPath}"
+    STATE = "${statePath}"
+    PORT_FILE = "${portFilePath}"
+    HOOK = "${hookScript}"
+    NS_IF = "${ns}0"
 
-      echo "pia: requesting auth token" >&2
-      token=$(curl -fsSL --location --request POST \
-        'https://www.privateinternetaccess.com/api/client/v2/token' \
-        --form "username=$PIA_USER" --form "password=$PIA_PASS" | jq -r '.token')
-      [ -n "$token" ] && [ "$token" != "null" ] || { echo "pia: token request failed" >&2; exit 1; }
 
-      echo "pia: fetching server list" >&2
-      # The v6 server list prepends a signature line; the first line is the JSON body.
-      servers=$(curl -fsSL "https://serverlist.piaservers.net/vpninfo/servers/v6" | head -1)
+    def log(msg):
+        print("pia: " + msg, file=sys.stderr, flush=True)
 
-      region="${cfg.region}"
-      if [ "$region" = "auto" ]; then
-        # First port-forward-capable region.
-        sel=$(echo "$servers" | jq -c 'first(.regions[] | select(.port_forward == true))')
-      else
-        sel=$(echo "$servers" | jq -c --arg id "$region" \
-          'first(.regions[] | select(.id == $id))')
-      fi
-      [ -n "$sel" ] && [ "$sel" != "null" ] || { echo "pia: no matching region for '$region'" >&2; exit 1; }
-      if [ "$(echo "$sel" | jq -r '.port_forward')" != "true" ]; then
-        echo "pia: region '$region' does not support port forwarding (US regions never do)" >&2
-        exit 1
-      fi
 
-      wg_ip=$(echo "$sel" | jq -r '.servers.wg[0].ip')
-      wg_cn=$(echo "$sel" | jq -r '.servers.wg[0].cn')
-      echo "pia: selected region '$(echo "$sel" | jq -r '.id')' server $wg_cn ($wg_ip)" >&2
+    def die(msg):
+        print("pia: " + msg, file=sys.stderr, flush=True)
+        sys.exit(1)
 
-      priv=$(wg genkey)
-      pub=$(echo "$priv" | wg pubkey)
 
-      echo "pia: registering key with $wg_cn" >&2
-      addkey=$(curl -fsSL -G \
-        --connect-to "$wg_cn::$wg_ip:" \
-        --cacert "${caCert}" \
-        --data-urlencode "pt=$token" \
-        --data-urlencode "pubkey=$pub" \
-        "https://$wg_cn:1337/addKey")
-      [ "$(echo "$addkey" | jq -r '.status')" = "OK" ] || { echo "pia: addKey failed: $addkey" >&2; exit 1; }
+    def curl(args):
+        # -fsSL matches the original: fail on HTTP errors, silent, follow redirects.
+        proc = subprocess.run([CURL, "-fsSL", *args], capture_output=True, text=True)
+        if proc.returncode != 0:
+            die("curl failed (" + str(proc.returncode) + "): " + proc.stderr.strip())
+        return proc.stdout
 
-      server_key=$(echo "$addkey" | jq -r '.server_key')
-      server_port=$(echo "$addkey" | jq -r '.server_port')
-      server_ip=$(echo "$addkey" | jq -r '.server_ip')
-      server_vip=$(echo "$addkey" | jq -r '.server_vip')
-      peer_ip=$(echo "$addkey" | jq -r '.peer_ip')
-      dns=$(echo "$addkey" | jq -r '.dns_servers[0]')
 
-      umask 077
-      cat > "${wgConfPath}" <<EOF
-      [Interface]
-      Address = $peer_ip
-      PrivateKey = $priv
-      DNS = $dns
+    def curl_json(args):
+        return json.loads(curl(args))
 
-      [Peer]
-      PersistentKeepalive = 25
-      PublicKey = $server_key
-      AllowedIPs = 0.0.0.0/0
-      Endpoint = $server_ip:$server_port
-      EOF
 
-      # Persist what the PF daemon needs. Preserve any existing payload/port so a
-      # reconnect with the same account can keep rebinding the same port until
-      # expiry. (The payload is tied to the token, not the tunnel.)
-      tmp=$(mktemp)
-      prev='{}'
-      [ -f "${statePath}" ] && prev=$(cat "${statePath}")
-      echo "$prev" | jq \
-        --arg token "$token" \
-        --arg gateway "$server_vip" \
-        --arg hostname "$wg_cn" \
-        '. + {token: $token, pf_gateway: $gateway, pf_hostname: $hostname}' > "$tmp"
-      install -m 0600 "$tmp" "${statePath}"
-      rm -f "$tmp"
-      echo "pia: tunnel config written; gateway $server_vip" >&2
-    '';
-  };
+    def read_state():
+        if os.path.exists(STATE):
+            with open(STATE) as f:
+                return json.load(f)
+        return {}
 
-  # U4: acquire/refresh the port-forward signature, bind it (15-min keepalive),
-  # open the dynamic port on the tunnel interface, and dispatch consumer hooks on
-  # change. Runs INSIDE the namespace (the PF gateway is only reachable over the
-  # tunnel).
-  portforwardScript = pkgs.writeShellApplication {
-    name = "pia-portforward";
-    runtimeInputs = with pkgs; [curl jq coreutils iptables iproute2];
-    text = ''
-      set -euo pipefail
 
-      [ -f "${statePath}" ] || { echo "pia-pf: no state yet (connect not run)" >&2; exit 1; }
-      state=$(cat "${statePath}")
-      token=$(echo "$state" | jq -r '.token')
-      gateway=$(echo "$state" | jq -r '.pf_gateway')
-      hostname=$(echo "$state" | jq -r '.pf_hostname')
-      payload=$(echo "$state" | jq -r '.payload // empty')
-      signature=$(echo "$state" | jq -r '.signature // empty')
-      expires=$(echo "$state" | jq -r '.expires_at // empty')
-      applied=$(echo "$state" | jq -r '.applied_port // empty')
+    def write_json(path, data, mode):
+        tmp = path + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(data, f)
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
 
-      # The namespace's accessibleFrom 10.0.0.0/8 route (to the host bridge) would
-      # otherwise capture the PF gateway VIP (also in 10/8) and send getSignature
-      # back out the veth instead of through the tunnel. Pin a /32 host route via
-      # the tunnel so the more-specific route wins.
-      ip route replace "$gateway/32" dev ${ns}0
 
-      now=$(date -u +%s)
-      need_sig=1
-      if [ -n "$payload" ] && [ -n "$signature" ] && [ -n "$expires" ]; then
-        exp_ts=$(date -u -d "$expires" +%s 2>/dev/null || echo 0)
-        # Renew a day before expiry to be safe.
-        if [ "$exp_ts" -gt "$((now + 86400))" ]; then need_sig=0; fi
-      fi
+    def parse_ts(value):
+        value = value.strip()
+        if value.endswith("Z"):
+            value = value[:-1] + "+00:00"
+        try:
+            return int(datetime.datetime.fromisoformat(value).timestamp())
+        except ValueError:
+            return 0
 
-      if [ "$need_sig" -eq 1 ]; then
-        echo "pia-pf: requesting new port-forward signature" >&2
-        resp=$(curl -fsSL -m 10 -G \
-          --connect-to "$hostname::$gateway:" \
-          --cacert "${caCert}" \
-          --data-urlencode "token=$token" \
-          "https://$hostname:19999/getSignature")
-        [ "$(echo "$resp" | jq -r '.status')" = "OK" ] || { echo "pia-pf: getSignature failed: $resp" >&2; exit 1; }
-        payload=$(echo "$resp" | jq -r '.payload')
-        signature=$(echo "$resp" | jq -r '.signature')
-        decoded=$(echo "$payload" | base64 -d)
-        port=$(echo "$decoded" | jq -r '.port')
-        expires=$(echo "$decoded" | jq -r '.expires_at')
-      else
-        port=$(echo "$payload" | base64 -d | jq -r '.port')
-      fi
 
-      echo "pia-pf: binding port $port" >&2
-      bind=$(curl -fsSL -m 10 -G \
-        --connect-to "$hostname::$gateway:" \
-        --cacert "${caCert}" \
-        --data-urlencode "payload=$payload" \
-        --data-urlencode "signature=$signature" \
-        "https://$hostname:19999/bindPort")
-      [ "$(echo "$bind" | jq -r '.status')" = "OK" ] || { echo "pia-pf: bindPort failed: $bind" >&2; exit 1; }
+    def load_credentials():
+        # The credentials file is a small env file (optionally with "export ").
+        user = None
+        password = None
+        with open(CRED_FILE) as f:
+            for raw in f:
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if line.startswith("export "):
+                    line = line[len("export "):]
+                if "=" not in line:
+                    continue
+                key, val = line.split("=", 1)
+                val = val.strip().strip('"').strip("'")
+                if key.strip() == "PIA_USER":
+                    user = val
+                elif key.strip() == "PIA_PASS":
+                    password = val
+        if not user:
+            die("missing PIA_USER in credentials file")
+        if not password:
+            die("missing PIA_PASS in credentials file")
+        return user, password
 
-      # Persist signature/port (root-only) and publish the bare port for consumers.
-      tmp=$(mktemp)
-      echo "$state" | jq \
-        --arg payload "$payload" --arg signature "$signature" \
-        --arg expires "$expires" --argjson port "$port" \
-        '. + {payload: $payload, signature: $signature, expires_at: $expires, port: $port}' > "$tmp"
-      install -m 0600 "$tmp" "${statePath}"
-      rm -f "$tmp"
-      install -d -m 0755 /run/pia
-      printf '%s\n' "$port" > "${portFilePath}"
-      chmod 0644 "${portFilePath}"
 
-      # Reconcile the namespace firewall + notify consumers only on change.
-      if [ "$applied" != "$port" ]; then
-        if [ -n "$applied" ]; then
-          iptables -D INPUT -i ${ns}0 -p tcp --dport "$applied" -j ACCEPT 2>/dev/null || true
-          iptables -D INPUT -i ${ns}0 -p udp --dport "$applied" -j ACCEPT 2>/dev/null || true
-        fi
-        iptables -C INPUT -i ${ns}0 -p tcp --dport "$port" -j ACCEPT 2>/dev/null \
-          || iptables -A INPUT -i ${ns}0 -p tcp --dport "$port" -j ACCEPT
-        iptables -C INPUT -i ${ns}0 -p udp --dport "$port" -j ACCEPT 2>/dev/null \
-          || iptables -A INPUT -i ${ns}0 -p udp --dport "$port" -j ACCEPT
+    def connect():
+        user, password = load_credentials()
 
-        echo "pia-pf: forwarded port changed ''${applied:-none} -> $port; dispatching consumers" >&2
-        ${hookScript} "$port"
+        # /run/pia is traversable so consumers can read the bare port file;
+        # wg0.conf inside it stays 0600 (holds the private key).
+        os.makedirs("/run/pia", exist_ok=True)
+        os.chmod("/run/pia", 0o755)
+        os.makedirs("/var/lib/pia", exist_ok=True)
+        os.chmod("/var/lib/pia", 0o700)
 
-        tmp=$(mktemp)
-        cat "${statePath}" | jq --argjson port "$port" '. + {applied_port: $port}' > "$tmp"
-        install -m 0600 "$tmp" "${statePath}"
-        rm -f "$tmp"
-      else
-        echo "pia-pf: port unchanged ($port); rebind kept alive" >&2
-      fi
-    '';
-  };
+        log("requesting auth token")
+        token = curl_json([
+            "-X", "POST",
+            "https://www.privateinternetaccess.com/api/client/v2/token",
+            "--form", "username=" + user,
+            "--form", "password=" + password,
+        ]).get("token")
+        if not token:
+            die("token request failed")
+
+        log("fetching server list")
+        # The v6 server list prepends a signature line; the first line is JSON.
+        raw = curl(["https://serverlist.piaservers.net/vpninfo/servers/v6"])
+        regions = json.loads(raw.splitlines()[0]).get("regions", [])
+
+        if REGION == "auto":
+            sel = next((r for r in regions if r.get("port_forward")), None)
+        else:
+            sel = next((r for r in regions if r.get("id") == REGION), None)
+        if sel is None:
+            die("no matching region for '" + REGION + "'")
+        if not sel.get("port_forward"):
+            die("region '" + REGION + "' does not support port forwarding (US regions never do)")
+
+        wg = sel["servers"]["wg"][0]
+        wg_ip = wg["ip"]
+        wg_cn = wg["cn"]
+        log("selected region '" + str(sel.get("id")) + "' server " + wg_cn + " (" + wg_ip + ")")
+
+        priv = subprocess.run([WG, "genkey"], capture_output=True, text=True, check=True).stdout.strip()
+        pub = subprocess.run([WG, "pubkey"], input=priv + "\n", capture_output=True, text=True, check=True).stdout.strip()
+
+        log("registering key with " + wg_cn)
+        addkey = curl_json([
+            "-G",
+            "--connect-to", wg_cn + "::" + wg_ip + ":",
+            "--cacert", CA_CERT,
+            "--data-urlencode", "pt=" + token,
+            "--data-urlencode", "pubkey=" + pub,
+            "https://" + wg_cn + ":1337/addKey",
+        ])
+        if addkey.get("status") != "OK":
+            die("addKey failed: " + json.dumps(addkey))
+
+        dns_servers = addkey.get("dns_servers") or []
+        dns = dns_servers[0] if dns_servers else ""
+        conf = "\n".join([
+            "[Interface]",
+            "Address = " + addkey["peer_ip"],
+            "PrivateKey = " + priv,
+            "DNS = " + dns,
+            "",
+            "[Peer]",
+            "PersistentKeepalive = 25",
+            "PublicKey = " + addkey["server_key"],
+            "AllowedIPs = 0.0.0.0/0",
+            "Endpoint = " + str(addkey["server_ip"]) + ":" + str(addkey["server_port"]),
+            "",
+        ])
+        tmp = WG_CONF + ".tmp"
+        with open(tmp, "w") as f:
+            f.write(conf)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, WG_CONF)
+
+        # Persist what the PF daemon needs. Preserve any existing payload/port so
+        # a reconnect with the same account can keep rebinding the same port
+        # until expiry. (The payload is tied to the token, not the tunnel.)
+        state = read_state()
+        state.update({
+            "token": token,
+            "pf_gateway": addkey["server_vip"],
+            "pf_hostname": wg_cn,
+            "dns_servers": dns_servers,
+        })
+        write_json(STATE, state, 0o600)
+        log("tunnel config written; gateway " + addkey["server_vip"])
+
+
+    def iptables_del(port):
+        for proto in ("tcp", "udp"):
+            subprocess.run(
+                [IPTABLES, "-D", "INPUT", "-i", NS_IF, "-p", proto, "--dport", str(port), "-j", "ACCEPT"],
+                capture_output=True, text=True,
+            )
+
+
+    def iptables_ensure(port):
+        for proto in ("tcp", "udp"):
+            check = subprocess.run(
+                [IPTABLES, "-C", "INPUT", "-i", NS_IF, "-p", proto, "--dport", str(port), "-j", "ACCEPT"],
+                capture_output=True, text=True,
+            )
+            if check.returncode != 0:
+                subprocess.run(
+                    [IPTABLES, "-A", "INPUT", "-i", NS_IF, "-p", proto, "--dport", str(port), "-j", "ACCEPT"],
+                    check=True,
+                )
+
+
+    def portforward():
+        state = read_state()
+        if not state:
+            die("no state yet (connect not run)")
+        token = state.get("token")
+        gateway = state.get("pf_gateway")
+        hostname = state.get("pf_hostname")
+        payload = state.get("payload") or ""
+        signature = state.get("signature") or ""
+        expires = state.get("expires_at") or ""
+        applied = state.get("applied_port")
+
+        # The namespace's accessibleFrom 10.0.0.0/8 route (to the host bridge)
+        # would otherwise capture the PF gateway VIP (also in 10/8) and send
+        # getSignature back out the veth instead of through the tunnel. Pin a /32
+        # host route via the tunnel so the more-specific route wins.
+        subprocess.run([IP, "route", "replace", gateway + "/32", "dev", NS_IF], check=True)
+
+        # Same collision hits PIA's tunnel-internal DNS server(s): PIA hands out a
+        # resolver in 10/8 (e.g. 10.0.0.243, which can overlap the local LAN /24),
+        # so the accessibleFrom route would send DNS out the veth to the host
+        # where it is unreachable. Resolvers that honor resolv.conf (rqbit's
+        # bundled hickory) then fail every lookup. Pin every assigned DNS server
+        # via the tunnel. Re-derived from PIA's API each connect/rebind, so it
+        # follows any change PIA makes.
+        for dns in state.get("dns_servers") or []:
+            if dns:
+                subprocess.run([IP, "route", "replace", str(dns) + "/32", "dev", NS_IF], check=True)
+
+        now = int(time.time())
+        need_sig = True
+        if payload and signature and expires:
+            # Renew a day before expiry to be safe.
+            if parse_ts(expires) > now + 86400:
+                need_sig = False
+
+        if need_sig:
+            log("requesting new port-forward signature")
+            resp = curl_json([
+                "-m", "10", "-G",
+                "--connect-to", hostname + "::" + gateway + ":",
+                "--cacert", CA_CERT,
+                "--data-urlencode", "token=" + token,
+                "https://" + hostname + ":19999/getSignature",
+            ])
+            if resp.get("status") != "OK":
+                die("getSignature failed: " + json.dumps(resp))
+            payload = resp["payload"]
+            signature = resp["signature"]
+            decoded = json.loads(base64.b64decode(payload))
+            port = decoded["port"]
+            expires = decoded["expires_at"]
+        else:
+            port = json.loads(base64.b64decode(payload))["port"]
+
+        log("binding port " + str(port))
+        bind = curl_json([
+            "-m", "10", "-G",
+            "--connect-to", hostname + "::" + gateway + ":",
+            "--cacert", CA_CERT,
+            "--data-urlencode", "payload=" + payload,
+            "--data-urlencode", "signature=" + signature,
+            "https://" + hostname + ":19999/bindPort",
+        ])
+        if bind.get("status") != "OK":
+            die("bindPort failed: " + json.dumps(bind))
+
+        # Persist signature/port (root-only) and publish the bare port for
+        # consumers. applied_port is left untouched until the hook succeeds, so a
+        # failed dispatch is retried on the next run.
+        state["payload"] = payload
+        state["signature"] = signature
+        state["expires_at"] = expires
+        state["port"] = port
+        write_json(STATE, state, 0o600)
+
+        os.makedirs("/run/pia", exist_ok=True)
+        os.chmod("/run/pia", 0o755)
+        tmp = PORT_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            f.write(str(port) + "\n")
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, PORT_FILE)
+
+        # Reconcile the namespace firewall + notify consumers only on change.
+        if applied != port:
+            if applied is not None:
+                iptables_del(applied)
+            iptables_ensure(port)
+            log("forwarded port changed " + (str(applied) if applied is not None else "none") + " -> " + str(port) + "; dispatching consumers")
+            subprocess.run([HOOK, str(port)], check=True)
+            state["applied_port"] = port
+            write_json(STATE, state, 0o600)
+        else:
+            log("port unchanged (" + str(port) + "); rebind kept alive")
+
+
+    def main():
+        if len(sys.argv) < 2:
+            die("usage: pia <connect|portforward>")
+        cmd = sys.argv[1]
+        if cmd == "connect":
+            connect()
+        elif cmd == "portforward":
+            portforward()
+        else:
+            die("unknown subcommand: " + cmd)
+
+
+    main()
+  '';
 
   # Web-UI port mappings derived from declared consumers.
   consumerPortMappings =
@@ -366,7 +505,7 @@ in {
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        ExecStart = "${connectScript}/bin/pia-connect";
+        ExecStart = "${piaScript}/bin/pia connect";
         StateDirectory = "pia";
       };
     };
@@ -387,7 +526,7 @@ in {
         Type = "oneshot";
         # Stay "active (exited)" so consumers can hard-require a bound port.
         RemainAfterExit = true;
-        ExecStart = "${portforwardScript}/bin/pia-portforward";
+        ExecStart = "${piaScript}/bin/pia portforward";
         StateDirectory = "pia";
       };
     };
