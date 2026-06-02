@@ -55,7 +55,7 @@
   networking.hostName = "blackbird";
 
   # Ventoy bundles an older GTK3 flagged insecure by nixpkgs
-  nixpkgs.config.permittedInsecurePackages = ["ventoy-gtk3-1.1.10"];
+  nixpkgs.config.permittedInsecurePackages = ["ventoy-gtk3-1.1.12"];
 
   # Additional packages
   environment.systemPackages = with pkgs; [
@@ -140,7 +140,6 @@
   services.supergfxd.enable = true; # ASUS GPU switching
   services.asusd = {
     enable = true;
-    enableUserService = true;
     fanCurvesConfig = {
       text = ''
         (
@@ -257,10 +256,10 @@
   };
 
   # Power management - suspend then hibernate after delay
-  systemd.sleep.extraConfig = ''
-    HibernateDelaySec=30min
-    SuspendState=mem
-  '';
+  systemd.sleep.settings.Sleep = {
+    HibernateDelaySec = "30min";
+    SuspendState = "mem";
+  };
 
   # Fedora-on-ASUS power management: plain power-profiles-daemon (NOT
   # tuned-ppd). The asus-linux.org Fedora guide explicitly tells G14 owners to
