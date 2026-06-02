@@ -2,11 +2,21 @@ name: "Fix CI Failures"
 
 # Watches the "Build & Cache" workflow. When a run on master fails, Claude
 # diagnoses the failed-step logs and opens a fix PR. It does NOT push to master.
+#
+# Can also be run on demand against any past failed run via the Actions tab
+# (workflow_dispatch) — useful for testing this workflow without waiting for a
+# fresh build failure.
 on:
   workflow_run:
     workflows: ["Build & Cache"]
     types: [completed]
     branches: [master]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Build & Cache run ID to diagnose"
+        required: true
+        type: string
 
 # Least-privilege: read the failed run's logs, push a branch, open a PR.
 permissions:
@@ -15,21 +25,37 @@ permissions:
   actions: read
 
 concurrency:
-  group: fix-ci-${{ github.event.workflow_run.id }}
+  group: fix-ci-${{ github.event.workflow_run.id || inputs.run_id }}
   cancel-in-progress: false
 
 jobs:
   fix-ci:
-    # Only react to genuine failures (not cancelled/skipped runs).
-    if: github.event.workflow_run.conclusion == 'failure'
+    # React to genuine build failures, or a manual dispatch.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
+      - name: Resolve target run
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            run_id="${{ inputs.run_id }}"
+            head_sha=$(gh run view "$run_id" --repo ${{ github.repository }} --json headSha --jq .headSha)
+          else
+            run_id="${{ github.event.workflow_run.id }}"
+            head_sha="${{ github.event.workflow_run.head_sha }}"
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          echo "Targeting run $run_id @ $head_sha"
+
       - name: Checkout the failing commit
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ steps.target.outputs.head_sha }}
           fetch-depth: 0
 
       - name: Capture failed-step logs
@@ -37,10 +63,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # Only the failed steps, not all 7 hosts' multi-hour logs.
-          gh run view ${{ github.event.workflow_run.id }} \
+          gh run view ${{ steps.target.outputs.run_id }} \
             --repo ${{ github.repository }} \
             --log-failed > ci-failure.log 2>&1 || \
-            gh run view ${{ github.event.workflow_run.id }} \
+            gh run view ${{ steps.target.outputs.run_id }} \
               --repo ${{ github.repository }} --log > ci-failure.log 2>&1 || true
           echo "Captured $(wc -l < ci-failure.log) lines of failure logs."
 
@@ -52,8 +78,8 @@ jobs:
           prompt: |
             The "Build & Cache" workflow failed on master.
 
-            Failed run: https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}
-            Failing commit: ${{ github.event.workflow_run.head_sha }}
+            Failed run: https://github.com/${{ github.repository }}/actions/runs/${{ steps.target.outputs.run_id }}
+            Failing commit: ${{ steps.target.outputs.head_sha }}
 
             The failed-step logs are saved at ./ci-failure.log in the repo root — read that file first.
 
@@ -62,17 +88,31 @@ jobs:
             The aarch64 hosts (basestar, r2s, raspi3, octopi) build under QEMU emulation, so you
             usually cannot reproduce them here — diagnose those from the logs alone.
 
+            IMPORTANT — separate real code failures from CI infrastructure noise. The following are
+            TRANSIENT CI problems, NOT bugs in this repo; do NOT try to "fix" them in code:
+              - `attic push` failing with `HTTP 499 Client Closed Request` (the build itself succeeded).
+              - Magic Nix Cache throttling: `HTTP error 418`, `GitHub Actions Cache throttled`,
+                or `substituter 'http://127.0.0.1:...' is disabled`, and the `failed dependency` /
+                `Cannot build ....drv` errors that cascade from it.
+            Genuine code failures look like: `Failed assertions:`, `error: attribute ... missing`,
+            `infinite recursion`, `The option ... does not exist`, or a real builder failure for a
+            specific package. Focus only on those.
+
             Do the following:
-            1. Read ./ci-failure.log and identify which host(s) failed and the root cause.
-            2. For an x86_64 host (galactica, raider, blackbird), you may attempt to reproduce by
-               entering the dev shell and building that host's toplevel — but builds are slow and
-               disk is limited, so prefer log-based diagnosis and skip the build if it's impractical.
-            3. Apply a minimal, targeted fix following repo conventions (CLAUDE.md): mkService for
-               services, conventional-commit messages scoped by hostname, never mention Claude in
-               commits, run `just fmt` (alejandra) so formatting passes.
+            1. Read ./ci-failure.log and identify which host(s) failed and the root cause. Explicitly
+               classify each failing host as "real code bug" or "transient CI infra".
+            2. If every failure is transient CI infra, do NOT open a PR — instead just report that in
+               your final summary (the maintainer will re-run the build). Stop there.
+            3. Otherwise, for the real code failures, apply a minimal targeted fix following repo
+               conventions (CLAUDE.md): mkService for services, conventional-commit messages scoped by
+               hostname, never mention Claude in commits, run `just fmt` (alejandra) so formatting passes.
+               Prefer log-based diagnosis; only attempt a local `nix build` for an x86_64 host
+               (galactica, raider, blackbird) if it's quick and practical.
             4. Open a PR against master describing what broke and how you fixed it. Do NOT push to
                master directly. If you cannot determine a confident fix, open a PR with your
                diagnosis and proposed direction instead of guessing.
           claude_args: |
-            --max-turns 25
+            --permission-mode bypassPermissions
+            --allowedTools "Bash(git:*),Bash(gh:*),Bash(nix:*),Bash(just:*),Bash(cat:*),Bash(ls:*),Bash(rg:*),Read,Edit,Write,Glob,Grep"
+            --max-turns 40
             --model claude-opus-4-8
