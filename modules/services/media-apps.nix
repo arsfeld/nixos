@@ -7,6 +7,8 @@
 }: let
   cfg = config.constellation.mediaApps;
   mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
+  vars = config.media.config;
+  pia = config.constellation.pia;
 in {
   options.constellation.mediaApps.enable = lib.mkEnableOption "media applications (Ohdio, Qui, Mydia)";
 
@@ -77,6 +79,14 @@ in {
           OIDC_REDIRECT_URI = "https://mydia.arsfeld.one/auth/oidc/callback";
           FLARESOLVERR_URL = "http://localhost:8191";
           ENABLE_REMOTE_ACCESS = "true";
+          DOWNLOAD_CLIENT_1_NAME = "rqbit";
+          DOWNLOAD_CLIENT_1_TYPE = "rqbit";
+          DOWNLOAD_CLIENT_1_ENABLED = "true";
+          DOWNLOAD_CLIENT_1_PRIORITY = "1";
+          DOWNLOAD_CLIENT_1_HOST = pia.namespaceAddress;
+          DOWNLOAD_CLIENT_1_PORT = "3030";
+          DOWNLOAD_CLIENT_1_USE_SSL = "false";
+          DOWNLOAD_CLIENT_1_DOWNLOAD_DIRECTORY = "${vars.storageDir}/media/Downloads/rqbit";
         };
         environmentFiles = [
           config.sops.secrets.mydia-env.path
