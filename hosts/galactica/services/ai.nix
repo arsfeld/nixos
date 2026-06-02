@@ -59,7 +59,7 @@ in
         configDir = null;
         network = "ai";
         devices = [
-          "/dev/dri/card1"
+          "/dev/dri/card0"
           "/dev/dri/renderD128"
         ];
         environment = {
