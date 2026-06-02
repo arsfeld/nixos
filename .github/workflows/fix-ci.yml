@@ -1,0 +1,78 @@
+name: "Fix CI Failures"
+
+# Watches the "Build & Cache" workflow. When a run on master fails, Claude
+# diagnoses the failed-step logs and opens a fix PR. It does NOT push to master.
+on:
+  workflow_run:
+    workflows: ["Build & Cache"]
+    types: [completed]
+    branches: [master]
+
+# Least-privilege: read the failed run's logs, push a branch, open a PR.
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: fix-ci-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  fix-ci:
+    # Only react to genuine failures (not cancelled/skipped runs).
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout the failing commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Capture failed-step logs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Only the failed steps, not all 7 hosts' multi-hour logs.
+          gh run view ${{ github.event.workflow_run.id }} \
+            --repo ${{ github.repository }} \
+            --log-failed > ci-failure.log 2>&1 || \
+            gh run view ${{ github.event.workflow_run.id }} \
+              --repo ${{ github.repository }} --log > ci-failure.log 2>&1 || true
+          echo "Captured $(wc -l < ci-failure.log) lines of failure logs."
+
+      - name: Dispatch Claude to diagnose and open a fix PR
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: |
+            The "Build & Cache" workflow failed on master.
+
+            Failed run: https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}
+            Failing commit: ${{ github.event.workflow_run.head_sha }}
+
+            The failed-step logs are saved at ./ci-failure.log in the repo root — read that file first.
+
+            This is a NixOS flake repo (flake-parts + haumea, see CLAUDE.md). build.yml builds each
+            host's toplevel: `nix build .#nixosConfigurations.<host>.config.system.build.toplevel`.
+            The aarch64 hosts (basestar, r2s, raspi3, octopi) build under QEMU emulation, so you
+            usually cannot reproduce them here — diagnose those from the logs alone.
+
+            Do the following:
+            1. Read ./ci-failure.log and identify which host(s) failed and the root cause.
+            2. For an x86_64 host (galactica, raider, blackbird), you may attempt to reproduce by
+               entering the dev shell and building that host's toplevel — but builds are slow and
+               disk is limited, so prefer log-based diagnosis and skip the build if it's impractical.
+            3. Apply a minimal, targeted fix following repo conventions (CLAUDE.md): mkService for
+               services, conventional-commit messages scoped by hostname, never mention Claude in
+               commits, run `just fmt` (alejandra) so formatting passes.
+            4. Open a PR against master describing what broke and how you fixed it. Do NOT push to
+               master directly. If you cannot determine a confident fix, open a PR with your
+               diagnosis and proposed direction instead of guessing.
+          claude_args: |
+            --max-turns 25
+            --model claude-opus-4-8
