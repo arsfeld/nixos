@@ -27,6 +27,7 @@ in
           LOCAL_REDIS_URL = "redis://10.88.0.1:6379";
           # Single-user guest mode (no Supabase auth).
           ENABLE_AUTH = "false";
+          DATABASE_SSL_DISABLED = "true";
         };
       };
     })
