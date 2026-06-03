@@ -1,9 +1,5 @@
-{
-  lib,
-  buildGoModule,
-  fetchFromGitHub,
-}:
-buildGoModule rec {
+{pkgs, ...}:
+pkgs.buildGoModule rec {
   pname = "natpmp-server";
   version = "0.1.0";
 
@@ -16,7 +12,7 @@ buildGoModule rec {
   # Skip tests to speed up build
   doCheck = false;
 
-  meta = with lib; {
+  meta = with pkgs.lib; {
     description = "Lightweight NAT-PMP server for NixOS routers";
     homepage = "https://github.com/arsfeld/natpmp-server";
     license = licenses.mit;

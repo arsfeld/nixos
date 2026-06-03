@@ -1,12 +1,5 @@
-{
-  lib,
-  python3,
-  writeTextFile,
-  writeShellScriptBin,
-  iproute2,
-  nftables,
-  wireguard-tools,
-}: let
+{pkgs, ...}: let
+  inherit (pkgs) python3 writeTextFile writeShellScriptBin iproute2 nftables wireguard-tools;
   pythonEnv = python3.withPackages (ps:
     with ps; [
       streamlit
