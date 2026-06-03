@@ -8,13 +8,13 @@
       system: deployLib:
         deployLib.deployChecks self.deploy
         // {
-          router-test = inputs.nixpkgs.legacyPackages.${system}.nixosTest (
+          router-test = inputs.nixpkgs.legacyPackages.${system}.testers.nixosTest (
             import ../tests/router-test.nix {inherit self inputs;}
           );
-          router-test-production = inputs.nixpkgs.legacyPackages.${system}.nixosTest (
+          router-test-production = inputs.nixpkgs.legacyPackages.${system}.testers.nixosTest (
             import ../tests/router-test-production.nix
           );
-          harmonia-cache-test = inputs.nixpkgs.legacyPackages.${system}.nixosTest (
+          harmonia-cache-test = inputs.nixpkgs.legacyPackages.${system}.testers.nixosTest (
             import ../tests/harmonia-cache-test.nix {inherit self inputs;}
           );
         }
