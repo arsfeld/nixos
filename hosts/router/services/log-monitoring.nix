@@ -82,67 +82,60 @@
     };
   };
 
-  # Promtail - Log shipper with fixed selectors
-  services.promtail = {
-    enable = true;
-    configuration = {
-      server = {
-        http_listen_port = 9080;
-        grpc_listen_port = 0;
-      };
+  # Grafana Alloy - log shipper (replaces promtail, removed upstream in NixOS 26.05).
+  # Scrapes the systemd journal and writes to the local Loki, preserving the original
+  # unit/level/hostname labels and the debug-drop filter.
+  services.alloy.enable = true;
+  environment.etc."alloy/config.alloy".text = ''
+    loki.relabel "journal" {
+      forward_to = []
 
-      positions = {
-        filename = "/var/lib/promtail/positions.yaml";
-      };
+      rule {
+        source_labels = ["__journal__systemd_unit"]
+        target_label  = "unit"
+      }
+      rule {
+        source_labels = ["__journal_priority_keyword"]
+        target_label  = "level"
+      }
+      rule {
+        source_labels = ["__journal__hostname"]
+        target_label  = "hostname"
+      }
+    }
 
-      clients = [
-        {
-          url = "http://localhost:3100/loki/api/v1/push";
-          batchwait = "1s";
-          batchsize = 1048576; # 1MB
-          external_labels = {
-            host = "router";
-          };
-        }
-      ];
+    loki.source.journal "journal" {
+      max_age       = "12h"
+      relabel_rules = loki.relabel.journal.rules
+      forward_to    = [loki.process.filter.receiver]
+      labels        = {
+        job  = "systemd-journal",
+        host = "router",
+      }
+    }
 
-      scrape_configs = [
-        {
-          job_name = "journal";
-          journal = {
-            max_age = "12h";
-            labels = {
-              job = "systemd-journal";
-              host = "router";
-            };
-          };
-          relabel_configs = [
-            {
-              source_labels = ["__journal__systemd_unit"];
-              target_label = "unit";
-            }
-            {
-              source_labels = ["__journal_priority_keyword"];
-              target_label = "level";
-            }
-            {
-              source_labels = ["__journal__hostname"];
-              target_label = "hostname";
-            }
-          ];
-          pipeline_stages = [
-            # Drop verbose/debug logs to save space
-            {
-              drop = {
-                source = "level";
-                value = "debug";
-              };
-            }
-          ];
-        }
-      ];
-    };
-  };
+    loki.process "filter" {
+      forward_to = [loki.write.local.receiver]
+
+      // Drop verbose/debug logs to save space
+      stage.match {
+        selector = "{level=\"debug\"}"
+        action   = "drop"
+      }
+    }
+
+    loki.write "local" {
+      endpoint {
+        url = "http://localhost:3100/loki/api/v1/push"
+      }
+    }
+  '';
+
+  # NixOS 26.05 removed Grafana's built-in default secret_key. Pin the historical
+  # default so existing DB-encrypted values stay decryptable. This router's Grafana
+  # holds only local dashboards/datasources (no sensitive secrets), and this value
+  # was the public NixOS default everyone shared pre-26.05, so it's not a real secret.
+  services.grafana.settings.security.secret_key = "SW2YcwTIb9zpOOhoPsMm";
 
   # Update Grafana to include Loki datasource
   services.grafana.provision.datasources.settings.datasources = lib.mkAfter [
@@ -173,7 +166,6 @@
     "d /var/lib/loki/boltdb-shipper-active 0755 loki loki -"
     "d /var/lib/loki/boltdb-shipper-cache 0755 loki loki -"
     "d /var/lib/loki/compactor 0755 loki loki -"
-    "d /var/lib/promtail 0755 promtail promtail -"
   ];
 
   # Add log rotation for Loki's own logs
@@ -191,13 +183,12 @@
   networking.firewall.interfaces.br-lan = {
     allowedTCPPorts = [
       3100 # Loki
-      9080 # Promtail
     ];
   };
 
-  # Ensure proper service ordering
-  systemd.services.promtail = {
-    requires = ["loki.service"];
+  # Ensure Alloy starts after Loki is up
+  systemd.services.alloy = {
+    wants = ["loki.service"];
     after = ["loki.service"];
   };
 }
