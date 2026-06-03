@@ -9,6 +9,13 @@
 #   - tests/test_restful.py, tests/test_xmlrpc.py, tests/test_browser_restful.py:
 #     spin up a local server and connect back over localhost; the build sandbox
 #     has no loopback networking so the requests fail with `Connection refused`.
+#   - tests/test_core.py and tests/test_memoryleak.py (aarch64 only): both run the
+#     full stats update, which queries the network device via ioctl(SIOCETHTOOL).
+#     Under aarch64 QEMU there's no real device, so it raises
+#     `OSError: [Errno 25] Inappropriate ioctl for device`. The whole modules are
+#     dropped on aarch64 (test_000_update populates state the rest of test_core.py
+#     depends on, so disabling individual tests would cascade). On x86_64 they pass
+#     and MUST stay enabled. Not a real defect.
 final: prev: {
   glances = prev.glances.overridePythonAttrs (old: {
     disabledTests = (old.disabledTests or []) ++ ["test_phys_core_returns_int"];
@@ -19,6 +26,10 @@ final: prev: {
         "tests/test_restful.py"
         "tests/test_xmlrpc.py"
         "tests/test_browser_restful.py"
+      ]
+      ++ prev.lib.optionals prev.stdenv.hostPlatform.isAarch64 [
+        "tests/test_core.py"
+        "tests/test_memoryleak.py"
       ];
   });
 }
