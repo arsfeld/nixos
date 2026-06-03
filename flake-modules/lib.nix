@@ -23,6 +23,7 @@
       (import ../overlays/python-packages.nix)
       (import ../overlays/openldap.nix)
       (import ../overlays/glances.nix)
+      (import ../overlays/firefoxpwa.nix)
       # Load packages from ./packages directory using haumea
       (final: prev: loadPackages final)
     ];
