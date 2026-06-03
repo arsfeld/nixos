@@ -3,6 +3,12 @@
 # Palette: yellow=#F3AE35 orange=#F07623 green=#59C9A5 blue=#4B95E9
 #          black=#262B44  white=#E0DEF4  red=#D81E5B
 
+# Never take optional git locks: `git status` otherwise grabs .git/index.lock
+# to refresh cached stat info. With many concurrent Claude sessions re-rendering
+# (and killing) this statusline, interrupted status calls leave stale index.lock
+# files scattered across repos. This makes every git invocation here lock-free.
+export GIT_OPTIONAL_LOCKS=0
+
 input=$(cat)
 
 cwd=$(echo "$input"     | jq -r '.workspace.current_dir // .cwd // empty')
