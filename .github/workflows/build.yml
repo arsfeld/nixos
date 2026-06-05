@@ -16,25 +16,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  matrix:
+    name: Generate build matrix
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            extra-substituters = https://attic.arsfeld.dev/system
+            extra-trusted-public-keys = system:mUX40QMM+dqZ0wQaHp7sH50UgiZnSXsInzc9/MvaZRc=
+
+      - name: Override flake.lock
+        if: inputs.flake_lock
+        run: echo '${{ inputs.flake_lock }}' | base64 -d > flake.lock
+
+      - name: Derive matrix from flake
+        id: gen
+        run: |
+          include=$(nix eval --json '.#ciMatrix')
+          echo "matrix={\"include\":${include}}" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: matrix
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - host: basestar
-            platform: aarch64-linux
-          - host: galactica
-            platform: x86_64-linux
-          - host: raider
-            platform: x86_64-linux
-          - host: blackbird
-            platform: x86_64-linux
-          - host: r2s
-            platform: aarch64-linux
-          - host: raspi3
-            platform: aarch64-linux
-          - host: octopi
-            platform: aarch64-linux
+      matrix: ${{ fromJSON(needs.matrix.outputs.matrix) }}
 
     name: ${{ matrix.host }}
     runs-on: ubuntu-latest
