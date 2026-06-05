@@ -77,6 +77,7 @@ in {
           TV_PATH = "/media/Series";
           MOVIES_PATH = "/media/Movies";
           OIDC_REDIRECT_URI = "https://mydia.arsfeld.one/auth/oidc/callback";
+          FLARESOLVERR_ENABLED = "true";
           FLARESOLVERR_URL = "http://localhost:8191";
           ENABLE_REMOTE_ACCESS = "true";
           DOWNLOAD_CLIENT_1_NAME = "rqbit";
