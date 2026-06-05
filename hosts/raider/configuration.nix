@@ -9,7 +9,6 @@
   imports = [
     ./hardware-configuration.nix
     ./disko-config.nix
-    ./btrbk.nix
     ./fan-control.nix
     ./fontconfig.nix
     ./harmonia.nix
