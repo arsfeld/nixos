@@ -58,6 +58,14 @@ Configured via `.sops.yaml`. All hosts use `constellation.sops.enable = true`. U
 - **pegasus** - Secondary server (BSG Battlestar Pegasus)
 - **octopi** - OctoPrint device
 
+### Host Tiers
+
+Hosts are grouped into deployment tiers, defined in `flake-modules/hosts.nix` as the `tiers` attribute (also exposed as the `tiers` flake output and as Colmena `deployment.tags`):
+
+- **tier1** - `galactica`, `basestar`, `raider`. Always on, should always be deployed. Deploy the whole tier with `colmena apply --on @tier1`.
+
+To add or change a tier, edit `tiers` in `flake-modules/hosts.nix`; colmena tags and the README table follow from it. The CI build matrix (`.github/workflows/build.yml`) is derived from the `ciMatrix` flake output (all discovered hosts with auto-detected platform) — it is not tier-gated.
+
 For hardware specs (CPU, RAM, disks), see [HARDWARE.md](HARDWARE.md).
 
 ## Architecture Overview

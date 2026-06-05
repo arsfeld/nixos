@@ -31,6 +31,20 @@ Personal NixOS configuration managing multiple machines using Nix Flakes and [fl
 
 See [HARDWARE.md](HARDWARE.md) for detailed disk and CPU specs.
 
+### Tiers
+
+Hosts are grouped into deployment tiers (defined in `flake-modules/hosts.nix` as `tiers`):
+
+| Tier | Hosts | Meaning |
+|------|-------|---------|
+| **tier1** | galactica, basestar, raider | Always on, should always be deployed |
+
+Tiers are exposed as Colmena tags, so you can deploy a whole tier at once:
+
+```bash
+colmena apply --on @tier1     # deploy all tier-1 hosts
+```
+
 ## Features
 
 - **Modular Architecture** - Opt-in constellation modules for services, media, backups, observability, and more

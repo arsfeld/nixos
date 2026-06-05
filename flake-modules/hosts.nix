@@ -20,6 +20,22 @@
     # Hosts that use nixpkgs-unstable instead of stable nixpkgs
     unstableHosts = ["raider"];
 
+    # Deployment tiers. Tier 1 hosts are always on and should always be
+    # deployed. Consumed by colmena (deployment.tags, e.g. `colmena apply
+    # --on @tier1`) and documented in README.md / CLAUDE.md.
+    tiers = {
+      tier1 = ["basestar" "galactica" "raider"];
+    };
+
+    # CI build matrix, derived from the discovered hosts with auto-detected
+    # platforms. Consumed by .github/workflows/build.yml via `nix eval`.
+    ciMatrix =
+      map (hostName: {
+        host = hostName;
+        platform = self.nixosConfigurations.${hostName}.config.nixpkgs.hostPlatform.system;
+      })
+      self.hosts;
+
     nixosConfigurations = builtins.listToAttrs (
       map (
         hostName: let
