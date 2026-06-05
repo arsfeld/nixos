@@ -20,6 +20,10 @@
         targetHost = "${hostName}.bat-boa.ts.net";
         targetUser = "root";
         buildOnTarget = false;
+        # Tier tags from self.tiers, so e.g. `colmena apply --on @tier1`.
+        tags = inputs.nixpkgs.lib.attrNames (
+          inputs.nixpkgs.lib.filterAttrs (_tier: hosts: builtins.elem hostName hosts) self.tiers
+        );
       };
       imports =
         self.lib.baseModules
