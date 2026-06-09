@@ -145,12 +145,34 @@ in {
           headers = {
             "Content-Type" = "text/plain";
             "Authorization" = "Basic \${NTFY_BASIC_AUTH_B64}";
-            # Gatus only expands [PLACEHOLDERS] in body/url, not headers.
+            # Gatus only expands [PLACEHOLDERS] in body/url, NOT in headers,
+            # so Title/Priority/Tags must stay static. All the dynamic detail
+            # (which condition failed, the error, the URL) lives in the body.
             "Title" = "Gatus Alert";
-            "Priority" = "3";
+            "Priority" = "4";
             "Tags" = "warning";
           };
-          body = "[ALERT_TRIGGERED_OR_RESOLVED]: [ENDPOINT_GROUP] / [ENDPOINT_NAME]";
+          # Map the bare TRIGGERED/RESOLVED token to something legible that
+          # also doubles as the body's first-line status.
+          placeholders = {
+            ALERT_TRIGGERED_OR_RESOLVED = {
+              TRIGGERED = "🔴 DOWN";
+              RESOLVED = "✅ RECOVERED";
+            };
+          };
+          # text/plain preserves the newlines Gatus inserts between conditions;
+          # a JSON body would be corrupted by them. [RESULT_CONDITIONS] renders
+          # one ✅/❌ line per condition; [RESULT_ERRORS] carries network errors
+          # (e.g. i/o timeout) that explain CONNECTED == false.
+          body = ''
+            [ALERT_TRIGGERED_OR_RESOLVED]: [ENDPOINT_GROUP] / [ENDPOINT_NAME]
+
+            URL: [ENDPOINT_URL]
+
+            Conditions:
+            [RESULT_CONDITIONS]
+            Errors: [RESULT_ERRORS]
+          '';
           default-alert = {
             enabled = true;
             failure-threshold = 2;
