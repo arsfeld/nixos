@@ -497,10 +497,6 @@ in {
       copy_on_select = true;
       pane_frames = false;
       scroll_buffer_size = 50000;
-      # Unbind keys that conflict with Claude Code (keep Ctrl+t for tab mode)
-      keybinds = {
-        unbind = ["Ctrl p" "Ctrl n" "Ctrl o"];
-      };
     };
   };
 
