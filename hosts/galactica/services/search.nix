@@ -66,11 +66,35 @@ in
             autocomplete = "duckduckgo";
             formats = ["html" "json"];
           };
-          # Brave rate-limits this IP (HTTP 429) with no engine-level fix.
-          # Re-enable via `braveapi` engine + API key if desired.
           engines = [
+            # Brave rate-limits this IP (HTTP 429) with no engine-level fix.
+            # Re-enable via `braveapi` engine + API key if desired.
             {
               name = "brave";
+              disabled = true;
+            }
+            # startpage actively blocks SearXNG scraping (CAPTCHA) and wikidata's
+            # SPARQL endpoint rate-limits (403) — both happen regardless of IP
+            # (galactica is on a residential Videotron line, not a datacenter).
+            # Disable to cut per-query latency and log noise.
+            {
+              name = "startpage";
+              disabled = true;
+            }
+            {
+              name = "wikidata";
+              disabled = true;
+            }
+            # Bing tolerates scraping and gives a second independent source so
+            # results aren't sourced solely from Google (which can itself 403).
+            # Confirmed contributing on galactica.
+            {
+              name = "bing";
+              disabled = false;
+            }
+            # mojeek blocks scrapers ("access denied"); needs their paid API. Off.
+            {
+              name = "mojeek";
               disabled = true;
             }
           ];
