@@ -86,6 +86,18 @@ in
           MOVIES_PATH = "/media/Movies";
           OIDC_ENABLED = "false";
           ENABLE_REMOTE_ACCESS = "true";
+          # Send grabs to the VPN-confined Transmission (transmission.nix).
+          # mydia is host-networked, so it reaches Transmission on localhost:9091.
+          # DOWNLOAD_CLIENT_1_PASSWORD comes from the mydia-env secret.
+          DOWNLOAD_CLIENT_1_NAME = "transmission";
+          DOWNLOAD_CLIENT_1_TYPE = "transmission";
+          DOWNLOAD_CLIENT_1_ENABLED = "true";
+          DOWNLOAD_CLIENT_1_PRIORITY = "1";
+          DOWNLOAD_CLIENT_1_HOST = "localhost";
+          DOWNLOAD_CLIENT_1_PORT = "9091";
+          DOWNLOAD_CLIENT_1_USERNAME = "admin";
+          DOWNLOAD_CLIENT_1_USE_SSL = "false";
+          DOWNLOAD_CLIENT_1_DOWNLOAD_DIRECTORY = "/mnt/storage/media/Downloads";
         };
         environmentFiles = [config.sops.secrets.mydia-env.path];
       };
