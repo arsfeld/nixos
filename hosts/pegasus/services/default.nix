@@ -1,5 +1,6 @@
 {...}: {
   imports = [
-    ./plex.nix
+    ./media.nix
+    ./cloudflared.nix
   ];
 }
