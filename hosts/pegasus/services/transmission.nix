@@ -35,6 +35,8 @@ in
         environment = {
           # OPENVPN_* and TRANSMISSION_RPC_USERNAME/PASSWORD come from the secret.
           TRANSMISSION_RPC_AUTHENTICATION_REQUIRED = "true";
+          # Flood web UI, to match galactica's Transmission (webHome = flood).
+          TRANSMISSION_WEB_UI = "flood-for-transmission";
           # Permit the podman bridge, LAN and Tailscale to reach the web UI without
           # going through the VPN (everything else is kill-switched to the tunnel).
           LOCAL_NETWORK = "10.0.0.0/8,192.168.0.0/16,100.64.0.0/10";
