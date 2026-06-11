@@ -34,8 +34,17 @@ with lib; {
   # The media containers mount mediaVolumes (/media + /files). galactica has a
   # /mnt/storage/files share; pegasus does not, and podman refuses to bind-mount
   # a missing source. Create an empty one so Plex/Stash/mydia can start.
+  #
+  # Also ensure the media library dirs exist with the media (5000) owner: with
+  # mediaSync disabled for the move, nothing else creates them, and mydia/
+  # Transmission import completed Movies/Series into them.
   systemd.tmpfiles.rules = [
     "d /mnt/storage/files 0775 media media -"
+    "d /mnt/storage/media 0775 media media -"
+    "d /mnt/storage/media/Movies 0775 media media -"
+    "d /mnt/storage/media/Series 0775 media media -"
+    "d /mnt/storage/media/Vault 0775 media media -"
+    "d /mnt/storage/media/Downloads 0775 media media -"
   ];
 
   # nofail is deliberate: pegasus must boot without the data pool.
