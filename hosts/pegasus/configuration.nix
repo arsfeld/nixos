@@ -44,16 +44,36 @@ with lib; {
     ];
   };
 
-  # Enable media sync from storage
-  # Syncs directories with .sync marker files to /mnt/storage/media
-  constellation.mediaSync.enable = true;
+  # mediaSync is DISABLED for the duration of the move.
+  #
+  # Its cleanup step deletes any unmarked *directory* under /mnt/storage/media,
+  # and when galactica is unreachable the remote marker scan fails so the
+  # "keep" set is empty — meaning the nightly run would wipe synced content
+  # (e.g. the Series/The Boys folder) the moment galactica goes offline.
+  #
+  # During the move, pegasus is populated by a one-off rsync instead (The Boys
+  # + the recent slice of the Stash/Vault library). Re-enable this after
+  # galactica is back online; loose Vault files survive cleanup (it skips
+  # files), but re-marking or relocating rsynced Vault *subdirs* avoids them
+  # being cleaned on the first managed run.
+  constellation.mediaSync.enable = false;
 
-  # Enable media services with pegasus-specific domain
-  # Disabled until data pool is recreated
-  # media.config = {
-  #   enable = true;
-  #   domain = "arsfeld.com";
-  # };
+  # Media stack with pegasus's own public domain (arsfeld.xyz), served over a
+  # Cloudflare tunnel (hosts/pegasus/services/cloudflared.nix). This makes Plex,
+  # Stash and mydia reachable without Tailscale while galactica is offline.
+  # galactica hosts Authelia/OIDC, so every service here sets bypassAuth and
+  # relies on its own login (see services/media.nix).
+  media.config = {
+    enable = true;
+    domain = "arsfeld.xyz";
+  };
+  media.gateway.enable = true;
+
+  # Caddy terminates TLS for *.arsfeld.xyz behind the tunnel; ACME uses
+  # Cloudflare DNS-01 (configured by media.config). caddy needs the acme group
+  # to read the issued certificates.
+  services.caddy.enable = true;
+  users.users.caddy.extraGroups = ["acme"];
 
   # Host-specific settings
   networking = {
