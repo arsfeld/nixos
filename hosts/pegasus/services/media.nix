@@ -86,6 +86,10 @@ in
           MOVIES_PATH = "/media/Movies";
           OIDC_ENABLED = "false";
           ENABLE_REMOTE_ACCESS = "true";
+          # FlareSolverr (flaresolverr service below) for Cloudflare-protected
+          # indexers. Host-networked, so mydia reaches it on localhost.
+          FLARESOLVERR_ENABLED = "true";
+          FLARESOLVERR_URL = "http://localhost:8191";
           # Send grabs to the VPN-confined Transmission (transmission.nix).
           # mydia is host-networked, so it reaches Transmission on localhost:9091.
           # DOWNLOAD_CLIENT_1_PASSWORD comes from the mydia-env secret.
@@ -105,16 +109,37 @@ in
 
     # Prowlarr — indexer manager. Feeds indexers to mydia (add them in mydia as
     # Torznab feeds from Prowlarr). Public with bypassAuth -> set a Prowlarr
-    # login on first launch, like Stash.
+    # login on first launch, like Stash. The add-host lets Prowlarr reach the
+    # host-networked FlareSolverr at http://host.containers.internal:8191.
     (mkService "prowlarr" {
       port = 9696;
       host = "localhost";
       bypassAuth = true;
       container = {
         exposePort = 9696;
+        extraOptions = ["--add-host=host.containers.internal:host-gateway"];
       };
     })
 
-    # Keep Plex's port open for direct LAN access / client discovery.
-    {networking.firewall.allowedTCPPorts = [32400];}
+    # FlareSolverr — solves Cloudflare challenges for indexers. Internal only
+    # (no gateway entry): an unauthenticated FlareSolverr is an abusable proxy,
+    # so it is not exposed publicly. Host-networked so it binds :8191 for mydia
+    # (localhost) and Prowlarr (host.containers.internal).
+    (mkService "flaresolverr" {
+      port = null;
+      image = "ghcr.io/flaresolverr/flaresolverr:latest";
+      container = {
+        configDir = null;
+        network = "host";
+      };
+    })
+
+    {
+      # Keep Plex's port open for direct LAN access / client discovery.
+      networking.firewall.allowedTCPPorts = [32400];
+      # Let bridge containers (e.g. Prowlarr) reach the host-networked
+      # FlareSolverr at host.containers.internal:8191. Scoped to the podman
+      # bridge so 8191 is not opened on LAN/Tailscale/public interfaces.
+      networking.firewall.interfaces."podman0".allowedTCPPorts = [8191];
+    }
   ]
