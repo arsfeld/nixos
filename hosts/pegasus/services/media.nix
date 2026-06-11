@@ -103,6 +103,18 @@ in
       };
     })
 
+    # Prowlarr — indexer manager. Feeds indexers to mydia (add them in mydia as
+    # Torznab feeds from Prowlarr). Public with bypassAuth -> set a Prowlarr
+    # login on first launch, like Stash.
+    (mkService "prowlarr" {
+      port = 9696;
+      host = "localhost";
+      bypassAuth = true;
+      container = {
+        exposePort = 9696;
+      };
+    })
+
     # Keep Plex's port open for direct LAN access / client discovery.
     {networking.firewall.allowedTCPPorts = [32400];}
   ]
