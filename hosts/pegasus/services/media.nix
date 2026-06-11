@@ -102,6 +102,13 @@ in
           DOWNLOAD_CLIENT_1_USERNAME = "admin";
           DOWNLOAD_CLIENT_1_USE_SSL = "false";
           DOWNLOAD_CLIENT_1_DOWNLOAD_DIRECTORY = "/mnt/storage/media/Downloads";
+          # Search via the local Prowlarr (media.nix). mydia is host-networked,
+          # so Prowlarr is on localhost:9696. INDEXER_1_API_KEY is in mydia-env.
+          INDEXER_1_NAME = "Prowlarr";
+          INDEXER_1_TYPE = "prowlarr";
+          INDEXER_1_ENABLED = "true";
+          INDEXER_1_PRIORITY = "1";
+          INDEXER_1_BASE_URL = "http://localhost:9696";
         };
         environmentFiles = [config.sops.secrets.mydia-env.path];
       };
