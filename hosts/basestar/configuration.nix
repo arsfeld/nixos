@@ -75,9 +75,15 @@
   # the shared storage repo.
   constellation.backrest = {
     enable = true;
-    repos.storage = {
-      uri = "rest:http://galactica.bat-boa.ts.net:8000/";
-      passwordFile = config.sops.secrets."restic-password".path;
+    repos = {
+      storage = {
+        uri = "rest:http://galactica.bat-boa.ts.net:8000/";
+        passwordFile = config.sops.secrets."restic-password".path;
+      };
+      pegasus = {
+        uri = "rest:http://pegasus.bat-boa.ts.net:8000/";
+        passwordFile = config.sops.secrets."restic-password".path;
+      };
     };
     plans.system = {
       repo = "storage";
@@ -88,6 +94,7 @@
         "/var/lib/systemd"
         "/var/lib/libvirt"
         "/var/lib/lxcfs"
+        "/var/lib/vaultwarden"
         "/var/cache"
         "/nix"
         "/mnt"
