@@ -87,14 +87,13 @@
     };
     plans.system = {
       repo = "storage";
-      paths = ["/var/lib" "/home" "/root"];
+      paths = ["/var/lib" "/var/data" "/home" "/root"];
       excludes = [
         "/var/lib/docker"
         "/var/lib/containers"
         "/var/lib/systemd"
         "/var/lib/libvirt"
         "/var/lib/lxcfs"
-        "/var/lib/vaultwarden"
         "/var/cache"
         "/nix"
         "/mnt"
