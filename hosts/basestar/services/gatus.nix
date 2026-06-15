@@ -58,7 +58,6 @@
     "syncthing"
     "tautulli"
     "vault"
-    "yarr"
   ];
 
   basestarServiceNames = [
@@ -66,6 +65,7 @@
     "planka"
     "plausible"
     "siyuan"
+    "yarr"
   ];
 
   galacticaEndpoints = map (name:
