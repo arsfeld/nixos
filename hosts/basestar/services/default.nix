@@ -2,6 +2,7 @@
   imports = [
     ./cloudflared.nix
     ./vault.nix
+    ./yarr.nix
     ./blog.nix
     ./gatus.nix
     ./planka.nix
