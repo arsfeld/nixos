@@ -1,13 +1,21 @@
 # SillyTavern — single-user NSFW chat + image generation frontend.
 #
-# Text generation uses OpenRouter; image generation uses Stable Horde.
-# Both API keys are entered once in SillyTavern's UI and persist in the data
-# volume (/var/data/sillytavern-data/.../secrets.json) — no sops wiring.
+# Text generation uses OpenRouter; image generation uses Stable Horde. Both API
+# keys are entered once in SillyTavern's UI and persist in the data volume
+# (/var/data/sillytavern-data/.../secrets.json) — no sops wiring.
 #
-# Access is Tailscale-only: this is a gateway-less container (port = null, so
-# no Caddy vhost and nothing on the public *.arsfeld.one cloudflared tunnel),
-# published only on loopback and exposed to the tailnet via tsnsrv as
-# chat.bat-boa.ts.net (mirrors gatus.nix).
+# Declared as a single mkService named "chat" so the gateway emits both access
+# paths under that name:
+#   - chat.arsfeld.one     — public, via the gateway Caddy vhost reached through
+#     basestar's wildcard *.arsfeld.one cloudflared tunnel. bypassAuth omits the
+#     gateway's forward_auth to galactica's (offline) Authelia; authentication is
+#     instead enforced at Cloudflare's edge by a Zero Trust Access app.
+#   - chat.bat-boa.ts.net  — tailnet, via the tsnsrv node from tailscaleExposed.
+#
+# The service is named "chat" (not "sillytavern") so the subdomains are chat.*;
+# the container therefore mounts the existing /var/data/sillytavern* paths
+# explicitly (configDir = null) so chats, characters, and entered API keys are
+# preserved across the rename.
 {
   self,
   lib,
@@ -15,33 +23,22 @@
 }: let
   mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
 in
-  lib.mkMerge [
-    (mkService "sillytavern" {
-      port = null; # gateway-less: no Caddy vhost, not exposed via cloudflared
-      image = "ghcr.io/sillytavern/sillytavern";
-      container = {
-        # ST stores config under /home/node/app/config; mkService auto-mounts
-        # /var/data/sillytavern -> here.
-        configDir = "/home/node/app/config";
-        environment = {
-          SILLYTAVERN_LISTEN = "true";
-          SILLYTAVERN_WHITELISTMODE = "false";
-          SILLYTAVERN_SECURITYOVERRIDE = "true";
-        };
-        # Chats, characters, personas, and entered API keys.
-        volumes = ["/var/data/sillytavern-data:/home/node/app/data"];
-        # Publish on loopback only; tsnsrv reaches the service here.
-        extraOptions = ["--publish=127.0.0.1:18000:8000"];
+  mkService "chat" {
+    port = 8000; # SillyTavern listens on 8000 inside the container
+    image = "ghcr.io/sillytavern/sillytavern";
+    bypassAuth = true; # auth enforced at Cloudflare's edge, not at the origin
+    tailscaleExposed = true; # chat.bat-boa.ts.net
+    container = {
+      exposePort = 18000; # host port the gateway/tsnsrv proxy to
+      configDir = null; # skip the auto /var/data/chat mount; mount the real dirs below
+      environment = {
+        SILLYTAVERN_LISTEN = "true";
+        SILLYTAVERN_WHITELISTMODE = "false"; # behind reverse proxy / tailnet
+        SILLYTAVERN_SECURITYOVERRIDE = "true"; # allow running with whitelist off behind a proxy
       };
-    })
-
-    {
-      # Tailnet-only access node -> chat.bat-boa.ts.net. funnel = false keeps it
-      # off the public internet. tsnsrv is already enabled on basestar with a
-      # default authKeyPath (hosts/basestar/services.nix).
-      services.tsnsrv.services.chat = {
-        toURL = "http://127.0.0.1:18000";
-        funnel = false;
-      };
-    }
-  ]
+      volumes = [
+        "/var/data/sillytavern:/home/node/app/config" # ST config (preserved)
+        "/var/data/sillytavern-data:/home/node/app/data" # chats, characters, API keys (preserved)
+      ];
+    };
+  }
