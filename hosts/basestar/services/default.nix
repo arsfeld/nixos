@@ -9,5 +9,6 @@
     ./plausible.nix
     ./radicle.nix
     ./siyuan.nix
+    ./sillytavern.nix
   ];
 }
