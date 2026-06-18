@@ -20,7 +20,7 @@ tailnet.
 | Exposure | Tailscale-only | No public attack surface |
 | Frontend | SillyTavern | De-facto NSFW/roleplay frontend; native image-gen integration; OpenAI-compatible text backend |
 | Host | basestar | galactica is down; basestar currently serves the constellation |
-| Access wiring | `exposeViaTailscale` → `chat.bat-boa.ts.net` | Genuinely tailnet-only; no Cloudflare tunnel; no dependency on galactica's Authelia (which is down) |
+| Access wiring | Gateway-less container + **manual tsnsrv node** → `chat.bat-boa.ts.net` | Genuinely tailnet-only; no Caddy vhost, so nothing is reachable through basestar's `*.arsfeld.one` Cloudflare tunnel; no dependency on galactica's Authelia (which is down) |
 | Text API | OpenRouter | Single key, pay-per-token, OpenAI-compatible, uncensored models available |
 | Image API | Stable Horde | Free, NSFW-permitting, native SillyTavern integration, zero infra |
 | Config | Env vars (`SILLYTAVERN_*`) | Declarative; no config file to mount |
@@ -30,12 +30,22 @@ tailnet.
 ## Why not the alternatives
 
 - **`chat.arsfeld.one` vhost (rejected):** basestar serves `*.arsfeld.one` via
-  the Cloudflare tunnel (`hosts/basestar/services/cloudflared.nix`), making it
-  **publicly internet-reachable** — contradicts the Tailscale-only goal. Worse,
-  basestar forwards auth to galactica's Authelia (`authHost =
-  auth.bat-boa.ts.net`), which is **down**, so the route is currently either
-  broken (`bypassAuth = false`) or an open NSFW service on the public internet
-  (`bypassAuth = true`). `exposeViaTailscale` avoids all of this.
+  the Cloudflare tunnel (`hosts/basestar/services/cloudflared.nix`, wildcard
+  `*.arsfeld.one → https://localhost`), making it **publicly internet-reachable**
+  — contradicts the Tailscale-only goal. Worse, basestar forwards auth to
+  galactica's Authelia (`authHost = auth.bat-boa.ts.net`), which is **down**, so
+  the route is currently either broken (`bypassAuth = false`) or an open NSFW
+  service on the public internet (`bypassAuth = true`).
+- **`mkService` gateway path + `tailscaleExposed` (rejected):** registering a
+  gateway service (which `mkService` does automatically for any container with a
+  non-null `port`) generates a Caddy vhost at `<name>.arsfeld.one`. Because the
+  cloudflared ingress is a wildcard, that vhost is **publicly reachable through
+  the tunnel** even though we only wanted the tailnet node. With `bypassAuth =
+  true` (and Authelia down) that is an open NSFW service on the internet. The
+  fix is a **gateway-less container** (`port = null`, published only on
+  loopback) plus a **manually declared `services.tsnsrv.services` node** — no
+  Caddy vhost is created, so nothing is exposed via cloudflared. This mirrors the
+  existing `hosts/basestar/services/gatus.nix` pattern.
 - **Mainstream LLM APIs (OpenAI/Anthropic/Google):** prohibit NSFW content;
   will refuse or ban. Hence OpenRouter with uncensored/unmoderated models.
 - **Custom UI / local GPU image gen:** unnecessary work; reinvents what
@@ -61,44 +71,60 @@ natively on basestar with no cross-build.
 ### New file: `hosts/basestar/services/sillytavern.nix`
 
 Declared via the `mkService` helper (`modules/media/__mkService.nix`), consistent
-with the repo's service conventions. The container runs on basestar's Docker oci
-backend (`virtualisation.oci-containers.backend = "docker"`).
+with the repo's service conventions. `port = null` makes it a **gateway-less
+container** (no Caddy vhost, no public exposure). The container runs on basestar's
+Docker oci backend (`virtualisation.oci-containers.backend = "docker"`), publishes
+only on loopback, and is exposed to the tailnet by a manual tsnsrv node.
 
 ```nix
-mkService "sillytavern" {
-  port = 8000;
-  image = "ghcr.io/sillytavern/sillytavern";   # multi-arch, runs on aarch64
-  bypassAuth = true;                            # tailnet-only; galactica Authelia is down anyway
-  exposeViaTailscale = true;                    # → chat.bat-boa.ts.net via tsnsrv
-  container = {
-    exposePort = 8000;
-    configDir = "/home/node/app/config";        # ST's config path; mkService auto-mounts /var/data/sillytavern here
-    environment = {
-      SILLYTAVERN_LISTEN = "true";
-      SILLYTAVERN_WHITELISTMODE = "false";       # behind reverse proxy / tailnet
-      SILLYTAVERN_SECURITYOVERRIDE = "true";     # allow running with whitelist off behind a proxy
+lib.mkMerge [
+  (mkService "sillytavern" {
+    port = null;                                 # gateway-less: no Caddy vhost, nothing on *.arsfeld.one
+    image = "ghcr.io/sillytavern/sillytavern";   # multi-arch, runs on aarch64
+    container = {
+      configDir = "/home/node/app/config";       # ST's config path; mkService auto-mounts /var/data/sillytavern here
+      environment = {
+        SILLYTAVERN_LISTEN = "true";
+        SILLYTAVERN_WHITELISTMODE = "false";      # behind reverse proxy / tailnet
+        SILLYTAVERN_SECURITYOVERRIDE = "true";    # allow running with whitelist off behind a proxy
+      };
+      volumes = ["/var/data/sillytavern-data:/home/node/app/data"];  # chats, characters, entered API keys
+      extraOptions = ["--publish=127.0.0.1:18000:8000"];             # loopback only; tsnsrv reaches it here
     };
-    volumes = [ "/var/data/sillytavern-data:/home/node/app/data" ];  # chats, characters, entered API keys
-  };
-}
+  })
+  {
+    # Tailnet-only access; mirrors hosts/basestar/services/gatus.nix.
+    services.tsnsrv.services.chat = {
+      toURL = "http://127.0.0.1:18000";
+      funnel = false;
+    };
+  }
+]
 ```
 
-Notes / to confirm during planning:
-- **`exposeViaTailscale` spelling:** confirm against `__mkService.nix` whether it
-  is a top-level `mkService` arg or must be set on the produced
-  `media.gateway.services.<name>.exposeViaTailscale` entry. The gateway option is
-  `exposeViaTailscale` (see `modules/media/gateway.nix`).
-- **Config dir mount:** `mkService` auto-mounts `${configDir}/<name>` →
-  `container.configDir`. Setting `configDir = "/home/node/app/config"` maps
-  `/var/data/sillytavern` → SillyTavern's config dir. The data volume is mounted
-  separately at `/var/data/sillytavern-data`.
-- **PUID/PGID/TZ:** injected automatically by `mkService` from `media.config`
-  (5000/5000). The image honors `PUID`/`PGID`.
-- **Env var override mechanism:** SillyTavern supports `SILLYTAVERN_*`
-  environment variables that override `config.yaml` keys. Confirm the exact key
-  names (`LISTEN`, `WHITELISTMODE`, `SECURITYOVERRIDE`) against the running image
-  version during implementation; adjust if the image expects a different casing
-  or a mounted `config.yaml` instead.
+Verified facts (no longer open questions):
+- **Gateway-less pattern:** with `port = null`, `mkService` writes
+  `media.containers.sillytavern` with `listenPort = null`, so no
+  `media.gateway.services` entry and no Caddy vhost are created
+  (`modules/media/containers.nix`). The module does not publish any port when
+  `listenPort == null`, so the container publishes its host port via the explicit
+  `--publish` in `extraOptions`.
+- **Config dir mount:** `mkService`/`containers.nix` auto-mounts
+  `${configDir}/<name>` → `container.configDir`, i.e. `/var/data/sillytavern` →
+  `/home/node/app/config`. tmpfiles creates both `/var/data/sillytavern` and the
+  managed volume dir `/var/data/sillytavern-data`, owned `media:media` (5000).
+- **PUID/PGID/TZ:** injected automatically by `containers.nix` from `media.config`
+  (5000/5000). The `ghcr.io/sillytavern/sillytavern` image honors `PUID`/`PGID`.
+- **Env var names:** confirmed against SillyTavern docs — `SILLYTAVERN_<KEY>`
+  uppercase maps to `config.yaml` keys, so `SILLYTAVERN_LISTEN`,
+  `SILLYTAVERN_WHITELISTMODE`, `SILLYTAVERN_SECURITYOVERRIDE` are correct.
+- **tsnsrv node:** `services.tsnsrv` is already enabled on basestar with
+  `defaults.authKeyPath` set (`hosts/basestar/services.nix`), so the manual
+  `services.tsnsrv.services.chat` entry yields `chat.bat-boa.ts.net` with no extra
+  wiring.
+- **No `watchImage`:** the image-watch script in `containers.nix` hardcodes
+  `pkgs.podman`, but basestar uses the Docker backend, so `watchImage` is left
+  off (default). Updates are manual (`docker pull` + restart).
 
 ### Edit: `hosts/basestar/services/default.nix`
 
