@@ -25,24 +25,31 @@ Cloudflare's edge instead of at the origin.
 | Auth mechanism | **Cloudflare Access** (Zero Trust), email one-time PIN | Gates at the edge before traffic reaches basestar; no galactica/Authelia dependency; origin never sees unauthenticated requests |
 | Access surface | **Keep both** paths | `chat.bat-boa.ts.net` (tailnet, trusted, no auth) **and** `chat.arsfeld.one` (public, Access-gated) |
 | Defense depth | **Edge auth only** | Origin is reachable only via the outbound-only tunnel, so Cloudflare is the sole ingress; no Caddy JWT validation needed |
-| Routing | **Manual Caddy vhost** (not the `mkService` gateway path) | Gives the exact hostname `chat.arsfeld.one` and avoids auto-wiring the dead Authelia forward_auth; mirrors `blog.nix`/`siyuan.nix` |
+| Routing | **Single `mkService "chat"`** (the mandatory service helper) | One declaration emits the `chat.arsfeld.one` gateway vhost, the `chat.bat-boa.ts.net` tsnsrv node, and the container; no hand-written Caddy/tsnsrv/oci blocks |
+| Origin-side auth | `bypassAuth = true` | Omits the gateway's `forward_auth` to galactica's offline Authelia; auth is enforced at Cloudflare's edge instead |
 | Identity provider | One-time PIN (built-in email) | No IdP integration to configure; allow-list the owner's email |
-| Container / volumes / tsnsrv | **Unchanged** | This change only adds an ingress path |
+| Service name | `chat` (was `sillytavern`) | The gateway derives subdomains from the service name, so the service is named `chat`; existing `/var/data/sillytavern*` data is mounted explicitly to survive the rename |
 
 ## Why not the alternatives
 
-- **`mkService` gateway path (`port` set, `bypassAuth = true`) — rejected:**
-  registering a gateway service names the vhost `sillytavern.arsfeld.one`, not
-  `chat.arsfeld.one`, and auto-wires `forward_auth` to
-  `auth.bat-boa.ts.net` (galactica's Authelia, **down**). Disabling it with
-  `bypassAuth = true` would leave an open NSFW service on the public internet
-  with the wrong hostname. A manual Caddy vhost gives the exact name and no
-  origin-side auth wiring.
+- **Hand-written `services.caddy.virtualHosts` / `services.tsnsrv.services`
+  blocks — forbidden:** `mkService` is the mandatory and only way to declare a
+  service on basestar (CLAUDE.md). The naming concern that once argued for a
+  manual vhost (the gateway derives the subdomain from the service name) is
+  solved *within* mkService by naming the service `chat`. The Authelia concern is
+  solved by `bypassAuth = true`, which omits the `forward_auth` block entirely
+  (`modules/media/__utils.nix`). So the full ingress — vhost, tsnsrv node, and
+  container — comes from one `mkService "chat"` call with no manual blocks.
+- **Naming the service `sillytavern` (vhost `sillytavern.arsfeld.one`) —
+  rejected:** the desired public hostname is `chat.arsfeld.one`. Since the
+  gateway emits `<service-name>.<domain>`, the service is named `chat`; the
+  container's `/var/data/sillytavern*` data is mounted explicitly so the rename
+  loses nothing.
 - **Caddy basic auth / SillyTavern built-in login — rejected for this iteration:**
-  both are self-contained and declarative, but auth would happen *at the origin*
-  (NSFW content reachable on the public internet up to the auth prompt) rather
-  than at the edge. Cloudflare Access blocks before the tunnel, so the origin is
-  never exposed to unauthenticated traffic. (These remain viable fallbacks if
+  both are self-contained, but auth would happen *at the origin* (NSFW content
+  reachable on the public internet up to the auth prompt) rather than at the
+  edge. Cloudflare Access blocks before the tunnel, so the origin is never
+  exposed to unauthenticated traffic. (These remain viable fallbacks if
   Cloudflare Access is ever undesirable.)
 - **Caddy JWT validation of `Cf-Access-Jwt-Assertion` — deferred:** sound
   belt-and-suspenders, but the origin is only reachable through the outbound
@@ -54,55 +61,73 @@ Cloudflare's edge instead of at the origin.
 ```
 Public ──▶ Cloudflare edge ──[Access gate: email OTP]──▶ cloudflared tunnel
                                                               │
-Tailnet ──▶ chat.bat-boa.ts.net (tsnsrv) ────────────────────┤
+                                            basestar Caddy (chat.arsfeld.one)
+                                                              │
+Tailnet ──▶ chat.bat-boa.ts.net (tsnsrv) ─────────────────────┤
                                                               ▼
-                                            basestar Caddy ──▶ SillyTavern :18000 (loopback)
+                                            "chat" container (basestar :18000)
                                                                   │
                                             text ─────────────────┼──▶ OpenRouter
                                             images ───────────────┴──▶ Stable Horde
 ```
 
-The container, the loopback publish (`127.0.0.1:18000`), and the tsnsrv `chat`
-node are unchanged. We add exactly one Caddy vhost and one out-of-Nix Cloudflare
-Access application. The wildcard `*.arsfeld.one` tunnel ingress already routes
+A single `mkService "chat"` emits all three: the `chat.arsfeld.one` gateway
+vhost, the `chat.bat-boa.ts.net` tsnsrv node, and the container (host port
+`18000`). The wildcard `*.arsfeld.one` tunnel ingress already routes
 `chat.arsfeld.one → https://localhost` (Caddy), so cloudflared needs no change.
+The only other piece is one out-of-Nix Cloudflare Access application.
 
 ## Implementation
 
 ### Edit: `hosts/basestar/services/sillytavern.nix`
 
-Append a Caddy vhost block to the existing `lib.mkMerge` list (alongside the
-`mkService` container block and the `services.tsnsrv.services.chat` block):
+Replace the previous three-block layout (gateway-less container + manual tsnsrv +
+manual vhost) with a single `mkService "chat"`:
 
 ```nix
-{
-  # Public, Cloudflare-Access-gated route. The wildcard *.arsfeld.one tunnel
-  # ingress already lands here; auth is enforced at Cloudflare's edge, so no
-  # forward_auth/bypassAuth wiring at the origin. Mirrors blog.nix/siyuan.nix.
-  services.caddy.virtualHosts."chat.arsfeld.one" = {
-    useACMEHost = "arsfeld.one"; # wildcard cert the gateway already provisions
-    extraConfig = ''
-      reverse_proxy 127.0.0.1:18000
-    '';
+mkService "chat" {
+  port = 8000;                                 # ST listens on 8000 in-container
+  image = "ghcr.io/sillytavern/sillytavern";
+  bypassAuth = true;                           # edge auth only; omit Authelia forward_auth
+  tailscaleExposed = true;                     # chat.bat-boa.ts.net
+  container = {
+    exposePort = 18000;                        # host port gateway/tsnsrv proxy to
+    configDir = null;                          # skip auto /var/data/chat mount
+    environment = {
+      SILLYTAVERN_LISTEN = "true";
+      SILLYTAVERN_WHITELISTMODE = "false";
+      SILLYTAVERN_SECURITYOVERRIDE = "true";
+    };
+    volumes = [
+      "/var/data/sillytavern:/home/node/app/config"
+      "/var/data/sillytavern-data:/home/node/app/data"
+    ];
   };
 }
 ```
 
-Verified facts:
-- **TLS cert:** `media.gateway` provisions `security.acme.certs."arsfeld.one"`
-  with `extraDomainNames = ["*.arsfeld.one"]` (`modules/media/gateway.nix`), so
-  `useACMEHost = "arsfeld.one"` covers `chat.arsfeld.one`. cloudflared also runs
-  with `noTLSVerify = true`, so origin cert validity is not even required.
+Verified facts (by `nix eval` against `nixosConfigurations.basestar`):
+- **Gateway vhost:** `chat.arsfeld.one` is generated with
+  `reverse_proxy http://basestar:18000` and **no** `forward_auth` block
+  (`bypassAuth = true` omits it — `modules/media/__utils.nix`). `useACMEHost`
+  resolves to the `*.arsfeld.one` wildcard cert the gateway provisions
+  (`security.acme.certs."arsfeld.one"`). cloudflared runs `noTLSVerify = true`,
+  so origin cert validity is not even required.
+- **Tailnet node:** `services.tsnsrv.services.chat.toURL = http://127.0.0.1:18000`
+  is emitted because `tailscaleExposed` sets `exposeViaTailscale` and the
+  container's gateway `host` defaults to the hostname (`host == hostname`, the
+  condition tsnsrv generation requires).
+- **Container:** OCI container is named `chat`, publishes `18000:8000`, and mounts
+  only the two explicit `/var/data/sillytavern*` paths (no stray `/var/data/chat`
+  mount, since `configDir = null`). PUID/PGID/TZ are injected by `containers.nix`.
 - **Routing:** the tunnel ingress is wildcard `*.arsfeld.one → https://localhost`
-  (`hosts/basestar/services/cloudflared.nix`); Caddy matches the vhost by the
+  (`hosts/basestar/services/cloudflared.nix`); Caddy matches by the
   `Host: chat.arsfeld.one` header. No cloudflared edit needed.
-- **No `mkService` change:** the container block stays `port = null`
-  (gateway-less). We add the vhost manually instead of registering a gateway
-  service, so no Authelia forward_auth is wired.
-- **Same loopback port:** both tsnsrv and Caddy reverse-proxy to
-  `127.0.0.1:18000`; ST already runs behind the tsnsrv proxy with
-  `WHITELISTMODE=false` / `SECURITYOVERRIDE=true`, so a second proxy needs no ST
-  config change.
+- **Data preserved across the rename:** the container moves from `sillytavern` to
+  `chat`, but both bind-mount the same host paths, so chats/characters/API keys
+  in `/var/data/sillytavern-data` and config in `/var/data/sillytavern` are
+  retained. `WHITELISTMODE=false` / `SECURITYOVERRIDE=true` keep ST happy behind
+  the proxy.
 
 ### Out-of-Nix: Cloudflare Zero Trust — Access application
 
@@ -122,16 +147,19 @@ No secrets enter the Nix repo; the Access policy lives entirely in Cloudflare.
 
 ### Unchanged
 
-Container env (`SILLYTAVERN_*`), the `/var/data/sillytavern-data` volume,
-PUID/PGID, the tsnsrv `chat` node, OpenRouter/Stable Horde API keys, and the
-`/var/data` backup coverage all stay as they are.
+Container env (`SILLYTAVERN_*`), the `/var/data/sillytavern` config and
+`/var/data/sillytavern-data` data paths, OpenRouter/Stable Horde API keys, and
+the `/var/data` backup coverage all stay as they are. The container/unit is
+renamed `sillytavern → chat`, but the data on disk is untouched.
 
 ## Verification
 
 After `just deploy basestar`:
 
-1. Caddy reloaded cleanly; `chat.arsfeld.one` vhost is live (`systemctl status
-   caddy`, no config errors).
+1. The `chat` container is healthy (`systemctl status docker-chat`, or
+   `docker ps`), and Caddy reloaded cleanly with the `chat.arsfeld.one` vhost
+   (`systemctl status caddy`, no config errors). Confirm prior chats/characters
+   still appear in the UI (data survived the rename).
 2. From a non-tailnet device or incognito window, open `https://chat.arsfeld.one`
    → redirected to the Cloudflare Access login. A non-allow-listed email is
    rejected.

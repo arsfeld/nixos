@@ -4,68 +4,81 @@
 
 **Goal:** Expose the existing SillyTavern instance publicly at `chat.arsfeld.one`, authenticated at Cloudflare's edge, while keeping the tailnet-only `chat.bat-boa.ts.net` node working.
 
-**Architecture:** Add one manual Caddy vhost (`chat.arsfeld.one → 127.0.0.1:18000`) to the existing `hosts/basestar/services/sillytavern.nix`, reusing the wildcard `*.arsfeld.one` ACME cert and the existing wildcard cloudflared tunnel ingress. Authentication is enforced by a Cloudflare Zero Trust Access application (configured in the dashboard, outside Nix). The SillyTavern container, its loopback publish, and the tsnsrv node are unchanged.
+**Architecture:** Declare the whole service as a single `mkService "chat"` (the mandatory service helper) in `hosts/basestar/services/sillytavern.nix`. That one call emits the `chat.arsfeld.one` gateway vhost (`bypassAuth = true`, so no Authelia forward_auth), the `chat.bat-boa.ts.net` tsnsrv node (`tailscaleExposed = true`), and the container (host port `18000`). It reuses the wildcard `*.arsfeld.one` ACME cert and the existing wildcard cloudflared tunnel ingress. Authentication is enforced by a Cloudflare Zero Trust Access application (configured in the dashboard, outside Nix).
 
-**Tech Stack:** NixOS, Caddy (`services.caddy.virtualHosts`), cloudflared tunnel, Cloudflare Zero Trust Access. No unit-test harness in this repo — "tests" are `just build basestar` (Nix evaluation + build) and post-deploy manual verification.
+**Tech Stack:** NixOS, `mkService` (media gateway + containers + tsnsrv), Caddy, cloudflared tunnel, Cloudflare Zero Trust Access. No unit-test harness in this repo — "tests" are `nix eval`/`just build basestar` (Nix evaluation) and post-deploy manual verification.
+
+**Hard rule:** every service on basestar MUST go through `mkService`. Do **not** hand-write `services.caddy.virtualHosts`, `services.tsnsrv.services`, `virtualisation.oci-containers.containers`, or `media.gateway.services` — solve any naming/routing need within `mkService` options instead.
 
 **Spec:** `docs/superpowers/specs/2026-06-18-sillytavern-public-cloudflare-access-design.md`
 
 ---
 
-### Task 1: Add the `chat.arsfeld.one` Caddy vhost
+### Task 1: Declare the service as a single `mkService "chat"`
 
 **Files:**
-- Modify: `hosts/basestar/services/sillytavern.nix` (append a block to the existing `lib.mkMerge` list)
+- Rewrite: `hosts/basestar/services/sillytavern.nix`
 
 **Context the engineer needs:**
-- The file currently has a `lib.mkMerge [ ... ]` with two elements: a `(mkService "sillytavern" {...})` block and a `{ services.tsnsrv.services.chat = {...}; }` block. You are adding a **third** element — a Caddy vhost attrset. Do **not** modify the container's `port = null` or convert it to a gateway service; that would name the vhost `sillytavern.arsfeld.one` and auto-wire the offline Authelia.
-- The wildcard cert is already provisioned by `media.gateway` as `security.acme.certs."arsfeld.one"` with `extraDomainNames = ["*.arsfeld.one"]`, so `useACMEHost = "arsfeld.one"` is valid.
-- The cloudflared tunnel ingress is already wildcard (`*.arsfeld.one → https://localhost`), so no cloudflared change is needed. Caddy routes by the `Host: chat.arsfeld.one` header.
-- The pattern mirrors `hosts/basestar/services/siyuan.nix:97` and `blog.nix:78` (both use `services.caddy.virtualHosts.<host>` with `useACMEHost`).
+- `mkService` (`modules/media/__mkService.nix`) is mandatory; everything (container, env, gateway vhost, tsnsrv node) comes from it. No manual `caddy`/`tsnsrv`/`oci-containers`/`gateway` blocks.
+- The gateway derives subdomains from the **service name** (`<name>.<domain>`), so to get `chat.arsfeld.one` (and `chat.bat-boa.ts.net`) the service must be named `chat` — not `sillytavern`.
+- `bypassAuth = true` omits the gateway's `forward_auth` to galactica's offline Authelia (`modules/media/__utils.nix`); edge auth (Cloudflare Access, Task 2) replaces it.
+- `tailscaleExposed = true` emits the tsnsrv node, but only because a container's gateway `host` defaults to the hostname (`host == hostname`, the condition tsnsrv generation requires). Do not override `host`.
+- The container is renamed `sillytavern → chat`. To preserve existing data, set `configDir = null` (skip the auto `/var/data/chat` mount) and mount the existing `/var/data/sillytavern*` paths explicitly. ST listens on `8000` internally; publish host port `18000` via `exposePort`.
+- The wildcard `*.arsfeld.one` cloudflared ingress and the `*.arsfeld.one` ACME cert already exist — no cloudflared/cert changes.
 
-- [ ] **Step 1: Add the vhost block**
+- [ ] **Step 1: Replace the file contents**
 
-Open `hosts/basestar/services/sillytavern.nix`. Inside the `lib.mkMerge [ ... ]` list, after the closing `}` of the existing `services.tsnsrv.services.chat` block (the last element, currently around line 46), add a new element. The list should end like this:
+Set `hosts/basestar/services/sillytavern.nix` to a single `mkService "chat"` (no `lib.mkMerge`, no manual blocks):
 
 ```nix
-    {
-      # Tailnet-only access node -> chat.bat-boa.ts.net. funnel = false keeps it
-      # off the public internet. tsnsrv is already enabled on basestar with a
-      # default authKeyPath (hosts/basestar/services.nix).
-      services.tsnsrv.services.chat = {
-        toURL = "http://127.0.0.1:18000";
-        funnel = false;
+{
+  self,
+  lib,
+  ...
+}: let
+  mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
+in
+  mkService "chat" {
+    port = 8000; # SillyTavern listens on 8000 inside the container
+    image = "ghcr.io/sillytavern/sillytavern";
+    bypassAuth = true; # auth enforced at Cloudflare's edge, not at the origin
+    tailscaleExposed = true; # chat.bat-boa.ts.net
+    container = {
+      exposePort = 18000; # host port the gateway/tsnsrv proxy to
+      configDir = null; # skip the auto /var/data/chat mount; mount real dirs below
+      environment = {
+        SILLYTAVERN_LISTEN = "true";
+        SILLYTAVERN_WHITELISTMODE = "false";
+        SILLYTAVERN_SECURITYOVERRIDE = "true";
       };
-    }
-
-    {
-      # Public, Cloudflare-Access-gated route at chat.arsfeld.one. The wildcard
-      # *.arsfeld.one cloudflared tunnel ingress already lands on this Caddy, so
-      # no tunnel change is needed. Authentication is enforced at Cloudflare's
-      # edge by a Zero Trust Access app, so there is NO forward_auth/bypassAuth
-      # wiring here (galactica's Authelia is offline by design). Mirrors the
-      # arsfeld.dev vhosts in blog.nix / siyuan.nix.
-      services.caddy.virtualHosts."chat.arsfeld.one" = {
-        useACMEHost = "arsfeld.one"; # wildcard cert provisioned by media.gateway
-        extraConfig = ''
-          reverse_proxy 127.0.0.1:18000
-        '';
-      };
-    }
-  ]
+      volumes = [
+        "/var/data/sillytavern:/home/node/app/config"
+        "/var/data/sillytavern-data:/home/node/app/data"
+      ];
+    };
+  }
 ```
 
-Make sure the new block is a sibling element inside the `mkMerge` list (a `{ ... }` separated by whitespace from the previous element), and that the list's closing `]` follows it.
+(Keep the descriptive header comment explaining the rename and the two access paths.)
 
 - [ ] **Step 2: Format**
 
-Run: `just fmt`
-Expected: exits 0; `hosts/basestar/services/sillytavern.nix` reformatted by alejandra with no errors.
+Run: `nix develop -c just fmt`
+Expected: exits 0; file alejandra-formatted, no errors.
 
-- [ ] **Step 3: Build basestar to verify the config evaluates**
+- [ ] **Step 3: Verify the generated config by evaluation**
 
-Run: `just build basestar`
-Expected: build succeeds. A successful evaluation proves the new vhost attrset merges cleanly and `useACMEHost = "arsfeld.one"` references an existing ACME cert. If evaluation fails with an `arsfeld.one` ACME-cert-not-found error, stop — the gateway is expected to provide it; re-read `modules/media/gateway.nix:193`.
+```bash
+# vhost: must contain `reverse_proxy http://basestar:18000` and NO `forward_auth`
+nix develop -c nix eval --raw '.#nixosConfigurations.basestar.config.services.caddy.virtualHosts."chat.arsfeld.one".extraConfig'
+# tsnsrv node: toURL must be http://127.0.0.1:18000
+nix develop -c nix eval '.#nixosConfigurations.basestar.config.services.tsnsrv.services.chat.toURL'
+# container: ports ["18000:8000"], only the two /var/data/sillytavern* volumes
+nix develop -c nix eval --json '.#nixosConfigurations.basestar.config.virtualisation.oci-containers.containers.chat.ports'
+nix develop -c nix eval --json '.#nixosConfigurations.basestar.config.virtualisation.oci-containers.containers.chat.volumes'
+```
+Expected: vhost shows `reverse_proxy http://basestar:18000` with no `forward_auth`; tsnsrv `toURL = "http://127.0.0.1:18000"`; ports `["18000:8000"]`; volumes are exactly the two explicit mounts.
 
 - [ ] **Step 4: Commit**
 
@@ -115,10 +128,10 @@ Nothing to commit — this lives entirely in Cloudflare. Record in the deploy no
 Run: `just deploy basestar`
 Expected: Colmena applies; Caddy reloads without error.
 
-- [ ] **Step 2: Verify Caddy is healthy and serving the vhost**
+- [ ] **Step 2: Verify the container and Caddy are healthy**
 
-Run: `ssh basestar.bat-boa.ts.net systemctl status caddy`
-Expected: `active (running)`, no recent config-load errors in the journal.
+Run: `ssh basestar.bat-boa.ts.net systemctl status docker-chat caddy`
+Expected: both `active (running)`; no recent config-load errors in the Caddy journal. The container is now named `chat` (was `sillytavern`). Confirm prior chats/characters still appear in the UI — data survived the rename via the explicit `/var/data/sillytavern*` mounts.
 
 - [ ] **Step 3: Verify unauthenticated public access is blocked**
 
@@ -143,6 +156,6 @@ Verification only. If any step fails, the issue is configuration (Access policy,
 
 ## Self-Review Notes
 
-- **Spec coverage:** Caddy vhost (Task 1) ↔ spec "Edit: sillytavern.nix"; Access app (Task 2) ↔ spec "Out-of-Nix: Cloudflare Zero Trust"; all four spec verification items map to Task 3 steps 2–5. "Keep both" surface is verified by Task 3 step 5. No gaps.
+- **Spec coverage:** single `mkService "chat"` (Task 1) ↔ spec "Edit: sillytavern.nix"; Access app (Task 2) ↔ spec "Out-of-Nix: Cloudflare Zero Trust"; all spec verification items map to Task 3 steps 2–5. "Keep both" surface is verified by Task 3 step 5. No gaps.
 - **Placeholder scan:** no TBD/TODO; every code/command step shows exact content or command.
-- **Consistency:** loopback port `127.0.0.1:18000` matches the container's existing `--publish=127.0.0.1:18000:8000`; hostname `chat.arsfeld.one` and cert host `arsfeld.one` are used consistently throughout.
+- **Consistency:** `exposePort = 18000` → host publish `18000:8000`; the gateway proxies `http://basestar:18000` and the tsnsrv node `http://127.0.0.1:18000`; service name `chat` drives both `chat.arsfeld.one` and `chat.bat-boa.ts.net`; `arsfeld.one` is the cert host throughout. No manual Caddy/tsnsrv blocks remain.
