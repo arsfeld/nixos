@@ -89,33 +89,42 @@ git commit -m "feat(basestar): expose SillyTavern at chat.arsfeld.one behind Clo
 
 ---
 
-### Task 2: Create the Cloudflare Access application (out-of-Nix)
+### Task 2: Create the Cloudflare Access application (out-of-Nix) — ✅ DONE
 
-**Files:** none — this is a manual step in the Cloudflare Zero Trust dashboard. It is **not** managed in the repo (accepted tradeoff per the spec). This task gates real protection: until it exists, `chat.arsfeld.one` would be an open NSFW endpoint, so do it **before or immediately at** deploy, and verify in Task 3 that an unauthenticated request is actually blocked.
+**Files:** none — lives entirely in Cloudflare (accepted tradeoff per the spec). This task gates real protection: until it exists, `chat.arsfeld.one` would be an open NSFW endpoint, so it must exist **before** deploy (Task 3).
 
-- [ ] **Step 1: Add the Access application**
+Done via the `cf` CLI (`/home/arosenfeld/.npm-global/bin/cf`, v0.0.6, OAuth-authenticated as `arsfeld@gmail.com` with `access:write`). Account context is set with `cf context set account-id 67a60cd5057ea97341c77d16f7cd3100`.
 
-In the Cloudflare dashboard for the account owning `arsfeld.one`: **Zero Trust → Access → Applications → Add an application → Self-hosted.**
-- Application name: `SillyTavern`
-- Session duration: owner's preference (e.g. `24h` or `1 month`)
-- Public hostname / Application domain: subdomain `chat`, domain `arsfeld.one` (i.e. `chat.arsfeld.one`)
+- [x] **Step 1: Create the self-hosted app + Owner allow-policy (one call)**
 
-- [ ] **Step 2: Set the identity method**
+```bash
+cf zero-trust access applications create --body '{
+  "name": "SillyTavern",
+  "domain": "chat.arsfeld.one",
+  "type": "self_hosted",
+  "session_duration": "24h",
+  "policies": [
+    { "name": "Owner", "decision": "allow",
+      "include": [
+        { "email": { "email": "arsfeld@gmail.com" } },
+        { "email": { "email": "alex@rosenfeld.one" } }
+      ] }
+  ]
+}'
+```
 
-In the application's **Authentication** settings, enable **One-time PIN** (built-in email login — no external IdP integration required).
+(Validate first with `--dry-run`. Use `cf context set account-id <id>` once so the URL resolves.)
 
-- [ ] **Step 3: Add the allow policy**
+- [x] **Step 2: Identity method**
 
-Add a policy:
-- Policy name: `Owner`
-- Action: **Allow**
-- Include → selector **Emails** → enter the owner's email address(es).
+`allowed_idps: []` with no external IdP configured ⇒ Cloudflare's built-in **One-time PIN** is the login method. No extra config needed.
 
-Save the application. Cloudflare Access now protects `chat.arsfeld.one` because the route is served through the tunnel.
+**Result (for reference / future JWT validation):**
+- App UID: `d96b7072-6d3a-404d-82d2-6d1d6c918a22`
+- AUD tag: `529b8a08f882b089712565fa06af23577bafe119abfa0e5895836b27690374a2`
+- Policy `Owner` (allow) → `arsfeld@gmail.com`, `alex@rosenfeld.one`
 
-- [ ] **Step 4: (No commit)**
-
-Nothing to commit — this lives entirely in Cloudflare. Record in the deploy notes / commit message of Task 1 that the Access app must exist.
+Manage later with `cf zero-trust access applications {get,update,delete} d96b7072-6d3a-404d-82d2-6d1d6c918a22`.
 
 ---
 
