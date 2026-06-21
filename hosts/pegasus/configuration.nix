@@ -40,6 +40,12 @@ with lib; {
 
   # nofail is deliberate: pegasus must boot without the data pool.
   # Services that need the pool gate themselves via RequiresMountsFor.
+  #
+  # mount-timeout=2min: the spinning SATA drives behind the LSI/mpt2sas HBA can
+  # be slow to settle at boot; a device reset mid-mount once interrupted the
+  # btrfs mount (open_ctree -4) within ~7s, stranding it. Give the mount room to
+  # finish. nofail drops the before-local-fs.target ordering, so a slow mount
+  # never blocks boot. storage-mount-watchdog (below) retries if it still fails.
   fileSystems."/mnt/storage" = {
     device = "/dev/disk/by-uuid/01cdd316-d539-42a4-b87c-de5d14d40c94";
     fsType = "btrfs";
@@ -48,7 +54,53 @@ with lib; {
       "noatime"
       "nofail"
       "x-systemd.device-timeout=30s"
+      "x-systemd.mount-timeout=2min"
     ];
+  };
+
+  # Self-heal for the data pool. systemd never retries a failed .mount unit, and
+  # a mount that fails at boot cancels every service that Requires= it; a later
+  # manual remount does NOT re-pull them from multi-user.target. So if the boot
+  # mount is interrupted, plex/stash/mydia/transmission stay dead until someone
+  # notices. This watchdog closes that gap: it retries the mount and (re)starts
+  # the storage-dependent containers once the pool is back.
+  #
+  # The dependent list is derived from the media containers that mount the pool
+  # (mediaVolumes) plus transmission, which bind-mounts /mnt/storage/media by
+  # hand (see services/transmission.nix). Note: this also restarts a service you
+  # stopped by hand within ~2min — acceptable for an always-on media box.
+  systemd.services.storage-mount-watchdog = let
+    storageUnits = lib.unique (
+      (map (n: "podman-${n}.service")
+        (lib.attrNames (lib.filterAttrs (_: c: c.enable && c.mediaVolumes) config.media.containers)))
+      ++ ["podman-transmission.service"]
+    );
+    systemctl = "${config.systemd.package}/bin/systemctl";
+    mountpoint = "${pkgs.util-linux}/bin/mountpoint";
+  in {
+    description = "Ensure /mnt/storage is mounted and storage-dependent services are running";
+    serviceConfig.Type = "oneshot";
+    script = ''
+      set -u
+      if ! ${mountpoint} -q /mnt/storage; then
+        echo "/mnt/storage not mounted; attempting mnt-storage.mount" >&2
+        ${systemctl} start mnt-storage.mount || true
+      fi
+      if ${mountpoint} -q /mnt/storage; then
+        for unit in ${lib.concatStringsSep " " storageUnits}; do
+          ${systemctl} reset-failed "$unit" 2>/dev/null || true
+          ${systemctl} start "$unit" || true
+        done
+      fi
+    '';
+  };
+
+  systemd.timers.storage-mount-watchdog = {
+    wantedBy = ["timers.target"];
+    timerConfig = {
+      OnBootSec = "1min";
+      OnUnitActiveSec = "2min";
+    };
   };
 
   # mediaSync is DISABLED for the duration of the move.
