@@ -22,6 +22,26 @@ in
         sopsFile = ../../../secrets/sops/pegasus.yaml;
         mode = "0400";
       };
+
+      systemd.services.podman-transmission = {
+        # Transmission bind-mounts /mnt/storage/media directly (no mediaVolumes),
+        # so it isn't gated on the pool like plex/stash/mydia. Gate it too —
+        # otherwise a boot with the data pool absent silently writes downloads to
+        # the OS disk under an empty /mnt/storage/media. storage-mount-watchdog
+        # (configuration.nix) restarts it once the pool is back.
+        after = ["mnt-storage.mount"];
+        requires = ["mnt-storage.mount"];
+
+        # The haugene image soft-restarts OpenVPN on an inactivity ping-restart,
+        # which exits the container cleanly (status 0). Restart=on-failure (the
+        # oci-containers default) ignores a clean exit, so the container stayed
+        # down after a VPN timeout. Restart=always brings it back; the image's
+        # kill switch still blocks torrent traffic whenever the tunnel is down.
+        serviceConfig = {
+          Restart = lib.mkForce "always";
+          RestartSec = lib.mkForce "10";
+        };
+      };
     }
 
     (mkService "transmission" {
