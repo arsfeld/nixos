@@ -74,8 +74,6 @@ jobs:
             extra-substituters = https://attic.arsfeld.dev/system
             extra-trusted-public-keys = system:mUX40QMM+dqZ0wQaHp7sH50UgiZnSXsInzc9/MvaZRc=
 
-      - uses: DeterminateSystems/magic-nix-cache-action@v13
-
       - name: Override flake.lock
         if: inputs.flake_lock
         run: echo '${{ inputs.flake_lock }}' | base64 -d > flake.lock
