@@ -1,8 +1,7 @@
 # SillyTavern — single-user NSFW chat + image generation frontend.
 #
-# Text generation uses OpenRouter; image generation uses Stable Horde. Both API
-# keys are entered once in SillyTavern's UI and persist in the data volume
-# (/var/data/sillytavern-data/.../secrets.json) — no sops wiring.
+# Text/image providers, API keys, and prompts are all configured in SillyTavern's
+# UI and persist in the data volume (/var/data/sillytavern-data) — no sops wiring.
 #
 # Declared as a single mkService named "chat" so the gateway emits both access
 # paths under that name:
