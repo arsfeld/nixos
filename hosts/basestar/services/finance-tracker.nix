@@ -29,10 +29,7 @@ in
     (mkService "finance-tracker" {
       port = 8080;
       image = "ghcr.io/arsfeld/finance-tracker:latest";
-      # Temporarily off: the registry :latest is amd64-only, so we run a
-      # locally-built arm64 image with this tag on basestar. Re-enable once the
-      # finance-tracker CI publishes a multi-arch (arm64) :latest manifest.
-      watchImage = false;
+      watchImage = true;
       tailscaleExposed = true;
       bypassAuth = true;
       container = {
