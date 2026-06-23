@@ -29,12 +29,7 @@ in
     (mkService "finance-tracker" {
       port = 8080;
       image = "ghcr.io/arsfeld/finance-tracker:latest";
-      # Off because the image-watch feature (modules/media/containers.nix) is
-      # podman-only, but basestar runs docker (constellation.docker.enable).
-      # `podman pull` fails here ("no policy.json") and spams ntfy every 5 min.
-      # Pull updates manually: docker pull ghcr.io/arsfeld/finance-tracker:latest
-      # && systemctl restart docker-finance-tracker.
-      watchImage = false;
+      watchImage = true;
       tailscaleExposed = true;
       bypassAuth = true;
       container = {
