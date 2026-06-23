@@ -39,6 +39,15 @@ with lib; let
     filterAttrs
     (name: container: container.enable && container.watchImage)
     cfg;
+  # Container runtime backend (docker on basestar, podman elsewhere). The
+  # oci-containers module names container units "${backend}-${name}", so the
+  # image-watch logic must use the same backend rather than hardcoding podman.
+  backend = config.virtualisation.oci-containers.backend;
+  backendPkg =
+    if backend == "docker"
+    then config.virtualisation.docker.package
+    else config.virtualisation.podman.package;
+  backendBin = "${backendPkg}/bin/${backend}";
 in {
   imports = [
     ./config.nix
@@ -242,7 +251,7 @@ in {
       (mapAttrsToList (
           name: container:
             mkIf (container.enable && container.mediaVolumes) {
-              "podman-${name}" = {
+              "${backend}-${name}" = {
                 after = ["mnt-storage.mount"];
                 requires = ["mnt-storage.mount"];
               };
@@ -254,8 +263,8 @@ in {
             "image-watch-${name}" = {
               description = "Watch for container image updates: ${name}";
               script = ''
-                # Wait for podman
-                while ! ${pkgs.podman}/bin/podman info >/dev/null 2>&1; do
+                # Wait for the container backend (docker/podman) to be ready
+                while ! ${backendBin} info >/dev/null 2>&1; do
                   sleep 1
                 done
 
@@ -273,10 +282,10 @@ in {
                 container_name="${name}"
 
                 # Get current image ID if container is running
-                current_id=$(${pkgs.podman}/bin/podman inspect "$container_name" -f '{{.Image}}' 2>/dev/null || echo "none")
+                current_id=$(${backendBin} inspect "$container_name" -f '{{.Image}}' 2>/dev/null || echo "none")
 
                 # Pull new image
-                if ! ${pkgs.podman}/bin/podman pull "$image_name"; then
+                if ! ${backendBin} pull "$image_name"; then
                   echo "Failed to pull $image_name"
                   ${pkgs.curl}/bin/curl -s \
                     ''${NTFY_AUTH:+-H "$NTFY_AUTH"} \
@@ -289,7 +298,7 @@ in {
                 fi
 
                 # Get new image ID
-                new_id=$(${pkgs.podman}/bin/podman inspect "$image_name" -f '{{.Id}}' 2>/dev/null)
+                new_id=$(${backendBin} inspect "$image_name" -f '{{.Id}}' 2>/dev/null)
                 if [ $? -ne 0 ]; then
                   echo "Failed to inspect new image $image_name"
                   exit 1
@@ -300,7 +309,7 @@ in {
 
                 if [ "$current_id" != "none" ] && [ "$current_id" != "$new_id" ]; then
                   echo "New image detected for $container_name, restarting..."
-                  if ${pkgs.systemd}/bin/systemctl restart "podman-$container_name"; then
+                  if ${pkgs.systemd}/bin/systemctl restart "${backend}-$container_name"; then
                     ${pkgs.curl}/bin/curl -s \
                       ''${NTFY_AUTH:+-H "$NTFY_AUTH"} \
                       -d "Updated $image_name (''${current_id:0:12} → ''${new_id:0:12})" \
@@ -325,8 +334,8 @@ in {
                 User = "root";
                 EnvironmentFile = "/run/secrets/ntfy-publisher-env";
               };
-              wants = ["podman.service"];
-              after = ["podman.service" "network-online.target"];
+              wants = ["${backend}.service"];
+              after = ["${backend}.service" "network-online.target"];
             };
           }
         )
