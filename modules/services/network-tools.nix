@@ -2,24 +2,22 @@
 {
   config,
   lib,
-  self,
   ...
 }: let
   cfg = config.constellation.networkTools;
-  mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
   vars = config.media.config;
 in {
   options.constellation.networkTools.enable = lib.mkEnableOption "network tools (Termix, Transfer, Cloudreve)";
 
-  config = lib.mkIf cfg.enable (lib.mkMerge [
-    (mkService "termix" {
+  config = lib.mkIf cfg.enable {
+    media.services.termix = {
       port = 8080;
       image = "ghcr.io/lukegus/termix:latest";
       container = {};
       bypassAuth = true;
-    })
+    };
 
-    (mkService "transfer" {
+    media.services.transfer = {
       port = 8080;
       image = "dutchcoders/transfer.sh:latest";
       container = {
@@ -36,9 +34,9 @@ in {
         };
       };
       bypassAuth = true;
-    })
+    };
 
-    (mkService "cloud" {
+    media.services.cloud = {
       port = 5212;
       image = "cloudreve/cloudreve:latest";
       container = {
@@ -50,6 +48,6 @@ in {
         ];
       };
       bypassAuth = true;
-    })
-  ]);
+    };
+  };
 }

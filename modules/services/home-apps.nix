@@ -2,17 +2,15 @@
 {
   config,
   lib,
-  self,
   ...
 }: let
   cfg = config.constellation.homeApps;
-  mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
   vars = config.media.config;
 in {
   options.constellation.homeApps.enable = lib.mkEnableOption "home and utility apps (Audiobookshelf, Grocy, Stirling, Actual)";
 
-  config = lib.mkIf cfg.enable (lib.mkMerge [
-    (mkService "audiobookshelf" {
+  config = lib.mkIf cfg.enable {
+    media.services.audiobookshelf = {
       port = 80;
       image = "ghcr.io/advplyr/audiobookshelf:latest";
       container = {
@@ -31,27 +29,27 @@ in {
       };
       bypassAuth = true;
       tailscaleExposed = true;
-    })
+    };
 
-    (mkService "grocy" {
+    media.services.grocy = {
       port = 80;
       image = "lscr.io/linuxserver/grocy:latest";
       container = {
         exposePort = 9283;
       };
       tailscaleExposed = true;
-    })
+    };
 
-    (mkService "stirling" {
+    media.services.stirling = {
       port = 8080;
       image = "frooodle/s-pdf:latest";
       container = {
         exposePort = 9284;
         configDir = "/configs";
       };
-    })
+    };
 
-    (mkService "actual" {
+    media.services.actual = {
       port = 5006;
       image = "ghcr.io/actualbudget/actual-server:latest";
       container = {
@@ -60,6 +58,6 @@ in {
         ];
       };
       bypassAuth = true;
-    })
-  ]);
+    };
+  };
 }

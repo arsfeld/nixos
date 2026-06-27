@@ -2,17 +2,15 @@
 {
   config,
   lib,
-  self,
   ...
 }: let
   cfg = config.constellation.mediaStreaming;
-  mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
   vars = config.media.config;
 in {
   options.constellation.mediaStreaming.enable = lib.mkEnableOption "media streaming services (Plex, Jellyfin, Stash, Kavita)";
 
-  config = lib.mkIf cfg.enable (lib.mkMerge [
-    (mkService "jellyfin" {
+  config = lib.mkIf cfg.enable {
+    media.services.jellyfin = {
       port = 8096;
       container = {
         exposePort = 8096;
@@ -24,9 +22,9 @@ in {
       };
       bypassAuth = true;
       tailscaleExposed = true;
-    })
+    };
 
-    (mkService "plex" {
+    media.services.plex = {
       port = 32400;
       container = {
         exposePort = 32400;
@@ -36,9 +34,9 @@ in {
         environment.VERSION = "latest";
       };
       tailscaleExposed = true;
-    })
+    };
 
-    (mkService "stash" {
+    media.services.stash = {
       port = 9999;
       image = "stashapp/stash:latest";
       container = {
@@ -49,9 +47,9 @@ in {
         devices = ["/dev/dri:/dev/dri"];
       };
       tailscaleExposed = true;
-    })
+    };
 
-    (mkService "kavita" {
+    media.services.kavita = {
       port = 5000;
       container = {
         volumes = [
@@ -59,6 +57,6 @@ in {
         ];
       };
       bypassAuth = true;
-    })
-  ]);
+    };
+  };
 }
