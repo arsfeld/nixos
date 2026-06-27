@@ -184,6 +184,18 @@ Caddy reverse proxy consuming service definitions. Generates TLS configs, error 
 - `flake-modules/` - Flake-parts modules
 - `just/` - Justfile submodules (blog, secrets, docs)
 
+## Host & Container Conventions
+
+These are standing preferences — follow them, and push back rather than violate them:
+
+- **No per-app firewall rules.** Never add `networking.firewall.interfaces.<x>.allowedTCPPorts` or per-service allow rules in service modules. Hosts rely on the host firewall's base allowlist (`22/80/443`) plus the upstream OCI/cloud firewall for external access. `mkService` is the contract for a service — keep firewall plumbing out of service files.
+- **Container → host services:** trust the container bridge once at the host level (`networking.firewall.trustedInterfaces = ["podman0"]`), not individual ports. Containers reach host services via `host.containers.internal` (podman).
+- **Keep fail2ban.** Don't disable the host firewall to work around container networking — fail2ban depends on it. Find another way.
+- **No host networking for containers.** Don't use `--network=host` (the existing `planka.nix` usage is a mistake, not a pattern to copy).
+- **Prefer the system PostgreSQL** with a dedicated database/role (see `planka.nix`) over a containerized/custom postgres unless absolutely necessary.
+- **Container backend is podman** on galactica/pegasus/basestar (basestar migrated from docker 2026-06-27). Rootful (`sudo podman ps`; units `podman-<name>`). Use `config.virtualisation.oci-containers.backend` / `${backend}-<name>` — never hardcode a runtime.
+- **Don't over-engineer.** Reach for the simplest thing that works; avoid speculative plumbing.
+
 ## Adding New Services
 
 Always declare services with `mkService` (see "Service and Network Architecture" above). The pattern below applies to both containers and native NixOS services — only the `container` attr differs.
