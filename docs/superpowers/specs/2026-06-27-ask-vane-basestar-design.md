@@ -75,9 +75,13 @@ Replicate galactica's `hosts/galactica/services/search.nix`:
   `searxng` override rebuilt against stable `python3`; same engine tuning
   (bing on; brave/startpage/wikidata/mojeek off; `formats = ["html" "json"]`).
 - New sops secret `searxng-env` (`SEARXNG_SECRET_KEY`), owner `searx`.
-- Reachable from containers via `host.docker.internal:8888`; open `8888` **only
-  on the docker bridge interface** (`networking.firewall.interfaces."docker0"`),
-  never publicly.
+- Reachable from containers via `host.docker.internal:8888` (containers get
+  `--add-host=host.docker.internal:host-gateway`). All four app/sidecar
+  containers share a docker network named `ask` created with a **fixed bridge
+  name `ask0`** (`--opt com.docker.network.bridge.name=ask0`), so `8888` is
+  opened **only** on `ask0`
+  (`networking.firewall.interfaces."ask0".allowedTCPPorts = [8888]`), never
+  publicly. Morphic↔postgres/redis is container-to-container by name on `ask0`.
 
 ### 2. Morphic → ask.arsfeld.one
 
