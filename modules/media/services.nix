@@ -182,20 +182,24 @@ in {
           type = types.submodule {
             options = {
               postgres = mkOption {
-                default = {};
+                default = false;
                 description = ''
                   Provision a local PostgreSQL database + role for this service,
                   reachable from the container over the podman bridge with trust
                   auth (passwordless). Set to true for defaults, or an attrset to
-                  override the database/role name.
+                  override the database/role name. A service using this must NOT
+                  also set DATABASE_URL/PG* in its own container.environment: the
+                  injected vars and the service's own environment merge with `//`
+                  (last-wins), so a manual override would silently win.
                 '';
-                # `true` -> { enable = true; }
+                # `true` -> { enable = true; }; an attrset enables via the inner
+                # `enable` default (true), so `{name = "x";}` provisions too.
                 type = types.coercedTo types.bool (b: {enable = b;}) (types.submodule {
                   options = {
                     enable = mkOption {
                       type = types.bool;
-                      default = false;
-                      description = "Whether to provision postgres for this service.";
+                      default = true;
+                      description = "Whether to provision postgres. Defaults to true when database.postgres is set to an attrset; the option as a whole defaults to disabled.";
                     };
                     name = mkOption {
                       type = types.str;
