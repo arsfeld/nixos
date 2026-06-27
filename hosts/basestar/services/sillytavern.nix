@@ -3,7 +3,7 @@
 # Text/image providers, API keys, and prompts are all configured in SillyTavern's
 # UI and persist in the data volume (/var/data/sillytavern-data) — no sops wiring.
 #
-# Declared as a single mkService named "chat" so the gateway emits both access
+# Declared as a single media.services entry named "chat" so the gateway emits both access
 # paths under that name:
 #   - chat.arsfeld.one     — public, via the gateway Caddy vhost reached through
 #     basestar's wildcard *.arsfeld.one cloudflared tunnel. bypassAuth omits the
