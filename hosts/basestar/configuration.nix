@@ -10,7 +10,7 @@
     ./services.nix
   ];
 
-  constellation.docker.enable = true;
+  constellation.podman.enable = true;
   constellation.sites.arsfeld-dev.enable = true;
   constellation.sites.rosenfeld-one = {
     enable = true;
@@ -144,6 +144,10 @@
   networking.firewall = {
     enable = true;
     allowedTCPPorts = [22 80 443];
+    # Trust the podman container bridge so containers can reach host services
+    # (system postgres, native SearXNG) via host.containers.internal. External
+    # access stays restricted by this firewall + the OCI cloud firewall.
+    trustedInterfaces = ["podman0"];
   };
 
   # This should be overriden by tailscale at some point
