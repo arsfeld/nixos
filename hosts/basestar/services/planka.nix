@@ -6,6 +6,7 @@
   ...
 }: let
   cfg = config.services.planka-board;
+  backend = config.virtualisation.oci-containers.backend;
 in {
   options.services.planka-board = {
     enable = lib.mkEnableOption "Planka kanban board";
@@ -120,7 +121,7 @@ in {
     };
 
     # Create environment file for Planka container
-    systemd.services.docker-planka = {
+    systemd.services."${backend}-planka" = {
       requires = ["postgresql.service"];
       after = ["postgresql.service"];
       preStart = lib.mkAfter ''
