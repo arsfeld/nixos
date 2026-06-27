@@ -132,12 +132,19 @@ in
     # (no gateway entry): an unauthenticated FlareSolverr is an abusable proxy,
     # so it is not exposed publicly. Host-networked so it binds :8191 for mydia
     # (localhost) and Prowlarr (host.containers.internal).
+    #
+    # --dns is required: the host resolv.conf points only at Tailscale MagicDNS
+    # (100.100.100.100), which Docker strips when generating resolv.conf for
+    # host-networked containers, leaving FlareSolverr's headless Chrome with no
+    # nameserver. Without this it fails every challenge with ERR_NAME_NOT_RESOLVED
+    # and indexers like 1337x return zero results.
     (mkService "flaresolverr" {
       port = null;
       image = "ghcr.io/flaresolverr/flaresolverr:latest";
       container = {
         configDir = null;
         network = "host";
+        extraOptions = ["--dns=1.1.1.1" "--dns=1.0.0.1"];
       };
     })
 
