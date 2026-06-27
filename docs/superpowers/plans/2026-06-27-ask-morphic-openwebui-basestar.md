@@ -10,6 +10,14 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-27-ask-vane-basestar-design.md`
 
+> **Implementation note (superseded in part):** Tasks 1–5 were executed as written,
+> but the docker runtime on basestar hit a Docker 29 + nftables conflict (firewall
+> reloads flushed docker's NAT chains). The fix was to **migrate basestar to podman**,
+> which also let Morphic use the **system PostgreSQL** and drop the custom docker
+> network, the containerized PG/Redis sidecars, Redis entirely, and all per-app
+> firewall rules. The **as-built** architecture is in the spec above; the task steps
+> below reflect the original docker design and are kept as the execution record.
+
 ---
 
 ## Reference: the design's verified facts
