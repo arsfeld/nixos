@@ -9,6 +9,7 @@
     ./ntfy.nix
     ./planka.nix
     ./plausible.nix
+    ./ask.nix
     ./radicle.nix
     ./search.nix
     ./siyuan.nix
