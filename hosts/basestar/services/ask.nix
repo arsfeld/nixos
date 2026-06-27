@@ -78,6 +78,15 @@ in
           after = ["create-docker-ask-network.service"];
           requires = ["create-docker-ask-network.service"];
         }))
+        {
+          # Morphic needs its DB/cache up first; soft dependency (wants, not
+          # requires) so a sidecar blip doesn't force-stop the app — Morphic
+          # retries connections on its own.
+          docker-ask = {
+            after = ["docker-morphic-postgres.service" "docker-morphic-redis.service"];
+            wants = ["docker-morphic-postgres.service" "docker-morphic-redis.service"];
+          };
+        }
       ];
 
       # SearXNG (host :8888) reachable only from the ask network's bridge.
