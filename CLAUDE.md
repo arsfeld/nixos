@@ -120,41 +120,44 @@ Shared variables consumed by media services via `config.media.config`:
 
 ### Service and Network Architecture
 
-#### `mkService` is the only way to declare a service
-All service declarations on galactica/basestar go through the `mkService` helper at `modules/media/__mkService.nix`. It writes to `media.containers.<name>` for containers (which auto-populates `media.gateway.services.<name>`) or directly to `media.gateway.services.<name>` for native/gateway-only services. Do **not** write to `virtualisation.oci-containers.containers` or to `media.gateway.services` by hand — those are implementation details and bypassing `mkService` will silently miss the standardized PUID/PGID/TZ env, the auto-tmpfiles config dir, the gateway entry, and image-watching.
+#### `media.services.<name>` is the only way to declare a service
+All service declarations on galactica/basestar go through the `media.services.<name>` option defined in `modules/media/services.nix`. It lowers into `media.containers.<name>` for containers (which auto-populates `media.gateway.services.<name>`) and/or `media.gateway.services.<name>` for native/gateway-only services. Do **not** write to `virtualisation.oci-containers.containers`, `media.gateway.services`, or `media.containers` by hand — those are implementation details and bypassing `media.services` will silently miss the standardized PUID/PGID/TZ env, the auto-tmpfiles config dir, the gateway entry, and image-watching.
 
 ```nix
-let mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
-in lib.mkMerge [
-  (mkService "myapp" {
-    port = 8080;                    # required for containers; optional for gateway-only (auto-assigned)
-    image = "ghcr.io/.../myapp";    # defaults to ghcr.io/linuxserver/<name>
-    bypassAuth = true;              # skip Authelia
-    tailscaleExposed = true;        # creates a *.bat-boa.ts.net node via tsnsrv
-    cors = true;                    # enable CORS
-    funnel = true;                  # public via Tailscale Funnel
-    insecureTls = true;             # backend has self-signed cert
-    host = "192.168.15.1";          # gateway-host override (e.g. VPN namespace IP)
-    container = {                   # omit for gateway-only services
-      exposePort = 38080;           # host port (defaults to nameToPort <name>)
-      mediaVolumes = true;          # mount /media + /files
-      configDir = "/config";        # default; set null to skip the auto config-dir mount
-      cmd = ["worker" "run"];       # container command
+{config, lib, ...}: {
+  media.services.myapp = {
+    port = 8080; # required for containers; optional for gateway-only (auto-assigned)
+    image = "ghcr.io/.../myapp"; # defaults to ghcr.io/linuxserver/<name>
+    bypassAuth = true; # skip Authelia
+    tailscaleExposed = true; # creates a *.bat-boa.ts.net node via tsnsrv
+    cors = true; # enable CORS
+    funnel = true; # public via Tailscale Funnel
+    insecureTls = true; # backend has self-signed cert
+    host = "192.168.15.1"; # gateway-host override (e.g. VPN namespace IP)
+    container = {
+      # omit for gateway-only services
+      exposePort = 38080; # host port (defaults to nameToPort <name>)
+      mediaVolumes = true; # mount /media + /files
+      configDir = "/config"; # default; set null to skip the auto config-dir mount
+      cmd = ["worker" "run"]; # container command
       devices = ["/dev/dri:/dev/dri"];
-      network = "ai";               # podman network
-      environment = { FOO = "bar"; };
+      network = "ai"; # podman network
+      environment = {FOO = "bar";};
       environmentFiles = [config.sops.secrets.foo.path];
       volumes = ["/host:/container"];
       extraOptions = ["--add-host=host.containers.internal:host-gateway"];
     };
-    watchImage = true;              # poll registry & restart on new image
-  })
-]
+    watchImage = true; # poll registry & restart on new image
+    database.postgres = true; # provision + auto-wire a local postgres db/role (trust auth)
+  };
+}
 ```
 
-The mkService settings (`bypassAuth`, `cors`, `funnel`, `insecureTls`) are forwarded to `media.gateway.services.<name>.settings`. `tailscaleExposed` and `host` are caller-only and don't have container equivalents.
+Set `database.postgres = true` (or `database.postgres = {name = "otherdb";}`) to auto-provision a local PostgreSQL database + role for the service, reachable from the container over the podman bridge with passwordless trust auth. It adds the db/role, the `pg_hba` trust line, systemd ordering after `postgresql.service`, and injects `DATABASE_URL`/`PG*` into the container env — no sops secret, `ALTER USER`, or manual `pg_hba` needed. MySQL/MariaDB auto-provisioning is not yet supported (services needing it keep their manual setup).
 
-For containers without a gateway entry (e.g. headscale-ui, qdrant), set `container.extraOptions = ["--publish=HOST:CONTAINER"]` and leave `port = null`. mkService then registers the container without auto-creating a gateway service.
+The `media.services` settings (`bypassAuth`, `cors`, `funnel`, `insecureTls`) are forwarded to `media.gateway.services.<name>.settings`. `tailscaleExposed` and `host` are caller-only and don't have container equivalents.
+
+For containers without a gateway entry (e.g. headscale-ui, qdrant), set `container.extraOptions = ["--publish=HOST:CONTAINER"]` and leave `port = null`. `media.services` then registers the container without auto-creating a gateway service.
 
 #### Container Module (`modules/media/containers.nix`)
 Backs `media.containers.*`. Auto-creates the matching `media.gateway.services.<name>` entry when `listenPort != null`, mounts `${configDir}/<name>:<container.configDir>`, sets PUID/PGID/TZ from `media.config`, and wires image-watching when `watchImage = true`.
@@ -188,7 +191,7 @@ Caddy reverse proxy consuming service definitions. Generates TLS configs, error 
 
 These are standing preferences — follow them, and push back rather than violate them:
 
-- **No per-app firewall rules.** Never add `networking.firewall.interfaces.<x>.allowedTCPPorts` or per-service allow rules in service modules. Hosts rely on the host firewall's base allowlist (`22/80/443`) plus the upstream OCI/cloud firewall for external access. `mkService` is the contract for a service — keep firewall plumbing out of service files.
+- **No per-app firewall rules.** Never add `networking.firewall.interfaces.<x>.allowedTCPPorts` or per-service allow rules in service modules. Hosts rely on the host firewall's base allowlist (`22/80/443`) plus the upstream OCI/cloud firewall for external access. `media.services` is the contract for a service — keep firewall plumbing out of service files.
 - **Container → host services:** trust the container bridge once at the host level (`networking.firewall.trustedInterfaces = ["podman0"]`), not individual ports. Containers reach host services via `host.containers.internal` (podman).
 - **Keep fail2ban.** Don't disable the host firewall to work around container networking — fail2ban depends on it. Find another way.
 - **No host networking for containers.** Don't use `--network=host` (the existing `planka.nix` usage is a mistake, not a pattern to copy).
@@ -198,17 +201,17 @@ These are standing preferences — follow them, and push back rather than violat
 
 ## Adding New Services
 
-Always declare services with `mkService` (see "Service and Network Architecture" above). The pattern below applies to both containers and native NixOS services — only the `container` attr differs.
+Always declare services with `media.services.<name>` (see "Service and Network Architecture" above). The pattern below applies to both containers and native NixOS services — only the `container` attr differs.
 
 ### `*.arsfeld.one` services (on galactica)
 
 1. Create a service file in `hosts/galactica/services/` and add it to `default.nix` imports.
-2. Define the service using the `mkService` helper.
-3. Galactica's wildcard cloudflared tunnel routes traffic automatically; the gateway entry is created by `mkService`.
+2. Define the service with `media.services.<name>`.
+3. Galactica's wildcard cloudflared tunnel routes traffic automatically; the gateway entry is created by `media.services`.
 
 ### `*.arsfeld.dev` services (on basestar)
 1. Create a service file in `hosts/basestar/services/` and add it to `default.nix` imports.
-2. Use `mkService` the same way; basestar uses dedicated Caddy vhosts for `arsfeld.dev` subdomains.
+2. Use `media.services.<name>` the same way; basestar uses dedicated Caddy vhosts for `arsfeld.dev` subdomains.
 
 ## Commit Message Format
 
