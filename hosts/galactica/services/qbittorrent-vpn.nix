@@ -1,11 +1,9 @@
 {
   config,
-  self,
   pkgs,
   lib,
   ...
 }: let
-  mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
   cfg = config.services.qbittorrent-vpn;
   vars = config.media.config;
 in {
@@ -20,11 +18,13 @@ in {
   config = lib.mkIf cfg.enable (lib.mkMerge [
     # Caddy must proxy to the VPN namespace (192.168.15.1), not localhost,
     # because the local loopback bypasses the DNAT rules on PREROUTING.
-    (mkService "qbittorrent" {
-      port = 8080;
-      host = "192.168.15.1";
-      bypassAuth = true;
-    })
+    {
+      media.services.qbittorrent = {
+        port = 8080;
+        host = "192.168.15.1";
+        bypassAuth = true;
+      };
+    }
 
     {
       # Load AirVPN WireGuard secret

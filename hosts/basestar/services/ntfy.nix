@@ -11,35 +11,30 @@
 # (ntfy >= v2.14.0). restartUnits forces an ntfy-sh restart when the secret
 # changes so rotations/default-access flips actually take effect.
 {
-  self,
   config,
   lib,
   ...
 }: let
   vars = config.media.config;
-  mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
-in
-  lib.mkMerge [
-    (mkService "ntfy" {
-      port = 2586;
-      bypassAuth = true;
-    })
+in {
+  media.services.ntfy = {
+    port = 2586;
+    bypassAuth = true;
+  };
 
-    {
-      sops.secrets."ntfy-server-env" = {
-        restartUnits = ["ntfy-sh.service"];
-      };
+  sops.secrets."ntfy-server-env" = {
+    restartUnits = ["ntfy-sh.service"];
+  };
 
-      services.ntfy-sh = {
-        enable = true;
-        environmentFile = config.sops.secrets."ntfy-server-env".path;
-        settings = {
-          base-url = "https://ntfy.${vars.domain}";
-          upstream-base-url = "https://ntfy.sh";
-          listen-http = ":2586";
-          behind-proxy = true;
-          message-size-limit = "8k";
-        };
-      };
-    }
-  ]
+  services.ntfy-sh = {
+    enable = true;
+    environmentFile = config.sops.secrets."ntfy-server-env".path;
+    settings = {
+      base-url = "https://ntfy.${vars.domain}";
+      upstream-base-url = "https://ntfy.sh";
+      listen-http = ":2586";
+      behind-proxy = true;
+      message-size-limit = "8k";
+    };
+  };
+}
