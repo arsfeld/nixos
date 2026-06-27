@@ -6,6 +6,7 @@
   ...
 }: let
   cfg = config.services.siyuan-notes;
+  backend = config.virtualisation.oci-containers.backend;
 in {
   options.services.siyuan-notes = {
     enable = lib.mkEnableOption "Siyuan note-taking application";
@@ -80,7 +81,7 @@ in {
     };
 
     # Create environment file for Siyuan container
-    systemd.services.docker-siyuan = {
+    systemd.services."${backend}-siyuan" = {
       preStart = lib.mkAfter ''
         # Ensure proper ownership
         chown -R ${cfg.user}:${cfg.group} ${cfg.dataDir}
