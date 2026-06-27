@@ -60,6 +60,54 @@ with lib; let
         // optionalAttrs (svc.port != null) {port = svc.port;}
         // {settings = mkDefault (serviceSettings svc);};
     };
+
+  # --- database.postgres lowering ---
+  # Each helper returns a value guarded by mkIf so the top-level config keys stay
+  # static (no recursion) while only enabled services contribute anything.
+
+  # PostgreSQL server provisioning: db + role + trust pg_hba for the podman bridge.
+  pgServerOf = name: svc:
+    mkIf svc.database.postgres.enable (let
+      db = svc.database.postgres.name;
+    in {
+      enable = true;
+      enableTCPIP = true;
+      settings.listen_addresses = mkDefault "*";
+      ensureDatabases = [db];
+      ensureUsers = [
+        {
+          name = db;
+          ensureDBOwnership = true;
+        }
+      ];
+      # TCP analogue of peer auth: passwordless from the podman bridge only.
+      authentication = mkAfter "host ${db} ${db} ${podmanSubnet} trust\n";
+    });
+
+  # Order the container unit after its database.
+  pgUnitOf = name: svc:
+    mkIf (svc.database.postgres.enable && svc.container != null) {
+      "${backend}-${name}" = {
+        after = ["postgresql.service"];
+        wants = ["postgresql.service"];
+      };
+    };
+
+  # Inject a passwordless connection into the container env. The container reaches
+  # the host postgres via host.containers.internal (podman). Merges with the
+  # container's own environment (types.attrs).
+  pgEnvOf = name: svc:
+    mkIf (svc.database.postgres.enable && svc.container != null) (let
+      db = svc.database.postgres.name;
+    in {
+      ${name}.environment = {
+        DATABASE_URL = "postgresql://${db}@host.containers.internal:5432/${db}";
+        PGHOST = "host.containers.internal";
+        PGPORT = "5432";
+        PGDATABASE = db;
+        PGUSER = db;
+      };
+    });
 in {
   imports = [./containers.nix];
 
@@ -128,6 +176,38 @@ in {
           default = false;
           description = "Poll the registry and restart the container on a new image.";
         };
+        database = mkOption {
+          default = {};
+          description = "Declarative database dependencies for this service.";
+          type = types.submodule {
+            options = {
+              postgres = mkOption {
+                default = {};
+                description = ''
+                  Provision a local PostgreSQL database + role for this service,
+                  reachable from the container over the podman bridge with trust
+                  auth (passwordless). Set to true for defaults, or an attrset to
+                  override the database/role name.
+                '';
+                # `true` -> { enable = true; }
+                type = types.coercedTo types.bool (b: {enable = b;}) (types.submodule {
+                  options = {
+                    enable = mkOption {
+                      type = types.bool;
+                      default = false;
+                      description = "Whether to provision postgres for this service.";
+                    };
+                    name = mkOption {
+                      type = types.str;
+                      default = name;
+                      description = "Database and role name. Defaults to the service name.";
+                    };
+                  };
+                });
+              };
+            };
+          };
+        };
       };
     }));
   };
@@ -138,7 +218,12 @@ in {
   # config.media.services — a self-reference that triggers infinite recursion in
   # the module system. Only the *values* below depend on cfg.
   config = {
-    media.containers = mkMerge (mapAttrsToList containerOf cfg);
+    media.containers = mkMerge (
+      (mapAttrsToList containerOf cfg)
+      ++ (mapAttrsToList pgEnvOf cfg)
+    );
     media.gateway.services = mkMerge (mapAttrsToList gatewayOf cfg);
+    services.postgresql = mkMerge (mapAttrsToList pgServerOf cfg);
+    systemd.services = mkMerge (mapAttrsToList pgUnitOf cfg);
   };
 }
