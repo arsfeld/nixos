@@ -1,198 +1,128 @@
-# ask.arsfeld.one — AI search on basestar (Morphic + Open WebUI A/B)
+# ask.arsfeld.one — AI search on basestar (Morphic + Open WebUI), podman migration
 
 **Date:** 2026-06-27
-**Status:** Approved (pending spec review)
-**Scope:** Permanently move AI web-search ("ask") from galactica (down) to
-basestar, and stand up **two** maintained, reranking-capable engines side by
-side so the better one can be chosen.
+**Status:** Implemented & deployed
+**Scope:** Stand up AI web-search ("ask") on basestar while galactica is down, as a
+Morphic vs Open WebUI A/B; and migrate basestar's container backend docker→podman.
 
-## Background & decision trail
+> This document was updated to match the **as-built** architecture. The decision
+> trail below records why the design changed during implementation.
 
-`ask.arsfeld.one` previously ran **Vane** (Perplexica's successor) on galactica.
-galactica is down. Research during design established:
+## Outcome (as built)
 
-- **Vane is out.** Its `master` branch has had no code commits since
-  2026-04-11 (== `:latest` == v1.12.2) and its OpenRouter streaming tool-call
-  parser crashes with `Error:  is empty` on empty argument deltas
-  (`openaiLLM.ts`, `parse(existingCall.arguments)`). This breaks *every*
-  OpenRouter model (confirmed on gpt-4o-mini in issue #1080, not DeepSeek-
-  specific). The one-line fix is unmerged PR #1151. Running stock `:latest`
-  would be broken; `watchImage` would re-break any hand patch. Abandoned +
-  broken → rejected.
-- **Morphic** is actively maintained (commits daily) and the truest Perplexity
-  UX, but has **no embedding/reranking** stage — raw SearXNG results go to the
-  model, which gave mixed retrieval quality in prior use.
-- **Khoj** and **Open WebUI** both do real reranking + SearXNG + OpenRouter on
-  arm64 (verified in source). Open WebUI is far more battle-tested (143k★,
-  lighter single-container stack); Khoj is heavier (Django + Postgres + Redis).
+- **`ask.arsfeld.one` → Morphic** (`ghcr.io/miurla/morphic:latest`), on **DeepSeek V4**
+  via OpenRouter, using the host's **system PostgreSQL** (`morphic` DB) for state.
+- **`webui.arsfeld.one` → Open WebUI** (`ghcr.io/open-webui/open-webui:main`), DeepSeek V4
+  via OpenRouter, with **SearXNG web search + reranking**.
+- **Native SearXNG** on basestar (port 8888) shared by both; also `search.arsfeld.one`.
+- **basestar migrated from docker to podman** (`constellation.podman.enable`).
+- All services declared via `mkService`. No per-app firewall rules.
 
-**Chosen approach:** run **Morphic** (truest clone, but no reranking) and
-**Open WebUI** (reranking + web search, most maintained) head-to-head, both on
-DeepSeek V4 via OpenRouter, then keep the winner.
+## Decision trail (why it ended here)
 
-- `ask.arsfeld.one`   → **Morphic**
-- `webui.arsfeld.one`  → **Open WebUI**
-- (`ask` can later be repointed to the winner.)
+1. **Vane (Perplexica successor) rejected.** It was the previous `ask` engine on
+   galactica, but upstream is frozen (no commits since 2026-04-11 = `:latest`) and its
+   OpenRouter streaming tool-call parser crashes (`Error:  is empty`) on *every*
+   OpenRouter model — unmerged fix PR #1151. Abandoned + broken.
+2. **Morphic vs Open WebUI A/B.** Morphic is the truest Perplexity UX but has **no
+   reranking** (mixed retrieval quality in prior use); Open WebUI is the most-maintained
+   option that does SearXNG + reranking + OpenRouter on arm64. Run both, keep the winner.
+   Khoj evaluated but heavier (Django/Postgres/Redis); not selected.
+3. **Model: DeepSeek V4 Flash** (`deepseek/deepseek-v4-flash`, 1M ctx, tool use,
+   ~$0.09/$0.18 per M) as default; `deepseek/deepseek-v4-pro` for hard queries. One
+   OpenRouter key drives chat + (for Open WebUI) embeddings.
+4. **docker → podman.** The initial docker implementation hit a hard wall: Docker 29 +
+   the NixOS nftables firewall conflict — every nftables reload (each deploy) flushed
+   docker's NAT chains, so new containers couldn't start and existing bridge containers
+   lost outbound. Podman/netavark uses nftables natively and survives reloads (galactica
+   already runs this exact stack on podman). Migrating fixed the root cause.
+5. **System postgres, no Redis.** Morphic's DB uses the host's existing system
+   PostgreSQL (the `planka.nix` pattern) rather than a containerized one. Redis is
+   optional for Morphic (chat-history only) and was dropped to keep it simple.
 
-## Routing — works with galactica down
+## Routing (works with galactica down)
 
-- basestar's cloudflared runs on the **same tunnel UUID** as galactica
-  (connector redundancy), so `*.arsfeld.one` is served by basestar while
-  galactica is down.
-- basestar has `media.gateway.enable = true`, `media.config.domain =
-  "arsfeld.one"`, so the Caddy gateway serves `*.arsfeld.one` vhosts on
-  `https://localhost` (the tunnel's ingress target).
-- Authelia is on galactica (down) → both services use `bypassAuth = true` with
-  auth enforced at the **Cloudflare Zero Trust** edge (mirrors `chat`).
+- basestar's cloudflared shares galactica's tunnel UUID (connector redundancy), so
+  `*.arsfeld.one` is served by basestar while galactica is down.
+- `media.gateway.enable` + `media.config.domain = "arsfeld.one"` → Caddy serves the
+  `ask`/`webui`/`search` vhosts on `https://localhost`, the tunnel's ingress target.
+- Authelia is on galactica (down) → both apps use `bypassAuth = true`; auth is enforced
+  at the **Cloudflare Zero Trust** edge (a dashboard action, like `chat`).
 
 ```
 ask.arsfeld.one   ─┐
 webui.arsfeld.one ─┼─ cloudflared (shared tunnel) ─▶ Caddy gateway (localhost)
-                   │                                      │
-                   │                          ┌───────────┴────────────┐
-                   ▼                          ▼                        ▼
-            (edge: CF Access)          Morphic (:3000)          Open WebUI (:8080)
-                                        │   │   │                 │        │
-                          OpenRouter ◀──┘   │   │                 │        │ OpenRouter
-                          (DeepSeek V4)      │   │                 │        │ (DeepSeek V4)
-                              morphic-postgres│   │ morphic-redis   │ local reranker (CPU)
-                              (sidecar, net=ask)  (sidecar)         │
-                                                  │                 │
-                                                  ▼                 ▼
-                                      SearXNG (native NixOS, :8888) ◀┘
-                                      (also search.arsfeld.one + tailnet)
+search.arsfeld.one ┘                                      │
+                            ┌────────────────────────────┼───────────────┐
+                            ▼                             ▼               ▼
+                     Morphic (podman :3000)      Open WebUI (podman :8080)  SearXNG
+                            │   │                        │                 (native :8888)
+              OpenRouter ◀──┘   │ host.containers.internal:5432            ▲
+              (DeepSeek V4)      ▼                        └── host.containers.internal:8888
+                         system PostgreSQL (morphic DB)
 ```
 
-## Components (all on basestar; **docker** backend; all via `mkService`)
+## Components (all via `mkService`; podman backend)
 
-### 1. SearXNG (native, shared)
+### SearXNG (native, shared) — `hosts/basestar/services/search.nix`
+Copy of galactica's `search.nix`: `mkService "search"` (port 8888, `tailscaleExposed`),
+`services.searx` (uwsgi + redisCreateLocally) on nixpkgs-unstable `searxng` rebuilt
+against stable python3; `searxng-env` sops secret (`SEARXNG_SECRET_KEY`). Engine tuning:
+bing on; brave/startpage/wikidata/mojeek off; `formats = ["html" "json"]`.
 
-Replicate galactica's `hosts/galactica/services/search.nix`:
+### Morphic → ask.arsfeld.one — `hosts/basestar/services/ask.nix`
+`mkService "ask"` (port 3000, `bypassAuth`, `tailscaleExposed`, `watchImage`,
+`configDir = null`), env from the `morphic-env` sops secret. Reaches the host's postgres
+and SearXNG via **`host.containers.internal`** (podman provides it automatically — no
+`--add-host`). Plus host-level config in the same file:
+- System PostgreSQL: `ensureDatabases`/`ensureUsers` for `morphic`, a pg_hba entry
+  `host morphic morphic 10.88.0.0/16 scram-sha-256` (podman subnet), and a postStart
+  `ALTER USER` reading the `morphic-db-password` sops secret (owner postgres).
+- `systemd.services."${backend}-ask"` ordered `after`/`wants` `postgresql.service`.
 
-- `mkService "search"` (`port = 8888`, `tailscaleExposed = true`) → also yields
-  `search.arsfeld.one`.
-- `services.searx` (uwsgi, `redisCreateLocally = true`), nixpkgs-unstable
-  `searxng` override rebuilt against stable `python3`; same engine tuning
-  (bing on; brave/startpage/wikidata/mojeek off; `formats = ["html" "json"]`).
-- New sops secret `searxng-env` (`SEARXNG_SECRET_KEY`), owner `searx`.
-- Reachable from containers via `host.docker.internal:8888` (containers get
-  `--add-host=host.docker.internal:host-gateway`). All four app/sidecar
-  containers share a docker network named `ask` created with a **fixed bridge
-  name `ask0`** (`--opt com.docker.network.bridge.name=ask0`), so `8888` is
-  opened **only** on `ask0`
-  (`networking.firewall.interfaces."ask0".allowedTCPPorts = [8888]`), never
-  publicly. Morphic↔postgres/redis is container-to-container by name on `ask0`.
+### Open WebUI → webui.arsfeld.one — `hosts/basestar/services/webui.nix`
+`mkService "webui"` (port 8080, `bypassAuth`, `tailscaleExposed`, `watchImage`,
+`configDir = "/app/backend/data"` → `/var/data/webui`), env from `open-webui-env` secret +
+`OPENAI_API_BASE_URL` (OpenRouter), `ENABLE_WEB_SEARCH`/`WEB_SEARCH_ENGINE=searxng`/
+`SEARXNG_QUERY_URL=http://host.containers.internal:8888/search?q=<query>`, and
+`ENABLE_RAG_HYBRID_SEARCH` + `RAG_RERANKING_MODEL=BAAI/bge-reranker-v2-m3` (local CPU).
 
-### 2. Morphic → ask.arsfeld.one
+### Backend migration (host) — `hosts/basestar/configuration.nix`
+- `constellation.podman.enable = true` (was `constellation.docker.enable`); sets oci
+  backend = podman, docker-socket compat for the Forgejo runner.
+- `networking.firewall.trustedInterfaces = ["podman0"]` so containers reach host
+  services via the podman bridge. Host firewall (22/80/443 + fail2ban) and the OCI cloud
+  firewall still gate external access. **No per-app firewall rules.**
+- `planka.nix` / `siyuan.nix`: their hand-written `systemd.services.docker-<name>` units
+  changed to `"${backend}-<name>"` (backend-aware) so they work under podman.
 
-- `mkService "ask"`, `image = "ghcr.io/miurla/morphic:latest"`, `port = 3000`,
-  `bypassAuth = true`, `tailscaleExposed = true`, `watchImage = true`.
-- `container.network = "ask"` (dedicated docker network, created like galactica's
-  `ai` network) so it reaches its DB/Redis sidecars by name.
-- `container.extraOptions = ["--add-host=host.docker.internal:host-gateway"]`
-  for SearXNG.
-- Env via `morphic-env` sops secret (reuse galactica's OpenRouter key value):
-  - `OPENAI_COMPATIBLE_API_KEY` (OpenRouter key)
-  - `OPENAI_COMPATIBLE_API_BASE_URL=https://openrouter.ai/api/v1`
-  - `OPENAI_COMPATIBLE_PROVIDER_NAME=OpenRouter`
-  - `DATABASE_URL=postgresql://morphic:<pw>@morphic-postgres:5432/morphic`
-  - `DATABASE_SSL_DISABLED=true`
-  - `LOCAL_REDIS_URL=redis://morphic-redis:6379`
-  - `SEARCH_API=searxng`, `SEARXNG_API_URL=http://host.docker.internal:8888`
-  - `ENABLE_AUTH=false` (guest mode; edge auth handles access)
-- **Model:** configure DeepSeek V4 (`deepseek/deepseek-v4-flash`, with
-  `deepseek/deepseek-v4-pro` available) in Morphic's model config.
+## Secrets (`secrets/sops/basestar.yaml`)
+- `searxng-env` — `SEARXNG_SECRET_KEY`
+- `morphic-env` — OpenRouter key + base URL/provider, `DATABASE_URL`
+  (`…@host.containers.internal:5432/morphic`), `SEARXNG_API_URL`
+  (`http://host.containers.internal:8888`), `SEARCH_API=searxng`, `ENABLE_AUTH=false`
+- `morphic-db-password` — postgres role password (owner postgres)
+- `open-webui-env` — `OPENAI_API_KEY` (OpenRouter), `WEBUI_SECRET_KEY`
 
-**Sidecars** (containers via `mkService`, `network = "ask"`, no gateway entry —
-`port = null`, `configDir = null`):
-- `morphic-postgres` — `postgres:17-alpine`, volume `/var/data/morphic-postgres`,
-  `POSTGRES_USER/PASSWORD/DB=morphic` (password from `morphic-env`).
-- `morphic-redis` — `redis:alpine`, `--appendonly yes`, volume
-  `/var/data/morphic-redis`.
+## Data safety (verified)
+All live app data is on host bind-mounts (`/var/data/sillytavern*`, `/var/data/yarr`,
+`/var/data/finance-tracker`, `/var/lib/siyuan`, `/var/lib/planka`, postgres in
+`/var/lib/postgresql`), so the docker→podman switch preserved everything — **SillyTavern
+included**. The only docker named volumes were defunct (empty planka `/app/data`, an old
+containerized-searxng volume, stale supabase config dirs); left in `/var/lib/docker`.
 
-### 3. Open WebUI → webui.arsfeld.one
+## Manual steps (outside this repo)
+1. Cloudflare Zero Trust Access apps for `ask.arsfeld.one` + `webui.arsfeld.one`.
+2. Morphic UI: select `deepseek/deepseek-v4-flash`.
+3. Open WebUI: first sign-up = admin; confirm OpenRouter connection + DeepSeek model +
+   SearXNG web search + reranking.
 
-- `mkService "webui"`, `image = "ghcr.io/open-webui/open-webui:main"`,
-  `port = 8080`, `bypassAuth = true`, `tailscaleExposed = true`,
-  `watchImage = true`. Data at `/var/data/open-webui`
-  (`container.configDir` mapped to `/app/backend/data`).
-- `container.extraOptions = ["--add-host=host.docker.internal:host-gateway"]`.
-- Env (or Admin UI as fallback; env names can vary by version — pin to current):
-  - OpenRouter: `OPENAI_API_BASE_URL=https://openrouter.ai/api/v1`,
-    `OPENAI_API_KEY` (from `open-webui-env` sops secret).
-  - Web search: `ENABLE_WEB_SEARCH=true`, `WEB_SEARCH_ENGINE=searxng`,
-    `SEARXNG_QUERY_URL=http://host.docker.internal:8888/search?q=<query>`.
-  - Reranking: `RAG_RERANKING_MODEL` = a CPU cross-encoder (e.g.
-    `BAAI/bge-reranker-v2-m3`); enable hybrid search. Model loads locally on
-    aarch64 CPU (fine for interactive reranking).
-  - `WEBUI_SECRET_KEY` (from `open-webui-env`).
-- **Model:** select `deepseek/deepseek-v4-flash` after the OpenRouter
-  connection is configured. Open WebUI keeps its own user accounts (first
-  sign-up = admin); that's an extra layer behind the CF edge — acceptable.
+## Verification (done)
+`just build basestar` + `just deploy basestar`; all containers up under podman
+(`sudo podman ps`); SillyTavern data intact; Morphic migrations ran against system
+postgres; Open WebUI → SearXNG returns JSON; `chat` outbound restored; public
+`ask`/`webui`/`chat` all return HTTP 200.
 
-### 4. Edge authentication
-
-`ask.arsfeld.one` and `webui.arsfeld.one` become publicly reachable via the
-shared tunnel with `bypassAuth`. **Cloudflare Zero Trust Access apps** on both
-hostnames enforce auth at the edge (dashboard action, user-owned). Tailnet
-access (`*.bat-boa.ts.net`) needs no extra auth.
-
-### 5. Permanent move — clean up galactica
-
-- Delete `hosts/galactica/services/ask.nix`; remove its `default.nix` import.
-- Remove `hosts/galactica/services/morphic.nix` import (and file) so the
-  `morphic.bat-boa.ts.net` tsnsrv node doesn't collide when galactica returns.
-- galactica's `morphic-env` secret may remain (harmless).
-
-## Secrets (added to `secrets/sops/basestar.yaml`)
-
-| Secret | Contents |
-|--------|----------|
-| `searxng-env` | `SEARXNG_SECRET_KEY` |
-| `morphic-env` | `OPENAI_COMPATIBLE_*` (reuse galactica OpenRouter key), `DATABASE_URL`, postgres password, `LOCAL_REDIS_URL` |
-| `open-webui-env` | `OPENAI_API_KEY` (same OpenRouter key), `WEBUI_SECRET_KEY` |
-
-## Files touched
-
-| File | Change |
-|------|--------|
-| `hosts/basestar/services/search.nix` | **new** — native SearXNG |
-| `hosts/basestar/services/ask.nix` | **new** — Morphic + postgres + redis sidecars + `ask` network |
-| `hosts/basestar/services/webui.nix` | **new** — Open WebUI |
-| `hosts/basestar/services/default.nix` | add the three imports |
-| `hosts/basestar/configuration.nix` | docker-bridge firewall for 8888; secret decls |
-| `secrets/sops/basestar.yaml` | add `searxng-env`, `morphic-env`, `open-webui-env` |
-| `hosts/galactica/services/ask.nix` | **delete** |
-| `hosts/galactica/services/morphic.nix` | **delete** |
-| `hosts/galactica/services/default.nix` | remove `ask.nix` + `morphic.nix` imports |
-
-## Models
-
-Single OpenRouter key (reused from galactica's `morphic-env`) drives both apps.
-
-- **Default chat model:** `deepseek/deepseek-v4-flash` — DeepSeek V4 (2026-04-24),
-  284B MoE/13B active, 1M context, function/tool use, ~$0.09/$0.18 per M.
-- **Quality tier:** `deepseek/deepseek-v4-pro` (~$0.435/$0.87) for hard queries.
-- **Open WebUI reranker:** local CPU cross-encoder (`bge-reranker-v2-m3` or
-  similar) — the retrieval-quality edge Morphic lacks.
-- Avoid Gemini previews on OpenRouter (503/rate-limit).
-
-## Verification
-
-1. `just build basestar` and `just build galactica` (after galactica removals).
-2. `just deploy basestar`.
-3. On basestar: `docker ps` shows `ask`, `morphic-postgres`, `morphic-redis`,
-   `webui`, and SearXNG/uwsgi healthy; containers can curl
-   `http://host.docker.internal:8888`.
-4. `https://ask.arsfeld.one` (Morphic) and `https://webui.arsfeld.one`
-   (Open WebUI) load behind CF Access; `*.bat-boa.ts.net` load on tailnet.
-5. Configure DeepSeek V4 in both; in Open WebUI enable web search + reranking.
-6. Run the same query in both, compare cited results; pick the winner and
-   (optionally) repoint `ask` to it.
-
-## Out of scope / non-goals
-
-- Migrating galactica's old Vane/Morphic data (galactica unreachable; reconfigure
-  via UI / env).
-- Khoj (evaluated, not selected).
-- Cloudflare Access app creation (dashboard, user action).
+## Out of scope
+Migrating galactica's old Vane/Morphic data; Khoj; Cloudflare Access creation; cleaning
+leftover `/var/lib/docker` images/volumes (safe to prune later to reclaim disk).
