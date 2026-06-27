@@ -80,10 +80,6 @@
     };
     ensureUsers = [
       {
-        name = "bitmagnet";
-        ensureDBOwnership = true;
-      }
-      {
         name = "openarchiver";
         ensureDBOwnership = true;
       }
@@ -98,7 +94,6 @@
       }
     ];
     ensureDatabases = [
-      "bitmagnet"
       "openarchiver"
       # DISABLED: MediaManager service commented out
       # "mediamanager"
@@ -113,7 +108,6 @@
       local immich immich peer map=immich-users
       local openarchiver openarchiver peer map=openarchiver-users
       # Allow containers to connect from podman network without password (trust)
-      host bitmagnet bitmagnet 10.88.0.0/16 trust
       host openarchiver openarchiver 10.88.0.0/16 trust
       host morphic morphic 10.88.0.0/16 trust
     '';
