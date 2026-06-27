@@ -17,7 +17,8 @@ in
       watchImage = true;
       container = {
         configDir = "/app/backend/data"; # -> /var/data/webui:/app/backend/data
-        network = "ask"; # share the network so host.docker.internal opens only ask0
+        # Default docker bridge (no custom network — see ask.nix); reaches the
+        # host's native SearXNG via host.docker.internal.
         environmentFiles = [config.sops.secrets."open-webui-env".path];
         extraOptions = ["--add-host=host.docker.internal:host-gateway"];
         environment = {
