@@ -15,14 +15,8 @@
 # the container therefore mounts the existing /var/data/sillytavern* paths
 # explicitly (configDir = null) so chats, characters, and entered API keys are
 # preserved across the rename.
-{
-  self,
-  lib,
-  ...
-}: let
-  mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
-in
-  mkService "chat" {
+{...}: {
+  media.services.chat = {
     port = 8000; # SillyTavern listens on 8000 inside the container
     image = "ghcr.io/sillytavern/sillytavern";
     bypassAuth = true; # auth enforced at Cloudflare's edge, not at the origin
@@ -40,4 +34,5 @@ in
         "/var/data/sillytavern-data:/home/node/app/data" # chats, characters, API keys (preserved)
       ];
     };
-  }
+  };
+}
