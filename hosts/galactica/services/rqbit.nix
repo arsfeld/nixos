@@ -8,12 +8,10 @@
 # Standalone try-out client: NOT wired into the Sonarr/Radarr pipeline.
 {
   config,
-  self,
   pkgs,
   lib,
   ...
 }: let
-  mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
   cfg = config.services.rqbit-vpn;
   vars = config.media.config;
   pia = config.constellation.pia;
@@ -50,10 +48,12 @@ in {
   config = lib.mkIf cfg.enable (lib.mkMerge [
     # Caddy proxies to the PIA namespace IP. No bypassAuth: rqbit has no built-in
     # auth, so the public hostname sits behind Authelia.
-    (mkService "rqbit" {
-      port = webPort;
-      host = pia.namespaceAddress;
-    })
+    {
+      media.services.rqbit = {
+        port = webPort;
+        host = pia.namespaceAddress;
+      };
+    }
 
     {
       # Stand up the PIA namespace and register rqbit as a consumer. rqbit has no

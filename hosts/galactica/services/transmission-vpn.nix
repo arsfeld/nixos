@@ -1,11 +1,9 @@
 {
   config,
-  self,
   pkgs,
   lib,
   ...
 }: let
-  mkService = import "${self}/modules/media/__mkService.nix" {inherit lib;};
   cfg = config.services.transmission-vpn;
   vars = config.media.config;
 in {
@@ -20,11 +18,13 @@ in {
   config = lib.mkIf cfg.enable (lib.mkMerge [
     # Caddy must proxy to the VPN namespace (192.168.15.1), not localhost,
     # because the local loopback bypasses the DNAT rules on PREROUTING.
-    (mkService "transmission" {
-      port = 9091;
-      host = "192.168.15.1";
-      bypassAuth = true;
-    })
+    {
+      media.services.transmission = {
+        port = 9091;
+        host = "192.168.15.1";
+        bypassAuth = true;
+      };
+    }
 
     {
       # Configure Transmission service with VPN confinement
