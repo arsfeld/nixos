@@ -1,7 +1,6 @@
 {
   imports = [
     ./ai.nix
-    ./ask.nix
     ./auth.nix
     ./backrest-portal.nix
     ./backrest-public-vhosts.nix
@@ -22,7 +21,6 @@
     ./linkding.nix
     ./media.nix
     ./misc.nix
-    ./morphic.nix
     ./ntfy.nix
     ./qbittorrent-vpn.nix
     ./rqbit.nix
