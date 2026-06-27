@@ -93,3 +93,6 @@ scripts/recover-from-r2.sh
 
 # Scira build env (service reverted)
 scira-build-env
+
+# Scratch working dir
+scratch/
