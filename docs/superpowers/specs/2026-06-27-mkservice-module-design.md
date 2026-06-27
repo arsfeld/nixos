@@ -97,9 +97,9 @@ media.services.ask = {
 };
 ```
 
-`database` is a submodule with `postgres` and `mysql` members. Each accepts either a bool or a
-submodule `{ name ? "<service-name>"; }` so a service can override the db/role name when the
-app demands it (e.g. `database.postgres = { name = "morphic"; }`).
+`database` is a submodule. **This iteration implements `postgres` only** (see non-goals re:
+mysql). It accepts either a bool or a submodule `{ name ? "<service-name>"; }` so a service can
+override the db/role name when the app demands it (e.g. `database.postgres = { name = "morphic"; }`).
 
 When `database.postgres` is enabled, the module auto-generates for a service named `<name>`:
 
@@ -114,11 +114,14 @@ When `database.postgres` is enabled, the module auto-generates for a service nam
   (`postgresql://<dbname>@host.containers.internal:5432/<dbname>`) plus discrete
   `PG*`/`DB_*` vars, so apps can consume whichever form they expect.
 
-`database.mysql` mirrors this for the seafile/filerun/romm family (MariaDB, db + user +
-grants, podman-subnet access, systemd ordering, connection env).
-
 **No** sops secret, **no** `ALTER USER`, **no** hand-written `pg_hba`, **no** manual systemd
-dependency in any service file.
+dependency in any postgres-backed service file.
+
+**MySQL/MariaDB is deferred** to a follow-up spec. MariaDB has no `trust` equivalent over TCP
+(its passwordless `ensureUsers` accounts are unix-socket-only, unreachable from a container),
+so a clean passwordless mirror of the postgres story isn't possible. The only consumers
+(seafile — 3 databases + a root-access init step — plus filerun/romm) keep their current
+bespoke `db.nix` setup for now, the same way `planka.nix` stays bespoke.
 
 ### 3. Redis — not reinvented
 
@@ -138,9 +141,9 @@ Service files no longer hand-write `systemd.services."${backend}-<name>".after =
 
 - Convert all 37 `mkService` call sites to `media.services.<name>` in one pass.
 - Delete `modules/media/__mkService.nix`.
-- DB-backed services (`ask`, plus any others) drop their inline provisioning in favor of
-  `database.postgres`/`database.mysql`; the redundant central declarations in `db.nix` are
-  reduced accordingly.
+- Postgres-backed services (`ask`/morphic, `bitmagnet`) drop their inline provisioning in favor
+  of `database.postgres`; the redundant central postgres declarations in `db.nix` are reduced
+  accordingly. (MySQL consumers untouched — deferred.)
 - Update `CLAUDE.md` (the `mkService` section and the "mkService is the only way" rule) and the
   `mkservice-mandatory` memory to describe `media.services.<name>` as the single entry point.
 
@@ -149,6 +152,8 @@ Service files no longer hand-write `systemd.services."${backend}-<name>".after =
 - **No** unix-socket bind-mount peer-auth mode — purest but fiddly with container uids; out of
   scope. Trust auth on the podman subnet is the chosen mechanism.
 - **No** `database.redis` provisioner (see §3).
+- **MySQL/MariaDB provisioning is deferred** to a follow-up spec (see §2). seafile/filerun/romm
+  keep their current `db.nix` setup.
 - **`planka.nix` is not folded in** as part of this work. Its `--network=host` and
   URL-encoded-password env are a known, separate wart; planka keeps its bespoke module until a
   dedicated cleanup. (It can adopt `media.services` + `database.postgres` later.)
@@ -161,15 +166,15 @@ Service files no longer hand-write `systemd.services."${backend}-<name>".after =
 - `modules/media/` — new `services.nix` (the `media.services` option + lowering + database
   provisioning), imported alongside `containers.nix`/`gateway.nix`.
 - `hosts/*/services/*.nix` — all 37 `mkService` sites converted; DB-backed ones simplified.
-- `hosts/galactica/services/db.nix` — central postgres/mysql declarations reduced as services
-  adopt `database.*`.
+- `hosts/galactica/services/db.nix` — central postgres declarations reduced as services adopt
+  `database.postgres` (mysql section untouched).
 - `CLAUDE.md`, memory `mkservice-mandatory.md` — updated.
 
 ## Success criteria
 
 - No file imports `__mkService.nix`; the file is gone.
 - `media.services.<name>` is a discoverable, type-checked NixOS option.
-- A new DB-backed container service needs only `database.postgres = true` (or `.mysql`) — no
+- A new postgres-backed container service needs only `database.postgres = true` — no
   per-service sops secret, `pg_hba`, `ALTER USER`, or systemd dependency.
 - All hosts (`galactica`, `basestar`, `pegasus`, `raider`) build; deployed services keep their
   current routing/auth/exposure behavior.
