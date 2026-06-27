@@ -10,6 +10,7 @@
     ./planka.nix
     ./plausible.nix
     ./radicle.nix
+    ./search.nix
     ./siyuan.nix
     ./sillytavern.nix
   ];
