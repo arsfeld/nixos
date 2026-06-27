@@ -88,13 +88,24 @@ user. Tailnet access (`ask.bat-boa.ts.net`) needs no extra auth.
 ### 4. Models (no sops; configured in Vane UI)
 
 Vane stores provider config + API keys in its data dir (`/var/data/ask`), set
-through the web UI on first run:
+through the web UI on first run. Provider = OpenRouter (OpenAI-compatible), base
+URL `https://openrouter.ai/api/v1`, one key for chat + embeddings.
 
-- **Chat model:** OpenRouter, recommended `openai/gpt-4o-mini` (stable, cheap,
-  reliably drives Vane's agentic search per galactica's notes).
-- **Embedding model:** OpenRouter's OpenAI-compatible embeddings endpoint —
-  base URL `https://openrouter.ai/api/v1`, an OpenRouter embedding model. Same
-  key as chat. This is the retrieval-quality fix that was missing.
+- **Chat model (default):** `deepseek/deepseek-v4-flash` — DeepSeek V4 (released
+  2026-04-24), 284B MoE / 13B active, 1M context, first-class function/tool use,
+  ~$0.09/$0.18 per M tokens. Modern, cheap enough to run Vane's "Quality" mode.
+- **Chat model (quality tier):** `deepseek/deepseek-v4-pro` (1.6T MoE, built for
+  long-horizon agent workflows, ~$0.435/$0.87 per M) — switch to it per-query in
+  the UI for hard research questions.
+- **Embedding model:** OpenRouter's OpenAI-compatible embeddings endpoint (same
+  base URL + key). This is the retrieval-quality fix Morphic lacked.
+
+**Known caveat (carried from galactica notes):** DeepSeek V4-Flash hit
+`"Error:  is empty"` crashes on *streaming tool calls* in older Vane, fixed by
+patching `/home/vane/.next/server/chunks/136.js`. Running `:latest` may already
+fix this upstream; if Flash crashes on streaming, apply that patch (mount over
+the chunk) or disable streaming as the fallback. gpt-4o-mini remains a stable
+fallback chat model. Avoid Gemini previews (503/rate-limit on OpenRouter).
 
 ### 5. Permanent move — remove from galactica
 
