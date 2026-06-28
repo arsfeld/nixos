@@ -14,6 +14,7 @@
     ./search.nix
     ./siyuan.nix
     ./sillytavern.nix
+    ./marinara.nix
     ./webui.nix
   ];
 }
