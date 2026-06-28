@@ -131,7 +131,7 @@ in {
 
         services.printing = {
           enable = true;
-          drivers = with pkgs; [hplipWithPlugin samsung-unified-linux-driver];
+          drivers = with pkgs; [hplipWithPlugin];
         };
 
         services.avahi = {
