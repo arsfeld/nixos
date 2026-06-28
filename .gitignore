@@ -38,22 +38,18 @@ node_modules/
 # Built Visual Studio Code Extensions
 *.vsix
 
-.direnv
-# Devenv
-.devenv*
-devenv.local.nix
-.pre-commit-config.yaml
-
+# Nix build outputs
 /result
+result-*
 /out
 /.deploy-gc
 
+# direnv
+.direnv
+
 # Devenv
 .devenv*
 devenv.local.nix
-
-# direnv
-.direnv
 
 # pre-commit
 .pre-commit-config.yaml
@@ -66,33 +62,35 @@ site/
 __pycache__/
 *.pyc
 
-**/.claude/settings.local.json
+# Coding assistants / AI tools (configs and local artifacts)
+.claude/
+.cursor/
+.reasonix/
+.code/
+.aider*
+.antigravitycli/
+.gemini/
+.codex/
+.aye/
+.windsurf/
+.continue/
 
 # Blog generated images
 blog/static/images/generated/
+
+# Secrets / local credentials
 .env
-
-# Tailscale API key (for cleanup script)
+.envrc.local
 .tailscale-api-key
-
-# Local ntfy reader password (also stored in password manager)
 .ntfy-reader-password
-
-# Code CLI artifacts
-.code/
-
-# Gemini CLI artifacts
-.antigravitycli/
-scripts/backup-to-r2.sh
-scripts/recover-from-r2.sh
 *.ovpn
-.aye/
 
-# Reasonix agent tooling artifacts
-.reasonix/truncated-results/
-
-# Scira build env (service reverted)
+# Reverted/experimental service build env
 scira-build-env
 
-# Scratch working dir
+# Local scratch working dir
 scratch/
+
+# Backup/recovery helpers (not committed)
+scripts/backup-to-r2.sh
+scripts/recover-from-r2.sh
