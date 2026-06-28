@@ -13,8 +13,10 @@
 #   - mydia  -> OIDC disabled (OIDC_ENABLED=false); built-in auth only.
 #
 # host = "localhost" points Caddy straight at the loopback service so we don't
-# depend on hostname resolution or open extra firewall ports (all three use
-# host networking).
+# depend on hostname resolution or open extra firewall ports. Stash is the
+# exception: it omits the override (host defaults to the hostname) so it can
+# also get its own tsnsrv node; all three still use host networking, so the
+# Caddy upstream lands on loopback either way.
 {
   config,
   lib,
@@ -28,6 +30,20 @@ in {
   sops.secrets.mydia-env = {
     sopsFile = ../../../secrets/sops/pegasus.yaml;
     mode = "0444";
+  };
+
+  # tsnsrv: per-service Tailscale nodes (*.bat-boa.ts.net) for media.services
+  # entries that set tailscaleExposed (currently Stash). The auth key lives in
+  # the shared common.yaml, which pegasus can decrypt.
+  sops.secrets.tailscale-key.sopsFile = config.constellation.sops.commonSopsFile;
+  services.tsnsrv = {
+    enable = true;
+    separateProcesses = true;
+    defaults = {
+      tags = ["tag:service"];
+      authKeyPath = config.sops.secrets.tailscale-key.path;
+      ephemeral = true;
+    };
   };
 
   # Plex. Keep the plexinc image so the existing /var/data/plex config (which
@@ -47,10 +63,14 @@ in {
   };
 
   # Stash. Public via bypassAuth -> protect it with Stash's own login.
+  # Also exposed on the tailnet as stash.bat-boa.ts.net via tsnsrv. We must NOT
+  # override host here (it defaults to the hostname, which is the condition
+  # tsnsrv node generation requires); Caddy's upstream still lands on loopback
+  # since Stash uses host networking.
   media.services.stash = {
     port = 9999;
     image = "stashapp/stash:latest";
-    host = "localhost";
+    tailscaleExposed = true; # stash.bat-boa.ts.net
     bypassAuth = true;
     container = {
       exposePort = 9999;
