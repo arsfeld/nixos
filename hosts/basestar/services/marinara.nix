@@ -47,6 +47,10 @@
         # Behind the proxy Marinara sees the real Host; trust both access origins
         # so its CSRF check accepts form/websocket POSTs from either entrypoint.
         CSRF_TRUSTED_ORIGINS = "https://marinara.arsfeld.one,https://marinara.bat-boa.ts.net";
+        # Drop-in dir for SillyTavern bulk imports: stage cards under
+        # /var/data/marinara/st-import/{characters,chats,...} then run the
+        # admin-gated st-bulk import against /app/data/st-import.
+        IMPORT_ALLOWED_ROOTS = "/app/data/st-import";
       };
     };
   };
