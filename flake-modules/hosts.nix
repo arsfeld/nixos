@@ -29,10 +29,18 @@
 
     # CI build matrix, derived from the discovered hosts with auto-detected
     # platforms. Consumed by .github/workflows/build.yml via `nix eval`.
+    # aarch64 hosts build on GitHub's free native ARM runners (public repo)
+    # instead of slow QEMU emulation, which used to time out at 2h.
     ciMatrix =
-      map (hostName: {
-        host = hostName;
+      map (hostName: let
         platform = self.nixosConfigurations.${hostName}.config.nixpkgs.hostPlatform.system;
+      in {
+        host = hostName;
+        inherit platform;
+        runner =
+          if platform == "aarch64-linux"
+          then "ubuntu-24.04-arm"
+          else "ubuntu-latest";
       })
       self.hosts;
 
