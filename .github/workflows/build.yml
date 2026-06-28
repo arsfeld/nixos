@@ -49,7 +49,7 @@ jobs:
       matrix: ${{ fromJSON(needs.matrix.outputs.matrix) }}
 
     name: ${{ matrix.host }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     permissions:
       contents: read
@@ -63,14 +63,9 @@ jobs:
 
       - uses: actions/checkout@v6
 
-      - name: Setup QEMU for aarch64
-        if: matrix.platform == 'aarch64-linux'
-        uses: docker/setup-qemu-action@v4
-
       - uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
-            extra-platforms = aarch64-linux i686-linux
             extra-substituters = https://attic.arsfeld.dev/system
             extra-trusted-public-keys = system:mUX40QMM+dqZ0wQaHp7sH50UgiZnSXsInzc9/MvaZRc=
 
