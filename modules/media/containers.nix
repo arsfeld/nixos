@@ -310,6 +310,12 @@ in {
                 if [ "$current_id" != "none" ] && [ "$current_id" != "$new_id" ]; then
                   echo "New image detected for $container_name, restarting..."
                   if ${pkgs.systemd}/bin/systemctl restart "${backend}-$container_name"; then
+                    # The container is now on the new image, so the old image is
+                    # dangling. Prune it immediately rather than waiting for the
+                    # weekly podman-prune: large, frequently-updated images (e.g.
+                    # open-webui at ~4.5GB) otherwise pile up dangling copies and
+                    # fill the disk, which makes the next pull fail.
+                    ${backendBin} image prune -f >/dev/null 2>&1 || true
                     ${pkgs.curl}/bin/curl -s \
                       ''${NTFY_AUTH:+-H "$NTFY_AUTH"} \
                       -d "Updated $image_name (''${current_id:0:12} → ''${new_id:0:12})" \
