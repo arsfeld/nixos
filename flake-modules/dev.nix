@@ -51,6 +51,13 @@
           git
           jq
           just
+          # Provide ssh from the dev shell so colmena/deploy-rs resolve it here
+          # instead of scanning the ambient PATH. NixOS puts a (usually empty)
+          # /etc/profiles/per-user/$USER/bin ahead of the system profile; since
+          # 26.05 that dir's parent is mode 0700 root, so a PATH lookup for ssh
+          # there returns EACCES. Shells skip it, but colmena aborts on it.
+          # Shadowing ssh from the shell avoids the dangling entry entirely.
+          openssh
           openssl
           inputs.sops-nix.packages."${pkgs.stdenv.hostPlatform.system}".sops-import-keys-hook
           sops
