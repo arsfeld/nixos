@@ -255,12 +255,6 @@
     ui.enable = true;
   };
 
-  # Power management - suspend then hibernate after delay
-  systemd.sleep.settings.Sleep = {
-    HibernateDelaySec = "30min";
-    SuspendState = "mem";
-  };
-
   # Fedora-on-ASUS power management: plain power-profiles-daemon (NOT
   # tuned-ppd). The asus-linux.org Fedora guide explicitly tells G14 owners to
   # `dnf swap tuned-ppd power-profiles-daemon` because tuned-ppd's tuned
@@ -270,45 +264,35 @@
   # the matching fan curve. Pairs with amd_pstate=active in kernelParams.
   services.power-profiles-daemon.enable = true;
 
-  # Suspend then hibernate for lid/power button actions.
-  # No IdleAction: logind counts suspend time as idle, and GNOME's own idle
-  # suspend (gsd-power issue #903) misfires on NVIDIA-hybrid resume. Both
-  # auto-idle paths are disabled; suspend is triggered only by lid or key.
+  # Plain S3 suspend for lid close and power key -- deliberately NOT
+  # suspend-then-hibernate. Two reasons: (1) the 16 GiB swap is smaller than
+  # RAM (22 GiB), so hibernate could fail under memory pressure; (2) s2h on
+  # NVIDIA Optimus is unreliable upstream (the inner suspend->hibernate
+  # transition often doesn't drive the nvidia path). Plain suspend is the
+  # rock-solid option and a laptop is rarely off long enough for hibernate to
+  # matter.
+  #
+  # No IdleAction: GNOME's gsd-power idle suspend (nixpkgs#336723) misfires on
+  # NVIDIA-hybrid resume, so both auto-idle paths stay disabled; suspend is
+  # triggered only by lid or power key via logind.
   services.logind.settings.Login = {
-    HandleLidSwitch = "suspend-then-hibernate";
-    HandleLidSwitchExternalPower = "suspend-then-hibernate";
-    HandlePowerKey = "suspend-then-hibernate";
+    HandleLidSwitch = "suspend";
+    HandleLidSwitchExternalPower = "suspend";
+    HandlePowerKey = "suspend";
   };
 
-  # NVIDIA + suspend-then-hibernate needs two pieces that NixOS doesn't wire
-  # by default:
+  # NVIDIA suspend/resume: nothing to wire. With the open kernel modules on
+  # driver >= 595, hardware.nvidia.powerManagement.kernelSuspendNotifier
+  # defaults true, so the driver saves/restores video memory via the kernel
+  # suspend notifier (NVreg_UseKernelSuspendNotifiers=1) and nixpkgs
+  # deliberately does NOT install the nvidia-suspend/resume/hibernate services
+  # or the /lib/systemd/system-sleep/nvidia hook. `powerManagement.enable = true`
+  # (set in hardware-configuration.nix) is the entire supported config.
   #
-  # 1. The NVIDIA driver ships a system-sleep hook (lib/systemd/system-sleep/
-  #    nvidia) that handles the inner suspend->hibernate and post-resume
-  #    transitions of suspend-then-hibernate by writing the right value to
-  #    /proc/driver/nvidia/suspend based on $SYSTEMD_SLEEP_ACTION. NixOS's
-  #    systemd.packages = [ nvidia_x11 ] only links systemd units, not
-  #    system-sleep scripts, so install it explicitly.
-  #
-  # 2. The hook intentionally does NOT cover the initial pre:suspend phase,
-  #    expecting nvidia-suspend.service to handle it. But systemd-suspend-
-  #    then-hibernate.service doesn't pull in systemd-suspend.service, so
-  #    nvidia-suspend.service never fires and the proprietary driver aborts
-  #    the kernel suspend with EIO ("System Power Management attempted
-  #    without driver procfs suspend interface"). Wire it explicitly. Do NOT
-  #    add nvidia-hibernate.service here -- the inner hibernate transition
-  #    is handled by the system-sleep hook above, and adding it caused both
-  #    services to race and clobber each other's procfs writes.
-  environment.etc."systemd/system-sleep/nvidia".source = "${config.hardware.nvidia.package.out}/lib/systemd/system-sleep/nvidia";
-
-  systemd.services.nvidia-suspend = {
-    before = ["systemd-suspend-then-hibernate.service"];
-    requiredBy = ["systemd-suspend-then-hibernate.service"];
-  };
-  systemd.services.nvidia-resume = {
-    after = ["systemd-suspend-then-hibernate.service"];
-    requiredBy = ["systemd-suspend-then-hibernate.service"];
-  };
+  # Do NOT hand-declare systemd.services.nvidia-suspend/-resume here: nixpkgs
+  # provides no ExecStart to merge with in notifier mode, so the unit ends up
+  # empty (LoadState=bad-setting) and, being requiredBy the suspend job, aborts
+  # every suspend with an immediate resume. That was the bug this replaced.
 
   # On GA401IU, the keyboard backlight goes dark across suspend/hibernate
   # cycles -- writes to /sys/class/leds/asus::kbd_backlight/brightness keep
