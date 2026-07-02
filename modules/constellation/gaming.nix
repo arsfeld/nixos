@@ -345,10 +345,18 @@
         wineWow64Packages.stagingFull
         winetricks
         protontricks
+        protonplus # GUI Proton-GE / compat-tool manager (updater for the baked proton-ge-bin)
 
         # Performance monitoring
         goverlay
         vkbasalt
+
+        # Frame generation: Lossless Scaling as a Vulkan implicit layer + its
+        # config GUI. GPU-vendor-agnostic (NVIDIA + AMD). The layer is inert
+        # until configured and requires owning the paid "Lossless Scaling"
+        # Steam app (Lossless.dll) to actually generate frames.
+        lsfg-vk
+        lsfg-vk-ui
 
         # System monitoring
         mission-center
@@ -406,7 +414,10 @@
         pkgs.umu-launcher
         # Moonlight client so raider can also receive streams from other Sunshine hosts.
         pkgs.moonlight-qt
-      ];
+      ]
+      # AMD mobile TDP tuning. Gated on cpuVendor so it lands on Ryzen laptops
+      # (blackbird) and skips Intel hosts (raider) automatically.
+      ++ lib.optional (config.constellation.gaming.cpuVendor == "amd") pkgs.ryzenadj;
 
     # Hardware support
     hardware = {
