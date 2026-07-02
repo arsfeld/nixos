@@ -151,6 +151,9 @@ in {
             variety
             vim
             wget
+            # Flatpak lifecycle/rollback/data manager (complements Flatseal,
+            # which only handles permissions). Flatpak is enabled below.
+            warehouse
           ]
           ++ lib.optionals cfg.multimedia [
             celluloid
@@ -317,6 +320,12 @@ in {
                   "xwayland-indicator@swsnr.de"
                   "Vitals@CoreCoding.com"
                   "user-theme@gnome-shell-extensions.gcampax.github.com"
+                  # Bazzite-GNOME parity extensions
+                  "burn-my-windows@schneegans.github.com"
+                  "desktop-cube@schneegans.github.com"
+                  "compiz-windows-effect@hermes83.github.com"
+                  "add-to-steam@pupper.space"
+                  "restartto@tiagoporsch.github.io"
                 ];
               };
 
@@ -377,6 +386,9 @@ in {
               NoDisplay=true
             '')
             gnome-tweaks
+            # Refine: GTK4 tweak tool exposing experimental GNOME/mutter keys
+            # (VRR toggle, etc.) that gnome-tweaks doesn't. Sits alongside it.
+            refine
           ]
           ++ lib.optionals cfg.gnome.extensions [
             gnomeExtensions.appindicator
@@ -392,6 +404,13 @@ in {
             gnomeExtensions.caffeine
             gnomeExtensions.compiz-alike-magic-lamp-effect
             gnomeExtensions.paperwm
+
+            # Bazzite-GNOME parity extensions
+            gnomeExtensions.burn-my-windows
+            gnomeExtensions.desktop-cube
+            gnomeExtensions.compiz-windows-effect
+            gnomeExtensions.add-to-steam
+            gnomeExtensions.restart-to
 
             yaru-theme
             colloid-icon-theme
