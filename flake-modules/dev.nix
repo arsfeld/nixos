@@ -93,6 +93,7 @@
 
     legacyPackages.homeConfigurations.arosenfeld = inputs.home-manager.lib.homeManagerConfiguration {
       inherit pkgs;
+      extraSpecialArgs = {inherit inputs;};
       modules = [
         inputs.nix-index-database.homeModules.nix-index
         ../home/home.nix
