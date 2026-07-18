@@ -18,11 +18,17 @@
 
   claude-notify = pkgs.writeScriptBin "claude-notify" (builtins.readFile ./scripts/claude-notify);
 
+  pkgs-unstable = import inputs.nixpkgs-unstable {
+    inherit (pkgs.stdenv.hostPlatform) system;
+    config.allowUnfree = true;
+  };
+
   linuxOnlyPkgs = with pkgs;
     optionals stdenv.isLinux [
       distrobox
       nvidia-offload
       waypipe
+      seafile-shared
     ];
 in {
   imports = [
@@ -95,7 +101,6 @@ in {
         claude-notify
         pkgs.playwright-mcp
         bun
-        seafile-shared
       ]
       ++ linuxOnlyPkgs; # Added linuxOnlyPkgs
     sessionVariables =
@@ -471,6 +476,7 @@ in {
   programs.zoxide = {
     enable = true;
     enableBashIntegration = false;
+    package = pkgs-unstable.zoxide;
   };
 
   programs.oh-my-posh = {
