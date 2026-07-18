@@ -75,6 +75,7 @@ in {
         "${toString cfg.port}:6806"
       ];
       cmd = [
+        "serve"
         "--workspace=/siyuan/workspace/"
         "--accessAuthCode=$SIYUAN_ACCESS_AUTH_CODE"
       ];

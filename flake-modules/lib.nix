@@ -64,6 +64,7 @@
         home-manager.sharedModules = [
           inputs.nix-index-database.homeModules.nix-index
         ];
+        home-manager.extraSpecialArgs = {inherit inputs;};
         home-manager.useGlobalPkgs = true;
         home-manager.useUserPackages = false;
         home-manager.backupFileExtension = "bak";
