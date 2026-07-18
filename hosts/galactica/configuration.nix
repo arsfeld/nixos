@@ -185,6 +185,8 @@ in {
     "aspnetcore-runtime-wrapped-6.0.36"
     "dotnet-sdk-6.0.428"
     "dotnet-sdk-wrapped-6.0.428"
+    # Build-time-only tool for opencloud-idp-web; upstream nixpkgs still ships 9.15.9
+    "pnpm-9.15.9"
   ];
 
   services.check-stock = {
