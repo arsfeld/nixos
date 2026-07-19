@@ -18,6 +18,17 @@
 
   claude-notify = pkgs.writeScriptBin "claude-notify" (builtins.readFile ./scripts/claude-notify);
 
+  llmAgentScripts = let
+    agentNames = builtins.attrNames (
+      inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system} or {}
+    );
+    mkAgentScript = name:
+      pkgs.writeShellScriptBin name ''
+        exec nix run github:numtide/llm-agents.nix#${name} -- "$@"
+      '';
+  in
+    map mkAgentScript agentNames;
+
   pkgs-unstable = import inputs.nixpkgs-unstable {
     inherit (pkgs.stdenv.hostPlatform) system;
     config.allowUnfree = true;
@@ -102,7 +113,8 @@ in {
         pkgs.playwright-mcp
         bun
       ]
-      ++ linuxOnlyPkgs; # Added linuxOnlyPkgs
+      ++ linuxOnlyPkgs # Added linuxOnlyPkgs
+      ++ llmAgentScripts;
     sessionVariables =
       {
         PNPM_HOME = "$HOME/.local/share/pnpm";

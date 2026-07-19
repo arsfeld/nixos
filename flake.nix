@@ -29,6 +29,7 @@
     vpn-confinement.url = "github:Maroka-chan/VPN-Confinement"; # VPN namespace confinement for services
     niri.url = "github:sodiboo/niri-flake"; # Niri compositor with declarative Nix config
     det-nix-eval-jobs.url = "https://flakehub.com/f/DeterminateSystems/nix-eval-jobs/*"; # Determinate Nix eval-jobs
+    llm-agents.url = "github:numtide/llm-agents.nix"; # AI coding agents and development tools
   };
 
   outputs = {self, ...} @ inputs:
