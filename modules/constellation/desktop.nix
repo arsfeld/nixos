@@ -165,7 +165,8 @@ in {
             gst_all_1.gst-plugins-bad
             gst_all_1.gst-plugins-ugly
             gst_all_1.gst-libav
-            gst_all_1.gst-vaapi
+            # gst-vaapi was removed in GStreamer 1.28; VA-API decoding is now
+            # provided by gst-plugins-bad (already included above).
           ]
           ++ lib.optionals cfg.virtualization [
             quickemu
