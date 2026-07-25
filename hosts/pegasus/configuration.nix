@@ -188,6 +188,16 @@ with lib; {
     notifications.test = true;
   };
 
+  # Weekly scrub of the data pool: verifies every RAID1C3 mirror against the
+  # checksums and repairs stale/corrupt copies from good ones. Without this,
+  # a disk that silently missed writes (see sdg, July 2026) keeps serving
+  # stale data until a second failure makes it unrecoverable.
+  services.btrfs.autoScrub = {
+    enable = true;
+    fileSystems = ["/mnt/storage"];
+    interval = "weekly";
+  };
+
   # Avahi for service discovery
   services.avahi = {
     enable = true;

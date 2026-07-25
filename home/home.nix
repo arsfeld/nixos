@@ -8,6 +8,10 @@
 }: let
   inherit (pkgs) stdenv;
   inherit (lib) mkIf optionals mkBefore; # Added mkBefore
+  hostname =
+    if osConfig != null
+    then osConfig.networking.hostName
+    else "";
   nvidia-offload = pkgs.writeShellScriptBin "nvidia-offload" ''
     export __NV_PRIME_RENDER_OFFLOAD=1
     export __NV_PRIME_RENDER_OFFLOAD_PROVIDER=NVIDIA-G0
@@ -539,7 +543,9 @@ in {
   #   enable = pkgs.stdenv.isLinux;
   # };
 
-  systemd.user.services.rclone-gdrive = mkIf stdenv.isLinux {
+  # Disabled on pegasus: the rclone config there has no "gdrive" section, so
+  # the unit crash-loops.
+  systemd.user.services.rclone-gdrive = mkIf (stdenv.isLinux && hostname != "pegasus") {
     Unit = {
       Description = "Mount Google Drive via rclone";
       After = ["network-online.target"];
@@ -558,7 +564,8 @@ in {
     };
   };
 
-  systemd.user.services.seafile-cli = mkIf stdenv.isLinux {
+  # Disabled on pegasus: seafile-cli crash-loops there.
+  systemd.user.services.seafile-cli = mkIf (stdenv.isLinux && hostname != "pegasus") {
     Unit = {
       Description = "Seafile CLI sync daemon";
       After = ["network-online.target"];
