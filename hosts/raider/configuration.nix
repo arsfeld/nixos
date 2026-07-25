@@ -288,6 +288,22 @@
     IdleActionSec = 0;
   };
 
+  # Mask the sleep units entirely: any Suspend() DBus call (desktop session,
+  # GDM greeter, systemctl) fails instead of sleeping. logind IdleAction=ignore
+  # and the dconf policies below don't cover every caller.
+  systemd.services = {
+    systemd-suspend.enable = false;
+    systemd-hibernate.enable = false;
+    systemd-hybrid-sleep.enable = false;
+    systemd-suspend-then-hibernate.enable = false;
+  };
+  systemd.targets = {
+    suspend.enable = false;
+    hibernate.enable = false;
+    hybrid-sleep.enable = false;
+    sleep.enable = false;
+  };
+
   # Disable power management features
   powerManagement = {
     enable = true;
