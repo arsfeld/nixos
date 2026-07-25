@@ -70,7 +70,7 @@
                 subvolumes = {
                   "/home" = {
                     mountpoint = "/home";
-                    mountOptions = ["compress=zstd" "noatime"];
+                    mountOptions = ["compress=zstd" "noatime" "x-systemd.nofail"];
                   };
                 };
               };
