@@ -181,6 +181,8 @@ in {
     ];
   };
   nixpkgs.config.permittedInsecurePackages = [
+    # pnpm 9.15.9 is only used at build time by the opencloud package
+    "pnpm-9.15.9"
     "aspnetcore-runtime-6.0.36"
     "aspnetcore-runtime-wrapped-6.0.36"
     "dotnet-sdk-6.0.428"
