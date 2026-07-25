@@ -55,10 +55,9 @@ in {
     container = {
       configDir = null;
       network = "ai";
-      devices = [
-        "/dev/dri/card0"
-        "/dev/dri/renderD128"
-      ];
+      # Pass the whole DRI dir: card numbering is not stable across boots
+      # (simple-framebuffer can claim card0), so don't pin card0/renderD128.
+      devices = ["/dev/dri:/dev/dri"];
       environment = {
         OLLAMA_HOST = "0.0.0.0:11434";
         OLLAMA_NUM_GPU = "999";
