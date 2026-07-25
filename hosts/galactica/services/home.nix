@@ -26,6 +26,10 @@
       ];
       environment = {
         SYNC_SCHEDULE = "0 0 17 */2 * *";
+        # Disable email notifications while keeping ntfy.
+        MAILER_URL = "";
+        MAILER_FROM = "";
+        MAILER_TO = "";
       };
     };
   };
