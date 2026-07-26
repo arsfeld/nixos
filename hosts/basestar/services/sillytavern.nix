@@ -7,7 +7,7 @@
 # paths under that name:
 #   - chat.arsfeld.one     — public, via the gateway Caddy vhost reached through
 #     basestar's wildcard *.arsfeld.one cloudflared tunnel. bypassAuth omits the
-#     gateway's forward_auth to galactica's (offline) Authelia; authentication is
+#     gateway's forward_auth to galactica's Authelia; authentication is
 #     instead enforced at Cloudflare's edge by a Zero Trust Access app.
 #   - chat.bat-boa.ts.net  — tailnet, via the tsnsrv node from tailscaleExposed.
 #
