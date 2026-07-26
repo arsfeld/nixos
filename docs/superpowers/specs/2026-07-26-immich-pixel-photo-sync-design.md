@@ -2,7 +2,9 @@
 
 **Date:** 2026-07-26
 **Host:** galactica
-**Status:** Design approved, not implemented
+**Status:** Server side implemented and running — `modules/constellation/immich-pixel-sync/`.
+Pixel side (Syncthing folder, Google Photos backup, retiring Resilio) still pending
+physical access to the phone.
 
 ## Problem
 
@@ -124,11 +126,14 @@ strictly better than the Resilio chain, which as a pure file-copier could not do
 toolkit — heavy for a headless server. The HEIC muxing path is short enough to own:
 write XMP, append an 8-byte header plus the video.
 
-exiftool 13.59 (in nixpkgs) already knows `XMP-GCamera:MotionPhoto`,
-`MotionPhotoVersion`, and `MotionPhotoPresentationTimestampUs` — the spec's `Camera:`
-namespace is exiftool's `XMP-GCamera` — and it writes HEIC. **`XMP-Container` is absent**
-and needs a custom `.ExifTool_config` shipped with the module. Verify with
-`exiftool -listx -XMP-Container:all`.
+exiftool 13.59 (in nixpkgs) already knows every tag this needs, and **no custom
+`.ExifTool_config` is required**. The spec's `Camera:` namespace is exiftool's
+`XMP-GCamera`; the spec's `Container:`/`Item:` namespaces are exiftool's
+`XMP-GContainer`/`XMP-GItem`, written through the single tag
+`XMP-GContainer:ContainerDirectory`. The XML prefixes exiftool emits differ from the
+spec's, but the namespace URIs match, and the URIs are what Google's parser reads.
+Verify with `exiftool -listx -XMP-GContainer:all` — note the group is `XMP-GContainer`,
+not `XMP-Container`, which is why the original survey found nothing.
 
 ## Architecture
 
@@ -170,6 +175,7 @@ FROM asset a
 LEFT JOIN asset v ON v.id = a."livePhotoVideoId"
 WHERE a."ownerId" = 'c85fe467-a36a-457a-a260-a67dfe2199da'
   AND a."deletedAt" IS NULL AND a.status = 'active' AND NOT a."isOffline"
+  AND a.visibility = 'timeline'
   AND a."fileCreatedAt" > now() - interval '30 days'
   AND NOT EXISTS (SELECT 1 FROM asset p WHERE p."livePhotoVideoId" = a.id)
 ```
@@ -177,6 +183,16 @@ WHERE a."ownerId" = 'c85fe467-a36a-457a-a260-a67dfe2199da'
 The final clause drops MOV halves, which ship embedded rather than standalone. It uses
 `NOT EXISTS` rather than `NOT IN` because `NOT IN` against a nullable column silently
 returns nothing.
+
+The `visibility` clause was added during implementation. It is a no-op today —
+all 8,199 non-`timeline` assets in the library are Live Photo MOV halves, which
+`NOT EXISTS` already drops — but Immich's `locked` visibility is its PIN-protected
+folder. Without the clause, the day something is locked or archived is the day it
+silently ships to Google Photos.
+
+**This returns 1,010 rows, not 1,857.** The 1,857 figure above counts MOV halves as
+separate assets; 847 of these 1,010 rows are pairs that carry their MOV embedded
+(1,010 + 847 = 1,857). The staged directory holds 1,010 files, measured at 8.2 GB.
 
 The owner UUID is a module option, not a literal, so the module stays reusable and the
 value is visible in host config.
