@@ -10,6 +10,7 @@ sync with reality.
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import os
 import re
@@ -282,13 +283,106 @@ def stage_motion(asset: dict, dest: Path, tmp_dir: Path) -> None:
     os.replace(scratch, dest)
 
 
+def scan_staged(staging: Path) -> set:
+    """Filenames currently staged.
+
+    Dotfiles are Syncthing's (.stfolder, .stignore, .stversions, in-flight temp
+    files) and are none of this script's business.
+    """
+    return {
+        entry.name
+        for entry in staging.iterdir()
+        if entry.is_file() and not entry.name.startswith(".")
+    }
+
+
+def clean_scratch(tmp: Path) -> None:
+    """Drop half-written files left by a run that died mid-mux."""
+    for leftover in tmp.glob("*.part"):
+        leftover.unlink(missing_ok=True)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Stage recent Immich assets for the Pixel.")
     parser.add_argument("--dry-run", action="store_true", help="print the plan, change nothing")
     parser.add_argument("--force", action="store_true", help="proceed past the shrink guard")
-    parser.parse_args(argv)
-    log("not implemented yet")
-    return 0
+    args = parser.parse_args(argv)
+
+    cfg = Config.from_env()
+    cfg.staging.mkdir(parents=True, exist_ok=True)
+    cfg.tmp.mkdir(parents=True, exist_ok=True)
+    cfg.lock.parent.mkdir(parents=True, exist_ok=True)
+
+    lock_fd = open(cfg.lock, "w")
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        log("another run holds the lock; exiting")
+        return 0
+
+    try:
+        try:
+            assets = fetch_assets(cfg)
+        except subprocess.CalledProcessError as exc:
+            log(f"ABORT: selector query failed: {(exc.stderr or '').strip()}")
+            return 1
+
+        desired = {staged_name(asset): asset for asset in assets}
+        current = scan_staged(cfg.staging)
+
+        try:
+            to_add, to_delete = plan_actions(
+                desired, current, cfg.shrink_guard_percent, args.force
+            )
+        except Abort as exc:
+            log(f"ABORT: {exc}")
+            return 1
+
+        log(f"{len(desired)} desired, {len(current)} staged, +{len(to_add)} -{len(to_delete)}")
+
+        if args.dry_run:
+            for name in sorted(to_add):
+                log(f"  + {name}")
+            for name in to_delete:
+                log(f"  - {name}")
+            return 0
+
+        clean_scratch(cfg.tmp)
+
+        added = 0
+        failed = 0
+        for name, asset in sorted(to_add.items()):
+            dest = cfg.staging / name
+            try:
+                if is_motion(asset):
+                    stage_motion(asset, dest, cfg.tmp)
+                else:
+                    stage_plain(asset, dest)
+                added += 1
+            except Exception as exc:  # one bad asset must not take down the run
+                log(f"  failed to stage {name}: {exc}")
+                if is_motion(asset):
+                    # Ship the still under the same name. One photo loses its
+                    # motion, the run survives, and the name stays stable so the
+                    # next run does not churn the phone by deleting and re-adding
+                    # it. To retry the mux, delete the staged file.
+                    try:
+                        stage_plain(asset, dest)
+                        log(f"  staged {name} without motion")
+                        added += 1
+                        continue
+                    except Exception as fallback_exc:
+                        log(f"  fallback also failed for {name}: {fallback_exc}")
+                failed += 1
+
+        for name in to_delete:
+            (cfg.staging / name).unlink(missing_ok=True)
+
+        log(f"done: +{added} -{len(to_delete)} failed={failed}")
+        return 0
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        lock_fd.close()
 
 
 if __name__ == "__main__":
