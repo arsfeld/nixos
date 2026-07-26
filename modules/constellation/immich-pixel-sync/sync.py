@@ -219,6 +219,69 @@ def fetch_assets(cfg: Config) -> list:
     return json.loads(result.stdout.strip() or "[]")
 
 
+def reflink_copy(src: Path, dst: Path) -> None:
+    """Copy-on-write copy of the primary image.
+
+    On btrfs this costs no space, and unlike a hardlink it guarantees the mux
+    cannot write through into Immich's original.
+    """
+    subprocess.run(
+        ["cp", "--reflink=auto", "--preserve=timestamps", "--", str(src), str(dst)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def write_motion_xmp(path: Path, video_len: int, image_ext: str, video_ext: str) -> None:
+    """Declare the Motion Photo container in XMP.
+
+    exiftool 13.x ships the namespace as XMP-GContainer with the tag named
+    ContainerDirectory, so no custom .ExifTool_config is needed. Padding=8 on the
+    primary item accounts for the 8-byte `mpvd` header that separates the image
+    bytes from the video.
+    """
+    directory = (
+        "[{Item={Mime=" + MOTION_PRIMARY_MIME[image_ext]
+        + ",Semantic=Primary,Length=0,Padding=8}},"
+        "{Item={Mime=" + MOTION_VIDEO_MIME[video_ext]
+        + ",Semantic=MotionPhoto,Length=" + str(video_len) + ",Padding=0}}]"
+    )
+    subprocess.run(
+        [
+            "exiftool", "-overwrite_original", "-q",
+            "-XMP-GCamera:MotionPhoto=1",
+            "-XMP-GCamera:MotionPhotoVersion=1",
+            "-XMP-GCamera:MotionPhotoPresentationTimestampUs=-1",
+            "-XMP-GContainer:ContainerDirectory=" + directory,
+            str(path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def stage_motion(asset: dict, dest: Path, tmp_dir: Path) -> None:
+    """Mux an Apple Live Photo pair into a Google Motion Photo.
+
+    The XMP must be written *before* the video is appended: exiftool rewrites the
+    ISO-BMFF box structure and would discard a trailing box it does not recognise.
+    The HEIC passes through byte-identical, gain map and all, so HDR survives.
+    """
+    image = Path(asset["originalPath"])
+    video = Path(asset["live_video"])
+    scratch = tmp_dir / (dest.name + ".part")
+    scratch.unlink(missing_ok=True)
+
+    reflink_copy(image, scratch)
+    video_bytes = video.read_bytes()
+    write_motion_xmp(scratch, len(video_bytes), image.suffix.lower(), video.suffix.lower())
+    with open(scratch, "ab") as handle:
+        handle.write(mpvd_box(video_bytes))
+    os.replace(scratch, dest)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Stage recent Immich assets for the Pixel.")
     parser.add_argument("--dry-run", action="store_true", help="print the plan, change nothing")
