@@ -10,9 +10,11 @@ sync with reality.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import struct
+import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime
@@ -37,6 +39,41 @@ MOTION_VIDEO_MIME = {
 
 # Characters Android's storage layer rejects in a filename.
 _UNSAFE = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+
+
+# The only source of truth for what should be staged.
+#
+# The final NOT EXISTS clause drops MOV halves of Live Photo pairs: they ship
+# embedded inside their still, never standalone. It is NOT EXISTS rather than
+# NOT IN because NOT IN against a nullable column silently returns nothing.
+#
+# visibility = 'timeline' is redundant today — every non-timeline asset in the
+# library is a Live Photo MOV half, which NOT EXISTS already drops — but Immich's
+# 'locked' visibility is its PIN-protected folder. Without this clause, the day
+# something is locked or archived is the day it silently ships to Google Photos.
+#
+# A pair is selected on its *image* asset's date and the video half is pulled via
+# livePhotoVideoId regardless of its own timestamp, which keeps pairs atomic at
+# the window boundary.
+SQL = """
+SELECT coalesce(json_agg(t), '[]'::json) FROM (
+  SELECT a.id,
+         a."originalPath",
+         a."originalFileName",
+         to_char(a."fileCreatedAt" AT TIME ZONE 'UTC', 'YYYYMMDD_HH24MISS') AS ts,
+         v."originalPath" AS live_video
+  FROM asset a
+  LEFT JOIN asset v ON v.id = a."livePhotoVideoId"
+  WHERE a."ownerId" = :'owner'::uuid
+    AND a."deletedAt" IS NULL
+    AND a.status = 'active'
+    AND NOT a."isOffline"
+    AND a.visibility = 'timeline'
+    AND a."fileCreatedAt" > now() - make_interval(days => :days)
+    AND NOT EXISTS (SELECT 1 FROM asset p WHERE p."livePhotoVideoId" = a.id)
+  ORDER BY a."fileCreatedAt"
+) t;
+"""
 
 
 class Abort(Exception):
@@ -154,6 +191,32 @@ def stage_plain(asset: dict, dest: Path) -> None:
     original — the reap path only ever removes one of two names for one inode.
     """
     os.link(asset["originalPath"], dest)
+
+
+def fetch_assets(cfg: Config) -> list:
+    """Run the selector query.
+
+    psql connects over the unix socket as the Immich role; galactica's ident map
+    (`immich-users media immich`) lets the media user do that without a password.
+    Raises CalledProcessError if the query fails, which the caller turns into an
+    abort — an unreachable database must never read as "delete everything".
+    """
+    result = subprocess.run(
+        [
+            "psql", "-X", "-A", "-t", "-q",
+            "-v", "ON_ERROR_STOP=1",
+            "-h", cfg.db_socket,
+            "-U", cfg.db_user,
+            "-d", cfg.db_name,
+            "-v", f"owner={cfg.owner_id}",
+            "-v", f"days={cfg.window_days}",
+            "-c", SQL,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(result.stdout.strip() or "[]")
 
 
 def main(argv=None) -> int:
