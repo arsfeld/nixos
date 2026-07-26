@@ -19,6 +19,7 @@
     ./infra.nix
     ./isponsorblock.nix
     ./linkding.nix
+    ./marinara.nix
     ./media.nix
     ./misc.nix
     ./ntfy.nix
