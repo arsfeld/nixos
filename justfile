@@ -204,6 +204,10 @@ build-r2s:
 router-test:
     nix build .#checks.x86_64-linux.router-test -L
 
+# Immich → Pixel stager unit tests
+immich-pixel-sync-test:
+    nix build .#checks.x86_64-linux.immich-pixel-sync-test -L
+
 # Build Orange Pi Zero 3 SD card image
 # Generates a flashable SD card image for the octopi host (Orange Pi Zero 3)
 build-octopi:
