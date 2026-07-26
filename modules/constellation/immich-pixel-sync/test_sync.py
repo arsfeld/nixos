@@ -6,6 +6,8 @@ inside a Nix build.
 """
 
 import unittest
+import tempfile
+from pathlib import Path
 
 import sync
 
@@ -105,6 +107,32 @@ class PlanActionsTest(unittest.TestCase):
         current = {f"{index}.heic" for index in range(10)}
         _, to_delete = sync.plan_actions(desired, current, 50)
         self.assertEqual(len(to_delete), 3)
+
+
+class MpvdBoxTest(unittest.TestCase):
+    def test_the_box_declares_its_own_size_including_the_eight_byte_header(self):
+        box = sync.mpvd_box(b"V" * 512)
+        self.assertEqual(len(box), 520)
+        self.assertEqual(box[0:4], (520).to_bytes(4, "big"))
+        self.assertEqual(box[4:8], b"mpvd")
+        self.assertEqual(box[8:], b"V" * 512)
+
+    def test_an_empty_video_still_produces_a_well_formed_header(self):
+        self.assertEqual(sync.mpvd_box(b""), (8).to_bytes(4, "big") + b"mpvd")
+
+
+class StagePlainTest(unittest.TestCase):
+    def test_staging_shares_the_inode_and_unlinking_leaves_the_original(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            original = Path(tmp) / "IMG_2145.heic"
+            original.write_bytes(b"pixels")
+            dest = Path(tmp) / "20260724_143022_a1b2c3d4_IMG_2145.heic"
+
+            sync.stage_plain(row(originalPath=str(original)), dest)
+
+            self.assertEqual(original.stat().st_ino, dest.stat().st_ino)
+            dest.unlink()
+            self.assertEqual(original.read_bytes(), b"pixels")
 
 
 if __name__ == "__main__":
