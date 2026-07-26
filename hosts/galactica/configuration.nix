@@ -52,6 +52,16 @@ in {
   # Drop .sync files in media folders to mark for transcoding
   constellation.tabletSync.enable = true;
 
+  # Stage the last 30 days of Immich photos for the Pixel, which forwards them to
+  # Google Photos. Replaces the old iPhone → Resilio → Pixel chain.
+  constellation.immichPixelSync = {
+    enable = true;
+    # alex@rosenfeld.one. The on-disk directory is library/admin/ — that is the
+    # storage label, not this UUID, and it can change; paths come from the database.
+    ownerId = "c85fe467-a36a-457a-a260-a67dfe2199da";
+    database.package = config.services.postgresql.package;
+  };
+
   # Enable sops-nix for secrets management
   constellation.sops.enable = true;
 
