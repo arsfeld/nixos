@@ -201,6 +201,10 @@ def fetch_assets(cfg: Config) -> list:
     (`immich-users media immich`) lets the media user do that without a password.
     Raises CalledProcessError if the query fails, which the caller turns into an
     abort — an unreachable database must never read as "delete everything".
+
+    The query goes in on stdin, not `-c`. psql only interpolates `:'owner'` and
+    `:days` while lexing stdin or a `-f` file; `-c` ships the string to the server
+    untouched, which fails with `syntax error at or near ":"`.
     """
     result = subprocess.run(
         [
@@ -211,8 +215,8 @@ def fetch_assets(cfg: Config) -> list:
             "-d", cfg.db_name,
             "-v", f"owner={cfg.owner_id}",
             "-v", f"days={cfg.window_days}",
-            "-c", SQL,
         ],
+        input=SQL,
         check=True,
         capture_output=True,
         text=True,
