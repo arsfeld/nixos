@@ -1,12 +1,34 @@
 ---
 title: Self-Host Forgejo as Primary Repo Location with Forgejo Actions CI
 type: feat
-status: active
+status: stalled
 date: 2026-04-27
 origin: docs/brainstorms/2026-04-27-self-host-forgejo-brainstorm.md
 ---
 
 # Self-Host Forgejo as Primary Repo Location with Forgejo Actions CI
+
+> **STALLED mid-migration — verified 2026-07-26.** Phases 1–5 landed on 2026-04-29
+> (server, OIDC, history push, runners). **Phase 6 (push-mirror to GitHub + cutover)
+> was never done**, so the cutover never happened and GitHub is still primary:
+>
+> - `origin` is `git@github.com:arsfeld/nixos.git` and is the default push target
+>   (`branch.master.remote=origin`). All real work lands there; GitHub Actions has
+>   680 runs. The `forgejo` remote is a *second* remote, 183 commits stale — its
+>   `master` is still at `efa48f14` from 2026-04-29.
+> - **There is no mirror in either direction.** Forgejo's API reports
+>   `"mirror": false`, and the bare repo at
+>   `/var/lib/forgejo/repositories/arsfeld/nixos.git/config` has no remotes
+>   configured (a push-mirror would appear there). GitHub reports `mirror_url: null`.
+> - Forgejo Actions **is** enabled (`[actions] ENABLED = true`) with two live runners
+>   (`gitea-runner-galactica`, `gitea-runner-basestar`, both `active`), and it does
+>   pick up `.github/workflows/`. So pushing to `forgejo` *would* trigger CI — but
+>   the runs fail: Forgejo resolves third-party actions against `data.forgejo.org`,
+>   which has no `cachix/install-nix-action`. The weekly `schedule` trigger in
+>   `update.yml` keeps firing against the frozen April commit and failing every time.
+>
+> Either finish Phase 6 or decommission the runners; the current half-state produces
+> nothing but a weekly failing job.
 
 > **Origin brainstorm:** [docs/brainstorms/2026-04-27-self-host-forgejo-brainstorm.md](../brainstorms/2026-04-27-self-host-forgejo-brainstorm.md). Carried-forward decisions: (1) primary on storage with GitHub mirror; (2) Forgejo over Gitea/GitLab; (3) Forgejo Actions runners on host system; (4) two labeled runners (storage x86_64, basestar aarch64); (5) Authelia OIDC for SSO; (6) hard cutover.
 
