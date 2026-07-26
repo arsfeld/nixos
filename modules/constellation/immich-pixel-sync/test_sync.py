@@ -70,5 +70,42 @@ class StagedNameTest(unittest.TestCase):
         )
 
 
+class PlanActionsTest(unittest.TestCase):
+    def test_stages_what_is_missing_and_reaps_what_fell_out_of_the_window(self):
+        desired = {"new.heic": row(), "kept.heic": row()}
+        current = {"kept.heic", "old.heic"}
+        to_add, to_delete = sync.plan_actions(desired, current, 50)
+        self.assertEqual(set(to_add), {"new.heic"})
+        self.assertEqual(to_delete, ["old.heic"])
+
+    def test_an_empty_result_set_aborts_rather_than_deleting_everything(self):
+        with self.assertRaises(sync.Abort):
+            sync.plan_actions({}, {"kept.heic"}, 50)
+
+    def test_the_shrink_guard_stops_a_mass_delete(self):
+        desired = {"a.heic": row()}
+        current = {f"{index}.heic" for index in range(10)}
+        with self.assertRaises(sync.Abort):
+            sync.plan_actions(desired, current, 50)
+
+    def test_force_overrides_the_shrink_guard(self):
+        desired = {"a.heic": row()}
+        current = {f"{index}.heic" for index in range(10)}
+        _, to_delete = sync.plan_actions(desired, current, 50, force=True)
+        self.assertEqual(len(to_delete), 10)
+
+    def test_the_shrink_guard_does_not_block_a_first_run(self):
+        desired = {"a.heic": row()}
+        to_add, to_delete = sync.plan_actions(desired, set(), 50)
+        self.assertEqual(set(to_add), {"a.heic"})
+        self.assertEqual(to_delete, [])
+
+    def test_a_shrink_inside_the_threshold_is_allowed(self):
+        desired = {f"{index}.heic": row() for index in range(7)}
+        current = {f"{index}.heic" for index in range(10)}
+        _, to_delete = sync.plan_actions(desired, current, 50)
+        self.assertEqual(len(to_delete), 3)
+
+
 if __name__ == "__main__":
     unittest.main()

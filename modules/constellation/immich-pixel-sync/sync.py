@@ -110,6 +110,37 @@ def staged_name(asset: dict) -> str:
     return f"{asset['ts']}_{asset['id'][:8]}_{sanitize(stem)}{suffix}{extension.lower()}"
 
 
+def plan_actions(
+    desired: dict,
+    current: set,
+    shrink_guard_percent: int,
+    force: bool = False,
+) -> tuple[dict, list]:
+    """Decide what to stage and what to reap.
+
+    `desired` maps staging filename → asset row; `current` is the set of filenames
+    already staged. Reaping falls out of the window rather than being separate
+    logic, so there is one code path to get right instead of two.
+
+    Raises Abort rather than proceeding when the result looks like a failure
+    dressed up as an answer — a bug here deletes photos off a phone.
+    """
+    if not desired:
+        raise Abort("query returned no assets; refusing to empty the staging directory")
+
+    if current and not force:
+        shrink = (len(current) - len(desired)) * 100 / len(current)
+        if shrink > shrink_guard_percent:
+            raise Abort(
+                f"desired set is {shrink:.0f}% smaller than what is staged "
+                f"({len(desired)} vs {len(current)}); refusing without --force"
+            )
+
+    to_add = {name: asset for name, asset in desired.items() if name not in current}
+    to_delete = sorted(current - set(desired))
+    return to_add, to_delete
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Stage recent Immich assets for the Pixel.")
     parser.add_argument("--dry-run", action="store_true", help="print the plan, change nothing")
