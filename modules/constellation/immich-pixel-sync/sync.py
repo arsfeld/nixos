@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import struct
 import sys
 from dataclasses import dataclass
 from datetime import datetime
@@ -139,6 +140,20 @@ def plan_actions(
     to_add = {name: asset for name, asset in desired.items() if name not in current}
     to_delete = sorted(current - set(desired))
     return to_add, to_delete
+
+
+def mpvd_box(video: bytes) -> bytes:
+    """Wrap the video in the ISO-BMFF box Google's parser looks for at the tail."""
+    return struct.pack(">I", 8 + len(video)) + b"mpvd" + video
+
+
+def stage_plain(asset: dict, dest: Path) -> None:
+    """Hardlink the original into staging.
+
+    No bytes copied, and unlinking the staged name later cannot touch Immich's
+    original — the reap path only ever removes one of two names for one inode.
+    """
+    os.link(asset["originalPath"], dest)
 
 
 def main(argv=None) -> int:
