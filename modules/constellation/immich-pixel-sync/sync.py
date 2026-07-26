@@ -11,10 +11,31 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+
+
+# Google Photos only recognises a Motion Photo when the filename matches
+#   ^([^\s\/\\][^\/\\]*MP)\.(JPG|jpg|JPEG|jpeg|HEIC|heic|AVIF|avif)$
+# so a pair whose primary is any other format ships as a plain still.
+MOTION_PRIMARY_MIME = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".heic": "image/heic",
+    ".avif": "image/avif",
+}
+
+# The spec permits video/quicktime with HEVC, so no transcode is needed.
+MOTION_VIDEO_MIME = {
+    ".mov": "video/quicktime",
+    ".mp4": "video/mp4",
+}
+
+# Characters Android's storage layer rejects in a filename.
+_UNSAFE = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 
 
 class Abort(Exception):
@@ -56,6 +77,37 @@ class Config:
 
 def log(message: str) -> None:
     print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {message}", flush=True)
+
+
+def sanitize(stem: str) -> str:
+    """Make a filename stem safe for Android's storage layer."""
+    cleaned = _UNSAFE.sub("_", stem)
+    cleaned = re.sub(r"\s+", "_", cleaned).strip("._")
+    return cleaned or "photo"
+
+
+def is_motion(asset: dict) -> bool:
+    """True when both halves of a Live Photo pair are formats the spec allows."""
+    if not asset.get("live_video"):
+        return False
+    image_ext = os.path.splitext(asset["originalFileName"])[1].lower()
+    video_ext = os.path.splitext(asset["live_video"])[1].lower()
+    return image_ext in MOTION_PRIMARY_MIME and video_ext in MOTION_VIDEO_MIME
+
+
+def staged_name(asset: dict) -> str:
+    """Flat, collision-safe staging filename.
+
+        20260724_143022_a1b2c3d4_IMG_2145.MP.heic   live pair, muxed
+        20260724_143022_a1b2c3d4_IMG_2146.heic      everything else
+
+    2,506 basenames repeat across the library, so the asset UUID prefix is what
+    keeps a flat directory honest. Google Photos takes its date from EXIF, so the
+    timestamp is only there for sort order and legibility.
+    """
+    stem, extension = os.path.splitext(asset["originalFileName"])
+    suffix = ".MP" if is_motion(asset) else ""
+    return f"{asset['ts']}_{asset['id'][:8]}_{sanitize(stem)}{suffix}{extension.lower()}"
 
 
 def main(argv=None) -> int:
