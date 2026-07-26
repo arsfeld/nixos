@@ -1,20 +1,18 @@
 {
+  # Failover services that ran here while galactica was down (cloudflared
+  # connector, vault, yarr, search, ntfy, finance-tracker) were retired on
+  # 2026-07-25 after galactica came back online and their data was migrated
+  # back. Keeping them running split Cloudflare tunnel traffic between the
+  # two hosts and caused split-brain writes to the stateful services.
   imports = [
-    ./cloudflared.nix
-    ./vault.nix
-    ./yarr.nix
     ./blog.nix
-    ./finance-tracker.nix
     ./gatus.nix
-    ./ntfy.nix
     ./planka.nix
     ./plausible.nix
     ./ask.nix
     ./radicle.nix
-    ./search.nix
     ./siyuan.nix
     ./sillytavern.nix
-    ./marinara.nix
     ./webui.nix
   ];
 }

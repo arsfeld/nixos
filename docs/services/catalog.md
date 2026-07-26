@@ -46,7 +46,7 @@ All services are accessible at `https://service.arsfeld.one` unless otherwise no
 | **Authelia** | Authentication portal | [auth.arsfeld.one](https://auth.arsfeld.one) | ✗ | basestar |
 | **LLDAP** | User directory | [users.arsfeld.one](https://users.arsfeld.one) | ✓ | basestar |
 | **Dex** | OIDC provider | [rosenfeld.one](https://rosenfeld.one) | ✗ | basestar |
-| **Vault** | Secret management | [vault.arsfeld.one](https://vault.arsfeld.one) | ✗ | basestar |
+| **Vault** | Secret management | [vault.arsfeld.one](https://vault.arsfeld.one) | ✗ | storage |
 
 ### 📊 Monitoring & Infrastructure
 
@@ -83,8 +83,8 @@ All services are accessible at `https://service.arsfeld.one` unless otherwise no
 | Service | Purpose | URL | Auth | Host |
 |---------|---------|-----|------|------|
 | **Mattermost** | Team chat | [chat.arsfeld.one](https://chat.arsfeld.one) | ✓ | basestar |
-| **Ntfy** | Push notifications | [ntfy.arsfeld.one](https://ntfy.arsfeld.one) | ✗ | basestar |
-| **Yarr** | RSS reader | [yarr.arsfeld.one](https://yarr.arsfeld.one) | ✓ | basestar |
+| **Ntfy** | Push notifications | [ntfy.arsfeld.one](https://ntfy.arsfeld.one) | ✗ | storage |
+| **Yarr** | RSS reader | [yarr.arsfeld.one](https://yarr.arsfeld.one) | ✓ | storage |
 
 ### 🌐 Network Services
 
@@ -114,7 +114,7 @@ All services are accessible at `https://service.arsfeld.one` unless otherwise no
 |---------|---------|-----|------|------|
 | **2FAuth** | 2FA management | [2fauth.arsfeld.one](https://2fauth.arsfeld.one) | ✓ | basestar |
 | **Firefly III** | Personal finance | [finance.arsfeld.one](https://finance.arsfeld.one) | ✓ | basestar |
-| **SearXNG** | Meta search engine | [search.arsfeld.one](https://search.arsfeld.one) | ✗ | basestar |
+| **SearXNG** | Meta search engine | [search.arsfeld.one](https://search.arsfeld.one) | ✗ | storage |
 | **Excalidraw** | Collaborative drawing | [draw.arsfeld.one](https://draw.arsfeld.one) | ✓ | basestar |
 | **Firefox Sync** | Browser sync | [firefox-syncserver.arsfeld.one](https://firefox-syncserver.arsfeld.one) | ✓ | basestar |
 

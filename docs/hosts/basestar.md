@@ -77,12 +77,13 @@ The basestar server is the authentication hub for the entire infrastructure:
 
 #### Communication
 - **Mattermost**: Team chat platform
-- **Ntfy**: Push notification service
-- **Yarr**: RSS feed reader
+
+> **Note (2026-07-25):** Ntfy, Yarr, Vault (Vaultwarden) and SearXNG ran on
+> basestar temporarily while galactica was offline (June–July 2026). They moved
+> back to galactica, and basestar's cloudflared connector for `*.arsfeld.one`
+> was retired to avoid split-routing. Marinara moved to galactica permanently.
 
 #### Utilities
-- **Vault**: Secret management
-- **SearXNG**: Privacy-focused search
 - **2FAuth**: 2FA token management
 - **Firefox Sync**: Browser sync server
 

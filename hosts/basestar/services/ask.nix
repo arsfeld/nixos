@@ -8,7 +8,7 @@
   media.services.ask = {
     port = 3000;
     image = "ghcr.io/miurla/morphic:latest";
-    bypassAuth = true; # auth at the Cloudflare edge (galactica Authelia is down)
+    bypassAuth = true; # auth at the Cloudflare edge (no Authelia in front on basestar)
     tailscaleExposed = true; # ask.bat-boa.ts.net
     watchImage = true;
     container = {
