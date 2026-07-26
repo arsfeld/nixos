@@ -957,6 +957,11 @@ Add to `sync.py`, immediately after the `_UNSAFE` constant:
 # embedded inside their still, never standalone. It is NOT EXISTS rather than
 # NOT IN because NOT IN against a nullable column silently returns nothing.
 #
+# visibility = 'timeline' is redundant today — every non-timeline asset in the
+# library is a Live Photo MOV half, which NOT EXISTS already drops — but Immich's
+# 'locked' visibility is its PIN-protected folder. Without this clause, the day
+# something is locked or archived is the day it silently ships to Google Photos.
+#
 # A pair is selected on its *image* asset's date and the video half is pulled via
 # livePhotoVideoId regardless of its own timestamp, which keeps pairs atomic at
 # the window boundary.
@@ -973,6 +978,7 @@ SELECT coalesce(json_agg(t), '[]'::json) FROM (
     AND a."deletedAt" IS NULL
     AND a.status = 'active'
     AND NOT a."isOffline"
+    AND a.visibility = 'timeline'
     AND a."fileCreatedAt" > now() - make_interval(days => :days)
     AND NOT EXISTS (SELECT 1 FROM asset p WHERE p."livePhotoVideoId" = a.id)
   ORDER BY a."fileCreatedAt"
@@ -980,7 +986,7 @@ SELECT coalesce(json_agg(t), '[]'::json) FROM (
 """
 ```
 
-If Task 1 Step 1 found the table is `assets` rather than `asset`, use that name in all four places here.
+Verified against the live database on 2026-07-26: the table is `asset` (singular), every column above exists, and the query returns 1,010 rows of which 847 have a `live_video`. psql's collation-mismatch warning goes to **stderr**, so reading `stdout` is safe.
 
 - [ ] **Step 2: Add the fetch function**
 
@@ -1337,7 +1343,7 @@ Expected: a timer scheduled hourly, and three directories owned by `media media`
 ssh root@galactica.bat-boa.ts.net 'sudo -u media /run/current-system/sw/bin/immich-pixel-sync --dry-run'
 ```
 
-Expected: a line like `1857 desired, 0 staged, +1857 -0` followed by ~1,857 `+` lines. A healthy fraction should end in `.MP.heic`. If the count is 0 or the run reports `ABORT: selector query failed`, stop — the query or the peer-auth mapping is wrong, and Task 1 needs revisiting.
+Expected: a line like `1010 desired, 0 staged, +1010 -0` followed by ~1,010 `+` lines, of which ~847 end in `.MP.heic`. (The spec's "1,857 assets in 30 days" counts MOV halves separately; 1010 + 847 = 1857. Staged *files* are 1,010 because each pair ships as one.) If the count is 0 or the run reports `ABORT: selector query failed`, stop — the query or the peer-auth mapping is wrong.
 
 - [ ] **Step 4: Real run**
 
@@ -1345,7 +1351,7 @@ Expected: a line like `1857 desired, 0 staged, +1857 -0` followed by ~1,857 `+` 
 ssh root@galactica.bat-boa.ts.net 'sudo -u media /run/current-system/sw/bin/immich-pixel-sync'
 ```
 
-Expected: `done: +1857 -0 failed=0`, or a small non-zero `failed` with per-asset reasons logged. Takes a few minutes — the mux reads and rewrites each pair.
+Expected: `done: +1010 -0 failed=0`, or a small non-zero `failed` with per-asset reasons logged. Takes a few minutes — the mux reads and rewrites each of the 847 pairs.
 
 - [ ] **Step 5: Verify a hardlinked still shares its inode with Immich's original**
 
@@ -1402,7 +1408,7 @@ Expected: `OK`.
 ssh root@galactica.bat-boa.ts.net 'du -sh --apparent-size /mnt/storage/files/PixelPhotoStage; ls /mnt/storage/files/PixelPhotoStage | wc -l; ls /mnt/storage/files/PixelPhotoStage.tmp'
 ```
 
-Expected: roughly 8–9 GB apparent, ~1,857 files, and an **empty** `.tmp` directory (no leftover `.part` files).
+Expected: roughly 8–9 GB apparent, ~1,010 files, and an **empty** `.tmp` directory (no leftover `.part` files).
 
 - [ ] **Step 9: Confirm a second run is a no-op**
 
