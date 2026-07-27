@@ -12,6 +12,12 @@
     system = pkgs.stdenv.hostPlatform.system;
     config = pkgs.config;
   };
+
+  # Syncthing device ID of the Pixel 3 XL that forwards staged photos to Google
+  # Photos. This is a fresh Syncthing install (2026-07-26); an older, now-stale
+  # "Pixel 3 XL" device (SZQ2JJJ…) still exists in the GUI config attached to the
+  # legacy `photosync` folder, and is not this one.
+  pixelDeviceId = "AHQ2BZC-LKGTOWG-PGKTKBV-6INI2Z6-O4RFQ5Q-ZN32AX3-R6KDSF6-WRHPNAT";
 in {
   media.services.syncthing = {port = 8384;};
   media.services.nextcloud = {
@@ -44,6 +50,36 @@ in {
     enable = true;
     guiAddress = "0.0.0.0:8384";
     group = "media";
+
+    # Every other folder and device on this host was created through the GUI.
+    # Both of these default to true, which would DELETE anything Nix does not
+    # declare — five folders (default, photos, photosync, and two more) and six
+    # devices. Keep the declarative config strictly additive.
+    overrideFolders = false;
+    overrideDevices = false;
+
+    settings = {
+      devices.pixel3xl = {
+        id = pixelDeviceId;
+        name = "Pixel 3 XL (photo stage)";
+        # galactica and the Pixel sit behind different routers that both use
+        # 192.168.18.0/24, so there is no route between the sites and relaying is
+        # the only fallback. Tailscale gives a direct path; keep `dynamic` after
+        # it so discovery still works if the tailnet is down.
+        addresses = ["tcp://pixel-3-xl.bat-boa.ts.net:22000" "dynamic"];
+      };
+
+      # sendonly here plus receiveonly on the phone means no deletion can travel
+      # backwards into the staging directory — and nothing can reach Immich from
+      # there anyway, since staged files are only hardlinks and reflinks.
+      folders.pixel-photo-stage = {
+        id = "pixel-photo-stage";
+        label = "Pixel Photo Stage";
+        path = config.constellation.immichPixelSync.stagingDirectory;
+        type = "sendonly";
+        devices = ["pixel3xl"];
+      };
+    };
   };
 
   services.webdav-server-rs = {
