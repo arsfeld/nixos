@@ -84,6 +84,19 @@ class PlanActionsTest(unittest.TestCase):
         with self.assertRaises(sync.Abort):
             sync.plan_actions({}, {"kept.heic"}, 50)
 
+    def test_empty_on_both_sides_is_a_quiet_no_op_not_an_abort(self):
+        # Right after a cutover date there is legitimately nothing in the window
+        # and nothing staged. Aborting here would fail the timer every hour.
+        to_add, to_delete = sync.plan_actions({}, set(), 50)
+        self.assertEqual(to_add, {})
+        self.assertEqual(to_delete, [])
+
+    def test_force_purges_everything_when_the_window_is_deliberately_empty(self):
+        # Moving the cutover forward legitimately empties the window; --force is
+        # how that is distinguished from a broken query.
+        _, to_delete = sync.plan_actions({}, {"a.heic", "b.heic"}, 50, force=True)
+        self.assertEqual(to_delete, ["a.heic", "b.heic"])
+
     def test_the_shrink_guard_stops_a_mass_delete(self):
         desired = {"a.heic": row()}
         current = {f"{index}.heic" for index in range(10)}
