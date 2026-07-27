@@ -1874,16 +1874,25 @@ The design said "hot repo holds metadata, cold holds data packs". The truth, mea
 | Bucket | `config`/`keys`/`index`/`snapshots` | `data/` |
 |---|---|---|
 | `galactica-backup-cold` | `DEEP_ARCHIVE` | `DEEP_ARCHIVE` |
-| `galactica-backup-hot` | `STANDARD` | `STANDARD` (258 tree/cacheable packs) |
+| `galactica-backup-hot` | `STANDARD` | `STANDARD` |
+
+Object counts are point-in-time and small here, so read the table as being about *storage class*,
+not volume. The `data/` prefix in the hot bucket held 258 objects at measurement, but 257 of those
+were zero-byte prefix markers — only one, at 1146 bytes, was a real tree pack.
 
 **The cold bucket is a complete, self-contained rustic repository, entirely on tape.** The hot
 bucket is a Standard-class replica of everything cacheable. Reads are served from hot, which is why
 `snapshots` returns in ~1.5 s with no warm-up — that part of the design holds exactly as intended.
 
-Measurements behind the table: `aws s3api list-objects-v2 --bucket galactica-backup-cold --prefix <p>
---query 'Contents[].StorageClass'` for `p` in `config`, `keys`, `index`, `snapshots` returned
-`DEEP_ARCHIVE` for every object; the same query against `galactica-backup-hot --prefix data/`
-returned 258 rows, all `STANDARD`.
+Measurements behind the table — all four cells, via
+`aws s3api list-objects-v2 --bucket <b> --prefix <p> --query 'Contents[].StorageClass'`:
+
+| Query | Result |
+|---|---|
+| cold, `config` / `keys` / `index` / `snapshots` | `DEEP_ARCHIVE` on every object |
+| cold, `data/` | `DEEP_ARCHIVE` on every object (Step 5's gate, above) |
+| hot, `config` / `keys` / `index` / `snapshots` | `STANDARD` on every object |
+| hot, `data/` | 258 rows, all `STANDARD` |
 
 Two consequences the design did not state:
 
