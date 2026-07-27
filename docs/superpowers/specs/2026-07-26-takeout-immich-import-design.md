@@ -2,7 +2,11 @@
 
 **Date:** 2026-07-26
 **Host:** galactica
-**Status:** Approved. Phase 1 (extraction) started 2026-07-26 22:06 EDT.
+**Status:** Complete, 2026-07-27. All seven phases done, including deletion.
+Library went 20,181 → 58,836 assets and 3 → 95 albums. The 936 files whose
+content never reached Immich are preserved at
+`/home/arosenfeld/takeout-not-imported/`; `/mnt/storage/files/Takeout` (805 GiB)
+has been removed. See **Outcome** at the end.
 
 ## Problem
 
@@ -215,11 +219,18 @@ the deliberate exclusions (trashed, and `.MP` if excluded). Anything else is lis
 path and explained. Plus: album count matches, and a spot-check of dates and GPS on
 the ~4.4% of images with no in-file EXIF, since those depend entirely on sidecars.
 
-### Phase 7 — Deletion (deferred)
+### Phase 7 — Deletion
 
-Not part of this work. Documented for later, on explicit instruction only: Phase 6
-clean, a current Immich DB backup confirmed, then extracted tree first (reproducible
-from the archives) and archives last.
+Executed 2026-07-27 on explicit instruction, after Phase 6 and after every file
+whose content was absent from Immich had been copied out and checksum-verified.
+
+`/mnt/storage/files/Takeout` removed in full — the 8 archives, the new extraction
+and the old partial tree. ~790 GiB reclaimed (`df -h` rounding hides this; compare
+`df -B1`: used fell from 11 TiB to 10.23 TiB).
+
+Recovery path if ever needed: restic snapshot `709bba0f` on the pegasus repo
+(`rest:http://pegasus.bat-boa.ts.net:8000/`, 2026-07-26 07:30) contains all 8
+`.tgz` archives, retained 4 weekly / 6 monthly.
 
 ## Risks
 
@@ -248,3 +259,96 @@ Unrelated to the takeout; also follow-up.
 
 - `scripts/verify-takeout-import.py` — Phase 2 and Phase 6 checker
 - `/root/takeout-extract.sh` on galactica — Phase 1 (operational, not repo state)
+- `/root/takeout-import.sh` on galactica — Phases 3 and 4
+- `/root/takeout-report/` on galactica — verification output and manifests
+
+## Outcome
+
+Ran 2026-07-26 22:06 → 2026-07-27 10:50.
+
+| | Before | After |
+|---|---|---|
+| Assets | 20,181 | **58,836** |
+| Albums | 3 | **95** |
+| Album memberships | 18,696 | **39,715** |
+| People detected | — | 1,580 |
+
+### Phase results
+
+**Phase 1** — all 8 archives extracted in 75 minutes, every one `rc=0`, no
+hardlink failures. 75,662 media files, 363 GiB.
+
+**Phase 2** — 65,500 of 65,501 sidecars had their media. The single exception is
+`Failed Videos/VID_20110409_210539.3gp`, which Google itself failed to export and
+which no archive ever contained.
+
+Getting there took four iterations of the matcher, and the lesson generalises:
+**a naive `<media>.json` check reports thousands of phantom losses.** Google
+renames duplicates (`foo.jpg(1).json` ↔ `foo(1).jpg`), sometimes emits a second
+sidecar for one media file, truncates long names — and truncates the sidecar and
+the media to *different* lengths, so any duplicate counter lands at a different
+offset in each. The search must also be tree-wide: a photo in an album is
+frequently stored only in the album folder while its "Photos from YYYY" folder
+carries just the sidecar.
+
+**Phase 3/4** — dry run predicted 37,196 uploads; the real run delivered exactly
+that. 3 asset errors, all confirmed present in Immich by checksum afterwards —
+they had failed on a secondary `CopyAsset` call, not the upload.
+
+The `server asset upgraded` line (1,345 assets) looked like it would modify
+existing library assets. Hashing all 1,345 against the library showed **zero
+overlap**: they were new content that immich-go improves within the same run
+(album copy superseding the year copy). The import was purely additive.
+
+**Cleanup pass** — worth running for more than the albums: 0 errors, and it
+uploaded **1,169 files (1.1 GB) the first pass had genuinely missed**, plus 2,075
+album additions, 2,625 tags and 8,092 stacks.
+
+**Phase 5** — ~156,000 queued jobs, drained over roughly 11 hours. Two findings:
+
+- Thumbnails for 1,544 timeline-visible assets were **never enqueued** — the
+  queue sat empty while the assets sat thumbnail-less. `force=false` on
+  `thumbnailGeneration` fills only the gaps and fixed it in minutes. Do not
+  assume the queue self-heals after a bulk import.
+- 9,077 hidden live-photo video halves have no thumbnail and never will. This is
+  invisible: the paired still supplies the timeline thumbnail.
+
+**Phase 6** — 75,662 files hashed, 0 unreadable. 45,673 of 46,501 unique contents
+present. Of the 936 absent paths, 923 were cases where Immich holds a *larger*
+file of the same name: immich-go correctly declined to replace a better copy with
+Google's re-compressed one. 2,947 of the 2,948 `.MP` motion stubs turned out to be
+present by content.
+
+### Preserved
+
+All 936 absent files were copied to `/home/arosenfeld/takeout-not-imported/`
+(2.3 GiB) and SHA-1 verified, with a manifest alongside.
+
+All 936, not the 13 that survived name-and-date matching. That matching is
+unreliable in both directions — immich-go dates an asset from the JSON sidecar
+while the file's own EXIF can disagree — and 2.3 GiB is not worth being clever
+about when the alternative is irreversible. The genuinely-unique material among
+them is small: five Google `-edited.jpg` versions whose originals are in Immich,
+two extensionless `MVIMG_*` files that `file(1)` cannot identify, one `.MP`, two
+files from Google's `Failed Videos/`, and one 428 MiB Dahua NVR `.asf` recording.
+
+**Backup near-miss worth recording:** `userExcludes` in
+`hosts/galactica/backup/backrest-client.nix` contains `/home/*/Takeout`. Naming
+the preserve directory `Takeout` would have excluded it from every backup
+silently, forever. `takeout-not-imported` does not match the pattern and is
+covered by the `hetzner` and `pegasus` plans. It first reaches those repos on the
+Sunday 05:30 run.
+
+## Follow-ups
+
+Untouched by this work:
+
+- **Orphans**: 21,708 files (93.7 GiB) in Immich's `library/` with no database
+  row, ~15% of which is content in no asset at all; plus ~92.7 GiB of thumbnails
+  and transcodes for three user IDs absent from the `user` table. ~186 GiB total.
+- **140 lost originals** from Jan–Mar 2026 iPhone uploads, 38 of them recoverable
+  byte-identically from `SyncthingiPhonePhotos`/`PhotoSync`/`Sync`. Five of these
+  surfaced again in Phase 5 as assets that cannot be thumbnailed because the file
+  is gone.
+- **13 preserved files** could be partly recovered: three are valid MP4s with
+  wrong or missing extensions, and the `.asf` would need transcoding.
