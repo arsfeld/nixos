@@ -1,4 +1,8 @@
-{pkgs, ...}: {
+{
+  pkgs,
+  config,
+  ...
+}: {
   media.gateway.services.netdata = {
     port = 19999;
     exposeViaTailscale = true;
@@ -35,6 +39,54 @@
       enable compression = yes
       default memory mode = dbengine # a good default
       health enabled by default = auto
+  '';
+
+  # Alert delivery. Netdata's stock alarm-notify.sh defaults to email via
+  # sendmail, which isn't installed — every alert transition on every streamed
+  # node was failing with "Cannot find sendmail command in the system path"
+  # and going nowhere but the journal. Route to ntfy instead, matching the
+  # publisher pattern used by backrest/image-watch/check-stock.
+  #
+  # As the stream parent, galactica runs health checks for its children too,
+  # so this single config covers basestar/pegasus/raider alerts as well.
+  sops.secrets."ntfy-publisher-env" = {
+    restartUnits = ["netdata.service"];
+  };
+
+  # curl is resolved by alarm-notify.sh at runtime via `command -v curl`.
+  systemd.services.netdata = {
+    path = [pkgs.curl];
+    serviceConfig.EnvironmentFile = config.sops.secrets."ntfy-publisher-env".path;
+  };
+
+  services.netdata.configDir."health_alarm_notify.conf" = pkgs.writeText "health_alarm_notify.conf" ''
+    SEND_EMAIL="NO"
+    SEND_CUSTOM="YES"
+    DEFAULT_RECIPIENT_CUSTOM="sysadmin"
+
+    # Args from alarm-notify.sh: 1=to 2=host 3=unique_id 4=alarm_id 5=event_id
+    # 6=when 7=name 8=chart 9=status 10=old_status 11=value 12=old_value
+    # 13=src 14=duration 15=non_clear_duration 16=units 17=info
+    custom_sender() {
+      local priority tags
+
+      case "''${status}" in
+        CRITICAL) priority="urgent"; tags="rotating_light" ;;
+        WARNING)  priority="high";   tags="warning" ;;
+        CLEAR)    priority="low";    tags="white_check_mark" ;;
+        *)        priority="default"; tags="information_source" ;;
+      esac
+
+      curl -fsS --max-time 10 -X POST \
+        -H "Authorization: Basic $NTFY_BASIC_AUTH_B64" \
+        -H "Title: ''${status}: ''${name} on ''${host}" \
+        -H "Priority: $priority" \
+        -H "Tags: $tags" \
+        -d "''${chart} = ''${value_string}
+
+    ''${info}" \
+        https://ntfy.arsfeld.one/netdata >/dev/null || true
+    }
   '';
 
   # Disable swap memory alerts on development machines
