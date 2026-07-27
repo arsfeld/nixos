@@ -72,20 +72,18 @@ with lib; let
   # EnvironmentFile and never appears in the rendered config.json (the UI
   # renders hook configurations verbatim).
   #
-  # Template vars ({{.Event}}, {{.Repo.Id}}, etc.) are expanded by Backrest
-  # at hook-fire time. Shell vars ($NTFY_BASIC_AUTH_B64) expand at runtime
-  # from the backrest daemon's env (inherited by the exec'd shell).
+  # The POST itself lives in constellation.backupNotify so rustic's cold-tier
+  # units share exactly one implementation. Backrest cannot use the templated
+  # backup-notify@.service — it needs Backrest's own {{...}} expansion, which
+  # only happens inside an actionCommand.
   defaultFailureHook = {
     conditions = ["CONDITION_ANY_ERROR" "CONDITION_SNAPSHOT_ERROR"];
     actionCommand = {
       command = ''
         #!${pkgs.bash}/bin/bash
-        ${pkgs.curl}/bin/curl -sS --fail-with-body -X POST \
-          -H "Authorization: Basic $NTFY_BASIC_AUTH_B64" \
-          -H "Title: Backrest ${cfg.instance}: {{.Repo.Id}}/{{.Plan.Id}} failed" \
-          -H "Tags: floppy_disk,warning" \
-          --data-binary '{{.Event}} on {{.Repo.Id}}/{{.Plan.Id}} (host ${cfg.instance}): {{.Error}}' \
-          ${cfg.ntfyUrl}
+        ${config.constellation.backupNotify.script} \
+          'Backrest ${cfg.instance}: {{.Repo.Id}}/{{.Plan.Id}} failed' \
+          '{{.Event}} on {{.Repo.Id}}/{{.Plan.Id}} (host ${cfg.instance}): {{.Error}}'
       '';
     };
   };
@@ -357,6 +355,8 @@ in {
     sops.secrets."restic-password" = {
       sopsFile = config.constellation.sops.commonSopsFile;
     };
+
+    constellation.backupNotify.enable = mkDefault true;
 
     environment.systemPackages = [cfg.package pkgs.restic];
 
