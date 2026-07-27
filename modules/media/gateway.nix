@@ -213,6 +213,26 @@ in {
 
     services.caddy.virtualHosts = hosts;
 
+    # Bound the access logs. nixpkgs' per-vhost logFormat default emits a bare
+    # `output file .../access-<host>.log`, so Caddy falls back to its built-in
+    # roller at roll_size 100MiB / roll_keep 10 — up to ~1GB *per vhost*. That
+    # default can't be overridden centrally without reading
+    # services.caddy.virtualHosts to define it (infinite recursion), so cap the
+    # directory instead. 32M rotates well before Caddy's own roller fires.
+    # copytruncate because Caddy holds the files open and has no reopen signal.
+    services.logrotate.settings.caddy = {
+      files = "${config.services.caddy.logDir}/*.log";
+      frequency = "daily";
+      rotate = 7;
+      size = "32M";
+      compress = true;
+      delaycompress = true;
+      missingok = true;
+      notifempty = true;
+      copytruncate = true;
+      su = "caddy caddy";
+    };
+
     # Configure Caddy systemd service
     # Tailscale OAuth credentials removed (task-48, task-49) - using tsnsrv instead
     systemd.services.caddy.serviceConfig = {

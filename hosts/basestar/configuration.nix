@@ -49,6 +49,24 @@
       ${pkgs.clickhouse}/bin/clickhouse-client --query "ALTER TABLE system.metric_log MODIFY TTL event_date + INTERVAL 7 DAY" || true
       ${pkgs.clickhouse}/bin/clickhouse-client --query "ALTER TABLE system.asynchronous_metric_log MODIFY TTL event_date + INTERVAL 7 DAY" || true
       ${pkgs.clickhouse}/bin/clickhouse-client --query "ALTER TABLE system.part_log MODIFY TTL event_date + INTERVAL 7 DAY" || true
+
+      # ClickHouse renames a system log table aside (trace_log -> trace_log_N) whenever
+      # it starts up with an incompatible schema, then creates a fresh empty one. The
+      # renamed copy keeps all its rows, inherits no TTL, and is never matched by the
+      # ALTERs above — so it grows without bound. basestar accumulated 23GiB this way
+      # across trace_log_3 (March) and trace_log_7 (May) while the live trace_log sat
+      # correctly bounded at 377MiB. Apply the same retention to any orphans.
+      ${pkgs.clickhouse}/bin/clickhouse-client --query "
+        SELECT name FROM system.tables
+        WHERE database = 'system'
+          AND match(name, '^(trace|query|metric|asynchronous_metric|part)_log_[0-9]+$')
+          AND total_bytes > 0
+      " | while read -r tbl; do
+        [ -n "''$tbl" ] || continue
+        echo "applying retention to orphaned system.''$tbl"
+        ${pkgs.clickhouse}/bin/clickhouse-client --query \
+          "ALTER TABLE system.\"''$tbl\" MODIFY TTL event_date + INTERVAL 3 DAY" || true
+      done
     '';
   };
 
