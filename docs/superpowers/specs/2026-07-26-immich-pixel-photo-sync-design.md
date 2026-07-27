@@ -78,6 +78,21 @@ demonstrated habit of being offline for long stretches.
 The 174 GB history is not being pushed. Google Photos already holds it from years of
 Resilio syncing.
 
+**This needs a hard floor, not just a rolling window — learned the hard way on
+2026-07-26.** The first live run staged the full trailing 30 days, and Google Photos
+duplicated ~860 of them instead of recognising them. Google Photos deduplicates on
+*file content*, and muxing a Live Photo deliberately changes its bytes, so a photo it
+already held arrived as a second item. (The byte-identical plain stills and videos
+deduplicated correctly, which confirms the mechanism.)
+
+The rolling window alone cannot express "don't re-upload history", because on day one
+it *is* history. The module therefore takes a `notBefore` cutover timestamp that the
+window can never reach back past. galactica cut over at 2026-07-26T00:00-04:00.
+
+Corollary: this design can only ever be adopted going forward. There is no way to
+backfill muxed Motion Photos over already-uploaded originals without duplicating them,
+because the whole point of muxing is that the bytes differ.
+
 ## Key finding: Live Photos need muxing, not copying
 
 The original assumption — that Immich had corrupted the Live Photo pairing — is wrong.
