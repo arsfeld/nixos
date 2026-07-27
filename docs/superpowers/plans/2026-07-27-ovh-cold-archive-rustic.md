@@ -1224,10 +1224,16 @@ Expected: the smoke snapshot listed, in seconds, with no warm-up log lines. This
 - [ ] **Step 8: Remove the smoke snapshot's metadata**
 
 ```bash
-ssh galactica.bat-boa.ts.net 'sudo rustic-ovh forget --filter-label smoke --keep-none'
+# Get the id first, then forget it explicitly.
+ssh galactica.bat-boa.ts.net 'sudo rustic-ovh snapshots'
+ssh galactica.bat-boa.ts.net 'sudo rustic-ovh forget <snapshot-id>'
 ```
 
-(The flag is `--filter-label`, singular — the config key in `[forget]` is `filter-labels`, plural. Verified against 0.11.3.)
+**Corrected during execution — do not use `--filter-label smoke --keep-none`.** That was this plan's original instruction and it silently does nothing. rustic merges the profile's `[forget]` policy *additively* with CLI retention flags rather than letting `--keep-none` override them, so the sole snapshot in its group still satisfies "most recent daily/weekly/monthly" and is kept. Observed on 0.11.3 against the real repo.
+
+Forgetting by explicit id bypasses the retention policy entirely — rustic reports `Action: remove, Reason: if argument`. That is the reliable form.
+
+(For reference, the filter flag is `--filter-label`, singular, while the config key in `[forget]` is `filter-labels`, plural.)
 
 Do **not** run `--prune`. The few kilobytes of packs stay on tape until a prune eventually removes them past the 180-day floor; deleting them now would incur the early-deletion charge for no benefit.
 
@@ -1858,3 +1864,26 @@ Deploy succeeded (`Activation successful`, secrets `ovh-s3-env` and `rustic-ovh-
 **Deferred Task 1 verifications:**
 - `systemctl cat "backup-notify@rustic-ovh.service"` shows the literal template with unexpanded `%i` (expected — `cat` never expands specifiers). `systemctl show "backup-notify@rustic-ovh.service" -p Description -p ExecStart` confirms the *resolved* values: `Description=ntfy notification for failed backup unit rustic-ovh`, and `ExecStart` with all three `%i` occurrences correctly resolved to `rustic-ovh` (including `journalctl -u rustic-ovh`).
 - End-to-end ntfy delivery: ran `backup-notify` (`/nix/store/a2ihj955hcw62f5nc0d89rnwma9hvvmm-backup-notify`) directly with `ntfy-publisher-env` sourced. Exit 0; ntfy responded `{"id":"aSL2T37vsIqO", ... "topic":"backups", "title":"backup-notify smoke test", ...}`. Message delivery to https://ntfy.arsfeld.one/backups awaits human confirmation.
+
+### Task 5 addendum — storage classes are not split the way the design assumed
+
+The design said "hot repo holds metadata, cold holds data packs". The truth, measured:
+
+| Bucket | `config`/`keys`/`index`/`snapshots` | `data/` |
+|---|---|---|
+| `galactica-backup-cold` | `DEEP_ARCHIVE` | `DEEP_ARCHIVE` |
+| `galactica-backup-hot` | `STANDARD` | `STANDARD` (258 tree/cacheable packs) |
+
+**The cold bucket is a complete, self-contained rustic repository, entirely on tape.** The hot
+bucket is a Standard-class replica of everything cacheable. Reads are served from hot, which is why
+`snapshots` returns in ~1.5 s with no warm-up — that part of the design holds exactly as intended.
+
+Two consequences the design did not state:
+
+- **"Rebuilding a lost hot repo from cold" is possible, not undocumented.** Cold carries the full
+  metadata mirror, so the hot bucket is reconstructible — but every metadata object would need an
+  `aws s3api restore-object` warm-up first, at Cold Archive's up-to-48 h latency. That is a slow
+  recovery, not a lost one. Siting the hot bucket in OVH rather than on galactica remains the right
+  call; this is the fallback behind it.
+- **Cold stores a second copy of the metadata**, adding roughly 20-50 GB at $0.002/GB — a few cents
+  a month on top of the estimate. It buys the recovery path above.
