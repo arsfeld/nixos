@@ -41,6 +41,11 @@ MOTION_VIDEO_MIME = {
 # Characters Android's storage layer rejects in a filename.
 _UNSAFE = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 
+# Immich stores originals 0600, and Syncthing runs as its own user that is only a
+# member of the media group, so staged files have to be group-readable or every
+# scan fails with "permission denied".
+STAGED_MODE = 0o640
+
 
 # The only source of truth for what should be staged.
 #
@@ -185,13 +190,21 @@ def mpvd_box(video: bytes) -> bytes:
     return struct.pack(">I", 8 + len(video)) + b"mpvd" + video
 
 
-def stage_plain(asset: dict, dest: Path) -> None:
-    """Hardlink the original into staging.
+def stage_plain(asset: dict, dest: Path, tmp_dir: Path) -> None:
+    """Reflink the original into staging.
 
-    No bytes copied, and unlinking the staged name later cannot touch Immich's
-    original — the reap path only ever removes one of two names for one inode.
+    Deliberately not a hardlink. Immich stores originals mode 0600, and Syncthing
+    runs as a different user, so the staged copy must be group-readable. A hardlink
+    shares its inode with Immich's original, which means chmod-ing the staged name
+    would change the permissions of the original — a write into Immich's library,
+    which this module must never do. A reflink is a separate inode over shared
+    extents: free on btrfs, and its mode is its own.
     """
-    os.link(asset["originalPath"], dest)
+    scratch = tmp_dir / (dest.name + ".part")
+    scratch.unlink(missing_ok=True)
+    reflink_copy(Path(asset["originalPath"]), scratch)
+    os.chmod(scratch, STAGED_MODE)
+    os.replace(scratch, dest)
 
 
 def fetch_assets(cfg: Config) -> list:
@@ -284,6 +297,7 @@ def stage_motion(asset: dict, dest: Path, tmp_dir: Path) -> None:
     write_motion_xmp(scratch, len(video_bytes), image.suffix.lower(), video.suffix.lower())
     with open(scratch, "ab") as handle:
         handle.write(mpvd_box(video_bytes))
+    os.chmod(scratch, STAGED_MODE)
     os.replace(scratch, dest)
 
 
@@ -361,7 +375,7 @@ def main(argv=None) -> int:
                 if is_motion(asset):
                     stage_motion(asset, dest, cfg.tmp)
                 else:
-                    stage_plain(asset, dest)
+                    stage_plain(asset, dest, cfg.tmp)
                 added += 1
             except Exception as exc:  # one bad asset must not take down the run
                 log(f"  failed to stage {name}: {exc}")
@@ -371,7 +385,7 @@ def main(argv=None) -> int:
                     # next run does not churn the phone by deleting and re-adding
                     # it. To retry the mux, delete the staged file.
                     try:
-                        stage_plain(asset, dest)
+                        stage_plain(asset, dest, cfg.tmp)
                         log(f"  staged {name} without motion")
                         added += 1
                         continue
