@@ -214,6 +214,13 @@ with lib; {
       options = "--delete-older-than 7d";
     };
 
+    # journald defaults to 10% of the filesystem, which on basestar's 97G root
+    # had grown to 3.9G unbounded. mkDefault so a host that wants deeper
+    # history can raise it.
+    services.journald.extraConfig = lib.mkDefault ''
+      SystemMaxUse=1G
+    '';
+
     system.stateVersion = lib.mkDefault "22.05";
   };
 }
