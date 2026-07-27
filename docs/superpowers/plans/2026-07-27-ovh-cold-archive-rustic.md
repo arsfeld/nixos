@@ -6,7 +6,7 @@
 
 **Architecture:** A new `constellation.rustic` module resurrects the retired `modules/rustic.nix`, rendering one `/etc/rustic/<profile>.toml` per profile plus a backup unit, a separate monthly prune unit, and a manual wrapper script. galactica gets one profile, `ovh`, whose cold repo is an OVH S3 bucket with `default_storage_class = "DEEP_ARCHIVE"` and whose hot repo is a Standard bucket in the same region; restores warm packs back off tape via two `aws s3api` helper scripts wired to rustic's `warm-up-command` / `warm-up-wait-command`. Backrest keeps the warm tiers (local NAS, pegasus REST); the two orchestrators never touch the same repo. A third new module, `constellation.backupNotify`, factors Backrest's inline ntfy curl into one shared script that both orchestrators call.
 
-**Tech Stack:** NixOS modules (haumea auto-discovery), rustic 0.11.3 (`pkgs-unstable`), opendal S3 backend, `pkgs.formats.toml`, systemd oneshot units + timers, sops-nix, awscli2 + jq (restore path only), Colmena deploy.
+**Tech Stack:** NixOS modules (haumea auto-discovery), rustic 0.11.3 (`pkgs-unstable`), opendal S3 backend, `pkgs.formats.toml`, systemd oneshot units + timers, sops-nix, awscli2 + jq (restore path only), `ovhcloud-cli` (resource provisioning), Colmena deploy.
 
 **Source spec:** `docs/superpowers/specs/2026-07-27-ovh-cold-archive-rustic-design.md`
 
@@ -19,6 +19,7 @@
 - **No per-app firewall rules.** Nothing in this plan opens a port.
 - sops is fully automated — use `sops set FILE '["key"]' '"value"'`, never interactive editing.
 - **Never destroy data without explicit operator confirmation at the time.** Tasks 10 and 11 both delete things; both are gated.
+- OVH resources are provisioned with `nix run nixpkgs#ovhcloud-cli -- …`, already authenticated on this workstation. It is a **billable** API — creating a bucket or a user is an outward-facing action, so Task 3 Step 2 is confirmation-gated. Its `--init-file` / `--editor` modes need a TTY and fail under an agent; use plain flags.
 - OVH region is `eu-west-par` **only**. Storage class string is `DEEP_ARCHIVE`. Minimum storage duration **180 days**; early delete bills `(180 − days used) × price`.
 - Lifecycle transitions *into* Cold Archive are not supported — objects must be written directly in the class.
 - rustic profile files live at `/etc/rustic/<profile>.toml` (confirmed search order: `$HOME/.config/rustic/`, `/etc/rustic/`, `./`).
@@ -656,37 +657,101 @@ git commit -m "feat(modules): add constellation.rustic for the cold-storage tier
 
 ## Task 3: OVH buckets, S3 credentials, sops secrets
 
-Operator-driven. Nothing here can be automated from this repo — the buckets and the S3 user live in the OVH console.
+Driven entirely from `ovhcloud-cli` — no console clicking. **This task creates billable resources.** Get operator confirmation before Step 2.
 
 **Files:**
 - Modify: `secrets/sops/galactica.yaml`
 
 **Interfaces:**
 - Produces: sops keys `rustic-ovh-password` (a repo password) and `ovh-s3-env` (an `EnvironmentFile` defining `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`). Task 4 references both by name.
-- Produces: bucket names `galactica-backup-cold` and `galactica-backup-hot` in region `eu-west-par`. Task 4 hardcodes these.
+- Produces: bucket names `galactica-backup-cold` and `galactica-backup-hot` in region `EU-WEST-PAR`. Task 4 hardcodes these.
 
-- [ ] **Step 1: Create the two buckets (operator, OVH console)**
+### About the CLI
 
-In the existing OVH Public Cloud project, region **`eu-west-par`** (the only region offering Cold Archive v2):
+`nix run nixpkgs#ovhcloud-cli -- …` is already authenticated on this workstation (verified during planning). Everything below uses it. Useful facts established while writing this plan:
 
-| Bucket | Default storage class | Purpose |
-|---|---|---|
-| `galactica-backup-cold` | Standard (the *object* class is set per-write by rustic) | data packs on tape |
-| `galactica-backup-hot` | Standard | keys, snapshots, index, tree packs |
+- **Exactly one project exists:** `648a07cf50554fe69f452efc9ab6ce6d` ("Default Project"). Confirm with Step 1 rather than trusting this id.
+- **`EU-WEST-PAR` is a valid region** (uppercase in CLI positionals; `eu-west-par` lowercase in the S3 endpoint and rustic's `region` option), with AZs `-a`/`-b`/`-c` — the "Paris 3-AZ" of the design.
+- **At planning time the project had zero containers and zero users.** If `list` shows any, stop and reconcile before creating more.
+- `cloud storage object create` has **no storage-class flag**, which is correct: Cold Archive v2 is an *object*-level class that rustic sets per write via `default_storage_class`. There is nothing to configure on the bucket.
+- `--init-file` / `--editor` need a TTY and will fail under an agent (`could not open a new TTY`). Use plain flags only.
+- The CLI prints a spurious `A new version of ovhcloud-cli is available: v0.12.0 (current: 0.12.0)` line to stderr. Ignore it; do not run `ovhcloud upgrade`.
 
-Do **not** configure a lifecycle rule transitioning objects into Cold Archive — OVH does not support transitions into the class, and rustic writes objects directly in it via `default_storage_class`.
+Define this shell alias for the whole task:
 
-- [ ] **Step 2: Create an S3 user and note its credentials**
+```bash
+ovh() { nix run nixpkgs#ovhcloud-cli -- "$@"; }
+```
 
-OVH console → Public Cloud → Object Storage → S3 users. Create a user with read/write on both buckets. Record the access key and secret key.
+- [ ] **Step 1: Confirm the project and the starting state**
 
-- [ ] **Step 3: Confirm the endpoint hostname**
+```bash
+ovh() { nix run nixpkgs#ovhcloud-cli -- "$@"; }
+P=$(ovh cloud project list -o json | jq -r '.[0].project_id')
+echo "project = $P"
+ovh cloud storage object list --cloud-project "$P" -o json
+ovh cloud user list --cloud-project "$P" -o json
+```
 
-The OVH console shows the S3 endpoint for `eu-west-par`. It should read `https://s3.eu-west-par.io.cloud.ovh.net`.
+Expected: one project id; `null` for both lists. If either list is non-empty, stop — this plan assumes a clean project and would otherwise be creating duplicates.
 
-This was already verified live during planning — a signed request to that host returned a well-formed S3 `SignatureDoesNotMatch` error with an `x-amz-request-id`. If the console shows a different hostname, stop and update `endpoint` in Task 4 before proceeding.
+- [ ] **Step 2: Get operator confirmation, then create the two buckets**
 
-- [ ] **Step 4: Generate and store the repo password**
+State plainly: this creates two S3 containers in `EU-WEST-PAR` and starts billing at $0.002/GB/month for whatever lands in the cold one, with a **180-day minimum storage duration** per object. Wait for a yes.
+
+```bash
+ovh cloud storage object create EU-WEST-PAR --name galactica-backup-cold --cloud-project "$P" -o json
+ovh cloud storage object create EU-WEST-PAR --name galactica-backup-hot  --cloud-project "$P" -o json
+ovh cloud storage object list --cloud-project "$P" -o json
+```
+
+Expected: both containers listed, region `EU-WEST-PAR`.
+
+Do **not** add a lifecycle rule transitioning objects into Cold Archive (`cloud storage object lifecycle`). OVH does not support transitions *into* the class; rustic writes objects directly in it.
+
+- [ ] **Step 3: Create the S3 user**
+
+```bash
+U=$(ovh cloud user create --cloud-project "$P" \
+      --description "rustic cold archive (galactica)" \
+      --roles objectstore_operator -o json | jq -r '.id')
+echo "user = $U"
+```
+
+Expected: a numeric user id.
+
+If the API rejects `objectstore_operator`, it returns the list of valid role names in the error body — use the one granting object-storage access, and record which it was. Do **not** fall back to `administrator`; this credential lives on galactica's disk and only needs object storage.
+
+- [ ] **Step 4: Grant the user read/write on both buckets**
+
+The project role alone may already suffice, but grant explicitly so the credential's scope is visible rather than inferred:
+
+```bash
+ovh cloud storage object add-user galactica-backup-cold "$U" readWrite --cloud-project "$P"
+ovh cloud storage object add-user galactica-backup-hot  "$U" readWrite --cloud-project "$P"
+```
+
+Expected: success on both. If a role of `readWrite` is rejected, the accepted set is `admin`, `deny`, `readOnly`, `readWrite`.
+
+- [ ] **Step 5: Mint S3 credentials**
+
+```bash
+ovh cloud storage object credentials create "$U" --cloud-project "$P" -o json
+```
+
+Expected: JSON containing an access key and a secret key. **The secret is shown once** — capture it now. Keep it out of the shell history file; the next step writes it straight into sops.
+
+- [ ] **Step 6: Confirm the endpoint hostname**
+
+```bash
+ovh cloud storage object get galactica-backup-cold --cloud-project "$P" -o json
+```
+
+Look for the container's S3 endpoint / virtual host in the response. It should correspond to `https://s3.eu-west-par.io.cloud.ovh.net`.
+
+That host was already verified live during planning — a signed request to it returned a well-formed S3 `SignatureDoesNotMatch` with an `x-amz-request-id`. If the CLI reports a different hostname, stop and update `endpoint` in Task 4 before proceeding.
+
+- [ ] **Step 7: Generate and store the repo password**
 
 ```bash
 cd /home/arosenfeld/Code/nixos
@@ -696,17 +761,19 @@ nix develop -c sops set secrets/sops/galactica.yaml '["rustic-ovh-password"]' "\
 
 This is deliberately **not** the shared `restic-password` from `common.yaml`. That secret is readable by basestar, pegasus and raider; scoping the archive to a galactica-only key means compromising raider does not hand over the durable copy. Recovery is unchanged — both live in git and decrypt with the age key.
 
-- [ ] **Step 5: Store the S3 credentials**
+- [ ] **Step 8: Store the S3 credentials**
+
+Substitute the access key and secret key captured in Step 5:
 
 ```bash
 cd /home/arosenfeld/Code/nixos
 nix develop -c sops set secrets/sops/galactica.yaml '["ovh-s3-env"]' \
-  '"AWS_ACCESS_KEY_ID=<access key>\nAWS_SECRET_ACCESS_KEY=<secret key>\n"'
+  '"AWS_ACCESS_KEY_ID=<access key from Step 5>\nAWS_SECRET_ACCESS_KEY=<secret key from Step 5>\n"'
 ```
 
 The `AWS_*` names are chosen so one secret feeds both rustic's profile substitution and `awscli2` in the restore scripts.
 
-- [ ] **Step 6: Verify both decrypt**
+- [ ] **Step 9: Verify both decrypt**
 
 ```bash
 cd /home/arosenfeld/Code/nixos
@@ -715,7 +782,7 @@ nix develop -c sops --decrypt secrets/sops/galactica.yaml | grep -A3 -E '^(rusti
 
 Expected: the password on one line, and `ovh-s3-env` as a two-line block scalar with both `AWS_*` assignments.
 
-- [ ] **Step 7: Sanity-check the credentials against OVH**
+- [ ] **Step 10: Sanity-check the credentials against OVH**
 
 Read the credentials back out of sops rather than pasting them a second time — this also proves the stored value is well-formed as an `EnvironmentFile`:
 
@@ -731,7 +798,7 @@ cd /home/arosenfeld/Code/nixos
 
 Expected: empty JSON (`{}` or a response with no `Contents`), exit 0. A `SignatureDoesNotMatch` means the keys are wrong; `NoSuchBucket` means the bucket name or region is wrong. Run it again against `galactica-backup-hot`.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
 cd /home/arosenfeld/Code/nixos
