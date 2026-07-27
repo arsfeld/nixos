@@ -34,9 +34,11 @@ auth refuses root->postgres directly).
 """
 
 import argparse
+import bisect
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -74,15 +76,85 @@ def media_files(root: Path) -> list[Path]:
     return found
 
 
-def sidecar_target(path: Path) -> Path | None:
-    """The media file a sidecar refers to, or None if it is not a sidecar."""
+def sidecar_stem(path: Path) -> str | None:
+    """The media filename a sidecar refers to, or None if it is not a sidecar."""
     if path.name in NON_ASSET_JSON:
         return None
     name = path.name
     for suffix in SIDECAR_SUFFIXES:
         if name.endswith(suffix):
-            return path.with_name(name[: -len(suffix)])
+            return name[: -len(suffix)]
     return None
+
+
+# Google writes a duplicate's sidecar as `foo.jpg(1).json` while naming the media
+# `foo(1).jpg` — the counter moves from after the extension to before it.
+_DUPLICATE = re.compile(r"^(?P<stem>.+)\.(?P<ext>[A-Za-z0-9]+)\((?P<n>\d+)\)$")
+
+
+def media_candidates(stem: str) -> list[str]:
+    """Filenames that could satisfy a sidecar, most literal first.
+
+    Three quirks, each of which makes a present file look missing:
+
+      foo.jpg(1).json  ->  foo(1).jpg   the duplicate counter moves across the
+                                        extension
+      foo.jpg(1).json  ->  foo.jpg      or there is no second media file at all
+                                        and Google simply emitted a second
+                                        sidecar for the same one
+      <51 chars>.json  ->  truncated    long names are cut, sometimes mid-
+                                        extension ("..._COVER.jp")
+
+    The truncation case cannot be resolved from the name alone; the caller
+    handles it with a prefix match.
+    """
+    candidates = [stem]
+    match = _DUPLICATE.match(stem)
+    if match:
+        candidates.append(f"{match['stem']}({match['n']}).{match['ext']}")
+        candidates.append(f"{match['stem']}.{match['ext']}")
+    return candidates
+
+
+_TRUNCATED_DUPLICATE = re.compile(r"^(?P<base>.+?)\((?P<n>\d+)\)$")
+
+
+def prefix_match(sorted_media: list[str], stem: str) -> bool:
+    """Does some media file look like a truncated form of this sidecar's name?
+
+    Google truncates long filenames, and truncates the sidecar and the media to
+    *different* lengths, then appends any duplicate counter afterwards:
+
+        sidecar  blob_https___genevievebeauprephotographe.pic-t(10).json
+        media    blob_https___genevievebeauprephotographe.pic-ti(10).jpg
+
+    So the counter lands at a different offset in each and a whole-stem prefix
+    test fails. Where a counter is present, match on the part before it and
+    require the candidate to carry the same counter — without that second
+    condition, (10) would happily match (11).
+    """
+    def scan(prefix: str, needle: str | None) -> bool:
+        index = bisect.bisect_left(sorted_media, prefix)
+        while index < len(sorted_media) and sorted_media[index].startswith(prefix):
+            if needle is None or needle in sorted_media[index]:
+                return True
+            index += 1
+        return False
+
+    if scan(stem, None):
+        return True
+
+    match = _TRUNCATED_DUPLICATE.match(stem)
+    if not match:
+        return False
+    if scan(match["base"], f"({match['n']})"):
+        return True
+
+    # No counter in any candidate. Google also emits a second sidecar for a file
+    # that has no second copy — two sidecars, one media, or two media truncated
+    # to a single shared stem (a .gif and .mp4 of the same clip). Accept the
+    # prefix alone here; the alternative is reporting present files as missing.
+    return scan(match["base"], None)
 
 
 # ---------------------------------------------------------------------------
@@ -99,20 +171,48 @@ class ExtractionResult:
 
 
 def check_extraction(root: Path) -> ExtractionResult:
+    """Does every sidecar have its media file somewhere in the tree?
+
+    Tree-wide, not per-directory, and that distinction is the whole game. A photo
+    that belongs to an album is frequently stored only in the album folder while
+    its "Photos from YYYY" folder carries just the sidecar. Checking directory by
+    directory reports thousands of those as missing when nothing is missing at
+    all.
+    """
     result = ExtractionResult()
+
+    sidecars: list[tuple[str, str]] = []  # (directory, media stem)
+    all_media: set[str] = set()
+
     for dirpath, _dirnames, filenames in os.walk(root):
         for name in filenames:
+            if Path(name).suffix.lower() not in NON_MEDIA_SUFFIXES:
+                all_media.add(name)
+                continue
             if not name.lower().endswith(".json"):
                 continue
-            target = sidecar_target(Path(dirpath) / name)
-            if target is None:
-                continue
-            result.sidecars += 1
-            if target.exists():
-                result.present += 1
-            else:
-                result.missing += 1
-                result.missing_paths.append(str(target))
+            stem = sidecar_stem(Path(dirpath) / name)
+            if stem is not None:
+                sidecars.append((dirpath, stem))
+
+    # Sorted once so the truncation case can bisect for a prefix instead of
+    # scanning 75,000 names per sidecar.
+    sorted_media = sorted(all_media)
+
+    for dirpath, stem in sidecars:
+        result.sidecars += 1
+
+        if any(candidate in all_media for candidate in media_candidates(stem)):
+            result.present += 1
+            continue
+
+        if prefix_match(sorted_media, stem):
+            result.present += 1
+            continue
+
+        result.missing += 1
+        result.missing_paths.append(str(Path(dirpath) / stem))
+
     return result
 
 
