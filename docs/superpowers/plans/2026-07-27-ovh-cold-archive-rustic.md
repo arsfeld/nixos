@@ -1853,13 +1853,15 @@ Deploy succeeded (`Activation successful`, secrets `ovh-s3-env` and `rustic-ovh-
 
 `rustic-ovh init` created repository `93b94ff6`, key `8d590476`. `rustic-ovh backup --label smoke /etc/os-release /etc/machine-id` saved snapshot `3ba659c2` (2 files, 615 B raw, 1.4 KiB added).
 
-**Storage-class gate (Step 5) — PASS.** Every object under `galactica-backup-cold`'s `data/` prefix reads `StorageClass: DEEP_ARCHIVE`, including both real content packs (`data/d4/d416139a...`, `data/fd/fd3bb835...`). No `STANDARD` rows anywhere. `default_storage_class = "DEEP_ARCHIVE"` in `options-cold` is being honoured.
+**Storage-class gate (Step 5) — PASS.** Every object under `galactica-backup-cold`'s `data/` prefix reads `StorageClass: DEEP_ARCHIVE`, including both real packs — `data/d4/d416139a...` (the tree pack, also mirrored into the hot bucket as `STANDARD`) and `data/fd/fd3bb835...` (the file-content pack). No `STANDARD` rows anywhere. `default_storage_class = "DEEP_ARCHIVE"` in `options-cold` is being honoured.
 
 **Bucket layout (Step 6) — more nuanced than the brief's summary.** Both buckets carry a full metadata mirror: `config` ×1, `keys` ×2, `index` ×2, `snapshots` ×2 in *both* `galactica-backup-hot` and `galactica-backup-cold` (cold is the authoritative full repo; hot is rustic's fast-access metadata replica). Both buckets also have a `data/` prefix, but the objects inside differ by storage class, not by path: the hot bucket's single tree pack (`data/d4/d416139a...`) is `STANDARD`; the cold bucket's two content packs are `DEEP_ARCHIVE`. Confirms metadata operations (`snapshots`, `ls`, `find`, `check` without `--read-data`) never touch tape — only actual file-content packs are cold.
 
 `rustic-ovh snapshots` (Step 7) returned the smoke snapshot in 1.58s wall-clock, no warm-up log lines — metadata reads need no tape warm-up, as designed.
 
-**Step 8 did not match the brief's predicted outcome.** `rustic-ovh forget --filter-label smoke --keep-none` reported `Action: keep, Reason: daily/weekly/monthly` and `nothing to remove` — the smoke snapshot is still present. Root cause (confirmed via `--dry-run`): the `ovh` profile's `[forget]` block (`keep-daily = 7`, `keep-weekly = 4`, `keep-monthly = 6`) is merged additively with CLI retention flags rather than overridden by `--keep-none`; since it's the only snapshot in its (host, label, paths) group it always satisfies "most recent daily/weekly/monthly", so it's always kept. A dry-run with `--filter-label smoke --keep-none --keep-daily 0 --keep-weekly 0 --keep-monthly 0` does show `Action: remove`, confirming the mechanism but not executed for real, per instructions to stop rather than improvise past what the brief specified verbatim. No `--prune` was run at any point. **Net effect: harmless** — nothing was deleted, no early-deletion charge, the two smoke data packs (kilobytes) simply stay on tape past their floor as everything else will too; the smoke snapshot's metadata just still shows up in `rustic-ovh snapshots` until a human decides how to clean it up (either amend Step 8's command or accept it lingers until the next real prune cycle, whichever is simpler).
+**Step 8 did not match the brief's predicted outcome.** `rustic-ovh forget --filter-label smoke --keep-none` reported `Action: keep, Reason: daily/weekly/monthly` and `nothing to remove` — the smoke snapshot is still present. Root cause (confirmed via `--dry-run`): the `ovh` profile's `[forget]` block (`keep-daily = 7`, `keep-weekly = 4`, `keep-monthly = 6`) is merged additively with CLI retention flags rather than overridden by `--keep-none`; since it's the only snapshot in its (host, label, paths) group it always satisfies "most recent daily/weekly/monthly", so it's always kept. A dry-run with `--filter-label smoke --keep-none --keep-daily 0 --keep-weekly 0 --keep-monthly 0` does show `Action: remove`, confirming the mechanism but not executed for real, per instructions to stop rather than improvise past what the brief specified verbatim. No `--prune` was run at any point.
+
+**Resolved.** `sudo rustic-ovh forget 3ba659c2` removed it — rustic logged `Action: remove, Reason: if argument`, and `rustic-ovh snapshots` now returns `total: 0 snapshot(s)`. Forgetting by explicit id bypasses the retention policy entirely, which is why it works where `--keep-none` did not. Step 8 of this plan has been rewritten to that form. Still no `--prune`: the two smoke data packs (kilobytes) stay on tape past their 180-day floor, as everything else will.
 
 **Deferred Task 1 verifications:**
 - `systemctl cat "backup-notify@rustic-ovh.service"` shows the literal template with unexpanded `%i` (expected — `cat` never expands specifiers). `systemctl show "backup-notify@rustic-ovh.service" -p Description -p ExecStart` confirms the *resolved* values: `Description=ntfy notification for failed backup unit rustic-ovh`, and `ExecStart` with all three `%i` occurrences correctly resolved to `rustic-ovh` (including `journalctl -u rustic-ovh`).
@@ -1878,12 +1880,27 @@ The design said "hot repo holds metadata, cold holds data packs". The truth, mea
 bucket is a Standard-class replica of everything cacheable. Reads are served from hot, which is why
 `snapshots` returns in ~1.5 s with no warm-up — that part of the design holds exactly as intended.
 
+Measurements behind the table: `aws s3api list-objects-v2 --bucket galactica-backup-cold --prefix <p>
+--query 'Contents[].StorageClass'` for `p` in `config`, `keys`, `index`, `snapshots` returned
+`DEEP_ARCHIVE` for every object; the same query against `galactica-backup-hot --prefix data/`
+returned 258 rows, all `STANDARD`.
+
 Two consequences the design did not state:
 
-- **"Rebuilding a lost hot repo from cold" is possible, not undocumented.** Cold carries the full
-  metadata mirror, so the hot bucket is reconstructible — but every metadata object would need an
-  `aws s3api restore-object` warm-up first, at Cold Archive's up-to-48 h latency. That is a slow
-  recovery, not a lost one. Siting the hot bucket in OVH rather than on galactica remains the right
-  call; this is the fallback behind it.
+- **A lost hot repo is probably recoverable from cold — but this is untested and there is no tooling
+  for it.** Cold carries the full metadata mirror, so the bytes needed to rebuild the hot bucket
+  demonstrably exist. Three caveats before anyone relies on that in an actual disaster:
+  1. **The warm-up scripts cannot do it.** `rustic-ovh-warm-up` and `-wait` build their S3 keys as
+     `data/<first-2-hex>/<id>` from rustic-supplied pack ids. They have no way to address
+     `config`, `keys`, `index` or `snapshots` objects. Recovery would need warming those keys by
+     hand with `aws s3api restore-object` before rustic could read anything.
+  2. **Nobody has tried it**, not even at smoke scale. "The objects are present" is not the same
+     claim as "rustic reconstructs a hot repo from them".
+  3. **The cost is unquantified** — see the still-open retrieval-fee question in Task 8 Step 1.
+     Whether OVH charges a per-GB retrieval fee on top of the restored copy's Standard-rate billing
+     is unconfirmed, and a full-metadata restore is exactly where that would show up.
+
+  So: siting the hot bucket in OVH rather than on galactica remains the right call, and this is a
+  plausible fallback behind it — not a rehearsed procedure. Treat it as such.
 - **Cold stores a second copy of the metadata**, adding roughly 20-50 GB at $0.002/GB — a few cents
-  a month on top of the estimate. It buys the recovery path above.
+  a month on top of the estimate. Cheap, and it is what makes the above possible at all.
