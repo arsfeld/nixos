@@ -122,17 +122,46 @@ class MpvdBoxTest(unittest.TestCase):
 
 
 class StagePlainTest(unittest.TestCase):
-    def test_staging_shares_the_inode_and_unlinking_leaves_the_original(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            original = Path(tmp) / "IMG_2145.heic"
-            original.write_bytes(b"pixels")
-            dest = Path(tmp) / "20260724_143022_a1b2c3d4_IMG_2145.heic"
+    """Staging must never be able to alter Immich's original — content or metadata.
 
-            sync.stage_plain(row(originalPath=str(original)), dest)
+    A hardlink would share the original's inode, so making the staged copy
+    group-readable for Syncthing would also relax the permissions on Immich's
+    file. These assertions are what stop someone reintroducing os.link here.
+    """
 
-            self.assertEqual(original.stat().st_ino, dest.stat().st_ino)
-            dest.unlink()
-            self.assertEqual(original.read_bytes(), b"pixels")
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.scratch = self.root / "scratch"
+        self.scratch.mkdir()
+        self.original = self.root / "IMG_2145.heic"
+        self.original.write_bytes(b"pixels")
+        self.original.chmod(0o600)
+        self.dest = self.root / "20260724_143022_a1b2c3d4_IMG_2145.heic"
+        self.addCleanup(self._tmp.cleanup)
+
+    def test_the_staged_copy_is_a_separate_inode_with_the_same_bytes(self):
+        sync.stage_plain(row(originalPath=str(self.original)), self.dest, self.scratch)
+        self.assertNotEqual(self.original.stat().st_ino, self.dest.stat().st_ino)
+        self.assertEqual(self.dest.read_bytes(), b"pixels")
+
+    def test_the_staged_copy_is_group_readable_so_syncthing_can_scan_it(self):
+        sync.stage_plain(row(originalPath=str(self.original)), self.dest, self.scratch)
+        self.assertEqual(self.dest.stat().st_mode & 0o777, 0o640)
+
+    def test_immich_keeps_its_restrictive_mode(self):
+        sync.stage_plain(row(originalPath=str(self.original)), self.dest, self.scratch)
+        self.assertEqual(self.original.stat().st_mode & 0o777, 0o600)
+
+    def test_reaping_the_staged_copy_leaves_the_original_intact(self):
+        sync.stage_plain(row(originalPath=str(self.original)), self.dest, self.scratch)
+        self.dest.unlink()
+        self.assertEqual(self.original.read_bytes(), b"pixels")
+        self.assertEqual(self.original.stat().st_mode & 0o777, 0o600)
+
+    def test_no_scratch_file_is_left_behind(self):
+        sync.stage_plain(row(originalPath=str(self.original)), self.dest, self.scratch)
+        self.assertEqual(list(self.scratch.iterdir()), [])
 
 
 if __name__ == "__main__":

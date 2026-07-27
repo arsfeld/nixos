@@ -9,8 +9,11 @@
 # Syncthing — declare the folder wherever Syncthing is configured (on galactica
 # that is hosts/galactica/services/files.nix).
 #
-# Nothing here ever writes into Immich's library: plain assets are hardlinked,
-# and muxed ones are reflink-copied into a scratch directory first.
+# Nothing here ever writes into Immich's library. Everything staged is a reflink
+# copy — free on btrfs, but a separate inode, which matters: Immich's originals
+# are mode 0600 and Syncthing runs as another user, so staged files must be
+# group-readable. A hardlink would share the original's inode and chmod-ing it
+# would relax Immich's own permissions.
 {
   config,
   lib,
@@ -99,9 +102,12 @@ in {
       type = types.str;
       default = "media";
       description = ''
-        User to run as. Must own Immich's library files (hardlinking someone
-        else's file is refused by `fs.protected_hardlinks`) and must map to the
-        Immich database role in PostgreSQL's ident map.
+        User to run as. Must be able to read Immich's library files, and must map
+        to the Immich database role in PostgreSQL's ident map.
+
+        Staged files are written mode 0640 owned by this user, so whichever user
+        Syncthing runs as needs to share this group — Immich's own originals are
+        0600 and are never modified.
       '';
     };
 
