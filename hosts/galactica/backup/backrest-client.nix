@@ -55,46 +55,22 @@
     "/var/lib/prometheus2"
   ];
 
+  # Deliberately short. This previously enumerated ~30 tool-specific dotfiles
+  # (.cargo, .rustup, .npm, .nvm, .vscode-server, …), which was a maintenance
+  # treadmill that never kept up with new tools, and it hid a real trap:
+  # `/home/*/Takeout` silently kept 198 GiB of photos out of every backup from
+  # 2024-08 to 2026-07, with nothing anywhere to surface the omission.
+  #
+  # Excluding a name pattern is cheap to write and expensive to notice. Prefer
+  # backing up a few GiB of regenerable toolchain cache over quietly dropping
+  # something irreplaceable that happens to match.
   userExcludes = [
     "/mnt/storage/backups"
     "/mnt/storage/media"
     "/mnt/storage/homes"
     "/mnt/storage/legacy"
     "/home/*/.cache"
-    "/home/*/.local/share/containers"
-    "/home/*/.cargo"
-    "/home/*/.rustup"
-    "/home/*/.npm"
-    "/home/*/.npm-global"
-    "/home/*/.npm-packages"
-    "/home/*/.nvm"
-    "/home/*/.bun"
-    "/home/*/go"
-    "/home/*/.hex"
-    "/home/*/.mix"
-    "/home/*/.linuxbrew"
-    "/home/*/.local/share/pnpm"
-    "/home/*/.vscode-server"
-    "/home/*/.cursor-server"
-    "/home/*/.openvscode-server"
-    "/home/*/.zed_server"
-    "/home/*/.devpod"
-    "/home/*/.claude"
-    "/home/*/.claude-code-router"
-    "/home/*/.codex"
-    "/home/*/.copilot"
-    "/home/*/.gemini"
-    "/home/*/.qwen"
-    "/home/*/.tailout"
-    "/home/*/Takeout"
-    "/home/*/Backup"
     "/home/*/torrents"
-    "/home/*/.docker"
-    "/home/*/.dropbox-dist"
-    "/home/*/.wine"
-    "/home/*/.nix-defexpr"
-    "/home/*/.nix-profile"
-    "/home/*/.terraform.d"
   ];
 
   remoteRetention = {
