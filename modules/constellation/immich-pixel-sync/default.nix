@@ -38,6 +38,11 @@ with lib; let
       export IPS_OWNER_ID=${escapeShellArg cfg.ownerId}
       export IPS_WINDOW_DAYS=${toString cfg.windowDays}
       export IPS_SHRINK_GUARD_PERCENT=${toString cfg.shrinkGuardPercent}
+      export IPS_NOT_BEFORE=${escapeShellArg (
+        if cfg.notBefore == null
+        then "1970-01-01"
+        else cfg.notBefore
+      )}
       export IPS_DB_NAME=${escapeShellArg cfg.database.name}
       export IPS_DB_USER=${escapeShellArg cfg.database.user}
       export IPS_DB_SOCKET=${escapeShellArg cfg.database.socketDirectory}
@@ -89,6 +94,25 @@ in {
         percentage, rather than mass-deleting off the phone. Skipped when the
         staging directory is empty, so first runs are never blocked. Override a
         single run with `immich-pixel-sync --force`.
+      '';
+    };
+
+    notBefore = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      example = "2026-07-26T23:00:00-04:00";
+      description = ''
+        Never stage an asset whose `fileCreatedAt` is older than this, whatever
+        `windowDays` says. Any value PostgreSQL accepts as a `timestamptz`.
+
+        Google Photos deduplicates on file content, and muxing a Live Photo
+        deliberately changes its bytes, so a photo it already holds from some
+        earlier sync path arrives as a *second* copy instead of being recognised.
+        Set this to the moment this module took over so the rolling window can
+        never reach back into already-uploaded history.
+
+        Once `windowDays` has elapsed past the cutover the floor stops having any
+        effect, and it can be left in place.
       '';
     };
 
