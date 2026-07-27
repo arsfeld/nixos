@@ -1,5 +1,21 @@
 # Immich → Pixel Photo Sync Implementation Plan
 
+> ## ✅ EXECUTED 2026-07-26 — read this first
+>
+> Tasks 1–12 and 15 were carried out and are live on galactica. **The code in
+> `modules/constellation/immich-pixel-sync/` is the source of truth, not this plan.**
+> Four things in the task bodies below turned out to be wrong against the real system
+> and were corrected in the implementation — see
+> [Corrections found during execution](#corrections-found-during-execution). Tasks 6, 7,
+> 9 and 11 carry inline `Superseded` notes.
+>
+> Still outstanding: **Task 13** (Pixel-side Google Photos confirmation) and **Task 14**
+> (retiring Resilio — note Resilio turned out to be genuinely still running and syncing,
+> contrary to the spec's claim that its paths no longer exist).
+>
+> Kept as-written otherwise, as the record of what was planned versus what the system
+> actually required.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Stage the last 30 days of one Immich user's photos and videos into a flat directory on galactica — muxing Apple Live Photo pairs into Google Motion Photos — hand that directory to Syncthing for a Pixel 3 XL to pick up, and retire Resilio Sync.
@@ -36,6 +52,44 @@ produces exactly the spec's RDF with the right namespace URIs (`http://ns.google
 **5. No log file, journald only.** `tablet-sync` writes a `.tablet-sync.log` into its sync directory. Here that directory is a Syncthing folder that Google Photos backs up, so a log file would sync to the phone. The unit is a systemd oneshot; `journalctl -u immich-pixel-sync` is the log.
 
 ---
+
+## Corrections found during execution
+
+Four defects in this plan, all found by running against the real system rather than by
+tests — the unit suite was green through every one of them.
+
+**1. `psql -c` does not interpolate variables (Task 7).** The plan passes the query with
+`-c`, which ships the string to the server untouched, so `:'owner'` arrives literally and
+fails with `syntax error at or near ":"`. psql only interpolates while lexing **stdin or
+a `-f` file**. Task 1's verification passed because it used a heredoc — a different code
+path from the implementation. Fixed by passing `input=SQL` and dropping `-c`.
+
+**2. Hardlinks make the staging directory unreadable to Syncthing (Tasks 6, 9).** Immich
+stores originals mode `0600`, and a hardlink shares that inode, so Syncthing — running as
+its own user — failed every single file with `permission denied` (1,010 errors on the
+first scan). `chmod` is not available as a fix: changing a hardlink's mode changes
+Immich's original, which requirement 6 forbids. Hardlinking and group-readability are
+mutually exclusive here. Plain assets now get the same reflink treatment the muxed ones
+had — separate inode, free on btrfs, mode `0640` (`STAGED_MODE`). `stage_plain` gained a
+`tmp_dir` parameter for the atomic temp-and-rename this requires.
+
+**3. The rolling window duplicates already-uploaded photos (new option).** Google Photos
+deduplicates on *file content*, and muxing deliberately changes a Live Photo's bytes, so
+the first run's trailing 30 days came back as ~860 duplicates rather than matches. The
+byte-identical plain files deduplicated correctly, confirming the mechanism. A rolling
+window cannot express "skip history" because on day one it *is* history, so the module
+gained a `notBefore` cutover timestamp the window can never reach back past. galactica cut
+over at `2026-07-26T00:00:00-04:00`.
+
+**4. The empty-result abort was too broad (Task 5).** With a cutover set to the present,
+the window is legitimately empty — but the guard aborted regardless, which both failed the
+timer hourly and made the deliberate purge unreachable through the tool. It now fires only
+when files are actually staged; wanting nothing while nothing is staged is a quiet period,
+not a broken query, and `--force` treats a deliberately emptied window as a purge.
+
+Two things the plan got right that mattered: every one of these failed **safely** (clean
+abort, staging untouched), and the shrink guard correctly refused the 98% purge until
+`--force` was passed.
 
 ## File structure
 
@@ -740,6 +794,10 @@ git commit -m "feat(modules): immich-pixel-sync staging filenames"
 
 ## Task 5: Reconciler
 
+> **⚠ Superseded:** the empty-result abort fires only when files are actually staged, and
+> `--force` overrides it — `if not desired and current and not force: raise Abort(...)`.
+> See correction 4.
+
 The add/keep/delete decision, plus the two aborts that stand between a bug and an emptied phone.
 
 **Files:**
@@ -851,6 +909,13 @@ git commit -m "feat(modules): immich-pixel-sync reconciler with shrink guard"
 
 ## Task 6: Motion Photo trailer and hardlink staging
 
+> **⚠ Superseded — the hardlink half of this task is wrong.** Immich's originals are mode
+> `0600`, and a hardlink shares that inode, so Syncthing could not read a single staged
+> file. `chmod` would have altered Immich's originals. `stage_plain` now takes
+> `(asset, dest, tmp_dir)` and reflinks + `chmod 0640` instead of `os.link`, and the
+> inode-sharing assertion below is inverted in the real test suite. See correction 2. The
+> `mpvd_box` half is correct as written.
+
 Two small pieces that are testable without exiftool: the `mpvd` byte layout, and the hardlink that guarantees staging never costs disk space or endangers the original.
 
 **Files:**
@@ -940,6 +1005,11 @@ git commit -m "feat(modules): immich-pixel-sync mpvd box and hardlink staging"
 ---
 
 ## Task 7: Selector
+
+> **⚠ Superseded on two points.** (a) `fetch_assets` must pass the query as `input=SQL` on
+> **stdin**, not via `-c` — `-c` does not interpolate `:'owner'`/`:days`. (b) The `WHERE`
+> clause gained `AND a."fileCreatedAt" >= :'notbefore'::timestamptz`, and `Config` gained
+> `not_before` from `IPS_NOT_BEFORE`. See corrections 1 and 3.
 
 The one SQL query that is the source of truth for what should exist. Not unit-tested — it has no logic to test, only a shape contract that Task 1 verified against the live database and Task 11 verifies again on the host.
 
@@ -1130,6 +1200,9 @@ git commit -m "feat(modules): immich-pixel-sync live photo muxer"
 
 ## Task 9: Entry point
 
+> **⚠ Superseded:** both `stage_plain` call sites take a third argument, `cfg.tmp`
+> (see correction 2).
+
 Lock, plan, dry-run, stage, reap.
 
 **Files:**
@@ -1317,6 +1390,13 @@ git commit -m "test(modules): run immich-pixel-sync unit tests in nix flake chec
 
 ## Task 11: Deploy and verify on galactica
 
+> **⚠ Superseded — the expected numbers below only describe a run with no cutover.** With
+> `notBefore` set (correction 3) the first run stages only photos taken after the cutover,
+> not the trailing 30 days. The 1,010-file/8.2 GB figures were the pre-cutover reality and
+> are what produced the duplicates. The link-count expectations in Steps 5–6 are also
+> inverted: **every** staged file is now a reflink with `links=1`, mode `0640` — there are
+> no hardlinks (correction 2).
+
 The first real run against 174 GB of photos. Dry-run first.
 
 **Files:** none — this is deployment and verification.
@@ -1426,6 +1506,13 @@ No commit for this task.
 
 **Files:**
 - Modify: `hosts/galactica/services/files.nix:43-47`
+
+> **Note on how this was actually done:** the Pixel's device ID was read off its Syncthing
+> TLS certificate over the tailnet rather than off the phone — the ID is the base32 Luhn
+> encoding of the cert's SHA-256. Derivation validated by reproducing galactica's own known
+> ID exactly. The phone's real ID was `AHQ2BZC-LKGTOWG-PGKTKBV-6INI2Z6-O4RFQ5Q-ZN32AX3-R6KDSF6-WRHPNAT`
+> (a fresh install — the pre-existing `SZQ2JJJ…` "Pixel 3 XL" device on galactica is stale
+> legacy state attached to the old `photosync` folder).
 
 This task needs the Pixel's Syncthing device ID, so do Task 13 Steps 1–2 first.
 
@@ -1564,6 +1651,13 @@ No commit for this task.
 ---
 
 ## Task 14: Retire Resilio
+
+> **⚠ Not done, and the premise needs revisiting.** The spec says Resilio's configured
+> paths "none of which exist", implying it was already dead. That is wrong: as of
+> 2026-07-26 `resilio.service` is **active and actively syncing**
+> `/mnt/data/files/Sync/Camera/…`. Retiring it is therefore a live change with real
+> consequences, not cleanup of something already defunct. Confirm Immich holds everything
+> Resilio is carrying before running this task.
 
 Only after Task 13 Step 7 confirms photos are reaching Google Photos through the new path.
 
