@@ -58,6 +58,11 @@ STAGED_MODE = 0o640
 # 'locked' visibility is its PIN-protected folder. Without this clause, the day
 # something is locked or archived is the day it silently ships to Google Photos.
 #
+# :'notbefore' is the cutover floor. Google Photos deduplicates on file content,
+# and muxing a Live Photo changes its bytes, so any photo it already holds from an
+# earlier sync path comes back as a second copy rather than being recognised. The
+# floor keeps the window from ever reaching back into already-uploaded history.
+#
 # A pair is selected on its *image* asset's date and the video half is pulled via
 # livePhotoVideoId regardless of its own timestamp, which keeps pairs atomic at
 # the window boundary.
@@ -76,6 +81,7 @@ SELECT coalesce(json_agg(t), '[]'::json) FROM (
     AND NOT a."isOffline"
     AND a.visibility = 'timeline'
     AND a."fileCreatedAt" > now() - make_interval(days => :days)
+    AND a."fileCreatedAt" >= :'notbefore'::timestamptz
     AND NOT EXISTS (SELECT 1 FROM asset p WHERE p."livePhotoVideoId" = a.id)
   ORDER BY a."fileCreatedAt"
 ) t;
@@ -94,6 +100,7 @@ class Config:
     owner_id: str
     window_days: int
     shrink_guard_percent: int
+    not_before: str
     db_name: str
     db_user: str
     db_socket: str
@@ -113,6 +120,7 @@ class Config:
             owner_id=need("IPS_OWNER_ID"),
             window_days=int(need("IPS_WINDOW_DAYS")),
             shrink_guard_percent=int(need("IPS_SHRINK_GUARD_PERCENT")),
+            not_before=need("IPS_NOT_BEFORE"),
             db_name=need("IPS_DB_NAME"),
             db_user=need("IPS_DB_USER"),
             db_socket=need("IPS_DB_SOCKET"),
@@ -169,7 +177,12 @@ def plan_actions(
     Raises Abort rather than proceeding when the result looks like a failure
     dressed up as an answer — a bug here deletes photos off a phone.
     """
-    if not desired:
+    # An empty result with files already staged is the signature of a broken query,
+    # not of a real answer, so it must never be read as "delete everything".
+    # Wanting nothing while nothing is staged is just a quiet period — right after
+    # a cutover date, or a genuine gap in photos — and must not fail the unit
+    # hourly. --force means the emptiness is deliberate: purge.
+    if not desired and current and not force:
         raise Abort("query returned no assets; refusing to empty the staging directory")
 
     if current and not force:
@@ -228,6 +241,7 @@ def fetch_assets(cfg: Config) -> list:
             "-d", cfg.db_name,
             "-v", f"owner={cfg.owner_id}",
             "-v", f"days={cfg.window_days}",
+            "-v", f"notbefore={cfg.not_before}",
         ],
         input=SQL,
         check=True,

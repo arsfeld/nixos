@@ -60,6 +60,11 @@ in {
     # storage label, not this UUID, and it can change; paths come from the database.
     ownerId = "c85fe467-a36a-457a-a260-a67dfe2199da";
     database.package = config.services.postgresql.package;
+    # Cutover. Google Photos already holds everything older than this from the
+    # previous sync path, and muxing changes a Live Photo's bytes, so staging any
+    # of it again produces a duplicate rather than a match. Only photos taken from
+    # here on go through this module.
+    notBefore = "2026-07-26T00:00:00-04:00";
   };
 
   # Enable sops-nix for secrets management
