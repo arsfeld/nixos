@@ -71,6 +71,12 @@
     "/mnt/storage/legacy"
     "/home/*/.cache"
     "/home/*/torrents"
+    # Rootless podman image storage — the one name-pattern exclude that pays for
+    # itself. Measured on the first OVH seed: 2.0M of 3.6M files for almost no
+    # bytes, i.e. two thirds of the file count and index churn. Every layer is
+    # re-pullable from a registry, so nothing irreplaceable matches this. That is
+    # the test the comment above sets, and this is the case that passes it.
+    "/home/*/.local/share/containers"
   ];
 
   remoteRetention = {
