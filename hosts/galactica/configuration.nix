@@ -90,11 +90,8 @@ in {
   # Enable qBittorrent with WireGuard VPN in network namespace
   services.qbittorrent-vpn.enable = true;
 
-  # Enable Transmission with WireGuard VPN in network namespace
+  # Enable Transmission confined to the PIA VPN namespace (enables constellation.pia)
   services.transmission-vpn.enable = true;
-
-  # Enable rqbit confined to the PIA VPN namespace (enables constellation.pia)
-  services.rqbit-vpn.enable = true;
 
   media.config.enable = true;
 

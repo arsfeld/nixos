@@ -42,15 +42,13 @@ in {
           "192.168.0.0/16" # Additional local networks
         ];
 
-        # Map ports from host to namespace for WebUI access
+        # Map ports from host to namespace for WebUI access. Only qBittorrent
+        # lives here now — Transmission moved to the PIA namespace, and leaving
+        # 9091 mapped would DNAT the same host port into two namespaces.
         portMappings = [
           {
             from = 8080;
             to = 8080;
-          }
-          {
-            from = 9091;
-            to = 9091;
           }
         ];
 
@@ -267,15 +265,6 @@ in {
             -j DNAT --to-destination \
             \[fd93:9701:1d00::2\]:8080
 
-          iptables -t nat -A wg-prerouting -p tcp \
-            --dport 9091 \
-            -j DNAT --to-destination \
-            192.168.15.1:9091
-          ip6tables -t nat -A wg-prerouting -p tcp \
-            --dport 9091 \
-            -j DNAT --to-destination \
-            \[fd93:9701:1d00::2\]:9091
-
           # Add veth INPUT rules
           ip netns exec wg iptables -A INPUT -p tcp \
             --dport 8080 \
@@ -283,14 +272,6 @@ in {
 
           ip netns exec wg ip6tables -A INPUT -p tcp \
             --dport 8080 \
-            -j ACCEPT -i veth-wg
-
-          ip netns exec wg iptables -A INPUT -p tcp \
-            --dport 9091 \
-            -j ACCEPT -i veth-wg
-
-          ip netns exec wg ip6tables -A INPUT -p tcp \
-            --dport 9091 \
             -j ACCEPT -i veth-wg
         '';
       in

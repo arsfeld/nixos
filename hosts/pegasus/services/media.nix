@@ -81,9 +81,8 @@ in {
     };
   };
 
-  # mydia, stripped for pegasus: no download clients (rqbit/PIA live on
-  # galactica), no FlareSolverr, OIDC disabled. Browse/manage the synced
-  # library only.
+  # mydia on pegasus: OIDC disabled, and grabs go to pegasus's own containerized
+  # Transmission (transmission.nix) rather than galactica's PIA-confined one.
   media.services.mydia = {
     port = 4000;
     image = "ghcr.io/getmydia/mydia:master";

@@ -83,14 +83,18 @@ in {
             FLARESOLVERR_ENABLED = "true";
             FLARESOLVERR_URL = "http://localhost:8191";
             ENABLE_REMOTE_ACCESS = "true";
-            DOWNLOAD_CLIENT_1_NAME = "rqbit";
-            DOWNLOAD_CLIENT_1_TYPE = "rqbit";
+            # Send grabs to the PIA-confined Transmission (galactica's
+            # transmission-vpn.nix). mydia is host-networked, so it must address
+            # the namespace IP directly: loopback bypasses the DNAT rules the
+            # namespace installs on PREROUTING.
+            DOWNLOAD_CLIENT_1_NAME = "transmission";
+            DOWNLOAD_CLIENT_1_TYPE = "transmission";
             DOWNLOAD_CLIENT_1_ENABLED = "true";
             DOWNLOAD_CLIENT_1_PRIORITY = "1";
             DOWNLOAD_CLIENT_1_HOST = pia.namespaceAddress;
-            DOWNLOAD_CLIENT_1_PORT = "3030";
+            DOWNLOAD_CLIENT_1_PORT = "9091";
             DOWNLOAD_CLIENT_1_USE_SSL = "false";
-            DOWNLOAD_CLIENT_1_DOWNLOAD_DIRECTORY = "${vars.storageDir}/media/Downloads/rqbit";
+            DOWNLOAD_CLIENT_1_DOWNLOAD_DIRECTORY = "${vars.storageDir}/media/Downloads";
           };
           environmentFiles = [
             config.sops.secrets.mydia-env.path
