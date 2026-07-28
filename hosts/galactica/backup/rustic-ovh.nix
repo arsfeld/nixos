@@ -136,10 +136,22 @@ in {
     enable = true;
 
     profiles.ovh = {
-      # Both timers stay null until the seed and the restore drill have
-      # passed. Turning them on is a one-line change; see the plan's Task 9.
-      timerConfig = null;
-      pruneTimerConfig = null;
+      # Sunday 04:30, taking over the slot the hetzner-system plan held. One unit
+      # covers both snapshot definitions, so the old 05:30 hetzner slot is simply
+      # gone. Persistent so a run missed while the host was down happens at boot.
+      timerConfig = {
+        OnCalendar = "Sun *-*-* 04:30:00";
+        Persistent = true;
+      };
+
+      # Monthly, not weekly. --repack-cacheable-only defaults to true on a
+      # hot/cold repository, so prune never repacks cold data packs — it waits
+      # until every blob in a pack is unused. Running it weekly would be churn
+      # for nothing.
+      pruneTimerConfig = {
+        OnCalendar = "*-*-01 03:00:00";
+        Persistent = true;
+      };
 
       # --keep-pack is CLI-only in rustic 0.11.3: there is no [prune] config
       # section and [forget] carries no keep-pack key. It keeps exclusively
