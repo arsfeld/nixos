@@ -24,7 +24,6 @@
     ./misc.nix
     ./ntfy.nix
     ./qbittorrent-vpn.nix
-    ./rqbit.nix
     ./transmission-vpn.nix
     ./nfs.nix
     ./samba.nix
