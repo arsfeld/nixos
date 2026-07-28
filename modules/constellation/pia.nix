@@ -291,8 +291,8 @@ with lib; let
         # Same collision hits PIA's tunnel-internal DNS server(s): PIA hands out a
         # resolver in 10/8 (e.g. 10.0.0.243, which can overlap the local LAN /24),
         # so the accessibleFrom route would send DNS out the veth to the host
-        # where it is unreachable. Resolvers that honor resolv.conf (rqbit's
-        # bundled hickory) then fail every lookup. Pin every assigned DNS server
+        # where it is unreachable. Resolvers that honor resolv.conf then fail
+        # every lookup (this bit rqbit's bundled hickory). Pin every DNS server
         # via the tunnel. Re-derived from PIA's API each connect/rebind, so it
         # follows any change PIA makes.
         for dns in state.get("dns_servers") or []:
@@ -354,11 +354,17 @@ with lib; let
         os.chmod(tmp, 0o644)
         os.replace(tmp, PORT_FILE)
 
-        # Reconcile the namespace firewall + notify consumers only on change.
+        # Open the peer port unconditionally, not just on change: restarting
+        # <ns>.service recreates the namespace and wipes its firewall, while
+        # applied_port persists in state.json. Gating this on a change would
+        # leave the peer port closed after every such restart (no inbound peers,
+        # silently). iptables_ensure is idempotent, so re-running it is free.
+        iptables_ensure(port)
+
+        # Retiring the old rule and notifying consumers only makes sense on change.
         if applied != port:
             if applied is not None:
                 iptables_del(applied)
-            iptables_ensure(port)
             log("forwarded port changed " + (str(applied) if applied is not None else "none") + " -> " + str(port) + "; dispatching consumers")
             subprocess.run([HOOK, str(port)], check=True)
             state["applied_port"] = port
@@ -449,9 +455,9 @@ in {
       '';
       example = literalExpression ''
         {
-          rqbit = {
-            port = 3030;
-            onPortChange = "systemctl restart rqbit";
+          transmission = {
+            port = 9091;
+            onPortChange = "transmission-remote 127.0.0.1:9091 -p \"$PIA_FORWARDED_PORT\"";
           };
         }
       '';
