@@ -117,6 +117,11 @@
         "/mnt"
         "**/.cache"
         "**/.nix-profile"
+        # Rootless podman image storage. On galactica this was 1.56M files for
+        # almost no bytes — two thirds of that repo's file count. Every layer is
+        # re-pullable from a registry. Excluded fleet-wide so the same doesn't
+        # accumulate here unnoticed.
+        "**/.local/share/containers"
       ];
       excludeIfPresent = [".nobackup" "CACHEDIR.TAG"];
       schedule.cron = "30 3 * * *";

@@ -56,6 +56,12 @@
     "/mnt/storage/legacy"
     "/home/*/.cache"
     "/home/*/torrents"
+    # Rootless podman image storage. Measured on the first real seed: 2.0M of the
+    # snapshot's 3.6M files, for almost no bytes — two thirds of the repository's
+    # file count, and so of its index and tree-pack churn. Regenerable by
+    # definition (every layer is re-pullable from a registry), which is why this
+    # one earns an exclude where toolchain caches deliberately do not.
+    "/home/*/.local/share/containers"
   ];
 
   toGlobs = map (p: "!" + p);
