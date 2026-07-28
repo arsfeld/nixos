@@ -1913,3 +1913,69 @@ Two consequences the design did not state:
   plausible fallback behind it — not a rehearsed procedure. Treat it as such.
 - **Cold stores a second copy of the metadata**, adding roughly 20-50 GB at $0.002/GB — a few cents
   a month on top of the estimate. Cheap, and it is what makes the above possible at all.
+
+### Task 7 — seed complete (2026-07-28)
+
+| | files | logical | wall clock |
+|---|---|---|---|
+| `669afae1` label `system`, `/` | 580,639 | 187.3 GiB | 1.1 h |
+| `9b4b8573` label `user`, `/home` + `/mnt/storage` | 3,596,712 | 3.0 TiB | ~19 h |
+
+Both labels came from source-matching against the profile's `[[backup.snapshots]]` entries — no
+`--label` was passed, confirming the CLI-source behaviour the plan relied on.
+
+**On OVH, measured:**
+
+| | |
+|---|---|
+| `galactica-backup-cold` | **1,503.0 GB**, 25,948 `data/` objects, **all `DEEP_ARCHIVE`**, zero `STANDARD` |
+| `galactica-backup-hot` | **0.7 GB** |
+
+`rustic check` (metadata only, no `--read-data`): **success** in 35 s, 545 MB read over the network.
+
+**Cost, now measured rather than estimated:**
+
+| | plan estimate | actual |
+|---|---|---|
+| Cold | 1966 GB → $3.93/mo | 1503 GB → **$3.01/mo** |
+| Hot | 20-50 GB → $0.16-0.41/mo | 0.7 GB → **$0.006/mo** |
+| **Total** | $3.8-4.0/mo | **~$3.02/mo** |
+
+Two design estimates were wrong in the same, favourable direction. Cold came in 24% under because
+rustic's compression (3.30 TB logical → 1.50 TB stored, 2.2×) beats what the Hetzner repo held. The
+hot-metadata figure — flagged in the design as "the least certain number here" — was overestimated
+by a factor of ~30; 0.7 GB, not 20-50 GB. Saving vs Hetzner's ~€10.90/mo is ≈ €7.9/mo, ≈ €95/yr.
+
+#### Exclude parity — resolved without the dry-run
+
+The user snapshot holds 3,596,712 files against restic's reference of 1,097,150 (+228%), while
+bytes rose only +8.7%. That profile — huge file delta, small byte delta — is the signature of
+many tiny files, and it is fully accounted for:
+
+**2,680,492 of the 4,287,517 entries fall under the 33 exclude patterns that commit `571a277`
+removed**, which landed 2026-07-27 11:27 — *after* restic's reference snapshot was taken
+(2026-07-26 05:30). The two tools were running different exclude policies. Dominant contributors:
+
+| tree | entries |
+|---|---|
+| `.local` (mostly `.local/share/containers`) | 2,026,768 |
+| `Backup` | 319,850 |
+| `go` | 97,080 |
+| `.linuxbrew` | 91,207 |
+| `.cargo` | 62,388 |
+| `.rustup` | 51,569 |
+
+Nothing is missing; the delta is a deliberate policy change, not a translation fault. Combined with
+the expensive-direction proof (`/mnt/storage` holds 9.7 TB, the snapshot scanned 3.0 TiB, and
+`/mnt/storage/media` was never walked), exclude parity is settled in both directions.
+
+**Worth a decision, though:** ~2.0 M of those files are rootless podman image storage under
+`/home/*/.local/share/containers`. It is regenerable, costs almost nothing in bytes, but it is
+two-thirds of the repository's file count and therefore of its index and tree-pack churn. Re-adding
+that single exclude would cut the file count by ~56% at negligible data loss. `571a277`'s reasoning
+— prefer keeping regenerable cache over silently dropping something irreplaceable — still applies;
+this is just the one entry where the file-count cost is concentrated.
+
+**Note for whoever runs `rustic ls`:** paths are printed *relative*, without a leading slash and
+without the source prefix (`/home/arosenfeld/.cargo` appears as `home/arosenfeld/.cargo`). Two
+analysis attempts here produced confidently wrong answers by grepping for `^/home/`.
