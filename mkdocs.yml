@@ -85,6 +85,7 @@ nav:
     - Authentication System: architecture/authentication.md
     - Network Design: architecture/network.md
     - Backup Strategy: architecture/backup.md
+    - Torrent VPN Stack: architecture/torrent-vpn.md
   - Modules:
     - Media Stack: modules/media.md
   - Hosts:
