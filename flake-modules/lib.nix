@@ -68,6 +68,7 @@
         home-manager.useGlobalPkgs = true;
         home-manager.useUserPackages = false;
         home-manager.backupFileExtension = "bak";
+        home-manager.extraSpecialArgs = {inherit inputs;};
         home-manager.users.arosenfeld = import ../home/home.nix;
       }
     ];
