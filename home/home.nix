@@ -23,15 +23,27 @@
   claude-notify = pkgs.writeScriptBin "claude-notify" (builtins.readFile ./scripts/claude-notify);
 
   llmAgentScripts = let
-    agentNames = builtins.attrNames (
-      inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system} or {}
+    pkgs' = inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system} or {};
+    entries = builtins.attrValues (
+      builtins.foldl' (
+        acc: name: let
+          pkg = pkgs'.${name};
+          binName = pkg.meta.mainProgram or name;
+        in
+          if acc ? ${binName}
+          then acc
+          else acc // {${binName} = name;}
+      ) {} (builtins.attrNames pkgs')
     );
-    mkAgentScript = name:
-      pkgs.writeShellScriptBin name ''
+    mkAgentScript = name: let
+      pkg = pkgs'.${name};
+      binName = pkg.meta.mainProgram or name;
+    in
+      pkgs.writeShellScriptBin binName ''
         exec nix run github:numtide/llm-agents.nix#${name} -- "$@"
       '';
   in
-    map mkAgentScript agentNames;
+    map mkAgentScript entries;
 
   pkgs-unstable = import inputs.nixpkgs-unstable {
     inherit (pkgs.stdenv.hostPlatform) system;
@@ -133,20 +145,24 @@ in {
         else {}
       );
     sessionPath =
-      [
-        "$HOME/.bun/bin"
-        "$HOME/.cargo/bin"
-        "$HOME/.local/bin"
-        "$HOME/.local/share/pnpm"
-        "$HOME/.npm-global/bin"
-      ]
-      ++ (
-        if stdenv.isDarwin
-        then [
-          "$HOME/Library/Android/sdk/emulator"
-          "$HOME/Library/Android/sdk/platform-tools"
+      mkBefore
+      (
+        [
+          "$HOME/.local/state/nix/profiles/home-manager/path/bin"
+          "$HOME/.bun/bin"
+          "$HOME/.cargo/bin"
+          "$HOME/.local/bin"
+          "$HOME/.local/share/pnpm"
+          "$HOME/.npm-global/bin"
         ]
-        else []
+        ++ (
+          if stdenv.isDarwin
+          then [
+            "$HOME/Library/Android/sdk/emulator"
+            "$HOME/Library/Android/sdk/platform-tools"
+          ]
+          else []
+        )
       );
     shellAliases = {
       "df" = "df -h -x tmpfs";
