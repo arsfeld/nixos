@@ -362,7 +362,7 @@
     ];
 
     # Extra configuration
-    extraLuaConfig = ''
+    initLua = ''
       -- General settings
       vim.opt.number = true
       vim.opt.relativenumber = true
