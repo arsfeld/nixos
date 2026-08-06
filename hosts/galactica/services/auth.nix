@@ -205,6 +205,7 @@ in {
 
   services.lldap = {
     enable = true;
+    silenceForceUserPassResetWarning = true;
     settings = {
       http_url = "https://users.${mediaDomain}";
       ldap_user_email = "admin@${authDomain}";

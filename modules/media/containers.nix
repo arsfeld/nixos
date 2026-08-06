@@ -340,7 +340,7 @@ in {
                 User = "root";
                 EnvironmentFile = "/run/secrets/ntfy-publisher-env";
               };
-              wants = ["${backend}.service"];
+              wants = ["${backend}.service" "network-online.target"];
               after = ["${backend}.service" "network-online.target"];
             };
           }

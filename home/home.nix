@@ -547,6 +547,7 @@ in {
   programs.fzf = {
     enable = true;
     enableBashIntegration = false;
+    enableFishIntegration = false;
   };
 
   # TODO: conflicts with Cursor
