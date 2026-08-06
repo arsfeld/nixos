@@ -411,7 +411,6 @@ in {
             gnomeExtensions.add-to-steam
             gnomeExtensions.restart-to
 
-            yaru-theme
             colloid-icon-theme
             colloid-gtk-theme
             pantheon.elementary-sound-theme

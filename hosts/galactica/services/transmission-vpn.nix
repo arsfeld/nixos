@@ -39,16 +39,21 @@
     fi
 
     # ExecStartPost races transmission-daemon's RPC coming up, so poll rather
-    # than assume it is already answering.
+    # than assume it is already answering. If transmission still isn't up after
+    # the poll window, exit 0: the port is already persisted in pia.portFile,
+    # and transmission's own ExecStartPost will read it when it starts (it is
+    # ordered after pia-portforward.service). Failing here would deadlock the
+    # deploy — pia-portforward can never finish while transmission waits on it.
     for _ in $(seq 1 30); do
       if ${pkgs.transmission_4}/bin/transmission-remote 127.0.0.1:${toString rpcPort} -si >/dev/null 2>&1; then
-        break
+        echo "transmission: setting peer port to $PORT" >&2
+        exec ${pkgs.transmission_4}/bin/transmission-remote 127.0.0.1:${toString rpcPort} -p "$PORT"
       fi
       sleep 1
     done
 
-    echo "transmission: setting peer port to $PORT" >&2
-    exec ${pkgs.transmission_4}/bin/transmission-remote 127.0.0.1:${toString rpcPort} -p "$PORT"
+    echo "transmission: RPC not reachable yet; port $PORT persisted for ExecStartPost" >&2
+    exit 0
   '';
 in {
   options.services.transmission-vpn = {

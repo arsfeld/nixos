@@ -28,7 +28,6 @@
       indicator-application-gtk3 # App Indicator
       pantheon.sideload # elementary OS Flatpak installer
       torrential # elementary OS torrent client
-      yaru-theme
     ];
   };
 
