@@ -59,6 +59,6 @@
     users.groups.arosenfeld.gid = 1000;
 
     # Disable man pages generation
-    documentation.man.generateCaches = false;
+    documentation.man.cache.enable = false;
   };
 }

@@ -29,7 +29,7 @@ in {
   services.searx = {
     enable = true;
     package = searxng;
-    runInUwsgi = true;
+    configureUwsgi = true;
     redisCreateLocally = true;
     environmentFile = config.sops.secrets.searxng-env.path;
 

@@ -133,7 +133,7 @@ in {
     datadir = "/var/lib/nextcloud/data";
     hostName = "nextcloud.${vars.domain}";
     maxUploadSize = "10G";
-    package = pkgs-unstable.nextcloud32;
+    package = pkgs-unstable.nextcloud33;
     appstoreEnable = false; # Disable to avoid write permission issues with NixOS-managed apps
     autoUpdateApps.enable = false;
     configureRedis = true;

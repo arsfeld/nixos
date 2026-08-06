@@ -134,9 +134,9 @@
         rustup
       ]
       ++ lib.optionals config.constellation.development.elixir [
-        elixir
-        erlang
-        elixir-ls
+        pkgs.beamPackages.elixir
+        pkgs.beamPackages.erlang
+        pkgs.elixir-ls
       ]
       ++ lib.optionals config.constellation.development.flutter [
         flutter
