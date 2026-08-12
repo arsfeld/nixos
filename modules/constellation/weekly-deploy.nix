@@ -39,6 +39,19 @@ with lib; let
   localHost = config.networking.hostName;
   unknownHosts = filter (h: !(elem h self.hosts)) cfg.hosts;
 
+  # Remote hosts first, the local host last. Switching this machine restarts
+  # tailscaled, nix-daemon, caddy and cloudflared, and every remaining remote
+  # deploy runs over Tailscale SSH from here — so doing ourselves in the middle
+  # of the list would kick the ladder out from under the hosts after us.
+  # cfg.hosts is ["basestar" "galactica" "raider"], which is exactly that.
+  remoteHosts = filter (h: h != localHost) cfg.hosts;
+  deployOrder = remoteHosts ++ optional (elem localHost cfg.hosts) localHost;
+
+  # One host cannot be allowed to eat the whole TimeoutStartSec=3h budget: the
+  # unit would be SIGKILLed with later hosts undeployed and no summary sent,
+  # which is the cross-host coupling the per-host loop exists to remove.
+  deployTimeout = "60m";
+
   deployScript = pkgs.writeShellScriptBin "weekly-deploy" ''
     set -uo pipefail
     export PATH=${makeBinPath [
@@ -152,6 +165,19 @@ with lib; let
     git reset --hard origin/master || {
       notify "Weekly deploy failed on ${config.networking.hostName}" \
         "git reset --hard origin/master failed (checkout left at $(git rev-parse HEAD 2>/dev/null || echo unknown)). A stale .git/index.lock in $REPO is the usual cause. Nothing was deployed."
+      exit 1
+    }
+
+    # An untracked file left in $REPO would be copied into the flake source,
+    # changing `self` and therefore every host's toplevel out-path — none of
+    # which CI ever built, so every host would fail on an attic 404 under
+    # max-jobs = 0. Nothing writes here today (`switch` passes --no-link, so
+    # there is no result symlink), which is exactly why this should stay that
+    # way by construction rather than by luck. Ignored files are left alone:
+    # nix excludes them from the flake source anyway.
+    git clean -fd || {
+      notify "Weekly deploy failed on ${config.networking.hostName}" \
+        "git clean -fd failed in $REPO - refusing to deploy from a dirty tree, whose out-paths CI would never have built. Nothing was deployed."
       exit 1
     }
 
@@ -279,19 +305,41 @@ with lib; let
     # backup-status perfectly well from its OLD generation, so without this the
     # run announces "3/3 healthy" and the operator reads that as "this week's
     # update landed" when nothing was deployed at all.
+    #
+    # --no-reexec is not optional here. For switch/boot/test, nixos-rebuild-ng
+    # otherwise builds the TARGET's own
+    # `config.system.build.nixos-rebuild` and execve's into it before doing any
+    # real work. For basestar that binary is aarch64, and galactica has binfmt
+    # live, so the exec SUCCEEDS and the whole of basestar's deploy — flake
+    # evaluation, nix build, nix-copy-closure — would run under qemu emulation
+    # inside this unit's 12G/3h budget; max-jobs = 0 cannot stop it because it
+    # is not a nix build. For raider it would swap in raider's nixpkgs-unstable
+    # CLI, making a future unstable change a silent dependency of this unit and
+    # defeating the store-pinned PATH. The flag short-circuits in
+    # nixos_rebuild/__init__.py before services.reexec() is called at all, so
+    # that attribute is never even built.
+    #
+    # DEPLOY_ORDER is remote-first, local-last (see deployOrder above); the
+    # sweep still reports in $HOSTS order.
+    DEPLOY_ORDER="${concatStringsSep " " deployOrder}"
     declare -A DEPLOY_STATUS
 
-    for h in $HOSTS; do
+    for h in $DEPLOY_ORDER; do
       printf '=== %s ===\n' "$h" >> "$STATE/last-deploy.log"
       if [ "$h" = "$LOCAL_HOST" ]; then
         # No --target-host: this machine cannot SSH to itself over Tailscale.
-        nixos-rebuild switch --flake "$REPO#$h" \
+        timeout ${deployTimeout} nixos-rebuild switch --no-reexec \
+          --flake "$REPO#$h" \
           >>"$STATE/last-deploy.log" 2>&1
       else
-        nixos-rebuild switch --flake "$REPO#$h" \
+        timeout ${deployTimeout} nixos-rebuild switch --no-reexec \
+          --flake "$REPO#$h" \
           --target-host "root@$h.bat-boa.ts.net" \
           >>"$STATE/last-deploy.log" 2>&1
       fi
+      # `timeout` reports 124 when it fires, which flows through as this host's
+      # deployRc and is spelled out in the summary rather than left as a
+      # mystery number.
       DEPLOY_STATUS[$h]=$?
     done
 
@@ -402,7 +450,11 @@ with lib; let
         # different situation from a host that fell off the network, and the
         # operator has to be able to tell them apart at a glance.
         if [ "$DEPLOY_RC" -ne 0 ]; then
-          if [ "$GEN" = "unreachable" ]; then
+          if [ "$DEPLOY_RC" -eq 124 ]; then
+            # `timeout`'s own exit code. Say so, rather than leaving the
+            # operator to look up what 124 means at 2am.
+            LINE="$LINE DEPLOY-FAILED(rc=124, timed out after ${deployTimeout})"
+          elif [ "$GEN" = "unreachable" ]; then
             LINE="$LINE DEPLOY-FAILED(rc=$DEPLOY_RC, host unreachable)"
           else
             LINE="$LINE DEPLOY-FAILED(rc=$DEPLOY_RC, host up - still on its previous generation)"
