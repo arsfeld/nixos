@@ -62,6 +62,25 @@ with lib; let
       ${config.constellation.backupNotify.script} "$1" "$2" || true
     }
 
+    LOCAL_HOST="${localHost}"
+
+    # Runs a command on host $1: locally when $1 is this host (Tailscale SSH
+    # cannot authenticate a host to itself — same reason `colmena apply-local`
+    # is used above), over ssh otherwise. $2 is a single command string, and
+    # both branches hand it to exactly one shell for parsing (bash -c
+    # locally, the remote user's shell via ssh) — a command written once
+    # therefore behaves identically either way. That matters for
+    # `awk "{print \$1}"` below: one extra or missing level of quoting would
+    # silently turn a real failure into empty output, i.e. a false all-clear.
+    run_on() {
+      local host="$1" cmd="$2"
+      if [ "$host" = "$LOCAL_HOST" ]; then
+        ${pkgs.bash}/bin/bash -c "$cmd"
+      else
+        ssh -o BatchMode=yes -o ConnectTimeout=15 "root@$host.bat-boa.ts.net" "$cmd"
+      fi
+    }
+
     mkdir -p "$STATE"
 
     if [ ! -d "$REPO/.git" ]; then
@@ -152,8 +171,13 @@ with lib; let
 
     # Reachability probe that doubles as known_hosts seeding: colmena's ssh
     # would otherwise fail on an unknown host key. Tailscale is the trust
-    # boundary here — these hosts are already tailnet-authenticated.
+    # boundary here — these hosts are already tailnet-authenticated. Skips
+    # the local host: there is no remote host key to seed for a loopback
+    # connection, and Tailscale SSH cannot authenticate self-connections
+    # anyway, so attempting it would only add meaningless noise to the
+    # journal.
     for h in $HOSTS; do
+      [ "$h" = "$LOCAL_HOST" ] && continue
       ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 \
         "root@$h.bat-boa.ts.net" true 2>/dev/null || true
     done
@@ -180,8 +204,7 @@ with lib; let
     ''}
 
     for h in $HOSTS; do
-      ssh -o BatchMode=yes -o ConnectTimeout=15 "root@$h.bat-boa.ts.net" \
-        systemctl start multi-user.target 2>/dev/null || true
+      run_on "$h" "systemctl start multi-user.target" 2>/dev/null || true
     done
 
     RESULTS=""
@@ -189,13 +212,9 @@ with lib; let
     SUMMARY="$LOCK_LINE"$'\n'
 
     for h in $HOSTS; do
-      TARGET="root@$h.bat-boa.ts.net"
-      GEN=$(ssh -o BatchMode=yes -o ConnectTimeout=15 "$TARGET" \
-        'readlink -f /run/current-system' 2>/dev/null || echo "unreachable")
-      FAILED=$(ssh -o BatchMode=yes -o ConnectTimeout=15 "$TARGET" \
-        'systemctl --failed --no-legend | awk "{print \$1}" | paste -sd, -' 2>/dev/null || echo "?")
-      BACKUPS=$(ssh -o BatchMode=yes -o ConnectTimeout=15 "$TARGET" \
-        'backup-status' 2>/dev/null || echo "[]")
+      GEN=$(run_on "$h" "readlink -f /run/current-system" 2>/dev/null || echo "unreachable")
+      FAILED=$(run_on "$h" 'systemctl --failed --no-legend | awk "{print \$1}" | paste -sd, -' 2>/dev/null || echo "?")
+      BACKUPS=$(run_on "$h" "backup-status" 2>/dev/null || echo "[]")
 
       STALE=$(printf '%s' "$BACKUPS" \
         | jq -r '[.[] | select(.ok | not) | .name] | join(",")' 2>/dev/null || echo "?")
