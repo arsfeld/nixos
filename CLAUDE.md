@@ -38,8 +38,11 @@ All hosts are reached via Tailscale: `<hostname>.bat-boa.ts.net`.
   `flake.lock` to master. Gated on tier-1 only — a broken octopi will not block the lock.
   It sends no notification of its own: GitHub-hosted runners hit Cloudflare's managed
   challenge (HTTP 403) on `ntfy.arsfeld.one`, so a `curl` from CI can never post there.
-- **galactica `weekly-deploy`** (Sun 06:00 UTC): pulls master, deploys `@tier1` with
-  `max-jobs = 0` so it never builds, verifies failed units and backup freshness over
+- **galactica `weekly-deploy`** (Sun 06:00 UTC): pulls master, then runs `nixos-rebuild
+  switch --flake <repo>#<host>` once per tier-1 host (remotes over Tailscale SSH first,
+  galactica itself last) with `max-jobs = 0` so it never builds — it deploys the same
+  `nixosConfigurations` attribute CI caches, which is why substitution always
+  hits. Verifies failed units and backup freshness over
   Tailscale SSH, checks `flake.lock`'s age (escalates past 14 days stale — the signal
   that CI stopped landing updates), and posts one ntfy summary. State in
   `/var/lib/weekly-deploy/`. Run it early with `sudo systemctl start weekly-deploy`.
