@@ -67,21 +67,3 @@ jobs:
           git add flake.lock
           git commit -m "chore: update flake inputs"
           git push
-
-  notify:
-    needs: [update, build, commit]
-    if: failure()
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Notify ntfy
-        env:
-          NTFY_BASIC_AUTH_B64: ${{ secrets.NTFY_BASIC_AUTH_B64 }}
-        run: |
-          set -euo pipefail
-          curl -sS --fail-with-body -X POST \
-            -H "Authorization: Basic $NTFY_BASIC_AUTH_B64" \
-            -H "Title: Weekly Update failed" \
-            -H "Tags: warning,package" \
-            --data-binary "flake.lock was NOT committed. Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            https://ntfy.arsfeld.one/backups
