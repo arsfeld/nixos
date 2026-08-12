@@ -73,6 +73,11 @@ in {
   # OpenCloud - lightweight file storage and collaboration platform
   constellation.opencloud.enable = true;
 
+  # galactica is the only always-on x86 host with Tailscale SSH to the rest of
+  # tier-1, and it never builds here (max-jobs = 0), so the weekly deploy costs
+  # it a download and an activation.
+  constellation.weeklyDeploy.enable = true;
+
   # Tailscale VPN exit nodes via AirVPN
   sops.secrets.airvpn-env = {};
   sops.secrets.tailscale-exit-key = {};
