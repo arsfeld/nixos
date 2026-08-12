@@ -16,8 +16,15 @@ on:
         type: string
         default: ""
 
+# A called workflow evaluates this with the CALLER's context, so with a group
+# keyed only on the ref, a human pushing to master while the Sunday "Weekly
+# Update" build is running cancelled it — the commit job was then skipped and
+# the update silently dropped for a week. Keying on the workflow and the
+# triggering event as well keeps the scheduled build and push builds in
+# separate groups under either resolution of github.workflow, while pushes
+# still supersede each other as before.
 concurrency:
-  group: build-cache-${{ github.ref }}
+  group: build-cache-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -50,11 +57,32 @@ jobs:
           HOSTS: ${{ inputs.hosts }}
         run: |
           set -euo pipefail
-          include=$(nix eval --json '.#ciMatrix')
+
+          # Filter INSIDE the Nix expression. `.#ciMatrix` forces `platform` for
+          # every discovered host, and that is a full nixosConfigurations
+          # evaluation each — so filtering afterwards with jq means a flake.lock
+          # that breaks the evaluation of a host we are not even building still
+          # fails this job, skips the build, and silently discards the update.
+          # That is the 2026-06-07 bug one layer up from where it was fixed.
+          # `x.host` is a bare string, so non-selected hosts are never forced.
           if [ -n "${HOSTS}" ]; then
-            include=$(printf '%s' "$include" \
-              | jq -c --argjson want "$HOSTS" '[.[] | select(.host as $h | $want | index($h))]')
+            want=$(printf '%s' "${HOSTS}" | jq -r 'map(@json) | join(" ")')
+            include=$(nix eval --json '.#ciMatrix' \
+              --apply "l: builtins.filter (x: builtins.elem x.host [ ${want} ]) l")
+          else
+            include=$(nix eval --json '.#ciMatrix')
           fi
+
+          # A zero-row matrix is not "nothing to do", it is "nothing was built".
+          # GitHub skips a matrix job with no rows, `success()` in update.yml
+          # then passes, and flake.lock gets committed with zero hosts verified.
+          count=$(printf '%s' "$include" | jq 'length')
+          if [ "$count" -eq 0 ]; then
+            echo "::error::Build matrix is empty (hosts input: '${HOSTS:-<all>}'). Refusing to report success with nothing to build." >&2
+            exit 1
+          fi
+          echo "Matrix has $count host(s)."
+
           echo "matrix={\"include\":${include}}" >> "$GITHUB_OUTPUT"
 
   build:
@@ -104,6 +132,30 @@ jobs:
 
           echo "Pushing to Attic cache..."
           attic login system https://attic.arsfeld.dev "$ATTIC_TOKEN"
-          attic push system "./result-${{ matrix.host }}"
+
+          # Retry transient push failures (a live HTTP 499 left raider's closure
+          # 404 in attic), but never swallow them. "attic push failed => job
+          # failed => weekly-deploy's tier-1 gate skips this commit" is exactly
+          # what stops galactica from deploying a closure that is not
+          # substitutable, and it deploys under `max-jobs = 0`, where a cache
+          # miss is a hard failure rather than a local rebuild. `|| true` or
+          # continue-on-error here would turn a clean skip into a broken deploy.
+          pushed=0
+          for attempt in 1 2 3 4; do
+            if attic push system "./result-${{ matrix.host }}"; then
+              pushed=1
+              break
+            fi
+            echo "attic push attempt $attempt failed"
+            # `[ ... ] && sleep` would be the loop body's last command, and a
+            # false test there trips `set -e`. Use an explicit if.
+            if [ "$attempt" -lt 4 ]; then
+              sleep $((attempt * 15))
+            fi
+          done
+          if [ "$pushed" -ne 1 ]; then
+            echo "::error::attic push failed after 4 attempts for ${{ matrix.host }}" >&2
+            exit 1
+          fi
 
           echo "Done: ${{ matrix.host }} built and cached"
