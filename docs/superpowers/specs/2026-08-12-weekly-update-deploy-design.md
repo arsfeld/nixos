@@ -144,7 +144,8 @@ New module `modules/constellation/weekly-deploy.nix`, enabled only on galactica.
 
 **Options:** `enable`, `hosts` (default `["galactica" "basestar" "raider"]`), `schedule`
 (default `Sun *-*-* 06:00:00 UTC`), `repoUrl`, `stateDir` (default
-`/var/lib/weekly-deploy`), `maxBackupAgeHours` (default 48).
+`/var/lib/weekly-deploy`). Backup freshness thresholds are **not** set here — they are
+per-source, defined in Part C.
 
 `hosts` is a plain list, not a reference to the tier definitions: `tiers` lives in
 `flake-modules/hosts.nix` as a flake output and a colmena tag, and is not visible as a
@@ -214,18 +215,40 @@ installing its own script matters because galactica runs **both** rustic and bac
 **Schema**, one object per repo or profile:
 
 ```json
-{ "name": "hetzner", "kind": "restic", "lastSnapshot": "2026-08-10T04:31:00Z",
-  "ageHours": 41.2, "ok": true, "error": null }
+{ "name": "ovh", "kind": "rustic", "lastSnapshot": "2026-08-09T04:44:41-04:00",
+  "ageHours": 70.5, "maxAgeHours": 192, "ok": true, "error": null }
 ```
 
-`ok` is `ageHours <= maxBackupAgeHours`. A source that cannot be queried reports
-`ok: false` with `error` set, never a crash.
+A source that cannot be queried reports `ok: false` with `error` set, never a crash.
 
-- **rustic sources** run the `rustic-<profile>` wrapper the module already installs
-  (`rustic-<name> snapshots --json`) and take the maximum snapshot `time`.
-- **backrest sources** run `restic -r <uri> snapshots --latest 1 --json` with
-  `RESTIC_PASSWORD_FILE` and the repo's declared `env`, all of which `backrest.nix`
-  already holds in `renderRepo`.
+**Thresholds are per-source, not global.** Measured 2026-08-12: galactica's rustic `ovh`
+profile has `timerConfig.OnCalendar = "Sun *-*-* 04:30:00"` — weekly. A single 48-hour
+threshold would report it stale every week, which trains the operator to ignore the
+notification. Each source therefore carries its own `maxAgeHours`, defaulting to 48; the
+weekly `ovh` profile sets 192 (8 days, one day of slack).
+
+Adding `maxAgeHours` to rustic's `profileType` **requires adding it to `moduleKeys`**
+(`modules/constellation/rustic.nix:57`). That type is `freeformType = types.attrs`, and
+`profileToml` writes every key not listed in `moduleKeys` verbatim into
+`/etc/rustic/<name>.toml`.
+
+Query mechanics, all verified against the installed versions (rustic 0.11.3,
+restic 0.18.1):
+
+- **rustic sources** run `rustic-<name> snapshots --json`. Its `[INFO]` banner goes to
+  **stderr**, so stdout is clean JSON. The structure is an array of
+  `{group_key, snapshots}`, so the newest time is `[.[].snapshots[].time] | max`.
+- **backrest sources** run `restic -r <uri> snapshots --json` with `RESTIC_PASSWORD_FILE`
+  and the repo's declared `env`, which `backrest.nix` already holds in `renderRepo`. The
+  output is a flat array; the newest time is `[.[].time] | max`.
+- **Do not use `restic snapshots --latest 1`.** It returns the latest snapshot *per
+  group*, not the single newest overall. Reading `.[0].time` from it returned a
+  2026-05-28 snapshot from galactica's local repo whose actual newest snapshot was
+  2026-08-12 — a 76-day error that would fire a false stale-backup alert.
+- **Compare times via `date -d "<time>" +%s`, not lexically or with jq's date builtins.**
+  Timestamps carry fractional seconds and a numeric offset
+  (`2026-08-09T04:44:41.226088185-04:00`), which `fromdateiso8601` rejects and which
+  sorts incorrectly as text across differing offsets.
 
 This closes the gap the old routine's prompt called out explicitly: a live daemon with
 nine-day-old snapshots reports `ok: false`, where a `systemctl is-active` check would
@@ -269,14 +292,16 @@ report healthy.
 - `systemctl start weekly-deploy` on galactica out-of-band; expect a summary within
   minutes and zero local builds in the journal.
 - Point the precondition check at a commit with a failed run; expect the skip path.
-- Set `maxBackupAgeHours = 0`; expect every source to report `ok: false`.
+- Set one source's `maxAgeHours = 0`; expect that source to report `ok: false` while the
+  others stay green, proving thresholds are per-source rather than global.
 - Trigger `update.yml` via `workflow_dispatch`; expect a `flake.lock` commit when tier-1
   is green, and a full ten-host `build.yml` run on the resulting push.
 
 ## Risks
 
-- rustic's and restic's JSON shapes must be confirmed against the installed versions at
-  implementation time.
+- rustic's and restic's JSON shapes were confirmed on galactica on 2026-08-12 against
+  rustic 0.11.3 and restic 0.18.1. A version bump to either could change them; the
+  `backup-status` sources are the only place that parses them.
 - backrest repos with `rclone:` URIs may need rclone configuration in root's environment
   to answer snapshot queries. Those sources report `error` rather than blocking the run.
 - attic remains a single point of flakiness. By design the deploy skips rather than
