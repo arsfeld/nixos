@@ -61,6 +61,7 @@ with lib; let
     export PATH=${makeBinPath [pkgs.jq pkgs.coreutils pkgs.gawk]}:$PATH
 
     now=$(date +%s)
+    euid=$EUID
     out=""
 
     while IFS=$'\t' read -r name kind cmd maxage; do
@@ -91,7 +92,11 @@ with lib; let
           err='"unparseable snapshot json"'
         fi
       else
-        err='"query failed"'
+        if [ "$euid" -eq 0 ]; then
+          err='"query failed"'
+        else
+          err='"query failed (not root — rerun with sudo)"'
+        fi
       fi
 
       out="$out$(jq -nc \
