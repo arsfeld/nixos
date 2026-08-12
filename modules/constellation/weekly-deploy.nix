@@ -87,10 +87,21 @@ with lib; let
     # the running system profile gives the local branch the same surface,
     # resolved live rather than pinned to a store path, exactly as the remote
     # branch resolves it.
+    #
+    # HOME is part of that surface too. systemd sets no HOME for a root system
+    # service (it does set USER, LANG, PWD and PATH — checked, HOME is the only
+    # one missing), while an ssh login gets HOME=/root. restic needs it to site
+    # its cache: 0.18 only warns, but 0.19 treats an undeterminable cache dir as
+    # fatal and exits non-zero, which would report every restic repo on this
+    # host as stale while the backups are fine. Since this unit deploys the very
+    # host it runs on, it would ship that restic bump to itself and then start
+    # lying about its own backups. Scoped to this one invocation rather than set
+    # unit-wide, so git/nix/colmena keep running without root's dotfiles exactly
+    # as they do today.
     run_on() {
       local host="$1" cmd="$2"
       if [ "$host" = "$LOCAL_HOST" ]; then
-        PATH="/run/current-system/sw/bin:$PATH" ${pkgs.bash}/bin/bash -c "$cmd"
+        HOME=/root PATH="/run/current-system/sw/bin:$PATH" ${pkgs.bash}/bin/bash -c "$cmd"
       else
         ssh -o BatchMode=yes -o ConnectTimeout=15 "root@$host.bat-boa.ts.net" "$cmd"
       fi
@@ -260,17 +271,27 @@ with lib; let
         CHECK_ERRS="$CHECK_ERRS failed-units"
       fi
 
-      if BACKUPS=$(run_on "$h" "backup-status" 2>/dev/null); then
+      # Three ways this check fails to produce an answer, and none of them may
+      # look like a clean bill of health. Empty stdout is the subtle one: jq
+      # reads no input, emits nothing and exits 0, so STALE would come back
+      # empty — indistinguishable from "no stale repos" — and the empty string
+      # would additionally blow up --argjson below and drop this host from
+      # last-run.json entirely.
+      if ! BACKUPS=$(run_on "$h" "backup-status" 2>/dev/null); then
+        BACKUPS="[]"
+        STALE="?"
+        CHECK_ERRS="$CHECK_ERRS backup-status"
+      elif [ -z "$BACKUPS" ]; then
+        BACKUPS="[]"
+        STALE="?"
+        CHECK_ERRS="$CHECK_ERRS backup-status-empty"
+      else
         STALE=$(printf '%s' "$BACKUPS" \
           | jq -r '[.[] | select(.ok | not) | .name] | join(",")' 2>/dev/null) || {
           STALE="?"
           BACKUPS="[]"
           CHECK_ERRS="$CHECK_ERRS backup-status-unparseable"
         }
-      else
-        BACKUPS="[]"
-        STALE="?"
-        CHECK_ERRS="$CHECK_ERRS backup-status"
       fi
 
       CHECK_ERRS="''${CHECK_ERRS# }"
