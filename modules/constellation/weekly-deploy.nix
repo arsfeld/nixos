@@ -215,18 +215,24 @@ with lib; let
     # host too under `--on`, and that SSH always fails (see module header /
     # flake-modules/colmena.nix). Remote hosts still go through `apply`;
     # ${localHost} goes through `apply-local`, which runs in-process as this
-    # unit's own root, no SSH involved. Either invocation is best-effort
-    # (`|| true`) so one failing never blocks the other, the verification
-    # sweep, or the summary. An empty --on list means "all nodes" to colmena,
-    # so the remote invocation is only ever emitted when there's at least one
-    # remote host to deploy.
+    # unit's own root, no SSH involved. Either invocation is best-effort so one
+    # failing never blocks the other, the verification sweep, or the summary —
+    # but its exit status is captured rather than thrown away with `|| true`.
+    # A deploy that failed everywhere leaves every host answering readlink,
+    # systemctl and backup-status perfectly well from its OLD generation, so
+    # without this the run announces "3/3 healthy" and the operator reads that
+    # as "this week's update landed" when nothing was deployed at all. An empty
+    # --on list means "all nodes" to colmena, so the remote invocation is only
+    # ever emitted when there's at least one remote host to deploy.
+    DEPLOY_REMOTE_RC=0
+    DEPLOY_LOCAL_RC=0
     ${optionalString (remoteHosts != []) ''
       colmena apply ${optionalString cfg.impureEval "--impure "}--on ${escapeShellArg (concatStringsSep "," remoteHosts)} \
-        >>"$STATE/last-deploy.log" 2>&1 || true
+        >>"$STATE/last-deploy.log" 2>&1 || DEPLOY_REMOTE_RC=$?
     ''}
     ${optionalString localIncluded ''
       colmena apply-local ${optionalString cfg.impureEval "--impure "}--node ${escapeShellArg localHost} \
-        >>"$STATE/last-deploy.log" 2>&1 || true
+        >>"$STATE/last-deploy.log" 2>&1 || DEPLOY_LOCAL_RC=$?
     ''}
 
     for h in $HOSTS; do
@@ -235,7 +241,16 @@ with lib; let
 
     RESULTS=""
     HOST_PROBLEMS=0
-    SUMMARY="$LOCK_LINE"$'\n'
+
+    # Deploy outcome leads the body next to the lock line, so "did this week's
+    # update actually land" is answerable without reading the per-host lines.
+    if [ "$DEPLOY_REMOTE_RC" -ne 0 ] || [ "$DEPLOY_LOCAL_RC" -ne 0 ]; then
+      DEPLOY_LINE="deploy FAILED: colmena apply rc=$DEPLOY_REMOTE_RC, apply-local rc=$DEPLOY_LOCAL_RC (see $STATE/last-deploy.log)"
+    else
+      DEPLOY_LINE="deploy: ok"
+    fi
+
+    SUMMARY="$LOCK_LINE"$'\n'"$DEPLOY_LINE"$'\n'
 
     # Every check has three outcomes, not two: it ran and found nothing wrong,
     # it ran and found a problem, or it could not run at all. Folding the third
@@ -247,6 +262,15 @@ with lib; let
     for h in $HOSTS; do
       HOST_BAD=0
       CHECK_ERRS=""
+
+      # Which invocation covered this host: every host in $HOSTS is either the
+      # local one or one of the remote ones, which is exactly the split the two
+      # colmena calls follow.
+      if [ "$h" = "$LOCAL_HOST" ]; then
+        DEPLOY_RC=$DEPLOY_LOCAL_RC
+      else
+        DEPLOY_RC=$DEPLOY_REMOTE_RC
+      fi
 
       GEN=$(run_on "$h" "readlink -f /run/current-system" 2>/dev/null) || {
         GEN="unreachable"
@@ -296,6 +320,7 @@ with lib; let
 
       CHECK_ERRS="''${CHECK_ERRS# }"
 
+      [ "$DEPLOY_RC" -ne 0 ] && HOST_BAD=1
       [ "$GEN" = "unreachable" ] && HOST_BAD=1
       [ -n "$FAILED" ] && [ "$FAILED" != "?" ] && HOST_BAD=1
       [ -n "$STALE" ] && [ "$STALE" != "?" ] && HOST_BAD=1
@@ -303,7 +328,18 @@ with lib; let
       [ "$HOST_BAD" -eq 1 ] && HOST_PROBLEMS=$((HOST_PROBLEMS + 1))
 
       if [ "$HOST_BAD" -eq 1 ]; then
-        LINE="$h: FAILED=[''${FAILED:-none}] STALE=[''${STALE:-none}] GEN=$GEN"
+        LINE="$h:"
+        # A failed deploy on a host that still answers every check is a
+        # different situation from a host that fell off the network, and the
+        # operator has to be able to tell them apart at a glance.
+        if [ "$DEPLOY_RC" -ne 0 ]; then
+          if [ "$GEN" = "unreachable" ]; then
+            LINE="$LINE DEPLOY-FAILED(rc=$DEPLOY_RC, host unreachable)"
+          else
+            LINE="$LINE DEPLOY-FAILED(rc=$DEPLOY_RC, host up - still on its previous generation)"
+          fi
+        fi
+        LINE="$LINE FAILED=[''${FAILED:-none}] STALE=[''${STALE:-none}] GEN=$GEN"
         [ -n "$CHECK_ERRS" ] && LINE="$LINE CHECKS-DID-NOT-RUN=[$CHECK_ERRS]"
         SUMMARY="$SUMMARY$LINE"$'\n'
       else
@@ -312,15 +348,16 @@ with lib; let
 
       RESULTS="$RESULTS$(jq -nc \
         --arg host "$h" --arg gen "$GEN" --arg failed "$FAILED" --arg stale "$STALE" \
-        --arg checkErrors "$CHECK_ERRS" \
+        --arg checkErrors "$CHECK_ERRS" --argjson deployRc "$DEPLOY_RC" \
         --argjson backups "$(printf '%s' "$BACKUPS" | jq -c . 2>/dev/null || echo '[]')" \
-        '{host:$host,generation:$gen,failedUnits:$failed,staleBackups:$stale,checkErrors:$checkErrors,backups:$backups}')"
+        '{host:$host,generation:$gen,deployRc:$deployRc,failedUnits:$failed,staleBackups:$stale,checkErrors:$checkErrors,backups:$backups}')"
     done
 
     printf '%s' "$RESULTS" | jq -s \
       --arg sha "$SHA" --arg when "$(date -Is)" \
       --argjson lockAgeDays "$LOCK_AGE_DAYS" --arg lockCommitTime "$LOCK_COMMIT_ISO" \
-      '{commit:$sha,ranAt:$when,lockAgeDays:$lockAgeDays,lockCommitTime:$lockCommitTime,hosts:.}' > "$STATE/last-run.json"
+      --argjson deployRemoteRc "$DEPLOY_REMOTE_RC" --argjson deployLocalRc "$DEPLOY_LOCAL_RC" \
+      '{commit:$sha,ranAt:$when,lockAgeDays:$lockAgeDays,lockCommitTime:$lockCommitTime,deployRemoteRc:$deployRemoteRc,deployLocalRc:$deployLocalRc,hosts:.}' > "$STATE/last-run.json"
 
     TOTAL=$(printf '%s' "$HOSTS" | wc -w)
     OK=$((TOTAL - HOST_PROBLEMS))
