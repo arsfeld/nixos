@@ -67,7 +67,7 @@ in {
       serviceConfig = {
         Type = "oneshot";
         EnvironmentFile = cfg.envFile;
-        ExecStart = ''${cfg.script} "Backup failed on ${config.networking.hostName}: %i" "systemd unit %i failed on ${config.networking.hostName}. Run: journalctl -u %i -n 100 --no-pager"'';
+        ExecStart = ''${cfg.script} "${config.networking.hostName}: %i failed" "systemd unit %i failed on ${config.networking.hostName}. Run: journalctl -u %i -n 100 --no-pager"'';
       };
     };
   };

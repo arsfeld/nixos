@@ -199,7 +199,16 @@ with lib; {
     networking.nftables.enable = true;
     networking.firewall.allowedTCPPorts = [22];
 
-    services.tailscale.enable = true;
+    services.tailscale = {
+      enable = true;
+      # Tailscale SSH is what lets galactica's weekly-deploy reach root on the
+      # other tier-1 hosts with no key material anywhere. It was imperative
+      # state until now, so a host re-auth or reinstall could silently break
+      # the deployer. extraSetFlags reapplies on every activation, unlike
+      # extraUpFlags which only applies to the initial `tailscale up`.
+      # Who may actually use it is governed by the tailnet ACL, out of repo.
+      extraSetFlags = ["--ssh"];
+    };
 
     networking.firewall = {
       checkReversePath = "loose";
