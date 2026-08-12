@@ -51,6 +51,11 @@ with lib; let
       pkgs.nix
       pkgs.coreutils
       pkgs.gnused
+      # The verification sweep parses `systemctl --failed` output with awk.
+      # Nothing puts awk on a systemd unit's PATH by default (the per-unit
+      # default is coreutils/findutils/gnugrep/gnused/systemd), so without
+      # this the parse silently produced nothing.
+      pkgs.gawk
     ]}:$PATH
 
     STATE=${cfg.stateDir}
@@ -69,13 +74,23 @@ with lib; let
     # is used above), over ssh otherwise. $2 is a single command string, and
     # both branches hand it to exactly one shell for parsing (bash -c
     # locally, the remote user's shell via ssh) — a command written once
-    # therefore behaves identically either way. That matters for
-    # `awk "{print \$1}"` below: one extra or missing level of quoting would
-    # silently turn a real failure into empty output, i.e. a false all-clear.
+    # therefore behaves identically either way.
+    #
+    # The two branches must also see the same *tools*, which is not automatic.
+    # The ssh branch lands in a login environment that already has the target's
+    # system profile on PATH; the local branch inherits only this unit's PATH,
+    # which is the script's own closure plus systemd's per-unit default — and
+    # that has no /run/current-system/sw/bin on it at all. Host-provided
+    # commands the sweep depends on (notably `backup-status`, generated
+    # per-host by constellation.backupStatus) would resolve remotely and fail
+    # locally, and a failed lookup here reads as "nothing wrong". Prepending
+    # the running system profile gives the local branch the same surface,
+    # resolved live rather than pinned to a store path, exactly as the remote
+    # branch resolves it.
     run_on() {
       local host="$1" cmd="$2"
       if [ "$host" = "$LOCAL_HOST" ]; then
-        ${pkgs.bash}/bin/bash -c "$cmd"
+        PATH="/run/current-system/sw/bin:$PATH" ${pkgs.bash}/bin/bash -c "$cmd"
       else
         ssh -o BatchMode=yes -o ConnectTimeout=15 "root@$host.bat-boa.ts.net" "$cmd"
       fi
@@ -211,30 +226,74 @@ with lib; let
     HOST_PROBLEMS=0
     SUMMARY="$LOCK_LINE"$'\n'
 
+    # Every check has three outcomes, not two: it ran and found nothing wrong,
+    # it ran and found a problem, or it could not run at all. Folding the third
+    # into the first is how this sweep reported a host healthy while it was
+    # broken — an unresolvable `backup-status` fell into `|| echo "[]"`, and an
+    # empty array has no stale entries. A check that did not run is therefore
+    # collected in CHECK_ERRS and marks the host bad, same as unreachable;
+    # "unknown" is never rounded down to "fine".
     for h in $HOSTS; do
-      GEN=$(run_on "$h" "readlink -f /run/current-system" 2>/dev/null || echo "unreachable")
-      FAILED=$(run_on "$h" 'systemctl --failed --no-legend | awk "{print \$1}" | paste -sd, -' 2>/dev/null || echo "?")
-      BACKUPS=$(run_on "$h" "backup-status" 2>/dev/null || echo "[]")
-
-      STALE=$(printf '%s' "$BACKUPS" \
-        | jq -r '[.[] | select(.ok | not) | .name] | join(",")' 2>/dev/null || echo "?")
-
       HOST_BAD=0
+      CHECK_ERRS=""
+
+      GEN=$(run_on "$h" "readlink -f /run/current-system" 2>/dev/null) || {
+        GEN="unreachable"
+        CHECK_ERRS="$CHECK_ERRS generation"
+      }
+
+      # Collect raw remotely, parse here. A pipeline exits with its *last*
+      # stage's status, so the previous `systemctl | awk | paste` exited 0 even
+      # when awk was missing entirely, handing back empty output that read as
+      # "no failed units". One command per remote call keeps its exit status
+      # meaningful, and the parse then runs under this script's own pipefail
+      # with this script's own awk. --plain drops the "●" marker systemd
+      # prefixes to each failed unit, which is otherwise the only thing
+      # `{print $1}` ever sees.
+      if FAILED_RAW=$(run_on "$h" "systemctl list-units --state=failed --no-legend --plain" 2>/dev/null); then
+        FAILED=$(printf '%s\n' "$FAILED_RAW" | awk 'NF {print $1}' | paste -sd, -) || {
+          FAILED="?"
+          CHECK_ERRS="$CHECK_ERRS failed-units-parse"
+        }
+      else
+        FAILED="?"
+        CHECK_ERRS="$CHECK_ERRS failed-units"
+      fi
+
+      if BACKUPS=$(run_on "$h" "backup-status" 2>/dev/null); then
+        STALE=$(printf '%s' "$BACKUPS" \
+          | jq -r '[.[] | select(.ok | not) | .name] | join(",")' 2>/dev/null) || {
+          STALE="?"
+          BACKUPS="[]"
+          CHECK_ERRS="$CHECK_ERRS backup-status-unparseable"
+        }
+      else
+        BACKUPS="[]"
+        STALE="?"
+        CHECK_ERRS="$CHECK_ERRS backup-status"
+      fi
+
+      CHECK_ERRS="''${CHECK_ERRS# }"
+
       [ "$GEN" = "unreachable" ] && HOST_BAD=1
       [ -n "$FAILED" ] && [ "$FAILED" != "?" ] && HOST_BAD=1
       [ -n "$STALE" ] && [ "$STALE" != "?" ] && HOST_BAD=1
+      [ -n "$CHECK_ERRS" ] && HOST_BAD=1
       [ "$HOST_BAD" -eq 1 ] && HOST_PROBLEMS=$((HOST_PROBLEMS + 1))
 
       if [ "$HOST_BAD" -eq 1 ]; then
-        SUMMARY="$SUMMARY$h: FAILED=[''${FAILED:-none}] STALE=[''${STALE:-none}] GEN=$GEN"$'\n'
+        LINE="$h: FAILED=[''${FAILED:-none}] STALE=[''${STALE:-none}] GEN=$GEN"
+        [ -n "$CHECK_ERRS" ] && LINE="$LINE CHECKS-DID-NOT-RUN=[$CHECK_ERRS]"
+        SUMMARY="$SUMMARY$LINE"$'\n'
       else
         SUMMARY="$SUMMARY$h: ok"$'\n'
       fi
 
       RESULTS="$RESULTS$(jq -nc \
         --arg host "$h" --arg gen "$GEN" --arg failed "$FAILED" --arg stale "$STALE" \
+        --arg checkErrors "$CHECK_ERRS" \
         --argjson backups "$(printf '%s' "$BACKUPS" | jq -c . 2>/dev/null || echo '[]')" \
-        '{host:$host,generation:$gen,failedUnits:$failed,staleBackups:$stale,backups:$backups}')"
+        '{host:$host,generation:$gen,failedUnits:$failed,staleBackups:$stale,checkErrors:$checkErrors,backups:$backups}')"
     done
 
     printf '%s' "$RESULTS" | jq -s \
