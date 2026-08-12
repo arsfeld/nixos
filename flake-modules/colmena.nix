@@ -23,12 +23,17 @@
         # Tailscale SSH cannot authenticate a host connecting to itself over
         # the tailnet (the loopback connection bypasses Tailscale's SSH
         # interception and lands on the real sshd, where root has no
-        # authorized key), so weekly-deploy
-        # (modules/constellation/weekly-deploy.nix) applies galactica's own
-        # config via `colmena apply-local` instead of SSH when galactica is
-        # in its host list. `apply-local` refuses to run unless this is set.
-        # Enabling it for every node is simplest and safe: it only permits
-        # local application on whichever machine is actually running colmena.
+        # authorized key), so a machine can never deploy itself over `--on`.
+        # `colmena apply-local` is the way around that for manual deploys, and
+        # it refuses to run unless this is set. Enabling it for every node is
+        # simplest and safe: it only permits local application on whichever
+        # machine is actually running colmena.
+        #
+        # weekly-deploy (modules/constellation/weekly-deploy.nix) no longer
+        # uses colmena at all — it deploys each host with nixos-rebuild against
+        # .#nixosConfigurations, because the hive's own `meta.nixpkgs` loses
+        # the flake's revision metadata and so evaluates different derivations
+        # than CI builds and caches.
         allowLocalDeployment = true;
         # Tier tags from self.tiers, so e.g. `colmena apply --on @tier1`.
         tags = inputs.nixpkgs.lib.attrNames (
