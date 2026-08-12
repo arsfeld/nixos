@@ -108,10 +108,17 @@ in {
         uri = "rclone:hetzner:backups/restic";
         passwordFile = config.sops.secrets."restic-password".path;
         envFile = config.sops.secrets."hetzner-webdav-env".path;
+        # hetzner-system (30 4 * * 0) and hetzner (30 5 * * 0) are both
+        # Sunday-only — weekly. 48h would report stale every week; 192h is
+        # 8 days, one day of slack past the interval (matches ovh).
+        maxAgeHours = 192;
       };
       pegasus = {
         uri = "rest:http://pegasus.bat-boa.ts.net:8000/";
         passwordFile = config.sops.secrets."restic-password".path;
+        # pegasus-system (30 6 * * 0) and pegasus (30 7 * * 0) are both
+        # Sunday-only — weekly. Same 192h reasoning as hetzner above.
+        maxAgeHours = 192;
       };
     };
 
