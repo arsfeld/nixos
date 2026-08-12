@@ -30,21 +30,22 @@
 with lib; let
   cfg = config.constellation.weeklyDeploy;
 
-  # Tailscale SSH cannot authenticate a host connecting to itself (see
-  # flake-modules/colmena.nix's allowLocalDeployment comment), so the local
-  # host must be applied via `colmena apply-local`, never over `--on`.
-  # Computed from config.networking.hostName at Nix eval time rather than a
-  # runtime `hostname` call, so this can never disagree with which colmena
-  # node this machine actually is.
+  # Tailscale SSH cannot authenticate a host connecting to itself (the loopback
+  # connection bypasses Tailscale's SSH interception and lands on the real
+  # sshd, where root has no authorized key), so the local host is switched
+  # directly with no --target-host. Computed from config.networking.hostName at
+  # Nix eval time rather than a runtime `hostname` call, so it can never
+  # disagree with which machine this actually is.
   localHost = config.networking.hostName;
-  remoteHosts = filter (h: h != localHost) cfg.hosts;
-  localIncluded = elem localHost cfg.hosts;
+  unknownHosts = filter (h: !(elem h self.hosts)) cfg.hosts;
 
   deployScript = pkgs.writeShellScriptBin "weekly-deploy" ''
     set -uo pipefail
     export PATH=${makeBinPath [
       pkgs.git
-      pkgs.colmena
+      # Deploys go through nixos-rebuild against .#nixosConfigurations, the
+      # same attribute CI builds and caches (see the deploy loop below).
+      pkgs.nixos-rebuild
       pkgs.openssh
       pkgs.jq
       pkgs.curl
@@ -66,7 +67,7 @@ with lib; let
     # ntfy runs on this very host (hosts/galactica/services/ntfy.nix) and is
     # reached the long way round: out through Cloudflare and back in through
     # this host's own cloudflared tunnel to Caddy. The final POST happens
-    # moments after apply-local switched this host's generation and restarted
+    # moments after nixos-rebuild switched this host's generation and restarted
     # cloudflared and caddy, so a POST landing in that window fails for reasons
     # that have nothing to do with the report. Retry before believing it; the
     # caller decides what a permanent failure means.
@@ -87,8 +88,9 @@ with lib; let
     LOCAL_HOST="${localHost}"
 
     # Runs a command on host $1: locally when $1 is this host (Tailscale SSH
-    # cannot authenticate a host to itself — same reason `colmena apply-local`
-    # is used above), over ssh otherwise. $2 is a single command string, and
+    # cannot authenticate a host to itself — same reason the local host is
+    # switched without --target-host), over ssh otherwise. $2 is a single
+    # command string, and
     # both branches hand it to exactly one shell for parsing (bash -c
     # locally, the remote user's shell via ssh) — a command written once
     # therefore behaves identically either way.
@@ -113,8 +115,8 @@ with lib; let
     # host as stale while the backups are fine. Since this unit deploys the very
     # host it runs on, it would ship that restic bump to itself and then start
     # lying about its own backups. Scoped to this one invocation rather than set
-    # unit-wide, so git/nix/colmena keep running without root's dotfiles exactly
-    # as they do today.
+    # unit-wide, so git, nix and nixos-rebuild keep running without root's
+    # dotfiles exactly as they do today.
     run_on() {
       local host="$1" cmd="$2"
       if [ "$host" = "$LOCAL_HOST" ]; then
@@ -235,8 +237,9 @@ with lib; let
       exit 0
     fi
 
-    # Reachability probe that doubles as known_hosts seeding: colmena's ssh
-    # would otherwise fail on an unknown host key. Tailscale is the trust
+    # Reachability probe that doubles as known_hosts seeding: nixos-rebuild's
+    # --target-host ssh would otherwise fail on an unknown host key. Tailscale
+    # is the trust
     # boundary here — these hosts are already tailnet-authenticated. Skips
     # the local host: there is no remote host key to seed for a loopback
     # connection, and Tailscale SSH cannot authenticate self-connections
@@ -251,29 +254,46 @@ with lib; let
     export NIX_CONFIG="max-jobs = 0"
     : > "$STATE/last-deploy.log"
 
-    # Two invocations, not one `--on @tier1`: colmena would SSH to the local
-    # host too under `--on`, and that SSH always fails (see module header /
-    # flake-modules/colmena.nix). Remote hosts still go through `apply`;
-    # ${localHost} goes through `apply-local`, which runs in-process as this
-    # unit's own root, no SSH involved. Either invocation is best-effort so one
-    # failing never blocks the other, the verification sweep, or the summary —
-    # but its exit status is captured rather than thrown away with `|| true`.
-    # A deploy that failed everywhere leaves every host answering readlink,
-    # systemctl and backup-status perfectly well from its OLD generation, so
-    # without this the run announces "3/3 healthy" and the operator reads that
-    # as "this week's update landed" when nothing was deployed at all. An empty
-    # --on list means "all nodes" to colmena, so the remote invocation is only
-    # ever emitted when there's at least one remote host to deploy.
-    DEPLOY_REMOTE_RC=0
-    DEPLOY_LOCAL_RC=0
-    ${optionalString (remoteHosts != []) ''
-      colmena apply ${optionalString cfg.impureEval "--impure "}--on ${escapeShellArg (concatStringsSep "," remoteHosts)} \
-        >>"$STATE/last-deploy.log" 2>&1 || DEPLOY_REMOTE_RC=$?
-    ''}
-    ${optionalString localIncluded ''
-      colmena apply-local ${optionalString cfg.impureEval "--impure "}--node ${escapeShellArg localHost} \
-        >>"$STATE/last-deploy.log" 2>&1 || DEPLOY_LOCAL_RC=$?
-    ''}
+    # nixos-rebuild against .#nixosConfigurations, NOT colmena. This is the
+    # whole reason the first live run failed: flake-modules/colmena.nix builds
+    # its own `meta.nixpkgs` with `import inputs.nixpkgs {...}`, which drops the
+    # flake's revision metadata, so colmena evaluated
+    # `nixos-system-basestar-26.05pre-git` while CI built and cached
+    # `nixos-system-basestar-26.05.20260804.04607e1` — different derivations, so
+    # the cache could never satisfy the deploy. Nix then fell back to realising
+    # the closure, substituted thousands of paths fine, and finally hit the
+    # trivial `allowSubstitutes = false` assembly derivations (check-sshd-config,
+    # postgresql-configfile-check, unit-*.service) that MUST be built locally —
+    # which max-jobs = 0 correctly refused. Deploying the same attribute CI
+    # builds keeps the two aligned by construction instead of by keeping two
+    # evaluation paths in sync.
+    #
+    # No --impure: nixosConfigurations evaluates purely, CI builds it purely,
+    # so the deployer must too or the derivations diverge again.
+    #
+    # One invocation per host, so a failure is attributed to the host that
+    # actually failed rather than to whichever batch it was in. Each is
+    # best-effort — one failing never blocks the others, the sweep or the
+    # summary — but its exit status is captured, never discarded. A deploy that
+    # failed everywhere leaves every host answering readlink, systemctl and
+    # backup-status perfectly well from its OLD generation, so without this the
+    # run announces "3/3 healthy" and the operator reads that as "this week's
+    # update landed" when nothing was deployed at all.
+    declare -A DEPLOY_STATUS
+
+    for h in $HOSTS; do
+      printf '=== %s ===\n' "$h" >> "$STATE/last-deploy.log"
+      if [ "$h" = "$LOCAL_HOST" ]; then
+        # No --target-host: this machine cannot SSH to itself over Tailscale.
+        nixos-rebuild switch --flake "$REPO#$h" \
+          >>"$STATE/last-deploy.log" 2>&1
+      else
+        nixos-rebuild switch --flake "$REPO#$h" \
+          --target-host "root@$h.bat-boa.ts.net" \
+          >>"$STATE/last-deploy.log" 2>&1
+      fi
+      DEPLOY_STATUS[$h]=$?
+    done
 
     for h in $HOSTS; do
       run_on "$h" "systemctl start multi-user.target" 2>/dev/null || true
@@ -290,8 +310,14 @@ with lib; let
 
     # Deploy outcome leads the body next to the lock line, so "did this week's
     # update actually land" is answerable without reading the per-host lines.
-    if [ "$DEPLOY_REMOTE_RC" -ne 0 ] || [ "$DEPLOY_LOCAL_RC" -ne 0 ]; then
-      DEPLOY_LINE="deploy FAILED: colmena apply rc=$DEPLOY_REMOTE_RC, apply-local rc=$DEPLOY_LOCAL_RC (see $STATE/last-deploy.log)"
+    DEPLOY_FAILED=""
+    for h in $HOSTS; do
+      [ "''${DEPLOY_STATUS[$h]}" -ne 0 ] && DEPLOY_FAILED="$DEPLOY_FAILED $h"
+    done
+    DEPLOY_FAILED="''${DEPLOY_FAILED# }"
+
+    if [ -n "$DEPLOY_FAILED" ]; then
+      DEPLOY_LINE="deploy FAILED on: $DEPLOY_FAILED (see $STATE/last-deploy.log)"
     else
       DEPLOY_LINE="deploy: ok"
     fi
@@ -309,14 +335,9 @@ with lib; let
       HOST_BAD=0
       CHECK_ERRS=""
 
-      # Which invocation covered this host: every host in $HOSTS is either the
-      # local one or one of the remote ones, which is exactly the split the two
-      # colmena calls follow.
-      if [ "$h" = "$LOCAL_HOST" ]; then
-        DEPLOY_RC=$DEPLOY_LOCAL_RC
-      else
-        DEPLOY_RC=$DEPLOY_REMOTE_RC
-      fi
+      # One nixos-rebuild per host means this is now genuinely this host's own
+      # status, not the status of a batch it happened to be in.
+      DEPLOY_RC=''${DEPLOY_STATUS[$h]}
 
       printf '=== %s ===\n' "$h" >> "$STATE/last-checks.log"
 
@@ -417,9 +438,9 @@ with lib; let
     printf '%s' "$RESULTS" | jq -s \
       --arg sha "$SHA" --arg when "$(date -Is)" \
       --argjson lockAgeDays "$LOCK_AGE_DAYS" --arg lockCommitTime "$LOCK_COMMIT_ISO" \
-      --argjson deployRemoteRc "$DEPLOY_REMOTE_RC" --argjson deployLocalRc "$DEPLOY_LOCAL_RC" \
+      --arg deployFailedHosts "$DEPLOY_FAILED" \
       --argjson notifySent "$NOTIFY_SENT" \
-      '{commit:$sha,ranAt:$when,lockAgeDays:$lockAgeDays,lockCommitTime:$lockCommitTime,deployRemoteRc:$deployRemoteRc,deployLocalRc:$deployLocalRc,notifySent:$notifySent,hosts:.}' > "$STATE/last-run.json"
+      '{commit:$sha,ranAt:$when,lockAgeDays:$lockAgeDays,lockCommitTime:$lockCommitTime,deployFailedHosts:$deployFailedHosts,notifySent:$notifySent,hosts:.}' > "$STATE/last-run.json"
 
     # The report is the only artifact this unit exists to produce, so an
     # undelivered report has to fail the unit. Exiting 0 would leave no trace
@@ -470,16 +491,6 @@ in {
       default = "/var/lib/weekly-deploy";
       description = "Machine-owned checkout, logs and last-run.json. Holds no user data.";
     };
-
-    impureEval = mkOption {
-      type = types.bool;
-      default = true;
-      description = ''
-        Pass --impure to colmena, matching `just deploy`. Set false if the
-        pre-flight check showed impure evaluation yields different derivations
-        than CI built, which would break substitution-only deploys.
-      '';
-    };
   };
 
   config = mkIf cfg.enable {
@@ -487,8 +498,8 @@ in {
       {
         # Every loop in the script iterates $HOSTS, so an empty list is not a
         # smaller run — it is a run that checks nothing and reports success:
-        # the CI gate loop never executes so the precondition passes, neither
-        # colmena invocation is emitted so nothing is deployed, and the sweep
+        # the CI gate loop never executes so the precondition passes, the
+        # deploy loop body never runs so nothing is deployed, and the sweep
         # sends "Weekly deploy: 0/0 healthy". CLAUDE.md invites editing
         # `tiers`, so this is one rename away.
         assertion = cfg.hosts != [];
@@ -500,17 +511,21 @@ in {
         '';
       }
       {
-        # `colmena apply-local --node ${localHost}` activates whatever node it
-        # is given on THIS machine. If networking.hostName ever stopped naming
-        # a real colmena node, that is at best an obscure runtime failure once
-        # a week; colmena's nodes come from self.hosts (flake-modules/
-        # colmena.nix), so the same list settles it at eval time.
-        assertion = !localIncluded || elem localHost self.hosts;
+        # Every host here becomes a flake attribute in
+        # `nixos-rebuild switch --flake "$REPO#<host>"`, and the local one is
+        # switched on THIS machine with no --target-host. A name that is not a
+        # real host is at best an obscure 2am failure once a week and at worst
+        # — for the local host — activates a different machine's configuration
+        # here. self.hosts is the list nixosConfigurations is built from, so it
+        # settles this at eval time.
+        assertion = unknownHosts == [];
         message = ''
-          constellation.weeklyDeploy would run `colmena apply-local --node
-          ${localHost}`, but "${localHost}" is not a colmena node. Nodes are
-          derived from self.hosts: ${concatStringsSep ", " self.hosts}.
-          Deploying under a node name that is not this machine's would
+          constellation.weeklyDeploy.hosts contains
+          ${concatStringsSep ", " unknownHosts}, which is not a host in this
+          flake. `nixos-rebuild --flake "<repo>#<host>"` resolves against
+          nixosConfigurations, built from self.hosts:
+          ${concatStringsSep ", " self.hosts}. The local host (${localHost}) is
+          switched on this machine directly, so a wrong name there would
           activate another host's configuration here.
         '';
       }
