@@ -61,6 +61,7 @@ with lib; let
     "environment"
     "environmentFile"
     "substituteEnv"
+    "maxAgeHours"
   ];
 
   profileToml = name: profile:
@@ -140,7 +141,7 @@ with lib; let
       })
     (filterAttrs (_: p: p.${field} != null) cfg.profiles);
 
-  profileScripts = mapAttrsToList (name: profile:
+  mkProfileScript = name: profile:
     pkgs.writeShellScriptBin "rustic-${name}" ''
       set -euo pipefail
       export RUSTIC_CACHE_DIR=${cfg.cacheDir}
@@ -157,8 +158,9 @@ with lib; let
           else profile.environment
         ))}
       exec ${cfg.package}/bin/rustic -P ${name} "$@"
-    '')
-  cfg.profiles;
+    '';
+
+  profileScripts = mapAttrsToList mkProfileScript cfg.profiles;
 
   profileType = types.submodule {
     freeformType = types.attrs;
@@ -205,6 +207,14 @@ with lib; let
           value (a glob, a path) would be substituted too.
         '';
       };
+      maxAgeHours = mkOption {
+        type = types.int;
+        default = 48;
+        description = ''
+          Snapshot age above which backup-status reports this profile stale.
+          Must exceed the profile's own timerConfig interval.
+        '';
+      };
     };
   };
 in {
@@ -245,6 +255,16 @@ in {
 
   config = mkIf cfg.enable {
     constellation.backupNotify.enable = mkDefault true;
+    constellation.backupStatus.enable = mkDefault true;
+    constellation.backupStatus.sources =
+      mapAttrsToList (name: profile: {
+        inherit name;
+        kind = "rustic";
+        # rustic prints its [INFO] banner to stderr, so stdout is clean JSON.
+        command = "${mkProfileScript name profile}/bin/rustic-${name} snapshots --json";
+        inherit (profile) maxAgeHours;
+      })
+      cfg.profiles;
 
     environment.systemPackages = [cfg.package] ++ profileScripts;
 
