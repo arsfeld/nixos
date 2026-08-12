@@ -147,11 +147,11 @@ New module `modules/constellation/weekly-deploy.nix`, enabled only on galactica.
 `/var/lib/weekly-deploy`). Backup freshness thresholds are **not** set here — they are
 per-source, defined in Part C.
 
-`hosts` is a plain list, not a reference to the tier definitions: `tiers` lives in
-`flake-modules/hosts.nix` as a flake output and a colmena tag, and is not visible as a
-NixOS option inside a module. The colmena invocation in step 3 targets `@tier1` by tag,
-so the list here is only used for the verification sweep — keep the two in sync by hand,
-or the sweep silently skips a host the deploy touched.
+`hosts` defaults to `self.tiers.tier1`, reading the single tier definition at
+`flake-modules/hosts.nix:27` rather than duplicating it. `self` is in scope for NixOS
+modules via `specialArgs` on both evaluation paths — `flake-modules/lib.nix:94` for
+`nixosConfigurations` and `flake-modules/colmena.nix:86` for the colmena hive — so the
+verification sweep cannot drift out of sync with the `@tier1` tag the deploy targets.
 
 **Unit:** `systemd.services.weekly-deploy`, `Type = oneshot`, running as root.
 
@@ -282,8 +282,10 @@ report healthy.
 
 ## Verification plan
 
-- **Pre-flight (blocking):** confirm colmena's evaluated toplevel for each tier-1 host
-  matches the path CI built and pushed. `just deploy` passes `--impure`, and if impure
+- **Pre-flight (blocking):** confirm colmena's evaluated toplevel matches the path CI
+  built and pushed. Measured on galactica only, as representative — basestar and raider
+  were not individually re-verified, and a host-specific impurity would not be caught by
+  this check. `just deploy` passes `--impure`, and if impure
   evaluation yields different derivations, `max-jobs = 0` fails on every host and the
   whole design collapses. Nothing in the flake appears to require it — the only
   `builtins.readDir` calls (`flake-modules/hosts.nix:10`,
