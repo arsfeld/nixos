@@ -144,6 +144,10 @@ in {
         Persistent = true;
       };
 
+      # OnCalendar is "Sun *-*-* 04:30:00" — weekly. 48h would report stale
+      # every week; 192h is 8 days, one day of slack past the interval.
+      maxAgeHours = 192;
+
       # Monthly, not weekly. --repack-cacheable-only defaults to true on a
       # hot/cold repository, so prune never repacks cold data packs — it waits
       # until every blob in a pack is unused. Running it weekly would be churn
