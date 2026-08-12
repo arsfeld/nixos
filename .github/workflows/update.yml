@@ -18,6 +18,7 @@ jobs:
     outputs:
       has_changes: ${{ steps.check.outputs.has_changes }}
       flake_lock: ${{ steps.check.outputs.flake_lock }}
+      tier1: ${{ steps.check.outputs.tier1 }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -28,6 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           nix flake update
+          echo "tier1=$(nix eval --json '.#tiers.tier1')" >> "$GITHUB_OUTPUT"
           if git diff --quiet; then
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -43,6 +45,7 @@ jobs:
       contents: read
     with:
       flake_lock: ${{ needs.update.outputs.flake_lock }}
+      hosts: ${{ needs.update.outputs.tier1 }}
     secrets: inherit
 
   commit:
@@ -62,5 +65,23 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git add flake.lock
-          git commit -m "chore: update flake inputs [skip ci]"
+          git commit -m "chore: update flake inputs"
           git push
+
+  notify:
+    needs: [update, build, commit]
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Notify ntfy
+        env:
+          NTFY_BASIC_AUTH_B64: ${{ secrets.NTFY_BASIC_AUTH_B64 }}
+        run: |
+          set -euo pipefail
+          curl -sS --fail-with-body -X POST \
+            -H "Authorization: Basic $NTFY_BASIC_AUTH_B64" \
+            -H "Title: Weekly Update failed" \
+            -H "Tags: warning,package" \
+            --data-binary "flake.lock was NOT committed. Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            https://ntfy.arsfeld.one/backups

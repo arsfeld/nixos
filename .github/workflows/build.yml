@@ -10,6 +10,11 @@ on:
         description: "Base64-encoded flake.lock content"
         required: false
         type: string
+      hosts:
+        description: "JSON array of host names to build. Empty builds every host in ciMatrix."
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   group: build-cache-${{ github.ref }}
@@ -31,6 +36,9 @@ jobs:
           extra_nix_config: |
             extra-substituters = https://attic.arsfeld.dev/system
             extra-trusted-public-keys = system:mUX40QMM+dqZ0wQaHp7sH50UgiZnSXsInzc9/MvaZRc=
+            fallback = true
+            connect-timeout = 5
+            download-attempts = 3
 
       - name: Override flake.lock
         if: inputs.flake_lock
@@ -38,8 +46,15 @@ jobs:
 
       - name: Derive matrix from flake
         id: gen
+        env:
+          HOSTS: ${{ inputs.hosts }}
         run: |
+          set -euo pipefail
           include=$(nix eval --json '.#ciMatrix')
+          if [ -n "${HOSTS}" ]; then
+            include=$(printf '%s' "$include" \
+              | jq -c --argjson want "$HOSTS" '[.[] | select(.host as $h | $want | index($h))]')
+          fi
           echo "matrix={\"include\":${include}}" >> "$GITHUB_OUTPUT"
 
   build:
@@ -68,6 +83,9 @@ jobs:
           extra_nix_config: |
             extra-substituters = https://attic.arsfeld.dev/system
             extra-trusted-public-keys = system:mUX40QMM+dqZ0wQaHp7sH50UgiZnSXsInzc9/MvaZRc=
+            fallback = true
+            connect-timeout = 5
+            download-attempts = 3
 
       - name: Override flake.lock
         if: inputs.flake_lock
