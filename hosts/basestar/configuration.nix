@@ -101,6 +101,13 @@
       pegasus = {
         uri = "rest:http://pegasus.bat-boa.ts.net:8000/";
         passwordFile = config.sops.secrets."restic-password".path;
+        # No plan on basestar writes here — this repo declaration exists so
+        # backup-status can watch it, but the same rest: URI (root path, no
+        # per-client namespacing on the server) is also galactica's pegasus
+        # repo, written weekly by galactica's pegasus-system/pegasus plans
+        # (30 6 * * 0 / 30 7 * * 0). 48h would report stale every week; 192h
+        # is 8 days, one day of slack past that interval.
+        maxAgeHours = 192;
       };
     };
     plans.system = {

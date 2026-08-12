@@ -102,6 +102,28 @@ with lib; let
     # Backrest rejects configs that set both.
   };
 
+  # A standalone restic invocation per repo, carrying the same credentials the
+  # daemon gives restic. rclone-backed repos need rclone on PATH; without it
+  # they report an error rather than silently reading as healthy.
+  #
+  # Wrapped in `timeout` so an unreachable repo (e.g. a rest: endpoint on a
+  # host that's offline) fails fast instead of hanging until TCP gives up —
+  # backup-status runs over ssh as part of an unattended sweep and one dead
+  # repo must not stall the whole report.
+  resticQuery = name: repo:
+    pkgs.writeShellScript "backup-status-restic-${name}" ''
+      set -euo pipefail
+      export PATH=${makeBinPath [pkgs.rclone pkgs.openssh]}:$PATH
+      export RESTIC_PASSWORD_FILE=${toString repo.passwordFile}
+      ${optionalString (repo.envFile != null) ''
+        set -a
+        . ${toString repo.envFile}
+        set +a
+      ''}
+      ${concatMapStrings (e: "export ${e}\n") repo.env}
+      exec ${pkgs.coreutils}/bin/timeout 120 ${pkgs.restic}/bin/restic -r ${escapeShellArg repo.uri} snapshots --json
+    '';
+
   renderPlan = name: plan: {
     id = name;
     repo = plan.repo;
@@ -242,6 +264,14 @@ with lib; let
         type = types.bool;
         default = false;
       };
+      maxAgeHours = mkOption {
+        type = types.int;
+        default = 48;
+        description = ''
+          Snapshot age above which backup-status reports this repo stale.
+          Must exceed the interval of the plans writing to it.
+        '';
+      };
     };
   };
 
@@ -357,6 +387,15 @@ in {
     };
 
     constellation.backupNotify.enable = mkDefault true;
+    constellation.backupStatus.enable = mkDefault true;
+    constellation.backupStatus.sources =
+      mapAttrsToList (name: repo: {
+        inherit name;
+        kind = "restic";
+        command = toString (resticQuery name repo);
+        inherit (repo) maxAgeHours;
+      })
+      cfg.repos;
 
     environment.systemPackages = [cfg.package pkgs.restic];
 
