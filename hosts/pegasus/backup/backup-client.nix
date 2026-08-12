@@ -11,6 +11,10 @@
     repos.storage = {
       uri = "rest:http://galactica.bat-boa.ts.net:8000/";
       passwordFile = config.sops.secrets."restic-password".path;
+      # plans.system below runs on schedule.cron "30 3 * * 0" — Sunday-only,
+      # weekly. 48h would report stale every week; 192h is 8 days, one day
+      # of slack past the interval (matches ovh/hetzner/galactica-pegasus).
+      maxAgeHours = 192;
     };
     plans.system = {
       repo = "storage";
