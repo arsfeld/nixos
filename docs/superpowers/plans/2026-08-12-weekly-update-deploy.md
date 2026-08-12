@@ -676,7 +676,12 @@ Expected: a `Next elapse:` line with a UTC-consistent time. If systemd rejects t
 
 - [ ] **Step 2: Create the module**
 
-Create `modules/constellation/weekly-deploy.nix`. Use `--impure` or not per Task 1's recorded finding:
+Create `modules/constellation/weekly-deploy.nix`. Use `--impure` or not per Task 1's recorded finding.
+
+Note the module takes `self` as an argument. It is supplied as a `specialArg` by both
+evaluation paths — `flake-modules/lib.nix:94` for `nixosConfigurations` and
+`flake-modules/colmena.nix:86` for the colmena hive — so `self.tiers.tier1` reads the
+single tier definition at `flake-modules/hosts.nix:27` rather than duplicating it:
 
 ```nix
 # Constellation weekly-deploy module
@@ -694,6 +699,7 @@ Create `modules/constellation/weekly-deploy.nix`. Use `--impure` or not per Task
   config,
   lib,
   pkgs,
+  self,
   ...
 }:
 with lib; let
@@ -823,11 +829,11 @@ in {
 
     hosts = mkOption {
       type = types.listOf types.str;
-      default = ["galactica" "basestar" "raider"];
+      default = self.tiers.tier1;
       description = ''
-        Hosts included in the verification sweep. The deploy itself targets the
-        @tier1 colmena tag, which is generated from flake-modules/hosts.nix; keep
-        this list in sync or the sweep silently skips a host the deploy touched.
+        Hosts included in the verification sweep. Derived from the same tier
+        definition the deploy targets (@tier1), so the sweep cannot drift out of
+        sync with what was actually deployed.
       '';
     };
 
@@ -936,7 +942,27 @@ ssh galactica.bat-boa.ts.net 'systemctl list-timers weekly-deploy --no-pager'
 
 Expected: one row with a `NEXT` on the coming Sunday.
 
-- [ ] **Step 6: Run it out-of-band and confirm nothing compiles**
+- [ ] **Step 6: Commit and push, then wait for CI — BEFORE running the unit**
+
+`weekly-deploy` resets its checkout to `origin/master` and deploys whatever that is. If
+Tasks 3–5 are committed locally but unpushed, `origin/master` is an **older green commit**,
+so running the unit would deploy it across galactica, basestar and raider — silently
+uninstalling `backup-status` and `weekly-deploy` while reporting a clean run. Push first,
+always.
+
+```bash
+cd /home/arosenfeld/Code/nixos
+just fmt
+git add modules/constellation/weekly-deploy.nix hosts/galactica/configuration.nix
+git commit -m "feat(galactica): deploy tier-1 weekly without building locally"
+git push origin master
+gh run list --workflow=build.yml --limit 1
+```
+
+Wait for that `Build & Cache` run to conclude `success` before Step 7. Running against a
+red master only exercises the skip path and proves nothing about the deploy.
+
+- [ ] **Step 7: Run it out-of-band and confirm nothing compiles**
 
 ```bash
 ssh galactica.bat-boa.ts.net 'sudo systemctl start weekly-deploy && sudo journalctl -u weekly-deploy -n 60 --no-pager'
@@ -944,7 +970,7 @@ ssh galactica.bat-boa.ts.net 'sudo systemctl start weekly-deploy && sudo journal
 
 Expected: completes without `building '/nix/store/...drv'` lines in the journal. Any such line means `max-jobs = 0` is not reaching nix and must be fixed before this ships — that guarantee is the whole reason galactica is the deployer.
 
-- [ ] **Step 7: Verify the report**
+- [ ] **Step 8: Verify the report**
 
 ```bash
 ssh galactica.bat-boa.ts.net 'sudo jq . /var/lib/weekly-deploy/last-run.json'
@@ -952,28 +978,29 @@ ssh galactica.bat-boa.ts.net 'sudo jq . /var/lib/weekly-deploy/last-run.json'
 
 Expected: `commit`, `ranAt`, and a `hosts` array of three entries, each with `generation`, `failedUnits`, `staleBackups` and a populated `backups` array. Confirm an ntfy message arrived on the `backups` topic.
 
-- [ ] **Step 8: Verify the not-green skip path**
+- [ ] **Step 9: Verify the not-green skip path — safely**
+
+Do **not** test this by resetting the checkout to an older commit. If that commit happens
+to be green, the unit deploys it and reverts the fleet. Instead create a commit CI has
+provably never seen, so `conclusion` is unambiguously `none`:
 
 ```bash
 ssh galactica.bat-boa.ts.net \
-  'cd /var/lib/weekly-deploy/nixos && sudo git reset --hard HEAD~5 && sudo systemctl start weekly-deploy; \
-   sudo journalctl -u weekly-deploy -n 20 --no-pager'
+  'cd /var/lib/weekly-deploy/nixos && sudo git commit -q --allow-empty -m "skip-path probe" && \
+   sudo systemctl start weekly-deploy; sudo journalctl -u weekly-deploy -n 20 --no-pager'
 ```
 
-Expected: either a skip notification naming the SHA, or a normal run if that older commit also built green. Then restore:
+Expected: a "Weekly deploy skipped" ntfy naming that SHA, and **no** colmena activity in
+the journal. An empty commit on top of master cannot exist in CI, so this path is
+deterministic.
+
+- [ ] **Step 10: Restore the checkout**
 
 ```bash
-ssh galactica.bat-boa.ts.net 'cd /var/lib/weekly-deploy/nixos && sudo git fetch origin && sudo git reset --hard origin/master'
+ssh galactica.bat-boa.ts.net 'cd /var/lib/weekly-deploy/nixos && sudo git fetch origin && sudo git reset --hard origin/master && sudo git log --oneline -1'
 ```
 
-- [ ] **Step 9: Commit**
-
-```bash
-cd /home/arosenfeld/Code/nixos
-just fmt
-git add modules/constellation/weekly-deploy.nix hosts/galactica/configuration.nix
-git commit -m "feat(galactica): deploy tier-1 weekly without building locally"
-```
+Expected: HEAD matches `origin/master` and the probe commit is gone.
 
 ---
 
