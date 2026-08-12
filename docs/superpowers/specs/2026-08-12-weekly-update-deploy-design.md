@@ -289,6 +289,25 @@ report healthy.
   `builtins.readDir` calls (`flake-modules/hosts.nix:10`,
   `modules/refind-theme-regular.nix:82`) are on in-flake paths, which are pure. If the
   paths differ, drop `--impure` and re-check.
+
+  **Pre-flight result (2026-08-12):** pure and impure evaluation of galactica's toplevel
+  produced identical derivation paths, so Task 5 keeps `--impure`.
+  Substitution-only build from attic on galactica: succeeded.
+
+  Details: origin/master (`87b5888`) was red in CI at measurement time (attic narinfo
+  timeouts on run `31499983352`, the flakiness Task 2 addresses), so the pure/impure
+  comparison was run against `origin/master` (pure evaluation, unaffected by CI/attic
+  state) while the substitution test was run against the most recent commit with a
+  successful `Build & Cache` run, `2b338f4` (`2b338f4610135990d601e40dec637a183e4445c8`,
+  2026-08-05). Both `nix eval --raw` and `nix eval --impure --raw` against
+  `github:arsfeld/nixos/87b588842d71bd54f98ed5c1d87ce30b389d35e4#nixosConfigurations.galactica.config.system.build.toplevel.drvPath`
+  produced the same path,
+  `/nix/store/kxd2lpyxgsh35xamfa9ky8c54ljig0ly-nixos-system-galactica-26.05.20260804.04607e1.drv`.
+  On galactica, `NIX_CONFIG='max-jobs = 0' nix build --no-link` against `2b338f4`'s
+  toplevel substituted the entire closure from `https://attic.arsfeld.dev/system` with
+  zero local builds and no errors, printing
+  `/nix/store/pa9vp4bsbiw4kc7pqjj6dfmrdr593gxr-nixos-system-galactica-26.05.20260724.597283a`.
+  Full commands and raw output: `.superpowers/sdd/2026-08-12-weekly-update-deploy/task-1-report.md`.
 - `systemctl start weekly-deploy` on galactica out-of-band; expect a summary within
   minutes and zero local builds in the journal.
 - Point the precondition check at a commit with a failed run; expect the skip path.
