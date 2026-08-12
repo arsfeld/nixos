@@ -7,8 +7,12 @@
 #
 # The contract with CI: a fresh flake.lock on master means tier-1 built clean,
 # because update.yml gates its commit on exactly those three hosts. This module
-# therefore never has to reason about CI status for correctness — only to avoid
-# racing a commit whose closures are still uploading.
+# still re-checks CI before deploying — not to re-derive that guarantee, but to
+# avoid racing a commit whose closures are still uploading. That check is scoped
+# to the tier-1 build jobs specifically (see the precondition below), not the
+# whole "Build & Cache" run's conclusion: the run that fires for master's new
+# HEAD rebuilds all nine hosts, and an unrelated octopi/blackbird/router
+# failure must not block a tier-1 deploy that already provably built.
 #
 # flake.lock's age is also reported and treated as a health signal in its own
 # right. update.yml's own ntfy notify step cannot fire on failure: Cloudflare
@@ -90,16 +94,48 @@ with lib; let
       LOCK_LINE="flake.lock: age unknown (no commit history found)"
     fi
 
-    # Precondition: only deploy a commit CI has finished building and pushing.
-    # Without this, a commit whose closures are still uploading fails every node
-    # on max-jobs=0 and reads as a fleet outage rather than a timing artifact.
-    CONCL=$(curl -sS --max-time 30 \
+    # Precondition: only deploy once every tier-1 host's own build job
+    # succeeded in this SHA's latest "Build & Cache" run — not once the
+    # whole run is green. A commit landing on master always triggers a
+    # fresh, full-fleet "Build & Cache" run (job names are bare "<host>"
+    # for all nine hosts); update.yml's own workflow_call invocation
+    # nests its jobs as "build / <host>" and only ever covers tier-1.
+    # Gating on the run's overall conclusion would let an unrelated
+    # octopi/blackbird/router failure block every tier-1 deploy — the
+    # same failure mode Task 2 removed from the commit gate, reintroduced
+    # one layer down. Match jobs by their trailing "/"-delimited token so
+    # both naming schemes resolve to the same host name; a tier-1 host
+    # with no matching job at all counts as not-green, not as a pass.
+    RUN_ID=$(curl -sS --max-time 30 \
       "https://api.github.com/repos/${cfg.repoSlug}/actions/runs?head_sha=$SHA&per_page=20" \
       | jq -r '[.workflow_runs[] | select(.name=="Build & Cache")]
-               | sort_by(.created_at) | last | .conclusion // "none"' 2>/dev/null || echo "none")
+               | sort_by(.created_at) | last | .id // empty' 2>/dev/null || echo "")
 
-    if [ "$CONCL" != "success" ]; then
-      SKIP_BODY="master $SHA is not green (Build & Cache: $CONCL). Nothing was deployed."$'\n'"$LOCK_LINE"
+    JOBS_JSON=""
+    if [ -n "$RUN_ID" ]; then
+      JOBS_JSON=$(curl -sS --max-time 30 \
+        "https://api.github.com/repos/${cfg.repoSlug}/actions/runs/$RUN_ID/jobs?per_page=100" \
+        2>/dev/null || echo "")
+    fi
+
+    BAD=""
+    if [ -z "$RUN_ID" ]; then
+      BAD="no Build & Cache run found for $SHA"
+    else
+      for h in $HOSTS; do
+        JSTATUS=$(printf '%s' "$JOBS_JSON" | jq -r --arg host "$h" '
+          ([.jobs[]? | select((.name | split("/") | last | gsub("^[ \t]+|[ \t]+$";"")) == $host)]) as $m
+          | if ($m | length) == 0 then "missing"
+            elif ($m | any(.conclusion == "success")) then "success"
+            else ($m | map(.conclusion) | join(","))
+            end
+        ' 2>/dev/null || echo "error")
+        [ "$JSTATUS" != "success" ] && BAD="$BAD$h:$JSTATUS "
+      done
+    fi
+
+    if [ -n "$BAD" ]; then
+      SKIP_BODY="master $SHA is not green for tier-1 (''${BAD% }). Nothing was deployed."$'\n'"$LOCK_LINE"
       notify "Weekly deploy skipped on ${config.networking.hostName}" "$SKIP_BODY"
       exit 0
     fi
