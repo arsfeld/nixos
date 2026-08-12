@@ -63,8 +63,25 @@ with lib; let
     HOSTS="${concatStringsSep " " cfg.hosts}"
     LOCK_STALE_DAYS=14
 
+    # ntfy runs on this very host (hosts/galactica/services/ntfy.nix) and is
+    # reached the long way round: out through Cloudflare and back in through
+    # this host's own cloudflared tunnel to Caddy. The final POST happens
+    # moments after apply-local switched this host's generation and restarted
+    # cloudflared and caddy, so a POST landing in that window fails for reasons
+    # that have nothing to do with the report. Retry before believing it; the
+    # caller decides what a permanent failure means.
     notify() {
-      ${config.constellation.backupNotify.script} "$1" "$2" || true
+      local attempt=1
+      while :; do
+        if ${config.constellation.backupNotify.script} "$1" "$2"; then
+          return 0
+        fi
+        if [ "$attempt" -ge 3 ]; then
+          return 1
+        fi
+        attempt=$((attempt + 1))
+        sleep 15
+      done
     }
 
     LOCAL_HOST="${localHost}"
@@ -121,8 +138,31 @@ with lib; let
       notify "Weekly deploy failed on ${config.networking.hostName}" "git fetch failed"
       exit 1
     }
-    git reset --hard origin/master
+    # This is the command that decides what gets deployed, and it is the only
+    # one that was unguarded — `set -e` is deliberately off so the per-host
+    # checks degrade instead of aborting, which means a bare failure here just
+    # falls through. A stale .git/index.lock from a run killed mid-reset (the 3h
+    # timeout, the MemoryMax OOM-killer, a reboot) does not stop `git fetch`,
+    # which takes no such lock, so the fetch succeeds, the reset fails, and
+    # $SHA becomes LAST week's commit — whose CI is green, so the precondition
+    # passes and all three hosts get rolled backwards under a "3/3 healthy"
+    # notification. The lock persists, so that repeats every week.
+    git reset --hard origin/master || {
+      notify "Weekly deploy failed on ${config.networking.hostName}" \
+        "git reset --hard origin/master failed (checkout left at $(git rev-parse HEAD 2>/dev/null || echo unknown)). A stale .git/index.lock in $REPO is the usual cause. Nothing was deployed."
+      exit 1
+    }
+
     SHA=$(git rev-parse HEAD)
+    ORIGIN_SHA=$(git rev-parse origin/master 2>/dev/null || echo "")
+
+    # Belt and braces: the reset reported success, so prove it landed where it
+    # was supposed to before anything downstream treats $SHA as "master".
+    if [ -z "$ORIGIN_SHA" ] || [ "$SHA" != "$ORIGIN_SHA" ]; then
+      notify "Weekly deploy failed on ${config.networking.hostName}" \
+        "checkout is at $SHA but origin/master is ''${ORIGIN_SHA:-unknown} - refusing to deploy a tree that is not master. Nothing was deployed."
+      exit 1
+    fi
 
     # flake.lock's last-commit time doubles as a health check on update.yml
     # itself (see module header): a lock CI hasn't touched in two missed
@@ -242,6 +282,12 @@ with lib; let
     RESULTS=""
     HOST_PROBLEMS=0
 
+    # The checks' stderr used to go to /dev/null, so CHECK_ERRS recorded which
+    # check failed but never why — on an unattended weekly run that is the
+    # difference between a diagnosable report and a mystery. Control flow is
+    # unchanged; this only gives the discarded stream somewhere to land.
+    : > "$STATE/last-checks.log"
+
     # Deploy outcome leads the body next to the lock line, so "did this week's
     # update actually land" is answerable without reading the per-host lines.
     if [ "$DEPLOY_REMOTE_RC" -ne 0 ] || [ "$DEPLOY_LOCAL_RC" -ne 0 ]; then
@@ -272,7 +318,9 @@ with lib; let
         DEPLOY_RC=$DEPLOY_REMOTE_RC
       fi
 
-      GEN=$(run_on "$h" "readlink -f /run/current-system" 2>/dev/null) || {
+      printf '=== %s ===\n' "$h" >> "$STATE/last-checks.log"
+
+      GEN=$(run_on "$h" "readlink -f /run/current-system" 2>>"$STATE/last-checks.log") || {
         GEN="unreachable"
         CHECK_ERRS="$CHECK_ERRS generation"
       }
@@ -285,7 +333,7 @@ with lib; let
       # with this script's own awk. --plain drops the "●" marker systemd
       # prefixes to each failed unit, which is otherwise the only thing
       # `{print $1}` ever sees.
-      if FAILED_RAW=$(run_on "$h" "systemctl list-units --state=failed --no-legend --plain" 2>/dev/null); then
+      if FAILED_RAW=$(run_on "$h" "systemctl list-units --state=failed --no-legend --plain" 2>>"$STATE/last-checks.log"); then
         FAILED=$(printf '%s\n' "$FAILED_RAW" | awk 'NF {print $1}' | paste -sd, -) || {
           FAILED="?"
           CHECK_ERRS="$CHECK_ERRS failed-units-parse"
@@ -301,7 +349,7 @@ with lib; let
       # empty — indistinguishable from "no stale repos" — and the empty string
       # would additionally blow up --argjson below and drop this host from
       # last-run.json entirely.
-      if ! BACKUPS=$(run_on "$h" "backup-status" 2>/dev/null); then
+      if ! BACKUPS=$(run_on "$h" "backup-status" 2>>"$STATE/last-checks.log"); then
         BACKUPS="[]"
         STALE="?"
         CHECK_ERRS="$CHECK_ERRS backup-status"
@@ -311,7 +359,7 @@ with lib; let
         CHECK_ERRS="$CHECK_ERRS backup-status-empty"
       else
         STALE=$(printf '%s' "$BACKUPS" \
-          | jq -r '[.[] | select(.ok | not) | .name] | join(",")' 2>/dev/null) || {
+          | jq -r '[.[] | select(.ok | not) | .name] | join(",")' 2>>"$STATE/last-checks.log") || {
           STALE="?"
           BACKUPS="[]"
           CHECK_ERRS="$CHECK_ERRS backup-status-unparseable"
@@ -353,20 +401,34 @@ with lib; let
         '{host:$host,generation:$gen,deployRc:$deployRc,failedUnits:$failed,staleBackups:$stale,checkErrors:$checkErrors,backups:$backups}')"
     done
 
-    printf '%s' "$RESULTS" | jq -s \
-      --arg sha "$SHA" --arg when "$(date -Is)" \
-      --argjson lockAgeDays "$LOCK_AGE_DAYS" --arg lockCommitTime "$LOCK_COMMIT_ISO" \
-      --argjson deployRemoteRc "$DEPLOY_REMOTE_RC" --argjson deployLocalRc "$DEPLOY_LOCAL_RC" \
-      '{commit:$sha,ranAt:$when,lockAgeDays:$lockAgeDays,lockCommitTime:$lockCommitTime,deployRemoteRc:$deployRemoteRc,deployLocalRc:$deployLocalRc,hosts:.}' > "$STATE/last-run.json"
-
     TOTAL=$(printf '%s' "$HOSTS" | wc -w)
     OK=$((TOTAL - HOST_PROBLEMS))
     PROBLEMS=$((HOST_PROBLEMS + LOCK_STALE))
 
+    NOTIFY_SENT=true
     if [ "$PROBLEMS" -gt 0 ]; then
-      notify "ACTION NEEDED - weekly deploy: $OK/$TOTAL healthy" "$SUMMARY"
+      notify "ACTION NEEDED - weekly deploy: $OK/$TOTAL healthy" "$SUMMARY" || NOTIFY_SENT=false
     else
-      notify "Weekly deploy: $OK/$TOTAL healthy" "$SUMMARY"
+      notify "Weekly deploy: $OK/$TOTAL healthy" "$SUMMARY" || NOTIFY_SENT=false
+    fi
+
+    # Written after the notification so notifySent records what actually
+    # happened rather than what was about to be attempted.
+    printf '%s' "$RESULTS" | jq -s \
+      --arg sha "$SHA" --arg when "$(date -Is)" \
+      --argjson lockAgeDays "$LOCK_AGE_DAYS" --arg lockCommitTime "$LOCK_COMMIT_ISO" \
+      --argjson deployRemoteRc "$DEPLOY_REMOTE_RC" --argjson deployLocalRc "$DEPLOY_LOCAL_RC" \
+      --argjson notifySent "$NOTIFY_SENT" \
+      '{commit:$sha,ranAt:$when,lockAgeDays:$lockAgeDays,lockCommitTime:$lockCommitTime,deployRemoteRc:$deployRemoteRc,deployLocalRc:$deployLocalRc,notifySent:$notifySent,hosts:.}' > "$STATE/last-run.json"
+
+    # The report is the only artifact this unit exists to produce, so an
+    # undelivered report has to fail the unit. Exiting 0 would leave no trace
+    # anywhere: weekly-deploy would not appear in `systemctl --failed`, so next
+    # week's sweep could not detect that this week's report was lost either.
+    # Failing fires OnFailure=backup-notify@weekly-deploy and — more usefully —
+    # leaves the unit red for the next run's own failed-units check to find.
+    if [ "$NOTIFY_SENT" != true ]; then
+      exit 1
     fi
 
     exit 0
@@ -421,6 +483,39 @@ in {
   };
 
   config = mkIf cfg.enable {
+    assertions = [
+      {
+        # Every loop in the script iterates $HOSTS, so an empty list is not a
+        # smaller run — it is a run that checks nothing and reports success:
+        # the CI gate loop never executes so the precondition passes, neither
+        # colmena invocation is emitted so nothing is deployed, and the sweep
+        # sends "Weekly deploy: 0/0 healthy". CLAUDE.md invites editing
+        # `tiers`, so this is one rename away.
+        assertion = cfg.hosts != [];
+        message = ''
+          constellation.weeklyDeploy.hosts is empty, which would produce a
+          green "0/0 healthy" report for a run that deployed and verified
+          nothing. Set it explicitly, or check that self.tiers.tier1 in
+          flake-modules/hosts.nix still exists and is non-empty.
+        '';
+      }
+      {
+        # `colmena apply-local --node ${localHost}` activates whatever node it
+        # is given on THIS machine. If networking.hostName ever stopped naming
+        # a real colmena node, that is at best an obscure runtime failure once
+        # a week; colmena's nodes come from self.hosts (flake-modules/
+        # colmena.nix), so the same list settles it at eval time.
+        assertion = !localIncluded || elem localHost self.hosts;
+        message = ''
+          constellation.weeklyDeploy would run `colmena apply-local --node
+          ${localHost}`, but "${localHost}" is not a colmena node. Nodes are
+          derived from self.hosts: ${concatStringsSep ", " self.hosts}.
+          Deploying under a node name that is not this machine's would
+          activate another host's configuration here.
+        '';
+      }
+    ];
+
     systemd.services.weekly-deploy = {
       description = "Weekly tier-1 update, deploy and health report";
       after = ["network-online.target" "tailscaled.service"];
