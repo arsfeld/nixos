@@ -20,6 +20,16 @@
         targetHost = "${hostName}.bat-boa.ts.net";
         targetUser = "root";
         buildOnTarget = false;
+        # Tailscale SSH cannot authenticate a host connecting to itself over
+        # the tailnet (the loopback connection bypasses Tailscale's SSH
+        # interception and lands on the real sshd, where root has no
+        # authorized key), so weekly-deploy
+        # (modules/constellation/weekly-deploy.nix) applies galactica's own
+        # config via `colmena apply-local` instead of SSH when galactica is
+        # in its host list. `apply-local` refuses to run unless this is set.
+        # Enabling it for every node is simplest and safe: it only permits
+        # local application on whichever machine is actually running colmena.
+        allowLocalDeployment = true;
         # Tier tags from self.tiers, so e.g. `colmena apply --on @tier1`.
         tags = inputs.nixpkgs.lib.attrNames (
           inputs.nixpkgs.lib.filterAttrs (_tier: hosts: builtins.elem hostName hosts) self.tiers

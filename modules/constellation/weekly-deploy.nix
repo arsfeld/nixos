@@ -30,6 +30,16 @@
 with lib; let
   cfg = config.constellation.weeklyDeploy;
 
+  # Tailscale SSH cannot authenticate a host connecting to itself (see
+  # flake-modules/colmena.nix's allowLocalDeployment comment), so the local
+  # host must be applied via `colmena apply-local`, never over `--on`.
+  # Computed from config.networking.hostName at Nix eval time rather than a
+  # runtime `hostname` call, so this can never disagree with which colmena
+  # node this machine actually is.
+  localHost = config.networking.hostName;
+  remoteHosts = filter (h: h != localHost) cfg.hosts;
+  localIncluded = elem localHost cfg.hosts;
+
   deployScript = pkgs.writeShellScriptBin "weekly-deploy" ''
     set -uo pipefail
     export PATH=${makeBinPath [
@@ -149,8 +159,25 @@ with lib; let
     done
 
     export NIX_CONFIG="max-jobs = 0"
-    colmena apply ${optionalString cfg.impureEval "--impure "}--on @tier1 \
-      >"$STATE/last-deploy.log" 2>&1 || true
+    : > "$STATE/last-deploy.log"
+
+    # Two invocations, not one `--on @tier1`: colmena would SSH to the local
+    # host too under `--on`, and that SSH always fails (see module header /
+    # flake-modules/colmena.nix). Remote hosts still go through `apply`;
+    # ${localHost} goes through `apply-local`, which runs in-process as this
+    # unit's own root, no SSH involved. Either invocation is best-effort
+    # (`|| true`) so one failing never blocks the other, the verification
+    # sweep, or the summary. An empty --on list means "all nodes" to colmena,
+    # so the remote invocation is only ever emitted when there's at least one
+    # remote host to deploy.
+    ${optionalString (remoteHosts != []) ''
+      colmena apply ${optionalString cfg.impureEval "--impure "}--on ${escapeShellArg (concatStringsSep "," remoteHosts)} \
+        >>"$STATE/last-deploy.log" 2>&1 || true
+    ''}
+    ${optionalString localIncluded ''
+      colmena apply-local ${optionalString cfg.impureEval "--impure "}--node ${escapeShellArg localHost} \
+        >>"$STATE/last-deploy.log" 2>&1 || true
+    ''}
 
     for h in $HOSTS; do
       ssh -o BatchMode=yes -o ConnectTimeout=15 "root@$h.bat-boa.ts.net" \
