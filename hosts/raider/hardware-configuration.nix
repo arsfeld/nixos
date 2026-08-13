@@ -20,6 +20,26 @@
   # Filesystems will be managed by disko
   # The disko-config.nix handles all filesystem configuration
 
+  # Disk swap backing the 25% zram from constellation.gaming. 32 GiB of zram on
+  # 31 GiB of RAM fills completely under a heavy build + desktop session, and
+  # once zram is full there is nowhere left to spill, so the box thrashes and
+  # earlyoom starts killing compilers. This file lives on the Solidigm 2 TB NVMe
+  # (/mnt/games, xfs) rather than the root NVMe, which sits at 80% full.
+  #
+  # priority 0 keeps it strictly below zram's priority 5, so cold pages still
+  # compress into RAM first and only overflow reaches the disk.
+  #
+  # NOTE: the file is created with fallocate. xfs accepts fallocate'd swapfiles
+  # here (verified with swapon); if that ever regresses to "it appears to have
+  # holes", the fix is a real dd write, not a different filesystem.
+  swapDevices = [
+    {
+      device = "/mnt/games/swapfile";
+      size = 32768; # MiB
+      priority = 0;
+    }
+  ];
+
   # Network interfaces
   networking.useDHCP = lib.mkDefault true;
   # Uncomment specific interfaces if needed:
