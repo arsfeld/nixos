@@ -48,7 +48,8 @@
 
       # Optional: Add other Ghostty settings you might want
       font-family = FiraCode Nerd Font
-      font-size = 12
+      # 9pt at 96 DPI = 12px, close to macOS Terminal's SF Mono 11 (11px)
+      font-size = 9
       theme = Catppuccin Mocha
       cursor-style = block
       cursor-style-blink = true

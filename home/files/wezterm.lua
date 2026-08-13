@@ -14,7 +14,8 @@ config.window_decorations = 'RESIZE'
 
 config.color_scheme = scheme_for_appearance(wezterm.gui.get_appearance())
 
-config.font_size = 14
+-- 9pt at 96 DPI = 12px, close to macOS Terminal's SF Mono 11 (11px)
+config.font_size = 9
 config.font = wezterm.font("Cascadia Code")
 
 config.window_background_opacity = 0.7

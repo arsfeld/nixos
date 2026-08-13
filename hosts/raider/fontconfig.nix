@@ -115,18 +115,24 @@
     '';
 
     # GNOME-specific font settings via dconf
+    #
+    # Sizes are tuned to match macOS on the shared 34" 3440x1440 panel (scale 1,
+    # no HiDPI on either side). GTK converts points at a fixed 96 DPI, so 10pt
+    # renders at 13.3px -- macOS draws its system UI at 13px. Keep
+    # text-scaling-factor at 1.0: Firefox and Chrome derive their default page
+    # zoom from it, so scaling here would shrink web content below macOS's 1:1.
     dconf.settings = {
       "org/gnome/desktop/interface" = {
-        font-name = "Inter 11";
-        document-font-name = "Inter 11";
-        monospace-font-name = "JetBrains Mono 10";
+        font-name = "Inter 10";
+        document-font-name = "Inter 10";
+        monospace-font-name = "JetBrains Mono 9";
         font-antialiasing = "grayscale";
         font-hinting = "slight";
         text-scaling-factor = 1.0;
       };
 
       "org/gnome/desktop/wm/preferences" = {
-        titlebar-font = "Inter Bold 11";
+        titlebar-font = "Inter Bold 10";
       };
     };
   };
