@@ -47,6 +47,29 @@ All hosts are reached via Tailscale: `<hostname>.bat-boa.ts.net`.
   that CI stopped landing updates), and posts one ntfy summary. State in
   `/var/lib/weekly-deploy/`. Run it early with `sudo systemctl start weekly-deploy`.
 
+Three things about this that are not obvious and cost real time to rediscover:
+
+- **It can only deploy a commit CI has already built.** `self` is part of every system
+  closure, so *any* tracked change shifts all three hosts' toplevel paths. A commit CI
+  has not built is absent from attic, and `max-jobs = 0` then fails rather than building.
+  This is what the per-host CI job gate enforces; it is working as intended, not a bug.
+- **After changing `weekly-deploy.nix`, install it once by hand** (`just deploy galactica`).
+  A broken deployer cannot deploy its own fix, and a stale unit will happily run old logic
+  against a new commit — the tell is a summary describing machinery the current code no
+  longer contains.
+- **It deploys `nixosConfigurations`, deliberately, not the colmena hive.**
+  `flake-modules/colmena.nix` builds its own `meta.nixpkgs` via `import inputs.nixpkgs`,
+  which loses the flake's revision and yields `…-26.05pre-git` derivations instead of the
+  dated ones CI builds. Manual `just deploy` still uses colmena and is fine; the weekly job
+  cannot, because nothing it evaluates would ever be in the cache. Do not "unify" these
+  without checking that both evaluations produce identical derivation paths.
+
+Attic (`attic.arsfeld.dev`) runs in k3s on `can-1` behind Traefik, whose entrypoint
+`readTimeout` bounds *upload* duration. It is set to 600s in the `arsfeld/argocd` repo
+(`manifests/auth/traefik-config.yaml`); Traefik v3's 60s default is too short for large
+NARs. Unfree packages (vscode) are never on `cache.nixos.org`, so CI must push them itself
+and is the main source of such uploads.
+
 ### Testing Changes
 ```bash
 nix build .#nixosConfigurations.<hostname>.config.system.build.toplevel
