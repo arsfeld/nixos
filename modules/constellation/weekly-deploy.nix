@@ -47,10 +47,28 @@ with lib; let
   remoteHosts = filter (h: h != localHost) cfg.hosts;
   deployOrder = remoteHosts ++ optional (elem localHost cfg.hosts) localHost;
 
-  # One host cannot be allowed to eat the whole TimeoutStartSec=3h budget: the
-  # unit would be SIGKILLed with later hosts undeployed and no summary sent,
-  # which is the cross-host coupling the per-host loop exists to remove.
-  deployTimeout = "60m";
+  # One host cannot be allowed to eat the whole unit budget: the unit would be
+  # SIGKILLed with later hosts undeployed and no summary sent, which is the
+  # cross-host coupling the per-host loop exists to remove.
+  deployTimeoutMinutes = 60;
+  deployTimeout = "${toString deployTimeoutMinutes}m";
+
+  # The invariant: the unit's budget must exceed hosts × perHostTimeout by
+  # enough for everything after the deploy loop to finish. Deploys are serial,
+  # so the worst case is every host burning its full timeout — and it is
+  # exactly that run whose report matters most, since it means the fleet is in
+  # trouble. A fixed 3h against 3 × 60m left zero room: systemd would SIGKILL
+  # the script mid-sweep and the operator would get a bare "unit failed" from
+  # OnFailure instead of the per-host summary.
+  #
+  # The margin covers, worst case: the clone/fetch/reset, two 30s GitHub API
+  # calls, the reachability probe (15s per remote host), the verification sweep
+  # — whose slow part is `backup-status`, itself bounded at 120s per configured
+  # source, and galactica has four — and the notify retries, which are bounded
+  # at three attempts with 15s sleeps (~30s). An hour is comfortably above that
+  # sum and keeps the arithmetic legible.
+  sweepMarginMinutes = 60;
+  unitTimeout = "${toString (length cfg.hosts * deployTimeoutMinutes + sweepMarginMinutes)}m";
 
   deployScript = pkgs.writeShellScriptBin "weekly-deploy" ''
     set -uo pipefail
@@ -603,7 +621,10 @@ in {
         # media stack down with it.
         MemoryMax = "12G";
         Nice = 10;
-        TimeoutStartSec = "3h";
+        # Derived from the host count and the per-host deploy timeout so it
+        # cannot silently become too tight when a host joins the tier — see
+        # unitTimeout above for the invariant and what the margin covers.
+        TimeoutStartSec = unitTimeout;
       };
     };
 
