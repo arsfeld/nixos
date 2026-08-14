@@ -65,6 +65,7 @@
 
           # Python tools
           black
+          uv
           python3Packages.bcrypt
           python3Packages.mkdocs
           python3Packages.mkdocs-material
