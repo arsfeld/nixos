@@ -1,0 +1,23 @@
+[project]
+name = "telequebec-archiver"
+version = "0.1.0"
+description = "Archive Télé-Québec series for Plex"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "beautifulsoup4>=4.12",
+    "requests>=2.31",
+]
+
+[project.scripts]
+telequebec-archiver = "telequebec_archiver.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]

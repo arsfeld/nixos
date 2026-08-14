@@ -92,6 +92,7 @@ in {
   };
 
   environment.systemPackages = [
+    pkgs.telequebec-archiver
     (pkgs.writeShellScriptBin "plex-trakt-sync" "${(plex-trakt-sync {interactive = true;})} \"$@\"")
   ];
 
