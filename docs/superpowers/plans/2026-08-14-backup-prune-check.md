@@ -674,7 +674,27 @@ ssh galactica.bat-boa.ts.net 'sudo du -sh /mnt/storage/backups/restic /mnt/stora
 
 Expected roughly: `861G` and `445G`. Record the exact numbers — task 6 compares against them.
 
-- [ ] **Step 2: Deploy all four hosts**
+- [ ] **Step 2: PREVENTIVE — verify the `storage` repo URI before deploying anything**
+
+Do this **before** `just deploy`. `mergeConfigScript` sets `autoInitialize: true` for any
+repo with no guid, so if the URI in `hosts/galactica/backup/backrest-client.nix` were
+wrong, deploying would silently create a fresh empty repository on the spot — and a
+guid check done only after that point would just be confirming the damage, not
+preventing it.
+
+```bash
+ssh galactica.bat-boa.ts.net \
+  'sudo RESTIC_PASSWORD_FILE=/run/secrets/restic-password \
+   restic -r /mnt/storage/backups/restic-server cat config' | jq -r .id
+```
+
+Expected **exactly**: `8f51bfd26c36f60517b376aea2dd2376c7c2042e1e6635a66aba80aba20b3174`
+
+A `repository does not exist` error, or any other id, proves the URI is wrong *before*
+anything can create one — stop and fix the URI. Do not proceed to Step 3 until this
+matches.
+
+- [ ] **Step 3: Deploy all four hosts**
 
 ```bash
 just deploy galactica basestar raider
@@ -683,9 +703,10 @@ just deploy pegasus
 
 Expected: each host activates without error.
 
-- [ ] **Step 3: Verify the `storage` repo adopted the existing repository**
+- [ ] **Step 4: Re-confirm the `storage` repo's guid post-deploy (secondary confirmation)**
 
-This is the gate. `mergeConfigScript` sets `autoInitialize: true` for any repo with no guid, so a wrong URI would create a fresh empty repository and every operation afterwards would report success into the void.
+Step 2 is the real gate; this just confirms the running config matches what Step 2 already
+verified against the repository directly.
 
 ```bash
 ssh galactica.bat-boa.ts.net 'sudo jq -r ".repos[] | select(.id==\"storage\") | .guid" /var/lib/backrest/config.json'
@@ -695,7 +716,7 @@ Expected **exactly**: `8f51bfd26c36f60517b376aea2dd2376c7c2042e1e6635a66aba80aba
 
 If it differs or is empty: **stop**. Do not proceed to task 6. The entry did not adopt basestar's repo.
 
-- [ ] **Step 4: Verify the live config on every host**
+- [ ] **Step 5: Verify the live config on every host**
 
 ```bash
 for h in galactica basestar raider pegasus; do
@@ -706,7 +727,7 @@ done
 
 Expected: galactica shows crons on days 2–5; the other three show `null` for both on every repo.
 
-- [ ] **Step 5: Confirm backrest is healthy everywhere**
+- [ ] **Step 6: Confirm backrest is healthy and that the policies actually parsed**
 
 ```bash
 for h in galactica basestar raider pegasus; do
@@ -714,9 +735,23 @@ for h in galactica basestar raider pegasus; do
 done
 ```
 
-Expected: four `active` lines. A config Backrest rejects makes the daemon fail to start, so this is the real syntax check.
+Expected: four `active` lines. This is necessary but **not** the syntax check — Backrest's
+`internal/config/jsonstore.go` unmarshals `config.json` with
+`protojson.UnmarshalOptions{DiscardUnknown: true}`, so a misnamed field (exactly the
+`backupFlags`/`backup_flags` bug this fix wave corrected elsewhere) is silently dropped
+and the daemon starts clean regardless of whether the policies actually loaded into
+Backrest's in-memory config.
 
-- [ ] **Step 6: Run a check by hand on each repo before any scheduled prune**
+The real proof is checking what Backrest itself believes it loaded, not the file on
+disk: open each repo in the Backrest UI (`backrest-<host>.arsfeld.one`) and confirm
+`Prune` and `Check` appear in its upcoming/scheduled-tasks view — that view is rendered
+from Backrest's parsed in-memory config, so a silently-discarded field would show no
+scheduled prune/check there even though `config.json` on disk looks correct. (Backrest's
+web UI calls its own Connect-RPC API to build that view; reading the same API directly
+is an equivalent but more brittle alternative — the UI check needs no endpoint
+guessing.)
+
+- [ ] **Step 7: Run a check by hand on each repo before any scheduled prune**
 
 In the Backrest UI (`backrest-galactica.arsfeld.one`), run "Check Now" on `local`, `storage`, `hetzner` and `pegasus`. Then the cold tier:
 
@@ -726,13 +761,38 @@ ssh galactica.bat-boa.ts.net 'sudo systemctl start rustic-ovh-check && systemctl
 
 Expected: all five report success. A repo that fails its check must not be pruned — investigate before task 6.
 
-- [ ] **Step 7: Confirm the notification path**
+- [ ] **Step 8: Confirm the notification path**
 
 ```bash
 ssh galactica.bat-boa.ts.net 'sudo systemctl start backup-notify@manual-test.service; journalctl -u backup-notify@manual-test --no-pager -n 10'
 ```
 
 Expected: the unit succeeds and an ntfy message arrives on the `backups` topic. This confirms the hook path that prune and check failures now depend on.
+
+- [ ] **Step 9: Confirm what `excludeIfPresent` newly excludes on raider, basestar and pegasus**
+
+A pre-existing bug meant `renderPlan` emitted `excludeIfPresent`'s `--exclude-if-present=`
+flags under the wrong JSON key (`backupFlags` instead of the proto's `backup_flags`), so
+Backrest silently discarded them on every host. That key is now correct, which means
+raider, basestar and pegasus will honor `.nobackup`/`CACHEDIR.TAG` markers for the first
+time on their next scheduled backup — a real behaviour change, not just a docs fix. Do
+not trust it silently:
+
+```bash
+for h in raider basestar pegasus; do
+  echo "=== $h ==="
+  ssh $h.bat-boa.ts.net \
+    'sudo RESTIC_PASSWORD_FILE=/run/secrets/restic-password restic -r rest:http://galactica.bat-boa.ts.net:8000/ snapshots --host '"$h"' --json' \
+    | jq -r 'sort_by(.time) | .[-2,-1] | "\(.time) \(.id[0:8]) \(.paths)"'
+done
+```
+
+Wait for each host's next scheduled backup, then compare its file count (`restic stats
+<latest-snapshot-id>` or the Backrest UI's snapshot detail) against the previous
+snapshot. A drop that lines up with a known `.nobackup`/`CACHEDIR.TAG` location (e.g. a
+build cache, a large regenerable directory) is expected and fine; an unexplained or
+unexpectedly large drop means investigate before relying on that host's backup for
+restore.
 
 ---
 
@@ -743,7 +803,7 @@ Expected: the unit succeeds and an ntfy message arrives on the `backups` topic. 
 - Modify: `hosts/raider/configuration.nix`
 - Modify: `hosts/pegasus/backup/backup-client.nix`
 
-**Do not start this task until Task 5 step 3 matched the expected guid and step 6 reported clean checks.** This is the change that makes the first prune delete real history: basestar has 59 snapshots, raider 56, pegasus 10, and all three currently keep everything.
+**Do not start this task until Task 5 steps 2 and 4 matched the expected guid and step 7 reported clean checks.** This is the change that makes the first prune delete real history: basestar has 59 snapshots, raider 56, pegasus 10, and all three currently keep everything.
 
 - [ ] **Step 1: Set retention on all three plans**
 
@@ -825,8 +885,8 @@ Expected: both smaller than the sizes recorded in Task 5 step 1.
 | galactica owns `storage`, local-path URI | 3 |
 | Schedule table (days 2–6) | 3 (steps 2, 3), asserted in step 4 |
 | Client opt-outs | 4 |
-| Rollout step 1 (guid verification) | 5 (step 3) |
-| Rollout step 2 (manual checks first) | 5 (step 6) |
+| Rollout step 1 (guid verification) | 5 (steps 2, 4) |
+| Rollout step 2 (manual checks first) | 5 (step 7) |
 | Rollout step 3 (retention, separate commit, review gate) | 6 |
 | Rollout step 4 (confirm reclaimed space) | 6 (step 5) |
 
