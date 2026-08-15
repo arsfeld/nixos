@@ -25,13 +25,18 @@ There is no unit-test framework for these modules. The test is to build the exac
 
 **Rendered Backrest `config.json` for a host:**
 
+Build the host closure first. `nix eval --raw` returns a store path but does not
+create it, and `nix-store --realise` cannot build an output path whose derivation
+has not been instantiated — so on a locally modified module it fails with "path is
+not valid". Building the toplevel realises every path in the closure, after which
+the file is simply there to read.
+
 ```bash
 bash -c 'set -e
 host="$1"
+nix build --no-link ".#nixosConfigurations.$host.config.system.build.toplevel"
 script=$(nix eval --raw ".#nixosConfigurations.$host.config.systemd.services.backrest.serviceConfig.ExecStartPre")
-nix-store --realise "$script" >/dev/null
 tpl=$(grep -oE "/nix/store/[^ ]*-backrest-config\.json" "$script" | head -1)
-nix-store --realise "$tpl" >/dev/null
 cat "$tpl"
 ' _ galactica | jq .
 ```
@@ -76,10 +81,9 @@ nix eval --json '.#nixosConfigurations.galactica.config.systemd.timers."rustic-o
 
 ```bash
 bash -c 'set -e
+nix build --no-link ".#nixosConfigurations.galactica.config.system.build.toplevel"
 script=$(nix eval --raw ".#nixosConfigurations.galactica.config.systemd.services.backrest.serviceConfig.ExecStartPre")
-nix-store --realise "$script" >/dev/null
 tpl=$(grep -oE "/nix/store/[^ ]*-backrest-config\.json" "$script" | head -1)
-nix-store --realise "$tpl" >/dev/null
 jq -c "{repo0: (.repos[0]|keys), plan0hooks: (.plans[0].hooks|length)}" "$tpl"
 '
 ```
@@ -272,10 +276,9 @@ Then update `planType.hooks`'s description to read:
 ```bash
 just fmt
 bash -c 'set -e
+nix build --no-link ".#nixosConfigurations.galactica.config.system.build.toplevel"
 script=$(nix eval --raw ".#nixosConfigurations.galactica.config.systemd.services.backrest.serviceConfig.ExecStartPre")
-nix-store --realise "$script" >/dev/null
 tpl=$(grep -oE "/nix/store/[^ ]*-backrest-config\.json" "$script" | head -1)
-nix-store --realise "$tpl" >/dev/null
 jq "{
   repos: [.repos[] | {id, prune: .prunePolicy, check: .checkPolicy, hookConds: [.hooks[].conditions]}],
   planHooks: [.plans[] | {id, hooks}]
@@ -404,8 +407,8 @@ Expected: ends with `/bin/rustic -P ovh check` and contains **no** `--read-data`
 
 ```bash
 bash -c 'set -e
+nix build --no-link ".#nixosConfigurations.galactica.config.system.build.toplevel"
 t=$(nix eval --raw ".#nixosConfigurations.galactica.config.environment.etc.\"rustic/ovh.toml\".source")
-nix-store --realise "$t" >/dev/null
 grep -nE "TimerConfig|maxAgeHours|pruneArgs|substituteEnv" "$t" && echo "LEAK" || echo "no module keys leaked into TOML (good)"
 '
 ```
@@ -543,10 +546,9 @@ In `hosts/galactica/backup/rustic-ovh.nix`, add inside `profiles.ovh`, after `pr
 ```bash
 just fmt
 bash -c 'set -e
+nix build --no-link ".#nixosConfigurations.galactica.config.system.build.toplevel"
 script=$(nix eval --raw ".#nixosConfigurations.galactica.config.systemd.services.backrest.serviceConfig.ExecStartPre")
-nix-store --realise "$script" >/dev/null
 tpl=$(grep -oE "/nix/store/[^ ]*-backrest-config\.json" "$script" | head -1)
-nix-store --realise "$tpl" >/dev/null
 jq -S "[.repos[] | {id, uri, checkCron: .checkPolicy.schedule.cron, readData: .checkPolicy.readDataSubsetPercent, structureOnly: .checkPolicy.structureOnly, pruneCron: .prunePolicy.schedule.cron, maxUnused: .prunePolicy.maxUnusedPercent}]" "$tpl"
 '
 ```
@@ -627,10 +629,9 @@ just fmt
 for h in basestar raider pegasus; do
   echo "=== $h ==="
   bash -c 'set -e
+  nix build --no-link ".#nixosConfigurations.$1.config.system.build.toplevel"
   script=$(nix eval --raw ".#nixosConfigurations.$1.config.systemd.services.backrest.serviceConfig.ExecStartPre")
-  nix-store --realise "$script" >/dev/null
   tpl=$(grep -oE "/nix/store/[^ ]*-backrest-config\.json" "$script" | head -1)
-  nix-store --realise "$tpl" >/dev/null
   jq -c "[.repos[] | {id, prune: .prunePolicy, check: .checkPolicy, hookConds: [.hooks[].conditions]}]" "$tpl"
   ' _ "$h"
 done
@@ -766,10 +767,9 @@ just fmt
 for h in basestar raider pegasus; do
   echo "=== $h ==="
   bash -c 'set -e
+  nix build --no-link ".#nixosConfigurations.$1.config.system.build.toplevel"
   script=$(nix eval --raw ".#nixosConfigurations.$1.config.systemd.services.backrest.serviceConfig.ExecStartPre")
-  nix-store --realise "$script" >/dev/null
   tpl=$(grep -oE "/nix/store/[^ ]*-backrest-config\.json" "$script" | head -1)
-  nix-store --realise "$tpl" >/dev/null
   jq -c "[.plans[] | {id, retention}]" "$tpl"
   ' _ "$h"
 done
