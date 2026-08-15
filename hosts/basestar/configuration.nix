@@ -140,6 +140,14 @@
       ];
       excludeIfPresent = [".nobackup" "CACHEDIR.TAG"];
       schedule.cron = "30 3 * * *";
+      # Was keep-all, which combined with the absent prune policy meant nothing
+      # was ever removed from this repo. Matches the d7/w4/m6 that galactica
+      # already uses for its hetzner and pegasus plans.
+      retention = {
+        daily = 7;
+        weekly = 4;
+        monthly = 6;
+      };
     };
   };
 
