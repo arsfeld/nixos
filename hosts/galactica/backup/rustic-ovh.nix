@@ -163,12 +163,18 @@ in {
       # 180-day early-deletion penalty.
       pruneArgs = ["--prune" "--keep-pack" "180d"];
 
-      # Structure-only check on the 6th, continuing the one-repo-per-day
-      # rotation the restic repos use. List-only against both buckets plus hot
-      # reads, so nothing is retrieved from tape — see the checkServices
-      # comment in constellation.rustic for why --read-data is not an option.
+      # First Wednesday of the month, not a fixed day-of-month. A plain
+      # "*-*-06" cron can land on a Sunday (verified: 2026-09-06 and
+      # 2026-12-06 both are), the same slot rustic-ovh's backup runs at
+      # 04:30. These are independent systemd units and rustic 0.11 takes no
+      # repository lock, so a long Sunday backup could still be writing
+      # unindexed packs while the check walks the index — producing a
+      # fabricated "pack not referenced in any index" alarm on the one tier
+      # that until now had no verification at all. Pinning to a weekday
+      # keeps it off that slot entirely (verified: Sep 2, Oct 7, Nov 4, Dec 2
+      # in 2026).
       checkTimerConfig = {
-        OnCalendar = "*-*-06 09:00:00";
+        OnCalendar = "Wed *-*-01..07 09:00:00";
         Persistent = true;
       };
 
