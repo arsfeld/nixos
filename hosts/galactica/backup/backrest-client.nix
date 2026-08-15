@@ -1,8 +1,11 @@
 # Storage as a backup *client*: runs five Backrest plans pushing to
-# three repos — local NAS, hetzner, and pegasus. Both the system and
-# user plans for hetzner/pegasus share the same repo (distinguished
-# by path set). Replaces the previous hand-rolled services.restic.backups
-# profiles in backup-restic.nix.
+# four repos — local NAS, hetzner, and pegasus, plus a fourth `storage`
+# repo that carries no plans of its own (see its own comment below: it's
+# the local path to the repository galactica's REST server serves to
+# basestar/raider/pegasus, addressed here only so galactica can own prune
+# and check for it). Both the system and user plans for hetzner/pegasus
+# share the same repo (distinguished by path set). Replaces the previous
+# hand-rolled services.restic.backups profiles in backup-restic.nix.
 #
 # Retention, exclusion lists, and destination URIs are preserved 1:1
 # from the prior restic config. Schedules are fixed-time crons spread
@@ -90,16 +93,30 @@
   # block), and the three-hour gap keeps a prune from starting while that
   # repo's own check still holds the lock.
   #
-  # readDataPercent re-reads that share of pack data and is only worth it where
-  # reads are free. null = structure-only, which is mandatory for the two
-  # remote repos: re-reading 2.9 TiB over rclone would cost egress every month.
-  policies = day: readDataPercent: {
+  # readData re-reads that share of pack data during CHECK, and is only worth
+  # it where reads are free (local disk). null = structure-only, which is
+  # mandatory for the two remote repos: re-reading 2.9 TiB over rclone would
+  # cost egress every month. That egress-avoidance applies to CHECK only.
+  # `restic prune --max-unused N%` repacks partially-used packs — i.e. it
+  # downloads and re-uploads them — independent of the check setting, so a
+  # remote-repo prune does transfer pack data whenever it repacks. maxUnused
+  # raises the threshold for the two remote repos (40% instead of the local
+  # default 10%) to suppress most of that repacking; it doesn't eliminate it,
+  # since fully-dead packs are deleted with no download either way.
+  policies = {
+    day,
+    readData ? null,
+    maxUnused ? 10,
+  }: {
     check =
       {schedule.cron = "0 9 ${toString day} * *";}
-      // lib.optionalAttrs (readDataPercent != null) {
-        readDataSubsetPercent = readDataPercent;
+      // lib.optionalAttrs (readData != null) {
+        readDataSubsetPercent = readData;
       };
-    prune.schedule.cron = "0 12 ${toString day} * *";
+    prune = {
+      schedule.cron = "0 12 ${toString day} * *";
+      maxUnusedPercent = maxUnused;
+    };
   };
 in {
   # rclone creds for the hetzner repos. Mode 0400 matches the previous
@@ -122,7 +139,10 @@ in {
           uri = "/mnt/storage/backups/restic";
           passwordFile = config.sops.secrets."restic-password".path;
         }
-        // policies 2 5;
+        // policies {
+          day = 2;
+          readData = 5;
+        };
 
       # The repo galactica's own restic REST server serves, which basestar,
       # raider and pegasus all write to over rest://. Declared here with no
@@ -142,7 +162,10 @@ in {
           # basestar writes here daily, so 48h is the right staleness bound.
           maxAgeHours = 48;
         }
-        // policies 3 5;
+        // policies {
+          day = 3;
+          readData = 5;
+        };
 
       hetzner =
         {
@@ -154,7 +177,10 @@ in {
           # 8 days, one day of slack past the interval (matches ovh).
           maxAgeHours = 192;
         }
-        // policies 4 null;
+        // policies {
+          day = 4;
+          maxUnused = 40;
+        };
 
       pegasus =
         {
@@ -164,7 +190,10 @@ in {
           # Sunday-only — weekly. Same 192h reasoning as hetzner above.
           maxAgeHours = 192;
         }
-        // policies 5 null;
+        // policies {
+          day = 5;
+          maxUnused = 40;
+        };
     };
 
     plans = {
@@ -213,4 +242,13 @@ in {
       };
     };
   };
+
+  # /mnt/storage is mounted with "nofail" (hardware-configuration.nix), so
+  # galactica boots fine without it. Both the `local` and `storage` repos
+  # above are local paths under /mnt/storage, and `storage` still carries
+  # autoInitialize: true until a guid is written (backrest.nix's merge
+  # script) — so without this guard, a boot with the pool missing would let
+  # restic create a fresh empty repo on the root SSD, and every prune/check
+  # afterwards would succeed into it silently.
+  systemd.services.backrest.unitConfig.RequiresMountsFor = "/mnt/storage";
 }
