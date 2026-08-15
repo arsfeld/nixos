@@ -8,7 +8,7 @@
 # and restic has no hot/cold repository concept, so a cold-storage tier (OVH
 # Cold Archive, i.e. tape) cannot live inside Backrest:
 #
-#   Backrest owns the warm tiers (local NAS, pegasus REST).
+#   Backrest owns the warm tiers (local NAS, pegasus REST, storage REST).
 #   rustic   owns the cold tier  (OVH).
 #
 # They never touch the same repo.
@@ -284,8 +284,9 @@ in {
       default = {};
       description = ''
         Attribute set of rustic profiles. Every attribute other than
-        timerConfig, pruneTimerConfig, pruneArgs, environment, environmentFile
-        and substituteEnv is written verbatim into /etc/rustic/<name>.toml.
+        timerConfig, pruneTimerConfig, checkTimerConfig, pruneArgs,
+        environment, environmentFile, substituteEnv and maxAgeHours is
+        written verbatim into /etc/rustic/<name>.toml.
       '';
     };
   };
