@@ -2,7 +2,7 @@
 #
 # One ntfy POST, two callers.
 #
-#   - Backrest calls `script` from a plan hook's actionCommand, because it
+#   - Backrest calls `script` from a repo hook's actionCommand, because it
 #     needs Backrest's own template expansion ({{.Repo.Id}} etc.) and so
 #     cannot be a systemd unit.
 #   - rustic's units point OnFailure= at backup-notify@<unit>.service, the
