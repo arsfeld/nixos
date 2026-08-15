@@ -15,6 +15,10 @@
       # weekly. 48h would report stale every week; 192h is 8 days, one day
       # of slack past the interval (matches ovh/hetzner/galactica-pegasus).
       maxAgeHours = 192;
+      # galactica owns prune and check for this repo (it hosts the disk).
+      # Three instances pruning one repository would contend for one lock.
+      prune = null;
+      check = null;
     };
     plans.system = {
       repo = "storage";
