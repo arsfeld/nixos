@@ -221,7 +221,14 @@ with lib; let
     iexcludes = plan.iexcludes;
     schedule = renderSchedule plan.schedule;
     retention = renderRetention plan.retention;
-    backupFlags =
+    # The proto field is `repeated string backup_flags = 10
+    # [json_name="backup_flags"]` — snake_case, unlike its neighbour
+    # skip_if_unchanged (json_name="skipIfUnchanged"). Backrest unmarshals
+    # config.json with protojson.UnmarshalOptions{DiscardUnknown: true}, so
+    # the camelCase spelling isn't rejected — it's silently dropped. That
+    # is exactly what happened here: emitting "backupFlags" meant
+    # excludeIfPresent never took effect on any host, with no error anywhere.
+    backup_flags =
       plan.extraBackupFlags
       ++ (map (f: "--exclude-if-present=${f}") plan.excludeIfPresent);
     hooks =
