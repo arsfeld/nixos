@@ -456,16 +456,30 @@ In `hosts/galactica/backup/backrest-client.nix`, add to the `let` block after `r
   # block), and the three-hour gap keeps a prune from starting while that
   # repo's own check still holds the lock.
   #
-  # readDataPercent re-reads that share of pack data and is only worth it where
-  # reads are free. null = structure-only, which is mandatory for the two
-  # remote repos: re-reading 2.9 TiB over rclone would cost egress every month.
-  policies = day: readDataPercent: {
+  # readData re-reads that share of pack data during CHECK, and is only worth
+  # it where reads are free (local disk). null = structure-only, which is
+  # mandatory for the two remote repos: re-reading 2.9 TiB over rclone would
+  # cost egress every month. That egress-avoidance applies to CHECK only.
+  # `restic prune --max-unused N%` repacks partially-used packs — i.e. it
+  # downloads and re-uploads them — independent of the check setting, so a
+  # remote-repo prune does transfer pack data whenever it repacks. maxUnused
+  # raises the threshold for the two remote repos (40% instead of the local
+  # default 10%) to suppress most of that repacking; it doesn't eliminate it,
+  # since fully-dead packs are deleted with no download either way.
+  policies = {
+    day,
+    readData ? null,
+    maxUnused ? 10,
+  }: {
     check =
       {schedule.cron = "0 9 ${toString day} * *";}
-      // lib.optionalAttrs (readDataPercent != null) {
-        readDataSubsetPercent = readDataPercent;
+      // lib.optionalAttrs (readData != null) {
+        readDataSubsetPercent = readData;
       };
-    prune.schedule.cron = "0 12 ${toString day} * *";
+    prune = {
+      schedule.cron = "0 12 ${toString day} * *";
+      maxUnusedPercent = maxUnused;
+    };
   };
 ```
 
@@ -480,7 +494,10 @@ Replace the `repos` attribute with:
           uri = "/mnt/storage/backups/restic";
           passwordFile = config.sops.secrets."restic-password".path;
         }
-        // policies 2 5;
+        // policies {
+          day = 2;
+          readData = 5;
+        };
 
       # The repo galactica's own restic REST server serves, which basestar,
       # raider and pegasus all write to over rest://. Declared here with no
@@ -500,7 +517,10 @@ Replace the `repos` attribute with:
           # basestar writes here daily, so 48h is the right staleness bound.
           maxAgeHours = 48;
         }
-        // policies 3 5;
+        // policies {
+          day = 3;
+          readData = 5;
+        };
 
       hetzner =
         {
@@ -512,7 +532,10 @@ Replace the `repos` attribute with:
           # 8 days, one day of slack past the interval (matches ovh).
           maxAgeHours = 192;
         }
-        // policies 4 null;
+        // policies {
+          day = 4;
+          maxUnused = 40;
+        };
 
       pegasus =
         {
@@ -522,7 +545,10 @@ Replace the `repos` attribute with:
           # Sunday-only — weekly. Same 192h reasoning as hetzner above.
           maxAgeHours = 192;
         }
-        // policies 5 null;
+        // policies {
+          day = 5;
+          maxUnused = 40;
+        };
     };
 ```
 
@@ -531,12 +557,18 @@ Replace the `repos` attribute with:
 In `hosts/galactica/backup/rustic-ovh.nix`, add inside `profiles.ovh`, after `pruneArgs`:
 
 ```nix
-      # Structure-only check on the 6th, continuing the one-repo-per-day
-      # rotation the restic repos use. List-only against both buckets plus hot
-      # reads, so nothing is retrieved from tape — see the checkServices
-      # comment in constellation.rustic for why --read-data is not an option.
+      # First Wednesday of the month, not a fixed day-of-month. A plain
+      # "*-*-06" cron can land on a Sunday (verified: 2026-09-06 and
+      # 2026-12-06 both are), the same slot rustic-ovh's backup runs at
+      # 04:30. These are independent systemd units and rustic 0.11 takes no
+      # repository lock, so a long Sunday backup could still be writing
+      # unindexed packs while the check walks the index — producing a
+      # fabricated "pack not referenced in any index" alarm on the one tier
+      # that until now had no verification at all. Pinning to a weekday
+      # keeps it off that slot entirely (verified: Sep 2, Oct 7, Nov 4, Dec 2
+      # in 2026).
       checkTimerConfig = {
-        OnCalendar = "*-*-06 09:00:00";
+        OnCalendar = "Wed *-*-01..07 09:00:00";
         Persistent = true;
       };
 ```
@@ -559,8 +591,8 @@ Expected exactly:
 |---|---|---|---|---|
 | `local` | `0 9 2 * *` | `0 12 2 * *` | `readDataSubsetPercent: 5` | 10 |
 | `storage` | `0 9 3 * *` | `0 12 3 * *` | `readDataSubsetPercent: 5` | 10 |
-| `hetzner` | `0 9 4 * *` | `0 12 4 * *` | `structureOnly: true` | 10 |
-| `pegasus` | `0 9 5 * *` | `0 12 5 * *` | `structureOnly: true` | 10 |
+| `hetzner` | `0 9 4 * *` | `0 12 4 * *` | `structureOnly: true` | 40 |
+| `pegasus` | `0 9 5 * *` | `0 12 5 * *` | `structureOnly: true` | 40 |
 
 - [ ] **Step 5: Verify the cold-tier timer**
 
@@ -568,7 +600,7 @@ Expected exactly:
 nix eval --json '.#nixosConfigurations.galactica.config.systemd.timers."rustic-ovh-check".timerConfig'
 ```
 
-Expected: `{"OnCalendar":"*-*-06 09:00:00","Persistent":true}`.
+Expected: `{"OnCalendar":"Wed *-*-01..07 09:00:00","Persistent":true}`.
 
 - [ ] **Step 6: Build galactica**
 
@@ -588,7 +620,10 @@ contending for the same lock. Schedules run one repo per day on days 2-6,
 avoiding the 1st (ovh prune) and Sundays (the backup block).
 
 Data-subset reads only on the two local-disk repos; the remote repos and the
-cold tier are structure-only so no scheduled job ever pays egress."
+cold tier use structure-only checks, so no scheduled check costs egress. Prune
+still repacks partially-used packs on those tiers, which does transfer data,
+so hetzner and pegasus get a higher maxUnusedPercent (40% vs. the local 10%)
+to limit how much repacking happens."
 ```
 
 ---
@@ -894,4 +929,4 @@ Out-of-scope items in the spec (per-host freshness filter, orphan `cloud` snapsh
 
 **Placeholder scan:** No TBD/TODO. Every code step carries the actual Nix. Every test step carries the exact command and its expected output.
 
-**Type consistency:** `prune`/`check`/`hooks` are named identically in tasks 1, 3, 4 and 6. `renderPrunePolicy`/`renderCheckPolicy` are defined in task 1 step 2 and used in step 4. `policies day readDataPercent` is defined in task 3 step 1 and applied in step 2. `checkTimerConfig` is defined in task 2 step 4 and set in task 3 step 3. `checkServices` is defined in task 2 step 3 and wired in step 5.
+**Type consistency:** `prune`/`check`/`hooks` are named identically in tasks 1, 3, 4 and 6. `renderPrunePolicy`/`renderCheckPolicy` are defined in task 1 step 2 and used in step 4. `policies {day, readData ? null, maxUnused ? 10}` is defined in task 3 step 1 and applied in step 2. `checkTimerConfig` is defined in task 2 step 4 and set in task 3 step 3. `checkServices` is defined in task 2 step 3 and wired in step 5.
