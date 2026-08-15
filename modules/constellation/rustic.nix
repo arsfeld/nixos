@@ -34,6 +34,8 @@
 #   rustic-<name>.timer             iff timerConfig != null
 #   rustic-<name>-prune.service     forget + prune, oneshot
 #   rustic-<name>-prune.timer       iff pruneTimerConfig != null
+#   rustic-<name>-check.service     structure-only check, oneshot
+#   rustic-<name>-check.timer       iff checkTimerConfig != null
 #   rustic-<name>                   wrapper on PATH for manual invocation
 {
   config,
@@ -57,6 +59,7 @@ with lib; let
   moduleKeys = [
     "timerConfig"
     "pruneTimerConfig"
+    "checkTimerConfig"
     "pruneArgs"
     "environment"
     "environmentFile"
@@ -132,6 +135,34 @@ with lib; let
     })
   cfg.profiles;
 
+  # Structure-only, deliberately. `rustic check` reads pack CONTENTS only under
+  # --read-data (rustic_core's check.rs gates it, and --read-data-subset is
+  # declared requires="read_data"). Without that flag it does list_with_size
+  # against both backends and reads snapshots, index and tree packs from the
+  # HOT repo — so on a hot/cold repository nothing is retrieved from tape, and
+  # it still catches a pack the index references but the cold bucket lacks.
+  #
+  # --read-data is not exposed as an option on purpose. Against OVH Cold
+  # Archive every pack would go through restore-object with warm-up-batch = 1
+  # and a poll that waits up to 48h PER PACK, plus retrieval billing and 7-day
+  # restore copies. There is no schedule on which that is acceptable.
+  checkServices = mapAttrs' (name: profile:
+    nameValuePair "rustic-${name}-check" {
+      description = "rustic check (profile ${name})";
+      after = ["network-online.target"];
+      wants = ["network-online.target"];
+      environment = profileEnv profile;
+      onFailure = ["backup-notify@rustic-${name}-check.service"];
+      serviceConfig =
+        hardening
+        // {
+          Type = "oneshot";
+          ExecStart = "${cfg.package}/bin/rustic -P ${name} check";
+          EnvironmentFile = mkIf (profile.environmentFile != null) profile.environmentFile;
+        };
+    })
+  cfg.profiles;
+
   mkTimer = suffix: field:
     mapAttrs' (name: profile:
       nameValuePair "rustic-${name}${suffix}" {
@@ -176,6 +207,12 @@ with lib; let
         default = null;
         description = "systemd timer for the forget+prune unit. null means manual-only.";
         example = literalExpression ''{OnCalendar = "*-*-01 03:00:00";}'';
+      };
+      checkTimerConfig = mkOption {
+        type = types.nullOr types.attrs;
+        default = null;
+        description = "systemd timer for the check unit. null means manual-only.";
+        example = literalExpression ''{OnCalendar = "*-*-06 09:00:00";}'';
       };
       pruneArgs = mkOption {
         type = types.listOf types.str;
@@ -272,8 +309,11 @@ in {
       nameValuePair "rustic/${name}.toml" {source = profileToml name profile;})
     cfg.profiles;
 
-    systemd.services = backupServices // pruneServices;
-    systemd.timers = (mkTimer "" "timerConfig") // (mkTimer "-prune" "pruneTimerConfig");
+    systemd.services = backupServices // pruneServices // checkServices;
+    systemd.timers =
+      (mkTimer "" "timerConfig")
+      // (mkTimer "-prune" "pruneTimerConfig")
+      // (mkTimer "-check" "checkTimerConfig");
 
     systemd.tmpfiles.rules = [
       "d ${cfg.logDir} 0750 root root -"
