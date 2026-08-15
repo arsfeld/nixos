@@ -163,6 +163,15 @@ in {
       # 180-day early-deletion penalty.
       pruneArgs = ["--prune" "--keep-pack" "180d"];
 
+      # Structure-only check on the 6th, continuing the one-repo-per-day
+      # rotation the restic repos use. List-only against both buckets plus hot
+      # reads, so nothing is retrieved from tape — see the checkServices
+      # comment in constellation.rustic for why --read-data is not an option.
+      checkTimerConfig = {
+        OnCalendar = "*-*-06 09:00:00";
+        Persistent = true;
+      };
+
       substituteEnv = true;
       environmentFile = config.sops.secrets."ovh-s3-env".path;
 
