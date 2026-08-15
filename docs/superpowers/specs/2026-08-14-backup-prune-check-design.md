@@ -179,14 +179,23 @@ galactica so there is no cross-host lock contention. Nothing lands on the 1st
 
 | Repo | Kind | check | prune |
 |---|---|---|---|
-| `local` | restic | `0 9 2 * *`, read-data 5% | `0 12 2 * *`, 10% |
-| `storage` | restic | `0 9 3 * *`, read-data 5% | `0 12 3 * *`, 10% |
-| `hetzner` | restic | `0 9 4 * *`, structure-only | `0 12 4 * *`, 10% |
-| `pegasus` | restic | `0 9 5 * *`, structure-only | `0 12 5 * *`, 10% |
-| `ovh` | rustic | `*-*-06 09:00:00`, structure-only | unchanged (`*-*-01 03:00`) |
+| `local` | restic | `0 9 2 * *`, read-data 5% | `0 12 2 * *`, max-unused 10% |
+| `storage` | restic | `0 9 3 * *`, read-data 5% | `0 12 3 * *`, max-unused 10% |
+| `hetzner` | restic | `0 9 4 * *`, structure-only | `0 12 4 * *`, max-unused 40% |
+| `pegasus` | restic | `0 9 5 * *`, structure-only | `0 12 5 * *`, max-unused 40% |
+| `ovh` | rustic | first Wed of month `09:00:00`, structure-only | unchanged (`*-*-01 03:00`) |
 
-Data-subset reads are used only where reads are free (local disk). The remote restic
-repos and the cold tier get structure-only, so no scheduled job ever pays egress.
+Data-subset reads are used only where reads are free (local disk); the remote restic
+repos and the cold tier get structure-only **check**. That egress-avoidance applies to
+check only. `restic prune --max-unused N%` repacks partially-used packs — i.e. it
+downloads and re-uploads them — independent of the check setting, so a scheduled prune
+against a remote repo does transfer pack data whenever it repacks. The two remote repos
+(`hetzner`, `pegasus`) therefore get a higher `max-unused` (40% vs. the local default
+10%) to suppress most of that repacking; fully-dead packs are still deleted with no
+download regardless of the threshold. The `ovh` check timer is pinned to the first
+Wednesday of the month rather than a fixed day-of-month, because a day-of-month cron can
+land on a Sunday — the same slot the `ovh` backup runs — and rustic units take no
+cross-unit lock.
 
 ## Rollout
 
@@ -237,3 +246,11 @@ Flagged deliberately, not overlooked:
   or an unfinished decommission.
 - **pegasus is not in the weekly sweep.** `weeklyDeploy.hosts` is tier1 only, so
   pegasus's backup health is never reported by the Sunday job.
+- **`excludeIfPresent` newly takes effect on raider, basestar and pegasus.** A
+  pre-existing bug in `renderPlan` emitted the field as `backupFlags`; the proto's
+  json_name is `backup_flags`, so Backrest's `protojson.UnmarshalOptions{DiscardUnknown:
+  true}` silently dropped it on every host that set `excludeIfPresent = [".nobackup"
+  "CACHEDIR.TAG"]`. That key is now spelled correctly, which means those three hosts'
+  next backups will actually start honoring `.nobackup`/`CACHEDIR.TAG` markers for the
+  first time. This is a deliberate behaviour change, not a side effect to overlook: what
+  each host newly excludes must be checked at deploy time (see the plan's Task 5).
