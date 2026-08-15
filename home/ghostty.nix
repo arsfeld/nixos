@@ -48,8 +48,12 @@
 
       # Optional: Add other Ghostty settings you might want
       font-family = FiraCode Nerd Font
-      # 9pt at 96 DPI = 12px, close to macOS Terminal's SF Mono 11 (11px)
-      font-size = 9
+      # Ghostty's default_dpi is 72 on macOS and 96 everywhere else, so a point
+      # is a pixel on the Mac but 1.33px here. The Mac runs Ghostty's 13pt
+      # default (13px); 10pt renders 13.3px, which rounds to the same 13px.
+      # Do not derive this from Terminal.app's SF Mono 11 -- that lands at 9pt,
+      # a quarter smaller than the Ghostty we actually compare against.
+      font-size = 10
       theme = Catppuccin Mocha
       cursor-style = block
       cursor-style-blink = true

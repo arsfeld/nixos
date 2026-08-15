@@ -14,8 +14,10 @@ config.window_decorations = 'RESIZE'
 
 config.color_scheme = scheme_for_appearance(wezterm.gui.get_appearance())
 
--- 9pt at 96 DPI = 12px, close to macOS Terminal's SF Mono 11 (11px)
-config.font_size = 9
+-- WezTerm uses 72 DPI on macOS and 96 on X11/Wayland, so a point is a pixel on
+-- the Mac but 1.33px here. 10pt = 13.3px, matching the 13px the Mac draws at
+-- Ghostty's 13pt default. Keep this in step with home/ghostty.nix.
+config.font_size = 10
 config.font = wezterm.font("Cascadia Code")
 
 config.window_background_opacity = 0.7
