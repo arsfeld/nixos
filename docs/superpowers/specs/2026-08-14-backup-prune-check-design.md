@@ -99,14 +99,30 @@ to the reader:
   The 25% fallback applies only when the *whole* policy is absent, which is not the
   case once we start emitting one.
 
-- **The repo-level failure hook must be a separate template.** Prune and check
-  failures fire `CONDITION_PRUNE_ERROR` / `CONDITION_CHECK_ERROR` plus
-  `CONDITION_ANY_ERROR` against the **repo's** hooks, and `renderRepo` currently emits
-  none — so today those failures would be silent on ntfy. The existing
-  `defaultFailureHook` cannot simply be reused: it interpolates `{{.Plan.Id}}`, and
-  `HookVars.Plan` is a nil `*v1.Plan` for repo-scoped tasks, so the template would
-  error and the POST would never happen. The repo hook references only `{{.Repo.Id}}`,
-  `{{.Event}}` and `{{.Error}}`.
+- **The failure hook moves from plan level to repo level.** Prune and check failures
+  fire against the **repo's** hooks, and `renderRepo` currently emits none — so today
+  those failures would be silent on ntfy. The fix is to move the existing
+  `defaultFailureHook` rather than add a second one, because adding one would
+  double-notify:
+
+  - `NotifyError` prepends `CONDITION_ANY_ERROR` to every error path
+    (`tasks/errors.go:46`), and the explicit `ExecuteHooks` calls in `taskbackup.go`,
+    `taskprune.go` and `taskcheck.go` all include it too. So `ANY_ERROR` alone covers
+    backup, forget, prune, check and index failures.
+  - `TasksTriggeredByEvent` uses `firstMatchingCondition`, so one hook fires at most
+    once per failure — but it iterates `repo.GetHooks()` **and** `plan.GetHooks()`.
+    Keeping a plan hook and a repo hook that both match `ANY_ERROR` therefore sends
+    two ntfy messages per failure.
+
+  So: `repoType.hooks` defaults to a single `["CONDITION_ANY_ERROR"]` hook, and
+  `planType.hooks` defaults to `[]`. This is a net simplification — one hook instead
+  of two — and it is strictly broader coverage, since a plan-less repo (the new
+  `storage` entry) has no plan hook to fall back on.
+
+  The template keeps `{{.Plan.Id}}`. `taskrunnerimpl.go:102-106` substitutes a
+  non-nil placeholder `Plan` carrying only the ID when a task has no plan, so it
+  renders the real plan ID for backup/forget failures and an empty string for
+  repo-scoped prune/check failures. It does not error.
 
 ### `modules/constellation/rustic.nix`
 
@@ -177,20 +193,30 @@ repos and the cold tier get structure-only, so no scheduled job ever pays egress
 The first prune deletes real data, and the retention change deletes real history, so
 this lands in stages rather than all at once.
 
-1. Land both module changes and galactica's `storage` entry **with prune and check
-   disabled**. Deploy, then verify the new repo's guid equals basestar's
-   `8f51bfd26c36f60517b376aea2dd2376c7c2042e1e6635a66aba80aba20b3174`.
+Note on "safe-by-default" versus staging: every repo that exists today sets its
+policy **explicitly**, so the module's on-by-default value never silently activates
+anything in this change — it exists only to cover repos added later. Staging is
+therefore achieved by splitting the commits, plus the natural lead time before the
+first monthly cron fires (schedules land on days 2–6; a mid-August deploy first fires
+in September).
+
+1. Land both module changes, galactica's four explicit policies, its new `storage`
+   entry, and the clients' `prune = null; check = null;` opt-outs. **Client retention
+   stays `keep-all` in this step.** Deploy, then verify the new repo's guid equals
+   basestar's `8f51bfd26c36f60517b376aea2dd2376c7c2042e1e6635a66aba80aba20b3174`.
 
    This step is not optional. `mergeConfigScript` sets `autoInitialize: true` for any
    repo with no guid, so a wrong URI would create a fresh empty repository and every
    subsequent operation would report success into the void — the same hazard
    `rustic.nix` already warns about for `rustic init`. A matching guid is proof the
    entry adopted the existing repo.
-2. Enable `check` only. It is read-only, so a failure here is information, not damage.
-   Confirm a clean check on each repo before going further.
-3. Change client retention to `d7/w4/m6` and let one forget cycle run. Review what it
-   marked before anything reclaims it.
-4. Enable `prune`.
+2. Run a check by hand on each of the four repos before any scheduled prune fires.
+   Checks are read-only, so a failure here is information rather than damage, and a
+   repo that fails its check must not be pruned.
+3. In a **separate commit**, change client retention to `d7/w4/m6`. Let one forget
+   cycle run and review what it marked — this is the gate before anything reclaims it.
+4. Let the scheduled prune run on its cron. Confirm reclaimed space against the
+   pre-prune sizes recorded in step 1 (`local` 861 GB, `storage` 445 GB).
 
 ## Out of scope
 
