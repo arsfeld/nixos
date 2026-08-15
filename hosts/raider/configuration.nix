@@ -67,6 +67,10 @@
       repos.storage = {
         uri = "rest:http://galactica.bat-boa.ts.net:8000/";
         passwordFile = config.sops.secrets."restic-password".path;
+        # galactica owns prune and check for this repo (it hosts the disk).
+        # Three instances pruning one repository would contend for one lock.
+        prune = null;
+        check = null;
       };
       plans.system = {
         repo = "storage";
