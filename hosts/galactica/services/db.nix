@@ -116,7 +116,11 @@
   services.postgresqlBackup = {
     enable = true;
     compression = "zstd";
-    databases = config.services.postgresql.ensureDatabases;
+    # bitmagnet is excluded deliberately: it is a DHT crawl index, so losing it
+    # costs crawl time rather than irreplaceable data. Dumping it cost 5.3G per
+    # night and 10.6G retained (the dump plus its .prev), which was most of
+    # /var/backup on a 460G root pool. Everything else here is real state.
+    databases = lib.subtractLists ["bitmagnet"] config.services.postgresql.ensureDatabases;
     pgdumpOptions = "--format custom";
   };
 

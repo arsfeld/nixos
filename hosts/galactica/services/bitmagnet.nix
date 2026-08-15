@@ -6,6 +6,14 @@
   httpPort = 3333;
   dhtPort = 3334;
   bitmagnetConfig = pkgs.writeText "bitmagnet-config.yml" ''
+    dht_crawler:
+      # Upstream default is 100, which barely limits anything: 86% of the 103M
+      # rows in torrent_files came from torrents holding 11-100 files, and the
+      # table had grown to 41G (14G heap + 27G indexes) on a 460G root pool.
+      # At 20, torrents above the threshold get files_status=over_threshold and
+      # no file rows -- the same path bitmagnet already takes for >100-file
+      # torrents. They stay searchable; only the per-file listing is lost.
+      save_files_threshold: 20
     classifier:
       delete_xxx: true
       flags:
