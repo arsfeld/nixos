@@ -67,17 +67,99 @@ with lib; let
     then {policyKeepAll = true;}
     else {policyTimeBucketed = bucketed;};
 
-  # Module-level default failure hook. Uses actionCommand (shell) instead
-  # of actionWebhook so the ntfy publisher credential stays in
-  # EnvironmentFile and never appears in the rendered config.json (the UI
-  # renders hook configurations verbatim).
+  # Prune and check are repo-scoped in Backrest, and an ABSENT policy means
+  # "never": taskprune.go / taskcheck.go both return NeverScheduledTask when
+  # <Policy>.GetSchedule() is nil. That is how every repo in this fleet went
+  # unpruned and unchecked from the start. Both therefore default to a monthly
+  # schedule, so a repo added later is covered without anyone remembering to
+  # opt in; set the option to null to disable deliberately.
+  prunePolicyType = types.submodule {
+    options = {
+      schedule = mkOption {
+        type = scheduleType;
+        default = {maxFrequencyDays = 30;};
+        description = "When to prune. Same Schedule shape as plan schedules.";
+      };
+      maxUnusedPercent = mkOption {
+        type = types.number;
+        default = 10;
+        description = ''
+          Unused space restic may leave behind, as a percentage. NEVER set this
+          to 0: Backrest renders it straight into `--max-unused <n>%`, and 0%
+          forces a full repack on every prune. Backrest's own 25% fallback
+          applies only when the whole policy is absent, which it never is once
+          this module emits one.
+        '';
+      };
+      maxUnusedBytes = mkOption {
+        type = types.nullOr types.int;
+        default = null;
+        description = "Absolute byte budget. Takes precedence over maxUnusedPercent when set.";
+      };
+    };
+  };
+
+  checkPolicyType = types.submodule {
+    options = {
+      schedule = mkOption {
+        type = scheduleType;
+        default = {maxFrequencyDays = 30;};
+        description = "When to check. Same Schedule shape as plan schedules.";
+      };
+      readDataSubsetPercent = mkOption {
+        type = types.nullOr types.number;
+        default = null;
+        description = ''
+          Percentage of pack data to re-read. null means structure-only, which
+          verifies index/snapshot/tree consistency without downloading packs.
+          Leave it null for every remote repo — reading data costs egress.
+        '';
+      };
+    };
+  };
+
+  renderPrunePolicy = p:
+    {schedule = renderSchedule p.schedule;}
+    // (
+      if p.maxUnusedBytes != null
+      then {maxUnusedBytes = p.maxUnusedBytes;}
+      else {maxUnusedPercent = p.maxUnusedPercent;}
+    );
+
+  # CheckPolicy models its two modes as a proto oneof, so exactly one arm must
+  # be set — structureOnly is not an implicit default.
+  renderCheckPolicy = c:
+    {schedule = renderSchedule c.schedule;}
+    // (
+      if c.readDataSubsetPercent != null
+      then {readDataSubsetPercent = c.readDataSubsetPercent;}
+      else {structureOnly = true;}
+    );
+
+  # One failure hook, attached to the REPO rather than to plans.
   #
-  # The POST itself lives in constellation.backupNotify so rustic's cold-tier
-  # units share exactly one implementation. Backrest cannot use the templated
+  # NotifyError prepends CONDITION_ANY_ERROR to every error path
+  # (tasks/errors.go), and the explicit ExecuteHooks calls in taskbackup.go,
+  # taskprune.go and taskcheck.go include it too — so this single condition
+  # covers backup, forget, prune, check and index failures.
+  #
+  # It lives on the repo and NOT also on plans because TasksTriggeredByEvent
+  # iterates repo.GetHooks() AND plan.GetHooks(). A plan-level copy matching the
+  # same condition would send a second ntfy message for every failure. Repo
+  # level also covers repos that have no plans at all, which is the only place
+  # prune and check errors on galactica's `storage` entry could ever surface.
+  #
+  # {{.Plan.Id}} is safe here: when a task has no plan, Backrest substitutes a
+  # placeholder Plan carrying only the ID (taskrunnerimpl.go), so this renders
+  # the real plan for backup failures and an empty string for repo-scoped prune
+  # and check failures. It does not error.
+  #
+  # The POST itself lives in constellation.backupNotify so rustic's units share
+  # exactly one implementation. Backrest cannot use the templated
   # backup-notify@.service — it needs Backrest's own {{...}} expansion, which
   # only happens inside an actionCommand.
   defaultFailureHook = {
-    conditions = ["CONDITION_ANY_ERROR" "CONDITION_SNAPSHOT_ERROR"];
+    conditions = ["CONDITION_ANY_ERROR"];
     actionCommand = {
       command = ''
         #!${pkgs.bash}/bin/bash
@@ -88,19 +170,26 @@ with lib; let
     };
   };
 
-  renderRepo = name: repo: {
-    id = name;
-    uri = repo.uri;
-    password = ""; # restic reads from RESTIC_PASSWORD_FILE via env below
-    env =
-      ["RESTIC_PASSWORD_FILE=${toString repo.passwordFile}"]
-      ++ repo.env;
-    flags = repo.flags;
-    autoUnlock = repo.autoUnlock;
-    # autoInitialize is set by the merge script for repos that have no guid
-    # yet (new repos). Once a guid is present autoInitialize must be absent —
-    # Backrest rejects configs that set both.
-  };
+  renderRepo = name: repo:
+    {
+      id = name;
+      uri = repo.uri;
+      password = ""; # restic reads from RESTIC_PASSWORD_FILE via env below
+      env =
+        ["RESTIC_PASSWORD_FILE=${toString repo.passwordFile}"]
+        ++ repo.env;
+      flags = repo.flags;
+      autoUnlock = repo.autoUnlock;
+      hooks =
+        if repo.hooks == null
+        then [defaultFailureHook]
+        else repo.hooks;
+      # autoInitialize is set by the merge script for repos that have no guid
+      # yet (new repos). Once a guid is present autoInitialize must be absent —
+      # Backrest rejects configs that set both.
+    }
+    // optionalAttrs (repo.prune != null) {prunePolicy = renderPrunePolicy repo.prune;}
+    // optionalAttrs (repo.check != null) {checkPolicy = renderCheckPolicy repo.check;};
 
   # A standalone restic invocation per repo, carrying the same credentials the
   # daemon gives restic. rclone-backed repos need rclone on PATH; without it
@@ -137,7 +226,7 @@ with lib; let
       ++ (map (f: "--exclude-if-present=${f}") plan.excludeIfPresent);
     hooks =
       if plan.hooks == null
-      then [defaultFailureHook]
+      then [] # the default failure hook is repo-level; see defaultFailureHook
       else plan.hooks;
   };
 
@@ -264,6 +353,21 @@ with lib; let
         type = types.bool;
         default = false;
       };
+      prune = mkOption {
+        type = types.nullOr prunePolicyType;
+        default = {};
+        description = "Prune policy for this repo. null disables pruning entirely.";
+      };
+      check = mkOption {
+        type = types.nullOr checkPolicyType;
+        default = {};
+        description = "Integrity check policy for this repo. null disables checks entirely.";
+      };
+      hooks = mkOption {
+        type = types.nullOr (types.listOf types.attrs);
+        default = null;
+        description = "Repo hooks. null = module default failure hook. [] = no hooks.";
+      };
       maxAgeHours = mkOption {
         type = types.int;
         default = 48;
@@ -311,7 +415,7 @@ with lib; let
       hooks = mkOption {
         type = types.nullOr (types.listOf types.attrs);
         default = null;
-        description = "Per-plan hooks. null = use module default failure hook. [] = no hooks.";
+        description = "Per-plan hooks. null = none (the default failure hook is repo-level). [] = no hooks.";
       };
     };
   };
