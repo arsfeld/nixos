@@ -84,6 +84,23 @@
     weekly = 4;
     monthly = 6;
   };
+
+  # One repo per day, check at 09:00 and prune at 12:00 the same day. Nothing
+  # lands on the 1st (rustic-ovh-prune) or on a Sunday (the 02:30-07:30 backup
+  # block), and the three-hour gap keeps a prune from starting while that
+  # repo's own check still holds the lock.
+  #
+  # readDataPercent re-reads that share of pack data and is only worth it where
+  # reads are free. null = structure-only, which is mandatory for the two
+  # remote repos: re-reading 2.9 TiB over rclone would cost egress every month.
+  policies = day: readDataPercent: {
+    check =
+      {schedule.cron = "0 9 ${toString day} * *";}
+      // lib.optionalAttrs (readDataPercent != null) {
+        readDataSubsetPercent = readDataPercent;
+      };
+    prune.schedule.cron = "0 12 ${toString day} * *";
+  };
 in {
   # rclone creds for the hetzner repos. Mode 0400 matches the previous
   # services.restic.backups hetzner profile so Backrest-as-root reads
@@ -100,26 +117,54 @@ in {
     enable = true;
 
     repos = {
-      local = {
-        uri = "/mnt/storage/backups/restic";
-        passwordFile = config.sops.secrets."restic-password".path;
-      };
-      hetzner = {
-        uri = "rclone:hetzner:backups/restic";
-        passwordFile = config.sops.secrets."restic-password".path;
-        envFile = config.sops.secrets."hetzner-webdav-env".path;
-        # hetzner-system (30 4 * * 0) and hetzner (30 5 * * 0) are both
-        # Sunday-only — weekly. 48h would report stale every week; 192h is
-        # 8 days, one day of slack past the interval (matches ovh).
-        maxAgeHours = 192;
-      };
-      pegasus = {
-        uri = "rest:http://pegasus.bat-boa.ts.net:8000/";
-        passwordFile = config.sops.secrets."restic-password".path;
-        # pegasus-system (30 6 * * 0) and pegasus (30 7 * * 0) are both
-        # Sunday-only — weekly. Same 192h reasoning as hetzner above.
-        maxAgeHours = 192;
-      };
+      local =
+        {
+          uri = "/mnt/storage/backups/restic";
+          passwordFile = config.sops.secrets."restic-password".path;
+        }
+        // policies 2 5;
+
+      # The repo galactica's own restic REST server serves, which basestar,
+      # raider and pegasus all write to over rest://. Declared here with no
+      # plans: galactica owns prune and check for it because it is the host
+      # holding the disk, and three client instances pruning one repo would
+      # just contend for the same lock.
+      #
+      # Addressed as a local path rather than rest://galactica:8000/ because
+      # prune is I/O-heavy and this skips the HTTP round trip. Verified that
+      # this path is the repo root (config, data, index, keys, locks,
+      # snapshots), and restic locks are objects inside the repo, so a
+      # local-path prune and a REST client still see each other's locks.
+      storage =
+        {
+          uri = "/mnt/storage/backups/restic-server";
+          passwordFile = config.sops.secrets."restic-password".path;
+          # basestar writes here daily, so 48h is the right staleness bound.
+          maxAgeHours = 48;
+        }
+        // policies 3 5;
+
+      hetzner =
+        {
+          uri = "rclone:hetzner:backups/restic";
+          passwordFile = config.sops.secrets."restic-password".path;
+          envFile = config.sops.secrets."hetzner-webdav-env".path;
+          # hetzner-system (30 4 * * 0) and hetzner (30 5 * * 0) are both
+          # Sunday-only — weekly. 48h would report stale every week; 192h is
+          # 8 days, one day of slack past the interval (matches ovh).
+          maxAgeHours = 192;
+        }
+        // policies 4 null;
+
+      pegasus =
+        {
+          uri = "rest:http://pegasus.bat-boa.ts.net:8000/";
+          passwordFile = config.sops.secrets."restic-password".path;
+          # pegasus-system (30 6 * * 0) and pegasus (30 7 * * 0) are both
+          # Sunday-only — weekly. Same 192h reasoning as hetzner above.
+          maxAgeHours = 192;
+        }
+        // policies 5 null;
     };
 
     plans = {
