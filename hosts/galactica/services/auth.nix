@@ -78,9 +78,13 @@
             resources = ["^/scene/([0-9]+)?/stream"];
           }
           {
+            # Fever API for feed readers; yarr authenticates it itself via
+            # YARR_AUTH. The /accounts/ClientLogin + /reader/ paths that used to
+            # be bypassed here were the fork's Google Reader API and no longer
+            # exist on upstream yarr.
             domain = ["yarr.${domain}"];
             policy = "bypass";
-            resources = ["^/fever/.*$" "^/accounts/ClientLogin$" "^/reader/.*$"];
+            resources = ["^/fever/.*$"];
           }
         ];
       };
