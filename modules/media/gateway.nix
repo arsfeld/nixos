@@ -146,6 +146,24 @@ in {
       example = "media@example.com";
     };
 
+    # Note: this is a tsnsrv setting, not part of the (disabled) caddy-tailscale
+    # `tailscale.*` block below.
+    tailscaleNodeSuffix = mkOption {
+      type = types.str;
+      default = "";
+      description = ''
+        Appended to the tsnsrv node name — and only that — for every service on
+        this host with exposeViaTailscale. Set it on a secondary host that shares
+        a tailnet with a primary owning the plain names, so Tailscale never has to
+        auto-dedupe a duplicate to <name>-1 (which host wins is then a race on
+        which one registered first, e.g. after an outage).
+
+        Holds the literal string including any separator. Does not affect the
+        Caddy vhost, the domain, the container, or the config directory.
+      '';
+      example = "-pg";
+    };
+
     tailscale = {
       enable = mkOption {
         type = types.bool;
