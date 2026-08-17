@@ -46,6 +46,13 @@ in {
     };
   };
 
+  # galactica is primary and owns the plain tailnet names (stash, plex, yarr).
+  # Both hosts share one tailnet, so without this pegasus would race galactica
+  # for a name and Tailscale would auto-dedupe the loser to stash-1 — which is
+  # exactly what happened while galactica was offline. Node names only; the
+  # public URLs stay <service>.arsfeld.xyz.
+  media.gateway.tailscaleNodeSuffix = "-pg";
+
   # Plex. Keep the plexinc image so the existing /var/data/plex config (which
   # is plexinc-format, not linuxserver) keeps working.
   media.services.plex = {
@@ -63,14 +70,14 @@ in {
   };
 
   # Stash. Public via bypassAuth -> protect it with Stash's own login.
-  # Also exposed on the tailnet as stash.bat-boa.ts.net via tsnsrv. We must NOT
-  # override host here (it defaults to the hostname, which is the condition
-  # tsnsrv node generation requires); Caddy's upstream still lands on loopback
-  # since Stash uses host networking.
+  # Also exposed on the tailnet as stash-pg.bat-boa.ts.net via tsnsrv (see the
+  # tailscaleNodeSuffix note above). We must NOT override host here (it defaults
+  # to the hostname, which is the condition tsnsrv node generation requires);
+  # Caddy's upstream still lands on loopback since Stash uses host networking.
   media.services.stash = {
     port = 9999;
     image = "stashapp/stash:latest";
-    tailscaleExposed = true; # stash.bat-boa.ts.net
+    tailscaleExposed = true; # stash-pg.bat-boa.ts.net
     bypassAuth = true;
     container = {
       exposePort = 9999;
