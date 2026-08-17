@@ -176,9 +176,13 @@ in
     # Input: generateTsnsrvService { funnels = ["api"]; cfg = { name = "api"; host = "localhost"; port = 3000; exposeViaTailscale = true; }; }
     # Output: { "api" = { toURL = "http://127.0.0.1:3000"; funnel = true; }; }
     # Only creates config for services with exposeViaTailscale = true to reduce CPU overhead
+    #
+    # The attr name becomes the tailnet hostname (modules/tsnsrv.nix passes it as
+    # -name=), so media.gateway.tailscaleNodeSuffix is applied here and nowhere
+    # else — cfg.name still drives the Caddy vhost in generateHost above.
     generateTsnsrvService = {cfg}:
       optionalAttrs (config.networking.hostName == cfg.host && cfg.exposeViaTailscale) {
-        "${cfg.name}" = {
+        "${cfg.name}${config.media.gateway.tailscaleNodeSuffix}" = {
           toURL = "http://127.0.0.1:${toString cfg.port}";
           funnel = cfg.settings.funnel;
           # No Authelia for bat-boa.ts.net - Tailscale provides network-level authentication
