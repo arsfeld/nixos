@@ -160,6 +160,22 @@ in {
 
         Holds the literal string including any separator. Does not affect the
         Caddy vhost, the domain, the container, or the config directory.
+
+        Reclaiming a name a host already lost: Tailscale pins the assigned name
+        to the node key, so freeing <name> does not rename a node already sitting
+        on <name>-1 — restarting the unit is not enough. Delete the node in the
+        admin console, then wipe the state so tsnsrv re-registers off the authkey:
+
+          systemctl stop tsnsrv-<name>
+          rm -rf /var/lib/private/tsnsrv-<name>
+          systemctl start tsnsrv-<name>
+
+        Note the /var/lib/private path. These units use systemd StateDirectory,
+        so /var/lib/tsnsrv-<name> is only a symlink; removing that deletes the
+        symlink and systemd recreates it over the still-intact state, and the node
+        comes back under its old name. A correct wipe logs "state is NeedsLogin"
+        and a new Tailscale IP; the failed one logs "Ignoring authkey" and the
+        old IP.
       '';
       example = "-pg";
     };
