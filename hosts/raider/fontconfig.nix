@@ -1,14 +1,24 @@
 # Advanced font configuration for optimal rendering
-# This provides additional per-user font configuration options
+# Configured for macOS typography (SF Pro, SF Mono, New York)
 {
   config,
   pkgs,
   lib,
+  inputs,
   ...
-}: {
-  # Optional: User-specific fontconfig for fine-tuning
+}: let
+  appleFontPkgs = inputs.apple-fonts.packages.${pkgs.stdenv.hostPlatform.system};
+in {
+  fonts.packages = [
+    appleFontPkgs.sf-pro
+    appleFontPkgs.sf-compact
+    appleFontPkgs.sf-mono-nerd
+    appleFontPkgs.ny
+  ];
+
+  # User-specific fontconfig and dconf font settings
   home-manager.users.arosenfeld = {pkgs, ...}: {
-    # Create a custom fontconfig configuration
+    # Custom fontconfig configuration
     xdg.configFile."fontconfig/conf.d/10-hinting.conf".text = ''
       <?xml version="1.0"?>
       <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
@@ -32,7 +42,7 @@
       <?xml version="1.0"?>
       <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
       <fontconfig>
-        <!-- Standard antialiasing (grayscale) without subpixel rendering -->
+        <!-- Standard antialiasing (grayscale) without subpixel rendering matching macOS -->
         <match target="font">
           <edit name="rgba" mode="assign">
             <const>none</const>
@@ -71,10 +81,13 @@
       <?xml version="1.0"?>
       <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
       <fontconfig>
-        <!-- Replace common Windows/Mac fonts with high-quality alternatives -->
+        <!-- Replace standard fonts with Apple San Francisco and New York -->
         <alias>
           <family>Helvetica</family>
           <prefer>
+            <family>SF Pro Display</family>
+            <family>SF Pro Text</family>
+            <family>SF Pro</family>
             <family>Inter</family>
             <family>Noto Sans</family>
           </prefer>
@@ -83,6 +96,8 @@
         <alias>
           <family>Arial</family>
           <prefer>
+            <family>SF Pro Text</family>
+            <family>SF Pro</family>
             <family>Inter</family>
             <family>Liberation Sans</family>
           </prefer>
@@ -91,6 +106,7 @@
         <alias>
           <family>Times New Roman</family>
           <prefer>
+            <family>New York</family>
             <family>Liberation Serif</family>
             <family>Noto Serif</family>
           </prefer>
@@ -99,6 +115,37 @@
         <alias>
           <family>Courier New</family>
           <prefer>
+            <family>SF Mono</family>
+            <family>JetBrains Mono</family>
+            <family>Cascadia Code</family>
+          </prefer>
+        </alias>
+
+        <!-- Generic font families -->
+        <alias>
+          <family>sans-serif</family>
+          <prefer>
+            <family>SF Pro Text</family>
+            <family>SF Pro Display</family>
+            <family>SF Pro</family>
+            <family>Inter</family>
+            <family>Noto Sans</family>
+          </prefer>
+        </alias>
+
+        <alias>
+          <family>serif</family>
+          <prefer>
+            <family>New York</family>
+            <family>Noto Serif</family>
+            <family>Liberation Serif</family>
+          </prefer>
+        </alias>
+
+        <alias>
+          <family>monospace</family>
+          <prefer>
+            <family>SF Mono</family>
             <family>JetBrains Mono</family>
             <family>Cascadia Code</family>
           </prefer>
@@ -123,16 +170,19 @@
     # zoom from it, so scaling here would shrink web content below macOS's 1:1.
     dconf.settings = {
       "org/gnome/desktop/interface" = {
-        font-name = "Inter 10";
-        document-font-name = "Inter 10";
-        monospace-font-name = "JetBrains Mono 9";
+        font-name = "SF Pro Text 10";
+        document-font-name = "SF Pro Text 10";
+        monospace-font-name = "SF Mono 10";
         font-antialiasing = "grayscale";
         font-hinting = "slight";
         text-scaling-factor = 1.0;
+        cursor-theme = "WhiteSur-cursors";
+        cursor-size = 24;
       };
 
       "org/gnome/desktop/wm/preferences" = {
-        titlebar-font = "Inter Bold 10";
+        titlebar-font = "SF Pro Display Bold 10";
+        button-layout = "close,minimize,maximize:";
       };
     };
   };

@@ -30,6 +30,7 @@
     niri.url = "github:sodiboo/niri-flake"; # Niri compositor with declarative Nix config
     det-nix-eval-jobs.url = "https://flakehub.com/f/DeterminateSystems/nix-eval-jobs/*"; # Determinate Nix eval-jobs
     llm-agents.url = "github:numtide/llm-agents.nix"; # AI coding agents and development tools
+    apple-fonts.url = "github:Lyndeno/apple-fonts.nix"; # Apple fonts (SF Pro, SF Compact, SF Mono, New York)
   };
 
   outputs = {self, ...} @ inputs:
