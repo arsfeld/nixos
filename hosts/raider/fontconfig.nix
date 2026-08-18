@@ -8,6 +8,17 @@
   ...
 }: let
   appleFontPkgs = inputs.apple-fonts.packages.${pkgs.stdenv.hostPlatform.system};
+  whitesurAssets =
+    pkgs.runCommand "whitesur-gtk-assets" {
+      buildInputs = [pkgs.glib.dev];
+    } ''
+      mkdir -p $out/windows-assets $out/assets
+      cp -r ${pkgs.whitesur-gtk-theme.src}/src/assets/gtk/windows-assets/titlebutton/* $out/windows-assets/
+      cp -r ${pkgs.whitesur-gtk-theme.src}/src/assets/gtk/common-assets/assets/* $out/assets/
+      cp -r ${pkgs.whitesur-gtk-theme.src}/src/assets/gtk/scalable $out/assets/
+      gresource extract ${pkgs.whitesur-gtk-theme}/share/themes/WhiteSur-Dark/gtk-4.0/gtk.gresource /org/gnome/theme/gtk-dark.css > $out/gtk-4.0.css
+      gresource extract ${pkgs.whitesur-gtk-theme}/share/themes/WhiteSur-Dark/gtk-3.0/gtk.gresource /org/gnome/theme/gtk-dark.css > $out/gtk-3.0.css
+    '';
 in {
   fonts.packages = [
     appleFontPkgs.sf-pro
@@ -16,8 +27,46 @@ in {
     appleFontPkgs.ny
   ];
 
-  # User-specific fontconfig and dconf font settings
+  # User-specific fontconfig, GTK Libadwaita theme, and dconf settings
   home-manager.users.arosenfeld = {pkgs, ...}: {
+    # GTK settings for user session
+    gtk = {
+      enable = true;
+      theme = {
+        name = "WhiteSur-Dark";
+        package = pkgs.whitesur-gtk-theme;
+      };
+      iconTheme = {
+        name = "WhiteSur-dark";
+        package = pkgs.whitesur-icon-theme;
+      };
+      cursorTheme = {
+        name = "WhiteSur-cursors";
+        package = pkgs.whitesur-cursors;
+        size = 24;
+      };
+      gtk3.extraConfig = {
+        gtk-application-prefer-dark-theme = true;
+        gtk-decoration-layout = "close,minimize,maximize:";
+      };
+      gtk4.extraConfig = {
+        gtk-application-prefer-dark-theme = true;
+        gtk-decoration-layout = "close,minimize,maximize:";
+      };
+    };
+
+    # Libadwaita & GTK4 window controls and theme assets
+    xdg.configFile."gtk-4.0/gtk.css".source = "${whitesurAssets}/gtk-4.0.css";
+    xdg.configFile."gtk-4.0/gtk-dark.css".source = "${whitesurAssets}/gtk-4.0.css";
+    xdg.configFile."gtk-4.0/windows-assets".source = "${whitesurAssets}/windows-assets";
+    xdg.configFile."gtk-4.0/assets".source = "${whitesurAssets}/assets";
+
+    # GTK3 window controls and theme assets
+    xdg.configFile."gtk-3.0/gtk.css".source = "${whitesurAssets}/gtk-3.0.css";
+    xdg.configFile."gtk-3.0/gtk-dark.css".source = "${whitesurAssets}/gtk-3.0.css";
+    xdg.configFile."gtk-3.0/windows-assets".source = "${whitesurAssets}/windows-assets";
+    xdg.configFile."gtk-3.0/assets".source = "${whitesurAssets}/assets";
+
     # Custom fontconfig configuration
     xdg.configFile."fontconfig/conf.d/10-hinting.conf".text = ''
       <?xml version="1.0"?>
