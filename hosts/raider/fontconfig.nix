@@ -244,6 +244,7 @@ in {
     # zoom from it, so scaling here would shrink web content below macOS's 1:1.
     dconf.settings = {
       "org/gnome/desktop/interface" = {
+        color-scheme = "prefer-dark";
         font-name = "SF Pro Text 10";
         document-font-name = "SF Pro Text 10";
         monospace-font-name = "SF Mono 10";
