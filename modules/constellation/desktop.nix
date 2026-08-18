@@ -253,6 +253,7 @@ in {
               "org/gnome/desktop/interface" = {
                 gtk-theme = cfg.gnome.theme.gtk;
                 icon-theme = cfg.gnome.theme.icon;
+                color-scheme = "prefer-dark";
                 enable-hot-corners = false;
               };
 
