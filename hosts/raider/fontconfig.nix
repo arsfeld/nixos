@@ -49,6 +49,7 @@ in {
         gtk-application-prefer-dark-theme = true;
         gtk-decoration-layout = "close,minimize,maximize:";
       };
+      gtk4.theme = null;
       gtk4.extraConfig = {
         gtk-application-prefer-dark-theme = true;
         gtk-decoration-layout = "close,minimize,maximize:";
