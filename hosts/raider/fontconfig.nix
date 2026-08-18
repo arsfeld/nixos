@@ -47,12 +47,12 @@ in {
       };
       gtk3.extraConfig = {
         gtk-application-prefer-dark-theme = true;
-        gtk-decoration-layout = "close,minimize,maximize:";
+        gtk-decoration-layout = "appmenu:minimize,maximize,close";
       };
       gtk4.theme = null;
       gtk4.extraConfig = {
         gtk-application-prefer-dark-theme = true;
-        gtk-decoration-layout = "close,minimize,maximize:";
+        gtk-decoration-layout = "appmenu:minimize,maximize,close";
       };
     };
 
@@ -256,7 +256,7 @@ in {
 
       "org/gnome/desktop/wm/preferences" = {
         titlebar-font = "SF Pro Display Bold 10";
-        button-layout = "close,minimize,maximize:";
+        button-layout = "appmenu:minimize,maximize,close";
       };
     };
   };
