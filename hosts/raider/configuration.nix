@@ -46,6 +46,10 @@
     desktop = {
       enable = true;
       variant = "gnome";
+      gnome.theme = {
+        gtk = "WhiteSur-Dark";
+        icon = "WhiteSur-dark";
+      };
     };
     gaming = {
       enable = true;
@@ -231,6 +235,71 @@
     anycubic-slicer
     firefox
     firefoxpwa
+    whitesur-gtk-theme
+    whitesur-icon-theme
+    whitesur-cursors
+    apple-cursor
+  ];
+
+  # macOS GNOME appearance and shell configuration
+  programs.dconf.profiles.user.databases = [
+    {
+      settings = {
+        "org/gnome/desktop/interface" = {
+          color-scheme = "prefer-dark";
+          cursor-theme = "WhiteSur-cursors";
+          cursor-size = lib.gvariant.mkInt32 24;
+        };
+
+        "org/gnome/desktop/wm/preferences" = {
+          button-layout = "close,minimize,maximize:";
+        };
+
+        "org/gnome/shell/extensions/user-theme" = {
+          name = "WhiteSur-Dark";
+        };
+
+        "org/gnome/shell/extensions/Logo-menu" = {
+          symbolic-icon = true;
+          menu-button-icon-image = lib.gvariant.mkInt32 0; # Apple icon via WhiteSur start-here-symbolic
+          menu-button-icon-size = lib.gvariant.mkInt32 20;
+          hide-icon-shadow = false;
+          menu-button-terminal = "ghostty";
+          menu-button-system-monitor = "missioncenter";
+          menu-button-extensions-app = "com.mattjakeman.ExtensionManager.desktop";
+          menu-button-software-center = "bazaar";
+          show-activities-button = true;
+          hide-forcequit = true;
+          show-lockscreen = false;
+          show-power-options = false;
+        };
+
+        "org/gnome/shell/extensions/dash-to-dock" = {
+          dock-position = "BOTTOM";
+          dock-fixed = false;
+          autohide = true;
+          intellihide = true;
+          extend-height = false;
+          custom-theme-shrink = true;
+          dash-max-icon-size = lib.gvariant.mkInt32 48;
+          running-indicator-style = "DOTS";
+          show-trash = true;
+          show-mounts = false;
+          transparency-mode = "DYNAMIC";
+          apply-custom-theme = false;
+        };
+
+        "org/gnome/shell/extensions/blur-my-shell/dash-to-dock" = {
+          blur = true;
+          pipeline = "pipeline_default";
+        };
+
+        "org/gnome/shell/extensions/blur-my-shell/panel" = {
+          blur = true;
+          pipeline = "pipeline_default";
+        };
+      };
+    }
   ];
 
   # Basic system configuration
