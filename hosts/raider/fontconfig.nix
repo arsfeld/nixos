@@ -57,16 +57,40 @@ in {
     };
 
     # Libadwaita & GTK4 window controls and theme assets
-    xdg.configFile."gtk-4.0/gtk.css".source = "${whitesurAssets}/gtk-4.0.css";
-    xdg.configFile."gtk-4.0/gtk-dark.css".source = "${whitesurAssets}/gtk-4.0.css";
-    xdg.configFile."gtk-4.0/windows-assets".source = "${whitesurAssets}/windows-assets";
-    xdg.configFile."gtk-4.0/assets".source = "${whitesurAssets}/assets";
+    xdg.configFile."gtk-4.0/gtk.css" = {
+      source = "${whitesurAssets}/gtk-4.0.css";
+      force = true;
+    };
+    xdg.configFile."gtk-4.0/gtk-dark.css" = {
+      source = "${whitesurAssets}/gtk-4.0.css";
+      force = true;
+    };
+    xdg.configFile."gtk-4.0/windows-assets" = {
+      source = "${whitesurAssets}/windows-assets";
+      force = true;
+    };
+    xdg.configFile."gtk-4.0/assets" = {
+      source = "${whitesurAssets}/assets";
+      force = true;
+    };
 
     # GTK3 window controls and theme assets
-    xdg.configFile."gtk-3.0/gtk.css".source = "${whitesurAssets}/gtk-3.0.css";
-    xdg.configFile."gtk-3.0/gtk-dark.css".source = "${whitesurAssets}/gtk-3.0.css";
-    xdg.configFile."gtk-3.0/windows-assets".source = "${whitesurAssets}/windows-assets";
-    xdg.configFile."gtk-3.0/assets".source = "${whitesurAssets}/assets";
+    xdg.configFile."gtk-3.0/gtk.css" = {
+      source = "${whitesurAssets}/gtk-3.0.css";
+      force = true;
+    };
+    xdg.configFile."gtk-3.0/gtk-dark.css" = {
+      source = "${whitesurAssets}/gtk-3.0.css";
+      force = true;
+    };
+    xdg.configFile."gtk-3.0/windows-assets" = {
+      source = "${whitesurAssets}/windows-assets";
+      force = true;
+    };
+    xdg.configFile."gtk-3.0/assets" = {
+      source = "${whitesurAssets}/assets";
+      force = true;
+    };
 
     # Custom fontconfig configuration
     xdg.configFile."fontconfig/conf.d/10-hinting.conf".text = ''
