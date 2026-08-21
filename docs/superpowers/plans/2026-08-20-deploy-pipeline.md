@@ -65,13 +65,15 @@ nix eval --raw .#nixosConfigurations.blackbird.config.system.build.toplevel.drvP
 
 Expected: FAIL with ``error: The option `services.scx-loader' does not exist.`` and a trace pointing at `modules/constellation/gaming.nix`.
 
-- [ ] **Step 2: Confirm raider (unstable) is unaffected, so you have a before/after baseline**
+- [ ] **Step 2: Record raider's scheduler config as the before/after baseline**
 
 ```bash
-nix eval --raw .#nixosConfigurations.raider.config.system.build.toplevel.drvPath
+nix eval --json .#nixosConfigurations.raider.config.services.scx-loader
 ```
 
-Expected: PASS, printing a `/nix/store/...-nixos-system-raider-....drv` path. Write it down — Step 6 checks it is unchanged.
+Expected: PASS, printing JSON with `"enable":true` and `"default_sched":"scx_lavd"`. Save it — Step 6 checks it is unchanged.
+
+Do **not** use raider's toplevel `.drv` path as the baseline. `self` is part of every system closure, so any tracked change to any file in this repo shifts every host's toplevel path. The `.drv` is guaranteed to differ and proves nothing; the evaluated option value is the invariant that matters.
 
 - [ ] **Step 3: Add `options` to the module arguments**
 
@@ -100,6 +102,14 @@ to:
 
 - [ ] **Step 4: Move the scheduler definition out of the `services` attrset and make it channel-aware**
 
+First, understand the constraint, because it rules out the obvious approach. Inside `config`'s attrset literal this file already has `services = { ... };` (line 515) *and* five sibling dotted bindings — `services.udev.extraRules` (226), `services.earlyoom` (274), `services.pipewire.wireplumber.configPackages` (484), `services.ananicy` (608), `services.flatpak.packages` (674). Nix merges those only because every one of them has an attrset **literal** on the right-hand side. The moment `services`'s RHS becomes any other expression — `{ ... } // lib.optionalAttrs (...)` included — the parser stops merging and raises `error: attribute 'services' already defined`. Verify for yourself if you like:
+
+```bash
+nix eval --impure --expr '{ a = { x = 1; } // { z = 3; }; a.y = 2; }'
+```
+
+So the channel-conditional definition has to arrive through the module system rather than through attrset syntax. Use `lib.mkMerge` at the `config` level: it performs a deep, module-aware merge, unlike `//`, which would shallowly replace the whole `services` attrset.
+
 Delete lines 534–551 (the `sched_ext BPF scheduler` comment block, the `scx-loader = lib.mkIf (...) { ... };` definition, and the blank line after it) from inside `services = { ... }`. The block being deleted is:
 
 ```nix
@@ -123,10 +133,23 @@ Delete lines 534–551 (the `sched_ext BPF scheduler` comment block, the `scx-lo
 
 ```
 
-Then replace the closing `};` of the `services` attrset (the line reading exactly four spaces followed by `};`, immediately after the `tlp` block) with:
+Then wrap the existing `config` body in a `lib.mkMerge` list and add the scheduler as a second branch. Change:
 
 ```nix
-    }
+  config = lib.mkIf config.constellation.gaming.enable {
+```
+
+to:
+
+```nix
+  config = lib.mkMerge [
+    (lib.mkIf config.constellation.gaming.enable {
+```
+
+and change the file's final `};` (the one closing `config`) to:
+
+```nix
+    })
     # sched_ext BPF scheduler (replaces the old system76-scheduler, which
     # caused high context switches and freezing). scx_lavd is CachyOS/Bazzite's
     # default for mixed desktop + dev + gaming workloads. Auto-falls back to
@@ -143,26 +166,34 @@ Then replace the closing `};` of the `services` attrset (the line reading exactl
     #
     # scx-loader landed in nixpkgs after 26.05, so it exists only for hosts in
     # `unstableHosts`. Hosts on stable fall back to services.scx: same daemon,
-    # same scheduler, minus the org.scx.Loader D-Bus interface. This has to be
-    # an `optionalAttrs` on the option's existence rather than `lib.mkIf`,
-    # because unknown-option checking runs on the definition *path* — a
-    # `mkIf false` on services.scx-loader still fails to evaluate on stable.
-    // lib.optionalAttrs (cfg.scheduler != "none") (
+    # same scheduler, minus the org.scx.Loader D-Bus interface. This lives as
+    # its own mkMerge branch rather than inside the `services` attrset above
+    # because that attrset has sibling dotted `services.<x>` bindings elsewhere
+    # in this file, and giving `services` a non-literal RHS breaks Nix's
+    # attrpath-merge sugar for all of them. It also cannot use `//`, which
+    # merges shallowly and would drop the whole `services` attrset. mkIf on the
+    # option's existence, not mkIf on the value: unknown-option checking runs on
+    # the definition *path*, so `services.scx-loader = lib.mkIf false {...}`
+    # still fails to evaluate on stable.
+    (lib.mkIf (config.constellation.gaming.enable && cfg.scheduler != "none") (
       if options.services ? scx-loader
       then {
-        scx-loader = {
+        services.scx-loader = {
           enable = true;
           config.default_sched = "scx_${cfg.scheduler}";
         };
       }
       else {
-        scx = {
+        services.scx = {
           enable = true;
           scheduler = "scx_${cfg.scheduler}";
         };
       }
-    );
+    ))
+  ];
 ```
+
+Wrapping the body re-indents roughly 570 lines by two spaces. That is expected and cosmetic — check your work with `git diff -b`, which should show only the four real changes (the `options` argument, the `mkMerge` wrapper, the deleted block, and the new branch).
 
 - [ ] **Step 5: Format**
 
@@ -170,14 +201,14 @@ Then replace the closing `};` of the `services` attrset (the line reading exactl
 just fmt
 ```
 
-- [ ] **Step 6: Verify blackbird now evaluates and raider is byte-identical**
+- [ ] **Step 6: Verify blackbird now evaluates and raider's scheduler is unchanged**
 
 ```bash
 nix eval --raw .#nixosConfigurations.blackbird.config.system.build.toplevel.drvPath
-nix eval --raw .#nixosConfigurations.raider.config.system.build.toplevel.drvPath
+nix eval --json .#nixosConfigurations.raider.config.services.scx-loader
 ```
 
-Expected: both PASS. raider's `.drv` path must be **exactly** the one recorded in Step 2 — raider is on unstable, so it still takes the `scx-loader` branch and nothing about it may change.
+Expected: blackbird prints a `.drv` path instead of erroring. raider's JSON must be **identical** to the baseline recorded in Step 2 — raider is on unstable, so it still takes the `scx-loader` branch and nothing about it may change. (raider's toplevel `.drv` path *will* differ, because `self` is in every closure; that is not a regression.)
 
 - [ ] **Step 7: Verify the fallback actually wired up on blackbird**
 
