@@ -411,10 +411,14 @@ git commit -m "feat(flake): add deployTargets output and drop deploy-rs"
 
 ### Task 3: Put `nix-fast-build` in the dev shell
 
-nixpkgs ships `nix-fast-build` 1.6.0 bundling `nix-eval-jobs` 2.35, while these machines run Determinate Nix 2.34.8. The existing colmena entry already overrides `nix-eval-jobs` with the `det-nix-eval-jobs` input for exactly this reason; the same override moves to `nix-fast-build`. `nix-fast-build.override.__functionArgs` confirms `nix-eval-jobs` is an overridable argument.
+Two independent problems have to be solved together here, and each one fails loudly if you miss it.
+
+**The pinned nixpkgs is too old.** `nixpkgs` 26.05 ships `nix-fast-build` **1.4.0**, which predates the `--select` flag. Task 4's driver needs `--select` to build a subset of `deployTargets` — without it there is no way to say "build only these three hosts" from a single flake attribute, and the obvious workaround (`--file` with an impure `builtins.getFlake`) evaluates the *working tree* rather than the locked flake, producing different derivations from CI and defeating the entire point of this plan. `nixpkgs-unstable` is already an input here and carries **1.6.0**, which has both `--select` and `--attic-cache`. Take the package from there.
+
+**The `nix-eval-jobs` override needs a passthru.** nixpkgs builds `nix-fast-build`'s wrapper PATH from both `nix-eval-jobs` *and* `nix-eval-jobs.nix` (`pkgs/by-name/ni/nix-fast-build/package.nix:26-31`), where `.nix` is a passthru pointing at the Nix CLI. `det-nix-eval-jobs` does not set that passthru, so a bare `.override { nix-eval-jobs = …; }` fails to evaluate on a missing attribute. Supply it explicitly. The override itself is still required for the same reason the colmena entry needs one: the bundled `nix-eval-jobs` is built against upstream Nix while these machines run Determinate Nix 2.34.8.
 
 **Files:**
-- Modify: `flake-modules/dev.nix:44-49` (add `nix-fast-build`, keep the colmena entry for now)
+- Modify: `flake-modules/dev.nix:44-49` (add `nix-fast-build` sourced from `inputs.nixpkgs-unstable`, keep the colmena entry for now)
 
 **Interfaces:**
 - Consumes: `flake.deployTargets` from Task 2.
@@ -433,11 +437,23 @@ Expected: `ABSENT`.
 In `flake-modules/dev.nix`, inside `buildInputs`, directly after the existing `(colmena.override { ... })` block, add:
 
 ```nix
-          # nixpkgs ships nix-fast-build bundling nix-eval-jobs built against
-          # upstream nix, while these machines run Determinate Nix. Override it
-          # with the matching det-nix-eval-jobs, same as the colmena entry above.
-          (nix-fast-build.override {
-            nix-eval-jobs = inputs.det-nix-eval-jobs.packages.${system}.default;
+          # nixpkgs 26.05 ships nix-fast-build 1.4.0, which predates --select.
+          # The deploy driver needs it to build a subset of deployTargets, so
+          # take the package from nixpkgs-unstable (1.6.0) instead.
+          #
+          # The nix-eval-jobs override is separate and equally load-bearing:
+          # the bundled one is built against upstream Nix while these machines
+          # run Determinate Nix, same reason as the colmena entry above. The
+          # wrapper's PATH is built from both `nix-eval-jobs` and
+          # `nix-eval-jobs.nix` (nixpkgs pkgs/by-name/ni/nix-fast-build/
+          # package.nix:26-31), and det-nix-eval-jobs carries no `.nix`
+          # passthru — supply it here or the override fails to evaluate.
+          (inputs.nixpkgs-unstable.legacyPackages.${system}.nix-fast-build.override {
+            nix-eval-jobs =
+              inputs.det-nix-eval-jobs.packages.${system}.default
+              // {
+                nix = inputs.determinate.inputs.nix.packages.${system}.nix;
+              };
           })
 ```
 
@@ -449,13 +465,23 @@ Colmena stays in the shell for now — it is the fallback while Task 4 is being 
 just fmt
 ```
 
-- [ ] **Step 4: Verify the binary resolves**
+- [ ] **Step 4: Verify the binary resolves, at the right version, with the flag the driver needs**
 
 ```bash
 nix develop -c nix-fast-build --help | head -3
+nix develop -c nix-fast-build --help | grep -E -- '--(select|attic-cache)'
 ```
 
-Expected: the `usage: nix-fast-build [-h] ...` banner.
+Expected: the `usage: nix-fast-build [-h] ...` banner, then **both** `--select NIX_FUNCTION` and `--attic-cache ATTIC_CACHE`. If `--select` is missing you have picked up nixpkgs 26.05's 1.4.0 rather than unstable's 1.6.0 — fix the package source rather than working around the missing flag.
+
+- [ ] **Step 4b: Verify the dev shell still evaluates on every declared system**
+
+```bash
+nix eval --raw '.#devShells.aarch64-darwin.name'
+nix eval --raw '.#devShells.aarch64-linux.name'
+```
+
+Expected: both print a shell name. The new entry indexes `inputs.nixpkgs-unstable.legacyPackages.${system}`, so a system where that attribute is missing would break `nix flake show` for everyone.
 
 - [ ] **Step 5: Verify phase 1 works standalone against a single host**
 
