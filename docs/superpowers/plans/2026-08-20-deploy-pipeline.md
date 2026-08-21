@@ -917,6 +917,28 @@ removed. `just deploy`, the CI matrix (`ciMatrix`) and `weekly-deploy` all evalu
 same attribute today; keep it that way.
 ````
 
+- [ ] **Step 1b: State the barrier's scope accurately**
+
+The Deployment section must describe *what* trips the barrier precisely, because the obvious phrasing — "one offline or broken host blocks the fleet" — is false and this file is loaded into context every session.
+
+The two failure modes have different blast radii:
+
+- **Fails to build** → trips the phase-1 barrier → nothing activates anywhere. Phase 1 is `nix-fast-build`; `set -e` stops the recipe on its nonzero exit before phase 2 begins.
+- **Merely unreachable** → does *not* affect phase 1, which never contacts the deploy targets at all. Phase 2 launches every host's subshell before `wait`ing on any of them (`justfile`, the `pids` loop), so an offline host fails only its own activation; the others still activate and `_apply` exits nonzero.
+
+There is one real exception worth naming: `basestar` is the configured aarch64 remote builder, so if *it* is down, no aarch64 closure builds and the barrier trips for that reason — as a build failure, not a reachability one.
+
+Write it as prose in the Deployment section, e.g.:
+
+```markdown
+Phase 1 is a barrier: nothing activates unless every named host builds — including in
+`deploy-all`, which names all nine, so a single host that fails to build blocks the whole
+fleet. That is a real behavior change from colmena, and intended. An *unreachable* host is
+a different case: phase 1 never contacts the targets, so it builds fine and only its own
+phase-2 activation fails while the others still activate. The exception is `basestar`,
+which is the aarch64 remote builder — if it is down, nothing aarch64 builds at all.
+```
+
 - [ ] **Step 2: Trim the obsolete weekly-deploy warning**
 
 In the "Three things about this that are not obvious" list, delete the third bullet entirely — the one beginning **It deploys `nixosConfigurations`, deliberately, not the colmena hive.** It describes a divergence that no longer exists, and the invariant added in Step 1 covers the rule it was protecting. Change the introductory line from "Three things" to "Two things". Leave the other two bullets untouched.
