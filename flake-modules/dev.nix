@@ -68,7 +68,8 @@
           # instead of scanning the ambient PATH. NixOS puts a (usually empty)
           # /etc/profiles/per-user/$USER/bin ahead of the system profile; since
           # 26.05 that dir's parent is mode 0700 root, so a PATH lookup for ssh
-          # there returns EACCES. Shells skip it, but colmena aborts on it.
+          # there returns EACCES. Interactive shells skip the unreadable dir,
+          # but a tool that resolves ssh itself can fail on it.
           # Shadowing ssh from the shell avoids the dangling entry entirely.
           openssh
           openssl
