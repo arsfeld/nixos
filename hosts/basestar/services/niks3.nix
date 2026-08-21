@@ -76,6 +76,12 @@
     # hard failure rather than a local rebuild.
   };
 
+  # database.createLocally defaults true and contributes `local all niks3 peer`
+  # to services.postgresql.authentication. planka's rules and nixpkgs' own
+  # defaults are both lib.mkAfter while this one is normal-order, and the option
+  # is types.lines, so the three definitions concatenate with this line first
+  # rather than colliding — and pg_hba is first-match, so the niks3 line wins.
+  # Nothing here disturbs planka's existing database.
   # The upstream module orders this unit after postgresql.service, which is not
   # enough: the `niks3` role is created by postgresql-setup.service, a oneshot
   # that runs *after* postgres is already listening. On a fresh activation niks3
@@ -90,11 +96,6 @@
     requires = ["postgresql-setup.service"];
   };
 
-  # database.createLocally defaults true and contributes `local all niks3 peer`
-  # to services.postgresql.authentication at normal priority. planka's rules
-  # and nixpkgs' own defaults are both lib.mkAfter, and the option is
-  # types.lines, so the three definitions concatenate with this line first
-  # rather than colliding. Nothing here disturbs planka's existing database.
   sops.secrets = {
     niks3-api-token = {
       owner = "niks3";

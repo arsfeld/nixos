@@ -38,12 +38,24 @@ Tailscale.
 `--niks3-server` folds upload results into nix-fast-build's exit code, so a niks3 outage
 aborts the deploy before anything activates. That is the intended trade — the closures are
 already built locally, so a re-run once the server is back costs nothing, whereas a
-silently-skipped push leaves behind a closure no target can substitute. It also means
-`just deploy` therefore cannot bootstrap niks3 itself — phase 1 would abort trying to push
-to the server it is in the middle of creating. Bootstrap that one case with a plain
-`nixos-rebuild switch --flake .#basestar --target-host root@basestar.bat-boa.ts.net`. In
-the other direction, `--use-substitutes` degrades rather than fails: a target that cannot
-substitute — an untrusted key, an empty cache — receives the closure over SSH.
+silently-skipped push leaves behind a closure no target can substitute. In the other
+direction, `--use-substitutes` degrades rather than fails: a target that cannot substitute
+— an untrusted key, an empty cache — receives the closure over SSH.
+
+Two consequences of that flag are easy to hit and hard to diagnose from the error alone:
+
+- **raider is the deploy driver.** The flag lives in `_apply`, so it binds all six recipes
+  (`deploy`, `boot`, `test`, `dry-run`, `deploy-all`, `reboot`), and phase 1 needs a push
+  token. `NIKS3_AUTH_TOKEN_FILE` is set only on raider
+  (`hosts/raider/configuration.nix`). Run any of these from another machine and phase 1
+  aborts *after* the full build with `auth token is required …`, which names niks3 and not
+  the deploy driver. Note this includes `just dry-run`, so the read-only inspection recipe
+  now depends on the write path being reachable. To deploy from elsewhere, either export
+  `NIKS3_AUTH_TOKEN_FILE` at a copy of the token or use `just nr-deploy <host>`, which
+  skips phase 1 entirely.
+- **`just deploy` cannot bootstrap niks3 itself** — phase 1 would abort pushing to the
+  server it is in the middle of creating. Bootstrap that one case with a plain
+  `nixos-rebuild switch --flake .#basestar --target-host root@basestar.bat-boa.ts.net`.
 
 Phase 1 is a barrier: nothing activates unless every named host builds — including in
 `deploy-all`, which names all nine, so a single host that fails to build blocks the whole
@@ -129,9 +141,15 @@ job red, tier-1 gate skips the commit — and `just deploy @tier1` is unaffected
 phase 1 finishes every push before phase 2 activates anything, and niks3 is socket-activated
 so connections queue across its own restart rather than being refused.
 
-attic (`attic.arsfeld.dev`, k3s on can-1) is frozen but still running and still listed as a
-substituter, so reverting one commit restores a fully populated cache. Retiring it — the
-argocd app, the `attic-cache` bucket, the `ATTIC_TOKEN` secret — is a separate later change.
+attic (`attic.arsfeld.dev`, k3s on can-1) is frozen but still running, and both it and its
+key are still listed, so it remains the rollback. Restoring the **read** path needs no
+revert at all — `attic.arsfeld.dev/system` is already a substituter on every host. Restoring
+**pushes** takes two edits, not one: revert `82e84de` (the `build.yml` push step) *and* put
+`attic-client` back in `flake-modules/dev.nix`, because that step runs under `nix develop`
+and the client was removed separately in `acc7dad`. Reverting only the workflow gives
+`attic: command not found` — which fails safe, since a red job makes weekly-deploy's tier-1
+gate skip the commit, but it does not actually restore pushes. Retiring attic — the argocd
+app, the `attic-cache` bucket, the `ATTIC_TOKEN` secret — is a separate later change.
 
 ### Testing Changes
 ```bash
@@ -324,6 +342,6 @@ Never mention Claude in commit messages or author.
 
 ## CI/CD (.github/workflows/)
 
-- **build.yml** - Builds basestar (aarch64), galactica (x86_64), raider (x86_64) closures and pushes them to niks3, pinned per host
+- **build.yml** - Builds every host in `ciMatrix` (all nine) and pushes each closure to niks3 with `--pin <host>`; `update.yml` calls it with just the tier-1 three
 - **format.yml** - Checks formatting with alejandra (fails if unformatted, run `just fmt` locally)
 - **update.yml** - Weekly flake input updates with automatic build testing, commits flake.lock if all hosts build
