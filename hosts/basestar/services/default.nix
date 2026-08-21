@@ -7,6 +7,7 @@
   imports = [
     ./blog.nix
     ./gatus.nix
+    ./niks3.nix
     ./planka.nix
     ./plausible.nix
     ./ask.nix
