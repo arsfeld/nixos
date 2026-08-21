@@ -17,77 +17,130 @@ _poke-targets *TARGETS:
 
     for target in "${targets[@]}"; do
         echo "Poking multi-user.target on ${target}..."
-        ssh "root@${target}.bat-boa.ts.net" sudo systemctl start multi-user.target
+        if [ "${target}" = "$(hostname)" ]; then
+            sudo systemctl start multi-user.target
+        else
+            ssh "root@${target}.bat-boa.ts.net" sudo systemctl start multi-user.target
+        fi
     done
 
-# === Colmena Deployment (default) ===
-# Parallel deployment to one or more hosts
+# === Deployment ===
+# Phase 1 builds every named host in parallel and pushes to attic; phase 2
+# activates each host in parallel from the pre-built closure. Nothing activates
+# unless everything builds.
 
-# Deploy to one or more hosts (switch activation)
+# Expand @tier selectors to hostnames; bare names pass through. Deduped, one
+# per line. Every recipe that takes targets routes through this, so tier
+# selectors work everywhere and the expansion lives in exactly one place.
+_hosts +TARGETS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for t in {{ TARGETS }}; do
+      case "$t" in
+        @*) nix eval --json ".#tiers.${t#@}" | jq -r '.[]' ;;
+        *)  echo "$t" ;;
+      esac
+    done | sort -u
+
+# Private recipe backing deploy/boot/test/dry-run.
+_apply ACTION +TARGETS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    hosts=$(just _hosts {{ TARGETS }} | tr '\n' ' ')
+
+    echo "==> {{ ACTION }}: ${hosts}"
+    out=$(mktemp -d)
+    trap 'rm -rf "$out"' EXIT
+
+    # Phase 1 — parallel eval (one nix-eval-jobs worker per attr), parallel
+    # build, attic push. Two flags are load-bearing:
+    #   --systems must name both. The default is the local system only, and
+    #     nix-fast-build silently drops attrs for any other system, which would
+    #     skip basestar (aarch64) entirely.
+    #   Do NOT add --skip-cached. It makes nix-eval-jobs skip already-cached
+    #     attrs outright, leaving no local store path for --store-path below.
+    nix-fast-build \
+      --flake '.#deployTargets' \
+      --select "t: { inherit (t) ${hosts}; }" \
+      --systems "x86_64-linux aarch64-linux" \
+      --attic-cache system \
+      --out-link "$out/result"
+
+    # Phase 2 — activate in parallel from the pre-built closures. No re-eval.
+    #
+    # Each host runs inside a subshell that re-raises PIPESTATUS[0]. Without
+    # that, `cmd | sed &` makes $! the PID of *sed*, and `wait` would report
+    # sed's exit status — masking every failed activation as a success.
+    pids=()
+    for h in ${hosts}; do
+      p=$(readlink -f "$out/result-$h")
+      if [ "$h" = "$(hostname)" ]; then
+        # Tailscale SSH cannot authenticate a host connecting to itself, so a
+        # machine can never deploy itself over --target-host. This branch is
+        # what `colmena apply-local` used to be.
+        ( sudo nixos-rebuild {{ ACTION }} --store-path "$p" 2>&1 \
+            | sed "s/^/[$h] /"; exit "${PIPESTATUS[0]}" ) &
+      else
+        ( nixos-rebuild {{ ACTION }} --store-path "$p" \
+            --target-host "root@$h.bat-boa.ts.net" --use-substitutes 2>&1 \
+            | sed "s/^/[$h] /"; exit "${PIPESTATUS[0]}" ) &
+      fi
+      pids+=($!)
+    done
+    rc=0
+    for pid in "${pids[@]}"; do wait "$pid" || rc=1; done
+    exit $rc
+
+# Deploy to one or more hosts. Accepts hostnames and @tier selectors:
+#   just deploy galactica raider
+#   just deploy @tier1
 deploy +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail
-    # Cache built paths to attic in background
-    attic watch-store system &
-    WATCH_PID=$!
-    trap 'kill $WATCH_PID 2>/dev/null || true; wait $WATCH_PID 2>/dev/null || true' EXIT INT TERM
-    sleep 1
-    TARGETS_CSV=$(echo "{{ TARGETS }}" | tr ' ' ',')
-    echo "Deploying ${TARGETS_CSV} using Colmena..."
-    colmena apply --impure --on "${TARGETS_CSV}"
-    just _poke-targets {{ TARGETS }}
+    just _apply switch {{ TARGETS }}
+    # Poke the expanded hostnames. Passing {{ TARGETS }} straight through would
+    # hand `_poke-targets` a literal "@tier1" and ssh to root@@tier1....
+    just _poke-targets $(just _hosts {{ TARGETS }} | tr '\n' ' ')
 
-# Deploy with boot activation (activates on next reboot)
+# Deploy with boot activation (takes effect on next reboot)
 boot +TARGETS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    # Cache built paths to attic in background
-    attic watch-store system &
-    WATCH_PID=$!
-    trap 'kill $WATCH_PID 2>/dev/null || true; wait $WATCH_PID 2>/dev/null || true' EXIT INT TERM
-    sleep 1
-    TARGETS_CSV=$(echo "{{ TARGETS }}" | tr ' ' ',')
-    colmena apply --impure --on "${TARGETS_CSV}" boot
+    just _apply boot {{ TARGETS }}
 
-# Test the configuration without making it permanent
+# Activate without making it the boot default
 test +TARGETS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    # Cache built paths to attic in background
-    attic watch-store system &
-    WATCH_PID=$!
-    trap 'kill $WATCH_PID 2>/dev/null || true; wait $WATCH_PID 2>/dev/null || true' EXIT INT TERM
-    sleep 1
-    TARGETS_CSV=$(echo "{{ TARGETS }}" | tr ' ' ',')
-    colmena apply --impure --on "${TARGETS_CSV}" test
+    just _apply test {{ TARGETS }}
 
-# Deploy to all hosts
+# Build, then report which units would change. Unlike colmena's dry-run this
+# does build — in exchange it names the units that would actually restart.
+dry-run +TARGETS:
+    just _apply dry-activate {{ TARGETS }}
+
+# Deploy to every discovered host
 deploy-all:
     #!/usr/bin/env bash
     set -euo pipefail
-    # Cache built paths to attic in background
-    attic watch-store system &
-    WATCH_PID=$!
-    trap 'kill $WATCH_PID 2>/dev/null || true; wait $WATCH_PID 2>/dev/null || true' EXIT INT TERM
-    sleep 1
-    colmena apply --impure
+    just _apply switch $(just info | tr '\n' ' ')
     just _poke-targets
 
-# Deploy and reboot (for kernel/bootloader changes)
+# Deploy with boot activation and reboot (for kernel/bootloader changes).
+# nixos-rebuild has no --reboot flag, so the reboot is explicit.
 reboot +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail
-    # Cache built paths to attic in background
-    attic watch-store system &
-    WATCH_PID=$!
-    trap 'kill $WATCH_PID 2>/dev/null || true; wait $WATCH_PID 2>/dev/null || true' EXIT INT TERM
-    sleep 1
-    TARGETS_CSV=$(echo "{{ TARGETS }}" | tr ' ' ',')
-    colmena apply --impure --on "${TARGETS_CSV}" --reboot
+    just _apply boot {{ TARGETS }}
+    for h in $(just _hosts {{ TARGETS }}); do
+      echo "Rebooting ${h}..."
+      if [ "$h" = "$(hostname)" ]; then
+        sudo systemctl reboot
+      else
+        ssh "root@${h}.bat-boa.ts.net" systemctl reboot || true
+      fi
+    done
 
-# Show deployment information
+# List all known hosts
 info:
-    colmena eval --impure -E '{ nodes, ... }: builtins.attrNames nodes'
+    nix eval --json '.#hosts' | jq -r '.[]'
 
 # === nixos-rebuild Fallback ===
 # Single-host deployment using nixos-rebuild
@@ -117,7 +170,7 @@ nr-test HOST:
     nixos-rebuild test --flake ".#{{ HOST }}" --target-host "root@${TARGET}" --sudo
 
 build HOST:
-    nix build '.#nixosConfigurations.{{ HOST }}.config.system.build.toplevel'
+    nix build '.#deployTargets.{{ HOST }}'
 
 # Build a host and push to Attic cache
 cache HOST:
@@ -125,7 +178,7 @@ cache HOST:
     set -euo pipefail
 
     echo "Building {{ HOST }}..."
-    nix build '.#nixosConfigurations.{{ HOST }}.config.system.build.toplevel' --out-link result-{{ HOST }}
+    nix build '.#deployTargets.{{ HOST }}' --out-link result-{{ HOST }}
 
     echo "Pushing {{ HOST }} to Attic cache..."
     attic push system ./result-{{ HOST }}
