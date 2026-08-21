@@ -26,6 +26,10 @@
 - **`arsfeld.dev` zone id**: `5b658a2265b2562c6f51ac93de8d21bf` (verified via API 2026-08-21)
 - **Signing key name**: `cache.arsfeld.dev-1`
 - **`<CACHE_PUBKEY>`** = `cache.arsfeld.dev-1:rf7PgrG/BVE3llOcYdiP0hNqIvOSvIQoz7zoH1kt1d8=` (generated and verified 2026-08-21). It appears verbatim in Tasks 6, 8 and 12, and was originally the single line printed by Task 2 Step 3 (`cache.arsfeld.dev-1:<44-char-base64>`), recorded at `/tmp/niks3-cutover/cache-pubkey.txt`. Every occurrence of `<CACHE_PUBKEY>` in this plan means "paste that exact string".
+- **`drvPath` equality cannot prove a change is comment-only in this repo.** `self` is an
+  input to every system closure, so *any* edit to *any* tracked file — a comment, a README
+  line — shifts every host's toplevel path. To show an edit is non-semantic, diff the file
+  body with comments and blanks stripped, not the derivation.
 - **Never decrypt a secret you are not changing.** Verify sops edits by key name and
   ciphertext stability, or by comparing sha256 digests — never by printing plaintext.
   Reports and terminal output are durable; an incidental `sops --decrypt` of an unrelated
