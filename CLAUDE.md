@@ -29,15 +29,20 @@ just info                       # List all known hosts
 ```
 
 `just deploy` runs in two phases. Phase 1 is `nix-fast-build` over `.#deployTargets`:
-parallel evaluation via nix-eval-jobs, parallel build, and an inline push to attic. Phase
-2 activates each host in parallel with `nixos-rebuild --store-path`, which skips
-evaluation and build entirely, and `--use-substitutes`, so each target pulls its own
-closure from attic instead of receiving NARs over Tailscale. The attic push is
-deliberately best-effort: a failure there is only a stderr warning and does not block
-phase 2, so a flaky self-hosted attic can't waste a build that already succeeded — easy
-to miss in a long parallel run. (This is unrelated to CI's own attic push in
-`build.yml`, which retries and then hard-fails the job — that is the failure
-`weekly-deploy`'s tier-1 precondition actually gates on.)
+parallel evaluation via nix-eval-jobs, parallel build, and an inline push to niks3 via
+`--niks3-server`. Phase 2 activates each host in parallel with `nixos-rebuild
+--store-path`, which skips evaluation and build entirely, and `--use-substitutes`, so each
+target pulls its own closure from `cache.arsfeld.dev` instead of receiving NARs over
+Tailscale.
+
+`--niks3-server` folds upload results into nix-fast-build's exit code, so a niks3 outage
+aborts the deploy before anything activates. That is the intended trade — the closures are
+already built locally, so a re-run once the server is back costs nothing, whereas a
+silently-skipped push leaves behind a closure no target can substitute. It also means
+`just deploy` cannot be used to bootstrap niks3 itself; see the note in
+`hosts/basestar/services/niks3.nix`. In the other direction, `--use-substitutes` degrades
+rather than fails: a target that cannot substitute — an untrusted key, an empty cache —
+receives the closure over SSH.
 
 Phase 1 is a barrier: nothing activates unless every named host builds — including in
 `deploy-all`, which names all nine, so a single host that fails to build blocks the whole
@@ -81,18 +86,46 @@ Two things about this that are not obvious and cost real time to rediscover:
 
 - **It can only deploy a commit CI has already built.** `self` is part of every system
   closure, so *any* tracked change shifts all three hosts' toplevel paths. A commit CI
-  has not built is absent from attic, and `max-jobs = 0` then fails rather than building.
+  has not built is absent from the cache, and `max-jobs = 0` then fails rather than building.
   This is what the per-host CI job gate enforces; it is working as intended, not a bug.
 - **After changing `weekly-deploy.nix`, install it once by hand** (`just deploy galactica`).
   A broken deployer cannot deploy its own fix, and a stale unit will happily run old logic
   against a new commit — the tell is a summary describing machinery the current code no
   longer contains.
 
-Attic (`attic.arsfeld.dev`) runs in k3s on `can-1` behind Traefik, whose entrypoint
-`readTimeout` bounds *upload* duration. It is set to 600s in the `arsfeld/argocd` repo
-(`manifests/auth/traefik-config.yaml`); Traefik v3's 60s default is too short for large
-NARs. Unfree packages (vscode) are never on `cache.nixos.org`, so CI must push them itself
-and is the main source of such uploads.
+The binary cache is two endpoints, and only one of them is a server:
+
+- **Read** — `https://cache.arsfeld.dev` is the R2 bucket `nix-cache` with a custom domain
+  attached. Attaching the domain is what makes objects publicly readable; there is no
+  separate toggle and the managed `r2.dev` domain stays disabled. No machine of ours is in
+  this path, so nothing we run can make a substitution fail. **Never add an R2 lifecycle
+  rule to this bucket** — niks3's GC deletes objects from its own Postgres reference table,
+  and a rule deleting them behind its back leaves narinfos pointing at absent NARs, which
+  fails only at deploy time.
+- **Write** — `https://niks3.arsfeld.dev` is niks3 on basestar behind Caddy, reached by a
+  **grey-cloud** (DNS-only) A record to `168.138.71.109`. Clients ask it for presigned R2
+  URLs and PUT NARs straight to R2; the server only sees JSON. Grey-cloud is not optional:
+  proxied records serve GitHub-hosted runners a managed challenge (HTTP 403), the same
+  reason CI can never post to `ntfy.arsfeld.one`. The usual argument for proxying —
+  Cloudflare's 100 MB body limit — does not apply, because no NAR traverses this hostname.
+
+CI pushes each tier-1 closure with `niks3 push --pin <host>`. Pinned closures are exempt
+from the 30-day GC window, and object GC walks reachability from surviving closures, so
+everything beneath a pinned toplevel survives too. That is what makes the window safe: the
+closure `weekly-deploy` needs under `max-jobs = 0` can never age out from under it, while
+everything else — including every derivation raider auto-uploads via its post-build hook —
+expires in a month. If the bucket grows past expectations, shorten `olderThan` rather than
+disabling auto-upload.
+
+One consequence worth knowing before you touch basestar: it is now in CI's push path.
+Deploying or rebooting it during a `build.yml` run fails that run's push. It fails safe —
+job red, tier-1 gate skips the commit — and `just deploy @tier1` is unaffected, because
+phase 1 finishes every push before phase 2 activates anything, and niks3 is socket-activated
+so connections queue across its own restart rather than being refused.
+
+attic (`attic.arsfeld.dev`, k3s on can-1) is frozen but still running and still listed as a
+substituter, so reverting one commit restores a fully populated cache. Retiring it — the
+argocd app, the `attic-cache` bucket, the `ATTIC_TOKEN` secret — is a separate later change.
 
 ### Testing Changes
 ```bash
@@ -285,6 +318,6 @@ Never mention Claude in commit messages or author.
 
 ## CI/CD (.github/workflows/)
 
-- **build.yml** - Builds basestar (aarch64), galactica (x86_64), raider (x86_64) closures and pushes to Attic cache
+- **build.yml** - Builds basestar (aarch64), galactica (x86_64), raider (x86_64) closures and pushes them to niks3, pinned per host
 - **format.yml** - Checks formatting with alejandra (fails if unformatted, run `just fmt` locally)
 - **update.yml** - Weekly flake input updates with automatic build testing, commits flake.lock if all hosts build

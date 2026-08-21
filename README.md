@@ -52,12 +52,12 @@ just deploy @tier1     # deploy all tier-1 hosts
 - **Service Registry** - Centralized port assignments, auth bypass, Tailscale exposure, and CORS config
 - **Container Orchestration** - Podman/Docker-based media stack with declarative volume and network config
 - **DNS & Routing** - `*.arsfeld.one` (internal via cloudflared), `*.arsfeld.dev` (public), `*.bat-boa.ts.net` (Tailscale)
-- **Automated Deployments** - Two-phase nix-fast-build pipeline (parallel eval, build, attic push, then parallel activation), nixos-rebuild fallback
+- **Automated Deployments** - Two-phase nix-fast-build pipeline (parallel eval, build, niks3 push, then parallel activation), nixos-rebuild fallback
 - **Secret Management** - sops-nix with per-host and shared secrets
-- **Binary Caching** - Attic server for faster builds
+- **Binary Caching** - niks3 coordinator with a Cloudflare R2 read path (`cache.arsfeld.dev`)
 - **Remote Builders** - aarch64 builds via basestar host
 - **Declarative Everything** - Including disk partitioning (disko)
-- **CI/CD** - GitHub Actions builds all hosts, pushes to Attic cache, weekly flake updates
+- **CI/CD** - GitHub Actions builds all hosts, pushes to niks3, weekly flake updates
 
 ## Quick Start
 
@@ -130,7 +130,7 @@ Hosts compose their configuration by enabling modules via `constellation.<module
 - [sops-nix](https://github.com/Mic92/sops-nix) - Secret management
 - [disko](https://github.com/nix-community/disko) - Declarative disk partitioning
 - [haumea](https://github.com/nix-community/haumea) - Automatic module/package discovery
-- [Attic](https://github.com/zhaofengli/attic) - Binary cache
+- [niks3](https://github.com/Mic92/niks3) - S3-backed binary cache with reference-tracking GC
 - [Tailscale](https://tailscale.com/) - VPN mesh network
 
 ## Documentation

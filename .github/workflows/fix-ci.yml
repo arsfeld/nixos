@@ -96,7 +96,8 @@ jobs:
 
             IMPORTANT — separate real code failures from CI infrastructure noise. The following are
             TRANSIENT CI problems, NOT bugs in this repo; do NOT try to "fix" them in code:
-              - `attic push` failing with `HTTP 499 Client Closed Request` (the build itself succeeded).
+              - `niks3 push` failing with a 5xx, a connection error to `niks3.arsfeld.dev`, or an
+                S3 upload error (the build itself succeeded).
               - Magic Nix Cache throttling: `HTTP error 418`, `GitHub Actions Cache throttled`,
                 or `substituter 'http://127.0.0.1:...' is disabled`, and the `failed dependency` /
                 `Cannot build ....drv` errors that cascade from it.
