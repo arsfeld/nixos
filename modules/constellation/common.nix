@@ -108,6 +108,24 @@ with lib; {
       ./certs/controld-root-x1.pem
     ];
 
+    # Local documentation is never read on these machines, and it is not free.
+    # documentation.{man,doc,info} each add the matching output of every
+    # package to system-path. Determinate publishes only the `out` output of
+    # determinate-nix to install.determinate.systems -- `man` and `doc` are
+    # absent -- so referencing either forces a from-source rebuild of Nix,
+    # including its entire test suite, on any host that cannot substitute it.
+    # On basestar (aarch64, maxJobs = 4) that single derivation dominated a
+    # whole tier-1 deploy. `doc` is the binding one: dropping only `man` still
+    # leaves extraOutputsToInstall = ["info" "doc"] and rebuilds Nix anyway.
+    # See issue #405.
+    documentation.man.enable = false;
+    documentation.doc.enable = false;
+    documentation.info.enable = false;
+    # programs.fish sets this to mkDefault true "for man completions";
+    # with man disabled there is nothing to cache, and fish generates its
+    # completions from each package's own share/man regardless.
+    documentation.man.cache.enable = false;
+
     programs.fish.enable = true;
 
     # Configure SSH known hosts for remote builders
