@@ -25,7 +25,7 @@ _poke-targets *TARGETS:
     done
 
 # === Deployment ===
-# Phase 1 builds every named host in parallel and pushes to attic; phase 2
+# Phase 1 builds every named host in parallel and pushes to niks3; phase 2
 # activates each host in parallel from the pre-built closure. Nothing activates
 # unless everything builds.
 
@@ -54,17 +54,34 @@ _apply ACTION +TARGETS:
     out=$(mktemp -d)
     trap 'rm -rf "$out"' EXIT INT TERM
 
-    # Phase 1 — parallel eval (one nix-eval-jobs worker per attr) and parallel
-    # build. Two flags are load-bearing:
+    # Phase 1 — parallel eval (one nix-eval-jobs worker per attr), parallel
+    # build, and an inline push to niks3. Three flags are load-bearing:
     #   --systems must name both. The default is the local system only, and
     #     nix-fast-build silently drops attrs for any other system, which would
     #     skip basestar (aarch64) entirely.
     #   Do NOT add --skip-cached. It makes nix-eval-jobs skip already-cached
     #     attrs outright, leaving no local store path for --store-path below.
+    #   --niks3-server registers each built closure with niks3, which hands
+    #     back presigned R2 URLs; the NARs go from here straight to R2 and the
+    #     server never sees them. Auth comes from $NIKS3_AUTH_TOKEN_FILE (set
+    #     in raider's session env from the sops secret) or
+    #     ~/.config/niks3/auth-token, and the `niks3` binary is resolved from
+    #     PATH — the dev shell provides it, otherwise nix-fast-build silently
+    #     falls back to an unpinned `nix shell github:Mic92/niks3`.
+    #
+    # Unlike the attic push this replaces, upload failures DO fold into
+    # nix-fast-build's exit code, so a niks3 outage aborts before anything
+    # activates. That is the intended trade: the closures are already built
+    # locally, so re-running once the server is back costs nothing, whereas a
+    # silently-skipped push leaves a closure that no target can substitute.
+    # Phase 2's --use-substitutes is what keeps that from biting in the other
+    # direction — a target that still cannot substitute receives the closure
+    # over SSH instead of failing.
     nix-fast-build \
       --flake '.#deployTargets' \
       --select "t: { inherit (t) ${hosts}; }" \
       --systems "x86_64-linux aarch64-linux" \
+      --niks3-server https://niks3.arsfeld.dev \
       --out-link "$out/result"
 
     # Resolve the built closures once. `readlink -f` on a missing final
@@ -77,15 +94,6 @@ _apply ACTION +TARGETS:
       [ -e "$out/result-$h" ] || { echo "phase 1 produced no closure for $h" >&2; exit 1; }
       paths[$h]=$(readlink -f "$out/result-$h")
     done
-
-    # Cache push is deliberately best-effort and deliberately NOT
-    # nix-fast-build's own --attic-cache. That flag folds upload results into
-    # its exit code, so a self-hosted attic being unreachable would abort the
-    # deploy *after* paying the full build cost, with every closure fine. The
-    # old recipes backgrounded `attic watch-store system &` and swallowed its
-    # failure; this preserves that resilience.
-    attic push system "${paths[@]}" \
-      || echo "warning: attic push failed; deploying anyway" >&2
 
     # Phase 2 — activate in parallel from the pre-built closures. No re-eval.
     #
@@ -213,7 +221,7 @@ nr-test HOST:
 build HOST:
     nix build '.#deployTargets.{{ HOST }}'
 
-# Build a host and push to Attic cache
+# Build a host and push it to the binary cache
 cache HOST:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -221,8 +229,8 @@ cache HOST:
     echo "Building {{ HOST }}..."
     nix build '.#deployTargets.{{ HOST }}' --out-link result-{{ HOST }}
 
-    echo "Pushing {{ HOST }} to Attic cache..."
-    attic push system ./result-{{ HOST }}
+    echo "Pushing {{ HOST }} to niks3..."
+    niks3 push --server-url https://niks3.arsfeld.dev ./result-{{ HOST }}
 
     rm -f result-{{ HOST }}
     echo "✅ {{ HOST }} built and cached successfully"
