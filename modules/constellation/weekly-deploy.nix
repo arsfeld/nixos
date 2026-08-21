@@ -2,7 +2,7 @@
 #
 # galactica pulls master and deploys tier-1 once a week, then reports. It must
 # never build: NIX_CONFIG="max-jobs = 0" makes local compilation impossible, so
-# a closure missing from attic is a loud error instead of a compile that OOMs
+# a closure missing from the cache is a loud error instead of a compile that OOMs
 # the host running the media stack.
 #
 # The contract with CI: a fresh flake.lock on master means tier-1 built clean,
@@ -188,7 +188,7 @@ with lib; let
 
     # An untracked file left in $REPO would be copied into the flake source,
     # changing `self` and therefore every host's toplevel out-path — none of
-    # which CI ever built, so every host would fail on an attic 404 under
+    # which CI ever built, so every host would fail on a cache miss under
     # max-jobs = 0. Nothing writes here today (`switch` passes --no-link, so
     # there is no result symlink), which is exactly why this should stay that
     # way by construction rather than by luck. Ignored files are left alone:
