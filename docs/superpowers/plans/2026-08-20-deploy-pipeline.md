@@ -477,8 +477,8 @@ Expected: the `usage: nix-fast-build [-h] ...` banner, then **both** `--select N
 - [ ] **Step 4b: Verify the dev shell still evaluates on every declared system**
 
 ```bash
-nix eval --raw '.#devShells.aarch64-darwin.name'
-nix eval --raw '.#devShells.aarch64-linux.name'
+nix eval --raw '.#devShells.aarch64-darwin.default.name'
+nix eval --raw '.#devShells.aarch64-linux.default.name'
 ```
 
 Expected: both print a shell name. The new entry indexes `inputs.nixpkgs-unstable.legacyPackages.${system}`, so a system where that attribute is missing would break `nix flake show` for everyone.
