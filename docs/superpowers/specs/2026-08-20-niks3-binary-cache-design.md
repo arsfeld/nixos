@@ -1,9 +1,9 @@
 # Replacing attic with niks3 (design)
 
 **Date:** 2026-08-20
-**Scope:** `flake.nix`, `hosts/basestar/services/`, `modules/constellation/common.nix`,
-`installer-iso.nix`, `just/deploy.just`, `justfile`, `flake-modules/dev.nix`,
-`.github/workflows/`, `secrets/sops/basestar.yaml`, docs
+**Scope:** `flake.nix`, `hosts/basestar/services/`, `hosts/raider/configuration.nix`,
+`modules/constellation/common.nix`, `installer-iso.nix`, `just/deploy.just`, `justfile`,
+`flake-modules/dev.nix`, `.github/workflows/`, `secrets/sops/{basestar,raider}.yaml`, docs
 **Status:** Design approved, not implemented.
 **Depends on:** `2026-08-20-deploy-pipeline-design.md` lands first.
 
@@ -91,6 +91,10 @@ niks3.inputs.nixpkgs.follows = "nixpkgs";
 The module defaults `serverPackage` to its own `callPackage`, so binary and module stay
 version-locked. That is preferable to pairing a nixpkgs binary with an upstream module.
 
+Both modules are imported per-host, not through haumea (which only auto-loads this repo's
+own `modules/`): basestar imports `inputs.niks3.nixosModules.niks3`, raider imports
+`inputs.niks3.nixosModules.niks3-auto-upload`.
+
 ### `hosts/basestar/services/niks3.nix` (new)
 
 Follows the existing `siyuan.nix` shape — a plain `services.caddy.virtualHosts` entry with
@@ -123,9 +127,12 @@ services.niks3 = {
     boundSubject = [ "repo:arsfeld/nixos:*" ];
   };
 
-  gc = { enable = true; olderThan = "4320h"; };   # 6 months, matching attic today
+  gc = { enable = true; olderThan = "720h"; };    # 30 days; pins protect what matters
 };
 ```
+
+**Retention is 30 days, not attic's 6 months, because CI pins the tier-1 closures.**
+See "Retention and pins" below — this is what makes auto-upload affordable.
 
 Notes:
 
@@ -142,6 +149,63 @@ Notes:
   Postgres reference table. A lifecycle rule deleting objects behind its back produces
   narinfo entries pointing at absent NARs — a corrupted cache that fails only at deploy time.
 
+### Retention and pins
+
+A pin is a named reference to a closure that is exempt from age-based GC. The server's
+delete query is explicit about it:
+
+```sql
+DELETE FROM closures
+WHERE closures.updated_at < $1
+  AND closures.key NOT IN (SELECT narinfo_key FROM pins);
+```
+
+`UpsertPin` keys on the pin *name*, so pushing again under the same name retargets the pin
+to the new closure and lets the previous one age out normally. Object GC then walks
+reachability from surviving closures, so pinning a toplevel keeps every object beneath it
+alive.
+
+This decouples two retention needs that a single `olderThan` cannot serve:
+
+- **CI pushes with `--pin <host>`**, so galactica, basestar and raider always have a
+  deploy-ready closure in the cache regardless of age. This directly protects the
+  `max-jobs = 0` invariant — the closure `weekly-deploy` needs can never be GC'd out from
+  under it.
+- **Everything else expires in 30 days.** Intermediate paths shared with a pinned closure
+  survive via reachability, so this only drops genuinely unused output.
+
+Without pins, auto-upload would force a choice between a bloated bucket and a retention
+window short enough to threaten deploys. With them, neither.
+
+### Auto-upload on raider
+
+`services.niks3-auto-upload` is a separate module from the server. It sets
+`nix.settings.post-build-hook`, so every derivation raider builds is uploaded as it
+finishes — not just what CI builds or what `just deploy` pushes.
+
+```nix
+services.niks3-auto-upload = {
+  enable = true;
+  serverUrl = "https://niks3.arsfeld.dev";
+  authTokenFile = config.sops.secrets.niks3-api-token.path;
+};
+```
+
+The hook itself does almost nothing: it writes the store path to a unix socket and exits.
+That matters, because a post-build hook runs inside every build — a hook that uploaded
+synchronously would serialise builds behind network I/O. A socket-activated daemon on the
+other end batches 50 paths, uploads with 30-way concurrency, and exits after 60s idle.
+Behind it is a SQLite queue in WAL mode, so paths survive a crash or reboot mid-upload
+instead of being silently lost. The socket is `root:nixbld` mode `0660` so the nix
+daemon's build users can write to it.
+
+**raider only.** blackbird is a laptop on stable that is frequently tethered or offline;
+pushing every local build over a metered link is the wrong default. galactica and basestar
+are deploy targets that rarely build anything not already coming from CI.
+
+Overlap with `just deploy` is harmless — `nix-fast-build --niks3-server` and the hook both
+register closures against the same server, which skips objects it already has.
+
 ### Secrets
 
 Four new sops entries on basestar, owned by the `niks3` user:
@@ -155,6 +219,17 @@ Four new sops entries on basestar, owned by the `niks3` user:
 
 The R2 credential is reused rather than minted because the available Cloudflare API session
 is denied `/accounts/{id}/tokens` (`9109 Unauthorized`). See Risks.
+
+One more on raider: `niks3-api-token`, the same value, with `owner = "arosenfeld"` and mode
+`0400`. Two consumers share it — the auto-upload daemon runs as root and can read it
+regardless, and `nix-fast-build --niks3-server` picks it up from
+`NIKS3_AUTH_TOKEN_FILE=/run/secrets/niks3-api-token` in the user environment. That avoids a
+second copy of the token in `~/.config/niks3/auth-token`.
+
+This is a full-write cache credential on a workstation, which is worth naming explicitly —
+but it is not a regression. raider already holds an attic write token at
+`~/.config/attic/config.toml` today. niks3 supports exactly one API token alongside OIDC,
+so a separate lower-privilege token for raider is not available without mTLS.
 
 ### Cloudflare resources
 
@@ -181,7 +256,9 @@ is `nix-fast-build` + `nixos-rebuild --store-path`.
 | `flake.nix` | add the `niks3` input |
 | `hosts/basestar/services/niks3.nix` | **new** — module + Caddy vhost |
 | `hosts/basestar/services/default.nix` | add `./niks3.nix` |
+| `hosts/raider/configuration.nix` | `services.niks3-auto-upload`, sops secret, `NIKS3_AUTH_TOKEN_FILE` |
 | `secrets/sops/basestar.yaml` | four new keys |
+| `secrets/sops/raider.yaml` | `niks3-api-token` |
 | `modules/constellation/common.nix:51-55` | substituter + trusted key |
 | `installer-iso.nix:18` | substituter + trusted key |
 | `just/deploy.just` | `--attic-cache system` → `--niks3-server https://niks3.arsfeld.dev` |
@@ -216,8 +293,12 @@ loop with a hard `::error::` exit — and only the command changes:
 ```bash
 niks3 push --server-url https://niks3.arsfeld.dev \
            --auth-token-script /tmp/niks3-token.sh \
+           --pin "${{ matrix.host }}" \
            "./result-${{ matrix.host }}"
 ```
+
+`--pin` is what exempts the tier-1 closures from the 30-day GC window. Dropping it would
+leave `weekly-deploy` able to fail on an aged-out closure under `max-jobs = 0`.
 
 `niks3-token.sh` emits `{"token": …}` from GitHub's OIDC endpoint using
 `$ACTIONS_ID_TOKEN_REQUEST_URL` and `$ACTIONS_ID_TOKEN_REQUEST_TOKEN`, with
@@ -252,7 +333,8 @@ Steps 1–3 are automated against the Cloudflare API and can-1 rather than perfo
 6. **Verify the server** — Testing steps 1–3.
 7. **Push.** CI now runs against a live niks3 and populates the cache. Testing step 4.
 8. **Verify substitutability** — Testing step 5, against raider especially.
-9. **Bridge the remaining hosts** with one `just deploy @tier1`.
+9. **Bridge the remaining hosts** with one `just deploy @tier1`. This is also what
+   activates auto-upload on raider.
 10. **Leave attic running.** Retiring it is a separate, later change.
 
 ## Cutover
@@ -302,9 +384,16 @@ Run in order; each gates the next.
    Run this against **raider specifically**: vscode is unfree and never on
    `cache.nixos.org`, so raider's closure is the one that depends entirely on CI having
    pushed successfully.
-6. `systemctl start niks3-gc && journalctl -u niks3-gc` — GC completes without deleting a
-   live closure. Confirm object count afterwards.
-7. One clean `weekly-deploy` run before retiring attic.
+6. `niks3 pins list` — three pins, one per tier-1 host, each pointing at the closure CI
+   just pushed.
+7. **Auto-upload**, on raider: `systemctl status niks3-auto-upload.socket`, then build
+   something trivial and not already cached (`nix build nixpkgs#hello --rebuild`) and
+   confirm the daemon activates, drains, and exits after its idle timeout. Check that the
+   path is fetchable from `cache.arsfeld.dev`.
+8. `systemctl start niks3-gc && journalctl -u niks3-gc` — GC completes without deleting a
+   live closure. Confirm `niks3 pins list` is unchanged afterwards and object count fell
+   only where expected.
+9. One clean `weekly-deploy` run before retiring attic.
 
 ## Risks
 
@@ -325,11 +414,18 @@ Run in order; each gates the next.
   caution in the design.
 - **Shared credential between old and new cache** until attic is retired. Acceptable
   short-term; rotate to a bucket-scoped token when `attic-cache` is deleted.
+- **`post-build-hook` is a global nix setting.** Nothing in this repo sets one today
+  (verified), but any future module that wants one will collide with auto-upload rather
+  than compose with it.
+- **Bucket growth is now driven by local work, not just CI.** Every derivation raider
+  builds lands in R2. The 30-day window plus pins is what bounds this; if the bucket grows
+  past expectations, shorten `olderThan` rather than disabling auto-upload — pins mean a
+  shorter window does not endanger deploys. Watch the R2 storage metric after the first
+  month.
 
 ## Out of scope
 
-- `niks3-auto-upload` (post-build-hook on raider, so ad-hoc local builds populate the
-  cache). Attractive, but independent of this migration.
 - mTLS, multi-key rotation, and the read proxy.
+- Auto-upload on blackbird, galactica or basestar. See "Auto-upload on raider".
 - Retiring the argocd attic app and deleting `attic-cache` — deliberately deferred so
   rollback stays available.
