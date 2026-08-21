@@ -43,18 +43,14 @@
           # Nix tools
           alejandra
           attic-client
-          (colmena.override {
-            nix = inputs.determinate.inputs.nix.packages.${system}.nix;
-            nix-eval-jobs = inputs.det-nix-eval-jobs.packages.${system}.default;
-          })
           # nixpkgs 26.05 ships nix-fast-build 1.4.0, which predates --select.
           # The deploy driver needs it to build a subset of deployTargets, so
           # take the package from nixpkgs-unstable (1.6.0) instead.
           #
           # The nix-eval-jobs override is separate and equally load-bearing:
           # the bundled one is built against upstream Nix while these machines
-          # run Determinate Nix, same reason as the colmena entry above. The
-          # wrapper's PATH is built from both `nix-eval-jobs` and
+          # run Determinate Nix. The wrapper's PATH is built from both
+          # `nix-eval-jobs` and
           # `nix-eval-jobs.nix` (nixpkgs pkgs/by-name/ni/nix-fast-build/
           # package.nix:26-31), and det-nix-eval-jobs carries no `.nix`
           # passthru — supply it here or the override fails to evaluate.

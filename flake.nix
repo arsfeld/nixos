@@ -38,7 +38,6 @@
           ./flake-modules/lib.nix
           ./flake-modules/hosts.nix
           ./flake-modules/deploy.nix
-          ./flake-modules/colmena.nix
           ./flake-modules/checks.nix
           ./flake-modules/images.nix
           ./flake-modules/dev.nix

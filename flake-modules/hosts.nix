@@ -21,8 +21,8 @@
     unstableHosts = ["raider"];
 
     # Deployment tiers. Tier 1 hosts are always on and should always be
-    # deployed. Consumed by colmena (deployment.tags, e.g. `colmena apply
-    # --on @tier1`) and documented in README.md / CLAUDE.md.
+    # deployed. Exposed as the `tiers` flake output and documented in
+    # README.md / CLAUDE.md.
     tiers = {
       tier1 = ["basestar" "galactica" "raider"];
     };
