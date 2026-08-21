@@ -235,7 +235,8 @@ deploy-rs comes out in the same task because it lives in the file being rewritte
 
 **Files:**
 - Rewrite: `flake-modules/deploy.nix`
-- Modify: `flake.nix:14` (drop the `deploy-rs` input), `flake-modules/dev.nix:50` (drop the deploy-rs package)
+- Rewrite: `flake-modules/checks.nix` — it iterates `inputs.deploy-rs.lib` to build `flake.checks` and merges in `deployLib.deployChecks self.deploy`. Both disappear with the input, so the file must be reworked or the flake stops evaluating.
+- Modify: `flake.nix:14` (drop the `deploy-rs` input), `flake-modules/dev.nix:50` (drop the deploy-rs package), `modules/constellation/common.nix:9` (a header comment naming deploy-rs as a binary cache)
 - Modify: `justfile` — delete the `boot-rs`, `deploy-rs` and `trace-rs` recipes (lines 127–167) plus their two exclusive helpers: `args := "--skip-checks"` (line 9) and `_format-targets` (lines 12–15)
 
 **Interfaces:**
@@ -308,6 +309,51 @@ Also update the `ssh` comment in `flake-modules/dev.nix` (currently "so colmena/
           # Provide ssh from the dev shell so the deploy driver resolves it here
 ```
 
+- [ ] **Step 5b: Rework `flake-modules/checks.nix`**
+
+The current file builds `flake.checks` by mapping over `inputs.deploy-rs.lib`, using that input purely as its list of systems, and merging `deployLib.deployChecks self.deploy` into each. Removing the input breaks it two ways at once. Convert it to a `perSystem` module, which flake-parts already uses for `checks` in `dev.nix`, and drop the deploy-rs checks:
+
+```nix
+{
+  self,
+  inputs,
+  ...
+}: {
+  perSystem = {system, ...}: {
+    checks = {
+      router-test = inputs.nixpkgs.legacyPackages.${system}.testers.nixosTest (
+        import ../tests/router-test.nix {inherit self inputs;}
+      );
+      router-test-production = inputs.nixpkgs.legacyPackages.${system}.testers.nixosTest (
+        import ../tests/router-test-production.nix
+      );
+      harmonia-cache-test = inputs.nixpkgs.legacyPackages.${system}.testers.nixosTest (
+        import ../tests/harmonia-cache-test.nix {inherit self inputs;}
+      );
+      immich-pixel-sync-test =
+        inputs.nixpkgs.legacyPackages.${system}.runCommand "immich-pixel-sync-test" {
+          nativeBuildInputs = [inputs.nixpkgs.legacyPackages.${system}.python3];
+        } ''
+          cp ${../modules/constellation/immich-pixel-sync}/*.py .
+          python3 -m unittest discover -v -s . -p 'test_*.py'
+          touch $out
+        '';
+    };
+  };
+}
+```
+
+Keep all four checks verbatim — only the deploy-rs scaffolding goes. Note this narrows the system set from whatever `deploy-rs.lib` happened to cover to the three systems `flake.nix` declares, which is the intended set.
+
+Verify both consumers still resolve:
+
+```bash
+nix eval --json '.#checks.x86_64-linux' --apply 'builtins.attrNames'
+grep -n "checks\." justfile
+```
+
+Expected: the attribute list contains `router-test`, `router-test-production`, `harmonia-cache-test`, `immich-pixel-sync-test` and `pre-commit-check` (the last one merges in from `dev.nix`), and both `just` recipes reference names that appear in it.
+
 - [ ] **Step 6: Format and refresh the lock**
 
 ```bash
@@ -315,7 +361,24 @@ just fmt
 nix flake lock
 ```
 
-Expected: `nix flake lock` removes the `deploy-rs` node (and its now-unreferenced transitive inputs) from `flake.lock`.
+Expected: `nix flake lock` removes the `deploy-rs` node and its now-unreferenced transitive inputs. Note a `deploy-rs` node legitimately **remains**: the `eh5` input depends on it, so the entry survives under a renumbered name. Confirm nothing else moved by comparing locked revisions before and after — the only difference should be removals:
+
+```bash
+git show HEAD:flake.lock > /tmp/lock-before.json
+python3 -c "
+import json, collections
+def revs(p):
+    d = json.load(open(p)); c = collections.Counter()
+    for n in d['nodes'].values():
+        loc = n.get('locked') or {}
+        if 'rev' in loc: c[(loc.get('owner'), loc.get('repo'), loc['rev'])] += 1
+    return c
+b, a = revs('/tmp/lock-before.json'), revs('flake.lock')
+print('only before:', list(b - a)); print('only after :', list(a - b))
+"
+```
+
+Expected: `only after` is empty. A non-empty `only after` means an unrelated input was updated — revert and re-run.
 
 - [ ] **Step 7: Verify `deployTargets` matches `nixosConfigurations` exactly**
 
@@ -340,7 +403,7 @@ Expected: no output. (Docs still mention it; Task 6 fixes those.)
 - [ ] **Step 9: Commit**
 
 ```bash
-git add flake.nix flake.lock flake-modules/deploy.nix flake-modules/dev.nix justfile
+git add flake.nix flake.lock flake-modules/deploy.nix flake-modules/checks.nix flake-modules/dev.nix modules/constellation/common.nix justfile
 git commit -m "feat(flake): add deployTargets output and drop deploy-rs"
 ```
 
