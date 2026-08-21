@@ -89,6 +89,20 @@ _apply ACTION +TARGETS:
 
     # Phase 2 — activate in parallel from the pre-built closures. No re-eval.
     #
+    # --no-reexec is REQUIRED, not an optimisation. nixos-rebuild-ng re-execs
+    # itself from the target configuration's own nixos-rebuild before doing
+    # anything (__init__.py:375). With --flake it resolves that from the flake;
+    # with --store-path and no --flake it falls back to `<nixpkgs/nixos>`, and
+    # this repo's nix.nixPath is derived from nix.registry with nixpkgs
+    # explicitly removed (modules/constellation/common.nix:78), so the lookup
+    # finds nothing and nixos-rebuild exits 1 before contacting any host.
+    # Suppressing the re-exec is safe here: the closure is already built, and
+    # activation runs the *target's* own switch-to-configuration.
+    #
+    # This failure is invisible to dry-run testing. The re-exec is gated on
+    # `can_run = action in (SWITCH, BOOT, TEST)` (__init__.py:371) — DRY_ACTIVATE
+    # is not in that tuple, so `just dry-run` never reaches this code path.
+    #
     # Each host runs inside a subshell that re-raises PIPESTATUS[0]. Without
     # that, `cmd | sed &` makes $! the PID of *sed*, and `wait` would report
     # sed's exit status — masking every failed activation as a success.
@@ -99,10 +113,10 @@ _apply ACTION +TARGETS:
         # Tailscale SSH cannot authenticate a host connecting to itself, so a
         # machine can never deploy itself over --target-host. This branch is
         # what `colmena apply-local` used to be.
-        ( sudo nixos-rebuild {{ ACTION }} --store-path "$p" 2>&1 \
+        ( sudo nixos-rebuild {{ ACTION }} --no-reexec --store-path "$p" 2>&1 \
             | sed "s/^/[$h] /"; exit "${PIPESTATUS[0]}" ) &
       else
-        ( nixos-rebuild {{ ACTION }} --store-path "$p" \
+        ( nixos-rebuild {{ ACTION }} --no-reexec --store-path "$p" \
             --target-host "root@$h.bat-boa.ts.net" --use-substitutes 2>&1 \
             | sed "s/^/[$h] /"; exit "${PIPESTATUS[0]}" ) &
       fi
