@@ -23,6 +23,7 @@
 - **R2 bucket**: `nix-cache` (new — never reuse `attic-cache`, whose chunk layout is incompatible)
 - **Read URL**: `https://cache.arsfeld.dev` · **Write URL**: `https://niks3.arsfeld.dev`
 - **basestar public IP**: `168.138.71.109`
+- **`arsfeld.dev` zone id**: `5b658a2265b2562c6f51ac93de8d21bf` (verified via API 2026-08-21)
 - **Signing key name**: `cache.arsfeld.dev-1`
 - **`<CACHE_PUBKEY>`** appears verbatim in Tasks 6, 8 and 12. It is the single line printed by Task 2 Step 3 (`cache.arsfeld.dev-1:<44-char-base64>`), recorded at `/tmp/niks3-cutover/cache-pubkey.txt`. Every occurrence of `<CACHE_PUBKEY>` in this plan means "paste that exact string".
 - **Never add an R2 lifecycle rule to `nix-cache`.** niks3's GC deletes objects from its own Postgres reference table; a lifecycle rule deleting them behind its back leaves narinfos pointing at absent NARs — a corrupted cache that fails only at deploy time.
@@ -40,6 +41,9 @@ The spec was written against an assumed state of the tree. Five things differ, a
 4. **`.github/workflows/update.yml` also needs `id-token: write`** (Task 8). This is not in the spec's change surface. A reusable workflow's `GITHUB_TOKEN` permissions can only be the same or more restrictive than the caller's, so without it the weekly update's `build` job cannot mint an OIDC token and every Sunday push fails.
 5. **`ATTIC_TOKEN` is NOT deleted from GitHub secrets in this change.** The spec says to delete it; deferring it to the retire-attic change is what keeps `git revert` a working rollback. Task 15 records it as a follow-up.
 6. **The spec contradicts itself about `~/.config/niks3/auth-token`.** Its nix-fast-build section says to provision that file on raider; its Secrets section says `NIKS3_AUTH_TOKEN_FILE` exists specifically to avoid a second copy of the token there. Resolution: no persistent second copy. `NIKS3_AUTH_TOKEN_FILE` is set from the sops secret (Task 5), and the one deploy that runs *before* that secret exists gets a temporary file that is shredded immediately after (Task 13 Steps 1 and 3).
+8. **The R2 credential is freshly minted and scoped to `nix-cache`, not copied from attic** (user decision, 2026-08-21). This retires the spec's largest risk rather than carrying it: no shared credential between the old and new caches, and Task 15's rotation follow-up is satisfied up front. The cost is one manual dashboard step — verified unavoidable, since `/accounts/{id}/tokens` returns `9109 Unauthorized` for this session and the OpenAPI spec has no R2-specific token endpoint.
+9. **Execution is resequenced.** Tasks 3–9 need nothing from Tasks 1–2 except `<CACHE_PUBKEY>`, which is generated locally with `nix key generate-secret` and needs no Cloudflare access at all. So Task 2's local half runs first, then Tasks 3–9, then Task 1's provisioning and Task 2's R2 half once the token exists, then 10–14 in order. The ledger records actual order.
+
 7. **niks3 upstream has moved past the versions the spec names.** The spec cites the nixpkgs package at 1.6.0; the flake currently ships CLI 1.8.0 and server 1.4.0, and the module defaults `serverPackage` to its own `callPackage` so the two stay locked together. `go.mod` requires Go 1.25.7 and nixpkgs 26.05 ships 1.26.5, so both build. Nothing in this plan pins a version — `flake.lock` does.
 
 ## File Structure
@@ -65,15 +69,17 @@ The spec was written against an assumed state of the tree. Five things differ, a
 
 ---
 
-### Task 1: Verify the R2 credential and provision Cloudflare
+### Task 1: Mint the R2 credential and provision Cloudflare
 
-This gates everything. If attic's existing R2 key turns out to be scoped to the `attic-cache` bucket rather than account-wide, a replacement cannot be minted programmatically — the available Cloudflare session is denied `/accounts/{id}/tokens` (`9109 Unauthorized`) — and minting one in the dashboard is the single step that has to be handed back to a human. Find that out before building anything.
+The spec planned to reuse attic's R2 credential and gate on whether it was account-wide. That gate is gone: the credential is minted fresh and scoped to `nix-cache` instead (Deviation 8), which is strictly better — no shared credential with the cache being retired, and no dependency on reading a k8s secret out of can-1.
+
+The one cost is that minting it is manual. `/accounts/{id}/tokens` returns `9109 Unauthorized` for the available session and the OpenAPI spec exposes no R2-specific token endpoint, both verified 2026-08-21. Everything else in this task is API-driven.
 
 **Files:** none — this task changes no tracked files and produces no commit.
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: R2 bucket `nix-cache`; a custom domain `cache.arsfeld.dev` bound to it; a grey-cloud `A` record `niks3.arsfeld.dev → 168.138.71.109`; the two R2 credential values on disk at `/tmp/niks3-cutover/r2-access-key-id.txt` and `/tmp/niks3-cutover/r2-secret-access-key.txt` for Task 2.
+- Produces: R2 bucket `nix-cache`; a bucket-scoped R2 API token whose two halves land at `/tmp/niks3-cutover/r2-access-key-id.txt` and `/tmp/niks3-cutover/r2-secret-access-key.txt` for Task 2; a custom domain `cache.arsfeld.dev` bound to the bucket; a grey-cloud `A` record `niks3.arsfeld.dev → 168.138.71.109`.
 
 - [ ] **Step 1: Create the scratch directory for cutover values**
 
@@ -83,29 +89,52 @@ These files hold live credentials. Create the directory mode `0700` and delete i
 mkdir -m700 -p /tmp/niks3-cutover
 ```
 
-- [ ] **Step 2: Extract the R2 credential from the attic k8s secret**
+- [ ] **Step 2: Create the bucket**
 
-attic runs in k3s on `can-1`, namespace `attic`, secret `attic-secrets` (4 keys). Print the key names first — the exact names differ from the niks3 option names.
+Do this before minting the token, so the token can be scoped to a bucket that exists. Use the Cloudflare API — this endpoint is permitted, unlike the token endpoint.
 
-```bash
-kubectl -n attic get secret attic-secrets -o json | jq -r '.data | keys[]'
+```
+POST /accounts/67a60cd5057ea97341c77d16f7cd3100/r2/buckets
+{"name": "nix-cache"}
 ```
 
-Expected: four names, two of which are the R2 access key id and secret access key (look for `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`, or an `ATTIC_SERVER_TOKEN_*` plus a `credentials`-style blob). Decode the two R2 ones into the scratch directory, substituting the real key names:
+Then confirm:
 
-```bash
-kubectl -n attic get secret attic-secrets -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' \
-  | base64 -d > /tmp/niks3-cutover/r2-access-key-id.txt
-kubectl -n attic get secret attic-secrets -o jsonpath='{.data.AWS_SECRET_ACCESS_KEY}' \
-  | base64 -d > /tmp/niks3-cutover/r2-secret-access-key.txt
-chmod 600 /tmp/niks3-cutover/*.txt
+```
+GET /accounts/67a60cd5057ea97341c77d16f7cd3100/r2/buckets
 ```
 
-If the secret instead stores a full `credentials` file, decode it and pull the two values out of it. Strip any trailing newline (`niks3-server` trims whitespace when reading these files, so a stray newline is tolerated — but a stray *quote* is not).
+Expected: the bucket list now contains `nix-cache` alongside the existing `attic`, `attic-cache`, `attic-data`, `mydia-flatpak` and `whatsrev`. (`attic` and `attic-data` are the stale empty buckets from 2024 that Task 15 Step 2 sweeps up — leave them.)
 
-- [ ] **Step 3: Prove the credential is not bucket-scoped**
+- [ ] **Step 3: Have the human mint a bucket-scoped R2 token**
 
-This is the gate. Use the AWS CLI against the R2 S3 endpoint and try to *create* a bucket — listing succeeds for some bucket-scoped tokens, writing does not.
+This is the one step that cannot be automated. Ask the user to visit **Cloudflare dashboard → R2 → API → Manage API tokens → Create API token** with:
+
+- **Permission:** Object Read & Write
+- **Specify bucket:** `nix-cache` only — not "all buckets". Scoping it here is what makes this better than reusing attic's credential.
+- **TTL:** forever
+
+The dashboard then shows an Access Key ID and a Secret Access Key **once**. Ask the user to write them into the scratch directory rather than pasting them into the conversation, so they never enter the transcript:
+
+```bash
+umask 077
+printf %s '<access key id>'     > /tmp/niks3-cutover/r2-access-key-id.txt
+printf %s '<secret access key>' > /tmp/niks3-cutover/r2-secret-access-key.txt
+```
+
+`printf %s` rather than `echo` avoids a trailing newline. (`niks3-server` trims whitespace when reading these files, so a newline would be tolerated anyway — but a stray quote would not.)
+
+Wait for both files to exist and be non-empty before continuing:
+
+```bash
+wc -c /tmp/niks3-cutover/r2-access-key-id.txt /tmp/niks3-cutover/r2-secret-access-key.txt
+```
+
+Expected: roughly 32 bytes and 64 bytes respectively, neither zero.
+
+- [ ] **Step 4: Prove the token can read and write the bucket**
+
+This is the gate that replaces the spec's bucket-scope check: it verifies the freshly minted credential works against the exact bucket and endpoint niks3 will use.
 
 ```bash
 export AWS_ACCESS_KEY_ID="$(cat /tmp/niks3-cutover/r2-access-key-id.txt)"
@@ -113,17 +142,6 @@ export AWS_SECRET_ACCESS_KEY="$(cat /tmp/niks3-cutover/r2-secret-access-key.txt)
 export AWS_DEFAULT_REGION=auto
 export AWS_ENDPOINT_URL="https://67a60cd5057ea97341c77d16f7cd3100.r2.cloudflarestorage.com"
 
-nix shell nixpkgs#awscli2 -c aws s3api create-bucket --bucket nix-cache
-nix shell nixpkgs#awscli2 -c aws s3api list-buckets --query 'Buckets[].Name'
-```
-
-Expected: `create-bucket` returns without error and `list-buckets` includes both `attic-cache` and `nix-cache`.
-
-**If `create-bucket` returns `AccessDenied`, STOP.** Report to the user that the attic R2 token is bucket-scoped and a new account-wide R2 token has to be minted by hand in the Cloudflare dashboard (R2 → Manage API tokens → Object Read & Write, all buckets). Nothing else in this plan can proceed until that value exists. Do not attempt to work around it.
-
-- [ ] **Step 4: Confirm the bucket is writable and readable end to end**
-
-```bash
 echo probe | nix shell nixpkgs#awscli2 -c aws s3 cp - s3://nix-cache/_probe.txt
 nix shell nixpkgs#awscli2 -c aws s3 cp s3://nix-cache/_probe.txt -
 nix shell nixpkgs#awscli2 -c aws s3 rm s3://nix-cache/_probe.txt
@@ -131,23 +149,15 @@ nix shell nixpkgs#awscli2 -c aws s3 rm s3://nix-cache/_probe.txt
 
 Expected: the middle command prints `probe`.
 
-- [ ] **Step 5: Look up the `arsfeld.dev` zone id**
+**If any of the three returns `AccessDenied`, STOP** and report to the user — the token's permission or bucket scope is wrong, and nothing downstream can work until it is reissued. Do not attempt to work around it.
 
-Both of the next two steps need it.
-
-```
-GET /zones?name=arsfeld.dev
-```
-
-Take `result[0].id` — a 32-character hex string. Every `<zone id for arsfeld.dev>` below means that value.
-
-- [ ] **Step 6: Attach the custom domain `cache.arsfeld.dev` to the bucket**
+- [ ] **Step 5: Attach the custom domain `cache.arsfeld.dev` to the bucket**
 
 Attaching the domain is what makes objects publicly readable — there is no separate public-access toggle, and the managed `r2.dev` domain stays disabled. Use the Cloudflare API (the `cloudflare-api` MCP `execute` tool, or `curl` with an API token that has R2 Admin):
 
 ```
 POST /accounts/67a60cd5057ea97341c77d16f7cd3100/r2/buckets/nix-cache/domains/custom
-{"domain": "cache.arsfeld.dev", "enabled": true, "zoneId": "<zone id for arsfeld.dev>"}
+{"domain": "cache.arsfeld.dev", "enabled": true, "zoneId": "5b658a2265b2562c6f51ac93de8d21bf"}
 ```
 
 Then confirm:
@@ -158,16 +168,16 @@ GET /accounts/67a60cd5057ea97341c77d16f7cd3100/r2/buckets/nix-cache/domains/cust
 
 Expected: one entry, `"domain": "cache.arsfeld.dev"`, `"enabled": true`, status eventually `active`.
 
-- [ ] **Step 7: Create the grey-cloud A record for the server**
+- [ ] **Step 6: Create the grey-cloud A record for the server**
 
 ```
-POST /zones/<zone id for arsfeld.dev>/dns_records
+POST /zones/5b658a2265b2562c6f51ac93de8d21bf/dns_records
 {"type": "A", "name": "niks3", "content": "168.138.71.109", "proxied": false, "ttl": 1}
 ```
 
 `"proxied": false` (grey-cloud) is **not optional**. Proxied records serve GitHub-hosted runners Cloudflare's managed challenge (HTTP 403) — the same reason CI can never post to `ntfy.arsfeld.one`. `attic.arsfeld.dev` and `seed.arsfeld.dev` are already DNS-only to this exact IP for this exact reason. The usual counter-argument (Cloudflare's 100 MB request body limit) does not apply, because NARs never traverse this hostname.
 
-- [ ] **Step 8: Verify DNS resolves and is unproxied**
+- [ ] **Step 7: Verify DNS resolves and is unproxied**
 
 ```bash
 dig +short niks3.arsfeld.dev
@@ -176,9 +186,9 @@ dig +short cache.arsfeld.dev
 
 Expected: `niks3.arsfeld.dev` → exactly `168.138.71.109` (a Cloudflare anycast address such as `104.x` or `172.67.x` means the record is still proxied — fix it before continuing). `cache.arsfeld.dev` → Cloudflare addresses, which is correct: that one *is* the edge in front of R2.
 
-- [ ] **Step 9: Record what was provisioned**
+- [ ] **Step 8: Record what was provisioned**
 
-No commit. Write a one-paragraph note in the session output naming the bucket, the custom domain status, and whether the R2 credential was reused or newly minted. Task 15 needs to know whether a bucket-scoped rotation is still outstanding.
+No commit. Write a one-paragraph note in the session output naming the bucket, the custom domain status, and the token's scope. Task 15 Step 3's rotation follow-up is already satisfied if the token is scoped to `nix-cache` — say so explicitly there.
 
 ---
 
@@ -189,7 +199,7 @@ No commit. Write a one-paragraph note in the session output naming the bucket, t
 - Modify: `secrets/sops/raider.yaml` (one new key)
 
 **Interfaces:**
-- Consumes: `/tmp/niks3-cutover/r2-{access-key-id,secret-access-key}.txt` from Task 1.
+- Consumes: `/tmp/niks3-cutover/r2-{access-key-id,secret-access-key}.txt` from Task 1. **Steps 1–4 need none of that** and may run before Task 1 — they are pure local key generation, and Tasks 6 and 8 are blocked on their output. Steps 5–8 need Task 1 complete.
 - Produces: sops keys `niks3-api-token`, `niks3-sign-key`, `r2-access-key-id`, `r2-secret-access-key` on basestar and `niks3-api-token` on raider; the cache public key at `/tmp/niks3-cutover/cache-pubkey.txt`, which is `<CACHE_PUBKEY>` everywhere else in this plan.
 
 - [ ] **Step 1: Generate the API token**
@@ -1399,7 +1409,7 @@ This is what proves the grey-cloud record resolves to Caddy and that no managed 
 curl -fsS --resolve niks3.arsfeld.dev:443:168.138.71.109 https://niks3.arsfeld.dev/api/cache-config
 ```
 
-Expected: a JSON body. A `403` with Cloudflare HTML means the DNS record is proxied — go back to Task 1 Step 7.
+Expected: a JSON body. A `403` with Cloudflare HTML means the DNS record is proxied — go back to Task 1 Step 6.
 
 ---
 
@@ -1652,9 +1662,9 @@ Expected: three healthy hosts, no cache misses. A failure here means a host's ac
 
 After one clean run, a separate change should: delete the argocd attic app and the `attic-cache` bucket (plus the stale empty `attic` and `attic-data` buckets from 2024); drop `https://attic.arsfeld.dev/system` and `system:mUX40QMM…` from `modules/constellation/common.nix`, `installer-iso.nix`, `.github/workflows/build.yml` and `.github/workflows/installer-iso.yml`; delete the `ATTIC_TOKEN` GitHub secret; and remove the final attic paragraph from CLAUDE.md.
 
-- [ ] **Step 3: Record the credential rotation**
+- [ ] **Step 3: Confirm the credential rotation is already done**
 
-The R2 credential is currently shared between the old and new caches. When `attic-cache` is deleted, mint a bucket-scoped token for `nix-cache` in the Cloudflare dashboard and update `r2-access-key-id` / `r2-secret-access-key` in `secrets/sops/basestar.yaml`. (If Task 1 already minted a fresh token because attic's was bucket-scoped, this is already done — say so.)
+Under Deviation 8 the R2 token is minted fresh and scoped to `nix-cache` in Task 1, so the spec's shared-credential risk never materialises and this follow-up is satisfied on day one. Confirm the token in `secrets/sops/basestar.yaml` is the scoped one and record that no rotation is outstanding. Only if Task 1 fell back to reusing attic's account-wide credential does this become real work: mint a bucket-scoped token and update `r2-access-key-id` / `r2-secret-access-key`.
 
 - [ ] **Step 4: Record the storage watch**
 
