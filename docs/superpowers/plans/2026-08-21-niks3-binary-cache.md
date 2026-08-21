@@ -939,10 +939,12 @@ Note this recipe deliberately does **not** pass `--pin`. Pins are a CI concern: 
 
 ```bash
 just --summary
-grep -n attic justfile || echo "no attic references in justfile"
+grep -nE '\battic\b' justfile | grep -vE '^[0-9]+:[[:space:]]*#' || echo "no attic invocations in justfile"
 ```
 
-Expected: `just --summary` lists every recipe including `deploy`, `cache`, `nr-deploy` and exits 0; the grep prints the "no attic references" line.
+Expected: `just --summary` lists every recipe including `deploy`, `cache`, `nr-deploy` and exits 0; the grep prints the "no attic invocations" line.
+
+Gate on *invocations*, not on the word. A plain `grep -n attic justfile` still matches one line — the Step 2 comment "Unlike the attic push this replaces, upload failures DO fold into nix-fast-build's exit code" — and that sentence is the most useful thing in the block, because it names what changed about the failure semantics. Keep it. Task 15 Step 2's retire-attic sweep removes it once attic is actually gone.
 
 - [ ] **Step 6: Commit**
 
@@ -1674,7 +1676,7 @@ Expected: three healthy hosts, no cache misses. A failure here means a host's ac
 
 - [ ] **Step 2: Record the retire-attic work**
 
-After one clean run, a separate change should: delete the argocd attic app and the `attic-cache` bucket (plus the stale empty `attic` and `attic-data` buckets from 2024); drop `https://attic.arsfeld.dev/system` and `system:mUX40QMM…` from `modules/constellation/common.nix`, `installer-iso.nix`, `.github/workflows/build.yml` and `.github/workflows/installer-iso.yml`; delete the `ATTIC_TOKEN` GitHub secret; and remove the final attic paragraph from CLAUDE.md.
+After one clean run, a separate change should: delete the argocd attic app and the `attic-cache` bucket (plus the stale empty `attic` and `attic-data` buckets from 2024 — both confirmed present 2026-08-21); drop `https://attic.arsfeld.dev/system` and `system:mUX40QMM…` from `modules/constellation/common.nix`, `installer-iso.nix`, `.github/workflows/build.yml` and `.github/workflows/installer-iso.yml`; delete the `ATTIC_TOKEN` GitHub secret; remove the final attic paragraph from CLAUDE.md; and drop the now-stale contrast clause "Unlike the attic push this replaces" from the phase-1 comment in `justfile`'s `_apply`.
 
 - [ ] **Step 3: Confirm the credential rotation is already done**
 
