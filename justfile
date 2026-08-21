@@ -48,13 +48,14 @@ _apply ACTION +TARGETS:
     set -euo pipefail
 
     hosts=$(just _hosts {{ TARGETS }} | tr '\n' ' ')
+    [ -n "${hosts// /}" ] || { echo "no targets" >&2; exit 1; }
 
     echo "==> {{ ACTION }}: ${hosts}"
     out=$(mktemp -d)
-    trap 'rm -rf "$out"' EXIT
+    trap 'rm -rf "$out"' EXIT INT TERM
 
-    # Phase 1 — parallel eval (one nix-eval-jobs worker per attr), parallel
-    # build, attic push. Two flags are load-bearing:
+    # Phase 1 — parallel eval (one nix-eval-jobs worker per attr) and parallel
+    # build. Two flags are load-bearing:
     #   --systems must name both. The default is the local system only, and
     #     nix-fast-build silently drops attrs for any other system, which would
     #     skip basestar (aarch64) entirely.
@@ -64,8 +65,27 @@ _apply ACTION +TARGETS:
       --flake '.#deployTargets' \
       --select "t: { inherit (t) ${hosts}; }" \
       --systems "x86_64-linux aarch64-linux" \
-      --attic-cache system \
       --out-link "$out/result"
+
+    # Resolve the built closures once. `readlink -f` on a missing final
+    # component exits 0 and echoes the nonexistent path, so `set -e` will not
+    # catch it — check existence explicitly. A host silently dropped by
+    # --systems would otherwise reach nixos-rebuild as a bogus --store-path
+    # and fail with an obscure nix error instead of naming the real cause.
+    declare -A paths
+    for h in ${hosts}; do
+      [ -e "$out/result-$h" ] || { echo "phase 1 produced no closure for $h" >&2; exit 1; }
+      paths[$h]=$(readlink -f "$out/result-$h")
+    done
+
+    # Cache push is deliberately best-effort and deliberately NOT
+    # nix-fast-build's own --attic-cache. That flag folds upload results into
+    # its exit code, so a self-hosted attic being unreachable would abort the
+    # deploy *after* paying the full build cost, with every closure fine. The
+    # old recipes backgrounded `attic watch-store system &` and swallowed its
+    # failure; this preserves that resilience.
+    attic push system "${paths[@]}" \
+      || echo "warning: attic push failed; deploying anyway" >&2
 
     # Phase 2 — activate in parallel from the pre-built closures. No re-eval.
     #
@@ -74,7 +94,7 @@ _apply ACTION +TARGETS:
     # sed's exit status — masking every failed activation as a success.
     pids=()
     for h in ${hosts}; do
-      p=$(readlink -f "$out/result-$h")
+      p="${paths[$h]}"
       if [ "$h" = "$(hostname)" ]; then
         # Tailscale SSH cannot authenticate a host connecting to itself, so a
         # machine can never deploy itself over --target-host. This branch is
@@ -92,9 +112,9 @@ _apply ACTION +TARGETS:
     for pid in "${pids[@]}"; do wait "$pid" || rc=1; done
     exit $rc
 
-# Deploy to one or more hosts. Accepts hostnames and @tier selectors:
 #   just deploy galactica raider
 #   just deploy @tier1
+# Deploy to one or more hosts. Accepts hostnames and @tier selectors.
 deploy +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -111,8 +131,8 @@ boot +TARGETS:
 test +TARGETS:
     just _apply test {{ TARGETS }}
 
-# Build, then report which units would change. Unlike colmena's dry-run this
-# does build — in exchange it names the units that would actually restart.
+# Unlike colmena's dry-run this does build — in exchange it names the units
+# that would actually restart. Build, then report which units would change.
 dry-run +TARGETS:
     just _apply dry-activate {{ TARGETS }}
 
@@ -123,20 +143,26 @@ deploy-all:
     just _apply switch $(just info | tr '\n' ' ')
     just _poke-targets
 
-# Deploy with boot activation and reboot (for kernel/bootloader changes).
 # nixos-rebuild has no --reboot flag, so the reboot is explicit.
+# Deploy with boot activation and reboot (for kernel/bootloader changes).
 reboot +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail
     just _apply boot {{ TARGETS }}
+    # Reboot the local machine LAST. _hosts emits names sorted, so rebooting
+    # inline would tear this shell down mid-loop and silently skip every host
+    # sorted after it — leaving them boot-activated but never rebooted, which
+    # is precisely the state this recipe exists to prevent.
+    self=""
     for h in $(just _hosts {{ TARGETS }}); do
+      if [ "$h" = "$(hostname)" ]; then self="$h"; continue; fi
       echo "Rebooting ${h}..."
-      if [ "$h" = "$(hostname)" ]; then
-        sudo systemctl reboot
-      else
-        ssh "root@${h}.bat-boa.ts.net" systemctl reboot || true
-      fi
+      ssh "root@${h}.bat-boa.ts.net" systemctl reboot || true
     done
+    if [ -n "$self" ]; then
+      echo "Rebooting ${self} (local, last)..."
+      sudo systemctl reboot
+    fi
 
 # List all known hosts
 info:
