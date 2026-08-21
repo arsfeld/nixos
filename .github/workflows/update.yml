@@ -43,6 +43,9 @@ jobs:
     uses: ./.github/workflows/build.yml
     permissions:
       contents: read
+      # A reusable workflow's token can only be as permissive as its caller's,
+      # so build.yml's own `id-token: write` is not enough on its own.
+      id-token: write
     with:
       flake_lock: ${{ needs.update.outputs.flake_lock }}
       hosts: ${{ needs.update.outputs.tier1 }}

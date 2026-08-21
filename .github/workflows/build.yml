@@ -41,8 +41,8 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
-            extra-substituters = https://attic.arsfeld.dev/system
-            extra-trusted-public-keys = system:mUX40QMM+dqZ0wQaHp7sH50UgiZnSXsInzc9/MvaZRc=
+            extra-substituters = https://cache.arsfeld.dev https://attic.arsfeld.dev/system
+            extra-trusted-public-keys = cache.arsfeld.dev-1:rf7PgrG/BVE3llOcYdiP0hNqIvOSvIQoz7zoH1kt1d8= system:mUX40QMM+dqZ0wQaHp7sH50UgiZnSXsInzc9/MvaZRc=
             fallback = true
             connect-timeout = 5
             download-attempts = 3
@@ -96,6 +96,11 @@ jobs:
     timeout-minutes: 120
     permissions:
       contents: read
+      # niks3 authenticates CI with a short-lived GitHub OIDC token rather
+      # than a long-lived secret. Without this, ACTIONS_ID_TOKEN_REQUEST_URL
+      # and ACTIONS_ID_TOKEN_REQUEST_TOKEN are simply absent from the step
+      # environment and the token script fails with an unset-variable error.
+      id-token: write
 
     steps:
       - name: Free disk space
@@ -109,8 +114,8 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
-            extra-substituters = https://attic.arsfeld.dev/system
-            extra-trusted-public-keys = system:mUX40QMM+dqZ0wQaHp7sH50UgiZnSXsInzc9/MvaZRc=
+            extra-substituters = https://cache.arsfeld.dev https://attic.arsfeld.dev/system
+            extra-trusted-public-keys = cache.arsfeld.dev-1:rf7PgrG/BVE3llOcYdiP0hNqIvOSvIQoz7zoH1kt1d8= system:mUX40QMM+dqZ0wQaHp7sH50UgiZnSXsInzc9/MvaZRc=
             fallback = true
             connect-timeout = 5
             download-attempts = 3
@@ -121,8 +126,6 @@ jobs:
 
       - name: Build and push to cache
         shell: nix develop --command bash -e {0}
-        env:
-          ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -130,23 +133,59 @@ jobs:
           nix build '.#nixosConfigurations.${{ matrix.host }}.config.system.build.toplevel' \
             -o "result-${{ matrix.host }}"
 
-          echo "Pushing to Attic cache..."
-          attic login system https://attic.arsfeld.dev "$ATTIC_TOKEN"
+          # niks3 authenticates with a GitHub OIDC token instead of a
+          # long-lived secret. --auth-token-script is exec'd directly (shell
+          # words are split, but no shell runs), so the file must be
+          # executable and carry a shebang, and it must print exactly
+          # {"token": "..."} on stdout — logs may go to stderr. Omitting
+          # expires_at just means niks3 re-runs it per request, which is what
+          # we want for a token this short-lived.
+          #
+          # The audience must match services.niks3.oidc.providers.github.audience
+          # on basestar, and is URL-encoded because it is a query parameter.
+          cat > /tmp/niks3-token.sh <<'TOKEN_SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          curl -fsSL \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https%3A%2F%2Fniks3.arsfeld.dev" \
+            | jq -c '{token: .value}'
+          TOKEN_SCRIPT
+          chmod +x /tmp/niks3-token.sh
 
-          # Retry transient push failures (a live HTTP 499 left raider's closure
-          # 404 in attic), but never swallow them. "attic push failed => job
-          # failed => weekly-deploy's tier-1 gate skips this commit" is exactly
-          # what stops galactica from deploying a closure that is not
-          # substitutable, and it deploys under `max-jobs = 0`, where a cache
-          # miss is a hard failure rather than a local rebuild. `|| true` or
-          # continue-on-error here would turn a clean skip into a broken deploy.
+          echo "Pushing to niks3..."
+
+          # Upstream ships Mic92/niks3-action@v1, which auto-configures the
+          # substituter and a post-build hook. It is deliberately NOT used:
+          # its uploads are asynchronous with a post-step drain, and whether a
+          # failed upload fails the job is undocumented. This step therefore
+          # keeps the exact shape the attic push had — an explicit command, a
+          # four-attempt retry, a hard ::error:: exit — because that shape is
+          # what the tier-1 gate below depends on.
+          #
+          # Retry transient push failures, but never swallow them. "push
+          # failed => job failed => weekly-deploy's tier-1 gate skips this
+          # commit" is exactly what stops galactica from deploying a closure
+          # that is not substitutable, and it deploys under `max-jobs = 0`,
+          # where a cache miss is a hard failure rather than a local rebuild.
+          # `|| true` or continue-on-error here would turn a clean skip into a
+          # broken deploy.
+          #
+          # --pin exempts this closure from the 30-day GC window; pushing again
+          # under the same name retargets the pin and lets the previous closure
+          # age out normally. Dropping it would leave weekly-deploy able to
+          # fail on a closure that aged out from under it.
           pushed=0
           for attempt in 1 2 3 4; do
-            if attic push system "./result-${{ matrix.host }}"; then
+            if niks3 push \
+                 --server-url https://niks3.arsfeld.dev \
+                 --auth-token-script /tmp/niks3-token.sh \
+                 --pin "${{ matrix.host }}" \
+                 "./result-${{ matrix.host }}"; then
               pushed=1
               break
             fi
-            echo "attic push attempt $attempt failed"
+            echo "niks3 push attempt $attempt failed"
             # `[ ... ] && sleep` would be the loop body's last command, and a
             # false test there trips `set -e`. Use an explicit if.
             if [ "$attempt" -lt 4 ]; then
@@ -154,7 +193,7 @@ jobs:
             fi
           done
           if [ "$pushed" -ne 1 ]; then
-            echo "::error::attic push failed after 4 attempts for ${{ matrix.host }}" >&2
+            echo "::error::niks3 push failed after 4 attempts for ${{ matrix.host }}" >&2
             exit 1
           fi
 
