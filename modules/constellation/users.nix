@@ -57,8 +57,5 @@
       uid = 1000;
     };
     users.groups.arosenfeld.gid = 1000;
-
-    # Disable man pages generation
-    documentation.man.cache.enable = false;
   };
 }
