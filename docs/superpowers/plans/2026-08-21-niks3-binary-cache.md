@@ -346,7 +346,21 @@ nix develop -c niks3 --help
 nix develop -c niks3 push --help
 ```
 
-Expected: `niks3 --help` lists `push`, `gc`, `pins`. `niks3 push --help` lists `--server-url`, `--auth-token-path`, `--auth-token-script` and `--pin`. **If `--pin` is absent, stop** — the CI push in Task 8 depends on it, and an older CLI means the input resolved to an unexpected revision.
+Expected: `niks3 --help` lists `push`, `gc`, `pins`. `niks3 push --help` lists `--server-url`, `--auth-token-path` and `--auth-token-script`.
+
+**Do not gate on `--pin` appearing in that help text — it does not, and that is an upstream
+bug rather than a missing feature.** `cmd/niks3/main.go` registers the flag
+(`pinName := pushCmd.String("pin", ...)`) and enforces `--pin requires exactly one store
+path`, but the hand-written `printPushHelp()` never prints it. Gate on the parser instead,
+which is what Task 8 actually depends on:
+
+```bash
+nix develop -c niks3 push --pin probe --server-url http://127.0.0.1:1 /nix/store 2>&1 | head -3
+```
+
+Expected: it gets **past flag parsing** — a connection error to `127.0.0.1:1`, or a store-path
+validation complaint. **If it prints `flag provided but not defined: -pin`, stop**: the input
+resolved to a CLI older than the pins feature and Task 8's push cannot work.
 
 - [ ] **Step 5: Commit**
 
