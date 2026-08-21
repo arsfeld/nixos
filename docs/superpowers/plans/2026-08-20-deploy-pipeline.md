@@ -24,7 +24,7 @@
 - Watch peak memory during the first full-tier build. `nix-fast-build` runs one nix-eval-jobs worker
   per attribute; if three concurrent evaluations strain the deploy host, bound them with
   `--eval-workers` / `--eval-max-memory-size` rather than serialising the phase.
-- `weekly-deploy` (`modules/constellation/weekly-deploy.nix`) is out of scope and must not be edited. It already deploys `.#nixosConfigurations` with `max-jobs = 0`.
+- `weekly-deploy` (`modules/constellation/weekly-deploy.nix`) is out of scope and its logic must not be edited. It already deploys `.#nixosConfigurations` with `max-jobs = 0`. The single exception is Task 6 Step 4b, which updates two of its *comments* that Task 5's colmena deletion left describing a file that no longer exists.
 - Do not push to `origin` until Task 7 passes. `weekly-deploy` can only deploy a commit CI has already built and pushed to attic.
 
 ## File Structure
@@ -836,13 +836,24 @@ grep -rn "det-nix-eval-jobs" --include='*.nix' .
 
 Expected: two hits — the input declaration in `flake.nix` and the `nix-fast-build.override` in `flake-modules/dev.nix`. If only the declaration remains, Task 3's override was lost.
 
-- [ ] **Step 6: Verify no source file still mentions colmena**
+- [ ] **Step 6: Audit what still mentions colmena**
 
 ```bash
-grep -rn "colmena" --include='*.nix' --include=justfile --include='*.just' . | grep -v '^./docs/'
+grep -rn "colmena" --include='*.nix' --include=justfile --include='*.just' . \
+  | grep -v '^./docs/' | grep -v '^./.superpowers/'
 ```
 
-Expected: no output.
+Expected: no *code* references — no `flake.colmena`, no imports, no dev-shell entry. Comments explaining why something is the way it is may legitimately survive, and these five are correct and worth keeping as historical rationale:
+
+- `justfile` — "what `colmena apply-local` used to be" and "Unlike colmena's dry-run this does build"
+- `flake-modules/deploy.nix:8` — "That is what broke colmena"
+
+Two others are now **stale** rather than historical, because they describe live machinery that no longer exists. Do not fix them here — Task 6 owns them, and it needs to change them alongside the CLAUDE.md text that says the same thing:
+
+- `flake-modules/dev.nix:71` — "Shells skip it, but colmena aborts on it", the stated reason `openssh` is in the dev shell
+- `modules/constellation/weekly-deploy.nix:301-312` — a long note contrasting `nixos-rebuild` with `flake-modules/colmena.nix`, a file that no longer exists
+
+Also update `flake-modules/hosts.nix`'s `tiers` comment if it still says the tiers are consumed by colmena.
 
 - [ ] **Step 7: Commit**
 
@@ -859,6 +870,7 @@ git commit -m "refactor(flake): remove colmena"
 
 **Files:**
 - Modify: `CLAUDE.md:16-33` (Deployment section), `CLAUDE.md:50-66` (the three-bullet weekly-deploy warning), `CLAUDE.md:99-118` (Host Tiers and Flake Structure)
+- Modify: `flake-modules/dev.nix:71` and `modules/constellation/weekly-deploy.nix:301-312` — two comments left stale by Task 5's colmena deletion. Comments only, no logic.
 - Modify: `README.md:42-47` (tier deploy example), `README.md:89-90` (repo layout), `README.md:129` (tooling list)
 
 **Interfaces:**
@@ -935,6 +947,45 @@ with:
 ```markdown
 - **`deploy.nix`** - `deployTargets`: each host's system closure, the attribute `just deploy` builds
 ```
+
+- [ ] **Step 4b: Fix the two stale colmena comments in code**
+
+Both describe machinery deleted in Task 5. This is the only place in the plan where editing `modules/constellation/weekly-deploy.nix` is permitted, and only its comments — do not touch a line of its logic.
+
+In `flake-modules/dev.nix`, the `openssh` entry's comment ends "Shells skip it, but colmena aborts on it." Colmena is gone; the dangling-PATH-entry problem is not. Replace that sentence with one that does not name a tool that no longer exists:
+
+```nix
+          # Provide ssh from the dev shell so the deploy driver resolves it here
+          # instead of scanning the ambient PATH. NixOS puts a (usually empty)
+          # /etc/profiles/per-user/$USER/bin ahead of the system profile; since
+          # 26.05 that dir's parent is mode 0700 root, so a PATH lookup for ssh
+          # there returns EACCES. Interactive shells skip the unreadable dir,
+          # but a tool that resolves ssh itself can fail on it.
+          # Shadowing ssh from the shell avoids the dangling entry entirely.
+```
+
+In `modules/constellation/weekly-deploy.nix`, the comment beginning "nixos-rebuild against `.#nixosConfigurations`, NOT colmena" contrasts this unit with `flake-modules/colmena.nix`. That file is gone, so the contrast no longer parses — but the *lesson* is the single most valuable thing in this plan and must survive in updated form. Keep the `allowSubstitutes = false` explanation verbatim; only rewrite the framing so it states the invariant rather than contrasting with a deleted file. Something like:
+
+```nix
+    # nixos-rebuild against .#nixosConfigurations — the same attribute CI
+    # builds and `just deploy` builds. Deploying anything else is what made
+    # the first live run fail: a second evaluation that imports nixpkgs
+    # itself drops the flake's revision metadata and produces
+    # `nixos-system-basestar-26.05pre-git` where CI built and cached
+    # `nixos-system-basestar-26.05.20260804.04607e1` — different derivations,
+    # so the cache could never satisfy the deploy. Nix then fell back to
+```
+
+leaving the rest of the paragraph (from "realising the closure" onward) exactly as it is.
+
+Verify nothing else in that file changed:
+
+```bash
+git diff --stat modules/constellation/weekly-deploy.nix
+git diff -U0 modules/constellation/weekly-deploy.nix | grep -E '^[+-]' | grep -v '^[+-][+-]' | grep -vE '^[+-]\s*#'
+```
+
+Expected: a small stat, and the second command prints nothing — every changed line is a comment.
 
 - [ ] **Step 5: Update the README**
 
