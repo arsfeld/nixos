@@ -5,7 +5,27 @@
   pkgs,
   lib,
   ...
-}: {
+}: let
+  cfg = config.constellation.gaming;
+
+  # Toggles gaming-boost.service. gamemoded runs as a *user* service, so its
+  # custom start/end hooks cannot set properties on a system unit themselves;
+  # this plus the polkit rule below is the privilege bridge.
+  gamingBoost = pkgs.writeShellApplication {
+    name = "gaming-boost";
+    runtimeInputs = [config.systemd.package];
+    text = ''
+      case "''${1:-}" in
+        on) exec systemctl start --no-block gaming-boost.service ;;
+        off) exec systemctl stop --no-block gaming-boost.service ;;
+        *)
+          echo "usage: gaming-boost on|off" >&2
+          exit 2
+          ;;
+      esac
+    '';
+  };
+in {
   options.constellation.gaming = {
     enable = lib.mkEnableOption "gaming configuration with Bazzite-style optimizations";
 
@@ -18,7 +38,32 @@
     gamingMode = lib.mkOption {
       type = lib.types.bool;
       default = true;
-      description = "Enable gaming mode toggle for stopping development services";
+      description = ''
+        Hook gamemode's start/end events so background build capacity yields to
+        the running game (see backgroundCpus). Replaces the old gaming-mode
+        unit, which pkill'd dev processes and dropped the page cache the game
+        was about to need.
+      '';
+    };
+
+    backgroundCpus = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "8-15";
+      description = ''
+        CPU set that background build work (nix-daemon) is confined to while a
+        game runs, as a systemd AllowedCPUs= value. Null leaves the CPU set
+        alone and applies only the CPUWeight/IOWeight de-prioritisation.
+
+        This is the knob that actually makes builds yield. nix-daemon.service
+        lives in system.slice and a game lives in user.slice, and CPUWeight only
+        arbitrates between siblings sharing a parent cgroup — so weight alone
+        reorders nix-daemon against other system.slice units and never against
+        the game. AllowedCPUs is absolute and works across the tree.
+
+        Set it to the efficiency cores on a hybrid CPU. On raider's i5-12500H,
+        "8-15" is the eight E-cores; 0-7 are the four SMT P-cores.
+      '';
     };
 
     cpuVendor = lib.mkOption {
@@ -37,7 +82,7 @@
       type = lib.types.enum ["none" "lavd" "bpfland" "rusty"];
       default = "lavd";
       description = ''
-        sched_ext BPF scheduler to run via services.scx.
+        sched_ext BPF scheduler to run via services.scx-loader.
         - lavd: Latency-Aware Virtual Deadline (recommended, mixed desktop + dev + gaming)
         - bpfland: Simpler priority model, pure gaming boxes
         - rusty: Multi-domain round-robin, heavy compile workloads (hurts game latency)
@@ -138,7 +183,7 @@
         # NOTE: the old kernel.sched_child_runs_first / sched_latency_ns /
         # sched_min_granularity_ns / sched_wakeup_granularity_ns knobs were
         # removed — they don't exist on EEVDF kernels (xanmod 6.6+) and are
-        # doubly moot here since scx_lavd (services.scx) replaces CFS entirely.
+        # doubly moot here since scx_lavd (services.scx-loader) replaces CFS entirely.
         "kernel.sched_autogroup_enabled" = 1;
         "kernel.split_lock_mitigate" = 0;
 
@@ -146,20 +191,13 @@
         "fs.file-max" = 2097152;
         "fs.aio-max-nr" = 1048576;
 
-        # Network buffers for online gaming
-        "net.core.rmem_default" = 131072;
-        "net.core.rmem_max" = 134217728;
-        "net.core.wmem_default" = 131072;
-        "net.core.wmem_max" = 134217728;
-        "net.core.netdev_max_backlog" = 65536;
-        "net.core.optmem_max" = 65536;
-        "net.ipv4.tcp_rmem" = "8192 262144 134217728";
-        "net.ipv4.tcp_wmem" = "8192 65536 134217728";
+        # Socket buffer sizing, backlog, keepalive and MTU probing are left to
+        # bpftune (services.bpftune below), which resizes them from observed
+        # load. Static values here would be boot-time hints that bpftune
+        # immediately overrides, leaving the declared config no longer
+        # describing the running system. The two below aren't things bpftune
+        # sizes, so they stay declarative — as do cake/bbr further up.
         "net.ipv4.tcp_fastopen" = 3;
-        "net.ipv4.tcp_keepalive_time" = 60;
-        "net.ipv4.tcp_keepalive_intvl" = 10;
-        "net.ipv4.tcp_keepalive_probes" = 6;
-        "net.ipv4.tcp_mtu_probing" = 1;
         "net.ipv4.tcp_syncookies" = 1;
 
         # SHM (shared memory) for games
@@ -283,24 +321,36 @@
       # GameMode for automatic optimizations
       gamemode = {
         enable = true;
-        settings = {
-          general = {
-            renice = 10;
-            inhibit_screensaver = 1;
-          };
+        settings =
+          {
+            general = {
+              renice = 10;
+              inhibit_screensaver = 1;
+            };
 
-          gpu = {
-            apply_gpu_optimisations = "accept-responsibility";
-            gpu_device = 0;
-            amd_performance_level = "high";
-            nv_powermizer_mode = 1;
-          };
+            gpu = {
+              apply_gpu_optimisations = "accept-responsibility";
+              gpu_device = 0;
+              amd_performance_level = "high";
+              nv_powermizer_mode = 1;
+            };
 
-          cpu = {
-            park_cores = "no";
-            pin_cores = "yes";
+            cpu = {
+              park_cores = "no";
+              pin_cores = "yes";
+            };
+          }
+          // lib.optionalAttrs cfg.gamingMode {
+            # Ride gamemode's own lifecycle rather than a manual toggle. These
+            # fire for anything launched via gamemoderun — Lutris/Heroic/Bottles
+            # do that by default, bare Steam needs `gamemoderun %command%` in
+            # the launch options. That is the same gate which already governs
+            # gpu.amd_performance_level above, so it is not a new limitation.
+            custom = {
+              start = "${gamingBoost}/bin/gaming-boost on";
+              end = "${gamingBoost}/bin/gaming-boost off";
+            };
           };
-        };
       };
 
       # Gamescope compositor
@@ -327,9 +377,6 @@
           ++ lib.optional (gs.refreshRate != null) "-r ${toString gs.refreshRate}"
           ++ ["-f"];
       };
-
-      # CoreCtrl for GPU management
-      corectrl.enable = true;
     };
 
     # Gaming packages
@@ -470,13 +517,36 @@
       ratbagd.enable = true;
       joycond.enable = true;
 
+      # LACT replaces corectrl. lactd applies saved fan/power/clock profiles at
+      # boot, headless; corectrl only applied its settings while its tray app
+      # was running in the session. Not gated on cpuVendor — LACT drives NVIDIA
+      # too. hardware.amdgpu.overdrive.enable (required for custom fan curves
+      # and undervolting) is deliberately left off: it adds
+      # amdgpu.ppfeaturemask=0xffffffff at boot and is a separate decision.
+      lact.enable = true;
+
+      # BPF-driven network autotuning, replacing the static net.core.*/
+      # net.ipv4.tcp_* buffer sizing that used to sit in boot.kernel.sysctl.
+      # Note upstream bpftune has none of Bazzite's game-detection patches —
+      # this is generic TCP/neigh autotuning.
+      bpftune.enable = true;
+
       # sched_ext BPF scheduler (replaces the old system76-scheduler, which
       # caused high context switches and freezing). scx_lavd is CachyOS/Bazzite's
       # default for mixed desktop + dev + gaming workloads. Auto-falls back to
       # CFS if the BPF program errors. Requires kernel >= 6.12 (xanmod_latest).
-      scx = lib.mkIf (config.constellation.gaming.scheduler != "none") {
+      #
+      # scx-loader rather than the static services.scx: same daemon, same
+      # default scheduler, but it also owns org.scx.Loader on the system bus so
+      # the scheduler can be switched at runtime. We deliberately do NOT switch
+      # to its Gaming mode from the gamemode hook — scx_lavd's default is
+      # already --autopilot (it picks performance/powersave/balanced from load,
+      # and is mutually exclusive with the --performance that Gaming mode would
+      # pass), so switching would mostly duplicate autopilot while costing a BPF
+      # unload/reload stall at both game start and exit.
+      scx-loader = lib.mkIf (cfg.scheduler != "none") {
         enable = true;
-        scheduler = "scx_${config.constellation.gaming.scheduler}";
+        config.default_sched = "scx_${cfg.scheduler}";
       };
 
       # Power management for gaming
@@ -485,72 +555,50 @@
       };
     };
 
-    # Gaming mode service (stops development services)
-    systemd.services.gaming-mode = lib.mkIf config.constellation.gaming.gamingMode {
-      description = "Gaming Mode - Stop development services for maximum performance";
-      after = ["multi-user.target"];
-
-      serviceConfig = {
+    # Yield background build capacity to a running game.
+    #
+    # This replaces the old gaming-mode unit, which pkill'd anything matching
+    # "python|pip"/"cargo|rustc"/"node|npm", stopped postgres/libvirt/containers
+    # and ran `echo 3 > /proc/sys/vm/drop_caches` — throwing away the page cache
+    # the game was about to need, and duplicating (badly) what ananicy-cpp below
+    # already does correctly. Bazzite made the same move away from killing
+    # background work and toward boosting the foreground app (dmemcg-booster,
+    # uresourced-dmemcg).
+    #
+    # Properties are set --runtime so nothing survives a reboot, and assigning a
+    # property an empty value resets it to the unit's default.
+    systemd.services.gaming-boost = lib.mkIf cfg.gamingMode {
+      description = "Yield background build capacity to a running game";
+      serviceConfig = let
+        setProperty = args: "${config.systemd.package}/bin/systemctl set-property --runtime nix-daemon.service ${lib.escapeShellArgs args}";
+        applied =
+          ["CPUWeight=20" "IOWeight=20"]
+          ++ lib.optional (cfg.backgroundCpus != null) "AllowedCPUs=${cfg.backgroundCpus}";
+        cleared =
+          ["CPUWeight=" "IOWeight="]
+          ++ lib.optional (cfg.backgroundCpus != null) "AllowedCPUs=";
+      in {
         Type = "oneshot";
         RemainAfterExit = true;
-
-        ExecStart = ''
-          ${pkgs.bash}/bin/bash -c '
-            echo "Activating gaming mode..."
-
-            # Stop Docker if it exists
-            if systemctl list-units --all | grep -q docker.service; then
-              ${pkgs.docker}/bin/docker stop $(${pkgs.docker}/bin/docker ps -q) 2>/dev/null || true
-              systemctl stop docker.service docker.socket 2>/dev/null || true
-            fi
-
-            # Stop Podman if it exists
-            if systemctl list-units --all | grep -q podman.service; then
-              ${pkgs.podman}/bin/podman stop --all 2>/dev/null || true
-              systemctl stop podman.service podman.socket 2>/dev/null || true
-            fi
-
-            # Stop development services
-            for service in postgresql mysql mongodb redis elasticsearch kibana rabbitmq; do
-              systemctl stop "$service" 2>/dev/null || true
-            done
-
-            # Stop virtualization
-            systemctl stop libvirtd 2>/dev/null || true
-
-            # Kill development processes
-            pkill -f "node|npm|yarn|pnpm" || true
-            pkill -f "cargo|rustc" || true
-            pkill -f "go build|go run" || true
-            pkill -f "python|pip" || true
-
-            # Clear caches
-            sync
-            echo 3 > /proc/sys/vm/drop_caches
-
-            echo "Gaming mode activated!"
-          '
-        '';
-
-        ExecStop = ''
-          ${pkgs.bash}/bin/bash -c '
-            echo "Deactivating gaming mode..."
-
-            # Restart Docker if it was installed
-            if systemctl list-units --all | grep -q docker.service; then
-              systemctl start docker.socket docker.service 2>/dev/null || true
-            fi
-
-            # Restart Podman if it was installed
-            if systemctl list-units --all | grep -q podman.service; then
-              systemctl start podman.socket podman.service 2>/dev/null || true
-            fi
-
-            echo "Gaming mode deactivated!"
-          '
-        '';
+        ExecStart = setProperty applied;
+        ExecStop = setProperty cleared;
       };
     };
+
+    # gamemoded runs as a user service and so cannot manage a system unit on its
+    # own. Scope the grant to this one unit; wheel rather than the gamemode group
+    # because processes under user@.service are not attached to a logind session,
+    # which makes subject.active/subject.local unreliable here, and wheel already
+    # holds full sudo — this adds no privilege.
+    security.polkit.extraConfig = lib.mkIf cfg.gamingMode ''
+      polkit.addRule(function(action, subject) {
+        if (action.id == "org.freedesktop.systemd1.manage-units" &&
+            action.lookup("unit") == "gaming-boost.service" &&
+            subject.isInGroup("wheel")) {
+          return polkit.Result.YES;
+        }
+      });
+    '';
 
     # Process priority daemon — lowers Steam client/download CPU priority
     # while leaving games at normal priority. CachyOS rules cover game
@@ -592,12 +640,6 @@
       ];
     };
 
-    # Gaming-related aliases
-    programs.bash.shellAliases = lib.mkIf config.constellation.gaming.gamingMode {
-      gaming-on = "sudo systemctl start gaming-mode";
-      gaming-off = "sudo systemctl stop gaming-mode";
-    };
-
     # Security settings that don't impact gaming
     security = {
       pam.loginLimits = [
@@ -615,10 +657,7 @@
     };
 
     # User groups for gaming
-    users.groups = {
-      gamemode = {};
-      corectrl = {};
-    };
+    users.groups.gamemode = {};
 
     # Firewall rules for gaming
     networking.firewall = {

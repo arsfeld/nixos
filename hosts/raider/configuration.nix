@@ -54,6 +54,10 @@
     gaming = {
       enable = true;
       cpuVendor = "intel";
+      # i5-12500H: CPUs 0-7 are the four SMT P-cores (4500 MHz), 8-15 the eight
+      # E-cores (3300 MHz). Confine nix-daemon to the E-cores while a game runs
+      # so builds never contend for a P-core with the game.
+      backgroundCpus = "8-15";
       # 3440x1440@144 ultrawide — pin gamescope's output mode to the panel.
       gamescope = {
         width = 3440;
