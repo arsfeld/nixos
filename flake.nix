@@ -11,8 +11,6 @@
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     home-manager-unstable.url = "github:nix-community/home-manager"; # Unstable HM for hosts on nixpkgs-unstable
     home-manager-unstable.inputs.nixpkgs.follows = "nixpkgs-unstable";
-    deploy-rs.url = "github:serokell/deploy-rs"; # Remote deployment tool
-    deploy-rs.inputs.nixpkgs.follows = "nixpkgs";
     flake-parts.url = "github:hercules-ci/flake-parts"; # Flake framework for modular development
     flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
     haumea.url = "github:nix-community/haumea"; # File tree loader for Nix

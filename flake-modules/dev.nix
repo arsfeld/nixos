@@ -47,11 +47,10 @@
             nix = inputs.determinate.inputs.nix.packages.${system}.nix;
             nix-eval-jobs = inputs.det-nix-eval-jobs.packages.${system}.default;
           })
-          inputs.deploy-rs.packages."${pkgs.stdenv.hostPlatform.system}".default
           git
           jq
           just
-          # Provide ssh from the dev shell so colmena/deploy-rs resolve it here
+          # Provide ssh from the dev shell so the deploy driver resolves it here
           # instead of scanning the ambient PATH. NixOS puts a (usually empty)
           # /etc/profiles/per-user/$USER/bin ahead of the system profile; since
           # 26.05 that dir's parent is mode 0700 root, so a PATH lookup for ssh
