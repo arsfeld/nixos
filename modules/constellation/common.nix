@@ -6,7 +6,7 @@
 #
 # Key features:
 # - Nix flakes and experimental features configuration
-# - Binary cache setup (nixos-community, numtide, attic, etc.)
+# - Binary cache setup (nixos-community, numtide, cache.arsfeld.dev, etc.)
 # - Essential system packages and utilities
 # - Network discovery via Avahi/mDNS
 # - SSH and Tailscale for remote access
@@ -48,9 +48,19 @@ with lib; {
         # Default is 64 MiB, increasing to 256 MiB
         download-buffer-size = 268435456; # 256 * 1024 * 1024
         substituters = lib.mkAfter [
+          # The read path is the R2 bucket itself behind a custom domain, not a
+          # server. Nothing we run has to be up for a substitution to succeed,
+          # which is the entire reason niks3 replaced attic: atticd sat in the
+          # read path, and every time can-1 ran out of memory three tier-1
+          # hosts stopped being deployable under `max-jobs = 0`.
+          "https://cache.arsfeld.dev"
+          # attic is frozen — CI no longer pushes to it — but still serves
+          # every path it already holds, which keeps the cold-cache window
+          # short while R2 fills. Dropped when attic is retired.
           "https://attic.arsfeld.dev/system"
         ];
         trusted-public-keys = lib.mkAfter [
+          "cache.arsfeld.dev-1:rf7PgrG/BVE3llOcYdiP0hNqIvOSvIQoz7zoH1kt1d8="
           "system:mUX40QMM+dqZ0wQaHp7sH50UgiZnSXsInzc9/MvaZRc="
         ];
       };

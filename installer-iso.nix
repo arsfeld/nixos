@@ -12,11 +12,19 @@
     (modulesPath + "/installer/cd-dvd/installation-cd-graphical-gnome.nix")
   ];
 
-  # Enable flakes and Attic cache so nixos-install fetches pre-built packages
+  # Enable flakes and the binary cache so nixos-install fetches pre-built
+  # packages. This config does not import constellation.common, so it carries
+  # its own copy of the substituter list.
   nix.settings = {
     experimental-features = ["nix-command" "flakes"];
-    extra-substituters = ["https://attic.arsfeld.dev/system"];
-    extra-trusted-public-keys = ["system:mUX40QMM+dqZ0wQaHp7sH50UgiZnSXsInzc9/MvaZRc="];
+    extra-substituters = [
+      "https://cache.arsfeld.dev"
+      "https://attic.arsfeld.dev/system"
+    ];
+    extra-trusted-public-keys = [
+      "cache.arsfeld.dev-1:rf7PgrG/BVE3llOcYdiP0hNqIvOSvIQoz7zoH1kt1d8="
+      "system:mUX40QMM+dqZ0wQaHp7sH50UgiZnSXsInzc9/MvaZRc="
+    ];
   };
 
   # System identification
