@@ -6,14 +6,6 @@ fmt:
     alejandra .
 
 
-args := "--skip-checks"
-
-
-# Private recipe to format targets with .# prefix
-_format-targets +TARGETS:
-    #!/usr/bin/env bash
-    printf ".#%s " {{ TARGETS }} | sed 's/ $//'
-
 # Private recipe to nudge systems back into the default target after activation
 _poke-targets *TARGETS:
     #!/usr/bin/env bash
@@ -123,47 +115,6 @@ nr-test HOST:
     TARGET="{{ HOST }}.bat-boa.ts.net"
     echo "Testing {{ HOST }} configuration using nixos-rebuild..."
     nixos-rebuild test --flake ".#{{ HOST }}" --target-host "root@${TARGET}" --sudo
-
-# === Deploy-rs Deployment (currently broken with Nix 2.32+) ===
-# NOTE: deploy-rs has known issues with Nix 2.32+ (https://github.com/serokell/deploy-rs/issues/340)
-# Use these commands once the issue is resolved
-
-boot-rs +TARGETS:
-    #!/usr/bin/env bash
-    set -euo pipefail # Enable strict error handling
-    deploy {{ args }} --boot --targets $(just _format-targets {{ TARGETS }})
-
-deploy-rs +TARGETS:
-    #!/usr/bin/env bash
-    set -euo pipefail # Enable strict error handling
-
-    # Start attic watch-store in background if on galactica host
-    WATCH_PID=""
-    if [[ "$(hostname)" == "galactica" ]]; then
-        echo "Starting attic watch-store to cache builds..."
-        attic watch-store system &
-        WATCH_PID=$!
-
-        # Ensure watch-store is killed on exit
-        trap 'if [ -n "$WATCH_PID" ]; then kill $WATCH_PID 2>/dev/null || true; fi' EXIT INT TERM
-
-        # Give watch-store a moment to start
-        sleep 1
-    fi
-
-    # Build deploy command with multiple --targets flags
-    cmd="deploy {{ args }}"
-    for target in {{ TARGETS }}; do
-        cmd="$cmd --targets \".#$target\""
-    done
-    echo "Running: $cmd"
-    eval $cmd
-
-
-trace-rs +TARGETS:
-    #!/usr/bin/env bash
-    set -euo pipefail # Enable strict error handling
-    deploy {{ args }} --targets $(just _format-targets {{ TARGETS }}) -- --show-trace
 
 build HOST:
     nix build '.#nixosConfigurations.{{ HOST }}.config.system.build.toplevel'

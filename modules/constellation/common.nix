@@ -6,7 +6,7 @@
 #
 # Key features:
 # - Nix flakes and experimental features configuration
-# - Binary cache setup (nixos-community, numtide, deploy-rs, etc.)
+# - Binary cache setup (nixos-community, numtide, attic, etc.)
 # - Essential system packages and utilities
 # - Network discovery via Avahi/mDNS
 # - SSH and Tailscale for remote access

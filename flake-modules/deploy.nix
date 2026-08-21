@@ -1,32 +1,11 @@
-{
-  self,
-  inputs,
-  ...
-}: {
-  # Deploy-rs configuration
-  flake.deploy = let
-    mkDeploy = hostName: let
-      # Get the system from the nixosConfiguration
-      hostConfig = self.nixosConfigurations.${hostName}.config;
-      system = hostConfig.nixpkgs.hostPlatform.system or "x86_64-linux";
-    in {
-      hostname = "${hostName}.bat-boa.ts.net";
-      fastConnection = true;
-      remoteBuild = hostName == "basestar"; # Enable remote build for basestar (aarch64)
-      profiles.system.path =
-        inputs.deploy-rs.lib.${system}.activate.nixos
-        self.nixosConfigurations.${hostName};
-    };
-  in {
-    sshUser = "root";
-    autoRollback = false;
-    magicRollback = false;
-    nodes = builtins.listToAttrs (
-      map (hostName: {
-        name = hostName;
-        value = mkDeploy hostName;
-      })
-      self.hosts
-    );
-  };
+{self, ...}: {
+  # Buildable system closures keyed by host. This deliberately *is*
+  # nixosConfigurations, so `just deploy`, the CI matrix and weekly-deploy all
+  # realise identical derivation paths — which is why substitution always hits.
+  #
+  # Do not reintroduce a second evaluation that calls `import inputs.nixpkgs`
+  # itself: that loses the flake revision and yields `…-26.05pre-git`
+  # derivations nothing has ever built. That is what broke colmena.
+  flake.deployTargets =
+    builtins.mapAttrs (_: c: c.config.system.build.toplevel) self.nixosConfigurations;
 }
