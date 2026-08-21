@@ -26,6 +26,11 @@
 - **`arsfeld.dev` zone id**: `5b658a2265b2562c6f51ac93de8d21bf` (verified via API 2026-08-21)
 - **Signing key name**: `cache.arsfeld.dev-1`
 - **`<CACHE_PUBKEY>`** = `cache.arsfeld.dev-1:rf7PgrG/BVE3llOcYdiP0hNqIvOSvIQoz7zoH1kt1d8=` (generated and verified 2026-08-21). It appears verbatim in Tasks 6, 8 and 12, and was originally the single line printed by Task 2 Step 3 (`cache.arsfeld.dev-1:<44-char-base64>`), recorded at `/tmp/niks3-cutover/cache-pubkey.txt`. Every occurrence of `<CACHE_PUBKEY>` in this plan means "paste that exact string".
+- **Never decrypt a secret you are not changing.** Verify sops edits by key name and
+  ciphertext stability, or by comparing sha256 digests — never by printing plaintext.
+  Reports and terminal output are durable; an incidental `sops --decrypt` of an unrelated
+  key leaks a live production credential into them. (This happened during Task 2 and cost
+  a rotation; see the ledger.)
 - **Never add an R2 lifecycle rule to `nix-cache`.** niks3's GC deletes objects from its own Postgres reference table; a lifecycle rule deleting them behind its back leaves narinfos pointing at absent NARs — a corrupted cache that fails only at deploy time.
 - **Leave `maxNarSize` unset.** Multipart upload handles large closures. A cap makes clients silently skip store paths, reintroducing cache misses on hosts that deploy under `max-jobs = 0`, where a miss is a hard failure rather than a local rebuild.
 - **Do not delete the argocd attic app or the `attic-cache` bucket** in this change. They cost $0.78/month and are the rollback.
@@ -295,7 +300,31 @@ nix develop -c sops --decrypt --extract '["niks3-sign-key"]' secrets/sops/basest
 
 Expected: all three `OK` lines, no `cmp` differences.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 8: Prove nothing pre-existing was clobbered — without decrypting it**
+
+`sops set` rewrites the whole file, so it is worth proving the untouched keys survived.
+Prove it by **key name and ciphertext stability**, never by decrypting a value:
+
+```bash
+for f in basestar raider; do
+  echo "-- $f --"
+  grep -oE '^[a-z0-9-]+:' "secrets/sops/$f.yaml" | tr -d ':' | tr '\n' ' '; echo
+done
+git diff HEAD -- secrets/sops/ | grep -E '^-' | grep -vE '^--- |lastmodified|mac:' \
+  && echo "WARNING: a pre-existing line was removed or rewritten" \
+  || echo "no pre-existing ciphertext lines removed"
+```
+
+Expected: basestar lists its 19 prior key names plus the 4 new ones; raider lists 3 plus 1;
+and the only removed lines are `lastmodified` and `mac`, which sops rewrites by design.
+
+**Never decrypt an unrelated secret to spot-check it.** A `sops --decrypt --extract` of
+some other key prints live production plaintext into your report, your terminal scrollback
+and the session transcript. If a value-level check is truly needed, compare hashes:
+`sops --decrypt --extract '["k"]' f.yaml | sha256sum` before and after, and record only the
+digest.
+
+- [ ] **Step 9: Commit**
 
 ```bash
 git add secrets/sops/basestar.yaml secrets/sops/raider.yaml
