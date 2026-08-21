@@ -38,7 +38,7 @@ This provides all necessary tools:
 - `deploy-rs`: Remote deployment
 - `agenix`: Secret management
 - `alejandra`: Nix formatter
-- `attic`: Binary cache client
+- `niks3`: Binary cache client
 
 ### 3. Configure Secrets Access
 
