@@ -29,18 +29,22 @@ just info                       # List all known hosts
 ```
 
 `just deploy` runs in two phases. Phase 1 is `nix-fast-build` over `.#deployTargets`:
-parallel evaluation via nix-eval-jobs, parallel build, and an inline push to attic.
-The push is best-effort — a failure there is only a stderr warning and does not block
-phase 2, easy to miss in a long parallel run. It matters because `weekly-deploy` runs
-with `max-jobs = 0` and can only deploy what attic actually holds, so a silently-missed
-push failure here resurfaces later as a confusing weekly-deploy failure. Phase 2
-activates each host in parallel with `nixos-rebuild --store-path`, which skips
+parallel evaluation via nix-eval-jobs, parallel build, and an inline push to attic. Phase
+2 activates each host in parallel with `nixos-rebuild --store-path`, which skips
 evaluation and build entirely, and `--use-substitutes`, so each target pulls its own
-closure from attic instead of receiving NARs over Tailscale. Phase 1 is a barrier:
-nothing activates unless every named host builds — including in `deploy-all`, which
-names all nine hosts, so one offline or broken host blocks activation fleet-wide. That
-is a real behavior change from colmena, which would have deployed the reachable hosts
-anyway; it is intended here, not an oversight.
+closure from attic instead of receiving NARs over Tailscale. The attic push is
+deliberately best-effort: a failure there is only a stderr warning and does not block
+phase 2, so a flaky self-hosted attic can't waste a build that already succeeded — easy
+to miss in a long parallel run. (This is unrelated to CI's own attic push in
+`build.yml`, which retries and then hard-fails the job — that is the failure
+`weekly-deploy`'s tier-1 precondition actually gates on.)
+
+Phase 1 is a barrier: nothing activates unless every named host builds — including in
+`deploy-all`, which names all nine, so a single host that fails to build blocks the whole
+fleet. That is a real behavior change from colmena, and intended. An *unreachable* host is
+a different case: phase 1 never contacts the targets, so it builds fine and only its own
+phase-2 activation fails while the others still activate. The exception is `basestar`,
+which is the aarch64 remote builder — if it is down, nothing aarch64 builds at all.
 
 Deploying the machine you are sitting on is handled automatically — Tailscale SSH
 cannot authenticate a host connecting to itself, so `_apply` drops `--target-host` and
