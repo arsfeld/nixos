@@ -39,10 +39,11 @@ Tailscale.
 aborts the deploy before anything activates. That is the intended trade — the closures are
 already built locally, so a re-run once the server is back costs nothing, whereas a
 silently-skipped push leaves behind a closure no target can substitute. It also means
-`just deploy` cannot be used to bootstrap niks3 itself; see the note in
-`hosts/basestar/services/niks3.nix`. In the other direction, `--use-substitutes` degrades
-rather than fails: a target that cannot substitute — an untrusted key, an empty cache —
-receives the closure over SSH.
+`just deploy` therefore cannot bootstrap niks3 itself — phase 1 would abort trying to push
+to the server it is in the middle of creating. Bootstrap that one case with a plain
+`nixos-rebuild switch --flake .#basestar --target-host root@basestar.bat-boa.ts.net`. In
+the other direction, `--use-substitutes` degrades rather than fails: a target that cannot
+substitute — an untrusted key, an empty cache — receives the closure over SSH.
 
 Phase 1 is a barrier: nothing activates unless every named host builds — including in
 `deploy-all`, which names all nine, so a single host that fails to build blocks the whole
@@ -109,13 +110,18 @@ The binary cache is two endpoints, and only one of them is a server:
   reason CI can never post to `ntfy.arsfeld.one`. The usual argument for proxying —
   Cloudflare's 100 MB body limit — does not apply, because no NAR traverses this hostname.
 
-CI pushes each tier-1 closure with `niks3 push --pin <host>`. Pinned closures are exempt
-from the 30-day GC window, and object GC walks reachability from surviving closures, so
-everything beneath a pinned toplevel survives too. That is what makes the window safe: the
-closure `weekly-deploy` needs under `max-jobs = 0` can never age out from under it, while
-everything else — including every derivation raider auto-uploads via its post-build hook —
-expires in a month. If the bucket grows past expectations, shorten `olderThan` rather than
-disabling auto-upload.
+CI pushes every closure it builds with `niks3 push --pin <host>`, one pin per host name,
+retargeted on each push so the previous closure ages out normally. That is every host in
+`ciMatrix` — all nine — on a push to master, and the tier-1 three when `update.yml` calls
+the workflow with its `hosts` input. Pinned closures are exempt from the 30-day GC window,
+and object GC walks reachability from surviving closures, so everything beneath a pinned
+toplevel survives too.
+
+What that buys is specifically the `max-jobs = 0` invariant: the closure `weekly-deploy`
+needs can never age out from under it. What actually expires is un-pinned material —
+chiefly the derivations raider auto-uploads via its post-build hook, which is most of the
+bucket's growth. If it grows past expectations, shorten `olderThan` rather than disabling
+auto-upload; the pins are what make a shorter window safe.
 
 One consequence worth knowing before you touch basestar: it is now in CI's push path.
 Deploying or rebooting it during a `build.yml` run fails that run's push. It fails safe —
