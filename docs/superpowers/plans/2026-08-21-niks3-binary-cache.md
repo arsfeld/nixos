@@ -231,6 +231,16 @@ cat /tmp/niks3-cutover/cache-pubkey.txt
 
 Expected: a single line of the form `cache.arsfeld.dev-1:<44 base64 chars>`.
 
+Also copy it into the plan workspace, where later tasks read it without touching the
+secret-bearing scratch directory:
+
+```bash
+cp /tmp/niks3-cutover/cache-pubkey.txt \
+   .superpowers/sdd/2026-08-21-niks3-binary-cache/cache-pubkey.txt
+```
+
+The public key is not a secret — it ships in `modules/constellation/common.nix`.
+
 - [ ] **Step 4: Pin `<CACHE_PUBKEY>` for the rest of the plan**
 
 Every later occurrence of `<CACHE_PUBKEY>` in this plan is that exact line. Do not retype it from memory — read it back from `/tmp/niks3-cutover/cache-pubkey.txt` each time.
@@ -239,27 +249,37 @@ Every later occurrence of `<CACHE_PUBKEY>` in this plan is that exact line. Do n
 
 sops edits are scripted, not interactive. Use `sops set` once per key, which round-trips the encrypted file in place:
 
+Pass the value on **stdin**, never as an argument. `sops set` provides `--value-stdin`
+precisely to avoid leaking secrets into process listings; the positional-value form would
+put the API token and the R2 secret key into `ps` output and shell history. (Verified
+available in sops 3.13.3, which is what the dev shell ships.)
+
 ```bash
-nix develop -c sops set secrets/sops/basestar.yaml '["niks3-api-token"]' \
-  "$(jq -Rs 'rtrimstr("\n")' < /tmp/niks3-cutover/api-token.txt)"
-nix develop -c sops set secrets/sops/basestar.yaml '["niks3-sign-key"]' \
-  "$(jq -Rs 'rtrimstr("\n")' < /tmp/niks3-cutover/sign-key.txt)"
-nix develop -c sops set secrets/sops/basestar.yaml '["r2-access-key-id"]' \
-  "$(jq -Rs 'rtrimstr("\n")' < /tmp/niks3-cutover/r2-access-key-id.txt)"
-nix develop -c sops set secrets/sops/basestar.yaml '["r2-secret-access-key"]' \
-  "$(jq -Rs 'rtrimstr("\n")' < /tmp/niks3-cutover/r2-secret-access-key.txt)"
+set_secret() {  # $1 = sops file, $2 = key, $3 = plaintext file
+  jq -Rs 'rtrimstr("\n")' < "$3" \
+    | nix develop -c sops set --value-stdin "$1" "[\"$2\"]"
+}
+
+set_secret secrets/sops/basestar.yaml niks3-api-token       /tmp/niks3-cutover/api-token.txt
+set_secret secrets/sops/basestar.yaml niks3-sign-key        /tmp/niks3-cutover/sign-key.txt
+set_secret secrets/sops/basestar.yaml r2-access-key-id      /tmp/niks3-cutover/r2-access-key-id.txt
+set_secret secrets/sops/basestar.yaml r2-secret-access-key  /tmp/niks3-cutover/r2-secret-access-key.txt
 ```
 
-`jq -Rs` produces a correctly quoted JSON string, which is what `sops set` wants for its value argument. `rtrimstr("\n")` drops the trailing newline. (`niks3-server` trims whitespace when reading every one of these files, so a stray newline would be harmless — but keeping them clean means a byte-for-byte diff against the k8s secret is meaningful.)
+`jq -Rs` produces a correctly quoted JSON string, which is what `sops set` requires for its
+value. `rtrimstr("\n")` drops the trailing newline. (`niks3-server` trims whitespace when
+reading every one of these files, so a stray newline would be harmless — but keeping them
+clean keeps a byte-for-byte comparison meaningful.)
 
 - [ ] **Step 6: Add the shared API token to raider's sops file**
 
 Same value. Two consumers on raider share it: the auto-upload daemon runs as root and can read it regardless, and `nix-fast-build --niks3-server` picks it up from `NIKS3_AUTH_TOKEN_FILE`.
 
 ```bash
-nix develop -c sops set secrets/sops/raider.yaml '["niks3-api-token"]' \
-  "$(jq -Rs 'rtrimstr("\n")' < /tmp/niks3-cutover/api-token.txt)"
+set_secret secrets/sops/raider.yaml niks3-api-token /tmp/niks3-cutover/api-token.txt
 ```
+
+(reusing the `set_secret` helper defined in Step 5 — same shell session, or redefine it)
 
 - [ ] **Step 7: Verify both files decrypt and the token matches across them**
 
