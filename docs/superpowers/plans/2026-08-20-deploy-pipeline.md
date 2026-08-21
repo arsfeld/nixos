@@ -607,6 +607,20 @@ _apply ACTION +TARGETS:
 
     # Phase 2 — activate in parallel from the pre-built closures. No re-eval.
     #
+    # --no-reexec is REQUIRED, not an optimisation. nixos-rebuild-ng re-execs
+    # itself from the target configuration's own nixos-rebuild before doing
+    # anything (__init__.py:375). With --flake it resolves that from the flake;
+    # with --store-path and no --flake it falls back to `<nixpkgs/nixos>`, and
+    # this repo's nix.nixPath is derived from nix.registry with nixpkgs
+    # explicitly removed (modules/constellation/common.nix:78), so the lookup
+    # finds nothing and nixos-rebuild exits 1 before contacting any host.
+    # Suppressing the re-exec is safe here: the closure is already built, and
+    # activation runs the *target's* own switch-to-configuration.
+    #
+    # This failure is invisible to dry-run testing. The re-exec is gated on
+    # `can_run = action in (SWITCH, BOOT, TEST)` (__init__.py:371) — DRY_ACTIVATE
+    # is not in that tuple, so `just dry-run` never reaches this code path.
+    #
     # Each host runs inside a subshell that re-raises PIPESTATUS[0]. Without
     # that, `cmd | sed &` makes $! the PID of *sed*, and `wait` would report
     # sed's exit status — masking every failed activation as a success.
@@ -617,10 +631,10 @@ _apply ACTION +TARGETS:
         # Tailscale SSH cannot authenticate a host connecting to itself, so a
         # machine can never deploy itself over --target-host. This branch is
         # what `colmena apply-local` used to be.
-        ( sudo nixos-rebuild {{ ACTION }} --store-path "$p" 2>&1 \
+        ( sudo nixos-rebuild {{ ACTION }} --no-reexec --store-path "$p" 2>&1 \
             | sed "s/^/[$h] /"; exit "${PIPESTATUS[0]}" ) &
       else
-        ( nixos-rebuild {{ ACTION }} --store-path "$p" \
+        ( nixos-rebuild {{ ACTION }} --no-reexec --store-path "$p" \
             --target-host "root@$h.bat-boa.ts.net" --use-substitutes 2>&1 \
             | sed "s/^/[$h] /"; exit "${PIPESTATUS[0]}" ) &
       fi
@@ -752,6 +766,24 @@ nix develop -c just dry-run galactica
 ```
 
 Expected: phase 1 builds, then a `[galactica]` prefixed list of units that would be restarted. This is the first real exercise of `nixos-rebuild --store-path --target-host --use-substitutes`.
+
+- [ ] **Step 8b: Exercise an action that actually activates**
+
+`dry-run` alone is **not** sufficient verification of this driver, and assuming otherwise is how a defect reaches production. `nixos-rebuild` gates its self-re-exec on `can_run = action in (SWITCH, BOOT, TEST)` (`__init__.py:371`); `DRY_ACTIVATE` is absent from that tuple, so `dry-run` skips a code path that every real deploy takes. Use `test`, which activates but does not touch the boot default, so a reboot undoes it:
+
+```bash
+nix develop -c just test raider
+```
+
+Expected: phase 1 builds, then `[raider]` output from a local `sudo nixos-rebuild test --no-reexec --store-path …`, ending in a successful activation. If this fails with anything mentioning `<nixpkgs>`, `nixPath`, or a re-exec, `--no-reexec` is missing from one of the two invocations.
+
+Then confirm the remote branch of the same action:
+
+```bash
+nix develop -c just test galactica
+```
+
+Expected: the same, `[galactica]`-prefixed, over `--target-host`.
 
 - [ ] **Step 9: Verify the barrier by deploying a good host alongside a broken one**
 
@@ -1088,10 +1120,10 @@ Expected: identical paths.
 - [ ] **Step 3: Confirm the scheduler survived Task 1's change**
 
 ```bash
-systemctl is-active scx-loader.service
+systemctl is-active scx_loader.service
 ```
 
-Expected: `active`. raider is on unstable, so it still takes the `scx-loader` branch — this checks that the `optionalAttrs` restructuring did not silently drop the definition.
+Expected: `active`. Note the unit name uses an **underscore** (`scx_loader.service`) even though the NixOS option is `services.scx-loader`; `systemctl is-active scx-loader.service` names a unit that does not exist and always answers `inactive`. raider is on unstable, so it still takes the `scx-loader` branch — this checks that the `optionalAttrs` restructuring did not silently drop the definition.
 
 - [ ] **Step 4: Deploy one remote host**
 
