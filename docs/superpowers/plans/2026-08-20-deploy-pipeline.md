@@ -588,7 +588,7 @@ Expected: the first prints `basestar`, `galactica`, `raider`, one per line. The 
 just --list
 ```
 
-Expected: `deploy`, `boot`, `test`, `dry-run`, `reboot`, `deploy-all`, `build`, `cache`, `info`, plus the `nr-*` fallbacks and the unrelated recipes. Diff against Step 1's output: `boot-rs`, `deploy-rs` and `trace-rs` should be the only removals, and `dry-run` the only addition.
+Expected: `deploy`, `boot`, `test`, `dry-run`, `reboot`, `deploy-all`, `build`, `cache`, `info`, plus the `nr-*` fallbacks and the unrelated recipes. Diff against Step 1's output: `dry-run` should be the only addition and there should be no removals — Task 2 already deleted the `-rs` recipes, and every colmena recipe here is replaced by one of the same name.
 
 - [ ] **Step 7: Verify no recipe still starts `attic watch-store`**
 
