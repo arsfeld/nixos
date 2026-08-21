@@ -650,7 +650,8 @@ test +TARGETS:
     just _apply test {{ TARGETS }}
 
 # Unlike colmena's dry-run this does build — in exchange it names the units
-# that would actually restart. Build, then report which units would change.
+# that would actually restart.
+# Build, then report which units would change.
 dry-run +TARGETS:
     just _apply dry-activate {{ TARGETS }}
 
