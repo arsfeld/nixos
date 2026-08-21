@@ -42,7 +42,11 @@
         [
           # Nix tools
           alejandra
-          attic-client
+          # nix-fast-build's --niks3-server worker resolves `niks3` from PATH
+          # and otherwise falls back to an unpinned `nix shell
+          # github:Mic92/niks3`. Take it from the input so the CLI, the module
+          # and the server binary all move together.
+          inputs.niks3.packages.${system}.niks3
           # nixpkgs 26.05 ships nix-fast-build 1.4.0, which predates --select.
           # The deploy driver needs it to build a subset of deployTargets, so
           # take the package from nixpkgs-unstable (1.6.0) instead.
