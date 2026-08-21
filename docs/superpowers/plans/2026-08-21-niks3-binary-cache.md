@@ -25,7 +25,7 @@
 - **basestar public IP**: `168.138.71.109`
 - **`arsfeld.dev` zone id**: `5b658a2265b2562c6f51ac93de8d21bf` (verified via API 2026-08-21)
 - **Signing key name**: `cache.arsfeld.dev-1`
-- **`<CACHE_PUBKEY>`** appears verbatim in Tasks 6, 8 and 12. It is the single line printed by Task 2 Step 3 (`cache.arsfeld.dev-1:<44-char-base64>`), recorded at `/tmp/niks3-cutover/cache-pubkey.txt`. Every occurrence of `<CACHE_PUBKEY>` in this plan means "paste that exact string".
+- **`<CACHE_PUBKEY>`** = `cache.arsfeld.dev-1:rf7PgrG/BVE3llOcYdiP0hNqIvOSvIQoz7zoH1kt1d8=` (generated and verified 2026-08-21). It appears verbatim in Tasks 6, 8 and 12, and was originally the single line printed by Task 2 Step 3 (`cache.arsfeld.dev-1:<44-char-base64>`), recorded at `/tmp/niks3-cutover/cache-pubkey.txt`. Every occurrence of `<CACHE_PUBKEY>` in this plan means "paste that exact string".
 - **Never add an R2 lifecycle rule to `nix-cache`.** niks3's GC deletes objects from its own Postgres reference table; a lifecycle rule deleting them behind its back leaves narinfos pointing at absent NARs — a corrupted cache that fails only at deploy time.
 - **Leave `maxNarSize` unset.** Multipart upload handles large closures. A cap makes clients silently skip store paths, reintroducing cache misses on hosts that deploy under `max-jobs = 0`, where a miss is a hard failure rather than a local rebuild.
 - **Do not delete the argocd attic app or the `attic-cache` bucket** in this change. They cost $0.78/month and are the rollback.
