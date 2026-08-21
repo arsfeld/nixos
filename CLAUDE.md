@@ -15,20 +15,46 @@ just fmt                       # Format all Nix files with alejandra
 just build <hostname>          # Build a host config locally
 ```
 
-### Deployment (via Colmena, default)
+### Deployment
+
 ```bash
 just deploy galactica           # Deploy to one host
 just deploy galactica basestar  # Deploy to multiple hosts in parallel
-just boot galactica             # Boot activation (next reboot)
-just test galactica             # Test without activating
-just dry-run galactica          # Show changes without downloading/building
+just deploy @tier1              # Deploy a whole tier
+just boot @tier1                # Boot activation (next reboot)
+just test raider                # Activate without changing the boot default
+just dry-run @tier1             # Build, then report which units would change
 just reboot galactica           # Deploy and reboot (kernel changes)
-just info                      # List all known hosts
+just info                       # List all known hosts
 ```
 
-nixos-rebuild fallback: `just nr-deploy <host>`, `just nr-boot <host>`, `just nr-test <host>`
+`just deploy` runs in two phases. Phase 1 is `nix-fast-build` over `.#deployTargets`:
+parallel evaluation via nix-eval-jobs, parallel build, and an inline push to attic.
+The push is best-effort — a failure there is only a stderr warning and does not block
+phase 2, easy to miss in a long parallel run. It matters because `weekly-deploy` runs
+with `max-jobs = 0` and can only deploy what attic actually holds, so a silently-missed
+push failure here resurfaces later as a confusing weekly-deploy failure. Phase 2
+activates each host in parallel with `nixos-rebuild --store-path`, which skips
+evaluation and build entirely, and `--use-substitutes`, so each target pulls its own
+closure from attic instead of receiving NARs over Tailscale. Phase 1 is a barrier:
+nothing activates unless every named host builds — including in `deploy-all`, which
+names all nine hosts, so one offline or broken host blocks activation fleet-wide. That
+is a real behavior change from colmena, which would have deployed the reachable hosts
+anyway; it is intended here, not an oversight.
 
-deploy-rs is available but currently broken with Nix 2.32+ (`just deploy-rs`, `just boot-rs`).
+Deploying the machine you are sitting on is handled automatically — Tailscale SSH
+cannot authenticate a host connecting to itself, so `_apply` drops `--target-host` and
+uses local `sudo` when the target matches `hostname`.
+
+nixos-rebuild fallback (single host, sequential): `just nr-deploy <host>`,
+`just nr-boot <host>`, `just nr-test <host>`.
+
+**The invariant:** every deploy path must evaluate `.#nixosConfigurations` and must
+never `import inputs.nixpkgs` to build its own package set. Doing so loses the flake's
+revision and yields `…-26.05pre-git` derivations that differ from the dated ones CI
+builds and caches, so substitution never hits. That is what colmena did, and why it was
+removed. `just deploy`, the CI matrix (`ciMatrix`) and `weekly-deploy` all evaluate the
+same attribute today; keep it that way.
 
 All hosts are reached via Tailscale: `<hostname>.bat-boa.ts.net`.
 
@@ -47,7 +73,7 @@ All hosts are reached via Tailscale: `<hostname>.bat-boa.ts.net`.
   that CI stopped landing updates), and posts one ntfy summary. State in
   `/var/lib/weekly-deploy/`. Run it early with `sudo systemctl start weekly-deploy`.
 
-Three things about this that are not obvious and cost real time to rediscover:
+Two things about this that are not obvious and cost real time to rediscover:
 
 - **It can only deploy a commit CI has already built.** `self` is part of every system
   closure, so *any* tracked change shifts all three hosts' toplevel paths. A commit CI
@@ -57,12 +83,6 @@ Three things about this that are not obvious and cost real time to rediscover:
   A broken deployer cannot deploy its own fix, and a stale unit will happily run old logic
   against a new commit — the tell is a summary describing machinery the current code no
   longer contains.
-- **It deploys `nixosConfigurations`, deliberately, not the colmena hive.**
-  `flake-modules/colmena.nix` builds its own `meta.nixpkgs` via `import inputs.nixpkgs`,
-  which loses the flake's revision and yields `…-26.05pre-git` derivations instead of the
-  dated ones CI builds. Manual `just deploy` still uses colmena and is fine; the weekly job
-  cannot, because nothing it evaluates would ever be in the cache. Do not "unify" these
-  without checking that both evaluations produce identical derivation paths.
 
 Attic (`attic.arsfeld.dev`) runs in k3s on `can-1` behind Traefik, whose entrypoint
 `readTimeout` bounds *upload* duration. It is set to 600s in the `arsfeld/argocd` repo
@@ -98,11 +118,11 @@ Configured via `.sops.yaml`. All hosts use `constellation.sops.enable = true`. U
 
 ### Host Tiers
 
-Hosts are grouped into deployment tiers, defined in `flake-modules/hosts.nix` as the `tiers` attribute (also exposed as the `tiers` flake output and as Colmena `deployment.tags`):
+Hosts are grouped into deployment tiers, defined in `flake-modules/hosts.nix` as the `tiers` attribute (also exposed as the `tiers` flake output):
 
-- **tier1** - `galactica`, `basestar`, `raider`. Always on, should always be deployed. Deploy the whole tier with `colmena apply --on @tier1`.
+- **tier1** - `galactica`, `basestar`, `raider`. Always on, should always be deployed. Deploy the whole tier with `just deploy @tier1`.
 
-To add or change a tier, edit `tiers` in `flake-modules/hosts.nix`; colmena tags and the README table follow from it. The CI build matrix (`.github/workflows/build.yml`) is derived from the `ciMatrix` flake output (all discovered hosts with auto-detected platform) — it is not tier-gated.
+To add or change a tier, edit `tiers` in `flake-modules/hosts.nix`; the `@tier` selectors in the justfile and the README table follow from it. The CI build matrix (`.github/workflows/build.yml`) is derived from the `ciMatrix` flake output (all discovered hosts with auto-detected platform) — it is not tier-gated.
 
 For hardware specs (CPU, RAM, disks), see [HARDWARE.md](HARDWARE.md).
 
@@ -113,8 +133,7 @@ For hardware specs (CPU, RAM, disks), see [HARDWARE.md](HARDWARE.md).
 The flake uses **flake-parts** to organize outputs into modules under `flake-modules/`:
 - **`lib.nix`** - Core utilities: `mkLinuxSystem`, overlays, `baseModules`, `homeManagerModules`. Uses **haumea** to recursively auto-load all files from `modules/` and `packages/` directories.
 - **`hosts.nix`** - Auto-discovers hosts by scanning `hosts/` for directories with `configuration.nix`. Automatically includes `disko-config.nix` if present.
-- **`deploy.nix`** - deploy-rs configuration for each host
-- **`colmena.nix`** - Colmena deployment with cross-compilation support for aarch64
+- **`deploy.nix`** - `deployTargets`: each host's system closure, the attribute `just deploy` builds
 - **`dev.nix`** - Development shell, formatter, git hooks, custom packages
 - **`checks.nix`** - Flake checks (router NixOS test)
 - **`images.nix`** - System image generators (SD cards, kexec)

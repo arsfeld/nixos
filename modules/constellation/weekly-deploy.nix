@@ -298,14 +298,14 @@ with lib; let
     export NIX_CONFIG="max-jobs = 0"
     : > "$STATE/last-deploy.log"
 
-    # nixos-rebuild against .#nixosConfigurations, NOT colmena. This is the
-    # whole reason the first live run failed: flake-modules/colmena.nix builds
-    # its own `meta.nixpkgs` with `import inputs.nixpkgs {...}`, which drops the
-    # flake's revision metadata, so colmena evaluated
-    # `nixos-system-basestar-26.05pre-git` while CI built and cached
-    # `nixos-system-basestar-26.05.20260804.04607e1` — different derivations, so
-    # the cache could never satisfy the deploy. Nix then fell back to realising
-    # the closure, substituted thousands of paths fine, and finally hit the
+    # nixos-rebuild against .#nixosConfigurations — the same attribute CI
+    # builds and `just deploy` builds. Deploying anything else is what made
+    # the first live run fail: a second evaluation that imports nixpkgs
+    # itself drops the flake's revision metadata and produces
+    # `nixos-system-basestar-26.05pre-git` where CI built and cached
+    # `nixos-system-basestar-26.05.20260804.04607e1` — different derivations,
+    # so the cache could never satisfy the deploy. Nix then fell back to
+    # realising the closure, substituted thousands of paths fine, and finally hit the
     # trivial `allowSubstitutes = false` assembly derivations (check-sshd-config,
     # postgresql-configfile-check, unit-*.service) that MUST be built locally —
     # which max-jobs = 0 correctly refused. Deploying the same attribute CI

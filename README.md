@@ -39,10 +39,10 @@ Hosts are grouped into deployment tiers (defined in `flake-modules/hosts.nix` as
 |------|-------|---------|
 | **tier1** | galactica, basestar, raider | Always on, should always be deployed |
 
-Tiers are exposed as Colmena tags, so you can deploy a whole tier at once:
+Tiers are exposed as `@tier` selectors, so you can deploy a whole tier at once:
 
 ```bash
-colmena apply --on @tier1     # deploy all tier-1 hosts
+just deploy @tier1     # deploy all tier-1 hosts
 ```
 
 ## Features
@@ -52,7 +52,7 @@ colmena apply --on @tier1     # deploy all tier-1 hosts
 - **Service Registry** - Centralized port assignments, auth bypass, Tailscale exposure, and CORS config
 - **Container Orchestration** - Podman/Docker-based media stack with declarative volume and network config
 - **DNS & Routing** - `*.arsfeld.one` (internal via cloudflared), `*.arsfeld.dev` (public), `*.bat-boa.ts.net` (Tailscale)
-- **Automated Deployments** - Colmena (primary) with aarch64 cross-compilation, nixos-rebuild fallback
+- **Automated Deployments** - Two-phase nix-fast-build pipeline (parallel eval, build, attic push, then parallel activation), nixos-rebuild fallback
 - **Secret Management** - sops-nix with per-host and shared secrets
 - **Binary Caching** - Attic server for faster builds
 - **Remote Builders** - aarch64 builds via basestar host
@@ -86,8 +86,7 @@ flake.nix              # Flake entry point (nixpkgs-25.11, flake-parts)
 flake-modules/         # Flake-parts modules
   lib.nix              #   Core utilities, haumea loaders, overlays
   hosts.nix            #   Auto-discovers hosts from hosts/ directories
-  colmena.nix          #   Colmena deployment config
-  deploy.nix           #   deploy-rs config (currently broken with Nix 2.32+)
+  deploy.nix           #   deployTargets: per-host system closures
   dev.nix              #   Development shell
   checks.nix           #   Pre-commit hooks, formatter
   images.nix           #   SD card, kexec, and installer ISO images
@@ -126,7 +125,7 @@ Hosts compose their configuration by enabling modules via `constellation.<module
 ## Tooling
 
 - [Nix Flakes](https://nixos.wiki/wiki/Flakes) + [flake-parts](https://flake.parts/) - Reproducible, modular configurations
-- [Colmena](https://colmena.cli.rs/) - Primary deployment tool (parallel, cross-compilation)
+- [nix-fast-build](https://github.com/Mic92/nix-fast-build) - Parallel evaluation and build for deploys
 - [Home Manager](https://github.com/nix-community/home-manager) - User environment management
 - [sops-nix](https://github.com/Mic92/sops-nix) - Secret management
 - [disko](https://github.com/nix-community/disko) - Declarative disk partitioning
