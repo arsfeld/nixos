@@ -76,6 +76,20 @@
     # hard failure rather than a local rebuild.
   };
 
+  # The upstream module orders this unit after postgresql.service, which is not
+  # enough: the `niks3` role is created by postgresql-setup.service, a oneshot
+  # that runs *after* postgres is already listening. On a fresh activation niks3
+  # therefore raced the role into existence and died with
+  # `role "niks3" does not exist`, recovering only via Restart=always ten seconds
+  # later — and firing this repo's OnFailure alert email every single time.
+  # postgresql-setup.service is RemainAfterExit=yes, so depending on it is safe
+  # and does not re-run the oneshot. Observed live on 2026-08-21; NRestarts=1 on
+  # the bootstrap deploy.
+  systemd.services.niks3 = {
+    after = ["postgresql-setup.service"];
+    requires = ["postgresql-setup.service"];
+  };
+
   # database.createLocally defaults true and contributes `local all niks3 peer`
   # to services.postgresql.authentication at normal priority. planka's rules
   # and nixpkgs' own defaults are both lib.mkAfter, and the option is
