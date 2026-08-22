@@ -274,6 +274,17 @@
     binfmt.preferStaticEmulators = true;
   };
 
+  # binfmt lets raider *run* aarch64 binaries, but NixOS also derives
+  # nix.settings.extra-platforms from binfmt.emulatedSystems, which makes Nix
+  # treat raider as a valid aarch64 builder. Nix prefers a free local slot
+  # over a remote builder, and with max-jobs = 16 there almost always is one,
+  # so aarch64 derivations get built here under qemu instead of natively on
+  # basestar -- which then sits idle. Determinate Nix's functional test suite
+  # ran >4h in checkPhase that way and blocked a whole tier-1 deploy.
+  # Keep the emulator for running binaries; take aarch64 off the builder list
+  # so it goes to basestar. i686-linux is the stock x86_64 default. See #405.
+  nix.settings.extra-platforms = lib.mkForce ["i686-linux"];
+
   # Additional packages
   # Web apps via firefoxpwa (install PWAs from Firefox extension)
   programs.firefox.nativeMessagingHosts.packages = [pkgs.firefoxpwa];
