@@ -23,19 +23,6 @@
 }:
 with lib; let
   sendEmailEvent = "${pkgs.send-email-event}/bin/send-email-event --email-from ${config.constellation.email.fromEmail} --email-to ${config.constellation.email.toEmail}";
-
-  # msmtpq gates every send behind a "am I online?" probe that shells out to
-  # `ping debian.org`. ping lives in iputils and is *not* on a systemd unit's
-  # PATH (which is only coreutils/findutils/gnugrep/gnused/systemd), so the
-  # probe returned 127, msmtpq logged "host not connected", and queued the mail
-  # instead of sending it — silently, forever, since the unit still exits 0.
-  # That stranded 222 mails between 2026-05-27 and 2026-08-24.
-  #
-  # EMAIL_CONN_TEST=x skips the probe entirely. Nothing is lost by doing so:
-  # msmtpq still queues the mail if the real msmtp call fails, so a genuine
-  # network outage is handled by the actual send rather than by pinging an
-  # unrelated third party. Any unit invoking msmtpq or msmtp-queue needs this.
-  msmtpqEnv = {EMAIL_CONN_TEST = "x";};
 in {
   options.constellation.email = with lib; {
     enable = mkOption {
@@ -96,30 +83,24 @@ in {
       };
     };
 
+    # network-online.target, not nss-lookup.target: the latter only orders
+    # after name resolution is *configured*, which does not imply a routable
+    # network, so the boot mail raced the interface coming up. send-email-event
+    # retries internally, so no queue is needed to ride out a slow start.
     systemd.services."boot-mail-alert" = {
       wantedBy = ["multi-user.target"];
-      after = ["nss-lookup.target"];
-      wants = ["nss-lookup.target"];
-      environment = msmtpqEnv;
+      after = ["network-online.target"];
+      wants = ["network-online.target"];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
       };
-      script = ''
-        ${sendEmailEvent} 'just booted'
-        # Best-effort: at boot the network may not be up yet, and a failure
-        # here is not evidence that mail is broken. Delivery is guaranteed by
-        # flush-email-queue.timer, which retries every minute and *does* fail
-        # loudly — so a genuine outage still raises an alarm there rather than
-        # turning every boot into a false one.
-        ${pkgs.msmtp}/bin/msmtp-queue -r || true
-      '';
+      script = "${sendEmailEvent} 'just booted'";
     };
     systemd.services."shutdown-mail-alert" = {
       wantedBy = ["multi-user.target"];
-      after = ["nss-lookup.target"];
-      wants = ["nss-lookup.target"];
-      environment = msmtpqEnv;
+      after = ["network-online.target"];
+      wants = ["network-online.target"];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -128,7 +109,6 @@ in {
       preStop = "${sendEmailEvent} 'is shutting down'";
     };
     systemd.services."weekly-mail-alert" = {
-      environment = msmtpqEnv;
       serviceConfig.Type = "oneshot";
       script = "${sendEmailEvent} 'is still alive'";
     };
@@ -136,27 +116,6 @@ in {
       wantedBy = ["timers.target"];
       partOf = ["weekly-mail-alert.service"];
       timerConfig.OnCalendar = "weekly";
-    };
-
-    # Flush the msmtpq queue every minute so transient DNS / network
-    # outages are absorbed without losing mail.
-    systemd.tmpfiles.rules = [
-      "d /root/.msmtp.queue 0700 root root - -"
-    ];
-    systemd.services."flush-email-queue" = {
-      environment = msmtpqEnv;
-      serviceConfig = {
-        Type = "oneshot";
-        ExecStart = "${pkgs.msmtp}/bin/msmtp-queue -r";
-      };
-    };
-    systemd.timers."flush-email-queue" = {
-      wantedBy = ["timers.target"];
-      partOf = ["flush-email-queue.service"];
-      timerConfig = {
-        OnBootSec = "1m";
-        OnUnitActiveSec = "1m";
-      };
     };
   };
 }
