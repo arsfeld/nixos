@@ -174,8 +174,12 @@ Content-Type: text/html; charset="utf-8"
     logger.info(f"Email content: {email_content}")
 
     # Queue the email via msmtpq (never fails – mail lands on disk).
+    # The recipient MUST be passed as an argument: msmtpq forwards argv
+    # straight to msmtp, and msmtp does not read the To: header unless it is
+    # given -t. Called bare, it exits 64 ("no recipients found") on every
+    # flush, so the mail queues forever and is never delivered.
     subprocess.run(
-        ["msmtpq"],
+        ["msmtpq", email_to],
         input=email_content,
         text=True,
         check=True,
