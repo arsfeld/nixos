@@ -4,6 +4,7 @@ import subprocess
 import datetime
 import os
 import socket
+import time
 from jinja2 import Template
 import logging
 import argparse
@@ -173,31 +174,43 @@ Content-Type: text/html; charset="utf-8"
 
     logger.info(f"Email content: {email_content}")
 
-    # Queue the email via msmtpq (never fails – mail lands on disk).
-    # The recipient MUST be passed as an argument: msmtpq forwards argv
-    # straight to msmtp, and msmtp does not read the To: header unless it is
-    # given -t. Called bare, it exits 64 ("no recipients found") on every
-    # flush, so the mail queues forever and is never delivered.
-    subprocess.run(
-        ["msmtpq", email_to],
-        input=email_content,
-        text=True,
-        check=True,
-    )
-    logger.info("Email queued successfully")
-
-    # Best-effort immediate flush.  If the network isn't ready the queue
-    # timer will pick it up on the next tick.
-    try:
-        subprocess.run(
-            ["msmtp-queue", "-r"],
+    # Send straight through msmtp. This deliberately does NOT go through
+    # msmtpq, the queueing wrapper, which caused three months of silent
+    # non-delivery:
+    #   - every one of its connectivity probes pings debian.org or 8.8.8.8,
+    #     never the SMTP host, so it cannot tell whether mail will send — and
+    #     ping is absent from a systemd unit's PATH, so the probe always
+    #     failed and every mail was queued instead of sent;
+    #   - it forwards argv to msmtp verbatim, so a missing recipient argument
+    #     silently produced unsendable mail (msmtp exits 64);
+    #   - its ERR trap aborts the whole flush on the first bad queue entry,
+    #     so one poison message blocked all later mail and failed the unit.
+    #
+    # The recipient must be an argument: msmtp only reads To: when given -t.
+    # Retry here rather than via systemd's Restart=, which Type=oneshot units
+    # cannot use, so a transient outage is still ridden out.
+    attempts = 5
+    for attempt in range(1, attempts + 1):
+        result = subprocess.run(
+            ["msmtp", email_to],
+            input=email_content,
             capture_output=True,
             text=True,
-            check=True,
         )
-        logger.info("Queue flushed after queuing")
-    except subprocess.CalledProcessError as e:
-        logger.warning(f"Queue flush deferred (network not ready?): {e.stderr.strip()}")
+        if result.returncode == 0:
+            logger.info(f"Email sent to {email_to}")
+            break
+        if attempt == attempts:
+            logger.error(
+                f"Giving up after {attempts} attempts: {result.stderr.strip()}"
+            )
+            raise SystemExit(1)
+        delay = 2**attempt
+        logger.warning(
+            f"Send attempt {attempt}/{attempts} failed "
+            f"({result.stderr.strip()}); retrying in {delay}s"
+        )
+        time.sleep(delay)
 
 
 if __name__ == "__main__":
