@@ -581,15 +581,25 @@ in {
     };
   };
 
-  # Disabled on pegasus: seafile-cli crash-loops there.
-  systemd.user.services.seafile-cli = mkIf (stdenv.isLinux && hostname != "pegasus") {
+  # `seaf-cli start` requires an already-initialised config directory (~/.ccnet)
+  # and exits 1 with "Invalid config directory" without one. Nothing ever
+  # created it, so the unit could only ever crash-loop — it had racked up 19811
+  # restarts on galactica and was failing on raider too. The pegasus exclusion
+  # that used to live here was this same bug, treated as host-specific.
+  #
+  # `seaf-cli init` creates it and is idempotent (re-running prints "already
+  # exists" and exits 0), so it is safe as an unconditional ExecStartPre.
+  systemd.user.services.seafile-cli = mkIf stdenv.isLinux {
     Unit = {
       Description = "Seafile CLI sync daemon";
       After = ["network-online.target"];
     };
     Service = {
       Type = "forking";
-      ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p %h/Seafile %h/seafile-client";
+      ExecStartPre = [
+        "${pkgs.coreutils}/bin/mkdir -p %h/Seafile %h/seafile-client"
+        "${pkgs.seafile-shared}/bin/seaf-cli init -d %h/seafile-client"
+      ];
       ExecStart = "${pkgs.seafile-shared}/bin/seaf-cli start";
       ExecStop = "${pkgs.seafile-shared}/bin/seaf-cli stop";
       Restart = "on-failure";
