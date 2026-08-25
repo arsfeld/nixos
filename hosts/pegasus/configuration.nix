@@ -207,6 +207,54 @@ with lib; {
     interval = "weekly";
   };
 
+  # Daily pool health check. The scrub above catches corruption but is blind to
+  # a device that has *left* the array: when devid 5's SAS link dropped (see
+  # sdg, July 2026) the scrub kept reporting success against the four surviving
+  # disks, and the pool ran degraded for weeks. smartd is blind to it too --
+  # that disk's platters were fine, its lane failed.
+  #
+  # Two cheap signals:
+  #   - `btrfs filesystem show` prints MISSING for a device the pool has lost.
+  #   - `btrfs device stats -c` exits non-zero when any error counter is set.
+  #
+  # -z zeroes the counters after printing, so each run reports only what is new
+  # since yesterday rather than re-alerting forever on one historical failure.
+  # The cumulative record still lives in SMART, which smartd already watches.
+  systemd.services.btrfs-health-check = let
+    btrfs = "${pkgs.btrfs-progs}/bin/btrfs";
+    grep = "${pkgs.gnugrep}/bin/grep";
+  in {
+    description = "Check /mnt/storage for missing devices and new I/O errors";
+    # No explicit OnFailure: modules/systemd-email-notify.nix already gives every
+    # service onFailure = ["email@%n.service"], which mails status plus recent
+    # logs. Failing this unit loudly is the whole notification mechanism.
+    unitConfig.RequiresMountsFor = "/mnt/storage";
+    serviceConfig.Type = "oneshot";
+    script = ''
+      set -u
+      rc=0
+      if ${btrfs} filesystem show /mnt/storage | ${grep} -q MISSING; then
+        echo "DEGRADED: /mnt/storage is missing a device" >&2
+        ${btrfs} filesystem show /mnt/storage >&2
+        rc=1
+      fi
+      if ! ${btrfs} device stats -c -z /mnt/storage; then
+        echo "new I/O errors on /mnt/storage since last check (counters reset)" >&2
+        rc=1
+      fi
+      exit $rc
+    '';
+  };
+
+  systemd.timers.btrfs-health-check = {
+    wantedBy = ["timers.target"];
+    timerConfig = {
+      OnCalendar = "daily";
+      Persistent = true;
+      RandomizedDelaySec = "15m";
+    };
+  };
+
   # Avahi for service discovery
   services.avahi = {
     enable = true;
