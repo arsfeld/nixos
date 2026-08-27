@@ -289,7 +289,13 @@
   # Web apps via firefoxpwa (install PWAs from Firefox extension)
   programs.firefox.nativeMessagingHosts.packages = [pkgs.firefoxpwa];
 
+  # Android debugging. programs.adb was removed from nixpkgs: systemd >= 258
+  # applies the uaccess udev rules itself, so the device nodes are already
+  # reachable by the logged-in user and neither android-udev-rules nor an
+  # adbusers group membership is needed. Shipping the binaries is the whole
+  # of it now.
   environment.systemPackages = with pkgs; [
+    android-tools
     anycubic-slicer
     firefox
     firefoxpwa
