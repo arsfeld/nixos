@@ -67,11 +67,29 @@ in {
   config = lib.mkIf cfg.enable (lib.mkMerge [
     # Caddy proxies to the PIA namespace IP, not localhost: loopback traffic
     # bypasses the DNAT rules the namespace installs on PREROUTING.
+    #
+    # Authelia-gated (no bypassAuth). Transmission's RPC has no auth of its own
+    # — rpc-authentication-required is unset, rpc-whitelist-enabled is false,
+    # and credentialsFile is /dev/null — so with bypassAuth the vhost served an
+    # open RPC to the internet, and torrent-add accepts an arbitrary
+    # download-dir (file write as the media user). The gateway is the only
+    # place to gate it: enabling RPC credentials instead would break all three
+    # clients, which authenticate nowhere today.
+    #
+    # Every RPC client now reaches the daemon directly at
+    # ${pia.namespaceAddress}:${toString rpcPort} inside the PIA namespace,
+    # never through Caddy — the namespace's accessibleFrom 10.0.0.0/8 covers
+    # both the podman bridge and the host. mydia was already there via
+    # DOWNLOAD_CLIENT_1_HOST (media-apps.nix); radarr and sonarr were pointed at
+    # https://transmission.arsfeld.one:443 and were repointed to the namespace
+    # when this vhost was gated (2026-08-27). Their download-client host lives
+    # in their own databases, not here, so if either is ever restored from a
+    # backup predating that, re-check it before assuming this vhost is unused.
+    # Only the Flood web UI goes through the vhost, and that is a browser.
     {
       media.services.transmission = {
         port = rpcPort;
         host = pia.namespaceAddress;
-        bypassAuth = true;
       };
     }
 
