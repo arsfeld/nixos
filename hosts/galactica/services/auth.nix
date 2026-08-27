@@ -47,11 +47,6 @@
         default_policy = "one_factor";
         rules = [
           {
-            domain = "transmission.${domain}";
-            policy = "bypass";
-            resources = ["^/transmission/rpc$" "^/transmission/rpc/$"];
-          }
-          {
             domain = [
               "radarr.${domain}"
               "sonarr.${domain}"
@@ -61,11 +56,6 @@
             ];
             policy = "bypass";
             resources = ["^/api/.*$" "^/api$"];
-          }
-          {
-            domain = ["flaresolverr.${domain}"];
-            policy = "bypass";
-            resources = ["^/v1/.*$" "^/v1$"];
           }
           {
             domain = ["prowlarr.${domain}"];
