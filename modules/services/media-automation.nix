@@ -59,14 +59,26 @@ in {
       bypassAuth = true;
     };
 
+    # FlareSolverr — solves Cloudflare challenges for indexers. Internal only
+    # (no gateway entry): an unauthenticated FlareSolverr is an abusable proxy
+    # — /v1 fetches any URL through this host's IP — so it is not exposed
+    # publicly. Mirrors the same decision on pegasus (hosts/pegasus/services/
+    # media.nix). Nothing reached it through the vhost: jackett has
+    # FlareSolverrUrl = null, prowlarr has no reference, and mydia is
+    # host-networked and uses http://localhost:8191 (media-apps.nix).
+    #
+    # port = null drops the gateway entry, so the host port has to be published
+    # explicitly (the media.services contract for gateway-less containers).
+    # Published on 0.0.0.0, not 127.0.0.1, so bridge containers like prowlarr
+    # can still reach it at host.containers.internal:8191 if they ever need to;
+    # the host firewall's 22/80/443 allowlist keeps it off the public internet.
     media.services.flaresolverr = {
-      port = 8191;
+      port = null;
       image = "ghcr.io/flaresolverr/flaresolverr:latest";
       container = {
-        exposePort = 8191;
         configDir = null;
+        extraOptions = ["--publish=8191:8191"];
       };
-      bypassAuth = true;
     };
 
     media.services.pinchflat = {
