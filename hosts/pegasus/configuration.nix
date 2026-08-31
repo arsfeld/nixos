@@ -201,8 +201,32 @@ with lib; {
   # checksums and repairs stale/corrupt copies from good ones. Without this,
   # a disk that silently missed writes (see sdg, July 2026) keeps serving
   # stale data until a second failure makes it unrecoverable.
+  #
+  # DISABLED 2026-08-31 -- TEMPORARY, RE-ENABLE AFTER THE CABLE IS REPLACED.
+  #
+  # devid 5 (serial Z304SS33, phy-7:7) dropped off the bus ten seconds into the
+  # weekly scrub and re-enumerated as a new /dev/sd* name that btrfs never
+  # picked up. The scrub then ran its full 16h against the dead bdev, "fixing"
+  # 715M read errors it could never write back. Same disk and same lane as the
+  # July 2026 episode.
+  #
+  # The scrub is the trigger, not a bystander: phy-7:7 is the only lane on the
+  # HBA with non-zero link errors (invalid_dword/disparity/loss_of_dword_sync,
+  # all seven other lanes are exactly 0) and it only lets go under sustained
+  # load. The disk itself is fine -- SMART PASSED, 0 reallocated, 0 pending.
+  # So the fault is the cable/connector on that lane, and until it is physically
+  # reseated a scrub is 16 hours of the exact I/O that knocks the disk offline.
+  #
+  # Disabling rather than masking at runtime because the timer is Persistent=true:
+  # a missed weekly run fires immediately on the next boot, so leaving the unit
+  # defined just moves the landmine to the next reboot. The pool is safe to run
+  # unscrubbed meanwhile -- RAID1C3 over the 4 surviving devices still holds >=2
+  # copies of every extent, and corruption_errs is 0 on every device.
+  #
+  # Re-enable once the lane is clean: check that the phy counters stay at 0 under
+  # load, then rebuild devid 5 (btrfs replace) before the first scrub.
   services.btrfs.autoScrub = {
-    enable = true;
+    enable = false;
     fileSystems = ["/mnt/storage"];
     interval = "weekly";
   };
