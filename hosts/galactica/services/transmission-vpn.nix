@@ -82,9 +82,13 @@ in {
     # both the podman bridge and the host. mydia was already there via
     # DOWNLOAD_CLIENT_1_HOST (media-apps.nix); radarr and sonarr were pointed at
     # https://transmission.arsfeld.one:443 and were repointed to the namespace
-    # when this vhost was gated (2026-08-27). Their download-client host lives
-    # in their own databases, not here, so if either is ever restored from a
-    # backup predating that, re-check it before assuming this vhost is unused.
+    # when this vhost was gated (2026-08-27); prowlarr was on the same vhost,
+    # was missed then, failed with "Failed to authenticate with Transmission"
+    # (Authelia's 302 to the login page, not an RPC error), and was repointed
+    # on 2026-09-01. Their download-client host lives in their own databases,
+    # not here — which is why grepping this repo turns up nothing — so if any
+    # of them is ever restored from a backup predating that, re-check it before
+    # assuming this vhost is unused.
     # Only the Flood web UI goes through the vhost, and that is a browser.
     {
       media.services.transmission = {
