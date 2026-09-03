@@ -14,6 +14,9 @@
       harmonia-cache-test = inputs.nixpkgs.legacyPackages.${system}.testers.nixosTest (
         import ../tests/harmonia-cache-test.nix {inherit self inputs;}
       );
+      blackbird-audio-control-test = import ../tests/blackbird-audio-control-test.nix {
+        inherit self inputs system;
+      };
       immich-pixel-sync-test =
         inputs.nixpkgs.legacyPackages.${system}.runCommand "immich-pixel-sync-test" {
           nativeBuildInputs = [inputs.nixpkgs.legacyPackages.${system}.python3];
