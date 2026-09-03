@@ -85,6 +85,8 @@ in {
         default = true;
         description = "Install GNOME extensions and tweaks";
       };
+
+      monitorControl.enable = lib.mkEnableOption "GNOME Quick Settings controls for DDC/CI monitors";
     };
 
     niri = {
@@ -246,117 +248,129 @@ in {
         services.desktopManager.gnome.enable = true;
         services.gnome.gnome-software.enable = false;
 
+        hardware.i2c.enable = cfg.gnome.monitorControl.enable;
+
         programs.dconf.enable = true;
         programs.dconf.profiles.user.databases = [
           {
-            settings = {
-              "org/gnome/desktop/interface" = {
-                gtk-theme = cfg.gnome.theme.gtk;
-                icon-theme = cfg.gnome.theme.icon;
-                color-scheme = "prefer-dark";
-                enable-hot-corners = false;
-              };
+            settings =
+              {
+                "org/gnome/desktop/interface" = {
+                  gtk-theme = cfg.gnome.theme.gtk;
+                  icon-theme = cfg.gnome.theme.icon;
+                  color-scheme = "prefer-dark";
+                  enable-hot-corners = false;
+                };
 
-              "org/gnome/mutter" = {
-                experimental-features = ["variable-refresh-rate" "scale-monitor-framebuffer"];
-                center-new-windows = true;
-              };
+                "org/gnome/mutter" = {
+                  experimental-features = ["variable-refresh-rate" "scale-monitor-framebuffer"];
+                  center-new-windows = true;
+                };
 
-              "org/gnome/desktop/wm/keybindings" = {
-                switch-applications = ["<Super>Tab"];
-                switch-applications-backward = ["<Shift><Super>Tab"];
-                switch-windows = ["<Alt>Tab"];
-                switch-windows-backward = ["<Shift><Alt>Tab"];
-              };
+                "org/gnome/desktop/wm/keybindings" = {
+                  switch-applications = ["<Super>Tab"];
+                  switch-applications-backward = ["<Shift><Super>Tab"];
+                  switch-windows = ["<Alt>Tab"];
+                  switch-windows-backward = ["<Shift><Alt>Tab"];
+                };
 
-              "org/gnome/desktop/wm/preferences" = {
-                button-layout = "appmenu:minimize,maximize,close";
-              };
+                "org/gnome/desktop/wm/preferences" = {
+                  button-layout = "appmenu:minimize,maximize,close";
+                };
 
-              "org/gnome/nautilus/preferences" = {
-                default-folder-viewer = "list-view";
-                show-create-link = true;
-              };
-              "org/gnome/nautilus/gtk" = {
-                application-prefer-dark-theme = true;
-              };
+                "org/gnome/nautilus/preferences" = {
+                  default-folder-viewer = "list-view";
+                  show-create-link = true;
+                };
+                "org/gnome/nautilus/gtk" = {
+                  application-prefer-dark-theme = true;
+                };
 
-              "org/gtk/Settings/FileChooser" = {
-                sort-directories-first = true;
-              };
-              "org/gtk/gtk4/Settings/FileChooser" = {
-                sort-directories-first = true;
-              };
+                "org/gtk/Settings/FileChooser" = {
+                  sort-directories-first = true;
+                };
+                "org/gtk/gtk4/Settings/FileChooser" = {
+                  sort-directories-first = true;
+                };
 
-              "org/gnome/settings-daemon/plugins/media-keys" = {
-                custom-keybindings = [
-                  "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/"
-                  "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1/"
-                ];
-              };
-              "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0" = {
-                name = "Terminal";
-                command = "ghostty";
-                binding = "<Control><Alt>t";
-              };
-              "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1" = {
-                name = "Mission Center";
-                command = "missioncenter";
-                binding = "<Control><Shift>Escape";
-              };
+                "org/gnome/settings-daemon/plugins/media-keys" = {
+                  custom-keybindings = [
+                    "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/"
+                    "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1/"
+                  ];
+                };
+                "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0" = {
+                  name = "Terminal";
+                  command = "ghostty";
+                  binding = "<Control><Alt>t";
+                };
+                "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1" = {
+                  name = "Mission Center";
+                  command = "missioncenter";
+                  binding = "<Control><Shift>Escape";
+                };
 
-              "org/gnome/shell" = {
-                enabled-extensions = [
-                  "logomenu@aryan_k"
-                  "hotedge@jonathan.jdoda.ca"
-                  "caffeine@patapon.info"
-                  "compiz-alike-magic-lamp-effect@hermes83.github.com"
-                  "paperwm@paperwm.github.com"
-                  "appindicatorsupport@rgcjonas.gmail.com"
-                  "blur-my-shell@aunetx"
-                  "dash-to-dock@micxgx.gmail.com"
-                  "azwallpaper@azwallpaper.gitlab.com"
-                  "gsconnect@andyholmes.github.io"
-                  "xwayland-indicator@swsnr.de"
-                  "Vitals@CoreCoding.com"
-                  "user-theme@gnome-shell-extensions.gcampax.github.com"
-                  # Bazzite-GNOME parity extensions
-                  "burn-my-windows@schneegans.github.com"
-                  "desktop-cube@schneegans.github.com"
-                  "compiz-windows-effect@hermes83.github.com"
-                  "add-to-steam@pupper.space"
-                  "restartto@tiagoporsch.github.io"
-                ];
-              };
+                "org/gnome/shell" = {
+                  enabled-extensions =
+                    [
+                      "logomenu@aryan_k"
+                      "hotedge@jonathan.jdoda.ca"
+                      "caffeine@patapon.info"
+                      "compiz-alike-magic-lamp-effect@hermes83.github.com"
+                      "paperwm@paperwm.github.com"
+                      "appindicatorsupport@rgcjonas.gmail.com"
+                      "blur-my-shell@aunetx"
+                      "dash-to-dock@micxgx.gmail.com"
+                      "azwallpaper@azwallpaper.gitlab.com"
+                      "gsconnect@andyholmes.github.io"
+                      "xwayland-indicator@swsnr.de"
+                      "Vitals@CoreCoding.com"
+                      "user-theme@gnome-shell-extensions.gcampax.github.com"
+                      # Bazzite-GNOME parity extensions
+                      "burn-my-windows@schneegans.github.com"
+                      "desktop-cube@schneegans.github.com"
+                      "compiz-windows-effect@hermes83.github.com"
+                      "add-to-steam@pupper.space"
+                      "restartto@tiagoporsch.github.io"
+                    ]
+                    ++ lib.optional cfg.gnome.monitorControl.enable "monitor-control@ahmed-shaalan";
+                };
 
-              # Schema id is `logo-menu` but the dconf PATH is `Logo-menu`
-              # (capital L). Writing to lowercase silently no-ops.
-              "org/gnome/shell/extensions/Logo-menu" = {
-                # Match Bazzite: colored distro logo, ~20px, with shadow.
-                symbolic-icon = false;
-                menu-button-icon-image = lib.gvariant.mkInt32 18; # NixOS color logo in ColouredDistroIcons
-                menu-button-icon-size = lib.gvariant.mkInt32 20;
-                hide-icon-shadow = false;
-                # App targets — we keep ghostty instead of Bazzite's ptyxis.
-                menu-button-terminal = "ghostty";
-                menu-button-system-monitor = "missioncenter";
-                menu-button-extensions-app = "com.mattjakeman.ExtensionManager.desktop";
-                menu-button-software-center = "bazaar";
-                # Bazzite hides Force Quit and the power/lock entries, keeps Activities.
-                show-activities-button = true;
-                hide-forcequit = true;
-                show-lockscreen = false;
-                show-power-options = false;
-              };
+                # Schema id is `logo-menu` but the dconf PATH is `Logo-menu`
+                # (capital L). Writing to lowercase silently no-ops.
+                "org/gnome/shell/extensions/Logo-menu" = {
+                  # Match Bazzite: colored distro logo, ~20px, with shadow.
+                  symbolic-icon = false;
+                  menu-button-icon-image = lib.gvariant.mkInt32 18; # NixOS color logo in ColouredDistroIcons
+                  menu-button-icon-size = lib.gvariant.mkInt32 20;
+                  hide-icon-shadow = false;
+                  # App targets — we keep ghostty instead of Bazzite's ptyxis.
+                  menu-button-terminal = "ghostty";
+                  menu-button-system-monitor = "missioncenter";
+                  menu-button-extensions-app = "com.mattjakeman.ExtensionManager.desktop";
+                  menu-button-software-center = "bazaar";
+                  # Bazzite hides Force Quit and the power/lock entries, keeps Activities.
+                  show-activities-button = true;
+                  hide-forcequit = true;
+                  show-lockscreen = false;
+                  show-power-options = false;
+                };
 
-              "app/devsuite/Ptyxis" = {
-                prefer-dark-theme = true;
-              };
+                "app/devsuite/Ptyxis" = {
+                  prefer-dark-theme = true;
+                };
 
-              "app/zen-browser/zen" = {
-                prefer-dark-theme = true;
+                "app/zen-browser/zen" = {
+                  prefer-dark-theme = true;
+                };
+              }
+              // lib.optionalAttrs cfg.gnome.monitorControl.enable {
+                "org/gnome/shell/extensions/monitor-control" = {
+                  show-brightness = true;
+                  show-volume = true;
+                  unify-volume = true;
+                };
               };
-            };
           }
         ];
 
@@ -417,6 +431,10 @@ in {
             pantheon.elementary-sound-theme
             pantheon.elementary-gtk-theme
             pantheon.elementary-icon-theme
+          ]
+          ++ lib.optionals cfg.gnome.monitorControl.enable [
+            pkgs.ddcutil
+            pkgs-unstable.gnomeExtensions.monitorcontrol-brightness-and-volume
           ];
       })
 
