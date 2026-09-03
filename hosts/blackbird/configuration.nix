@@ -177,58 +177,48 @@
     pulse.enable = true;
   };
 
-  # Setup EasyEffects preset for G14 speakers
-  system.activationScripts.setupEasyEffectsG14 = ''
-    # Create EasyEffects config directory if it doesn't exist
-    mkdir -p /home/arosenfeld/.config/easyeffects/output
-    mkdir -p /home/arosenfeld/.config/easyeffects/autoload/output
+  home-manager.users.arosenfeld.xdg.dataFile = {
+    "easyeffects/output/ASUS_G14_2020.json".source = ./easyeffects-blackbird-preset.json;
+    "easyeffects/output/No_Effects.json".source = ./easyeffects-no-effects-preset.json;
 
-    # Install the ASUS G14 preset (from RaduTek's EasyEffects-Presets)
-    if [ ! -f /home/arosenfeld/.config/easyeffects/output/ASUS_G14_2020.json ]; then
-      cp ${./easyeffects-blackbird-preset.json} /home/arosenfeld/.config/easyeffects/output/ASUS_G14_2020.json
-      chown arosenfeld:users /home/arosenfeld/.config/easyeffects/output/ASUS_G14_2020.json
-    fi
+    "easyeffects/autoload/output/alsa_output.pci-0000_04_00.6.analog-stereo:Speakers.json".text = builtins.toJSON {
+      device = "alsa_output.pci-0000_04_00.6.analog-stereo";
+      "device-description" = "Ryzen HD Audio Controller Analog Stereo";
+      "device-profile" = "Speakers";
+      "preset-name" = "ASUS_G14_2020";
+    };
 
-    # Create autoload symlink to automatically load the preset
-    if [ ! -L /home/arosenfeld/.config/easyeffects/autoload/output/ASUS_G14_2020.json ]; then
-      ln -sf /home/arosenfeld/.config/easyeffects/output/ASUS_G14_2020.json \
-             /home/arosenfeld/.config/easyeffects/autoload/output/ASUS_G14_2020.json
-      chown -h arosenfeld:users /home/arosenfeld/.config/easyeffects/autoload/output/ASUS_G14_2020.json
-    fi
+    "easyeffects/autoload/output/alsa_output.pci-0000_01_00.1.hdmi-stereo:HDMI _ DisplayPort.json".text = builtins.toJSON {
+      device = "alsa_output.pci-0000_01_00.1.hdmi-stereo";
+      "device-description" = "TU116 High Definition Audio Controller Digital Stereo (HDMI)";
+      "device-profile" = "HDMI / DisplayPort";
+      "preset-name" = "No_Effects";
+    };
+  };
 
-    # Create EasyEffects settings file to enable autoload
-    if [ ! -f /home/arosenfeld/.config/easyeffects/settings.json ]; then
-      cat > /home/arosenfeld/.config/easyeffects/settings.json << 'EOF'
-    {
-      "settings": {
-        "bypass": false,
-        "output-device": "default",
-        "use-dark-theme": true,
-        "process-all-outputs": true,
-        "process-all-inputs": false,
-        "autohide-window": false,
-        "reset-volume": false,
-        "window-height": 600,
-        "window-width": 800,
-        "autostart": true,
-        "priority-type": "niceness",
-        "niceness": -10,
-        "realtime-priority": 5
-      }
-    }
-    EOF
-      chown arosenfeld:users /home/arosenfeld/.config/easyeffects/settings.json
-    fi
+  # Remove only the obsolete, root-owned EasyEffects files created by older
+  # versions of this configuration. Preserve the settings database and any
+  # unrelated user files.
+  system.activationScripts.easyeffectsLegacyCleanup.text = ''
+    ${pkgs.coreutils}/bin/rm -f \
+      /home/arosenfeld/.config/easyeffects/autoload/output/ASUS_G14_2020.json \
+      /home/arosenfeld/.config/easyeffects/output/ASUS_G14_2020.json \
+      /home/arosenfeld/.config/easyeffects/settings.json
+
+    ${pkgs.coreutils}/bin/rmdir --ignore-fail-on-non-empty \
+      /home/arosenfeld/.config/easyeffects/autoload/output \
+      /home/arosenfeld/.config/easyeffects/autoload \
+      /home/arosenfeld/.config/easyeffects/output \
+      /home/arosenfeld/.config/easyeffects 2>/dev/null || true
   '';
 
   # Auto-start EasyEffects as a user service
-  # Note: Preset autoloading works through the autoload symlink created above
-  # The user may need to manually select the preset once in the GUI for it to persist
   systemd.user.services.easyeffects = {
     description = "EasyEffects Audio Enhancement";
     wantedBy = ["graphical-session.target"];
     partOf = ["graphical-session.target"];
-    after = ["graphical-session.target" "pipewire.service"];
+    after = ["graphical-session.target" "pipewire.service" "wireplumber.service"];
+    wants = ["pipewire.service" "wireplumber.service"];
     serviceConfig = {
       Type = "simple";
       ExecStart = "${pkgs.easyeffects}/bin/easyeffects --gapplication-service";
