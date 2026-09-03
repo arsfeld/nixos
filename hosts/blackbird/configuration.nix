@@ -23,6 +23,7 @@
     desktop = {
       enable = true;
       variant = "gnome";
+      gnome.monitorControl.enable = true;
       gnome.theme = {
         gtk = "Yaru-purple-dark";
         icon = "Yaru-purple";
