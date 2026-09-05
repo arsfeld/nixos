@@ -148,13 +148,27 @@ result is reported; the hardware check is left to the user.
 
 ## Outcome (2026-09-05)
 
-Delivered. `arsfeld/libfprint`, branch `goodixtls-521d-1.94.100`, head
-`5fa6c733`. Four commits, not the three planned:
+Delivered. `arsfeld/libfprint`, on `master` (the repo's default branch, so the
+fork's landing page shows this work rather than inherited upstream content).
+`goodixtls-521d-1.94.100` is kept as a same-content branch. Head `6c078afe`.
+
+Five commits, not the three planned:
 
 1. `build: fix drivers_tests iteration when introspection is disabled`
 2. `goodixtls: import the Goodix TLS drivers from infinytum/libfprint`
 3. `goodixtls: fix incompatible pointer types`
 4. `goodixtls52xd: accept any GFUSB_GM168SEC_APP_ firmware`
+5. `README: explain what this fork is`
+
+`master` was force-pushed from the inherited `infinytum/libfprint` history,
+which shares no ancestry with a `v1.94.100` base. Nothing was lost: that
+history still exists in the source fork and in the network.
+
+The README banner leads the file so it is the first thing GitHub renders. It
+states the base version, the three sensor PIDs, the provenance, and — the part
+that matters to anyone considering this fork — that only `goodixtls52xd` is
+tested, on one machine, and that the sensor's TLS channel is keyed with a
+zero PSK.
 
 ### The extra commit: v1.94.100 cannot configure with introspection disabled
 
