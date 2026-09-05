@@ -456,3 +456,64 @@ recovers fingerprint template data rather than the device PSK, based on the reas
 it is noted here as a possible, but unconfirmed and now de-prioritized, follow-up rather
 than a clear cheaper alternative to Tasks 4-6. **Tasks 4, 5, and 6 remain necessary** as
 originally planned.
+
+### Task 4B: zero-PSK write attempt — device REJECTED the write; no corruption; STOPPED per brief
+
+User approval recorded 2026-09-05 for exactly one operation: `preset_psk_write` provisioning
+the all-zero PSK, guarded by firmware assertions on both sides. Wrote
+`$SCRATCH/gfd/write_zero_psk.py` on blackbird's `/tmp/gfd` byte-for-byte per the brief (diffed
+against the source before running; zero differences), calling only `nop()`,
+`firmware_version()`, `preset_psk_read()`, and the single `preset_psk_write(0xbb010003,
+PSK_WHITE_BOX, 114, 0, bytes.fromhex("56a5bb956b7c8d9e0000"))` — the exact argument order
+from upstream `driver_52xd.write_psk()`, confirmed by reading that function on blackbird
+before running anything. `driver_52xd.main()`, `erase_firmware`, `update_firmware`,
+`write_firmware`, and `mcu_erase_app` were never imported or called.
+
+**Environment note (not a device issue):** the brief's literal `sudo NIX_PATH=... nix shell
+...` failed before touching the device (`error: file 'nixpkgs' was not found in the Nix
+search path`) — `sudo` does not accept a bare `VAR=val` prefix as an env assignment on this
+host. This is the identical tooling issue already hit and fixed in Task 3's post-run
+re-probe; applied the same already-established fix (`sudo env NIX_PATH=nixpkgs=flake:nixpkgs
+nix shell ...`) with no change to the script or the device operation.
+
+**Result — the write returned `False`:**
+
+```
+BEFORE firmware: GFUSB_GM168SEC_APP_10034
+BEFORE psk_hash: 126770ba77304106160859262e4d0a2ffed13ed794fc703023111345fc746dd0
+WRITE returned: False
+AFTER firmware:  GFUSB_GM168SEC_APP_10034
+AFTER psk_hash:  126770ba77304106160859262e4d0a2ffed13ed794fc703023111345fc746dd0
+PSK_NOW_ZERO: False
+FIRMWARE_UNCHANGED: True
+```
+
+`preset_psk_write()`'s return value is the device's own protocol-level status byte
+(`message[0] == 0x00` in `goodix.py`) — the sensor explicitly rejected the write at the
+protocol level; this was not a Python exception, a timeout, or a dropped connection. The
+built-in post-write read (part of the approved script, not an improvised retry) confirms no
+corruption: `AFTER` is byte-identical to `BEFORE` on both firmware and PSK hash — the stored
+PMK is unchanged, still `126770ba77304106160859262e4d0a2ffed13ed794fc703023111345fc746dd0`,
+not the zero hash and not some third, torn value. The device also remained fully responsive
+to USB commands after the rejected write (it answered `firmware_version()` and
+`preset_psk_read()` normally), so it did not disappear from the bus.
+
+**Stopped here per the brief.** "The write returns an error" is one of the brief's explicit
+stop conditions ("If ANYTHING is unexpected ... STOP IMMEDIATELY AND REPORT ... Do not
+improvise. Do not 'try the other flag value'... Any retry-with-variations if the write fails"
+is explicitly forbidden). No retry, no variation of flags/offset/payload, and no run of the
+Task 3 enroll binary was attempted — Step 3's driver re-check is contingent on `PSK_NOW_ZERO:
+True`, which this run did not reach. The sensor is left exactly as it was before this task:
+firmware `GFUSB_GM168SEC_APP_10034`, stored PMK hash
+`126770ba77304106160859262e4d0a2ffed13ed794fc703023111345fc746dd0` (unchanged, non-zero).
+
+**Open question for whoever picks this up next:** the call matches upstream `write_psk()`
+verbatim and the firmware gate was the only thing Task 3 changed, but the device still NAK'd
+the write. Two live hypotheses, neither investigated further here per the stop-immediately
+instruction: (1) `PSK_WHITE_BOX`'s payload may itself be tied to a specific firmware/PSK-state
+precondition beyond the simple version-string gate Task 3 patched, so 10034 may reject it for
+a reason upstream's 10019-only flow never had to handle; (2) some other device-side
+precondition (mode/lock state) not captured by `nop()` + `firmware_version()` +
+`preset_psk_read()` may be required before `preset_psk_write` is accepted. Resolving this
+needs protocol-level investigation (e.g. comparing this device's raw command trace against a
+working 10019 capture), not a blind retry on this same hardware.
