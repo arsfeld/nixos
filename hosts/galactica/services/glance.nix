@@ -196,8 +196,11 @@
       icon = "di:forgejo";
     };
     ask = {
+      name = "Ask";
       category = "Development";
-      icon = "di:open-webui";
+      # Vane has no dashboard-icons entry (nor did perplexica); perplexity is
+      # the closest match for what it is.
+      icon = "di:perplexity";
     };
     ollama-api = {
       name = "Ollama API";
