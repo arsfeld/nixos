@@ -10,7 +10,6 @@
     ./niks3.nix
     ./planka.nix
     ./plausible.nix
-    ./ask.nix
     ./radicle.nix
     ./siyuan.nix
     ./sillytavern.nix
