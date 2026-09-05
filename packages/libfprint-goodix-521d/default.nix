@@ -46,7 +46,15 @@ in
             # upstream sync in 2021). The version string is just a build-time
             # dependency-check label here, so bump the label to match the one real
             # public-API change between those tags (see below) rather than the
-            # fork's actual age.
+            # fork's actual age. This is safe because fprintd links and compiles
+            # against this fork's own headers (below), not against any separately
+            # installed libfprint -- there is no header/library skew, so the
+            # version string really is only a pkg-config gate label, not a claim
+            # about behavioural compatibility. Caveat: the fork is pinned to a
+            # 2021 revision, so if a future fprintd release ever needs genuine
+            # post-1.94.9 *behaviour* (not just the one symbol added below), the
+            # gate would pass silently and the failure would show up as a
+            # runtime bug rather than a build error.
             substituteInPlace meson.build \
               --replace-fail \
                 "version: '1.94.1'," \
