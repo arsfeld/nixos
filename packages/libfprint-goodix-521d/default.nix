@@ -11,8 +11,8 @@ in
     src = fetchFromGitHub {
       owner = "arsfeld";
       repo = "libfprint";
-      rev = "5fa6c73300e661b3b52bd9b37283133c49976b9c";
-      hash = "sha256-/wVbWc83M7oVp6sVEzD37UxMneCZQDuWQVxmp4V4q/g=";
+      rev = "6c078afeabca6e35eab6cc4e9beee24d8078e772";
+      hash = "sha256-mtF5EW4eRuvCH/06EsHbv5RjfxJ74w9DG3gaJWkRcYM=";
     };
 
     nativeBuildInputs = with pkgs; [
