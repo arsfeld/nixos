@@ -322,6 +322,24 @@
   # instead of overlaying libfprint globally (the overlay in
   # flake-modules/lib.nix would otherwise drag all nine hosts onto a
   # five-year-old libfprint fork).
+  #
+  # Security note (deliberate, accepted choice, reviewed 2026-09-05): NixOS
+  # defaults security.pam.services.<name>.fprintAuth to services.fprintd.enable,
+  # so `enable = true` below implicitly inserts `auth sufficient pam_fprintd.so`
+  # ahead of pam_unix in every PAM service NixOS generates -- sudo, su,
+  # polkit-1, sshd, gdm-fingerprint and others. A fingerprint is therefore
+  # sufficient on its own for root escalation via sudo/polkit, not merely a
+  # convenience alongside the password. This is intentional: the user has
+  # accepted sudo-by-fingerprint knowing the sensor's channel is keyed with a
+  # PSK of 32 zero bytes (see the Task 4C fingerprint-sensor spec/plan), so
+  # brief physical access to the USB device could capture the image stream.
+  # sshd picking up pam_fprintd is an inert side effect of the same default --
+  # nobody can touch a laptop's internal USB fingerprint sensor over a
+  # network session, and `sufficient` just falls through to pam_unix on
+  # failure/no-match, so remote password auth is unaffected. Do not set
+  # fprintAuth = false anywhere below; that would silently change accepted
+  # behaviour. See docs/superpowers/specs/2026-09-05-goodix-521d-fingerprint-design.md
+  # for the full writeup.
   services.fprintd = {
     enable = true;
     package = pkgs.fprintd.override {
