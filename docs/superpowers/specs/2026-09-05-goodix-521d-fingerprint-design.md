@@ -327,7 +327,7 @@ Unchanged on every field versus Task 1's original probe and versus the value the
 driver read during the enroll attempt. Confirms empirically, not just by code inspection,
 that the sensor's firmware and stored PSK were not modified.
 
-### Task 4A: offline Windows PSK search — preimage NOT FOUND, but a strong DPAPI lead
+### Task 4A: offline Windows PSK search — preimage NOT FOUND; one DPAPI-wrapped key found, scope uncertain
 
 Mounted `/dev/nvme0n1p5` read-only (`ro,noatime`, confirmed via `mount`), copied six target
 paths off byte-for-byte (sizes verified to match the mounted source exactly), then unmounted
@@ -349,13 +349,24 @@ byte of the following 8 files was SHA256'd and compared against the target PMK h
 | `ProgramData/Goodix/goodix.dat` | 154,668 | not found |
 | `ProgramData/Goodix/wbdi-new.log` | 10,266 | not found |
 
+Directory listing of `WinBioDatabase/`, taken while mounted, before copying, confirms the
+two `.DAT` files above are its entire contents (no other template-store file was missed):
+
+```
+drwxr-xr-x 1 root root    4096 May  7 19:01 .
+drwxr-xr-x 1 root root 1048576 May 21 04:16 ..
+-rwxr-xr-x 1 root root   75632 May  7 19:01 449B518E-CAE1-49FB-9A52-376E26E8546D.DAT
+-rwxr-xr-x 1 root root    1144 May  4 21:38 51F39552-1075-4199-B513-0C10EA185DB0.DAT
+```
+
 This rules out the PSK (or its SHA256 preimage) being present **verbatim** anywhere in the
 SYSTEM/SOFTWARE hives, the WinBio template store, or the Goodix ProgramData tree — combined
 with Task 2's identical negative over `wbdi.dll`/`GoodixEngineAdapter.dll`/`SessionService.exe`,
 that is every file this project has reason to suspect, all negative. The PSK is not stored
 in the clear anywhere examined.
 
-**Registry inspection — confirms the key is wrapped, not absent.**
+**Registry inspection — the Goodix keys are minimal; one WinBio value is DPAPI-wrapped, of
+uncertain scope.**
 
 - `HKLM\System\CurrentControlSet\Control\Goodix\FP` (only one ControlSet exists —
   `ControlSet001`, confirmed via hive root listing) contains exactly the 8 values
@@ -373,18 +384,34 @@ in the clear anywhere examined.
   well-formed Windows DPAPI blob** (`CRYPTPROTECT_DATA` structure: version 1, provider GUID
   `df9d8cd0-1501-11d1-8c7a-00c04fc297eb`, master-key GUID `b1023ba8-051f-486d-972f-0136ccab9b36`,
   `CALG_AES_256` / `CALG_SHA_512`, 32-byte salt, 32-byte HMAC salt, a **48-byte ciphertext**,
-  and a 64-byte HMAC-SHA512 signature). 48 bytes is exactly what PKCS7-padded AES-CBC
-  produces for a 32-byte plaintext (a full extra 16-byte padding block, since 32 is already
-  block-aligned) — the size is consistent with this being the DPAPI-wrapped 32-byte PSK.
+  and a 64-byte HMAC-SHA512 signature). Under PKCS7/AES-CBC a 48-byte ciphertext corresponds
+  to any plaintext from 32 to 47 bytes (padding is always 1-16 bytes) — a 32-byte PSK is one
+  of 16 equally-consistent plaintext lengths, not something the size alone singles out.
 - Both `WinBioDatabase\*.DAT` files (the template store) open with the *same* DPAPI provider
   GUID and the *same* master-key GUID (`b1023ba8-051f-486d-972f-0136ccab9b36`) as
   `BioServiceKey` — the fingerprint templates and the service key are protected under the
-  identical DPAPI master key.
+  identical DPAPI master key. This is the strongest single clue to what `BioServiceKey`
+  actually is, and it points away from the device-level PSK: the value lives under
+  *Microsoft's* `WinBio\SensorInfo\<GUID>` tree (not under the vendor's `Goodix\FP` key),
+  is named `BioServiceKey` rather than anything PSK-specific, and is wrapped under the exact
+  master key that also protects the enrolled-template database. The more natural reading is
+  that `BioServiceKey` is the **WinBio subsystem's own key for the template store** — a
+  key WinBio's framework manages per-sensor to protect enrolled biometric data at rest — not
+  the vendor-specific PSK used in the raw USB/TLS handshake with the sensor hardware. That
+  device-level PSK, if Windows-side at all, would more plausibly live inside a vendor-owned
+  structure (under `Goodix\FP`, or inside `goodix.dat`/`SessionService`'s own state), none of
+  which showed any DPAPI or other wrapping marker. Treat the "`BioServiceKey` is the PSK"
+  hypothesis and the "`BioServiceKey` is the template-store key" hypothesis as live
+  alternatives, with the evidence here favoring the latter, not the former.
 - No second DPAPI blob (searched for the provider-GUID byte pattern across the full
-  SOFTWARE hive export) exists anywhere else. `BioServiceKey` is the only such value.
+  SOFTWARE hive export) exists anywhere else. `BioServiceKey` is the only such value found in
+  the registry — which cuts both ways: it's the only Windows-side wrapped-key candidate at
+  all, but nothing here demonstrates it specifically wraps the device PSK rather than
+  template data.
 
-**Driver's own log names the unwrap path.** `ProgramData/Goodix/wbdi-new.log` (source-level
-debug log, 38 lines) shows 6 repeated failures, each a 3-line group:
+**Driver's own log — names DPAPI/SGX-related symbols, but the signal is weaker than it looks.**
+`ProgramData/Goodix/wbdi-new.log` (source-level debug log, 38 lines) shows 6 repeated
+failures, each a 3-line group:
 
 ```
 [pskunify.c][GfUnsealData            :0256] >> CryptUnprotectData failed, error: -2146893813
@@ -392,29 +419,40 @@ debug log, 38 lines) shows 6 repeated failures, each a 3-line group:
 [  geneva.c][ProcessPsk              :1231] >> production_check_psk_is_valid failed with ret:0x1.
 ```
 
-`-2146893813` is `0x8009000B` (`NTE_BAD_KEY_STATE`), a standard DPAPI/CAPI error. Read
-literally, `PresetPskIsVaildG` is checking a *preset* (factory-default) PSK candidate — which
-is expected to fail on a production unit that has its own enrolled key, so this specific
-failure is not evidence of a broken PSK on this machine. What it does establish, directly
-from the vendor's own driver, is the exact unwrap plumbing: `pskunify.c`/`GfUnsealData` calls
-`CryptUnprotectData` (Windows DPAPI) as one path, and references an Intel SGX enclave-sealing
-call (`gf_sgx_unseal_data`) as another — both consistent with `BioServiceKey` being a real
-DPAPI blob, and naming exact function/file symbols (`GfUnsealData`, `PresetPskIsVaildG`,
-`ProcessPsk`, `production_check_psk_is_valid`, files `pskunify.c`/`geneva.c`) worth searching
-for by name if Task 6 (Ghidra) goes ahead against `wbdi.dll` — those symbols were not part of
-Task 2's search target list.
+`-2146893813` is `0x8009000B` (`NTE_BAD_KEY_STATE`), a standard DPAPI/CAPI error. By its name,
+`PresetPskIsVaildG` is testing a *preset* (factory-default) PSK candidate, not necessarily
+the machine's real enrolled PSK, and this log excerpt does not establish that either call is
+operating on `BioServiceKey` specifically — that link is inferred, not shown. The
+`gf_sgx_unseal_data` failure is weaker evidence still: blackbird is an AMD Ryzen machine
+(ASUS ROG Zephyrus G14), which has no Intel SGX, so that call was near-certain to fail
+regardless of the sensor's real state — most likely a trivial unsupported-platform no-op,
+carrying little or no information about which unwrap path is actually used for the real PSK.
+What the log does establish with more confidence is simply that `pskunify.c`/`geneva.c`
+exist in the driver and reference both `CryptUnprotectData` and an SGX-sealing call
+somewhere in its logic — worth treating as speculative/circumstantial context, not
+corroboration of the DPAPI hypothesis. The exact function/file symbols (`GfUnsealData`,
+`PresetPskIsVaildG`, `ProcessPsk`, `production_check_psk_is_valid`, files
+`pskunify.c`/`geneva.c`) are still useful search targets for Task 6 (Ghidra) against
+`wbdi.dll` if it goes ahead — those symbols were not part of Task 2's search target list.
 - `ProgramData/Goodix/goodix.dat` (154,668 bytes) opens with a `NLVFO` magic and is otherwise
   high-entropy binary with no readable strings — consistent with an opaque/encrypted vendor
   data file, not further identified; it was covered by the negative preimage search above.
 
 **Conclusion.** The offline, read-only search is a definitive negative for a verbatim PSK or
-its preimage — 111 MB across 8 targeted files, every 32-byte window tested, no hit. It is not
-an inconclusive negative: the registry inspection explains *why* — the real PSK is stored
-DPAPI-wrapped (`BioServiceKey`), not in the clear, which a raw byte search cannot see through.
+its preimage — 111 MB across 8 targeted files, every 32-byte window tested, no hit
+(directory listings confirm full file-set coverage of `WinBioDatabase/` and
+`ProgramData/Goodix/`). The registry inspection found exactly one Windows-side wrapped-key
+candidate, `BioServiceKey` — but the evidence (its location under Microsoft's `WinBio`
+tree rather than `Goodix\FP`, its generic name, and its shared master-key GUID with the
+template database) more plausibly makes it the **WinBio template-store key**, not the
+vendor's device PSK, so this negative should **not** be read as "the PSK is confirmed
+DPAPI-wrapped." It remains an open, unresolved possibility rather than an established one.
 Decrypting `BioServiceKey` would require the DPAPI master key file for master-key GUID
 `b1023ba8-051f-486d-972f-0136ccab9b36` (normally under a user profile's
 `AppData\Roaming\Microsoft\Protect\<SID>\`, SID `S-1-5-21-3670928780-1278317118-3340432749-1001`
 per the WinBio `AccountInfo` enrollment) plus that user's Windows logon credential to unlock
-it — both outside this task's scope and not fetched. That is a materially cheaper next step
-than a VM/USB-capture/Ghidra round-trip if pursued, and is a candidate for a follow-up task;
-this task did not attempt it. **Tasks 4, 5, and 6 remain necessary** as originally planned.
+it — both outside this task's scope and not fetched. If pursued, that path most likely
+recovers fingerprint template data rather than the device PSK, based on the reasoning above;
+it is noted here as a possible, but unconfirmed and now de-prioritized, follow-up rather
+than a clear cheaper alternative to Tasks 4-6. **Tasks 4, 5, and 6 remain necessary** as
+originally planned.
