@@ -507,13 +507,109 @@ True`, which this run did not reach. The sensor is left exactly as it was before
 firmware `GFUSB_GM168SEC_APP_10034`, stored PMK hash
 `126770ba77304106160859262e4d0a2ffed13ed794fc703023111345fc746dd0` (unchanged, non-zero).
 
-**Open question for whoever picks this up next:** the call matches upstream `write_psk()`
-verbatim and the firmware gate was the only thing Task 3 changed, but the device still NAK'd
-the write. Two live hypotheses, neither investigated further here per the stop-immediately
-instruction: (1) `PSK_WHITE_BOX`'s payload may itself be tied to a specific firmware/PSK-state
-precondition beyond the simple version-string gate Task 3 patched, so 10034 may reject it for
-a reason upstream's 10019-only flow never had to handle; (2) some other device-side
-precondition (mode/lock state) not captured by `nop()` + `firmware_version()` +
-`preset_psk_read()` may be required before `preset_psk_write` is accepted. Resolving this
-needs protocol-level investigation (e.g. comparing this device's raw command trace against a
-working 10019 capture), not a blind retry on this same hardware.
+**Why the device NAK'd the write (established in Task 4C, superseding the two hypotheses
+originally recorded here):** the call matched upstream `write_psk()` verbatim, and it was
+never a payload or lock-state problem. Reading upstream `driver_52xd.main()`'s dispatch shows
+`write_psk()` is called **only** from its IAP (bootloader) branch; a firmware string matching
+`VALID_FIRMWARE` (any running APP image, 10034 included) routes to `erase_firmware()` instead.
+PSK provisioning is a bootloader-mode-only operation on this device — there is no firmware
+state or lock bit that would have let 10034 accept `preset_psk_write` while running as an
+application image. The two hypotheses originally recorded here (a 10019-specific
+`PSK_WHITE_BOX` precondition, and an unobserved device mode/lock state) are both superseded by
+this and were never the actual cause. The sensor was unharmed by this attempt either way: see
+above — `AFTER` was byte-identical to `BEFORE` on both firmware and PSK hash. Task 4C provisions
+the PSK by taking the only path the device actually accepts: erase into IAP, write the PSK
+there, then reflash the application firmware.
+
+### Task 4C: erase → IAP → zero-PSK write → reflash 10019 — SUCCESS, driver activates past the PSK check
+
+User approval recorded 2026-09-05 for erasing and reflashing the sensor (dual-boot withdrawn
+as a success bar). Pre-flight confirmed `/tmp/gfd/firmware/52xd/GFUSB_GM168SEC_APP_10019.bin`
+present on blackbird, 25200 bytes, before anything else ran.
+
+Wrote `$SCRATCH/gfd/flash_521d.py` on blackbird's `/tmp/gfd` byte-for-byte per the brief:
+monkeypatches only `builtins.input` to auto-answer upstream's anti-bot prompt (refusing via
+`SystemExit` if the prompt text ever didn't match `Type (\d+) to continue`), then calls
+`driver_52xd.main(0x521D)` unmodified. No erase/flash/retry logic was reimplemented; upstream's
+own state machine drove the entire sequence.
+
+**Environment note (not a device issue), distinct from Task 4B's:** `sudo NIX_PATH=nixpkgs=flake:nixpkgs nix shell ...`
+(the brief's literal Step 3 command) still failed with the nixpkgs-not-found error even after
+applying Task 4B's fix, because on blackbird a PAM session module re-populates `NIX_PATH` with
+the system-wide value *after* sudo applies a `VAR=val` command-line assignment — silently
+clobbering it before the target process execs, even though `sudo -l` confirms this user holds
+unrestricted `SETENV`. Confirmed by direct test: `sudo NIX_PATH=val bash -c 'echo $NIX_PATH'`
+prints the system value, not `val`. The working form re-exports `NIX_PATH` as a statement
+*inside* the already-running sudo'd shell, after PAM has had its chance to overwrite it:
+`sudo bash -c 'export NIX_PATH=nixpkgs=flake:nixpkgs; nix shell ...'`. This changes only how the
+Nix environment is constructed for the wrapper process, not anything about the flash sequence
+or its ordering.
+
+**Result — full sequence completed on the first run, no retry needed.** Captured verbatim to
+`/tmp/flash.log` on blackbird (152 lines). Key transitions:
+
+```
+Firmware: GFUSB_GM168SEC_APP_10034
+Valid PSK: False
+mcu_erase_app(50, True)
+Firmware: MILAN_GM168SEC_IAP_10007
+Valid PSK: False
+preset_psk_write(...)                      # zero PSK, PSK_WHITE_BOX payload, upstream's exact args
+write_firmware(0, ...) ... write_firmware(25088, ...)   # 256-byte chunks, full 25200-byte image
+update_firmware(None, None, None, <hmac>)
+reset(False, True, 50)
+disconnect()
+Firmware: GFUSB_GM168SEC_APP_10019
+Valid PSK: True
+```
+
+After re-enumeration on `GFUSB_GM168SEC_APP_10019` with `Valid PSK: True`, `main()` proceeded
+into `run_driver()` (this tool's own bring-up path, separate from the actual libfprint driver)
+and raised `ValueError: Invalid OTP` out of its `read_otp()` call. This is a limitation of
+`goodix-fp-dump`'s own OTP read on this run, not a device or PSK fault — it is unrelated to
+firmware/PSK state (which was already correct and verified by that point) and is outside the
+brief's required verification path (Steps 4 and 5, both independent of `run_driver()`). The
+sensor did not need a second run; the brief's "stuck in IAP, re-run once" recovery path was not
+triggered.
+
+**Step 4 verification (read-only probe, independent of the flash run):**
+
+```
+FIRMWARE: GFUSB_GM168SEC_APP_10019
+PSK_FLAGS: 0xbb020001
+PSK_HASH: 66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925
+PSK_IS_ZERO: True
+```
+
+Matches the brief's required end state exactly: target firmware, PMK hash equal to
+`SHA256(32 zero bytes)`.
+
+**Step 5 verification (patched libfprint driver, `/tmp/lfp-fork/build/examples/enroll`):**
+run with a finger selection piped to stdin (the brief's literal command left the menu
+unanswered) and a 30-second timeout, since no finger is available remotely. `G_MESSAGES_DEBUG=all`
+output shows:
+
+```
+libfprint-goodixtls52xd-DEBUG: Device firmware: "GFUSB_GM168SEC_APP_10019"
+[goodixtls52xd] ACTIVATE_NUM_STATES entering state 4
+libfprint-goodixtls52xd-DEBUG: Device PSK: 0x66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925
+libfprint-goodixtls52xd-DEBUG: Device PSK flags: 0xbb020001
+[goodixtls52xd] ACTIVATE_NUM_STATES entering state 5
+...
+[goodixtls52xd] ACTIVATE_NUM_STATES completed successfully
+...
+Image device internal state change from FPI_IMAGE_DEVICE_STATE_IDLE to FPI_IMAGE_DEVICE_STATE_AWAIT_FINGER_ON
+[goodixtls52xd] SCAN_STAGE_NUM entering state 0
+Device reported finger status change: FP_FINGER_STATUS_NEEDED
+```
+
+No `Invalid` string appears anywhere in the log. Activation passed state 4
+(`ACTIVATE_CHECK_PSK`) with the correct PSK logged, completed the full `ACTIVATE_NUM_STATES`
+and TLS handshake, and reached the finger-scan wait (`FP_FINGER_STATUS_NEEDED`) before the
+30-second timeout killed the process (expected — no finger is available on this remote
+session).
+
+**End state:** sensor on firmware `GFUSB_GM168SEC_APP_10019`, PMK hash
+`66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925` (zero PSK), patched driver
+activates past the PSK check and reaches the finger-scan wait. Actual enrolment (presenting a
+finger) is deferred to Task 8, as scoped.
