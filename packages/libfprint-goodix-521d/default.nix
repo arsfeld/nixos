@@ -36,10 +36,36 @@ in
     # ships 10034. A prefix match keeps future firmware revisions working
     # without another patch.
     postPatch = ''
-      substituteInPlace libfprint/drivers/goodixtls/goodix52xd.c \
-        --replace-fail \
-          'if (strcmp(firmware, GOODIX_52XD_FIRMWARE_VERSION)) {' \
-          'if (strncmp(firmware, "GFUSB_GM168SEC_APP_", 19)) {'
+            substituteInPlace libfprint/drivers/goodixtls/goodix52xd.c \
+              --replace-fail \
+                'if (strcmp(firmware, GOODIX_52XD_FIRMWARE_VERSION)) {' \
+                'if (strncmp(firmware, "GFUSB_GM168SEC_APP_", 19)) {'
+
+            # nixpkgs' fprintd (1.94.5) requires libfprint-2 >= 1.94.9 via
+            # pkg-config; this fork's meson.build still reports 1.94.1 (its last
+            # upstream sync in 2021). The version string is just a build-time
+            # dependency-check label here, so bump the label to match the one real
+            # public-API change between those tags (see below) rather than the
+            # fork's actual age.
+            substituteInPlace meson.build \
+              --replace-fail \
+                "version: '1.94.1'," \
+                "version: '1.94.9',"
+
+            # fprintd 1.94.5's device.c references FP_DEVICE_RETRY_TOO_FAST, added
+            # upstream in 1.94.9 (NEWS: "fp-device: Add FP_DEVICE_RETRY_TOO_FAST
+            # retry error") -- the only public FpDevice/FpPrint API addition between
+            # 1.94.1 and 1.94.9; every other change in that range is new
+            # driver/PID support or internal-only fixes. Add the enum value so
+            # fprintd's switch over FpDeviceRetry compiles; goodixtls52xd never
+            # emits it, so this is purely a missing-symbol fix, not new behavior.
+            substituteInPlace libfprint/fp-device.h \
+              --replace-fail \
+                'FP_DEVICE_RETRY_REMOVE_FINGER,
+      } FpDeviceRetry;' \
+                'FP_DEVICE_RETRY_REMOVE_FINGER,
+        FP_DEVICE_RETRY_TOO_FAST,
+      } FpDeviceRetry;'
     '';
 
     mesonFlags = [
