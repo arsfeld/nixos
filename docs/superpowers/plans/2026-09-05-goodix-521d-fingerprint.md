@@ -420,9 +420,111 @@ git commit -m "docs(blackbird): record offline Windows PSK search result"
 
 ---
 
+### Task 4B: Provision the zero PSK — THE FIRST SENSOR WRITE
+
+**User approval recorded 2026-09-05.** Task 4A established that the PSK is vendor-sealed and unrecoverable by static search, so the user chose the fallback their success bar already sanctioned: overwrite the sensor's PSK with the all-zero key the community driver expects.
+
+**This is the only task in the plan that writes to the sensor.** It writes a PSK and nothing else. It must never touch firmware.
+
+**Why this is now cheap.** In the upstream community flow, PSK provisioning and a firmware downgrade are bundled inside `driver_52xd.py`'s `main()`, which erases any firmware that is not exactly 10019. Task 3 removed the need for that half: the sensor already runs 10034 and our patched driver accepts it. So this task performs the PSK write *alone* — no erase, no flash, no bootloader risk.
+
+**Files:**
+- Create: `$SCRATCH/gfd/write_zero_psk.py` (not committed)
+- Modify: spec Findings
+
+**Interfaces:**
+- Consumes: the patched driver from Task 2; the confirmed firmware `GFUSB_GM168SEC_APP_10034`.
+- Produces: a sensor whose stored PMK hash is `SHA256(32 zero bytes)` = `66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925`, enabling driver activation to pass `ACTIVATE_CHECK_PSK`.
+
+- [ ] **Step 1: Write the surgical script**
+
+It must call **only** `preset_psk_write`, guarded by firmware assertions on both sides. Reuse `PSK_WHITE_BOX` verbatim from `driver_52xd.py`; do not retype it.
+
+```python
+#!/usr/bin/env python3
+"""Provision the all-zero PSK on a Goodix 521d. Writes a PSK and NOTHING else.
+
+Never calls erase_firmware(), update_firmware(), or driver_52xd.main().
+"""
+import hashlib, sys
+import goodix, protocol
+from driver_52xd import PSK_WHITE_BOX          # reuse, do not retype
+
+PRODUCT, PSK_FLAGS = 0x521D, 0xBB020001
+EXPECT_FW = "GFUSB_GM168SEC_APP_10034"
+ZERO_PMK = hashlib.sha256(bytes(32)).digest()
+
+def read_state(dev):
+    fw = dev.firmware_version()
+    reply = dev.preset_psk_read(PSK_FLAGS, 32, 0)
+    if not reply[0]:
+        raise SystemExit("PSK read failed")
+    return fw, reply[2]
+
+def main() -> int:
+    dev = goodix.Device(PRODUCT, protocol.USBProtocol)
+    dev.nop()
+
+    fw, before = read_state(dev)
+    print(f"BEFORE firmware: {fw}\nBEFORE psk_hash: {before.hex()}")
+    if fw != EXPECT_FW:                      # refuse to touch an unexpected sensor
+        raise SystemExit(f"ABORT: expected {EXPECT_FW}, found {fw}")
+    if before == ZERO_PMK:
+        print("Already zero-keyed; nothing to do."); return 0
+
+    ok = dev.preset_psk_write(0xbb010003, PSK_WHITE_BOX, 114, 0,
+                              bytes.fromhex("56a5bb956b7c8d9e0000"))
+    print(f"WRITE returned: {ok}")
+
+    fw2, after = read_state(dev)
+    print(f"AFTER firmware: {fw2}\nAFTER psk_hash: {after.hex()}")
+    print(f"PSK_NOW_ZERO: {after == ZERO_PMK}")
+    print(f"FIRMWARE_UNCHANGED: {fw2 == fw}")
+    return 0 if after == ZERO_PMK and fw2 == fw else 1
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+The firmware assertion on both sides is the safety net: if the firmware string changes across this operation, something wrote flash and that must be reported immediately.
+
+- [ ] **Step 2: Run it**
+
+Same environment as the probe — note `python3.withPackages`, and `NIX_PATH` for sudo:
+
+```bash
+ssh -t blackbird.bat-boa.ts.net 'cd /tmp/gfd && sudo NIX_PATH=nixpkgs=flake:nixpkgs \
+  nix shell --impure --expr \
+  "(import <nixpkgs> {}).python3.withPackages (ps: with ps; \
+     [pyusb crcmod crccheck pycryptodome python-periphery spidev])" \
+  -c python3 write_zero_psk.py'
+```
+
+Required: `PSK_NOW_ZERO: True` and `FIRMWARE_UNCHANGED: True`.
+
+- [ ] **Step 3: Confirm the driver now activates**
+
+Re-run the Task 3 enroll binary. Success is the driver getting **past** state 4 (`ACTIVATE_CHECK_PSK`) and reaching the finger-scan stage — no finger required to prove it, and none is available remotely.
+
+```bash
+ssh blackbird.bat-boa.ts.net 'cd /tmp/lfp-fork && sudo timeout 30 \
+  bash -c "G_MESSAGES_DEBUG=all ./build/examples/enroll > /tmp/enroll-postpsk.log 2>&1"; \
+  grep -E "Device PSK|Invalid device|scan|state" /tmp/enroll-postpsk.log | head -20'
+```
+
+Expected: no `Invalid device PSK`, and activation proceeding to await a finger.
+
+- [ ] **Step 4: Record and commit**
+
+Append before/after PSK hashes, the firmware-unchanged confirmation, and the activation outcome to the spec's Findings.
+
+**If the write fails or half-completes:** report immediately and stop. Do not retry blind and do not reach for the firmware path. The sensor's PSK may be left in a state Windows must re-provision; Windows Hello may need re-enrolment. That is recoverable — a wedged firmware would not be, which is exactly why this task never touches it.
+
+---
+
 ### Task 4: usbmon baseline of the Linux attempt
 
-**Run only if Task 3 did not enroll successfully AND Task 4A did not recover the PSK.**
+**Superseded for now by Task 4B.** Run only if Task 4B fails and the user asks to escalate to protocol capture.
 
 Captures our own failing exchange so the Windows trace in Task 5 is diffable against a known-meaning reference.
 
