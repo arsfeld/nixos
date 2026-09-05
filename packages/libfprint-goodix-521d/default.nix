@@ -10,7 +10,7 @@ in
     # infinytum/libfprint@5e14af7f, which was pinned to v1.94.1 (2021).
     src = fetchFromGitHub {
       owner = "arsfeld";
-      repo = "libfprint";
+      repo = "libfprint-goodixtls";
       rev = "6c078afeabca6e35eab6cc4e9beee24d8078e772";
       hash = "sha256-mtF5EW4eRuvCH/06EsHbv5RjfxJ74w9DG3gaJWkRcYM=";
     };
@@ -45,7 +45,7 @@ in
 
     meta = with lib; {
       description = "libfprint fork with the goodixtls driver for Goodix 27c6:521d";
-      homepage = "https://github.com/arsfeld/libfprint";
+      homepage = "https://github.com/arsfeld/libfprint-goodixtls";
       license = licenses.lgpl21Plus;
       platforms = platforms.linux;
     };
