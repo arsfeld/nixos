@@ -244,3 +244,21 @@ automated tests. Phase 3 carries the build gate above.
 | sensor driver binding | none — clean passthrough |
 | RAM / disk | ~20 GB free / 102 GB on `/var/tmp` |
 | Windows partition | `nvme0n1p5`, NTFS, 425.6 GB |
+
+## Findings (2026-09-05)
+
+Read-only probe (`nop()`, `firmware_version()`, `preset_psk_read()` only) run against the
+521d sensor on blackbird via `goodix-fp-dump`, over a nix shell providing pyusb, crcmod,
+crccheck, pycryptodome, python-periphery, and spidev:
+
+```
+FIRMWARE: GFUSB_GM168SEC_APP_10034
+PSK_FLAGS: 0xbb020001
+PSK_HASH: 126770ba77304106160859262e4d0a2ffed13ed794fc703023111345fc746dd0
+PSK_IS_ZERO: False
+```
+
+The sensor is running application firmware (not the `MILAN_GM168SEC_IAP_*` bootloader), and
+its stored PSK hash is non-zero — this is the expected/predicted outcome from Task 1's
+brief, not the bootloader-recovery case. Both facts Task 3 branches on are now established:
+`FIRMWARE = GFUSB_GM168SEC_APP_10034`, `PSK_IS_ZERO = False`.
