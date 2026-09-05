@@ -314,6 +314,21 @@
   # Enable the OpenSSH daemon
   services.openssh.enable = true;
 
+  # Goodix 27c6:521d (built-in fingerprint reader) is on libfprint's
+  # known-unsupported list, so fprintd is pointed at
+  # pkgs.libfprint-goodix-521d, a fork carrying the community goodixtls
+  # driver patched to accept this sensor's firmware. fprintd takes libfprint
+  # as an overridable argument, which keeps the fork scoped to this host
+  # instead of overlaying libfprint globally (the overlay in
+  # flake-modules/lib.nix would otherwise drag all nine hosts onto a
+  # five-year-old libfprint fork).
+  services.fprintd = {
+    enable = true;
+    package = pkgs.fprintd.override {
+      libfprint = pkgs.libfprint-goodix-521d;
+    };
+  };
+
   # Disable firewall for development
   networking.firewall.enable = false;
 
