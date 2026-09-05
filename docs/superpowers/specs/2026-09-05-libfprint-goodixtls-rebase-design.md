@@ -267,4 +267,39 @@ library reports `Version: 1.94.100` to pkg-config natively.
   `FP_DEVICE_RETRY_TOO_FAST`
 - `.#nixosConfigurations.blackbird.config.system.build.toplevel` — ok
 
-Not verified: enrollment and verification against the physical sensor.
+Verified statically against the built closure, which proves the driver is
+built, registered and wired to the right daemon:
+
+- `fprintd.service` runs our `fprintd`, whose RPATH and whole closure contain
+  exactly one libfprint — ours.
+- The built `.so` contains `goodixtls52xd` and the `GFUSB_GM168SEC_APP_`
+  prefix, and **not** the literal `GFUSB_GM168SEC_APP_10019`. The old exact
+  `strcmp` would have embedded the full string, so its absence is positive
+  proof the widened gate is what compiled.
+- `fprint-list-supported-devices` reports
+  `27c6:521d | Goodix TLS Fingerprint Sensor 52XD`.
+- The shipped hwdb marks `usb:v27C6p521D*` supported and no longer lists it as
+  unsupported. The udev *rules* file is empty, which is correct: stock
+  libfprint emits rules only for SPI devices (elanspi), never for USB.
+
+Not verified: enrollment and matching against the physical sensor.
+
+### Fixed during verification: gdm-fingerprint used the wrong fprintd
+
+`nixos/modules/services/display-managers/gdm.nix:629` builds the
+`gdm-fingerprint` PAM stack from `${pkgs.fprintd}`, while
+`nixos/modules/security/pam.nix:1171` uses
+`${config.services.fprintd.package}`. So `services.fprintd.package` reached
+every PAM service *except* `gdm-fingerprint`, which kept a stock fprintd.
+
+Login was never broken by this: `pam_fprintd.so` links no libfprint at all —
+it is a D-Bus client of `net.reactivated.Fprint`, and the daemon owning that
+bus name is ours. But `nix why-depends --all` showed `gdm-fingerprint.pam` was
+the *only* route pulling a second fprintd and a stock `libfprint-1.94.10` into
+the system closure, about 25 MiB of redundant content. (Most of what that
+branch drags — python3 and friends — is shared with GNOME regardless, so the
+first 169 MiB estimate was wrong.)
+
+`hosts/blackbird/configuration.nix` now overrides that one `modulePath`. The
+system closure holds exactly one libfprint and one fprintd, and every PAM
+service resolves to the same one. Worth reporting upstream.

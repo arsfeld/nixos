@@ -347,6 +347,16 @@
     };
   };
 
+  # nixpkgs builds the gdm-fingerprint PAM stack from `pkgs.fprintd` rather
+  # than `config.services.fprintd.package` (gdm.nix, vs pam.nix which does use
+  # the latter), so the override above reaches every PAM service except this
+  # one. Login still works -- pam_fprintd links no libfprint, it is a D-Bus
+  # client of net.reactivated.Fprint, and the daemon owning that name is ours
+  # -- but it is the only thing dragging a second fprintd and a stock
+  # libfprint into the system closure. Point it at the same package.
+  security.pam.services.gdm-fingerprint.rules.auth.fprintd.modulePath =
+    lib.mkForce "${config.services.fprintd.package}/lib/security/pam_fprintd.so";
+
   # Disable firewall for development
   networking.firewall.enable = false;
 
