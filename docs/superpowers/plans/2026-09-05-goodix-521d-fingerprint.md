@@ -4,7 +4,9 @@
 
 **Goal:** Fingerprint unlock on blackbird via fprintd/libfprint for Goodix `27c6:521d`, targeting sensor firmware `GFUSB_GM168SEC_APP_10034` (the build Windows uses) so dual-booting Windows does not break it.
 
-**Architecture:** Three gated phases. Tasks 1–3 learn the sensor's real state using only read operations and a locally-built driver. Tasks 4–6 run **only if Task 3 fails**, capturing the Windows driver's USB traffic from a VM to close the protocol gap. Tasks 7–8 package the result for NixOS and prove the dual-boot round trip.
+**Architecture:** Gated phases, cheapest first. Tasks 1–3 learn the sensor's real state using only read operations and a locally-built driver. Task 4A then searches the Windows install offline for the sensor's PSK — read-only, no VM, no reboot — and may end the investigation outright. Tasks 4–6 run only if Task 4A comes back empty, escalating to USB capture from a Windows VM and then Ghidra. Tasks 7–8 package the result for NixOS and prove the dual-boot round trip.
+
+**Status note (2026-09-05):** Tasks 1–3 are complete. The firmware question is settled — the sensor runs `GFUSB_GM168SEC_APP_10034` and the widened gate accepts it, so **nothing needs flashing**. The single remaining blocker is the sensor's PSK, `126770ba…746dd0`, confirmed identical by two independent code paths.
 
 **Tech Stack:** Nix flakes + flake-parts + haumea, meson/ninja, libfprint (`infinytum/libfprint` fork), fprintd, Python 3 + pyusb, libvirt/QEMU/swtpm, usbmon.
 
@@ -352,9 +354,75 @@ If outcome 1 → go to **Task 7**. Otherwise → go to **Task 4**.
 
 ---
 
+### Task 4A: Offline search of the Windows install for the sensor's PSK
+
+**Inserted after Task 3 established that the ONLY remaining blocker is the PSK.** Runs before Tasks 4-6 and may make all three unnecessary.
+
+Entirely read-only: no VM, no Windows boot, no sensor write, no reboot. The Windows partition is mounted read-only and the interesting files are copied off; all analysis happens on the copies.
+
+**Rationale.** The Windows driver must know the PSK to complete its handshake. Controller analysis already ruled out the easy possibilities — the PSK is not the zero key, matches none of the 29 published Goodix constants, and neither its hash nor the key itself appears anywhere in `wbdi.dll`, `GoodixEngineAdapter.dll`, or `SessionService.exe` (verified with a sliding 32-byte window over all three). That leaves it stored Windows-side or derived at runtime. This task tests the first, cheaper hypothesis.
+
+**Files:**
+- Create: `$SCRATCH/psk-hunt/` (copies + scripts; not committed)
+- Modify: `docs/superpowers/specs/2026-09-05-goodix-521d-fingerprint-design.md` (Findings)
+
+**Interfaces:**
+- Consumes: the target PMK hash `126770ba77304106160859262e4d0a2ffed13ed794fc703023111345fc746dd0`, confirmed identical by two independent code paths (Task 1's probe and Task 3's driver log).
+- Produces: either **the PSK preimage** — in which case Tasks 4, 5 and 6 are all skipped and we go straight to patching the driver's expected key — or a definitive negative that justifies the more expensive routes.
+
+- [ ] **Step 1: Mount the Windows partition read-only and copy out the candidates**
+
+Windows lives on `/dev/nvme0n1p5`. Mount read-only; never rw.
+
+```bash
+ssh blackbird.bat-boa.ts.net 'sudo mkdir -p /mnt/win && sudo mount -o ro,noatime /dev/nvme0n1p5 /mnt/win && echo MOUNTED'
+```
+
+Copy out only these, then unmount immediately. Do **not** scan or enumerate the whole 425 GB partition — target these paths directly:
+
+- `/Windows/System32/config/SYSTEM` — the hive holding `HKLM\System\CurrentControlSet\Control\Goodix\FP`, which `WbdiUsb.inf` creates
+- `/Windows/System32/config/SOFTWARE`
+- `/Windows/System32/WinBioDatabase/` — WinBio template store
+- any `Goodix` directory under `/ProgramData` or `/Windows/System32` (check existence first; skip silently if absent)
+
+- [ ] **Step 2: Sliding-window preimage search**
+
+The decisive test. For each copied file, hash every 32-byte window and compare against the target. A PSK stored verbatim anywhere in these files is found by this.
+
+```python
+import hashlib, sys
+TARGET = bytes.fromhex("126770ba77304106160859262e4d0a2ffed13ed794fc703023111345fc746dd0")
+for path in sys.argv[1:]:
+    data = open(path, "rb").read()
+    hit = next((i for i in range(len(data) - 31)
+                if hashlib.sha256(data[i:i+32]).digest() == TARGET), None)
+    print(f"{path}: {'FOUND at ' + hex(hit) if hit is not None else 'not found'}")
+```
+
+Hives are tens of MB, so this is minutes of CPU, not hours. If it reports FOUND, extract those 32 bytes — that is the sensor's PSK, and it is the whole answer.
+
+- [ ] **Step 3: Targeted registry inspection**
+
+Independently of the byte search, dump and read the Goodix keys. All four tools are in nixpkgs: `hivex`, `chntpw`, `python3Packages.python-registry`, `regripper`.
+
+Inspect `HKLM\System\CurrentControlSet\Control\Goodix\FP` (and the same path under every `ControlSet00N`). `WbdiUsb.inf` is known to create `SupportCMDOKBSSO`, `SupportPBSSO`, `SupportECSSO`, `EnableRemoteWakeup`, `MSOnePressTimeOut`, `S3OnePressTimeOut`, `S0IdleTimeout`, `SubmitNeedDelay`. Report any value beyond that set, especially binary blobs of 32 or 96 bytes — 96 would be a white-box-wrapped key like goodix-fp-dump's `PSK_WHITE_BOX`.
+
+Also check the driver's device instance keys under `HKLM\System\CurrentControlSet\Enum\USB\VID_27C6&PID_521D\`.
+
+- [ ] **Step 4: Record the outcome and commit**
+
+Append to the spec's existing `## Findings (2026-09-05)` section: what was searched, and either the recovered key or an explicit statement that the offline search was negative and which files it covered. A precise negative is a valuable result — it is what justifies spending a VM or Ghidra on the next attempt.
+
+```bash
+git add docs/superpowers/specs/2026-09-05-goodix-521d-fingerprint-design.md
+git commit -m "docs(blackbird): record offline Windows PSK search result"
+```
+
+---
+
 ### Task 4: usbmon baseline of the Linux attempt
 
-**Run only if Task 3 did not enroll successfully.**
+**Run only if Task 3 did not enroll successfully AND Task 4A did not recover the PSK.**
 
 Captures our own failing exchange so the Windows trace in Task 5 is diffable against a known-meaning reference.
 
@@ -399,7 +467,7 @@ This trace stays in the scratchpad; it is raw investigation data, not a repo art
 
 ### Task 5: Windows VM capture
 
-**Run only if Task 3 did not enroll successfully.**
+**Run only if Task 3 did not enroll successfully AND Task 4A did not recover the PSK.**
 
 **STOP — this task requires explicit user approval before Step 4.** Attaching the sensor to a booting Windows guest may cause the Windows driver to flash it. Writing 10034 serves the goal, but it is still a write.
 
