@@ -522,9 +522,94 @@ Append before/after PSK hashes, the firmware-unchanged confirmation, and the act
 
 ---
 
+### Task 4C: Downgrade to 10019 and provision the PSK — FIRMWARE WRITE
+
+**Goal changed 2026-09-05.** The user stated dual-boot is *not* a goal and nothing needs to survive on the Windows side, then explicitly approved flashing the sensor down to 10019. The "survives dual-boot" success bar is **withdrawn**; the bar is now simply working fingerprint on NixOS.
+
+**Why Task 4B was rejected — the actual reason.** Upstream's `main()` only ever calls `write_psk()` inside its **IAP (bootloader) branch**. APP-mode firmware routes to `erase_firmware()` instead, so `preset_psk_write` is never issued against a running application firmware. Task 4B's rejection was not a 10019-specific quirk in `PSK_WHITE_BOX` nor an unknown lock state — PSK provisioning is simply a bootloader-mode operation. Both hypotheses recorded in the Task 4B findings are superseded and must be corrected.
+
+The consequence: provisioning the PSK "alone, without an erase" is **not achievable**, because IAP mode is only reachable via `erase_firmware()`.
+
+**The real sequence**, which upstream orchestrates automatically:
+
+```
+10034 (APP)  --erase_firmware-->  IAP  --write_psk-->  IAP+zero PSK
+             --update_firmware-->  10019 (APP) + zero PSK  -->  driver runs
+```
+
+**Files:**
+- Create: `$SCRATCH/gfd/flash_521d.py` (not committed)
+- Modify: spec Findings
+
+**Interfaces:**
+- Consumes: the patched driver from Task 2 (its prefix gate accepts 10019 and 10034 alike, so no revert is needed).
+- Produces: a sensor on firmware `GFUSB_GM168SEC_APP_10019` with PMK hash `66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925`, able to activate.
+
+- [ ] **Step 1: Confirm the firmware blob is present**
+
+`update_firmware()` reads `firmware/52xd/GFUSB_GM168SEC_APP_10019.bin` relative to the working directory. Verified present on blackbird at `/tmp/gfd/firmware/52xd/`, 25200 bytes. **If it is missing, STOP** — an erase without a blob to flash back leaves the sensor stranded in IAP.
+
+- [ ] **Step 2: Drive upstream's own state machine**
+
+Do **not** reimplement the erase/flash logic. Use upstream `main()` unchanged so its ordering, retries and verification are preserved; only auto-answer its interactive anti-bot prompt.
+
+```python
+#!/usr/bin/env python3
+"""Run upstream driver_52xd.main() unmodified, auto-answering the bot prompt.
+
+This DOES erase and reflash the sensor. Approved by the user 2026-09-05.
+"""
+import builtins, re, sys
+import driver_52xd
+
+def auto_input(prompt=""):
+    print(prompt)
+    m = re.search(r"Type (\d+) to continue", prompt)
+    if not m:
+        raise SystemExit(f"Unexpected prompt, refusing to guess: {prompt!r}")
+    return m.group(1)
+
+builtins.input = auto_input
+driver_52xd.main(0x521D)
+```
+
+- [ ] **Step 3: Run it, capturing everything**
+
+```bash
+ssh -t blackbird.bat-boa.ts.net 'cd /tmp/gfd && sudo NIX_PATH=nixpkgs=flake:nixpkgs \
+  nix shell --impure --expr \
+  "(import <nixpkgs> {}).python3.withPackages (ps: with ps; \
+     [pyusb crcmod crccheck pycryptodome python-periphery spidev])" \
+  -c bash -c "python3 flash_521d.py 2>&1 | tee /tmp/flash.log"'
+```
+
+**Do not interrupt this once the erase begins.** Expect the firmware string to pass through `MILAN_GM168SEC_IAP_10007` mid-run — that is the intended path, not a failure.
+
+- [ ] **Step 4: Verify the end state**
+
+Re-run the Task 1 read-only probe. Required: firmware `GFUSB_GM168SEC_APP_10019`, and PMK hash equal to `SHA256(zeros)` = `66687aad…2925`.
+
+- [ ] **Step 5: Confirm the driver activates**
+
+```bash
+ssh blackbird.bat-boa.ts.net 'cd /tmp/lfp-fork && sudo timeout 30 \
+  bash -c "G_MESSAGES_DEBUG=all ./build/examples/enroll > /tmp/enroll-postflash.log 2>&1"; \
+  grep -E "Device firmware|Device PSK|Invalid|scan" /tmp/enroll-postflash.log | head'
+```
+
+Success is activation passing state 4 and reaching the finger-scan wait. No finger is available remotely; actual enrolment is Task 8.
+
+- [ ] **Step 6: Correct the Task 4B record, add findings, commit**
+
+Also revise the Task 4B findings to replace its two superseded hypotheses with the real explanation (PSK writes are IAP-only).
+
+**If the sensor ends up stuck in IAP:** re-run the same script. Upstream's IAP branch flashes 10019 from the local blob, which is the designed recovery. Report before retrying more than once.
+
+---
+
 ### Task 4: usbmon baseline of the Linux attempt
 
-**Superseded for now by Task 4B.** Run only if Task 4B fails and the user asks to escalate to protocol capture.
+**Superseded.** The goal no longer requires understanding Windows' PSK handling. Run only if the user revives the dual-boot requirement.
 
 Captures our own failing exchange so the Windows trace in Task 5 is diffable against a known-meaning reference.
 
