@@ -262,3 +262,52 @@ The sensor is running application firmware (not the `MILAN_GM168SEC_IAP_*` bootl
 its stored PSK hash is non-zero — this is the expected/predicted outcome from Task 1's
 brief, not the bootloader-recovery case. Both facts Task 3 branches on are now established:
 `FIRMWARE = GFUSB_GM168SEC_APP_10034`, `PSK_IS_ZERO = False`.
+
+### Task 3: patched-driver enroll attempt — OUTCOME 2 (`Invalid device PSK`)
+
+Built the `infinytum/libfprint` `unstable` fork on blackbird in `/tmp/lfp-fork`, with the
+firmware gate in `libfprint/drivers/goodixtls/goodix52xd.c` widened from an exact `strcmp`
+against `GOODIX_52XD_FIRMWARE_VERSION` to `strncmp(firmware, "GFUSB_GM168SEC_APP_", 19)`
+(confirmed present at line 106 post-build). The plain `nix shell nixpkgs#glib …` one-liner
+from the brief does not work as written — `nix shell` does not run package setup hooks, so
+`PKG_CONFIG_PATH` never gets populated and `meson setup` fails at `Dependency "glib-2.0" not
+found`. Worked around with an ad hoc `nix develop` flake (`pkgs.mkShell` with the same
+package list as `nativeBuildInputs`/`buildInputs`), which does wire `PKG_CONFIG_PATH` via
+setup hooks; build then succeeded cleanly (`ninja -C build`, 96/96, producing
+`build/examples/enroll`). No production module or committed file was changed by this
+workaround — it only affects how the disposable `/tmp/lfp-fork` build tree was compiled.
+
+Ran `sudo G_MESSAGES_DEBUG=all LIBUSB_DEBUG=3 ./build/examples/enroll`, feeding it a newline
+(continue) and `1` (left index finger) on stdin so it would proceed past the interactive
+prompts, output captured to `/tmp/enroll.log` on blackbird and retrieved to
+`$SCRATCH/captures/enroll-baseline.log`. The driver claimed the device
+(`Selected device 0 (Goodix TLS Fingerprint Sensor 52XD) claimed by goodixtls52xd driver`),
+opened it, and reached `ACTIVATE_NUM_STATES` state 4 (`ACTIVATE_CHECK_PSK`) in well under a
+second — it never reached the finger-scan stage, so no physical touch was needed and the
+`timeout 60` guard was never a factor:
+
+```
+(process:45994): libfprint-goodixtls52xd-DEBUG: 13:47:37.016: Device firmware: "GFUSB_GM168SEC_APP_10034"
+(process:45994): libfprint-goodixtls52xd-DEBUG: 13:47:37.045: Device PSK: 0x126770ba77304106160859262e4d0a2ffed13ed794fc703023111345fc746dd0
+(process:45994): libfprint-goodixtls52xd-DEBUG: 13:47:37.045: Device PSK flags: 0xbb020001
+(process:45994): libfprint-SSM-DEBUG: 13:47:37.045: [goodixtls52xd] SSM ACTIVATE_NUM_STATES failed in state 4 with error: Invalid device PSK: 0x126770ba77304106160859262e4d0a2ffed13ed794fc703023111345fc746dd0
+(process:45994): libfprint-goodixtls52xd-CRITICAL **: 13:47:37.045: failed during activation: Invalid device PSK: 0x126770ba77304106160859262e4d0a2ffed13ed794fc703023111345fc746dd0 (code: 35)
+(process:45994): libfprint-WARNING **: 13:47:37.045: Enroll failed with error Invalid device PSK: 0x126770ba77304106160859262e4d0a2ffed13ed794fc703023111345fc746dd0
+```
+
+**Classification: Outcome 2.** The firmware gate now passes (`Device firmware:
+"GFUSB_GM168SEC_APP_10034"` logged, no `Invalid device firmware` anywhere), the driver
+reached `ACTIVATE_CHECK_PSK`, and enrollment failed there on the PSK comparison — exactly
+the expected/predicted case, not a failure of this task.
+
+**PMK hash cross-check:** the logged `Device PSK: 0x126770ba77304106160859262e4d0a2ffed13ed794fc703023111345fc746dd0`
+is identical (byte-for-byte, modulo the `0x` prefix) to Task 1's read-only-probe
+`PSK_HASH: 126770ba77304106160859262e4d0a2ffed13ed794fc703023111345fc746dd0`. Same value,
+same PSK flags (`0xbb020001`) — the two independent code paths (read-only probe vs. the
+patched driver's real `ACTIVATE_CHECK_PSK` comparison) agree. This is the confirmed real
+stored PMK hash on this sensor, still not the all-zero key and still matching none of the
+29 published Goodix PSK constants (per Task 2's finding). No firmware write or PSK write
+was attempted or is needed to reach this result — `goodix_send_preset_psk_write()` was not
+called; only `goodix_send_preset_psk_read()` ran (visible above at command `0xe4`).
+
+**Branch:** proceed to Task 4 (Task 7 is skipped — enroll did not succeed).
