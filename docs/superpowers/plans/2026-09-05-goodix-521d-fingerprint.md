@@ -2,11 +2,28 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fingerprint unlock on blackbird via fprintd/libfprint for Goodix `27c6:521d`, targeting sensor firmware `GFUSB_GM168SEC_APP_10034` (the build Windows uses) so dual-booting Windows does not break it.
+**Goal:** Fingerprint unlock on blackbird via fprintd/libfprint for Goodix `27c6:521d`.
 
-**Architecture:** Gated phases, cheapest first. Tasks 1–3 learn the sensor's real state using only read operations and a locally-built driver. Task 4A then searches the Windows install offline for the sensor's PSK — read-only, no VM, no reboot — and may end the investigation outright. Tasks 4–6 run only if Task 4A comes back empty, escalating to USB capture from a Windows VM and then Ghidra. Tasks 7–8 package the result for NixOS and prove the dual-boot round trip.
+> **Header superseded 2026-09-05.** This plan was written to target firmware
+> `GFUSB_GM168SEC_APP_10034` so that dual-booting Windows would not break fingerprint. The
+> user then withdrew that requirement ("dual-boot is not a goal, nothing needs to survive on
+> the Windows side") and approved flashing the sensor down to `10019`. The task bodies below
+> are preserved as the historical record, including the tasks that were never run — see
+> Task 4C for the change of direction.
 
-**Status note (2026-09-05):** Tasks 1–3 are complete. The firmware question is settled — the sensor runs `GFUSB_GM168SEC_APP_10034` and the widened gate accepts it, so **nothing needs flashing**. The single remaining blocker is the sensor's PSK, `126770ba…746dd0`, confirmed identical by two independent code paths.
+**Outcome:** Delivered. The sensor runs `GFUSB_GM168SEC_APP_10019` with the all-zero PSK
+provisioned, the patched driver completes activation and its TLS handshake, and
+`services.fprintd` is enabled on blackbird via `pkgs.libfprint-goodix-521d`. Windows Hello is
+broken by this, which is accepted. Only enrolment — which needs a human to touch the sensor —
+remained outstanding at the time of writing.
+
+**Architecture (as executed):** Tasks 1–3 learned the sensor's real state using read-only
+operations and a locally-built driver. Task 4A searched the Windows install offline for the
+PSK and established it is vendor-sealed. Task 4B attempted to provision the zero PSK without
+an erase and was refused by the device — PSK writes are IAP-only. Task 4C flashed to 10019
+and provisioned the PSK. Task 7 packaged it for NixOS. **Tasks 4, 5 and 6 (usbmon baseline,
+Windows VM capture, Ghidra) were superseded and never run** — they existed only to satisfy
+the withdrawn dual-boot requirement.
 
 **Tech Stack:** Nix flakes + flake-parts + haumea, meson/ninja, libfprint (`infinytum/libfprint` fork), fprintd, Python 3 + pyusb, libvirt/QEMU/swtpm, usbmon.
 
