@@ -137,6 +137,7 @@
   # suspends when unused.
   boot.extraModprobeConfig = ''
     options nvidia NVreg_EnableGpuFirmware=0
+    options nvidia NVreg_DynamicPowerManagement=0x00
     options nvidia NVreg_RegistryDwords="PowerMizerEnable=0x1;PerfLevelSrc=0x3322;PowerMizerLevel=0x1;PowerMizerDefault=0x1;PowerMizerDefaultAC=0x1"
   '';
 

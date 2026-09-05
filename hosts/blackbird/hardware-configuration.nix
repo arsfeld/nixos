@@ -25,7 +25,12 @@
   hardware.nvidia = {
     modesetting.enable = true;
     powerManagement.enable = true; # Enable D3 power management
-    powerManagement.finegrained = true; # Turn off GPU when not in use (PRIME offload)
+    # Deliberately off. finegrained sets NVreg_DynamicPowerManagement=0x02,
+    # but this GPU reports "Runtime D3 status: Not supported" and the platform
+    # reports "S0ix Power Management: Not Supported", so fine-grained D3 never
+    # actually worked here — it bought no idle power saving and is a candidate
+    # for the driver parking the memory clock at its 810 MHz idle value.
+    powerManagement.finegrained = false;
     # Closed kernel modules, deliberately. The open modules mandate GSP
     # firmware, and on this Turing laptop GPU GSP-RM owns clock/power
     # management and gets it wrong: the dGPU sat in P5 with the memory clock
