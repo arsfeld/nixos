@@ -319,9 +319,9 @@
   # pkgs.libfprint-goodix-521d, a fork carrying the community goodixtls
   # driver patched to accept this sensor's firmware. fprintd takes libfprint
   # as an overridable argument, which keeps the fork scoped to this host
-  # instead of overlaying libfprint globally (the overlay in
-  # flake-modules/lib.nix would otherwise drag all nine hosts onto a
-  # five-year-old libfprint fork).
+  # instead of overlaying libfprint globally -- the overlay in
+  # flake-modules/lib.nix would otherwise put all nine hosts on a libfprint
+  # that carries an out-of-tree driver none of them have hardware for.
   #
   # Security note (deliberate, accepted choice, reviewed 2026-09-05): NixOS
   # defaults security.pam.services.<name>.fprintAuth to services.fprintd.enable,
