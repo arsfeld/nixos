@@ -296,7 +296,7 @@ ssh blackbird.bat-boa.ts.net 'cd /tmp && git clone -b unstable \
 
 ssh blackbird.bat-boa.ts.net 'cd /tmp/lfp-fork && nix shell \
   nixpkgs#meson nixpkgs#ninja nixpkgs#pkg-config nixpkgs#gcc \
-  nixpkgs#glib nixpkgs#libgusb nixpkgs#openssl nixpkgs#nss \
+  nixpkgs#glib nixpkgs#gusb nixpkgs#openssl nixpkgs#nss \
   nixpkgs#pixman nixpkgs#libgudev nixpkgs#systemdLibs \
   -c bash -c "CFLAGS=-Wno-incompatible-pointer-types meson setup build \
      -Ddrivers=goodixtls52xd -Dintrospection=false -Ddoc=false && ninja -C build"'
