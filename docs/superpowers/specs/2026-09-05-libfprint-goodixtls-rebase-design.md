@@ -1,7 +1,8 @@
 # Rebasing the goodixtls 521d driver onto current libfprint
 
 **Status:** approved 2026-09-05
-**Scope:** `packages/libfprint-goodix-521d/default.nix`, plus a new `arsfeld/libfprint` GitHub fork.
+**Scope:** `packages/libfprint-goodix-521d/default.nix`, plus a new
+`arsfeld/libfprint-goodixtls` GitHub fork.
 
 ## Problem
 
@@ -96,7 +97,7 @@ build.
 
 ## Fork layout
 
-`gh repo fork infinytum/libfprint` -> `arsfeld/libfprint`, branch
+`gh repo fork infinytum/libfprint` -> `arsfeld/libfprint-goodixtls`, branch
 `goodixtls-521d-1.94.100`, which shares history with both the source fork and
 upstream. Three commits:
 
@@ -148,7 +149,7 @@ result is reported; the hardware check is left to the user.
 
 ## Outcome (2026-09-05)
 
-Delivered. `arsfeld/libfprint`, on `master` (the repo's default branch, so the
+Delivered. `arsfeld/libfprint-goodixtls`, on `master` (the repo's default branch, so the
 fork's landing page shows this work rather than inherited upstream content).
 `goodixtls-521d-1.94.100` is kept as a same-content branch. Head `6c078afe`.
 
@@ -163,6 +164,14 @@ Five commits, not the three planned:
 `master` was force-pushed from the inherited `infinytum/libfprint` history,
 which shares no ancestry with a `v1.94.100` base. Nothing was lost: that
 history still exists in the source fork and in the network.
+
+The repository is named `libfprint-goodixtls`, not `libfprint`. A fork
+inherits the upstream name, which makes it read as canonical libfprint in
+search results, in `fetchFromGitHub` calls and in anyone's clone list.
+`goodixtls` matches the driver directory it carries and covers all three
+sensors, rather than only the `521d` the Nix package builds. GitHub keeps a
+redirect from the old name, but every reference here was updated rather than
+left to depend on it.
 
 The README banner leads the file so it is the first thing GitHub renders. It
 states the base version, the three sensor PIDs, the provenance, and — the part
