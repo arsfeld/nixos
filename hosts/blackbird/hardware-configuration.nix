@@ -26,7 +26,15 @@
     modesetting.enable = true;
     powerManagement.enable = true; # Enable D3 power management
     powerManagement.finegrained = true; # Turn off GPU when not in use (PRIME offload)
-    open = true; # Use open kernel modules (recommended for Turing+)
+    # Closed kernel modules, deliberately. The open modules mandate GSP
+    # firmware, and on this Turing laptop GPU GSP-RM owns clock/power
+    # management and gets it wrong: the dGPU sat in P5 with the memory clock
+    # pinned at its 810 MHz idle value while Forza held it at 100% util, and
+    # reported "Runtime D3 status: Not supported" despite finegrained above.
+    # GSP also ignores the NVreg_RegistryDwords PowerMizer keys set in
+    # configuration.nix, which is why that block previously did nothing.
+    # Closed modules are what let NVreg_EnableGpuFirmware=0 turn GSP off.
+    open = false;
     nvidiaSettings = true;
     package = config.boot.kernelPackages.nvidiaPackages.stable;
 

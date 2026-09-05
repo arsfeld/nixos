@@ -119,13 +119,24 @@
   ];
 
   # NVIDIA PowerMizer: force highest performance level when the dGPU is in
-  # use. Without this, the proprietary driver runs PowerMizer in adaptive
-  # mode and refuses to leave P5 even at 97% utilization (memory clock stuck
-  # at 810/6001 MHz under DXVK/Wine workloads on Wayland-Hybrid Optimus).
-  # nvidia-settings/X11 GpuPowerMizerMode is unavailable on Wayland, so set
-  # it via the kernel module's RegistryDwords. Dynamic Power Management is
-  # left at its default (0x02) so the dGPU still suspends when unused.
+  # use. Without this the driver runs PowerMizer adaptively and refuses to
+  # leave P5 even at 100% utilization, with the memory clock pinned at its
+  # 810 MHz idle value against a 6001 MHz spec — roughly 39 GB/s of a 288
+  # GB/s bus, which starved Forza far more than any in-game setting did.
+  # nvidia-settings/X11 GpuPowerMizerMode is unavailable on Wayland, so this
+  # has to go through the kernel module's RegistryDwords.
+  #
+  # EnableGpuFirmware=0 is load-bearing, not a tweak: with GSP firmware
+  # active, GSP-RM owns clock and power management and ignores every
+  # PowerMizer key below, so the RegistryDwords line alone is dead code (it
+  # was, for as long as hardware-configuration.nix set open = true). The two
+  # settings only work as a pair, and disabling GSP requires the closed
+  # kernel modules — see the `open` comment in hardware-configuration.nix.
+  #
+  # Dynamic Power Management is left at its default (0x02) so the dGPU still
+  # suspends when unused.
   boot.extraModprobeConfig = ''
+    options nvidia NVreg_EnableGpuFirmware=0
     options nvidia NVreg_RegistryDwords="PowerMizerEnable=0x1;PerfLevelSrc=0x3322;PowerMizerLevel=0x1;PowerMizerDefault=0x1;PowerMizerDefaultAC=0x1"
   '';
 
@@ -272,18 +283,20 @@
     HandlePowerKey = "suspend";
   };
 
-  # NVIDIA suspend/resume: nothing to wire. With the open kernel modules on
-  # driver >= 595, hardware.nvidia.powerManagement.kernelSuspendNotifier
-  # defaults true, so the driver saves/restores video memory via the kernel
-  # suspend notifier (NVreg_UseKernelSuspendNotifiers=1) and nixpkgs
-  # deliberately does NOT install the nvidia-suspend/resume/hibernate services
-  # or the /lib/systemd/system-sleep/nvidia hook. `powerManagement.enable = true`
-  # (set in hardware-configuration.nix) is the entire supported config.
+  # NVIDIA suspend/resume: still nothing to wire, but for a different reason
+  # than it used to be. kernelSuspendNotifier defaults to
+  # `open && version >= 595`, so moving to the closed modules flipped it back
+  # to false — and nixpkgs then installs nvidia-suspend/-hibernate/-resume
+  # itself, each with a real ExecStart of nvidia-sleep.sh. That is the
+  # supported path for the closed modules; `powerManagement.enable = true`
+  # (hardware-configuration.nix) is all that is needed to get it.
   #
-  # Do NOT hand-declare systemd.services.nvidia-suspend/-resume here: nixpkgs
-  # provides no ExecStart to merge with in notifier mode, so the unit ends up
-  # empty (LoadState=bad-setting) and, being requiredBy the suspend job, aborts
-  # every suspend with an immediate resume. That was the bug this replaced.
+  # Do NOT hand-declare systemd.services.nvidia-suspend/-resume here. Under
+  # the open modules nixpkgs provided no ExecStart to merge with, so a
+  # hand-declared unit ended up empty (LoadState=bad-setting) and, being
+  # requiredBy the suspend job, aborted every suspend with an immediate
+  # resume. Declaring them now would instead collide with the units nixpkgs
+  # already ships. Either way, leave them alone.
 
   # On GA401IU, the keyboard backlight goes dark across suspend/hibernate
   # cycles -- writes to /sys/class/leds/asus::kbd_backlight/brightness keep
