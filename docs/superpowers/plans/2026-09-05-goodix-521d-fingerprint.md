@@ -934,6 +934,14 @@ git commit -m "docs(blackbird): record dual-boot acceptance result for fingerpri
 
 ## Notes on what is deliberately not here
 
-- **No PAM integration.** `services.fprintd` gives GNOME Settings enrolment and `fprintd-verify`. Wiring fingerprint into login/sudo is a separate decision, and the spec is explicit that this driver should not become sole authentication.
+- **PAM integration is not separate — it ships implicitly.** `services.fprintd.enable = true`
+  defaults `security.pam.services.<name>.fprintAuth` to `true` for every PAM service NixOS
+  generates, so sudo, su, polkit-1, sshd and gdm-fingerprint all get `auth sufficient
+  pam_fprintd.so` ahead of `pam_unix`, out of the box, with no separate opt-in. That makes a
+  fingerprint sufficient for root escalation via sudo and polkit — this was reviewed and is a
+  deliberate, user-accepted choice, made with the zero-PSK weakness (Task 4C) explicitly in
+  mind: the sensor's channel is keyed with 32 zero bytes, so brief physical access to the USB
+  device could capture the image stream. See item 4 under the spec's "Phase 3 — NixOS
+  packaging" for the full tradeoff.
 - **No upstreaming.** Out of scope per the spec.
 - **No automated test suite.** Tasks 1–6 are investigation; their gate is observed output. Tasks 7–8 carry the real gates: the closure build and the dual-boot round trip.
