@@ -18,6 +18,7 @@
 - **Never write to the sensor without explicit user approval.** No `erase_firmware()`, `update_firmware()`, or `write_psk()` calls, and no attaching the sensor to a booting Windows VM, without asking first.
 - **All work runs from raider**, which is the deploy driver (`NIKS3_AUTH_TOKEN_FILE` is set only there). Deploy with `just deploy blackbird`.
 - **blackbird is at `blackbird.bat-boa.ts.net`** and it suspends. If SSH times out, retry — the host is not down.
+- **Rebooting blackbird is cheap.** This work is driven from raider, so blackbird can be rebooted — including into Windows — without disrupting the session. Task 5 has a real-dual-boot fallback that relies on this, and Task 8 requires a Windows boot outright.
 - **Investigation artifacts live in the scratchpad, not the repo.** Only durable outputs (packages, host config, recorded findings) get committed.
 - **blackbird is not in tier1**, so none of this touches the weekly-deploy path.
 
@@ -493,6 +494,21 @@ ssh blackbird.bat-boa.ts.net 'sudo virsh detach-device win11-fpcapture /tmp/fp-h
 Determine whether the sensor's firmware or PSK changed during the Windows session. This is the direct experimental answer to spec Risk 2 — whether Windows re-provisions the PSK on every boot.
 
 Record both values in the spec and commit.
+
+#### Fallback: capture from a real Windows boot
+
+Dual-booting blackbird is cheap — this work is driven from raider, so blackbird is free to reboot without disrupting the session. If the VM route stalls (driver signing, passthrough trouble, Hello refusing to enrol in a guest), abandon it and capture from a real Windows boot instead.
+
+The trade is that host-side `usbmon` is unavailable, because in this scenario Windows *is* the host. The capture has to happen inside Windows:
+
+1. Boot blackbird into its existing Windows install. No driver sideloading is needed — the real Goodix driver is already installed there, which also removes the test-signing problem entirely.
+2. Install [USBPcap](https://desowin.org/usbpcap/) and identify the sensor's root hub.
+3. Capture three separate files across the same three scenarios — boot/init, Hello enrol, Hello verify — with `USBPcapCMD.exe`.
+4. Reboot into NixOS, copy the `.pcap` files to `$SCRATCH/captures/`, and re-run the Task 1 probe to see what the Windows session changed.
+
+The resulting `.pcap` files open in Wireshark with native USBPcap dissection, and carry the same URBs the usbmon route would have produced — so Task 6's analysis is unchanged either way. This path is in some ways *simpler* than the VM (no VM build, no sideload, no signing), at the cost of needing someone at the machine and losing the ability to iterate quickly.
+
+**Prefer the VM route first** because it can be driven entirely over SSH; treat this as the escape hatch rather than the default.
 
 ---
 
