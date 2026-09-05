@@ -2,7 +2,9 @@
 
 **Date:** 2026-09-05
 **Host:** blackbird (ASUS ROG Zephyrus G14, dual-boot with Windows)
-**Status:** design approved, not yet implemented
+**Status:** implemented and deployed. `services.fprintd` is enabled on blackbird with the
+patched driver; see Task 4C below. The original "survives dual-boot" success bar (next
+paragraph) was withdrawn on 2026-09-05 — see Task 4C for why and for what shipped instead.
 
 ## Goal
 
@@ -10,8 +12,12 @@ Fingerprint unlock on blackbird through fprintd/libfprint, targeting sensor firm
 `GFUSB_GM168SEC_APP_10034` — the build the Windows driver uses — so that booting Windows
 does not break Linux fingerprint auth.
 
-The success bar is specifically **survives dual-boot**. A driver that works until the next
-Windows session and then needs re-flashing does not meet it.
+**Superseded 2026-09-05 (Task 4C):** the success bar was originally **survives dual-boot** —
+a driver that works until the next Windows session and then needs re-flashing would not have
+met it. That bar was withdrawn with user approval: nothing needs to survive on the Windows
+side, and the sensor was deliberately flashed to firmware `GFUSB_GM168SEC_APP_10019` with a
+zero PSK, which breaks Windows Hello for this sensor. The paragraph above is left as
+originally written for historical context; Task 4C has the actual outcome.
 
 ## Non-goals
 
@@ -183,8 +189,16 @@ device is attached to a booting VM.
    overlay, which would drag every other host onto a five-year-old fork.
 3. `services.fprintd` enabled in `hosts/blackbird/`, with `package` pointed at the override.
    GNOME Settings surfaces enrollment automatically.
-4. PAM stays a convenience factor, never sole authentication, given the driver's maturity
-   and the zero-PSK weakness.
+4. `services.fprintd.enable = true` implicitly defaults `security.pam.services.<name>.fprintAuth`
+   to `true` for every PAM service NixOS generates, which inserts `auth sufficient
+   pam_fprintd.so` ahead of `pam_unix` in sudo, su, polkit-1, sshd, gdm-fingerprint and other
+   stacks. A fingerprint is therefore **sufficient** on its own for root escalation via sudo
+   and polkit, not merely a convenience alongside the password. This is a deliberate,
+   user-accepted choice, made with full knowledge of the tradeoff: the sensor's channel is
+   keyed with a PSK of 32 zero bytes (Task 4C), so anyone with brief physical access to the
+   USB device could capture the image stream the sensor sends over that unencrypted-in-effect
+   channel. The mitigating factor is that this requires physical possession of an open
+   laptop and USB-level access, not a remote or software-only attack.
 
 blackbird is not in tier1, so this stays out of the weekly-deploy path.
 
