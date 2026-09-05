@@ -311,3 +311,18 @@ was attempted or is needed to reach this result — `goodix_send_preset_psk_writ
 called; only `goodix_send_preset_psk_read()` ran (visible above at command `0xe4`).
 
 **Branch:** proceed to Task 4 (Task 7 is skipped — enroll did not succeed).
+
+**Post-run re-probe (empirical no-change confirmation):** re-ran the Task 1 read-only probe
+(`nop()`, `firmware_version()`, `preset_psk_read()` only) against the sensor after the
+enroll attempt above:
+
+```
+FIRMWARE: GFUSB_GM168SEC_APP_10034
+PSK_FLAGS: 0xbb020001
+PSK_HASH: 126770ba77304106160859262e4d0a2ffed13ed794fc703023111345fc746dd0
+PSK_IS_ZERO: False
+```
+
+Unchanged on every field versus Task 1's original probe and versus the value the patched
+driver read during the enroll attempt. Confirms empirically, not just by code inspection,
+that the sensor's firmware and stored PSK were not modified.
