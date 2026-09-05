@@ -24,22 +24,55 @@
 
   hardware.nvidia = {
     modesetting.enable = true;
-    powerManagement.enable = true; # Enable D3 power management
-    # Deliberately off. finegrained sets NVreg_DynamicPowerManagement=0x02,
-    # but this GPU reports "Runtime D3 status: Not supported" and the platform
-    # reports "S0ix Power Management: Not Supported", so fine-grained D3 never
-    # actually worked here — it bought no idle power saving and is a candidate
-    # for the driver parking the memory clock at its 810 MHz idle value.
+    powerManagement.enable = true;
+
+    # dGPU power ceiling: measured, and not liftable from Linux userspace.
+    # Read this before "fixing" GPU performance on this host again.
+    #
+    # In PRIME offload — the only mode this chassis has, since the GA401IU has
+    # no MUX and supergfxctl reports [Integrated, Hybrid] — the GTX 1660 Ti
+    # Max-Q holds its memory clock at the 810 MHz idle value even at 100%
+    # utilization, against a 6001 MHz spec, under an enforced 30 W power limit
+    # against the board's own 60 W VBIOS default. clpeak measures 26.2 GB/s of
+    # a ~288 GB/s bus, and 3.36 GB/s host<->device because the link trains at
+    # Gen 2 x8 rather than Gen 3. The core clock is healthy (~1800 of
+    # 2100 MHz), so this is specific to memory and power.
+    #
+    # That ceiling — not any in-game setting — is why Forza Horizon 5 misses
+    # 60 fps here; its Dynamic Optimization then silently degrades six quality
+    # settings trying to catch up. Tune expectations, not the settings menu.
+    #
+    # Ruled out by measurement. Do not re-attempt:
+    #   - NVreg_RegistryDwords PowerMizer keys (PowerMizerEnable,
+    #     PowerMizerLevel, PerfLevelSrc). Dropped from the driver around 530,
+    #     so dead on 595 with GSP both on and off. An earlier revision of this
+    #     config carried them under a comment asserting they fixed the P5 lock.
+    #     They never did — the assertion was never measured.
+    #   - open = false plus NVreg_EnableGpuFirmware=0 to disable GSP:
+    #     26.23 GB/s, memory clock still 810 MHz.
+    #   - NVreg_DynamicPowerManagement=0x00 on top of that: 26.26 GB/s,
+    #     memory clock still 810 MHz. The config as it stands measures 26.25.
+    #     Three driver configurations, one number.
+    #   - nvidia-smi -pl / -lmc / -ac: all refused. NVIDIA blocks power-limit
+    #     and memory-clock control on consumer mobile parts. -lgc is accepted
+    #     but the core clock was never the constraint.
+    #   - Dropping pcie_aspm=force (see boot.kernelParams in configuration.nix).
+    #     ASPM already reads Disabled on both link ends; still Gen 2.
+    #
+    # Untested leads, both needing hardware: a display on the dGPU's own output
+    # (card0-DP-1, the USB-C DisplayPort — HDMI is wired to the iGPU), which
+    # would make it a display GPU rather than a pure offload target; and an
+    # ASUS BIOS update.
+    #
+    # finegrained would set NVreg_DynamicPowerManagement=0x02, but the driver
+    # reports "Runtime D3 status: Not supported" and the platform reports
+    # "S0ix Power Management: Not Supported", so it only ever claimed a
+    # capability this machine does not have. Off, to keep the config honest.
     powerManagement.finegrained = false;
-    # Closed kernel modules, deliberately. The open modules mandate GSP
-    # firmware, and on this Turing laptop GPU GSP-RM owns clock/power
-    # management and gets it wrong: the dGPU sat in P5 with the memory clock
-    # pinned at its 810 MHz idle value while Forza held it at 100% util, and
-    # reported "Runtime D3 status: Not supported" despite finegrained above.
-    # GSP also ignores the NVreg_RegistryDwords PowerMizer keys set in
-    # configuration.nix, which is why that block previously did nothing.
-    # Closed modules are what let NVreg_EnableGpuFirmware=0 turn GSP off.
-    open = false;
+
+    # Open modules: NVIDIA's recommendation for Turing+, and nothing measured
+    # here justifies deviating — see the GSP entry in the ruled-out list above.
+    open = true;
     nvidiaSettings = true;
     package = config.boot.kernelPackages.nvidiaPackages.stable;
 

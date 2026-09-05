@@ -112,38 +112,17 @@
     # EPP directly. Without this the kernel falls back to acpi-cpufreq and PPD
     # only flips platform_profile, leaving CPU at a fixed governor.
     "amd_pstate=active"
-    # Note: pcie_aspm=force + pcie_aspm.policy=powersupersave were removed -
-    # they renegotiated the GTX 1660 Ti Max-Q link to PCIe 2.0 x8 and pinned
-    # the dGPU in P5 / 30W TGP under load (Forza was VRAM-bandwidth starved).
-    # TLP's PCIE_ASPM_ON_AC handles per-AC tuning instead.
+    # Note: pcie_aspm=force + pcie_aspm.policy=powersupersave were removed so
+    # TLP's PCIE_ASPM_ON_AC can do per-AC tuning instead. Removing them did
+    # NOT fix the dGPU's P5 / 30 W lock, which the old comment here claimed:
+    # ASPM now reads Disabled on both link ends and the link still trains at
+    # Gen 2 x8. See hardware-configuration.nix for the measured ceiling.
   ];
 
-  # NVIDIA PowerMizer: force highest performance level when the dGPU is in
-  # use. Without this the driver runs PowerMizer adaptively and refuses to
-  # leave P5 even at 100% utilization, with the memory clock pinned at its
-  # 810 MHz idle value against a 6001 MHz spec — roughly 39 GB/s of a 288
-  # GB/s bus, which starved Forza far more than any in-game setting did.
-  # nvidia-settings/X11 GpuPowerMizerMode is unavailable on Wayland, so this
-  # has to go through the kernel module's RegistryDwords.
-  #
-  # EnableGpuFirmware=0 is load-bearing, not a tweak: with GSP firmware
-  # active, GSP-RM owns clock and power management and ignores every
-  # PowerMizer key below, so the RegistryDwords line alone is dead code (it
-  # was, for as long as hardware-configuration.nix set open = true). The two
-  # settings only work as a pair, and disabling GSP requires the closed
-  # kernel modules — see the `open` comment in hardware-configuration.nix.
-  #
-  # Dynamic Power Management is left at its default (0x02) so the dGPU still
-  # suspends when unused.
-  boot.extraModprobeConfig = ''
-    options nvidia NVreg_EnableGpuFirmware=0
-    options nvidia NVreg_DynamicPowerManagement=0x00
-    options nvidia NVreg_RegistryDwords="PowerMizerEnable=0x1;PerfLevelSrc=0x3322;PowerMizerLevel=0x1;PowerMizerDefault=0x1;PowerMizerDefaultAC=0x1"
-  '';
-
-  # Run nvidia-persistenced so PowerMizer settings and any nvidia-smi -lgc
-  # locks survive across application opens (Steam/Proton spawning Wine
-  # processes otherwise tears the driver up/down).
+  # Run nvidia-persistenced so the driver stays initialised across application
+  # opens — Steam/Proton spawning Wine processes otherwise tears it up and down
+  # repeatedly. (It does not help the clock lock; nothing does. See the dGPU
+  # power ceiling note in hardware-configuration.nix.)
   hardware.nvidia.nvidiaPersistenced = true;
 
   # Remove zfs support
@@ -284,20 +263,19 @@
     HandlePowerKey = "suspend";
   };
 
-  # NVIDIA suspend/resume: still nothing to wire, but for a different reason
-  # than it used to be. kernelSuspendNotifier defaults to
-  # `open && version >= 595`, so moving to the closed modules flipped it back
-  # to false — and nixpkgs then installs nvidia-suspend/-hibernate/-resume
-  # itself, each with a real ExecStart of nvidia-sleep.sh. That is the
-  # supported path for the closed modules; `powerManagement.enable = true`
-  # (hardware-configuration.nix) is all that is needed to get it.
+  # NVIDIA suspend/resume: nothing to wire. kernelSuspendNotifier defaults to
+  # `open && version >= 595`, both true here, so the driver saves and restores
+  # video memory through the kernel suspend notifier and nixpkgs deliberately
+  # does NOT install nvidia-suspend/-resume/-hibernate or the
+  # /lib/systemd/system-sleep/nvidia hook. `powerManagement.enable = true`
+  # (hardware-configuration.nix) is the entire supported config.
   #
-  # Do NOT hand-declare systemd.services.nvidia-suspend/-resume here. Under
-  # the open modules nixpkgs provided no ExecStart to merge with, so a
-  # hand-declared unit ended up empty (LoadState=bad-setting) and, being
-  # requiredBy the suspend job, aborted every suspend with an immediate
-  # resume. Declaring them now would instead collide with the units nixpkgs
-  # already ships. Either way, leave them alone.
+  # Do NOT hand-declare systemd.services.nvidia-suspend/-resume here: in
+  # notifier mode nixpkgs provides no ExecStart to merge with, so the unit ends
+  # up empty (LoadState=bad-setting) and, being requiredBy the suspend job,
+  # aborts every suspend with an immediate resume. That was the bug this
+  # replaced. Note this flips with `open`: under the closed modules nixpkgs
+  # ships those units itself, and declaring them would collide instead.
 
   # On GA401IU, the keyboard backlight goes dark across suspend/hibernate
   # cycles -- writes to /sys/class/leds/asus::kbd_backlight/brightness keep
