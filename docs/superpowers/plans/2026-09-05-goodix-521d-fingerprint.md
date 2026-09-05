@@ -117,18 +117,15 @@ ssh blackbird.bat-boa.ts.net 'cd /tmp && git clone --recurse-submodules \
   https://github.com/goodix-fp-linux-dev/goodix-fp-dump.git gfd && \
   cp /tmp/probe_521d.py gfd/'
 
-ssh -t blackbird.bat-boa.ts.net 'cd /tmp/gfd && sudo nix shell \
-  nixpkgs#python3 \
-  nixpkgs#python3Packages.pyusb \
-  nixpkgs#python3Packages.crcmod \
-  nixpkgs#python3Packages.crccheck \
-  nixpkgs#python3Packages.pycryptodome \
-  nixpkgs#python3Packages.python-periphery \
-  nixpkgs#python3Packages.spidev \
+ssh -t blackbird.bat-boa.ts.net 'cd /tmp/gfd && sudo nix shell --impure --expr \
+  "(import <nixpkgs> {}).python3.withPackages (ps: with ps; \
+     [pyusb crcmod crccheck pycryptodome python-periphery spidev])" \
   -c python3 probe_521d.py'
 ```
 
-`sudo` is required — the sensor has no udev rule granting user access. `protocol.py` imports `periphery` and `spidev` at module scope even for the USB path, which is why they are in the shell.
+`sudo` is required — the sensor has no udev rule granting user access. `protocol.py` imports `periphery` and `spidev` at module scope even for the USB path, which is why they are in the environment.
+
+**Do not** use the flat form `nix shell nixpkgs#python3 nixpkgs#python3Packages.pyusb …`. It puts each package's `bin/` on `PATH` but does not compose their `PYTHONPATH`s, so every import fails with `ModuleNotFoundError`. `python3.withPackages` is the mechanism that actually builds a composed interpreter environment.
 
 - [ ] **Step 4: Verify the expected output shape**
 
@@ -191,7 +188,7 @@ in
     buildInputs = with pkgs; [
       glib
       libgudev
-      libgusb
+      gusb # nixpkgs attribute is `gusb`, not `libgusb` (which does not exist)
       nss
       openssl
       pixman
