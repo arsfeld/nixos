@@ -203,13 +203,81 @@ This task ends the moment `tofu init` succeeds against the real backend.
 - Produces: `just tf <args>` — runs `tofu <args>` in `infra/.work` with the generated config and decrypted credentials in the environment. Every later task uses `just tf plan` as its verification step.
 - Produces: terranix variables `tenancy_ocid`, `user_ocid`, `fingerprint`, `region`, `private_key_path`, `cloudflare_api_token`, all `type = "string"`. Tasks 3 and 4 reference `var.tenancy_ocid`.
 
-- [ ] **Step 1: Gather the credentials (manual, one console session)**
+- [ ] **Step 1: Provision the Cloudflare credentials over the API**
 
-This is the last console trip and cannot be automated. Collect:
+The spec anticipated a console session here. It is no longer needed. The OCI API
+key already exists locally at `~/.oci/config` and `~/.oci/oci_api_key.pem`, and
+authenticates — `oci iam region-subscription list` returns `ca-montreal-1` and
+`sa-saopaulo-1`. The Cloudflare side can be provisioned entirely over the API
+using the global key already in `secrets/sops/common.yaml`.
 
-1. **OCI API key.** Console → Profile menu → *My profile* → *API keys* → *Add API key* → *Generate API key pair* → download the **private key**. The dialog then shows a configuration-file preview; copy `tenancy`, `user`, `fingerprint`, and `region` out of it.
-2. **Cloudflare API token.** Dashboard → *My Profile* → *API Tokens* → *Create Token* → *Custom token*. Permissions: `Zone` → `DNS` → `Edit`, plus `Zone` → `Zone` → `Read`. Zone Resources: include `arsfeld.dev`, `arsfeld.one`, `rosenfeld.one`.
-3. **R2 state bucket and token.** Dashboard → *R2* → create a bucket named `tfstate`. **Do not attach a custom domain and do not add a lifecycle rule.** Then *Manage R2 API Tokens* → create a token with *Object Read & Write*, scoped to the `tfstate` bucket. Record the Access Key ID and Secret Access Key.
+Load the global key once (it is an env-file blob inside the sops document):
+
+```bash
+eval "$(sops --decrypt --extract '["cloudflare"]' secrets/sops/common.yaml | sed 's/^/export /')"
+ACCOUNT=67a60cd5057ea97341c77d16f7cd3100
+CF=(-H "X-Auth-Email: $CLOUDFLARE_EMAIL" -H "X-Auth-Key: $CLOUDFLARE_API_KEY" -H "Content-Type: application/json")
+```
+
+Create the scoped DNS token. The permission group IDs below were looked up
+during planning and are stable account-wide values: `4755a26e…` is *DNS Write*,
+`c8fed203…` is *Zone Read*. The three resources are the zones from the spec.
+
+```bash
+curl -s -X POST "https://api.cloudflare.com/client/v4/user/tokens" "${CF[@]}" -d '{
+  "name": "opentofu-dns",
+  "policies": [{
+    "effect": "allow",
+    "permission_groups": [
+      {"id": "4755a26eedb94da69e1066d98aa820be"},
+      {"id": "c8fed203ed3043cba015a93ad1616f1f"}
+    ],
+    "resources": {
+      "com.cloudflare.api.account.zone.5b658a2265b2562c6f51ac93de8d21bf": "*",
+      "com.cloudflare.api.account.zone.877dc2cb2972842c423b9c9851d95cc7": "*",
+      "com.cloudflare.api.account.zone.1c77692238095c6a5a263ab71c301ed8": "*"
+    }
+  }]
+}' | jq -r 'if .success then .result.value else "ERR \(.errors)" end'
+```
+
+That prints the token value **once**. Keep it for Step 3; it cannot be read
+back.
+
+Create the state bucket. **No custom domain and no lifecycle rule** — object
+versioning is the only undo a corrupted state file gets:
+
+```bash
+curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/r2/buckets" \
+  "${CF[@]}" -d '{"name": "tfstate"}' | jq -r 'if .success then "created" else "ERR \(.errors)" end'
+```
+
+Create the R2 token, scoped to that bucket. `bf7481a1…` is *Workers R2 Storage
+Write*:
+
+```bash
+curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/tokens" "${CF[@]}" -d "{
+  \"name\": \"opentofu-tfstate\",
+  \"policies\": [{
+    \"effect\": \"allow\",
+    \"permission_groups\": [{\"id\": \"bf7481a1826f439697cb59a20b22293e\"}],
+    \"resources\": {\"com.cloudflare.edge.r2.bucket.${ACCOUNT}_default_tfstate\": \"*\"}
+  }]
+}" | jq -r 'if .success then "id=\(.result.id) value=\(.result.value)" else "ERR \(.errors)" end'
+```
+
+If the bucket-scoped resource string is rejected, fall back to account scope by
+replacing the `resources` object with
+`{"com.cloudflare.api.account.'"$ACCOUNT"'": "*"}` — wider than ideal, so try
+the bucket scope first.
+
+Derive the S3 credentials from that response. This derivation is Cloudflare's
+documented behaviour and is not guessable from the API alone: **Access Key ID is
+the token `id`; Secret Access Key is the SHA-256 of the token `value`**.
+
+```bash
+printf '%s' '<the token value>' | sha256sum | cut -d' ' -f1   # -> AWS_SECRET_ACCESS_KEY
+```
 
 - [ ] **Step 2: Add the sops creation rule**
 
@@ -229,23 +297,28 @@ precedent already set by `ntfy-client.yaml`:
 
 - [ ] **Step 3: Write the encrypted credentials file**
 
-Build the plaintext outside the repository, encrypt it in, then shred the
-source. Never open an editor on it.
+The four OCI values come straight out of the existing CLI configuration rather
+than being retyped. Build the plaintext outside the repository, encrypt it in,
+then shred the source. Never open an editor on it.
 
 ```bash
 umask 077
+ocicfg() { grep -E "^$1[[:space:]]*=" ~/.oci/config | head -1 | cut -d= -f2- | tr -d ' '; }
+KEYFILE=$(ocicfg key_file)
+KEYFILE=${KEYFILE/#\~/$HOME}
+
 cat > "$SCRATCH/infra-plain.yaml" <<EOF
-TF_VAR_tenancy_ocid: ocid1.tenancy.oc1..REPLACE
-TF_VAR_user_ocid: ocid1.user.oc1..REPLACE
-TF_VAR_fingerprint: REPLACE
-TF_VAR_region: REPLACE
-OCI_PRIVATE_KEY_B64: $(base64 -w0 < /path/to/downloaded/oci_api_key.pem)
-TF_VAR_cloudflare_api_token: REPLACE
-AWS_ACCESS_KEY_ID: REPLACE
-AWS_SECRET_ACCESS_KEY: REPLACE
+TF_VAR_tenancy_ocid: $(ocicfg tenancy)
+TF_VAR_user_ocid: $(ocicfg user)
+TF_VAR_fingerprint: $(ocicfg fingerprint)
+TF_VAR_region: $(ocicfg region)
+OCI_PRIVATE_KEY_B64: $(base64 -w0 < "$KEYFILE")
+TF_VAR_cloudflare_api_token: PASTE_DNS_TOKEN_FROM_STEP_1
+AWS_ACCESS_KEY_ID: PASTE_R2_TOKEN_ID_FROM_STEP_1
+AWS_SECRET_ACCESS_KEY: PASTE_SHA256_OF_R2_TOKEN_VALUE
 EOF
 
-# ...replace every REPLACE with the real value, then:
+# ...replace the three PASTE_ values, then:
 sops --encrypt "$SCRATCH/infra-plain.yaml" > secrets/sops/infra.yaml
 shred -u "$SCRATCH/infra-plain.yaml"
 ```
@@ -268,6 +341,9 @@ TF_VAR_region
 TF_VAR_tenancy_ocid
 TF_VAR_user_ocid
 ```
+
+Sanity-check the region is `ca-montreal-1` — basestar's instance (`cloud`,
+`VM.Standard.A1.Flex`) lives there, in the root compartment.
 
 - [ ] **Step 4: Declare the variables**
 

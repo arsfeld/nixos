@@ -239,15 +239,20 @@ practice, but it is the failure mode to recognise.
 
 ## Manual prerequisites
 
-One console session, once:
+None, as it turns out. The spec originally called for one console session; by
+the time planning finished, none was needed:
 
-1. **OCI:** create an API signing key for the user; record the tenancy OCID,
-   user OCID, fingerprint and region from the configuration-file preview, and
-   download the private key.
-2. **Cloudflare:** create an API token scoped to Zone:DNS:Edit on `arsfeld.dev`,
-   `arsfeld.one` and `rosenfeld.one`.
-3. **Cloudflare R2:** create the `tfstate` bucket and an R2 API token scoped to
-   it.
+- The **OCI API key already exists** at `~/.oci/config` and
+  `~/.oci/oci_api_key.pem`, and authenticates. The four scalars OpenTofu needs
+  are read out of that file rather than retyped.
+- The **Cloudflare scoped DNS token, the `tfstate` bucket, and the R2 token**
+  are all created over the Cloudflare API using the global key already in
+  `secrets/sops/common.yaml`. The permission group IDs are stable account-wide
+  values, recorded in the implementation plan.
+
+The R2 S3 credentials are the one non-obvious part: Cloudflare derives them from
+the account token, with the Access Key ID being the token's `id` and the Secret
+Access Key the SHA-256 of its `value`.
 
 ## Open question
 
