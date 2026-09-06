@@ -31,6 +31,8 @@
     apple-fonts.url = "github:Lyndeno/apple-fonts.nix"; # Apple fonts (SF Pro, SF Compact, SF Mono, New York)
     niks3.url = "github:Mic92/niks3"; # S3-backed binary cache coordinator (nixosModules not in nixpkgs)
     niks3.inputs.nixpkgs.follows = "nixpkgs";
+    terranix.url = "github:terranix/terranix"; # Nix DSL for OpenTofu/Terraform configuration
+    terranix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = {self, ...} @ inputs:
@@ -43,6 +45,7 @@
           ./flake-modules/checks.nix
           ./flake-modules/images.nix
           ./flake-modules/dev.nix
+          ./flake-modules/infra.nix
         ];
 
         systems = [
