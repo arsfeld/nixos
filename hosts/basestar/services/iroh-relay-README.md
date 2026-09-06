@@ -25,13 +25,14 @@ The DNS-01 provider is invisible in `iroh-relay.nix`: that module only sets
 `extraDomainNames` and `reloadServices` on `security.acme.certs`. DNS-01 works
 at all because `hosts/basestar/configuration.nix` sets `media.config.enable =
 true`, which pulls in `modules/media/config.nix`'s host-wide
-`security.acme.defaults`, carrying `dnsProvider = "cloudflare"` and the API
-token `environmentFile`. That token must be scoped to write `_acme-challenge`
-TXT records in the **mydia.dev** zone, a different zone from the personal
-`arsfeld.dev` and `arsfeld.one` ones it was provisioned for. Get the scope
-wrong and `acme-cae1-1.relay.mydia.dev.service` fails, the container never
-gets a certificate, and it crash-loops on first deploy. That fails loudly, but
-it is a hard first-deploy blocker.
+`security.acme.defaults`, carrying `dnsProvider = "cloudflare"` and the
+`environmentFile`. That credential is a Cloudflare **global API key**
+(`CLOUDFLARE_EMAIL` plus `CLOUDFLARE_API_KEY`), not a token scoped to this
+zone, so it already reaches `mydia.dev` along with every other zone in the
+account; no per-zone provisioning was needed for this certificate. Worth
+remembering the other direction too: because the key is account-wide, any
+certificate added on this host can write DNS in any zone the account holds,
+not just `mydia.dev`.
 
 iroh 1.0 has no STUN. The UDP 3478 port the k8s deployment published was
 vestigial and is not carried over.
