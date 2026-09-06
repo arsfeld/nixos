@@ -98,6 +98,11 @@
         ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
           disko
           inputs.disko.packages."${pkgs.stdenv.hostPlatform.system}".default
+          # OpenTofu with the OCI and Cloudflare providers baked in, and the OCI
+          # CLI for ad-hoc inspection. `just tf` resolves its own tofu from
+          # `.#tofu` rather than PATH; these are here for interactive use.
+          self'.packages.tofu
+          oci-cli
         ]
         ++ config.checks.pre-commit-check.enabledPackages;
     };
