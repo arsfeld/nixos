@@ -21,6 +21,18 @@ can-1 is not yet safe to retire.
   `cae1-2.relay.mydia.dev`, mounted read-only into the container at `/certs`
   from `/var/lib/acme/cae1-1.relay.mydia.dev`.
 
+The DNS-01 provider is invisible in `iroh-relay.nix`: that module only sets
+`extraDomainNames` and `reloadServices` on `security.acme.certs`. DNS-01 works
+at all because `hosts/basestar/configuration.nix` sets `media.config.enable =
+true`, which pulls in `modules/media/config.nix`'s host-wide
+`security.acme.defaults`, carrying `dnsProvider = "cloudflare"` and the API
+token `environmentFile`. That token must be scoped to write `_acme-challenge`
+TXT records in the **mydia.dev** zone, a different zone from the personal
+`arsfeld.dev` and `arsfeld.one` ones it was provisioned for. Get the scope
+wrong and `acme-cae1-1.relay.mydia.dev.service` fails, the container never
+gets a certificate, and it crash-loops on first deploy. That fails loudly, but
+it is a hard first-deploy blocker.
+
 iroh 1.0 has no STUN. The UDP 3478 port the k8s deployment published was
 vestigial and is not carried over.
 
@@ -69,6 +81,13 @@ ss -ulnp | grep 7842                                    # must be 0.0.0.0
 curl -sI https://cae1-1.relay.mydia.dev/generate_204     # 204
 curl -s http://127.0.0.1:9090/metrics | grep relayserver_accepts_total
 ```
+
+The Gatus check this plan adds exercises only the HTTPS path through Caddy,
+and Gatus has no UDP or QUIC primitive. It cannot see the OCI security-list
+gap or a Cloudflare record drifting to proxied, the two traps above that leave
+HTTPS perfectly healthy while UDP 7842 is dead. `ss -ulnp | grep 7842` and a
+real client hole-punch test remain the only way to catch those; a green
+dashboard is not evidence that address discovery works.
 
 `relayserver_unique_client_keys_total` is useless on this version: upstream
 builds `ClientCounter::default()` per connection actor, so it exactly equals

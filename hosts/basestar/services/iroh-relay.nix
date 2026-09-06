@@ -18,6 +18,13 @@
   # build carrying noq-udp 1.1.0 and panics on the FIRST received datagram
   # (n0-computer/noq#774). Run iroh-relay-verify-image.sh before changing this;
   # a plain boot test cannot catch that bug.
+  #
+  # The digest pin also neutralises modules/constellation/podman.nix's daily
+  # podman-image-pull timer, which restarts any oci-container whose freshly
+  # pulled image differs from the running one and has no opt-out for this
+  # container. Pulling a digest can only ever yield the same image, so that
+  # timer is a permanent no-op here. Relaxing the pin back to a floating tag
+  # re-arms daily auto-upgrade on a service with the v1.0.3 crash history.
   image = "n0computer/iroh-relay:v1.0.0@sha256:0124f8c335d9ad6618db13dc580b597ad5f1be0c987b6742696f4c1f5e325720";
 
   # https_bind_addr and quic_bind_addr belong inside [tls]; metrics is
