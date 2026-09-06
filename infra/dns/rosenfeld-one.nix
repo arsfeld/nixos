@@ -108,6 +108,10 @@
       ttl = 3600;
       priority = 10;
     };
+    # Five of the TXT records below embed literal `\"` quotes in `content`;
+    # two do not. That's not a transcription slip — it's byte-for-byte what
+    # the API returns for each record. Don't "normalize" the quoting; doing
+    # so would rewrite the record on the next apply.
     txt_cf2024_1__domainkey_rosenfeld_one = {
       zone_id = "1c77692238095c6a5a263ab71c301ed8";
       name = "cf2024-1._domainkey.rosenfeld.one";

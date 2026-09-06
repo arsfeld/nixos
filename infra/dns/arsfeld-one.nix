@@ -3,9 +3,16 @@
 # Generated from the Cloudflare API and reviewed by hand. Records are adopted,
 # not authored: this file describes what already exists.
 #
-# The wildcard record is the tunnel's ingress. Adding a public hostname through
-# the Zero Trust dashboard creates a record outside this file, which the next
-# apply would then delete.
+# The apex (cname_arsfeld_one) points at the tunnel
+# (f53e532a-...cfargotunnel.com); *.arsfeld.one chains onto the apex.
+#
+# Nothing here is zone-authoritative — OpenTofu only touches the 50 records
+# named in this repo's config/state, so adding a hostname through the Zero
+# Trust dashboard doesn't get deleted by the next apply; it just isn't
+# reflected here, and this file silently stops matching the live zone. If a
+# dashboard change instead touches a name that *is* managed here, the next
+# apply reverts it. Add new hostnames to this file, or import them
+# afterwards.
 {
   resource.cloudflare_dns_record = {
     a_mail_arsfeld_one = {

@@ -261,12 +261,20 @@ tf *ARGS:
     trap 'rm -f "$keyfile"' EXIT
     chmod 600 "$keyfile"
 
+    # Capture sops's output before iterating over it: a `< <(sops ...)`
+    # process substitution runs the loop against a pipe whose exit status
+    # `set -e` can't see, so a sops failure (missing age key, wrong machine,
+    # sops not on PATH) would otherwise surface several lines down as
+    # `OCI_PRIVATE_KEY_B64: unbound variable` instead of sops's own error.
+    # The decrypted value still never touches disk.
+    #
     # `export "$line"` rather than `eval`: each dotenv line is one shell word,
     # so values containing spaces survive without a quoting round trip.
+    secrets=$(sops --decrypt --output-type dotenv secrets/sops/infra.yaml)
     while IFS= read -r line; do
         [ -n "$line" ] || continue
         export "${line}"
-    done < <(sops --decrypt --output-type dotenv secrets/sops/infra.yaml)
+    done <<< "$secrets"
 
     printf '%s' "$OCI_PRIVATE_KEY_B64" | base64 -d > "$keyfile"
     export TF_VAR_private_key_path="$keyfile"

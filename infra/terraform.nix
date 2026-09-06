@@ -17,8 +17,14 @@
     # use_lockfile gets state locking from R2's conditional PUT support, which
     # is why no DynamoDB substitute is needed.
     #
-    # Never add an R2 lifecycle rule to this bucket. Object versioning is the
-    # only undo available for a corrupted state file.
+    # Never add an R2 lifecycle rule to this bucket. R2 does not implement
+    # object versioning (Cloudflare's S3-compatibility table lists
+    # GetBucketVersioning as unimplemented), so a deleted or corrupted state
+    # object has no previous version to fall back to. The actual recovery
+    # path is the retained `import` blocks throughout infra/dns and
+    # infra/oci: state lost entirely is rebuildable with a plan and an apply,
+    # which is why adoption keeps them instead of deleting them after the
+    # fact.
     backend.s3 = {
       bucket = "tfstate";
       key = "nixos-infra.tfstate";

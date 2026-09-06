@@ -12,11 +12,15 @@
       }
     ];
 
-    # The public IP (168.138.71.109 — the grey-cloud A-record target for
-    # niks3.arsfeld.dev) is ephemeral: discovery found no standalone
-    # oci_core_public_ip, and a region-scoped reserved-IP listing on this
-    # compartment came back empty. It lives on this VNIC via
-    # assign_public_ip, not as a separate resource here.
+    # The public IP (168.138.71.109) is ephemeral: discovery found no
+    # standalone oci_core_public_ip, and a region-scoped reserved-IP listing
+    # on this compartment came back empty. It lives on this VNIC via
+    # assign_public_ip, not as a separate resource here. This one address is
+    # also the content of five managed A records across all three
+    # Cloudflare zones (the arsfeld.dev apex, niks3.arsfeld.dev,
+    # seed.arsfeld.dev, mail.arsfeld.one, and the rosenfeld.one apex) — a
+    # stop/start that hands Oracle a different address breaks all of them
+    # at once. See CLAUDE.md.
     create_vnic_details = [
       {
         subnet_id = "\${oci_core_subnet.main.id}";

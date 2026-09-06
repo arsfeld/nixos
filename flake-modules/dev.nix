@@ -98,13 +98,25 @@
         ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
           disko
           inputs.disko.packages."${pkgs.stdenv.hostPlatform.system}".default
-          # OpenTofu with the OCI and Cloudflare providers baked in, and the OCI
-          # CLI for ad-hoc inspection. `just tf` resolves its own tofu from
-          # `.#tofu` rather than PATH; these are here for interactive use.
-          self'.packages.tofu
-          oci-cli
         ]
         ++ config.checks.pre-commit-check.enabledPackages;
+    };
+
+    # OpenTofu with the OCI and Cloudflare providers baked in, and the OCI CLI
+    # for ad-hoc inspection. `just tf` resolves its own tofu from `.#tofu`
+    # rather than PATH; this shell is only for interactive use of either tool
+    # directly (`tofu state list`, `oci compute instance get`, ...). It's kept
+    # out of `devShells.default` because `build.yml` runs CI's build step
+    # under `nix develop --command bash -e {0}` on all nine `ciMatrix` jobs,
+    # and CI never invokes tofu or oci-cli — `.#tofu` alone closes over 587
+    # MiB and oci-cli over 902 MiB, all of it dead weight the default shell
+    # would otherwise hand every CI job. Enter this one explicitly with `nix
+    # develop .#infra`.
+    devShells.infra = pkgs.mkShell {
+      buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
+        self'.packages.tofu
+        pkgs.oci-cli
+      ];
     };
 
     # Expose packages loaded via haumea
