@@ -119,11 +119,83 @@
     # Gen 2 x8. See hardware-configuration.nix for the measured ceiling.
   ];
 
-  # Run nvidia-persistenced so the driver stays initialised across application
-  # opens — Steam/Proton spawning Wine processes otherwise tears it up and down
-  # repeatedly. (It does not help the clock lock; nothing does. See the dGPU
-  # power ceiling note in hardware-configuration.nix.)
-  hardware.nvidia.nvidiaPersistenced = true;
+  # nvidia-persistenced is off: it is for headless compute boxes, where it stops
+  # the driver deinitialising between CUDA jobs. Nothing here needs that.
+  #
+  # This was previously true, on the rationale that Steam/Proton spawning Wine
+  # processes otherwise tears the driver up and down repeatedly. That cannot
+  # happen on this host: gnome-shell holds /dev/nvidia0 open for the whole
+  # session (so does lact), so there is never a moment with no client and the
+  # driver never deinitialises. Verified with fuser.
+  #
+  # Measured, so it does not get re-added to fix GPU power:
+  #   - It is NOT the cause of the 30 W clamp. Booted with it false and
+  #     nvidia-unclamp-tgp masked: still 30 W.
+  #   - It is NOT needed to hold the 60 W the unclamp unit establishes. Measured
+  #     60 W with Persistence Mode disabled and the desktop up.
+  hardware.nvidia.nvidiaPersistenced = false;
+
+  # The dGPU comes up clamped to 30 W -- half its own 60 W VBIOS default, and
+  # well under the 65 W this chassis is rated for with ROG Boost. Under that
+  # clamp the driver holds perf level 1 of 3, which pins memory to 810 MHz
+  # against a 6001 MHz spec. Measured effect: 26.2 GB/s of a ~288 GB/s bus, and
+  # SW Power Cap active continuously in-game while the core sheds clock to fit.
+  #
+  # Reloading the nvidia modules once clears it. Measured immediately after,
+  # same machine, same session: 60 W enforced, 6001 MHz memory, P0, and clpeak
+  # global memory bandwidth 243 GB/s -- a 9.3x improvement, and ~85% of
+  # theoretical, which is normal efficiency.
+  #
+  # Two things NOT to re-derive:
+  #   - The NVRM "PlatformRequestHandler failed to get target temp / platform
+  #     power mode from SBIOS" errors fire on the boot load AND on this reload,
+  #     which succeeds. So they are correlated, not causal. Do not chase them
+  #     expecting the clamp to move. (Cause: this board has no NVPCF at all and
+  #     its legacy ACPI GPS handler is a stub -- CTGP, the Configurable-TGP
+  #     grant, is never assigned anywhere in the DSDT or any of the 10 SSDTs.)
+  #   - nvidia-smi -pl / -lmc are refused by the driver on this consumer mobile
+  #     part, and GPUPowerMizerMode reads back 0 after being set. Neither is a
+  #     lever here; the module reload is.
+  #
+  # Isolated by experiment -- the reload itself is the operative step, so do not
+  # "simplify" this into a settings tweak:
+  #   - Not nvidiaPersistenced. Booted with it false and this unit masked: still
+  #     30 W. It is also not needed to hold the result, so it is off entirely.
+  #   - Not lact. Its config carries no power cap (current_profile: null), and
+  #     60 W survives lactd restarting.
+  #   - Not supergfxd. It starts at ~10.2 s, after the driver initialised at
+  #     8.6 s and after the SBIOS errors at 9.8 s, so it is downstream of the
+  #     clamp. (It does set the dGPU's runtime PM to Auto and tries to start
+  #     nvidia-powerd, which fails -- expected, this board has no NVPCF.)
+  #   - Not a warm-up effect. The reload was measured working at 52 s uptime.
+  #
+  # Ordered before display-manager so GDM has not taken the device yet. The
+  # lactd stop is defensive: LACT is disabled in constellation.gaming now, but
+  # it held /dev/nvidia* and would block the rmmod if it ever comes back.
+  # Every step is fail-soft: a failure here must never block boot.
+  systemd.services.nvidia-unclamp-tgp = {
+    description = "Reload NVIDIA modules to clear the boot-time 30 W dGPU clamp";
+    wantedBy = ["display-manager.service"];
+    before = ["display-manager.service"];
+    after = ["systemd-udev-settle.service"];
+    unitConfig.ConditionPathExists = "/dev/nvidia0";
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      set +e
+      systemctl stop lactd 2>/dev/null
+      for m in nvidia_drm nvidia_modeset nvidia_uvm nvidia; do
+        ${pkgs.kmod}/bin/modprobe -r "$m" 2>/dev/null
+      done
+      ${pkgs.kmod}/bin/modprobe nvidia
+      ${pkgs.kmod}/bin/modprobe nvidia_modeset 2>/dev/null
+      ${pkgs.kmod}/bin/modprobe nvidia_drm 2>/dev/null
+      systemctl start lactd 2>/dev/null
+      exit 0
+    '';
+  };
 
   # Remove zfs support
   boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "ntfs" "reiserfs" "vfat" "xfs"];
