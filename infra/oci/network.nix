@@ -386,6 +386,21 @@
             }
           ];
         }
+        {
+          # The first rule here that is not transcribed from discovery.
+          # mydia's iroh relay: QUIC address discovery, hosts/basestar/services/iroh-relay.nix.
+          description = "mydia iroh relay QUIC address discovery";
+          source = "0.0.0.0/0";
+          source_type = "CIDR_BLOCK";
+          protocol = "17"; # UDP
+          stateless = false;
+          udp_options = [
+            {
+              min = 7842;
+              max = 7842;
+            }
+          ];
+        }
       ];
     };
 
