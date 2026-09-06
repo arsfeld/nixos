@@ -47,10 +47,16 @@ Every component is already packaged in the repository's pinned nixpkgs:
 
 | Component | Version |
 |---|---|
-| `opentofu` | 1.12.5 |
+| `opentofu` | 1.11.8 |
 | `terraform-providers.oracle_oci` | 8.14.0 |
 | `terraform-providers.cloudflare_cloudflare` | 5.19.1 |
 | `oci-cli` | 3.82.0 |
+
+The OpenTofu on `$PATH` today is 1.12.5, but that comes from nixpkgs-unstable
+via `constellation.development`. The pinned nixpkgs this flake builds against
+has 1.11.8, which is what the wrapped binary will be. Both feature floors this
+design needs sit below it: `import` blocks landed in 1.5, S3-native state
+locking (`use_lockfile`) in 1.10.
 
 ## Layout
 
@@ -104,27 +110,34 @@ A new sops file whose only recipient is `user_arosenfeld`. No host needs these
 credentials — the run model is local — and narrowing the recipient list follows
 the precedent already set by `ntfy-client.yaml`.
 
-Keys are named so that `sops exec-env` needs no glue code between it and
-OpenTofu:
+Key names are not free choices. OpenTofu reads `TF_VAR_<name>` for a variable
+called `<name>`, and the OCI resource-discovery tool reads a **fixed** set of
+`TF_VAR_` names for its own authentication — `TF_VAR_tenancy_ocid`,
+`TF_VAR_user_ocid`, `TF_VAR_fingerprint`, `TF_VAR_region`,
+`TF_VAR_private_key_path`. Naming the terranix variables to match means one set
+of environment variables serves both the provider and discovery, with no
+translation layer:
 
 | Key | Purpose |
 |---|---|
-| `TF_VAR_oci_tenancy_ocid` | OCI tenancy |
-| `TF_VAR_oci_user_ocid` | OCI user the API key belongs to |
-| `TF_VAR_oci_fingerprint` | API key fingerprint |
-| `TF_VAR_oci_region` | Home region |
-| `TF_VAR_oci_private_key_b64` | API private key, base64-encoded |
+| `TF_VAR_tenancy_ocid` | OCI tenancy |
+| `TF_VAR_user_ocid` | OCI user the API key belongs to |
+| `TF_VAR_fingerprint` | API key fingerprint |
+| `TF_VAR_region` | Home region |
+| `OCI_PRIVATE_KEY_B64` | API private key, base64-encoded |
 | `TF_VAR_cloudflare_api_token` | Scoped token, Zone:DNS:Edit on three zones |
 | `AWS_ACCESS_KEY_ID` | R2 token for the state bucket |
 | `AWS_SECRET_ACCESS_KEY` | R2 token for the state bucket |
 
-OpenTofu consumes `TF_VAR_*` automatically, so those need no mapping at all. The
-two `AWS_*` names are fixed by the S3 backend, which reads credentials from the
-environment rather than from variables.
+The two `AWS_*` names are fixed by the S3 backend, which reads credentials from
+the environment rather than from variables.
 
-The private key is base64-encoded rather than stored as a multi-line PEM, and
-`providers.nix` calls `base64decode()` on it. This keeps a value containing
-newlines out of the environment-variable path entirely.
+The private key is the one value that cannot travel as an environment variable:
+a PEM contains newlines, and the dotenv format sops emits is line-oriented. It
+is stored base64-encoded and the `just tf` recipe decodes it to a mode-0600
+temporary file, exporting `TF_VAR_private_key_path` to point at it and removing
+it on exit. Both the provider (`private_key_path = var.private_key_path`) and
+resource discovery consume it that way, so the two paths stay identical.
 
 The Cloudflare credential is a **new scoped token**, not the global API key that
 already sits in `common.yaml`. The global key carries every permission on the
@@ -173,11 +186,10 @@ Nothing is created. Every resource is imported, in order:
    reference. Roughly a dozen OCI resources; the 50 DNS records come from the
    Cloudflare API rather than from discovery.
 3. **Adopt.** Use OpenTofu `import` blocks, so `tofu plan` displays the adoption
-   before state is touched. terranix declares no `import` option, so the plan
-   adds one as a module option. If terranix's serializer drops unknown top-level
-   keys, the fallback is a `just tf-import` recipe looping `tofu import` over an
-   address-to-OCID table. Which path applies is determined during
-   implementation, not assumed.
+   before state is touched. terranix supports these natively — `import` is one
+   of the top-level keys its serializer emits, taking a list of `{to, id}`
+   attribute sets — so no workaround or custom module option is needed. Verified
+   against terranix 2.9.0.
 4. **Converge.** Iterate until `tofu plan` reports no changes.
 
 ### Acceptance criterion
