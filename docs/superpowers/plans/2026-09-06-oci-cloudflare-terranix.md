@@ -504,7 +504,11 @@ tf *ARGS:
     # removes the stale-lock failure that otherwise appears whenever nixpkgs
     # bumps a provider under a working directory that outlived it.
     "$tofu" init -input=false -upgrade >/dev/null
-    exec "$tofu" {{ ARGS }}
+    # Deliberately not `exec`: exec replaces the shell process image, so the
+    # EXIT trap above never fires and every invocation would leave a copy of
+    # the OCI private key in /tmp. The exit status still propagates, since this
+    # is the last command in the recipe.
+    "$tofu" {{ ARGS }}
 ```
 
 - [ ] **Step 9: Add the tools to the dev shell**
