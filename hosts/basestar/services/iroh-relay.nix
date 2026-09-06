@@ -113,9 +113,14 @@ in {
       extraOptions = ["--network=host"];
     };
 
+    # acme-<cert>.service, not the acme-finished-<cert>.target that older
+    # guides use: NixOS 25.11 removed that target, and systemd treats After=
+    # and Wants= on a unit that does not exist as silently satisfied, so the
+    # stale name looks like an ordering guard while enforcing nothing. This
+    # mirrors what nixpkgs' own Caddy module does for its vhost certificates.
     systemd.services."${backend}-iroh-relay" = {
-      after = ["acme-finished-${cfg.domain}.target"];
-      wants = ["acme-finished-${cfg.domain}.target"];
+      after = ["acme-${cfg.domain}.service"];
+      wants = ["acme-${cfg.domain}.service"];
     };
 
     services.caddy.virtualHosts."${cfg.domain}, ${cfg.stagingDomain}" = {
