@@ -18,9 +18,14 @@
     # assign_public_ip, not as a separate resource here. This one address is
     # also the content of five managed A records across all three
     # Cloudflare zones (the arsfeld.dev apex, niks3.arsfeld.dev,
-    # seed.arsfeld.dev, mail.arsfeld.one, and the rosenfeld.one apex) — a
-    # stop/start that hands Oracle a different address breaks all of them
-    # at once. See CLAUDE.md.
+    # seed.arsfeld.dev, mail.arsfeld.one, and the rosenfeld.one apex).
+    #
+    # Note the address survives a stop/start — Oracle keeps an ephemeral public
+    # IP assigned across an instance stop — so the exposure is instance
+    # termination or a VNIC recreate, which prevent_destroy above already
+    # guards. Reserving cannot preserve this address either: Oracle does not
+    # allow converting a public IP object between types, so it would mean a new
+    # address and a five-record DNS cutover. See CLAUDE.md.
     create_vnic_details = [
       {
         subnet_id = "\${oci_core_subnet.main.id}";
