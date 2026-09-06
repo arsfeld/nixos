@@ -107,6 +107,16 @@
       interval = "120s";
       conditions = ["[CONNECTED] == true"];
     })
+    (mkEndpoint {
+      name = "mydia iroh relay";
+      url = "https://cae1-1.relay.mydia.dev/generate_204";
+      group = "mydia";
+      conditions = [
+        "[CONNECTED] == true"
+        "[STATUS] == 204"
+        "[CERTIFICATE_EXPIRATION] > 168h"
+      ];
+    })
   ];
 in {
   # Publisher credential for gatus's ntfy.arsfeld.one alert webhook.
