@@ -6,9 +6,11 @@ mydia repo), overridable per install with `IROH_RELAY_URL` and per player build
 with `--dart-define=IROH_RELAY_URL`. Losing this host takes remote access down
 for every install that has not set an override.
 
-Moved here from the can-1 k3s cluster on 2026-09-06, because metadata-relay
-moved to Cloudflare Workers and the relay was the last mydia service keeping
-that VPS in the picture.
+Moved here from the can-1 k3s cluster on 2026-09-06, because metadata-relay is
+moving to Cloudflare Workers and the relay was the last mydia service keeping
+that VPS in the picture. That Worker migration has not cut over yet: at the time
+of writing `relay.mydia.dev` is still served by the Elixir relay on can-1, so
+can-1 is not yet safe to retire.
 
 ## Shape
 
@@ -16,12 +18,13 @@ that VPS in the picture.
 - Loopback: 8443 relay HTTPS, 8480 relay HTTP (captive portal only), 9090
   metrics.
 - Certificate: `security.acme` DNS-01 via Cloudflare, SAN-covering
-  `cae1-2.relay.mydia.dev`, mounted read-only from `/var/lib/acme`.
+  `cae1-2.relay.mydia.dev`, mounted read-only into the container at `/certs`
+  from `/var/lib/acme/cae1-1.relay.mydia.dev`.
 
 iroh 1.0 has no STUN. The UDP 3478 port the k8s deployment published was
 vestigial and is not carried over.
 
-## Three things that will bite
+## Four things that will bite
 
 **The version pin.** `v1.0.0` is held back deliberately. The published v1.0.3
 image is a static musl build carrying noq-udp 1.1.0, which panics on the first
@@ -50,6 +53,15 @@ VCN security list as well as `networking.firewall.allowedUDPPorts`. The OCI rule
 is invisible from inside the instance: the socket binds, the service looks
 healthy, and no packet arrives.
 
+**The Cloudflare records must stay grey cloud.** `cae1-1.relay.mydia.dev` and
+`cae1-2.relay.mydia.dev` are DNS-only records and must never be switched to
+proxied. Proxying terminates TLS at Cloudflare, so the relay's own certificate
+is never used, UDP 7842 never arrives at all, and QUIC address discovery reports
+a Cloudflare address instead of the client's. Orange cloud is the dashboard
+default when creating a record, so this is easy to do by accident and the
+symptom (relay reachable over HTTPS, hole punching quietly worse) does not point
+at the cause.
+
 ## Verifying
 
 ```bash
@@ -60,8 +72,8 @@ curl -s http://127.0.0.1:9090/metrics | grep relayserver_accepts_total
 
 `relayserver_unique_client_keys_total` is useless on this version: upstream
 builds `ClientCounter::default()` per connection actor, so it exactly equals
-accepts. `relayserver_bytes_sent_total` reads 0 even with live connections. Use
-`accepts - disconnects` for currently connected nodes.
+accepts. `relayserver_bytes_sent_total` reads 0 even with live connections, also on this
+version. Use `accepts - disconnects` for currently connected nodes.
 
 The only test that means anything is a real client relaying real traffic. Point
 a dev mydia at the relay with `IROH_RELAY_URL` and stream something.
