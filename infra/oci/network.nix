@@ -152,6 +152,14 @@
           ];
         }
         {
+          # oci_core_default_security_list treats ingress_security_rules as a
+          # set: a duplicate entry here is invisible to `tofu plan` and
+          # silently collapses to one on apply. This block used to be listed
+          # twice (both transcribed faithfully from discovery, since Oracle
+          # really did hold two copies at the time) until an unrelated apply
+          # pushed the list and Oracle collapsed the pair to one; the second,
+          # now-false copy was removed as a doc-only correction with zero
+          # infrastructure effect.
           source = "0.0.0.0/0";
           source_type = "CIDR_BLOCK";
           protocol = "17"; # UDP
@@ -184,19 +192,6 @@
             {
               min = 8883;
               max = 8883;
-            }
-          ];
-        }
-        {
-          # Duplicate of the 51821-51830/udp rule above, as discovered.
-          source = "0.0.0.0/0";
-          source_type = "CIDR_BLOCK";
-          protocol = "17"; # UDP
-          stateless = false;
-          udp_options = [
-            {
-              min = 51821;
-              max = 51830;
             }
           ];
         }
