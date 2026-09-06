@@ -32,6 +32,14 @@ creation_rules:
           - *user_arosenfeld
           - *host_raider
 
+  # Infrastructure credentials (OCI API key, Cloudflare DNS token, R2 state
+  # bucket). Deliberately narrower than every other rule: OpenTofu runs from a
+  # workstation only, so no host key is a recipient.
+  - path_regex: secrets/sops/infra\.yaml$
+    key_groups:
+      - age:
+          - *user_arosenfeld
+
   - path_regex: secrets/sops/pegasus\.yaml$
     key_groups:
       - age:

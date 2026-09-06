@@ -235,6 +235,49 @@ cache HOST:
     rm -f result-{{ HOST }}
     echo "✅ {{ HOST }} built and cached successfully"
 
+# === Infrastructure (OpenTofu via terranix) ===
+# `just tf plan`, `just tf apply`, `just tf state list` — anything tofu accepts.
+# There is deliberately no `tf-destroy` recipe: `just tf destroy` still reaches
+# it, but it has to be typed in full rather than sitting in `just --list`.
+tf *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    workdir=infra/.work
+    mkdir -p "$workdir"
+
+    # Resolve the wrapped OpenTofu explicitly. An ambient `tofu` on PATH (the
+    # system one comes from nixpkgs-unstable) carries no provider mirror and
+    # would silently fetch providers from the registry instead.
+    tofu=$(nix build --no-link --print-out-paths '.#tofu')/bin/tofu
+
+    # Link, don't copy: the config is a store path, and a stale copy after an
+    # edit is the single most confusing failure mode here.
+    ln -sf "$(nix build --no-link --print-out-paths '.#infra-config')" "$workdir/config.tf.json"
+
+    # The PEM is the one credential that cannot travel as an environment
+    # variable, so decode it to a private temp file for the life of the command.
+    keyfile=$(mktemp -t oci-api-key-XXXXXX.pem)
+    trap 'rm -f "$keyfile"' EXIT
+    chmod 600 "$keyfile"
+
+    # `export "$line"` rather than `eval`: each dotenv line is one shell word,
+    # so values containing spaces survive without a quoting round trip.
+    while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        export "${line}"
+    done < <(sops --decrypt --output-type dotenv secrets/sops/infra.yaml)
+
+    printf '%s' "$OCI_PRIVATE_KEY_B64" | base64 -d > "$keyfile"
+    export TF_VAR_private_key_path="$keyfile"
+
+    cd "$workdir"
+    # Init on every invocation. It is cheap against a filesystem mirror, and it
+    # removes the stale-lock failure that otherwise appears whenever nixpkgs
+    # bumps a provider under a working directory that outlived it.
+    "$tofu" init -input=false -upgrade >/dev/null
+    exec "$tofu" {{ ARGS }}
+
 # Build NanoPi R2S SD card image
 build-r2s:
     #!/usr/bin/env bash
