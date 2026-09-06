@@ -107,6 +107,12 @@
       interval = "120s";
       conditions = ["[CONNECTED] == true"];
     })
+    # [CERTIFICATE_EXPIRATION] reads Caddy's front-end certificate, the same
+    # on-disk PEM the relay container mounts, so normally the two cannot
+    # diverge. The one way they do: podman-iroh-relay.service fails to restart
+    # on renewal while Caddy reloads fine, leaving the relay serving an ageing
+    # certificate while this condition reads Caddy's fresh one. [STATUS] == 204
+    # still catches the resulting 502, just without diagnosing the cause.
     (mkEndpoint {
       name = "mydia iroh relay";
       url = "https://cae1-1.relay.mydia.dev/generate_204";
