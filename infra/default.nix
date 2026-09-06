@@ -5,5 +5,6 @@
     ./providers.nix
     ./oci/network.nix
     ./oci/basestar.nix
+    ./dns/arsfeld-dev.nix
   ];
 }
