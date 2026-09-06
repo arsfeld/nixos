@@ -119,20 +119,20 @@
     # Gen 2 x8. See hardware-configuration.nix for the measured ceiling.
   ];
 
-  # nvidia-persistenced is off: it is for headless compute boxes, where it stops
-  # the driver deinitialising between CUDA jobs. Nothing here needs that.
+  # nvidia-persistenced stays off. It is a headless-compute tool -- it keeps the
+  # driver from deinitialising between CUDA jobs -- and nothing here needs that.
+  # gnome-shell holds /dev/nvidia0 for the whole session anyway, so the driver
+  # teardown its old comment worried about cannot happen.
   #
-  # This was previously true, on the rationale that Steam/Proton spawning Wine
-  # processes otherwise tears the driver up and down repeatedly. That cannot
-  # happen on this host: gnome-shell holds /dev/nvidia0 open for the whole
-  # session (so does lact), so there is never a moment with no client and the
-  # driver never deinitialises. Verified with fuser.
+  # It was briefly switched back on under the theory that it PINS whatever power
+  # budget exists when it starts, and so would hold the 60 W that
+  # nvidia-unclamp-tgp establishes. That theory is falsified: with persistence
+  # mode off, 60 W held across an idle GPU, an opened+closed Vulkan context, an
+  # opened+closed OpenCL context, display-manager starting and gnome-shell
+  # taking the device, and a full gamemode activation.
   #
-  # Measured, so it does not get re-added to fix GPU power:
-  #   - It is NOT the cause of the 30 W clamp. Booted with it false and
-  #     nvidia-unclamp-tgp masked: still 30 W.
-  #   - It is NOT needed to hold the 60 W the unclamp unit establishes. Measured
-  #     60 W with Persistence Mode disabled and the desktop up.
+  # Nor is it the cause of the clamp: booted with it false and the unclamp unit
+  # masked, and the dGPU still came up at 30 W.
   hardware.nvidia.nvidiaPersistenced = false;
 
   # The dGPU comes up clamped to 30 W -- half its own 60 W VBIOS default, and
@@ -160,7 +160,7 @@
   # Isolated by experiment -- the reload itself is the operative step, so do not
   # "simplify" this into a settings tweak:
   #   - Not nvidiaPersistenced. Booted with it false and this unit masked: still
-  #     30 W. It is also not needed to hold the result, so it is off entirely.
+  #     30 W. It is off, and not needed to hold the result either.
   #   - Not lact. Its config carries no power cap (current_profile: null), and
   #     60 W survives lactd restarting.
   #   - Not supergfxd. It starts at ~10.2 s, after the driver initialised at
@@ -168,6 +168,25 @@
   #     clamp. (It does set the dGPU's runtime PM to Auto and tries to start
   #     nvidia-powerd, which fails -- expected, this board has no NVPCF.)
   #   - Not a warm-up effect. The reload was measured working at 52 s uptime.
+  #
+  # KNOWN LIMITATION -- this unit is not the whole fix. The 60 W it establishes
+  # at boot has been observed reverting to 30 W later in a session: one boot ran
+  # the unit at 12 s and read 60 W at 26 s, then Steam started at 62 s and Forza
+  # at 105 s, and by ~200 s the dGPU was back to 30 W with SW Power Cap active,
+  # where it stayed for the whole play session.
+  #
+  # The trigger is NOT known. Falsified by measurement, each with 60 W holding:
+  # an idle GPU for minutes, an opened+closed Vulkan context, an opened+closed
+  # OpenCL context, display-manager starting and gnome-shell taking the device,
+  # and a gamemode activation (which was the best suspect, since gaming.nix sets
+  # apply_gpu_optimisations + nv_powermizer_mode=1 against card0, and card0 is
+  # the NVIDIA GPU here). The untested difference is Steam's pressure-vessel
+  # runtime, or sustained real game load.
+  #
+  # Likely relevant, and the best lead for why this hardware behaves this way at
+  # all: the nvidia module initialises at 8.160 s and asus-nb-wmi only registers
+  # platform_profile support at 8.251 s. The GPU driver comes up 91 ms before
+  # the ASUS platform interface exists.
   #
   # Ordered before display-manager so GDM has not taken the device yet. The
   # lactd stop is defensive: LACT is disabled in constellation.gaming now, but
