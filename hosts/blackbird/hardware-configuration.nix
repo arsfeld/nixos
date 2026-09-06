@@ -26,21 +26,29 @@
     modesetting.enable = true;
     powerManagement.enable = true;
 
-    # dGPU power ceiling: measured, and not liftable from Linux userspace.
-    # Read this before "fixing" GPU performance on this host again.
+    # dGPU boot-time power clamp — FIXED. See systemd.services.nvidia-unclamp-tgp
+    # in configuration.nix, which is what actually lifts it.
     #
-    # In PRIME offload — the only mode this chassis has, since the GA401IU has
-    # no MUX and supergfxctl reports [Integrated, Hybrid] — the GTX 1660 Ti
-    # Max-Q holds its memory clock at the 810 MHz idle value even at 100%
-    # utilization, against a 6001 MHz spec, under an enforced 30 W power limit
-    # against the board's own 60 W VBIOS default. clpeak measures 26.2 GB/s of
-    # a ~288 GB/s bus, and 3.36 GB/s host<->device because the link trains at
-    # Gen 2 x8 rather than Gen 3. The core clock is healthy (~1800 of
-    # 2100 MHz), so this is specific to memory and power.
+    # This comment previously called the state below a hardware ceiling and said
+    # to tune expectations rather than settings. That was wrong, and the tell was
+    # always available: the same machine ran Forza Horizon 5 at 40-60 fps on high
+    # under Windows while Linux managed ~30 on medium/low. Same silicon, same
+    # VBIOS, so it was never a hardware limit.
     #
-    # That ceiling — not any in-game setting — is why Forza Horizon 5 misses
-    # 60 fps here; its Dynamic Optimization then silently degrades six quality
-    # settings trying to catch up. Tune expectations, not the settings menu.
+    # The state it described is real, but it is the *clamped* state, not a
+    # ceiling: memory pinned at 810 MHz against a 6001 MHz spec, an enforced
+    # 30 W limit against the board's own 60 W default, clpeak at 26.2 GB/s of a
+    # ~288 GB/s bus. After the module reload, on the same hardware: 60 W,
+    # 6001 MHz, P0, 243 GB/s. Core clock looked "healthy" at ~1800 MHz only
+    # because perf level 1 already permits 2100, which is what made this read
+    # as a memory-specific hardware fault rather than a power clamp.
+    #
+    # One methodology note, since it cost real time: several numbers in the
+    # original block were idle telemetry. At true idle this GPU reads 405 MHz
+    # memory and PCIe Gen 1; the "Gen 2 x8" figure is what a lightly loaded or
+    # clamped GPU reports, and max link width actually reads 16x. Sample under a
+    # sustained load and check whether SW Power Cap is Active before concluding
+    # anything about a clock.
     #
     # Ruled out by measurement. Do not re-attempt:
     #   - NVreg_RegistryDwords PowerMizer keys (PowerMizerEnable,
