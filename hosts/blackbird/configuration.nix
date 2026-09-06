@@ -3,7 +3,58 @@
   pkgs,
   lib,
   ...
-}: {
+}: let
+  # Astra Monitor addresses GPUs by the PCI fields it parses out of `lspci -nnk`
+  # and compares domain/bus/slot/vendorId/productId. For the dGPU at 01:00.0
+  # [10de:2191] that is domain "0000:01", bus "00", slot "0" -- its field names
+  # are shifted one place from the usual domain:bus:device.function.
+  dgpu = {
+    domain = "0000:01";
+    bus = "00";
+    slot = "0";
+    vendorId = "10de";
+    productId = "2191";
+  };
+
+  # The dGPU's enforced power limit in the top bar: the number the
+  # nvidia-unclamp-tgp unit below exists to change, and which has been seen
+  # reverting to 30 W mid-session. Printed for gnomeExtensions.executor, which
+  # runs it through `bash -c` on an interval.
+  #
+  # `nvidia-smi --query-gpu=power.limit` returns [N/A] on this GPU (measured on
+  # driver 595.71.05), so the limits have to come from the -q report, where they
+  # are populated. There "Current Power Limit" appears twice -- under GPU Power
+  # Readings and again under Module Power Readings, which is all N/A here -- so
+  # awk windows on the first block rather than grepping. P-state, memory clock
+  # and the SW Power Cap flag do work through --query-gpu.
+  dgpu-power = pkgs.writeShellScriptBin "dgpu-power" ''
+    smi=${config.hardware.nvidia.package.bin}/bin/nvidia-smi
+
+    limits=$("$smi" -q -d POWER 2>/dev/null | awk '
+      /GPU Power Readings/    { gpu = 1 }
+      /Module Power Readings/ { gpu = 0 }
+      gpu && /Current Power Limit/ { cur = $(NF - 1) }
+      gpu && /Default Power Limit/ { print cur, $(NF - 1); exit }
+    ')
+    read -r cur def <<<"$limits"
+    # Driver not loaded, or the fields read N/A: print nothing, not noise.
+    case "$cur$def" in "" | *[!0-9.]*) exit 0 ;; esac
+
+    IFS=, read -r pstate mem cap <<<"$(
+      "$smi" --query-gpu=pstate,clocks.mem,clocks_event_reasons.sw_power_cap \
+             --format=csv,noheader,nounits 2>/dev/null | tr -d ' '
+    )"
+
+    cap_flag=""
+    [ "$cap" = Active ] && cap_flag=" cap"
+
+    if [ "$cur" = "$def" ]; then
+      printf '%.0fW %s %sMHz%s\n' "$cur" "$pstate" "$mem" "$cap_flag"
+    else
+      printf '! %.0f/%.0fW %s %sMHz%s\n' "$cur" "$def" "$pstate" "$mem" "$cap_flag"
+    fi
+  '';
+in {
   imports = [
     ./hardware-configuration.nix
     ./disko-config.nix
@@ -24,6 +75,7 @@
       enable = true;
       variant = "gnome";
       gnome.monitorControl.enable = true;
+      gnome.gpuMonitor.enable = true;
       gnome.theme = {
         gtk = "Yaru-purple-dark";
         icon = "Yaru-purple";
@@ -66,6 +118,7 @@
     alsa-utils # Audio utilities
     librepods # Open-source AirPods client
     ventoy-full-gtk # Multiboot USB creator (CLI + GTK GUI, all plugins)
+    dgpu-power # dGPU power-limit readout, also driven by Executor below
   ];
 
   # Bootloader: rEFInd as the boot menu (replaces systemd-boot). The rEFInd
@@ -215,6 +268,54 @@
       exit 0
     '';
   };
+
+  # Two panel readouts for that clamp, since a fix nobody can see is a fix
+  # nobody can check. Astra Monitor's GPU menu carries the full picture --
+  # Current / Default / Max Power Limit, P-state, memory clock, power draw --
+  # and the Executor entry keeps the one number that matters in the top bar.
+  # Both extensions come from constellation.desktop.gnome.gpuMonitor above.
+  #
+  # This is a second dconf database rather than an edit to the desktop module's:
+  # databases layer in list order and only keys defined in both would conflict.
+  # These keys are defined in neither, so nothing here is at risk of shadowing
+  # the shared enabled-extensions list.
+  #
+  # The instrument is not neutral. Astra polls with `nvidia-smi -q -x -lms`,
+  # which is a permanent NVML client this machine did not have before; if the
+  # clamp's behaviour changes after this lands, suspect the monitor first.
+  programs.dconf.profiles.user.databases = [
+    {
+      settings = {
+        # Executor's commands live in one JSON string per panel position. The
+        # left and center defaults are a demo `echo`, so they are turned off.
+        "org/gnome/shell/extensions/executor" = {
+          left-active = false;
+          center-active = false;
+          right-active = true;
+          right-commands-json = builtins.toJSON {
+            commands = [
+              {
+                isActive = true;
+                command = lib.getExe dgpu-power;
+                interval = 10;
+                uuid = "a1b2c3d4-0d6e-4750-9077-65726361705f";
+              }
+            ];
+          };
+        };
+
+        # gpu-data is the list Astra actually polls; gpu-main is the one the
+        # panel header shows. Only the dGPU is listed -- adding the Renoir iGPU
+        # would start an amdgpu_top poller for a GPU with nothing to watch.
+        "org/gnome/shell/extensions/astra-monitor" = {
+          gpu-header-show = true;
+          gpu-main = builtins.toJSON dgpu;
+          gpu-data = builtins.toJSON [(dgpu // {monitor = true;})];
+          gpu-update = 5.0; # 2 s by default; this is a laptop and the clamp is not fast
+        };
+      };
+    }
+  ];
 
   # Remove zfs support
   boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "ntfs" "reiserfs" "vfat" "xfs"];
