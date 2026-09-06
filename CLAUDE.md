@@ -231,16 +231,28 @@ Things worth knowing before touching it:
   "replace the machine".
 - **basestar's public IP, `168.138.71.109`, is ephemeral, not reserved.**
   There's no `oci_core_public_ip` resource anywhere in `infra/` — the VNIC
-  just carries the address via `assign_public_ip`. That matters more than it
-  looks: this one address is the content of five managed A records across all
-  three zones — the `arsfeld.dev` apex, `niks3.arsfeld.dev`, `seed.arsfeld.dev`,
-  `mail.arsfeld.one`, and the `rosenfeld.one` apex. If this instance is ever
-  stopped and started, Oracle can hand it a different address, and stopping
-  there breaks not just CI's cache push but the public blog, the seed node,
-  and mail routing for both domains, all at once, silently. Converting it to
-  a reserved IP is a real mutation, not an import, and was deliberately left
-  undone during adoption — it's a legitimate follow-up, not an oversight, and
-  this blast radius is the argument for actually doing it.
+  just carries the address via `assign_public_ip`. This one address is the
+  content of five managed A records across all three zones — the `arsfeld.dev`
+  apex (proxied), plus `niks3.arsfeld.dev`, `seed.arsfeld.dev`,
+  `mail.arsfeld.one` and the `rosenfeld.one` apex (all grey-cloud). Losing it
+  breaks CI's cache push, the seed node and mail routing for both domains at
+  once.
+
+  Two things about that are easy to get backwards, and were, in this file,
+  until they were checked against Oracle's documentation:
+
+  - **Stop/start does not change it.** Oracle: "When you stop an instance, its
+    ephemeral public IPs remain assigned to the instance." The address is lost
+    when the *instance* goes away — termination, or a VNIC delete/recreate —
+    not on a reboot or a stop. The `prevent_destroy` guard on the instance is
+    therefore already the main mitigation.
+  - **Reserving cannot keep this address.** Oracle: "After you create a given
+    public IP object, you can't change which type it is" — an ephemeral public
+    IP cannot be converted to a reserved one with the same value. Reserving
+    means allocating a *new* address, unassigning the ephemeral, assigning the
+    reserved one, and updating all five A records: a planned cutover with four
+    unproxied records to propagate, not a free hardening step. That is why it
+    was left undone, and the reason is the cutover cost, not oversight.
 - **`oci_core_default_dhcp_options` exists on the VCN but is deliberately
   left unmanaged.** Its OCID is recorded in a comment in
   `infra/oci/network.nix` for whoever eventually adopts it.
