@@ -15,25 +15,45 @@
 # Usage:
 #   ./verify-image.sh n0computer/iroh-relay:v1.0.2@sha256:<digest>
 #
+# The reference must be digest-pinned. This script exists to verify an image
+# before production is pointed at it, and a floating tag can move between the
+# verify and the deploy, so a tag without a digest is rejected outright.
+#
 # On basestar, openssl and python3 are not on root's PATH. Run it as:
 #   nix shell nixpkgs#openssl nixpkgs#python3 --command ./verify-image.sh <image>
 #
 # Exits 0 if the image survives, 1 if it does not, 2 on bad usage or a missing
-# dependency. Requires docker, openssl, curl, and python3 with PyYAML.
+# dependency. Requires docker (or podman's docker-compat shim), openssl, curl,
+# and python3.
 #
 # Dependencies are preflighted rather than discovered mid-run. Without that, a
-# missing python3 or PyYAML leaves no config.toml, the relay exits for want of
-# config, and the script blames the candidate image for a broken harness. That
-# misattribution is the failure worth guarding against here: it would send
-# someone hunting a relay bug that does not exist.
+# missing openssl fails the throwaway cert with a raw shell error instead of a
+# clear diagnostic, and a missing python3 is only discovered later, when the
+# QUIC datagram probe silently fails to run, which then reads as the image
+# never proving it received traffic rather than as a missing interpreter.
+# That misattribution is the failure worth guarding against here: it would
+# send someone hunting a relay bug that does not exist.
 
 set -euo pipefail
 
 IMG="${1:-}"
 if [ -z "$IMG" ]; then
-  echo "usage: $0 <image[@digest]>" >&2
+  echo "usage: $0 <image@sha256:digest>" >&2
   exit 2
 fi
+
+# A floating tag can be re-published or moved between this verify and the
+# eventual deploy, so verifying one proves nothing about what actually gets
+# deployed. Every call site already passes a digest; reject anything that
+# does not rather than silently verifying the wrong bits later.
+case "$IMG" in
+  *@sha256:*) ;;
+  *)
+    echo "FAIL: $IMG is not digest-pinned" >&2
+    echo "      pass a digest-pinned reference, e.g. name@sha256:<digest>" >&2
+    exit 2
+    ;;
+esac
 
 missing=""
 for bin in docker openssl curl python3; do
@@ -88,24 +108,14 @@ if ! docker pull "$IMG" >"$WORK/pull.log" 2>&1; then
   echo "      (a problem with this machine or the reference, not a verdict on the image)" >&2
   exit 2
 fi
-# Take the digest from the pull itself. `docker pull -q` swallows this line, and
-# an image's .RepoDigests can hold several references, so indexing that list is
-# not guaranteed to name the thing that was just pulled.
-#
-# A digest reference is content-addressed, so when the caller supplies one the
-# registry cannot have served anything else and the reference is itself the
-# proof of what was tested. Fall back to parsing the pull log otherwise. Docker
-# Engine prints a `Digest:` line there; Podman's docker-compat shim, which is
-# what `docker` is on basestar, does not, so parsing alone is not portable.
-case "$IMG" in
-  *@sha256:*) DIGEST="${IMG#*@}" ;;
-  *) DIGEST="$(sed -n 's/^Digest: //p' "$WORK/pull.log" | tail -1)" ;;
-esac
-if [ -z "$DIGEST" ]; then
-  echo "FAIL: docker pull reported no digest for $IMG" >&2
-  echo "      (a problem with this machine or the reference, not a verdict on the image)" >&2
-  exit 2
-fi
+# Take the digest from the reference itself rather than from the pull output.
+# A digest reference is content-addressed, so the registry cannot have served
+# anything else, and the reference is itself the proof of what was tested.
+# This also sidesteps `docker pull` output parsing entirely: Docker Engine
+# prints a `Digest:` line, but Podman's docker-compat shim, which is what
+# `docker` is on basestar, does not, so parsing was never portable. The usage
+# check above already requires "@sha256:", so this is never empty.
+DIGEST="${IMG#*@}"
 echo "    tested: $DIGEST"
 
 echo "==> booting $IMG"
