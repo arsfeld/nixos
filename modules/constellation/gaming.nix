@@ -519,13 +519,27 @@ in {
         ratbagd.enable = true;
         joycond.enable = true;
 
-        # LACT replaces corectrl. lactd applies saved fan/power/clock profiles at
-        # boot, headless; corectrl only applied its settings while its tray app
-        # was running in the session. Not gated on cpuVendor — LACT drives NVIDIA
-        # too. hardware.amdgpu.overdrive.enable (required for custom fan curves
-        # and undervolting) is deliberately left off: it adds
-        # amdgpu.ppfeaturemask=0xffffffff at boot and is a separate decision.
-        lact.enable = true;
+        # LACT is off. It was enabled to replace corectrl, on the grounds that
+        # lactd applies saved fan/power/clock profiles at boot and headless,
+        # where corectrl only applied settings while its tray app ran.
+        #
+        # That never came true. Neither host ever had a profile to apply:
+        # /etc/lact/config.yaml on both raider and blackbird carries no `gpus:`
+        # section at all and `current_profile: null`. The one setting that would
+        # let it do the interesting AMD work, hardware.amdgpu.overdrive.enable,
+        # is deliberately off (it adds amdgpu.ppfeaturemask=0xffffffff at boot
+        # and is a separate decision), so the fan-curve and undervolt paths were
+        # unreachable too. What remained was a root daemon holding every GPU
+        # device node open for a GUI that was only used to read numbers.
+        #
+        # On blackbird that hurt: lactd holds /dev/nvidia0, /dev/nvidiactl and
+        # /dev/nvidia-uvm for the whole session, which blocks the module reload
+        # that nvidia-unclamp-tgp needs to clear that host's 30 W dGPU clamp.
+        #
+        # Re-enabling is fine if someone actually saves a profile — but save the
+        # profile first, and turn on amdgpu.overdrive if fan/undervolt is the
+        # goal, or it will be inert again.
+        lact.enable = false;
 
         # BPF-driven network autotuning, replacing the static net.core.*/
         # net.ipv4.tcp_* buffer sizing that used to sit in boot.kernel.sysctl.
