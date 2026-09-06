@@ -5,8 +5,11 @@
 }: {
   imports = [
     ./services/development.nix
+    ./services/iroh-relay.nix
     ./services/rustdesk.nix
   ];
+
+  services.mydia-iroh-relay.enable = true;
 
   sops.secrets.tailscale-key.sopsFile = config.constellation.sops.commonSopsFile;
   sops.secrets.tailscale-env = {};
