@@ -107,6 +107,15 @@
       interval = "120s";
       conditions = ["[CONNECTED] == true"];
     })
+    # This watches cae1-2, the basestar relay's own staging name, not cae1-1.
+    # cae1-1.relay.mydia.dev still points at the old relay on can-1, a
+    # Kubernetes deployment fronted by Traefik with TLS passthrough; that
+    # relay only serves /generate_204 on its plain HTTP socket, and Traefik
+    # only routes 443, so [STATUS] == 204 fails there today regardless of
+    # relay health. Once cae1-1 is cut over to basestar, point this back at
+    # cae1-1, since that's the name every mydia client in the field actually
+    # uses.
+    #
     # [CERTIFICATE_EXPIRATION] reads Caddy's front-end certificate, the same
     # on-disk PEM the relay container mounts, so normally the two cannot
     # diverge. The one way they do: podman-iroh-relay.service fails to restart
@@ -115,7 +124,7 @@
     # still catches the resulting 502, just without diagnosing the cause.
     (mkEndpoint {
       name = "mydia iroh relay";
-      url = "https://cae1-1.relay.mydia.dev/generate_204";
+      url = "https://cae1-2.relay.mydia.dev/generate_204";
       group = "mydia";
       conditions = [
         "[CONNECTED] == true"
