@@ -87,6 +87,12 @@ in {
       };
 
       monitorControl.enable = lib.mkEnableOption "GNOME Quick Settings controls for DDC/CI monitors";
+
+      # Astra Monitor (GPU menu: power limits, clocks, P-state) plus Executor
+      # (an arbitrary command's output in the top bar). Only the extensions are
+      # installed here -- the Executor command and Astra's GPU selection are
+      # host-specific, so the host configures them in its own dconf database.
+      gpuMonitor.enable = lib.mkEnableOption "GNOME panel readouts for GPU power, clocks and load";
     };
 
     niri = {
@@ -333,7 +339,11 @@ in {
                       "add-to-steam@pupper.space"
                       "restartto@tiagoporsch.github.io"
                     ]
-                    ++ lib.optional cfg.gnome.monitorControl.enable "monitor-control@ahmed-shaalan";
+                    ++ lib.optional cfg.gnome.monitorControl.enable "monitor-control@ahmed-shaalan"
+                    ++ lib.optionals cfg.gnome.gpuMonitor.enable [
+                      "monitor@astraext.github.io"
+                      "executor@raujonas.github.io"
+                    ];
                 };
 
                 # Schema id is `logo-menu` but the dconf PATH is `Logo-menu`
@@ -435,6 +445,12 @@ in {
           ++ lib.optionals cfg.gnome.monitorControl.enable [
             pkgs.ddcutil
             pkgs-unstable.gnomeExtensions.monitorcontrol-brightness-and-volume
+          ]
+          ++ lib.optionals cfg.gnome.gpuMonitor.enable [
+            # Astra reads the GPU list from `lspci -nnk` (pciutils comes from
+            # constellation.common) and NVIDIA telemetry from `nvidia-smi -q -x`.
+            gnomeExtensions.astra-monitor
+            gnomeExtensions.executor
           ];
       })
 
