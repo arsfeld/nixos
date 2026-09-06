@@ -186,6 +186,13 @@ environment, and runs an OpenTofu resolved from `.#tofu` — never from PATH,
 because the ambient `tofu` carries no provider mirror and would fetch
 providers from the registry instead.
 
+For running `tofu` or `oci` directly instead of through `just tf` — ad-hoc
+`state list`, `oci compute instance get`, and the like — use `nix develop
+.#infra`. Both tools live in that shell rather than `devShells.default`
+because CI enters the default shell on every host it builds and never
+touches either one; keeping them out saves it roughly 1.2 GiB of closure it
+would otherwise pull for nothing.
+
 Things worth knowing before touching it:
 
 - **Everything here was imported, not created.** The `import` blocks are kept
@@ -224,20 +231,28 @@ Things worth knowing before touching it:
   "replace the machine".
 - **basestar's public IP, `168.138.71.109`, is ephemeral, not reserved.**
   There's no `oci_core_public_ip` resource anywhere in `infra/` — the VNIC
-  just carries the address via `assign_public_ip`. That matters because this
-  same address is the grey-cloud A-record target documented above for
-  `niks3.arsfeld.dev`, which CI pushes every closure through: if this
-  instance is ever stopped and started, Oracle can hand it a different
-  address and that DNS record silently starts pointing at nothing.
-  Converting it to a reserved IP is a real mutation, not an import, and was
-  deliberately left undone during adoption — it's a legitimate follow-up,
-  not an oversight.
+  just carries the address via `assign_public_ip`. That matters more than it
+  looks: this one address is the content of five managed A records across all
+  three zones — the `arsfeld.dev` apex, `niks3.arsfeld.dev`, `seed.arsfeld.dev`,
+  `mail.arsfeld.one`, and the `rosenfeld.one` apex. If this instance is ever
+  stopped and started, Oracle can hand it a different address, and stopping
+  there breaks not just CI's cache push but the public blog, the seed node,
+  and mail routing for both domains, all at once, silently. Converting it to
+  a reserved IP is a real mutation, not an import, and was deliberately left
+  undone during adoption — it's a legitimate follow-up, not an oversight, and
+  this blast radius is the argument for actually doing it.
 - **`oci_core_default_dhcp_options` exists on the VCN but is deliberately
   left unmanaged.** Its OCID is recorded in a comment in
   `infra/oci/network.nix` for whoever eventually adopts it.
-- **Adding a tunnel hostname in the Zero Trust dashboard creates a DNS record
-  behind OpenTofu's back**, which the next apply deletes. Add it to
-  `infra/dns/arsfeld-one.nix` instead, or import it afterwards.
+- **Nothing here is zone-authoritative.** The config declares 50 individual
+  `cloudflare_dns_record` resources, not a resource type that owns the zone
+  as a whole, so OpenTofu only ever touches records present in its config or
+  state — it cannot see, let alone delete, a record created out-of-band (say,
+  by adding a tunnel hostname in the Zero Trust dashboard). The real hazards
+  run the other way: the zone files silently stop being a complete picture
+  of the zone, and if a dashboard change touches a name that *is* managed,
+  the next apply reverts it. Add new hostnames to
+  `infra/dns/arsfeld-one.nix` instead, or import them afterwards.
 - **Committing to `infra/` stages a real infrastructure change for whoever
   next runs `just tf apply` — not necessarily you.** This already happened
   once: a concurrent session committed a new UDP ingress rule (iroh relay
@@ -247,13 +262,24 @@ Things worth knowing before touching it:
   up — read what a plan actually names before applying it, not just its
   summary line.
 - **State lives in the R2 bucket `tfstate`**, with locking via conditional
-  PUT. Never add an R2 lifecycle rule to it — object versioning is the only
-  undo a corrupted state file gets. Same reasoning as `nix-cache`.
+  PUT. Never add an R2 lifecycle rule to it — R2 has no object versioning
+  (Cloudflare's S3-compatibility table lists `GetBucketVersioning` as
+  unimplemented), so a deleted or corrupted state object has no earlier
+  version to fall back to. The actual recovery path is the one this design
+  already built: the retained `import` blocks make state lost outright
+  rebuildable with a plan and an apply, not an archaeology exercise.
 - **`secrets/sops/infra.yaml` has only the user key as a recipient.** No host
   reads it; OpenTofu runs from a workstation.
 - Provider versions come from nixpkgs, not from `required_providers`. There
   is deliberately no version constraint in the Nix — the plugin mirror is
   the pin.
+- **The `_N` suffixes on sibling records (same name, multiple values, e.g.
+  `mx_arsfeld_one_1`/`_2`) are frozen ordinals from an ASCII sort of
+  `content` at import time, not indices to keep in sync.** Inserting a new
+  record that would sort earlier does not renumber the existing ones —
+  doing that by hand would change resource addresses, which OpenTofu reads
+  as destroy-and-create. Give a newly added sibling the next unused number
+  regardless of where it would sort.
 
 ### Available Hosts
 - **galactica** - Main server: media services, databases, backups. Hosts internal services on `*.arsfeld.one` via cloudflared tunnel (wildcard ingress)

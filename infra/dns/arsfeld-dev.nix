@@ -97,6 +97,11 @@
       ttl = 1;
       priority = 10;
     };
+    # The eleven _acme-challenge TXT records below (attic, metadata-relay,
+    # sumwhere, plane, windmill) are DNS-01 leftovers a client failed to
+    # clean up after issuance. Adopted as found, per the import-only rule —
+    # they're safe to delete out of band and drop from this file whenever
+    # someone gets around to it.
     txt__acme_challenge_attic_arsfeld_dev_1 = {
       zone_id = "5b658a2265b2562c6f51ac93de8d21bf";
       name = "_acme-challenge.attic.arsfeld.dev";
