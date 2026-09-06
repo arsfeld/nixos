@@ -55,6 +55,7 @@ just deploy @tier1     # deploy all tier-1 hosts
 - **Automated Deployments** - Two-phase nix-fast-build pipeline (parallel eval, build, niks3 push, then parallel activation), nixos-rebuild fallback
 - **Secret Management** - sops-nix with per-host and shared secrets
 - **Binary Caching** - niks3 coordinator with a Cloudflare R2 read path (`cache.arsfeld.dev`)
+- **Infrastructure as Code** - Oracle Cloud tenancy and Cloudflare DNS zones managed via OpenTofu, written in Nix with terranix (see [CLAUDE.md](CLAUDE.md))
 - **Remote Builders** - aarch64 builds via basestar host
 - **Declarative Everything** - Including disk partitioning (disko)
 - **CI/CD** - GitHub Actions builds all hosts, pushes to niks3, weekly flake updates
@@ -77,6 +78,10 @@ just install <hostname> <target-ip>
 
 # Format all Nix files
 just fmt
+
+# Plan/apply the Oracle Cloud + Cloudflare DNS infrastructure
+just tf plan
+just tf apply
 ```
 
 ## Project Structure
@@ -132,6 +137,7 @@ Hosts compose their configuration by enabling modules via `constellation.<module
 - [haumea](https://github.com/nix-community/haumea) - Automatic module/package discovery
 - [niks3](https://github.com/Mic92/niks3) - S3-backed binary cache with reference-tracking GC
 - [Tailscale](https://tailscale.com/) - VPN mesh network
+- [OpenTofu](https://opentofu.org/) + [terranix](https://terranix.org/) - Oracle Cloud and Cloudflare DNS as Nix code
 
 ## Documentation
 

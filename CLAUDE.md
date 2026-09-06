@@ -166,6 +166,95 @@ nix develop -c sops updatekeys secrets/sops/<file>.yaml  # Re-encrypt after key 
 
 Configured via `.sops.yaml`. All hosts use `constellation.sops.enable = true`. Use standard `sops.secrets` options. Common/shared secrets: `config.constellation.sops.commonSopsFile`.
 
+### Infrastructure (OpenTofu via terranix)
+
+The Oracle Cloud tenancy behind basestar and the three in-use Cloudflare DNS
+zones (`arsfeld.dev`, `arsfeld.one`, `rosenfeld.one`) are managed as code under
+`infra/`, written as terranix Nix modules rather than HCL. 56 resources are
+under management: 50 `cloudflare_dns_record` plus 6 Oracle resources (VCN,
+internet gateway, default route table, default security list, subnet,
+instance).
+
+```bash
+just tf plan      # anything tofu accepts: plan, apply, state list, ...
+just tf apply
+```
+
+`just tf` rebuilds `config.tf.json` from `.#infra-config`, links it into the
+gitignored `infra/.work`, decrypts `secrets/sops/infra.yaml` into the
+environment, and runs an OpenTofu resolved from `.#tofu` — never from PATH,
+because the ambient `tofu` carries no provider mirror and would fetch
+providers from the registry instead.
+
+Things worth knowing before touching it:
+
+- **Everything here was imported, not created.** The `import` blocks are kept
+  after adoption rather than deleted: they are the record of which real
+  object each resource adopted, and they make rebuilding lost state an apply
+  rather than an archaeology exercise.
+- **The VCN's route table and security list are its implicit defaults, not
+  independent objects.** Oracle creates a default route table, security
+  list, and DHCP options set alongside every VCN and doesn't support
+  destroying them separately from it, so they're adopted as
+  `oci_core_default_route_table` and `oci_core_default_security_list`,
+  addressed by `manage_default_resource_id` rather than `vcn_id`. The
+  generic `oci_core_route_table`/`oci_core_security_list` types model a
+  create/destroy lifecycle Oracle doesn't support for these — use the
+  `default_*` types only for the one object Oracle created automatically; a
+  *second* route table or security list on this VCN would need the generic
+  types instead.
+- **`ingress_security_rules` is a set, not a list, as far as the provider is
+  concerned.** A duplicate rule in the Nix produces zero diff — `tofu plan`
+  reports `No changes.` whether the file declares 25 rules or 26. This isn't
+  theoretical: the live list once genuinely held a duplicate
+  `51821-51830/udp` rule (both real, both transcribed faithfully from
+  discovery), an unrelated apply collapsed the pair to one on Oracle's side,
+  and `infra/oci/network.nix` kept asserting a rule count that no longer
+  matched reality until someone counted rules by hand and noticed. **A clean
+  plan is not proof the rule count in the file matches the rule count on the
+  wire** — this is the single least obvious trap in the whole system. If a
+  rule count matters, count it directly against `oci network security-list
+  get`, don't infer it from `tofu plan`.
+- **The instance, VCN, and subnet carry `prevent_destroy`.** A plan that
+  would delete basestar fails to generate. `just tf plan -destroy` erroring
+  out naming `prevent_destroy` is the expected behaviour, not a bug.
+- **The instance ignores `source_details`.** basestar was infected onto a
+  stock Oracle image years ago; Oracle retires image OCIDs on its own
+  schedule, and an unguarded configuration would read that retirement as
+  "replace the machine".
+- **basestar's public IP, `168.138.71.109`, is ephemeral, not reserved.**
+  There's no `oci_core_public_ip` resource anywhere in `infra/` — the VNIC
+  just carries the address via `assign_public_ip`. That matters because this
+  same address is the grey-cloud A-record target documented above for
+  `niks3.arsfeld.dev`, which CI pushes every closure through: if this
+  instance is ever stopped and started, Oracle can hand it a different
+  address and that DNS record silently starts pointing at nothing.
+  Converting it to a reserved IP is a real mutation, not an import, and was
+  deliberately left undone during adoption — it's a legitimate follow-up,
+  not an oversight.
+- **`oci_core_default_dhcp_options` exists on the VCN but is deliberately
+  left unmanaged.** Its OCID is recorded in a comment in
+  `infra/oci/network.nix` for whoever eventually adopts it.
+- **Adding a tunnel hostname in the Zero Trust dashboard creates a DNS record
+  behind OpenTofu's back**, which the next apply deletes. Add it to
+  `infra/dns/arsfeld-one.nix` instead, or import it afterwards.
+- **Committing to `infra/` stages a real infrastructure change for whoever
+  next runs `just tf apply` — not necessarily you.** This already happened
+  once: a concurrent session committed a new UDP ingress rule (iroh relay
+  discovery) to `network.nix`, and a later, unrelated task's apply picked it
+  up and pushed it live with no apply record of its own beyond that task's.
+  There's no review gate between a commit landing and an apply picking it
+  up — read what a plan actually names before applying it, not just its
+  summary line.
+- **State lives in the R2 bucket `tfstate`**, with locking via conditional
+  PUT. Never add an R2 lifecycle rule to it — object versioning is the only
+  undo a corrupted state file gets. Same reasoning as `nix-cache`.
+- **`secrets/sops/infra.yaml` has only the user key as a recipient.** No host
+  reads it; OpenTofu runs from a workstation.
+- Provider versions come from nixpkgs, not from `required_providers`. There
+  is deliberately no version constraint in the Nix — the plugin mirror is
+  the pin.
+
 ### Available Hosts
 - **galactica** - Main server: media services, databases, backups. Hosts internal services on `*.arsfeld.one` via cloudflared tunnel (wildcard ingress)
 - **basestar** - Public-facing server (BSG Cylon Basestar): hosts services on `*.arsfeld.dev` (blog, plausible, planka, siyuan)
