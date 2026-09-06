@@ -203,6 +203,10 @@ in {
     source = ./files/claude-statusline.sh;
     executable = true;
   };
+  home.file.".gemini/antigravity-cli/statusline.sh" = {
+    source = ./files/antigravity-statusline.sh;
+    executable = true;
+  };
   xdg.configFile."htop/htoprc" = {
     source = ./files/htoprc;
   };
