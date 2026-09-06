@@ -26,8 +26,11 @@
     modesetting.enable = true;
     powerManagement.enable = true;
 
-    # dGPU boot-time power clamp — FIXED. See systemd.services.nvidia-unclamp-tgp
-    # in configuration.nix, which is what actually lifts it.
+    # dGPU boot-time power clamp. Lifted at boot by
+    # systemd.services.nvidia-unclamp-tgp in configuration.nix -- but read that
+    # unit's KNOWN LIMITATION note before trusting it: the 60 W it establishes
+    # has been seen reverting to 30 W partway through a play session, and the
+    # trigger is not yet identified.
     #
     # This comment previously called the state below a hardware ceiling and said
     # to tune expectations rather than settings. That was wrong, and the tell was
