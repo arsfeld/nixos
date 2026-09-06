@@ -133,13 +133,24 @@ in {
     services.caddy.virtualHosts."${cfg.domain}, ${cfg.stagingDomain}" = {
       useACMEHost = cfg.domain;
       extraConfig = ''
+        # [tls] splits the relay across two listeners: /generate_204 (the
+        # captive-portal probe Gatus's health check depends on) stays on the
+        # plain HTTP socket, while /relay and everything else move to the
+        # HTTPS socket. A single reverse_proxy to one socket 404s the other
+        # path, so this has to stay split; collapsing it back to one
+        # reverse_proxy silently breaks the health check again.
+        handle /generate_204 {
+          reverse_proxy 127.0.0.1:${toString cfg.httpPort}
+        }
         # Upstream is https:// because the relay serves its services on the
         # HTTPS socket whenever [tls] is set, and [tls] is mandatory for QUIC
         # address discovery. The relay holds a real certificate for this name,
         # so this verifies against the system roots rather than skipping.
-        reverse_proxy https://127.0.0.1:${toString cfg.httpsPort} {
-          transport http {
-            tls_server_name ${cfg.domain}
+        handle {
+          reverse_proxy https://127.0.0.1:${toString cfg.httpsPort} {
+            transport http {
+              tls_server_name ${cfg.domain}
+            }
           }
         }
       '';
