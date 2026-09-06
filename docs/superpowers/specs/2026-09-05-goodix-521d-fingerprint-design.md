@@ -1,10 +1,15 @@
 # Goodix 27c6:521d fingerprint on blackbird
 
-**Date:** 2026-09-05
+**Date:** 2026-09-05, updated 2026-09-06
 **Host:** blackbird (ASUS ROG Zephyrus G14, dual-boot with Windows)
 **Status:** implemented and deployed. `services.fprintd` is enabled on blackbird with the
-patched driver; see Task 4C below. The original "survives dual-boot" success bar (next
-paragraph) was withdrawn on 2026-09-05 — see Task 4C for why and for what shipped instead.
+patched driver. The sensor now runs firmware `GFUSB_GM168SEC_APP_10034` with the all-zero
+PSK (Task 9) — Task 4C's 10019 downgrade is superseded, and no config change was needed
+because the firmware gate is a prefix match. Enrolment succeeds; **verify still fails by one
+BOZORTH3 point**, which is the one open item. The original "survives dual-boot" success bar
+(next paragraph) was withdrawn on 2026-09-05 — see Task 4C — and Task 9 confirms why it was
+never reachable: Windows generates a *fresh* PSK per provisioning, so a Windows Hello
+enrolment always costs a reflash on the Linux side.
 
 ## Goal
 
@@ -226,20 +231,21 @@ automated tests. Phase 3 carries the build gate above.
 
 ## Risks and open questions
 
-1. **The 10034 image boundaries in `wbdi.dll` are unconfirmed.** The version string sits at
-   `0x1224` inside the known 10019 image, and appears in `wbdi.dll` at `0xdf091` and
-   `0xe035f`. Taking `0xdf13b` as an image base yields a 25200-byte candidate whose
-   per-2KB similarity to 10019 is 56% around the header table and roughly 4% elsewhere —
-   consistent with either a genuinely different build or a non-contiguous/compressed
-   layout. Unresolved. It only blocks us if we end up needing to flash 10034 ourselves.
+1. ~~**The 10034 image boundaries in `wbdi.dll` are unconfirmed.**~~ **RESOLVED 2026-09-06 —
+   see Task 9.** The guess recorded here was wrong twice over: the base is `0xdf090` (not
+   `0xdf13b`) and the blob is 26049 bytes (not 25200). The low similarity score was a
+   consequence of both errors plus a real one — 10034 is a different *build*, not a shifted
+   copy, with insertions accumulating across the image rather than in one block. The image
+   is now extracted, validated and flashed; `packages/libfprint-goodix-521d/extract-firmware.py`
+   reproduces it from `wbdi.dll`.
 
-2. **The PSK, not the firmware, is the real threat to the goal.** If Windows re-provisions a
-   non-zero PSK on every boot, matching firmware alone will not deliver a dual-boot-stable
-   setup: we would have to re-zero the key after each Windows session. That is a cheaper
-   treadmill than reflashing but still a treadmill, and it would mean the stated success bar
-   is unreachable without solving PSK derivation properly. Phase 0c gives the first read on
-   it for free by logging the device's stored PMK hash; Phase 2 exists to explain how
-   Windows arrives at that value.
+2. **The PSK, not the firmware, is the real threat to the goal.** ✅ Confirmed 2026-09-06,
+   and worse than feared: Windows does not merely re-provision *a* non-zero PSK, it
+   provisions a **different** one each time (`126770ba…` on 2026-09-05, `40c15ded…` after
+   the next Windows Hello enrolment). The key is generated at provisioning time, so it is
+   not a static secret recoverable from `wbdi.dll` — which retires Task 4A's search and any
+   Ghidra follow-up aimed at extracting it. Any Windows session that touches Windows Hello
+   costs a reflash on the Linux side. See Task 9.
 
 3. **The fork is five years stale**, libfprint 1.94.1 against nixpkgs' 1.94.100. Pinning it
    is an ongoing maintenance cost, and each nixpkgs bump is an opportunity for it to break.
@@ -627,3 +633,110 @@ session).
 `66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925` (zero PSK), patched driver
 activates past the PSK check and reaches the finger-scan wait. Actual enrolment (presenting a
 finger) is deferred to Task 8, as scoped.
+
+### Task 9: Windows boot reverts the sensor; 10034 extracted from `wbdi.dll` and flashed (2026-09-06)
+
+Triggered by booting Windows (as host `g14`) to see what it does to a sensor left on 10019 +
+zero PSK. It answers Risk 2 and Open Question 1, and supersedes the Task 4C end state.
+
+**What Windows does.** Merely booting Windows is *not* enough — with no enrolled fingerprint,
+the driver only runs `set_drv_state()` → `pov_image_check()` (POV = Power-On Verification; the
+reader is the power button on a G14), gets `0xff`, and stops. Enrolling in Windows Hello is
+what reverts the sensor. After one enrolment:
+
+| | Before Windows | After Windows Hello enrolment |
+|---|---|---|
+| Firmware | `GFUSB_GM168SEC_APP_10019` | `GFUSB_GM168SEC_APP_10034` |
+| PSK hash | `66687aad…2925` (zero) | `40c15ded03f5961235f3d2d329abe1b0ab545a6624186d19c6721d4e3c73444b` |
+
+fprintd's log records the exact failure this produces on the Linux side:
+
+```
+failed during activation: Invalid device PSK: 0x40c15ded…3444b (code: 35)
+```
+
+This matches the community's account: knauth's 521d guide says the reader breaks after Windows
+and the reset + reflash must be repeated. **The PSK differs from the one seen on 2026-09-05**
+(`126770ba…`), which is the load-bearing detail: it is generated per provisioning, so there is
+no static key to recover and Task 4A's negative result was structural, not a search failure.
+
+**USB capture on Windows — partially useful, ultimately the wrong tool.** USBPcap 1.5.4 was
+installed by hand (winget drops the files but skips the driver; `rundll32 InstallHinfSection`
+is blocked on current Windows, so the service + class `UpperFilters` entry were created
+directly — possible because the machine has Secure Boot and HVCI off). It captures genuine
+goodixtls framing, enough to decode the boot-time exchange above against upstream's command
+table. But it only taps URBs between FDO and PDO, and in practice only captured the sensor
+right after a mid-capture `pnputil /restart-device`; the WinUSB/UMDF transfers of a real
+verify never appeared. **If a full Windows-side trace is ever needed, use a Windows VM with
+the sensor passed through and capture on the host** — QEMU's `usb-host` supports
+`pcap=<file>` (usbmon-compatible, Wireshark-readable) and host `usbmon` sits below the guest
+entirely, so no guest-side driver model can hide traffic. That is Phase 2 / Task 5, and it
+remains the right approach for anything deeper.
+
+**Extracting 10034.** `wbdi.dll` does not store a flashable `.bin`. A descriptor in `.data`
+holds `{pointer, length}` for a blob:
+
+```
+0x1393a8: qword = 0x1800e0690    -> blob pointer  (file offset 0xdf090)
+0x1393b0: dword = 26049          -> blob length
+blob     = [1B len=24]["GFUSB_GM168SEC_APP_10034"][26020B payload][4B CRC]
+```
+
+The 12-byte header is built at runtime by the update routine at VA `0x18006ab68`:
+
+```
+hdr[0:4]  = crc(hdr[4:12])
+hdr[4:8]  = payload length (26020)
+hdr[8:12] = crc(payload)
+image     = hdr + payload            -> 26032 bytes
+```
+
+`crc` is **CRC-32/MPEG-2** (poly `0x04C11DB7`, init `0xFFFFFFFF`, MSB-first, no reflection, no
+final XOR). Its lookup table at VA `0x180164d00` is built at runtime and therefore reads as
+zeros on disk — do not try to lift it out statically.
+
+Four independent checks confirm the model: the three header rules all hold exactly on the
+known-good 10019 image, and the extracted blob passes the driver's *own* pre-flash CRC check
+(`fcn.18006e12c`, "CheckFirmware"), which is what pins the boundaries rather than merely
+making them plausible. `packages/libfprint-goodix-521d/extract-firmware.py` reproduces the
+image (sha256 `6f4fb8f752e5cf281443ed507dae4addc6ddcba5901dafe75dc22879e3a255b4`) by locating
+the blob from its self-describing `[len][version]` prefix and confirming its extent via the
+trailing CRC — no hardcoded offsets.
+
+**Flashing it.** Upstream `driver_52xd.main()` drives the whole sequence unchanged once
+`TARGET_FIRMWARE` is 10034: 10034 + wrong PSK → `erase_firmware()` → IAP → `write_psk(zeros)`
+→ `update_firmware()` → reset → 10034 + zero PSK. `update_firmware` HMACs the image with a
+key derived from the PSK, so an image flashed under the zero PSK is self-consistent.
+
+One patch is needed: on a Windows-provisioned sensor, `FIRMWARE_VERSION` (`0xa8`) replies
+**without** sending an ACK first, so upstream's `firmware_version()` consumes the data packet
+as an ACK and raises `ValueError("Invalid message protocol")`. Tolerate a missing ACK. This is
+a property of the provisioned *state*, not of 10034 — after the reflash the same command ACKs
+normally, so the tolerant version must accept both.
+
+**End state (verified):** firmware `GFUSB_GM168SEC_APP_10034`, PMK hash `66687aad…2925`
+(zero PSK). `Invalid device PSK` is gone from fprintd's log, the device enumerates as
+*Goodix TLS Fingerprint Sensor 52XD*, and **`fprintd-enroll` completes all five stages** —
+which closes Task 8's "actual enrolment" gap. No NixOS config change was required: the
+firmware gate is a `strncmp` on the `GFUSB_GM168SEC_APP_` prefix, so 10034 passes as-is.
+
+**Known remaining problem: verify does not match, narrowly.** With `G_MESSAGES_DEBUG=all`:
+
+```
+Minutiae scan completed in 0.018439 secs
+score 13/24   score 23/24   score 0/24   score 14/24   score 6/24
+report_verify_status: result verify-no-match
+```
+
+Minutiae are extracted and scored against all five enrolled stages; the best is **23 against a
+BOZORTH3 threshold of 24** — short by one point. This is an image-quality/margin problem in
+the driver, not firmware, PSK or TLS. Note the fork already runs a lowered threshold
+(libfprint's image-device default is 40). Two options, untaken: re-enrol with much wider
+finger coverage, or lower `bz3_threshold` further — the latter loosens the false-accept rate
+on a credential that `pam_fprintd` treats as `sufficient` for sudo, so it is a security
+decision, not a tuning knob.
+
+Also worth knowing: libfprint has a thermal governor that will abort with
+`Device disabled to prevent overheating` after sustained enrol/verify cycling. It reports
+`FP_TEMPERATURE_WARM` in the debug log; give the sensor a few minutes between rounds rather
+than reading the abort as a driver fault.

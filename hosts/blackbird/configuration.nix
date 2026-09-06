@@ -331,8 +331,17 @@
   # sufficient on its own for root escalation via sudo/polkit, not merely a
   # convenience alongside the password. This is intentional: the user has
   # accepted sudo-by-fingerprint knowing the sensor's channel is keyed with a
-  # PSK of 32 zero bytes (see the Task 4C fingerprint-sensor spec/plan), so
+  # PSK of 32 zero bytes (see the Task 4C/Task 9 fingerprint-sensor spec), so
   # brief physical access to the USB device could capture the image stream.
+  #
+  # Dual-boot: booting Windows does nothing by itself, but *enrolling in
+  # Windows Hello* reverts the sensor to firmware 10034 and provisions a fresh
+  # random PSK, after which fprintd fails activation with
+  # "Invalid device PSK". Recovery is to reflash from Linux with the zero PSK.
+  # The PSK differs on every Windows provisioning, so there is no key to
+  # recover and no way to make both OSes work at once -- see Task 9 in the
+  # spec, and packages/libfprint-goodix-521d/extract-firmware.py for the
+  # 10034 image the reflash needs.
   # sshd picking up pam_fprintd is an inert side effect of the same default --
   # nobody can touch a laptop's internal USB fingerprint sensor over a
   # network session, and `sufficient` just falls through to pam_unix on
