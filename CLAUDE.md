@@ -141,12 +141,13 @@ job red, tier-1 gate skips the commit — and `just deploy @tier1` is unaffected
 phase 1 finishes every push before phase 2 activates anything, and niks3 is socket-activated
 so connections queue across its own restart rather than being refused.
 
-attic is gone. It was the binary cache until niks3 replaced it on 2026-08-21 (`82e84de`,
-`6b2b185`), sat frozen as a read-only fallback for two weeks, and was retired entirely on
-2026-09-07: substituter and `system:` key removed from every host and from CI,
-`attic.arsfeld.dev` no longer resolves, the argocd app and namespace on can-1 torn down,
-the `ATTIC_TOKEN` secret deleted, and the R2 buckets `attic`, `attic-data` and
-`attic-cache` deleted.
+attic is being retired. It was the binary cache until niks3 replaced it on 2026-08-21
+(`60dc149`, `194bfe3`), then sat frozen as a read-only fallback. As of 2026-09-07 its
+substituter and `system:` key are gone from every host and from CI, so nothing resolves
+against it any more. Still standing, pending the remaining steps of
+`docs/superpowers/plans/2026-09-06-attic-retirement.md`: the `attic.arsfeld.dev` DNS
+records, the argocd app and namespace on can-1, the `ATTIC_TOKEN` secret, and the R2
+buckets `attic`, `attic-data` and `attic-cache`.
 
 The measurement that justified it: of 60 paths sampled at random from raider's live
 closure, `cache.arsfeld.dev` held 60 and attic held 2 — **zero** that attic had and R2
@@ -179,8 +180,8 @@ Configured via `.sops.yaml`. All hosts use `constellation.sops.enable = true`. U
 
 The Oracle Cloud tenancy behind basestar and the three in-use Cloudflare DNS
 zones (`arsfeld.dev`, `arsfeld.one`, `rosenfeld.one`) are managed as code under
-`infra/`, written as terranix Nix modules rather than HCL. 52 resources are
-under management: 46 `cloudflare_dns_record` plus 6 Oracle resources (VCN,
+`infra/`, written as terranix Nix modules rather than HCL. 56 resources are
+under management: 50 `cloudflare_dns_record` plus 6 Oracle resources (VCN,
 internet gateway, default route table, default security list, subnet,
 instance).
 
