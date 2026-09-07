@@ -11,114 +11,17 @@
 # Secrets never belong here: this content is rendered into the world-readable
 # nix store. Use constellation.k3s.secrets instead.
 {lib, ...}: let
-  # Kubernetes env values are strings, full stop. Naive `toString` gets there
-  # for strings and numbers but is wrong for the other two Nix types callers
-  # actually reach for: `toString true` gives "1" (fine for k8s, but not what
-  # a Bool env var conventionally reads as), and `toString false` /
-  # `toString null` both give "" — a caller writing `env.DEBUG = false;`
-  # would silently get `DEBUG=""`, indistinguishable from an unset/empty
-  # value. Render bools as the literal words and refuse null outright rather
-  # than let it decay into an empty string.
-  coerceEnvValue = n: v:
-    if v == null
-    then throw "mkApp: env.${n} is null - pass an explicit value, not null"
-    else if lib.isBool v
-    then lib.boolToString v
-    else toString v;
-
-  # A deployment, its service, its ingress and the namespace holding them.
-  # Everything the common case needs and nothing it does not.
-  mkApp = {
-    name,
-    image,
-    port,
-    host,
-    namespace ? name,
-    replicas ? 1,
-    env ? {},
-    # Modest defaults, not tuned to any particular app: basestar shares 24GB
-    # with blog, plausible, planka, siyuan and five podman containers, not a
-    # dedicated cluster. An unbounded pod here can starve those. Callers that
-    # need more pass `resources` explicitly; this is a safety floor, not a
-    # recommendation.
-    resources ? {
-      requests = {
-        cpu = "50m";
-        memory = "64Mi";
-      };
-      limits = {
-        cpu = "500m";
-        memory = "256Mi";
-      };
-    },
-  }: [
-    {
-      apiVersion = "v1";
-      kind = "Namespace";
-      metadata.name = namespace;
-    }
-    {
-      apiVersion = "apps/v1";
-      kind = "Deployment";
-      metadata = {inherit name namespace;};
-      spec = {
-        inherit replicas;
-        selector.matchLabels.app = name;
-        template = {
-          metadata.labels.app = name;
-          spec.containers = [
-            {
-              inherit name image resources;
-              ports = [{containerPort = port;}];
-              env =
-                lib.mapAttrsToList
-                (n: v: {
-                  name = n;
-                  value = coerceEnvValue n v;
-                })
-                env;
-            }
-          ];
-        };
-      };
-    }
-    {
-      apiVersion = "v1";
-      kind = "Service";
-      metadata = {inherit name namespace;};
-      spec = {
-        selector.app = name;
-        ports = [
-          {
-            inherit port;
-            targetPort = port;
-          }
-        ];
-      };
-    }
-    {
-      apiVersion = "networking.k8s.io/v1";
-      kind = "Ingress";
-      metadata = {inherit name namespace;};
-      spec.rules = [
-        {
-          inherit host;
-          http.paths = [
-            {
-              path = "/";
-              pathType = "Prefix";
-              backend.service = {
-                inherit name;
-                port.number = port;
-              };
-            }
-          ];
-        }
-      ];
-    }
-  ];
+  # mkApp lives in ./lib.nix, not in a `let` here, so that app #2 can be a
+  # second module in this directory rather than an append to this file or a
+  # copy of the helper. Import it the same way from any sibling:
+  #
+  #   inherit (import ./lib.nix {inherit lib;}) mkApp;
+  #
+  # Unused while this file declares no app, which is legal and deliberate - it
+  # keeps the worked example below one line from compiling.
+  inherit (import ./lib.nix {inherit lib;}) mkApp;
 in {
-  # No apps declared. `mkApp` above is the entry point:
+  # No apps declared. `mkApp` is the entry point:
   #
   #   services.k3s.manifests.<name>.content = mkApp {
   #     name = "<name>"; image = "..."; port = 80; host = "<name>.arsfeld.dev";
