@@ -16,14 +16,6 @@
       ttl = 1;
       proxied = true;
     };
-    a_attic_arsfeld_dev = {
-      zone_id = "5b658a2265b2562c6f51ac93de8d21bf";
-      name = "attic.arsfeld.dev";
-      type = "A";
-      content = "149.56.129.39";
-      ttl = 1;
-      proxied = false;
-    };
     a_claw_arsfeld_dev = {
       zone_id = "5b658a2265b2562c6f51ac93de8d21bf";
       name = "claw.arsfeld.dev";
@@ -97,32 +89,11 @@
       ttl = 1;
       priority = 10;
     };
-    # The eleven _acme-challenge TXT records below (attic, metadata-relay,
-    # sumwhere, plane, windmill) are DNS-01 leftovers a client failed to
-    # clean up after issuance. Adopted as found, per the import-only rule —
-    # they're safe to delete out of band and drop from this file whenever
-    # someone gets around to it.
-    txt__acme_challenge_attic_arsfeld_dev_1 = {
-      zone_id = "5b658a2265b2562c6f51ac93de8d21bf";
-      name = "_acme-challenge.attic.arsfeld.dev";
-      type = "TXT";
-      content = "-5ozHdDgqhtwl9ZpbejET2UogakOd4893LrYByEglJ8";
-      ttl = 120;
-    };
-    txt__acme_challenge_attic_arsfeld_dev_2 = {
-      zone_id = "5b658a2265b2562c6f51ac93de8d21bf";
-      name = "_acme-challenge.attic.arsfeld.dev";
-      type = "TXT";
-      content = "AnvqNKq1sWCvaza0E_HwZQFwrJIWGAPTKbrxhduPv3w";
-      ttl = 120;
-    };
-    txt__acme_challenge_attic_arsfeld_dev_3 = {
-      zone_id = "5b658a2265b2562c6f51ac93de8d21bf";
-      name = "_acme-challenge.attic.arsfeld.dev";
-      type = "TXT";
-      content = "thrtLJvkAulF8v8mw9Zicu5E__ofaEvc2QP2BXY2OhQ";
-      ttl = 120;
-    };
+    # The eight _acme-challenge TXT records below (metadata-relay, sumwhere,
+    # plane, windmill) are DNS-01 leftovers a client failed to clean up after
+    # issuance. Adopted as found, per the import-only rule — they're safe to
+    # delete out of band and drop from this file whenever someone gets around
+    # to it. attic's three went with attic on 2026-09-07.
     txt__acme_challenge_metadata_relay_arsfeld_dev_1 = {
       zone_id = "5b658a2265b2562c6f51ac93de8d21bf";
       name = "_acme-challenge.metadata-relay.arsfeld.dev";
@@ -194,10 +165,6 @@
       id = "5b658a2265b2562c6f51ac93de8d21bf/947c7a170e2cf0c015f87b717b1b67fc";
     }
     {
-      to = "cloudflare_dns_record.a_attic_arsfeld_dev";
-      id = "5b658a2265b2562c6f51ac93de8d21bf/e6337d3ced84f47f6e0aa3f5297b9185";
-    }
-    {
       to = "cloudflare_dns_record.a_claw_arsfeld_dev";
       id = "5b658a2265b2562c6f51ac93de8d21bf/eeb759197692e8862c98e86b6ba9a841";
     }
@@ -232,18 +199,6 @@
     {
       to = "cloudflare_dns_record.mx_arsfeld_dev";
       id = "5b658a2265b2562c6f51ac93de8d21bf/53dfb8c77ba9ffcdc1afcdfa92e1ac0b";
-    }
-    {
-      to = "cloudflare_dns_record.txt__acme_challenge_attic_arsfeld_dev_1";
-      id = "5b658a2265b2562c6f51ac93de8d21bf/3b9cde6d018b635e6c7e9e27f2a0e9fb";
-    }
-    {
-      to = "cloudflare_dns_record.txt__acme_challenge_attic_arsfeld_dev_2";
-      id = "5b658a2265b2562c6f51ac93de8d21bf/d37a6a5b358742855ea4f020065bc436";
-    }
-    {
-      to = "cloudflare_dns_record.txt__acme_challenge_attic_arsfeld_dev_3";
-      id = "5b658a2265b2562c6f51ac93de8d21bf/c2b2d93c1855a7af15e7670a31ea2a4a";
     }
     {
       to = "cloudflare_dns_record.txt__acme_challenge_metadata_relay_arsfeld_dev_1";
