@@ -274,7 +274,15 @@ host in the fleet and these manifests belong to one. **Lane B** is `just k8s::ap
 from raider, with `just k8s::k` as a kubectl passthrough and `just k8s::kubeconfig` to fetch
 credentials; it applies `--server-side --validate=strict`, which is what makes untyped
 attrsets safe — the API server rejects a typo'd field instead of ignoring it. Iterate in
-Lane B, promote to Lane A. **Secrets go through `constellation.k3s.secrets`, never
+Lane B, promote to Lane A. The lanes are not symmetric, and the asymmetry is all in
+cleanup: an object applied with `just k8s::apply` is invisible to
+`k3s-manifest-reconcile` forever — it has no manifest file and no state-file entry — so
+removing one is a manual `just k8s::k delete -f <path>` and nothing will ever remind you.
+Promoting an app from Lane B to Lane A moves it from server-side apply to k3s's wrangler
+objectset, which means two owners for the same objects, so delete the Lane B copy *before*
+declaring it in nix rather than after. And there are no `delete` or `diff` recipes — `k8s`
+has only `kubeconfig`, `k` and `apply`, so anything else goes through the `k` passthrough.
+**Secrets go through `constellation.k3s.secrets`, never
 `services.k3s.manifests`** — that content is rendered into the nix store by
 `pkgs.formats.yaml.generate`, and the store is world-readable. The option builds the Secret
 at activation from a path on disk, normally a sops-nix one under `/run/secrets`.
