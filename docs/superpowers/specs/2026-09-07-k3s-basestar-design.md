@@ -99,18 +99,27 @@ raider and from nowhere else.
 
 ### The edge
 
-Caddy keeps `:80` and `:443`. Traefik binds host port 30080 **on 127.0.0.1 only**, through
-a `HelmChartConfig` in `kube-system` setting `ports.web.hostPort` and `ports.web.hostIP`.
-One new Caddy vhost per domain proxies the wildcard to it:
+Caddy keeps `:80` and `:443`. Traefik is reached at its **pinned ClusterIP**, port 80, set
+through a `HelmChartConfig` in `kube-system`. One new Caddy vhost per domain proxies the
+wildcard to it:
 
-> **Corrected 2026-09-07, during implementation.** This originally specified a NodePort at
-> `127.0.0.1:30080`. That is unreachable: kube-proxy's nftables mode — chosen above, and
-> correctly, to keep the proxier out of fail2ban's and `nixos-fw`'s way — deliberately
-> excludes `127.0.0.0/8` from NodePort matching, an intentional break from iptables mode.
-> The live rule reads `fib daddr type local ip daddr != 127.0.0.0/8 … vmap @service-nodeports`.
-> `hostPort` with `hostIP` removes kube-proxy from the ingress path altogether and makes the
-> listener loopback-only *by binding* rather than by firewall rule — a stronger guarantee
-> than the original design had.
+> **Corrected twice during implementation, 2026-09-07.** This originally specified a
+> NodePort at `127.0.0.1:30080`, then a `hostPort` with `hostIP: 127.0.0.1`. Both are
+> impossible here, and the reasons are worth keeping:
+>
+> 1. kube-proxy's nftables mode — chosen above, correctly, to keep the proxier out of
+>    fail2ban's and `nixos-fw`'s way — deliberately excludes loopback from NodePort
+>    matching: `fib daddr type local ip daddr != 127.0.0.0/8 … vmap @service-nodeports`.
+> 2. traefik's chart feeds `ports.web.hostIP` into *both* the pod's hostPort binding and
+>    traefik's own `--entryPoints.web.address`, so `hostIP: 127.0.0.1` binds traefik inside
+>    its own netns where the CNI DNAT cannot reach it (tcpdump: SYN in, RST out).
+>
+> Dropping `hostIP` works but binds `0.0.0.0:30080`, and since `tailscale0` is a *trusted*
+> interface it bypasses `allowedTCPPorts` entirely — leaving the ingress reachable from
+> every tailnet device, bypassing Caddy. A ClusterIP is the only candidate that is not an
+> address on any interface: it exists solely as a kube-proxy rule in the node's own
+> netns, so nothing off-box has a route to it. **No host port is bound anywhere.** That is
+> a stronger guarantee than the original loopback design, and it needs no firewall rule.
 
 ```
 *.arsfeld.dev  ->  reverse_proxy 127.0.0.1:30080   (useACMEHost = "arsfeld.dev")
