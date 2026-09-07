@@ -434,6 +434,12 @@ with lib; let
       # filesystem, which on basestar is shared with the nix store, podman's
       # images, ClickHouse and backrest's cache - so unrelated growth can
       # trigger it, and a host can cross the line with no k3s activity at all.
+      #
+      # Escalate at 80, five points BELOW that mark, deliberately. This sweep
+      # runs weekly, so an alert pinned to kubelet's own threshold can arrive
+      # up to seven days after eviction has already started - a confirmation
+      # rather than a warning. 80 leaves a whole cycle of headroom to act in.
+      #
       # Same three outcomes as every other check: a value, a problem, or
       # "could not run" - which is never rounded down to fine.
       if DISK_RAW=$(run_on "$h" "df --output=pcent / | tail -1" 2>>"$STATE/last-checks.log"); then
@@ -444,7 +450,7 @@ with lib; let
         if [ "$DISK" = "?" ] || [ -z "$DISK" ]; then
           DISK="?"
           CHECK_ERRS="$CHECK_ERRS disk-parse"
-        elif [ "$DISK" -ge 85 ]; then
+        elif [ "$DISK" -ge 80 ]; then
           HOST_BAD=1
         fi
       else
