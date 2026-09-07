@@ -454,7 +454,7 @@ in {
     #delta.enable = true;
     settings = {
       user = {
-        email = "arsfeld@gmail.com";
+        email = "alex@rosenfeld.one";
         name = "Alexandre Rosenfeld";
       };
       credential = {

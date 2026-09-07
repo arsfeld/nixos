@@ -4,7 +4,7 @@
     settings = {
       user = {
         name = "Alexandre Rosenfeld";
-        email = "arsfeld@gmail.com";
+        email = "alex@rosenfeld.one";
       };
     };
   };
