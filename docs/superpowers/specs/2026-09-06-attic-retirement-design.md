@@ -6,8 +6,8 @@
 ## Problem
 
 attic (`attic.arsfeld.dev`, atticd on the can-1 k3s cluster, R2 bucket
-`attic-cache`) was replaced by niks3 + R2 on 2026-08-21 (`82e84de`,
-`6b2b185`). CI stopped pushing to it that day. It has been retained since as a
+`attic-cache`) was replaced by niks3 + R2 on 2026-08-21 (`60dc149`,
+`194bfe3`). CI stopped pushing to it that day. It has been retained since as a
 read-only fallback on the reasoning recorded in `CLAUDE.md`: it "still serves
 every path it already holds, which keeps the cold-cache window short while R2
 fills."
@@ -116,7 +116,7 @@ metadata_relay (4), sumwhere (2), plane (1), windmill (1).
 | raider `~/.config/attic/` (`config.toml` holds a live write token, `server.toml`) | delete |
 | raider `~/.local/share/attic/` (`server.db`, `storage/`) | delete |
 
-`attic-client` was already removed from the dev shell in `acc7dad`; there is no
+`attic-client` was already removed from the dev shell in `05ed043`; there is no
 attic flake input.
 
 ## What stays, and why
