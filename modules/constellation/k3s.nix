@@ -16,6 +16,36 @@ with lib; let
 in {
   options.constellation.k3s = {
     enable = mkEnableOption "single-node k3s cluster alongside the host's Caddy";
+
+    ingressAddress = mkOption {
+      type = types.str;
+      default = "10.43.0.80";
+      description = ''
+        Address Caddy proxies wildcard traffic to — traefik's pinned ClusterIP.
+
+        A ClusterIP, not a NodePort or hostPort, and deliberately so. It is not an
+        address on any interface: it exists only as a kube-proxy nftables rule inside
+        this node's network namespace, so nothing off-box has a route to it. A NodePort
+        or hostPort would bind on every local address including the Tailscale one, and
+        `tailscale0` is a trusted interface — so either would silently expose the
+        ingress to the whole tailnet, bypassing Caddy.
+
+        Must be inside the k3s service CIDR (10.43.0.0/16) and unallocated.
+      '';
+    };
+
+    domains = mkOption {
+      type = types.listOf types.str;
+      default = [];
+      example = ["arsfeld.dev"];
+      description = ''
+        Domains whose wildcard is routed into the cluster. Each entry gets a
+        DNS-01 wildcard ACME certificate and a Caddy vhost for `*.<domain>`
+        proxying to `ingressAddress`. The cost is one entry per domain, not per
+        app: once a domain is listed, every subdomain under it is an Ingress
+        with no further nix change.
+      '';
+    };
   };
 
   config = mkIf cfg.enable {
@@ -31,7 +61,7 @@ in {
 
       # servicelb exists to bind :80/:443 on the host, which is exactly what
       # Caddy owns. traefik itself stays: it is the in-cluster ingress
-      # controller, reached through a NodePort in Task 3.
+      # controller, reached through its pinned ClusterIP (ingressAddress).
       disable = ["servicelb"];
 
       # Without this the API server certificate does not cover the Tailscale
@@ -55,7 +85,77 @@ in {
       };
 
       gracefulNodeShutdown.enable = true;
+
+      # Caddy reaches traefik at a pinned ClusterIP. Neither of the two
+      # obvious alternatives can work here, and both were tried on this host:
+      #
+      #   * A NodePort at 127.0.0.1 is impossible. Task 1 puts kube-proxy in
+      #     nftables mode, and that proxier deliberately excludes loopback
+      #     from NodePort matching (`fib daddr type local ip daddr !=
+      #     127.0.0.0/8 ... vmap @service-nodeports`) — an intentional break
+      #     from the iptables proxier, not a bug, and not something
+      #     nodePortAddresses can override.
+      #
+      #   * A hostPort with hostIP: 127.0.0.1 is impossible in this chart.
+      #     templates/_podtemplate.tpl feeds ports.<name>.hostIP into *both*
+      #     the pod spec's hostIP field and traefik's own
+      #     --entryPoints.web.address, so traefik binds 127.0.0.1:8000 inside
+      #     its own netns, where the CNI portmap DNAT — aimed at the pod's
+      #     real interface IP — cannot reach it.
+      #
+      # A hostPort without hostIP does work, but Kubernetes then defaults the
+      # binding to 0.0.0.0, and constellation.common trusts tailscale0
+      # fleet-wide. A trusted interface bypasses allowedTCPPorts entirely, so
+      # that would leave traefik reachable unauthenticated from every tailnet
+      # peer, bypassing Caddy.
+      #
+      # The ClusterIP is the only candidate that is not an address on any
+      # interface: it exists solely as a kube-proxy nftables rule in this
+      # node's own network namespace, so no remote host has a route to it and
+      # no host port is bound anywhere. The isolation is a property of the
+      # address, not of a firewall rule.
+      #
+      # Pinned because Caddy's config is generated at nix eval time, long
+      # before the cluster could allocate one.
+      #
+      # Note service.spec.clusterIP, not service.clusterIP: this chart
+      # renders the Service spec by passing .Values.service.spec through
+      # verbatim (templates/_service.tpl), which is also why an earlier
+      # service.type attempt was a silently dead key.
+      #
+      # ports.web must not carry a redirectTo: websecure — Caddy has already
+      # terminated TLS, so that redirect would be an infinite loop.
+      manifests.traefik-clusterip.content = {
+        apiVersion = "helm.cattle.io/v1";
+        kind = "HelmChartConfig";
+        metadata = {
+          name = "traefik";
+          namespace = "kube-system";
+        };
+        spec.valuesContent = ''
+          service:
+            spec:
+              clusterIP: ${cfg.ingressAddress}
+        '';
+      };
     };
+
+    # One-time cleanup for two successive renames of the manifest attribute
+    # above (traefik-nodeport → traefik-hostport → traefik-clusterip,
+    # 2026-09-07). services.k3s.manifests is realized as one
+    # systemd-tmpfiles "L+" rule per attribute name, and "L+" only creates or
+    # updates the symlink for a rule that still exists — it never removes an
+    # entry whose rule disappeared. Without these, the stale symlinks keep
+    # declaring their old HelmChartConfig content for the same
+    # kube-system/traefik object, and because both sort *after*
+    # traefik-clusterip.yaml, k3s's manifest controller applies them last and
+    # silently reverts this config on every deploy. That is a real bug that
+    # was found the hard way; harmless to leave in place once the files are
+    # gone.
+    systemd.tmpfiles.rules = [
+      "r /var/lib/rancher/k3s/server/manifests/traefik-nodeport.yaml"
+      "r /var/lib/rancher/k3s/server/manifests/traefik-hostport.yaml"
+    ];
 
     # Host-level trust for the pod network, the same pattern already used for
     # podman0. Nothing is added to allowedTCPPorts and no per-service rule is
@@ -63,6 +163,33 @@ in {
     # already trusts tailscale0 fleet-wide, so :6443 is reachable from the
     # tailnet and from nowhere else.
     networking.firewall.trustedInterfaces = ["cni0" "flannel.1"];
+
+    # One ACME cert and one Caddy wildcard vhost per domain. ACME here is
+    # DNS-01 through Cloudflare (modules/media/config.nix sets the defaults),
+    # so no inbound challenge is needed and apex names, wildcards and
+    # orange-clouded records all work.
+    #
+    # arsfeld.dev's cert is already declared in two other places
+    # (hosts/basestar/configuration.nix and modules/constellation/sites/
+    # arsfeld-dev.nix), both with the same extraDomainNames. A third
+    # declaration merges the same way the existing pair already does.
+    security.acme.certs =
+      listToAttrs (map (d: nameValuePair d {extraDomainNames = ["*.${d}"];}) cfg.domains);
+
+    services.caddy.virtualHosts = listToAttrs (map (d:
+      nameValuePair "*.${d}" {
+        useACMEHost = d;
+        extraConfig = ''
+          encode zstd gzip
+
+          reverse_proxy ${cfg.ingressAddress}:80 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+          }
+        '';
+      })
+    cfg.domains);
 
     environment.systemPackages = [pkgs.kubectl];
   };
