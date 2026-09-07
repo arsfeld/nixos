@@ -152,11 +152,18 @@ out-of-band `_acme-challenge` TXT it had never adopted, deleted through the Clou
 and the R2 buckets `attic`, `attic-data` and
 `attic-cache` deleted.
 
-`attic.arsfeld.dev` still *resolves*, and still answers HTTP 200, and both are expected:
-the zone has a proxied `*.arsfeld.dev` wildcard CNAME, so the name falls through to it and
-lands on the zone's catch-all. What comes back is an empty body with no `StoreDir`, which
-is not a usable binary cache. Neither a successful `dig` nor a 200 is evidence attic
-survived — check for a DNS record of its own, or for `StoreDir` in the response body.
+`attic.arsfeld.dev` still *resolves*, and that is expected: the zone has a proxied
+`*.arsfeld.dev` wildcard CNAME, so the name falls through to it and reaches basestar.
+A `dig` that answers is therefore not evidence attic survived — count records in the
+zone instead.
+
+It answers **410** because `hosts/basestar/services/attic-tombstone.nix` makes it, and
+that vhost is load-bearing. Without it the wildcard lands on Caddy's default: HTTP 200
+with a zero-byte body, for every path. Nix parses an empty `nix-cache-info` fine, so it
+initialises the substituter and never disables it, and every later lookup fails with
+`NAR info file '<hash>.narinfo' is corrupt: StorePath missing` instead of missing cleanly
+and building locally. A non-200 is what makes a retired cache fail safe. Delete the
+tombstone only once all nine hosts have deployed past `19686a2`.
 
 The measurement that justified it: of 60 paths sampled at random from raider's live
 closure, `cache.arsfeld.dev` held 60 and attic held 2 — **zero** that attic had and R2
