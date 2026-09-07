@@ -830,11 +830,21 @@ Apply **before** committing so nothing is left staged for another operator.
 ```bash
 cd /home/arosenfeld/Code/nixos
 just tf state list | grep -c "^cloudflare_dns_record\."
-dig +short attic.arsfeld.dev
-dig +short TXT _acme-challenge.attic.arsfeld.dev
 ```
 
-Expected: `46`; both `dig` commands return nothing.
+Expected: `46`.
+
+Then confirm the records are gone **via the Cloudflare API, not dig**:
+
+```bash
+# expect atticRecordCount 0
+curl -s "https://api.cloudflare.com/client/v4/zones/5b658a2265b2562c6f51ac93de8d21bf/dns_records?per_page=200" \
+  -H "Authorization: Bearer $CF_TOKEN" | jq '[.result[] | select(.name|test("attic"))] | length'
+```
+
+`dig` cannot answer this question. The zone has a proxied `*.arsfeld.dev` wildcard
+CNAME, so `dig +short attic.arsfeld.dev` returns a Cloudflare address whether or not
+attic has a record of its own. Count records in the zone instead.
 
 - [ ] **Step 9: Update the managed resource counts**
 
@@ -1020,8 +1030,11 @@ made three earlier versions of these sweeps assert impossible output.
 
 ```bash
 echo "--- attic must be gone ---"
-dig +short attic.arsfeld.dev                    # expect: empty
-curl -s -o /dev/null -w '%{http_code}\n' --max-time 10 https://attic.arsfeld.dev/system/nix-cache-info
+# NOT dig: the proxied *.arsfeld.dev wildcard answers for any name.
+# attic is gone when the zone holds zero records matching "attic", and when
+# the response body carries no StoreDir. Both of these must hold:
+curl -s --max-time 15 https://attic.arsfeld.dev/system/nix-cache-info | grep -q StoreDir \
+  && echo "STILL A CACHE — bad" || echo "not a cache — correct"
 
 echo "--- cache must be healthy ---"
 curl -s --max-time 10 https://cache.arsfeld.dev/nix-cache-info
