@@ -167,16 +167,35 @@ in {
       # The ClusterIP is the only candidate that is not an address on any
       # interface: it exists solely as a kube-proxy nftables rule in this
       # node's own network namespace, so no remote host has a route to it and
-      # no host port is bound anywhere. The isolation is a property of the
-      # address, not of a firewall rule.
+      # no host port is bound anywhere. That isolation is a property of the
+      # address rather than of a firewall rule — which is what lets it hold
+      # without one.
       #
-      # Pinned because Caddy's config is generated at nix eval time, long
-      # before the cluster could allocate one.
+      # But only if the Service is ClusterIP as well. Pinning
+      # service.spec.clusterIP does NOT stop the chart's default type
+      # (LoadBalancer) from also allocating NodePorts, and it did not: this
+      # Service carried 80:31575 and 443:31396 on the node address until
+      # 2026-09-07. Nothing on the host gated them. kube-proxy DNATs a
+      # NodePort at prerouting, so the packet is *forwarded* and never enters
+      # `inet nixos-fw input`, and networking.firewall.filterForward = false
+      # leaves the forward hook at policy accept with no `nixos-fw forward`
+      # chain at all — allowedTCPPorts is simply not in that path. Only
+      # Oracle's security list stood in front of them. The latent half is
+      # worse than the live one: this Service is ipFamilyPolicy
+      # PreferDualStack, basestar's public IPv6 is already in `nft list set
+      # ip6 kube-proxy nodeport-ips`, and OCI's v6 ingress rule is ::/0 for
+      # all protocols — so switching k3s to dual-stack would have put traefik
+      # on the public internet, past Caddy and past the host firewall, with no
+      # change to this file. `type: ClusterIP` allocates no node port to leak.
       #
-      # Note service.spec.clusterIP, not service.clusterIP: this chart
-      # renders the Service spec by passing .Values.service.spec through
-      # verbatim (templates/_service.tpl), which is also why an earlier
-      # service.type attempt was a silently dead key.
+      # The address is pinned because Caddy's config is generated at nix eval
+      # time, long before the cluster could allocate one.
+      #
+      # Note service.spec.<key>, not service.<key>: this chart renders the
+      # Service spec by passing .Values.service.spec through verbatim
+      # (templates/_service.tpl), which is why an earlier top-level
+      # service.type attempt was a silently dead key. Both settings below go
+      # under service.spec for that reason.
       #
       # ports.web must not carry a redirectTo: websecure — Caddy has already
       # terminated TLS, so that redirect would be an infinite loop.
@@ -217,6 +236,7 @@ in {
         spec.valuesContent = ''
           service:
             spec:
+              type: ClusterIP
               clusterIP: ${cfg.ingressAddress}
         '';
       };
