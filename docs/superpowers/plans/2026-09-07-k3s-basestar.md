@@ -4,7 +4,7 @@
 
 **Goal:** Run a single-node k3s cluster on basestar alongside the existing Caddy/podman services, so an app can be deployed to a public hostname without a `nixos-rebuild`.
 
-**Architecture:** Caddy keeps `:80`/`:443` and reverse-proxies a `*.<domain>` wildcard vhost to traefik on a pinned NodePort. Because the wildcard DNS CNAME and the wildcard ACME cert already exist, a new app needs only an Ingress. Two delivery lanes write to the same cluster: Nix attrsets rendered into `services.k3s.manifests` at activation, and `kubectl` pushed from raider via `just k8s`.
+**Architecture:** Caddy keeps `:80`/`:443` and reverse-proxies a `*.<domain>` wildcard vhost to traefik on a pinned ClusterIP. Because the wildcard DNS CNAME and the wildcard ACME cert already exist, a new app needs only an Ingress. Two delivery lanes write to the same cluster: Nix attrsets rendered into `services.k3s.manifests` at activation, and `kubectl` pushed from raider via `just k8s`.
 
 **Tech Stack:** NixOS 26.05 + flake-parts + haumea, k3s 1.35 (`pkgs.k3s_1_35`), traefik (k3s-bundled), Caddy, `security.acme` DNS-01 via Cloudflare, sops-nix, just, backrest.
 
@@ -17,7 +17,7 @@
 - **No per-app firewall rules.** Never add `networking.firewall.interfaces.<x>.allowedTCPPorts` or per-service allow rules. Host-level `trustedInterfaces` only. Do not add anything to `allowedTCPPorts`.
 - **Do not touch `media.services`, `media.containers`, or `media.gateway`.** This cluster is deliberately not wired into the media stack. That coupling is what got the previous k3s attempt (`b540e25`) deleted in `0f23f9d`.
 - **k3s version is pinned to `pkgs.k3s_1_35`.** Never use the floating `pkgs.k3s`. Kubernetes does not support skipping minor versions and `Weekly Update` runs `nix flake update` unattended every Sunday.
-- **NodePort is `30080`** everywhere it appears.
+- **The ingress target is traefik's pinned ClusterIP (`constellation.k3s.ingressAddress`, default `10.43.0.80`), port 80.** Deliberately NOT a NodePort or hostPort: both bind on every local address including the Tailscale one, and `tailscale0` is a trusted interface, so either would expose the ingress to the whole tailnet bypassing Caddy.
 - **Deploy with `just deploy basestar`** — run from raider only. `NIKS3_AUTH_TOKEN_FILE` is set only on raider; from anywhere else phase 1 aborts after the full build with `auth token is required`.
 - **basestar is aarch64.** Every image used must have an `arm64` manifest. Check before deploying: `docker manifest inspect <image> | grep arm64`.
 - Never write k8s Secret content into `services.k3s.manifests` — it renders to the world-readable nix store.
@@ -99,7 +99,7 @@ in {
 
       # servicelb exists to bind :80/:443 on the host, which is exactly what
       # Caddy owns. traefik itself stays: it is the in-cluster ingress
-      # controller, reached through a NodePort in Task 3.
+      # controller, reached through its ClusterIP in Task 3.
       disable = ["servicelb"];
 
       # Without this the API server certificate does not cover the Tailscale
@@ -341,63 +341,88 @@ In `modules/constellation/k3s.nix`, extend `options.constellation.k3s`:
     };
 ```
 
-- [ ] **Step 4: Bind traefik to loopback with hostPort**
+- [ ] **Step 4: Point Caddy at traefik's ClusterIP**
 
-**Design correction (2026-09-07).** The original plan routed Caddy to traefik through a
-NodePort at `127.0.0.1:30080`. That cannot work: Task 1 puts kube-proxy in **nftables**
-mode, and the nftables proxier deliberately excludes loopback from NodePort matching. The
-live rule on basestar reads:
+**Design correction #2 (2026-09-07).** Two earlier attempts failed, both for real reasons
+worth keeping:
 
-```
-fib daddr type local ip daddr != 127.0.0.0/8 meta l4proto . th dport vmap @service-nodeports
-```
+1. **NodePort at `127.0.0.1:30080`** — impossible. kube-proxy's nftables mode (Task 1,
+   chosen to keep the proxier out of fail2ban's way) deliberately excludes loopback from
+   NodePort matching: `fib daddr type local ip daddr != 127.0.0.0/8 … vmap @service-nodeports`.
+2. **`hostPort` with `hostIP: 127.0.0.1`** — impossible in this chart. `ports.web.hostIP`
+   feeds *both* the pod's hostPort binding *and* traefik's own
+   `--entryPoints.web.address` (`_podtemplate.tpl:219`), so traefik binds `127.0.0.1:8000`
+   inside its own netns, where the CNI DNAT — which targets the pod's real interface IP —
+   cannot reach it. Proven by tcpdump: SYN arrives, pod sends RST.
 
-Upstream calls this an intentional break from iptables mode, which did serve NodePorts on
-127.0.0.1. Reverting to iptables mode would undo the one Task 1 decision that keeps
-kube-proxy from sharing nftables with fail2ban and `nixos-fw` on a public host.
+Dropping `hostIP` and keeping `hostPort` *does* work, but binds `0.0.0.0:30080` on the
+host. `constellation.common` puts `tailscale0` in `trustedInterfaces` fleet-wide, and a
+trusted interface bypasses `allowedTCPPorts` entirely — so that leaves traefik reachable
+from every device on the tailnet, bypassing Caddy. A second, unintended door into the
+ingress.
 
-The fix is to stop using a NodePort for ingress. traefik binds the host port directly via
-the CNI portmap plugin — verified present on basestar, with `"portMappings":true` in
-`/var/lib/rancher/k3s/agent/etc/cni/net.d/10-flannel.conflist` — and binds it to
-**127.0.0.1 only**, so the listener is loopback by binding rather than by firewall rule.
-kube-proxy leaves the ingress path entirely.
+**Use the ClusterIP instead.** It is the only candidate that is not an address on a real
+interface: it exists solely as a kube-proxy nftables rule in the node's own network
+namespace. No remote host — tailnet or internet — has a route to `10.43.0.0/16`, so it is
+unreachable from off-box *without depending on a firewall rule at all*. That is the
+property the loopback design was reaching for, actually delivered. It also means **no host
+port is bound anywhere**: drop `hostPort` as well as `hostIP`.
 
-In `modules/constellation/k3s.nix`, add to `services.k3s`:
+Add to `options.constellation.k3s`:
 
 ```nix
-      manifests.traefik-hostport.content = {
+    ingressAddress = mkOption {
+      type = types.str;
+      default = "10.43.0.80";
+      description = ''
+        Address Caddy proxies wildcard traffic to — traefik's pinned ClusterIP.
+
+        A ClusterIP, not a NodePort or hostPort, and deliberately so. It is not an
+        address on any interface: it exists only as a kube-proxy nftables rule inside
+        this node's network namespace, so nothing off-box has a route to it. A NodePort
+        or hostPort would bind on every local address including the Tailscale one, and
+        `tailscale0` is a trusted interface — so either would silently expose the
+        ingress to the whole tailnet, bypassing Caddy.
+
+        Must be inside the k3s service CIDR (10.43.0.0/16) and unallocated.
+      '';
+    };
+```
+
+Replace the traefik manifest with one that pins the Service to that address:
+
+```nix
+      manifests.traefik-clusterip.content = {
         apiVersion = "helm.cattle.io/v1";
         kind = "HelmChartConfig";
         metadata = {
           name = "traefik";
           namespace = "kube-system";
         };
-        # hostIP pins the listener to loopback, so this port is unreachable from
-        # outside the host by binding - not merely because allowedTCPPorts omits
-        # it. Caddy is the only client and it runs on this host.
+        # No hostPort and no NodePort: both bind on every local address, including
+        # the Tailscale one, and tailscale0 is a trusted interface. A pinned
+        # ClusterIP is reachable only from this node's own netns.
         #
-        # NOT a NodePort: kube-proxy's nftables proxier excludes 127.0.0.0/8 from
-        # NodePort matching by design, so a loopback NodePort can never work.
+        # Pinned because Caddy's config is generated at nix eval time, long before
+        # the cluster could allocate one.
         spec.valuesContent = ''
-          ports:
-            web:
-              hostPort: ${toString cfg.nodePort}
-              hostIP: 127.0.0.1
+          service:
+            spec:
+              clusterIP: ${cfg.ingressAddress}
         '';
       };
 ```
 
-(The `nodePort` option name is kept for continuity; it now names the host port. Renaming it
-is a follow-up, not part of this task.)
+Note `service.spec.clusterIP`, not `service.clusterIP` — this chart version passes
+`service.spec` through verbatim, which is also why the earlier `service.type` attempt was a
+dead key.
 
-Two notes:
+Caddy's `reverse_proxy` target in Step 5 becomes `${cfg.ingressAddress}:80` — traefik's
+service port, not 30080.
 
-- traefik's Service is left alone. With servicelb disabled it stays `LoadBalancer` with no
-  external IP and allocates an unused NodePort — vestigial and harmless, since nothing
-  targets it and the firewall does not admit it. Do not fight the chart's `service.type`
-  key; the ingress path no longer depends on the Service at all.
-- `ports.web` must not carry a `redirectTo: websecure`. Caddy has already terminated TLS,
-  so that redirect is an infinite loop. Step 10 checks for it.
+**If the Service will not accept the pinned address** (already allocated, or outside the
+CIDR), pick another free address in `10.43.0.0/16` and set `ingressAddress` to it. Confirm
+with `just k8s::k -n kube-system get svc traefik -o jsonpath='{.spec.clusterIP}'`.
 
 - [ ] **Step 5: Generate the certs and vhosts**
 
@@ -423,7 +448,7 @@ Also in the `config` block:
           extraConfig = ''
             encode zstd gzip
 
-            reverse_proxy 127.0.0.1:${toString cfg.nodePort} {
+            reverse_proxy ${cfg.ingressAddress}:80 {
               header_up X-Real-IP {remote_host}
               header_up X-Forwarded-For {remote_host}
               header_up X-Forwarded-Proto {scheme}
@@ -481,26 +506,24 @@ curl -sS -o /dev/null -w '%{http_code}\n' https://k3s-probe.arsfeld.dev
 ```
 Expected: `502`. Nothing serves that name inside the cluster, and a 502 proves the wildcard vhost is live and failing safe. A `200` means the vhost did not take; a certificate error means the wildcard SAN is missing.
 
-- [ ] **Step 10: Verify traefik bound loopback, and is not redirecting**
+- [ ] **Step 10: Verify the ingress is reachable ONLY from the node**
 
 ```bash
-just k8s::k -n kube-system get pod -l app.kubernetes.io/name=traefik \
-  -o jsonpath='{.items[0].spec.containers[0].ports}'
-ssh root@basestar.bat-boa.ts.net 'ss -tlnp | grep 30080'
-ssh root@basestar.bat-boa.ts.net 'curl -sS -o /dev/null -w "%{http_code} %{redirect_url}\n" -H "Host: k3s-probe.arsfeld.dev" http://127.0.0.1:30080/'
+just k8s::k -n kube-system get svc traefik -o jsonpath='{.spec.clusterIP}{"\n"}'
+ssh root@basestar.bat-boa.ts.net 'curl -sS -o /dev/null -m 5 -w "%{http_code} %{redirect_url}\n" -H "Host: k3s-probe.arsfeld.dev" http://10.43.0.80:80/'
+ssh root@basestar.bat-boa.ts.net 'ss -tlnp | grep -E ":30080|:8000" || echo "no host port bound - correct"'
 ```
-Expected: the pod's port list showing `hostPort: 30080` **and** `hostIP: 127.0.0.1`; `ss` showing a listener on `127.0.0.1:30080` and **not** on `0.0.0.0:30080`; and the loopback curl returning `404` with an **empty** redirect_url.
+Expected: the ClusterIP equals `constellation.k3s.ingressAddress`; the on-node curl returns `404` with an **empty** redirect_url; and **no host port is bound at all**.
 
-A listener on `0.0.0.0:30080` means `hostIP` did not take — the chart key may differ by version. Stop and report rather than accepting it: the whole point of `hostIP` is that the port is loopback-only by binding, not merely because `allowedTCPPorts` omits it.
+A `301`/`308` to an `https://` URL means the chart carries `ports.web.redirectTo: websecure`. Caddy has already terminated TLS, so that redirect is an infinite loop — add `ports.web.redirectTo: ""` to the `valuesContent` and redeploy.
 
-Also confirm from outside that it is genuinely not exposed:
+Then confirm from raider that nothing is reachable off-box. **This is the check that failed in the two earlier attempts — do not skip it:**
 
 ```bash
-timeout 5 curl -sS -o /dev/null -w '%{http_code}\n' http://basestar.bat-boa.ts.net:30080/ ; echo "exit=$?"
+timeout 5 curl -sS -o /dev/null http://basestar.bat-boa.ts.net:30080/ ; echo "tailnet hostport exit=$?"
+timeout 5 curl -sS -o /dev/null http://10.43.0.80:80/ ; echo "clusterip exit=$?"
 ```
-Expected: a connection failure (non-zero exit), not an HTTP status.
-
-A `301`/`308` to an `https://` URL means the chart carries `ports.web.redirectTo: websecure`. Caddy has already terminated TLS, so that redirect is an infinite loop — add `ports.web.redirectTo: ""` to the `valuesContent` in Step 4 and redeploy before continuing.
+Expected: **both fail to connect** (non-zero exit), no HTTP status. A success on the first means a host port is bound and the tailnet can bypass Caddy; a success on the second would mean a route to the service CIDR exists off-box. Either is a stop-and-report condition.
 
 - [ ] **Step 11: Verify nothing that already worked broke**
 
