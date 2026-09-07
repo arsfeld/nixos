@@ -69,8 +69,8 @@ Create `modules/constellation/k3s.nix`:
 # Single-node k3s co-habiting with the host's own Caddy and podman services.
 #
 # This module deliberately does NOT integrate with media.services. An earlier
-# attempt (b540e25) added a Kubernetes backend to media.containers and was
-# deleted two months later (0f23f9d); the coupling was the reason. The cluster
+# attempt (b540e25, 2026-02-14) added a Kubernetes backend to media.containers
+# and was deleted 23 days later (0f23f9d); the coupling was the reason. The cluster
 # is a second, independent way onto the host, not a replacement for the first.
 {
   config,
