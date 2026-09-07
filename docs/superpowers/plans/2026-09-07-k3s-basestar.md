@@ -309,7 +309,7 @@ git commit -m "feat(modules): add just k8s recipes for basestar's cluster"
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' https://k3s-probe.arsfeld.dev
 ```
-Expected right now: `200` — Caddy's default vhost answering with a zero-byte body. That is the failure mode CLAUDE.md documents around the attic tombstone. This task must turn it into `502`.
+Expected right now: `200` — Caddy's default vhost answering with a zero-byte body. That is the failure mode CLAUDE.md documents around the attic tombstone. This task must turn it into `404` — traefik's unmatched-Host answer relayed through the wildcard vhost. A `502` would mean Caddy cannot reach the cluster at all, and is a failure, not a pass.
 
 - [ ] **Step 2: Run it to confirm it returns 200**
 
@@ -551,9 +551,9 @@ git commit -m "feat(basestar): route the arsfeld.dev wildcard into k3s"
 ```bash
 curl -sS https://whoami.arsfeld.dev
 ```
-Expected right now: FAIL — 502 from the wildcard, since nothing serves that host.
+Expected right now: FAIL — 404 through the wildcard, since no Ingress claims that host.
 
-- [ ] **Step 2: Run it to confirm it 502s**
+- [ ] **Step 2: Run it to confirm it 404s**
 
 - [ ] **Step 3: Confirm the image has an arm64 manifest**
 
@@ -845,7 +845,7 @@ just k8s::k -n whoami get all
 curl -sS -o /dev/null -w '%{http_code}\n' https://whoami.arsfeld.dev
 ssh root@basestar.bat-boa.ts.net 'ls /var/lib/rancher/k3s/server/manifests/'
 ```
-Expected: `No resources found in whoami namespace.`, curl returns `502`, and `whoami.yaml` is gone from the manifests directory. This is the check that catches an otherwise invisible failure.
+Expected: `No resources found in whoami namespace.`, curl returns `404` (the Ingress is gone, so the wildcard falls back to traefik's unmatched-Host answer), and `whoami.yaml` is gone from the manifests directory. This is the check that catches an otherwise invisible failure.
 
 - [ ] **Step 8: Commit**
 
@@ -1232,7 +1232,7 @@ After the binary-cache section, add a section covering — in the file's existin
 - basestar runs a single-node k3s cluster; galactica does not. It is deliberately **not** wired into `media.services` — an earlier attempt coupled the two (`b540e25`) and was deleted (`0f23f9d`).
 - Caddy keeps `:80`/`:443`; traefik is reached at its pinned ClusterIP behind a `*.arsfeld.dev` Caddy vhost. A new app needs no DNS record, no cert, no firewall rule and no Caddy change — only an Ingress. A new *domain* costs one entry in `constellation.k3s.domains`.
 - **Anything exposed through an Ingress is public.** The wildcard vhost carries no `forward_auth`, the inverse of galactica's gateway where Authelia is the default.
-- **The behaviour change to record:** an unmatched `*.arsfeld.dev` name used to hit Caddy's default — HTTP 200 with a zero-byte body, the exact failure mode the attic tombstone paragraphs warn about. It is now a 502 from the wildcard vhost, which fails safe. Update the attic tombstone paragraph to say so; the tombstone is still load-bearing for `attic.arsfeld.dev` specifically, since an explicit vhost beats the wildcard and 410 is a better answer than 502.
+- **The behaviour change to record:** an unmatched `*.arsfeld.dev` name used to hit Caddy's default — HTTP 200 with a zero-byte body, the exact failure mode the attic tombstone paragraphs warn about. It is now a 404 from traefik, relayed through the wildcard vhost, which fails safe. Update the attic tombstone paragraph to say so; the tombstone still wins for `attic.arsfeld.dev` specifically, since an explicit vhost beats the wildcard and 410 is a better answer than 404.
 - Two lanes: `hosts/basestar/k8s/` at activation, `just k8s::apply` from raider. Secrets go through `constellation.k3s.secrets`, never through `services.k3s.manifests` — that content lands in the world-readable nix store.
 - **Deleting a manifest from nix does not delete it from the cluster** on its own; `k3s-manifest-reconcile` handles it, and it diffs against a state file because k3s writes its own packaged manifests (coredns, traefik, local-storage) into the same directory.
 - k3s is pinned to `pkgs.k3s_1_35` on purpose. Kubernetes does not support skipping minor versions and `Weekly Update` bumps nixpkgs unattended.

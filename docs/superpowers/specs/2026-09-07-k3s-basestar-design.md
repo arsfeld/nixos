@@ -3,7 +3,9 @@
 **Date:** 2026-09-07
 **Scope:** `modules/constellation/k3s.nix` (new), `hosts/basestar/configuration.nix`,
 `hosts/basestar/k8s/` (new), `just/k8s.just` (new), `justfile`, `CLAUDE.md`
-**Status:** Design approved, not implemented.
+**Status:** Implemented 2026-09-07 (`6ff0f4a`..`161cf95`). Deployed on basestar; documented
+in `CLAUDE.md`. The two in-line correction notes below record where the shipped design
+diverges from the approved one.
 
 ## Problem
 
@@ -142,11 +144,13 @@ Anything exposed through an Ingress is **public on the internet by default**. Th
 opposite of galactica's gateway, where Authelia is the default and `bypassAuth = true` is
 the exception. Auth becomes each app's own problem, or a traefik middleware.
 
-**A behaviour change worth recording in CLAUDE.md:** today an unmatched `*.arsfeld.dev`
-name falls through to Caddy's default — HTTP 200 with a zero-byte body, the exact failure
-mode documented at length around the attic tombstone. After this change it becomes a 502
-from the wildcard vhost. That is strictly better, because a non-200 fails safe, but it is a
-change, and the tombstone rationale in CLAUDE.md should say so.
+**A behaviour change worth recording in CLAUDE.md:** before this change an unmatched
+`*.arsfeld.dev` name fell through to Caddy's default — HTTP 200 with a zero-byte body, the
+exact failure mode documented at length around the attic tombstone. It is now a **404**,
+traefik's own unmatched-Host answer relayed through the wildcard vhost. (The design
+originally predicted a 502; that would mean Caddy could not reach the backend at all, and
+is a failure here, not a pass.) Strictly better, because a non-200 fails safe — but a
+change, and the tombstone rationale in CLAUDE.md says so as of this work.
 
 ### Extra domains
 
@@ -157,7 +161,8 @@ constellation.k3s.domains = [ "arsfeld.dev" "myapp.dev" ];
 ```
 
 Each entry generates the pair: `security.acme.certs."<d>".extraDomainNames = ["*.<d>"]`
-and a Caddy vhost for `<d>` and `*.<d>` proxying to the host port. This works because ACME
+and a Caddy vhost for `*.<d>` proxying to the ClusterIP. (As shipped it is the wildcard
+only; the apex keeps whatever vhost it already had.) This works because ACME
 here is **DNS-01 through Cloudflare** — `modules/media/config.nix:151` sets
 `dnsProvider = "cloudflare"` with a shared sops token, and vhosts consume the result via
 `useACMEHost`. No inbound challenge is needed, so apex names, wildcards, and
@@ -197,11 +202,13 @@ is haumea-auto-loaded for every host in the fleet, and these manifests belong to
 
 **Lane B — `just k8s`, pushed from raider.** A new `just/k8s.just`, shaped like `just tf`:
 
+(Shipped as a just *module*, so the recipes are namespaced `k8s::`.)
+
 | Recipe | What it does |
 |---|---|
-| `just k8s <args>` | passthrough to `kubectl` against basestar over Tailscale |
-| `just k8s-apply <path>` | `kubectl apply --server-side --validate=strict` |
-| `just k8s-kubeconfig` | fetch `/etc/rancher/k3s/k3s.yaml` over SSH, rewrite `127.0.0.1` to `basestar.bat-boa.ts.net` |
+| `just k8s::k <args>` | passthrough to `kubectl` against basestar over Tailscale |
+| `just k8s::apply <path>` | `kubectl apply --server-side --validate=strict` |
+| `just k8s::kubeconfig` | fetch `/etc/rancher/k3s/k3s.yaml` over SSH, rewrite `127.0.0.1` to `basestar.bat-boa.ts.net` |
 
 `--validate=strict` is what makes plain attrsets safe without a typed schema layer: the API
 server rejects unknown fields, so a typo'd `spec.replica` fails loudly at apply time. This
@@ -231,16 +238,31 @@ Two independent gaps compound:
 Without handling this, "I deleted the app from nix and redeployed" leaves it running, and
 nothing anywhere reports a problem.
 
-The module therefore ships a reconcile oneshot, ordered after `k3s.service`, that walks
-`/var/lib/rancher/k3s/server/manifests`, and for each file not in the declared set deletes
-the corresponding `addons.k3s.cattle.io` object — letting k3s cascade the resource
-deletion — and then removes the symlink.
+The module therefore ships a reconcile oneshot, `k3s-manifest-reconcile`, ordered after
+`k3s.service`. Two details of it were settled against the live cluster rather than assumed,
+and both differ from what this section originally proposed:
 
-The exact AddOn name derivation from the manifest filename must be confirmed against the
-live cluster during implementation rather than assumed; if it does not hold, the fallback
-is the documented `--disable` tombstone: move the name from `manifests` to `disable`, deploy
-once, then remove both entries. That is the same shape as the attic tombstone this repo
-already runs, and it is honest about its cost.
+- **Deleting the AddOn cascades nothing.** k3s tracks an AddOn's objects with
+  `objectset.rio.cattle.io/owner-*` *annotations*, not ownerReferences — the objects are
+  cluster-scoped or in another namespace, which ownerReferences cannot express — and the
+  deploy controller has no OnRemove handler. Measured on this host with k3s 1.35: `kubectl
+  delete addon whoami` succeeded, the AddOn was gone, and the Namespace, Deployment,
+  Service, Ingress and pod all kept running and serving 200. The unit therefore deletes
+  from the *old manifest file*, which is still on disk precisely because tmpfiles never
+  removed it — gap 1 above is what makes the fix for gap 2 possible — and only then deletes
+  the AddOn and the symlink.
+- **It iterates a state file, not the directory.** k3s writes its own packaged manifests
+  into the same directory at startup (`traefik.yaml`, `coredns.yaml`, `local-storage.yaml`,
+  `ccm.yaml`, `rolebindings.yaml`, `runtimes.yaml`, and a `metrics-server/` directory), so
+  "delete everything not declared in nix" would delete coredns. Only a name nix declared on
+  a previous activation is ever a deletion candidate. A structural second check backs it
+  up: every nix-managed manifest is a symlink into `/nix/store` and every k3s-written one is
+  a regular file, so a name that does not resolve to a live symlink is refused loudly
+  instead of deleted.
+
+Verified end to end by deploying the `whoami` fixture through Lane A, removing it, and
+finding `No resources found` — check 5 below, and the only check that catches this class of
+failure.
 
 ## Storage and backup
 

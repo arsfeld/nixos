@@ -95,7 +95,7 @@ All hosts are reached via Tailscale: `<hostname>.bat-boa.ts.net`.
   that CI stopped landing updates), and posts one ntfy summary. State in
   `/var/lib/weekly-deploy/`. Run it early with `sudo systemctl start weekly-deploy`.
 
-Two things about this that are not obvious and cost real time to rediscover:
+Three things about this that are not obvious and cost real time to rediscover:
 
 - **It can only deploy a commit CI has already built.** `self` is part of every system
   closure, so *any* tracked change shifts all three hosts' toplevel paths. A commit CI
@@ -105,6 +105,14 @@ Two things about this that are not obvious and cost real time to rediscover:
   A broken deployer cannot deploy its own fix, and a stale unit will happily run old logic
   against a new commit — the tell is a summary describing machinery the current code no
   longer contains.
+- **`sudo systemctl start weekly-deploy` is not a local test.** It pulls `origin/master`
+  and deploys *every* tier-1 host from whatever that resolves to. Started on 2026-09-07
+  while a session's commits were still local-only, it reset galactica's checkout to the
+  last pushed commit and deployed basestar from it — rolling k3s off the host entirely,
+  units and all, while reporting `deploy: ok`. This is the mirror image of the hazard
+  above, and unlike a broken deployer it does not fail safe: the job will deploy *away*
+  the change you just installed by hand and tell you it succeeded. Push, wait for `Build
+  & Cache` to go green for your commit, and only then start it by hand.
 
 The binary cache is two endpoints, and only one of them is a server:
 
@@ -157,13 +165,21 @@ and the R2 buckets `attic`, `attic-data` and
 A `dig` that answers is therefore not evidence attic survived — count records in the
 zone instead.
 
-It answers **410** because `hosts/basestar/services/attic-tombstone.nix` makes it, and
-that vhost is load-bearing. Without it the wildcard lands on Caddy's default: HTTP 200
-with a zero-byte body, for every path. Nix parses an empty `nix-cache-info` fine, so it
-initialises the substituter and never disables it, and every later lookup fails with
-`NAR info file '<hash>.narinfo' is corrupt: StorePath missing` instead of missing cleanly
-and building locally. A non-200 is what makes a retired cache fail safe. Delete the
-tombstone only once all nine hosts have deployed past `19686a2`.
+It answers **410** because `hosts/basestar/services/attic-tombstone.nix` makes it. That
+vhost used to be the only thing standing between a stale host and a bad failure: without
+it the name fell through to Caddy's default, HTTP 200 with a zero-byte body for every
+path, and Nix parses an empty `nix-cache-info` fine — so it initialises the substituter,
+never disables it, and every later lookup fails with `NAR info file '<hash>.narinfo' is
+corrupt: StorePath missing` instead of missing cleanly and building locally. **A non-200
+is what makes a retired cache fail safe.**
+
+That particular hole is now closed twice over. `*.arsfeld.dev` is a real Caddy vhost since
+k3s landed (see below), so an unmatched name gets a **404** from traefik rather than an
+empty 200 from Caddy's default. The tombstone still wins for `attic.arsfeld.dev`
+specifically — an exact hostname beats a wildcard in Caddy — and it is still the better
+answer, because 410 Gone says *deliberately retired* where 404 says *never heard of it*.
+Keep it until all nine hosts have deployed past `19686a2`, then delete it; the wildcard is
+now the backstop underneath it either way.
 
 The measurement that justified it: of 60 paths sampled at random from raider's live
 closure, `cache.arsfeld.dev` held 60 and attic held 2 — **zero** that attic had and R2
@@ -177,10 +193,108 @@ everywhere except `weekly-deploy`, which runs under `max-jobs = 0` where a miss 
 failure — which is exactly what CI's `niks3 push --pin <host>` exists to prevent. Treat
 the pins as load-bearing, not as an optimization.
 
+### Kubernetes (k3s on basestar)
+
+basestar runs a single-node k3s server. No other host does, and galactica's 37
+`media.services` declarations are not going anywhere. The cluster exists as a second,
+cheaper way onto one host: an image that never entered this flake, running at a hostname,
+in seconds rather than the commit plus nine-host CI build plus deploy that `media.services`
+costs. Note that `9e4c0c8` scrubbed k3s out of these docs on the grounds that "k3s is not
+implemented in this flake and never was" — that statement is now false, and this section
+supersedes it.
+
+**It is deliberately not wired into `media.services`.** `b540e25` added a Kubernetes
+backend to `media.containers` in February; `0f23f9d` deleted it two months later, and the
+coupling was the reason. `media.services.<name>` remains the only way to declare a service;
+putting something in the cluster is a separate act with its own lane. Do not build a bridge
+between them again. The module is `modules/constellation/k3s.nix`, enabled from
+`hosts/basestar/configuration.nix` under `constellation.k3s`.
+
+Caddy keeps `:80` and `:443`. traefik is the in-cluster ingress controller, reached at a
+**pinned ClusterIP** — `constellation.k3s.ingressAddress`, `10.43.0.80` — which one Caddy
+wildcard vhost per entry in `constellation.k3s.domains` proxies to over plain HTTP inside
+the node. Caddy holds TLS; traefik terminates nothing. Because the wildcard CNAME and the
+wildcard ACME certificate both already existed, **a new app needs no DNS record, no
+certificate, no firewall rule and no Caddy change — only an Ingress.** A new *domain* costs
+exactly one entry in `constellation.k3s.domains`, which generates the cert and the vhost
+together: the price is per domain, never per app. Exact hostnames still beat wildcards in
+Caddy, so every explicit vhost (blog, planka, siyuan, niks3, gatus, the apex, the attic
+tombstone) keeps winning untouched, and migrating one into the cluster later is: delete its
+nix vhost, add an Ingress.
+
+**Why a ClusterIP and not a NodePort or a hostPort.** Both were tried on this host, and
+neither can work — which is worth knowing before someone reaches for the obvious thing a
+third time. A NodePort on `127.0.0.1` is impossible because kube-proxy runs in nftables
+mode, chosen so the proxier does not share the nftables ruleset with fail2ban and
+`nixos-fw`, and that proxier deliberately excludes loopback from NodePort matching (`fib
+daddr type local ip daddr != 127.0.0.0/8 … vmap @service-nodeports`). It is an intentional
+break from the iptables proxier and `nodePortAddresses` cannot override it. A `hostPort`
+with `hostIP: 127.0.0.1` is impossible because traefik's chart feeds that `hostIP` into
+traefik's own `--entryPoints.web.address` as well as into the pod spec, so traefik binds
+loopback *inside its own netns*, where the CNI portmap DNAT aimed at the pod's real address
+cannot reach it. Dropping `hostIP` does work — and binds `0.0.0.0`, which is the trap:
+`constellation.common` trusts `tailscale0` fleet-wide, and **a trusted interface bypasses
+`allowedTCPPorts` entirely**, so that variant leaves the ingress reachable unauthenticated
+from every tailnet peer, straight past Caddy. A ClusterIP is the only candidate that is not
+an address on any interface at all. It exists solely as a kube-proxy nftables rule in this
+node's own network namespace: nothing off-box has a route to it and no host port is bound
+anywhere. The isolation is a property of the address rather than of a firewall rule, which
+is what lets it hold without one.
+
+**Anything exposed through an Ingress is public on the internet.** The wildcard vhost
+carries no `forward_auth` — the exact inverse of galactica's gateway, where Authelia is the
+default and `bypassAuth = true` is the exception. Auth is each app's own problem, or a
+traefik middleware. Decide it before writing the Ingress, not after.
+
+Two lanes write to the same cluster, and it does not care which one an object arrived
+through. **Lane A** is `hosts/basestar/k8s/`: plain Nix attrsets (with a `mkApp` helper for
+the Namespace/Deployment/Service/Ingress quartet) feeding `services.k3s.manifests`, applied
+at activation — the home for the platform layer and for apps that have settled. It sits
+under `hosts/` and not `modules/` on purpose, because `modules/` is haumea-loaded for every
+host in the fleet and these manifests belong to one. **Lane B** is `just k8s::apply <path>`
+from raider, with `just k8s::k` as a kubectl passthrough and `just k8s::kubeconfig` to fetch
+credentials; it applies `--server-side --validate=strict`, which is what makes untyped
+attrsets safe — the API server rejects a typo'd field instead of ignoring it. Iterate in
+Lane B, promote to Lane A. **Secrets go through `constellation.k3s.secrets`, never
+`services.k3s.manifests`** — that content is rendered into the nix store by
+`pkgs.formats.yaml.generate`, and the store is world-readable. The option builds the Secret
+at activation from a path on disk, normally a sops-nix one under `/run/secrets`.
+
+**Deleting a manifest from nix does not delete it from the cluster,** and nothing anywhere
+reports it. Two gaps compound: `services.k3s.manifests` is realized as systemd-tmpfiles
+`L+` rules, which create and replace but never remove, so the symlink outlives the
+attribute; and k3s leaves an AddOn's resources running when its file disappears
+(k3s-io/k3s#1971). `k3s-manifest-reconcile` closes both, and two facts about how are
+load-bearing. First, **deleting the AddOn deletes nothing.** k3s tracks an AddOn's objects
+with `objectset.rio.cattle.io/owner-*` annotations rather than ownerReferences, so
+Kubernetes GC has nothing to cascade on — measured here: `kubectl delete addon whoami`
+succeeded and left the Namespace, Deployment, Service, Ingress and pod running and serving
+200. So the unit deletes from the *old manifest file*, which is on disk precisely because
+tmpfiles never removed it; the second half of the bug is what makes the fix possible.
+Second, it diffs against a state file rather than against the directory, because k3s writes
+its own packaged manifests into that same directory (coredns, traefik, local-storage, ccm,
+and more) — "delete everything not declared in nix" would delete coredns. A consequence:
+renaming a manifest attribute is a real operation with real consequences, not a cosmetic
+edit, and `traefik-clusterip` in particular must never be renamed. The module says why at
+length, next to the recovery steps.
+
+k3s is pinned to `pkgs.k3s_1_35`, and must stay pinned to *some* explicit attribute rather
+than the floating `pkgs.k3s`. Kubernetes does not support skipping minor versions on
+upgrade, and `Weekly Update` runs `nix flake update` unattended every Sunday — unpinned,
+that job can carry the cluster a minor version, or two, with nobody reading the diff. A
+Kubernetes upgrade should be a deliberate one-line commit.
+
 ### Testing Changes
 ```bash
 nix build .#nixosConfigurations.<hostname>.config.system.build.toplevel
 ```
+
+**A new file or directory is invisible to `nix build` until it is `git add`ed.** Flakes see
+only tracked files, so a build that fails with `No such file or directory` or `attribute
+missing` for something plainly sitting on disk is almost always this. `git add -N <path>`
+is enough to make it visible without committing. It bit twice in one afternoon during the
+k3s work; expect it whenever a change introduces a new directory rather than editing an
+existing file.
 
 ### Secret Management
 
@@ -321,7 +435,7 @@ Things worth knowing before touching it:
 
 ### Available Hosts
 - **galactica** - Main server: media services, databases, backups. Hosts internal services on `*.arsfeld.one` via cloudflared tunnel (wildcard ingress)
-- **basestar** - Public-facing server (BSG Cylon Basestar): hosts services on `*.arsfeld.dev` (blog, plausible, planka, siyuan)
+- **basestar** - Public-facing server (BSG Cylon Basestar): hosts services on `*.arsfeld.dev` (blog, plausible, planka, siyuan), and the fleet's only k3s cluster
 - **raider** - Desktop workstation: GNOME, gaming, development
 - **router** - Custom network device (no constellation modules, standalone config)
 - **r2s** - ARM-based router (NanoPi R2S)
@@ -368,6 +482,7 @@ Opt-in feature modules that hosts compose. Key modules:
 | `services.nix` | **Central service registry**: ports, auth, CORS, Tailscale exposure |
 | `media.nix` | **Container orchestration**: Plex, *arr, Stash, Nextcloud, etc. |
 | `podman.nix` / `docker.nix` | Container runtimes |
+| `k3s.nix` | Single-node Kubernetes beside the host's Caddy (**basestar only**) |
 | `backup.nix` | Automated rustic/restic backups |
 | `vpn-exit-nodes.nix` | Tailscale exit nodes via AirVPN/Gluetun |
 | `gnome.nix` / `cosmic.nix` / `niri.nix` | Desktop environments |
@@ -441,7 +556,7 @@ Caddy reverse proxy consuming service definitions. Generates TLS configs, error 
 
 #### DNS & Routing
 - `*.arsfeld.one` — internal services hosted on **galactica**, routed via Cloudflare → galactica's cloudflared tunnel (wildcard ingress)
-- `*.arsfeld.dev` — public services hosted on **basestar** (blog, plausible, planka, siyuan)
+- `*.arsfeld.dev` — public services hosted on **basestar** (blog, plausible, planka, siyuan). Explicit vhosts win; anything unclaimed falls through the wildcard vhost into k3s (see "Kubernetes (k3s on basestar)"), so a hostname served by an Ingress needs no entry here
 - `*.bat-boa.ts.net` — Tailscale-only access (or public via Funnel)
 
 ### Remote Builders
@@ -456,7 +571,7 @@ Caddy reverse proxy consuming service definitions. Generates TLS configs, error 
 - `home/` - Home Manager config (`home.nix` for user `arosenfeld`)
 - `secrets/` - Encrypted secrets (`sops/*.yaml` managed by sops-nix)
 - `flake-modules/` - Flake-parts modules
-- `just/` - Justfile submodules (blog, secrets, docs)
+- `just/` - Justfile submodules (blog, secrets, docs, k8s)
 
 ## Host & Container Conventions
 
@@ -483,6 +598,12 @@ Always declare services with `media.services.<name>` (see "Service and Network A
 ### `*.arsfeld.dev` services (on basestar)
 1. Create a service file in `hosts/basestar/services/` and add it to `default.nix` imports.
 2. Use `media.services.<name>` the same way; basestar uses dedicated Caddy vhosts for `arsfeld.dev` subdomains.
+
+basestar has a second option the other hosts do not: an Ingress in its k3s cluster, which
+needs no nix change beyond the manifest itself. That is the cheaper path for an upstream
+image at a hostname; `media.services` is still the right one for anything wanting
+standardized PUID/PGID, gateway registration or image watching. See "Kubernetes (k3s on
+basestar)" for the trade, and note that an Ingress is public by default.
 
 ## Commit Message Format
 
