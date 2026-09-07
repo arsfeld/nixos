@@ -97,3 +97,6 @@ scratch/
 # Backup/recovery helpers (not committed)
 scripts/backup-to-r2.sh
 scripts/recover-from-r2.sh
+
+# superpowers SDD scratch (ledgers, briefs, review packages)
+.superpowers/
