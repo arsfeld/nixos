@@ -8,6 +8,7 @@
     ./hardware-configuration.nix
     ./services
     ./services.nix
+    ./k8s
   ];
 
   constellation.podman.enable = true;
