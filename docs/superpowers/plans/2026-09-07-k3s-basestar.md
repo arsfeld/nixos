@@ -409,7 +409,29 @@ Also in the `config` block:
       cfg.domains);
 ```
 
-- [ ] **Step 6: List the domain on basestar**
+- [ ] **Step 6: Remove the pre-existing duplicate cert declaration**
+
+`security.acme.certs."arsfeld.dev".extraDomainNames` currently evaluates to
+`["*.arsfeld.dev","*.arsfeld.dev"]` — it is declared in both
+`hosts/basestar/configuration.nix:212` and `modules/constellation/sites/arsfeld-dev.nix:13`,
+and the module concatenates rather than dedupes. Certs work today, so ACME tolerates the
+duplicate, but Step 5 adds a third. Delete the redundant block from
+`hosts/basestar/configuration.nix` (the `sites` module already owns it):
+
+```nix
+  security.acme.certs."arsfeld.dev" = {
+    extraDomainNames = ["*.arsfeld.dev"];
+  };
+```
+
+Verify the count did not grow:
+
+```bash
+nix eval --json .#nixosConfigurations.basestar.config.security.acme.certs.\"arsfeld.dev\".extraDomainNames
+```
+Expected: exactly two entries, the same as today — one from the `sites` module, one from `constellation.k3s`.
+
+- [ ] **Step 7: List the domain on basestar**
 
 In `hosts/basestar/configuration.nix`, change the enable line added in Task 1 to:
 
@@ -420,7 +442,7 @@ In `hosts/basestar/configuration.nix`, change the enable line added in Task 1 to
   };
 ```
 
-- [ ] **Step 7: Build and deploy**
+- [ ] **Step 8: Build and deploy**
 
 ```bash
 just fmt
@@ -428,14 +450,14 @@ nix build .#nixosConfigurations.basestar.config.system.build.toplevel
 just deploy basestar
 ```
 
-- [ ] **Step 8: Run the check from Step 1**
+- [ ] **Step 9: Run the check from Step 1**
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' https://k3s-probe.arsfeld.dev
 ```
 Expected: `502`. Nothing serves that name inside the cluster, and a 502 proves the wildcard vhost is live and failing safe. A `200` means the vhost did not take; a certificate error means the wildcard SAN is missing.
 
-- [ ] **Step 9: Verify traefik took the NodePort, and is not redirecting**
+- [ ] **Step 10: Verify traefik took the NodePort, and is not redirecting**
 
 ```bash
 just k8s::k -n kube-system get svc traefik
@@ -446,7 +468,7 @@ Expected: `TYPE NodePort` with `80:30080/TCP` in the PORT(S) column; the valuesC
 
 A `301`/`308` to an `https://` URL means the chart carries `ports.web.redirectTo: websecure`. Caddy has already terminated TLS, so that redirect is an infinite loop — add `ports.web.redirectTo: ""` to the `valuesContent` in Step 4 and redeploy before continuing.
 
-- [ ] **Step 10: Verify nothing that already worked broke**
+- [ ] **Step 11: Verify nothing that already worked broke**
 
 ```bash
 for h in blog planka siyuan niks3 attic; do
@@ -456,7 +478,7 @@ done
 ```
 Expected: `blog 200`, `planka 200`, `siyuan 200`, `niks3` any non-502 (it is an API, 401/404 is fine), `attic 410`. Exact hostnames must still beat the wildcard. **A 502 for any of these means the wildcard is shadowing a real vhost — stop and fix before continuing.**
 
-- [ ] **Step 11: Commit**
+- [ ] **Step 12: Commit**
 
 ```bash
 git add modules/constellation/k3s.nix hosts/basestar/configuration.nix
@@ -703,18 +725,22 @@ In `modules/constellation/k3s.nix`, add to the `config` block:
       script = let
         manifestDir = "/var/lib/rancher/k3s/server/manifests";
         stateFile = "/var/lib/rancher/k3s/nix-managed-manifests";
-        declared =
-          concatStringsSep "\n"
+        # A store file, not a heredoc. Nix's '' strings strip common leading
+        # indentation from literal lines but splice interpolations in
+        # verbatim, so a multi-line list inside an indented heredoc produces
+        # a first line at one indent and the rest at another, and the EOF
+        # terminator's column depends on the rest of the script. writeText
+        # sidesteps all of it.
+        declared = pkgs.writeText "k3s-declared-manifests" (
+          concatMapStrings (t: t + "\n")
           (mapAttrsToList (_: m: m.target)
             (filterAttrs (_: m: m.enable)
-              (config.services.k3s.manifests // config.services.k3s.autoDeployCharts)));
+              (config.services.k3s.manifests // config.services.k3s.autoDeployCharts)))
+        );
       in ''
         set -euo pipefail
 
-        current=$(mktemp) && trap 'rm -f "$current"' EXIT
-        cat > "$current" <<'EOF'
-        ${declared}
-        EOF
+        current=${declared}
 
         touch ${stateFile}
 
@@ -739,6 +765,8 @@ In `modules/constellation/k3s.nix`, add to the `config` block:
       '';
     };
 ```
+
+Note `grep -qxF "$base" "$current"` reads the store file directly — `$current` is a store path, not a temp file, so there is nothing to clean up and no `trap` needed.
 
 - [ ] **Step 5: Build and deploy to seed the state file**
 
