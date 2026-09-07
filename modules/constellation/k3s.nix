@@ -31,6 +31,17 @@ in {
         ingress to the whole tailnet, bypassing Caddy.
 
         Must be inside the k3s service CIDR (10.43.0.0/16) and unallocated.
+
+        Changing this value after the fact causes a brief ingress outage, because
+        a Service's `spec.clusterIP` is immutable: the helm upgrade applies the
+        Deployment, then fails on the Service with `spec.clusterIPs[0]: Invalid
+        value: may not change once set`, leaving Caddy pointed at an address no
+        Service holds. helm-controller then deadlocks on its own
+        `EXPECTED_RELEASE_REVISION` guard and its retry job exits doing nothing.
+        Recover with `kubectl -n kube-system delete svc traefik` (helm owns it and
+        recreates it at the new address) followed by `kubectl -n kube-system delete
+        job helm-install-traefik`, which makes helm-controller issue a fresh job
+        with a correct expected revision.
       '';
     };
 
@@ -140,18 +151,22 @@ in {
       };
     };
 
-    # One-time cleanup for two successive renames of the manifest attribute
-    # above (traefik-nodeport → traefik-hostport → traefik-clusterip,
-    # 2026-09-07). services.k3s.manifests is realized as one
-    # systemd-tmpfiles "L+" rule per attribute name, and "L+" only creates or
-    # updates the symlink for a rule that still exists — it never removes an
-    # entry whose rule disappeared. Without these, the stale symlinks keep
-    # declaring their old HelmChartConfig content for the same
-    # kube-system/traefik object, and because both sort *after*
-    # traefik-clusterip.yaml, k3s's manifest controller applies them last and
-    # silently reverts this config on every deploy. That is a real bug that
-    # was found the hard way; harmless to leave in place once the files are
-    # gone.
+    # RULE: every rename of a services.k3s.manifests attribute needs its own
+    # "r" entry here, forever — not just the two below.
+    #
+    # services.k3s.manifests is realized as one systemd-tmpfiles "L+" rule per
+    # attribute name, and "L+" only creates or updates the symlink for a rule
+    # that still exists — it never removes an entry whose rule disappeared.
+    # Rename an attribute and the old symlink stays on disk, still declaring
+    # the old content for the same Kubernetes object. If the stale name sorts
+    # after the new one, k3s's manifest controller applies it last and silently
+    # reverts the config on every deploy, with no error anywhere. That is a
+    # real bug, found the hard way across two successive renames
+    # (traefik-nodeport → traefik-hostport → traefik-clusterip, 2026-09-07),
+    # and both stale names sorted after the live one.
+    #
+    # Harmless to leave in place once the files are gone; kept so a rollback to
+    # a generation older than the rename cannot resurrect them.
     systemd.tmpfiles.rules = [
       "r /var/lib/rancher/k3s/server/manifests/traefik-nodeport.yaml"
       "r /var/lib/rancher/k3s/server/manifests/traefik-hostport.yaml"
@@ -169,10 +184,15 @@ in {
     # so no inbound challenge is needed and apex names, wildcards and
     # orange-clouded records all work.
     #
-    # arsfeld.dev's cert is already declared in two other places
-    # (hosts/basestar/configuration.nix and modules/constellation/sites/
-    # arsfeld-dev.nix), both with the same extraDomainNames. A third
-    # declaration merges the same way the existing pair already does.
+    # arsfeld.dev's cert is also declared in exactly one other place,
+    # modules/constellation/sites/arsfeld-dev.nix, with the same
+    # extraDomainNames. security.acme.certs.<d>.extraDomainNames concatenates
+    # rather than dedupes, so the list evaluates to two identical entries —
+    # which ACME tolerates. A redundant third declaration in
+    # hosts/basestar/configuration.nix was deleted alongside this one; keep the
+    # count at two, and check it with:
+    #   nix eval --json .#nixosConfigurations.basestar.config \
+    #     .security.acme.certs.\"arsfeld.dev\".extraDomainNames
     security.acme.certs =
       listToAttrs (map (d: nameValuePair d {extraDomainNames = ["*.${d}"];}) cfg.domains);
 
