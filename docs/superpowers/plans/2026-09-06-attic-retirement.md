@@ -1049,7 +1049,8 @@ for host in galactica basestar raider; do
 done
 ```
 
-Expected: empty `dig`; a non-200 for attic; `StoreDir: /nix/store … Priority: 30` from `cache.arsfeld.dev`; three `200`s for the tier-1 closures.
+Expected: `not a cache — correct`; `StoreDir: /nix/store … Priority: 30` from
+`cache.arsfeld.dev`; a 2xx or 3xx from niks3; three `200`s for the tier-1 closures.
 
 - [ ] **Step 4: Tighten CLAUDE.md to its final form**
 

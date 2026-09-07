@@ -143,9 +143,13 @@ so connections queue across its own restart rather than being refused.
 
 attic is gone. It was the binary cache until niks3 replaced it on 2026-08-21 (`60dc149`,
 `194bfe3`), sat frozen as a read-only fallback for 17 days, and was retired entirely on
-2026-09-07: substituter and `system:` key removed from every host and from CI, the argocd
-app and namespace on can-1 torn down, the `ATTIC_TOKEN` secret deleted, all four
-`attic.arsfeld.dev` DNS records removed, and the R2 buckets `attic`, `attic-data` and
+2026-09-07: substituter and `system:` key removed from every host's configuration and from
+CI (galactica, basestar, raider and pegasus deployed 2026-09-07; router, r2s, raspi3,
+blackbird and octopi carry it until their next deploy), the argocd
+app and namespace on can-1 torn down, the `ATTIC_TOKEN` secret deleted, all five
+`attic.arsfeld.dev` DNS records removed — the four under OpenTofu plus one
+out-of-band `_acme-challenge` TXT it had never adopted, deleted through the Cloudflare API,
+and the R2 buckets `attic`, `attic-data` and
 `attic-cache` deleted.
 
 `attic.arsfeld.dev` still *resolves*, and still answers HTTP 200, and both are expected:
@@ -271,7 +275,7 @@ Things worth knowing before touching it:
 - **`oci_core_default_dhcp_options` exists on the VCN but is deliberately
   left unmanaged.** Its OCID is recorded in a comment in
   `infra/oci/network.nix` for whoever eventually adopts it.
-- **Nothing here is zone-authoritative.** The config declares 50 individual
+- **Nothing here is zone-authoritative.** The config declares 46 individual
   `cloudflare_dns_record` resources, not a resource type that owns the zone
   as a whole, so OpenTofu only ever touches records present in its config or
   state — it cannot see, let alone delete, a record created out-of-band (say,
