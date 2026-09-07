@@ -11,6 +11,7 @@
   ];
 
   constellation.podman.enable = true;
+  constellation.k3s.enable = true;
   constellation.sites.arsfeld-dev.enable = true;
   constellation.sites.rosenfeld-one = {
     enable = true;
