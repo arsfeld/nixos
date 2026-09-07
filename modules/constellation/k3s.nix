@@ -1,8 +1,8 @@
 # Single-node k3s co-habiting with the host's own Caddy and podman services.
 #
 # This module deliberately does NOT integrate with media.services. An earlier
-# attempt (b540e25) added a Kubernetes backend to media.containers and was
-# deleted two months later (0f23f9d); the coupling was the reason. The cluster
+# attempt (b540e25, 2026-02-14) added a Kubernetes backend to media.containers
+# and was deleted 23 days later (0f23f9d); the coupling was the reason. The cluster
 # is a second, independent way onto the host, not a replacement for the first.
 {
   config,
@@ -139,12 +139,17 @@ in {
       # Caddy reaches traefik at a pinned ClusterIP. Neither of the two
       # obvious alternatives can work here, and both were tried on this host:
       #
-      #   * A NodePort at 127.0.0.1 is impossible. Task 1 puts kube-proxy in
-      #     nftables mode, and that proxier deliberately excludes loopback
-      #     from NodePort matching (`fib daddr type local ip daddr !=
-      #     127.0.0.0/8 ... vmap @service-nodeports`) — an intentional break
+      #   * A NodePort at 127.0.0.1 is impossible. extraKubeProxyConfig above
+      #     puts kube-proxy in nftables mode, and that proxier deliberately
+      #     excludes loopback from NodePort matching — an intentional break
       #     from the iptables proxier, not a bug, and not something
-      #     nodePortAddresses can override.
+      #     nodePortAddresses can override. Check the effect, not the rule
+      #     text: in `nft list table ip kube-proxy` the nodeport-ips set holds
+      #     the node's real address (10.0.0.33) and never a loopback one. The
+      #     syntax varies across kube-proxy versions — it has been seen here
+      #     both as a negated 127.0.0.0/8 prefix and as set membership, and it
+      #     changed shape on this host within a single day — so a comment or a
+      #     grep that quotes the rule verbatim rots while the behaviour holds.
       #
       #   * A hostPort with hostIP: 127.0.0.1 is impossible in this chart.
       #     templates/_podtemplate.tpl feeds ports.<name>.hostIP into *both*
