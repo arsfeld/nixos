@@ -430,6 +430,28 @@ with lib; let
         CHECK_ERRS="$CHECK_ERRS failed-units"
       fi
 
+      # Root filesystem headroom. kubelet's image GC fires at 85% of the whole
+      # filesystem, which on basestar is shared with the nix store, podman's
+      # images, ClickHouse and backrest's cache - so unrelated growth can
+      # trigger it, and a host can cross the line with no k3s activity at all.
+      # Same three outcomes as every other check: a value, a problem, or
+      # "could not run" - which is never rounded down to fine.
+      if DISK_RAW=$(run_on "$h" "df --output=pcent / | tail -1" 2>>"$STATE/last-checks.log"); then
+        DISK=$(printf '%s' "$DISK_RAW" | tr -dc '0-9') || {
+          DISK="?"
+          CHECK_ERRS="$CHECK_ERRS disk-parse"
+        }
+        if [ "$DISK" = "?" ] || [ -z "$DISK" ]; then
+          DISK="?"
+          CHECK_ERRS="$CHECK_ERRS disk-parse"
+        elif [ "$DISK" -ge 85 ]; then
+          HOST_BAD=1
+        fi
+      else
+        DISK="?"
+        CHECK_ERRS="$CHECK_ERRS disk"
+      fi
+
       # Three ways this check fails to produce an answer, and none of them may
       # look like a clean bill of health. Empty stdout is the subtle one: jq
       # reads no input, emits nothing and exits 0, so STALE would come back
@@ -478,18 +500,19 @@ with lib; let
             LINE="$LINE DEPLOY-FAILED(rc=$DEPLOY_RC, host up - still on its previous generation)"
           fi
         fi
-        LINE="$LINE FAILED=[''${FAILED:-none}] STALE=[''${STALE:-none}] GEN=$GEN"
+        LINE="$LINE FAILED=[''${FAILED:-none}] STALE=[''${STALE:-none}] DISK=$DISK% GEN=$GEN"
         [ -n "$CHECK_ERRS" ] && LINE="$LINE CHECKS-DID-NOT-RUN=[$CHECK_ERRS]"
         SUMMARY="$SUMMARY$LINE"$'\n'
       else
-        SUMMARY="$SUMMARY$h: ok"$'\n'
+        SUMMARY="$SUMMARY$h: ok DISK=$DISK%"$'\n'
       fi
 
       RESULTS="$RESULTS$(jq -nc \
         --arg host "$h" --arg gen "$GEN" --arg failed "$FAILED" --arg stale "$STALE" \
+        --arg disk "$DISK" \
         --arg checkErrors "$CHECK_ERRS" --argjson deployRc "$DEPLOY_RC" \
         --argjson backups "$(printf '%s' "$BACKUPS" | jq -c . 2>/dev/null || echo '[]')" \
-        '{host:$host,generation:$gen,deployRc:$deployRc,failedUnits:$failed,staleBackups:$stale,checkErrors:$checkErrors,backups:$backups}')"
+        '{host:$host,generation:$gen,deployRc:$deployRc,failedUnits:$failed,staleBackups:$stale,disk:$disk,checkErrors:$checkErrors,backups:$backups}')"
     done
 
     TOTAL=$(printf '%s' "$HOSTS" | wc -w)
