@@ -155,7 +155,15 @@ cd /home/arosenfeld/Code/nixos
 grep -rn "attic" modules/ installer-iso.nix
 ```
 
-Expected: **no output**. (`hosts/`, `justfile` and `hosts/basestar/services/niks3.nix` still mention attic on purpose — see Task 3's "what stays" list — but `modules/` and `installer-iso.nix` should be clean.)
+Expected: **exactly two lines**, both comments in `common.nix` — line 53 (`# which is the entire reason niks3 replaced attic: atticd sat in the`) and line 57 (`# This is the only cache we operate. attic was retired on 2026-09-07;`). Both are prose, not configuration. `installer-iso.nix` must produce no output at all.
+
+What matters is that no *substituter URL* or *key* survives, so check that directly:
+
+```bash
+grep -rn "attic.arsfeld.dev\|system:mUX40QMM" modules/ installer-iso.nix
+```
+
+Expected: **no output**.
 
 - [ ] **Step 5: Verify the evaluated configuration**
 
@@ -350,14 +358,18 @@ cd /home/arosenfeld/Code/nixos
 grep -rn "attic" justfile hosts/ modules/
 ```
 
-Expected exactly these four, all deliberate design rationale (per the spec's "What stays, and why"):
+Expected exactly these six, all deliberate design rationale (per the spec's "What stays, and why"):
 
 ```
+modules/constellation/common.nix:53:          # which is the entire reason niks3 replaced attic: atticd sat in the
+modules/constellation/common.nix:57:          # This is the only cache we operate. attic was retired on 2026-09-07;
 justfile:72:    # Unlike the attic push this replaces, upload failures DO fold into
 hosts/raider/configuration.nix:43:  # regression: raider already held an attic write token in
 hosts/basestar/services/niks3.nix:9:# That split is the whole point of replacing attic. atticd terminated uploads,
 hosts/basestar/services/niks3.nix:55:    # 30 days, not attic's 6 months, because CI pins the tier-1 closures. The
 ```
+
+Both `common.nix` lines are prose the retirement itself introduced or preserved — line 53 is the niks3-vs-atticd rationale, line 57 the replacement comment from Task 1. Neither asserts attic is reachable.
 
 Then confirm `CLAUDE.md` no longer claims attic is reachable:
 
@@ -950,9 +962,11 @@ cd /home/arosenfeld/Code/nixos
 grep -rn "attic" --exclude-dir=.git --exclude-dir=docs --exclude-dir=blog --exclude=CLAUDE.md .
 ```
 
-Expected exactly these six lines, all deliberate:
+Expected exactly these eight lines, all deliberate:
 
 ```
+modules/constellation/common.nix:53:          # which is the entire reason niks3 replaced attic: atticd sat in the
+modules/constellation/common.nix:57:          # This is the only cache we operate. attic was retired on 2026-09-07;
 justfile:72:    # Unlike the attic push this replaces, upload failures DO fold into
 .github/workflows/build.yml:162:          # keeps the exact shape the attic push had ...
 hosts/raider/configuration.nix:43:  # regression: raider already held an attic write token in
