@@ -204,7 +204,7 @@ implemented in this flake and never was" — that statement is now false, and th
 supersedes it.
 
 **It is deliberately not wired into `media.services`.** `b540e25` added a Kubernetes
-backend to `media.containers` in February; `0f23f9d` deleted it two months later, and the
+backend to `media.containers` on 2026-02-14; `0f23f9d` deleted it 23 days later, and the
 coupling was the reason. `media.services.<name>` remains the only way to declare a service;
 putting something in the cluster is a separate act with its own lane. Do not build a bridge
 between them again. The module is `modules/constellation/k3s.nix`, enabled from
@@ -226,9 +226,13 @@ nix vhost, add an Ingress.
 neither can work — which is worth knowing before someone reaches for the obvious thing a
 third time. A NodePort on `127.0.0.1` is impossible because kube-proxy runs in nftables
 mode, chosen so the proxier does not share the nftables ruleset with fail2ban and
-`nixos-fw`, and that proxier deliberately excludes loopback from NodePort matching (`fib
-daddr type local ip daddr != 127.0.0.0/8 … vmap @service-nodeports`). It is an intentional
-break from the iptables proxier and `nodePortAddresses` cannot override it. A `hostPort`
+`nixos-fw`, and that proxier deliberately excludes loopback from NodePort matching — an
+intentional break from the iptables proxier, and not something `nodePortAddresses` can
+override. Check the effect rather than the syntax: in `nft list table ip kube-proxy` the
+`nodeport-ips` set holds the node's real address (`10.0.0.33`) and never a loopback one.
+kube-proxy re-programs this rule in more than one shape across versions — it has already
+been seen both as a negated `127.0.0.0/8` prefix and as set membership — so a grep for
+particular rule text will rot while the behaviour holds. A `hostPort`
 with `hostIP: 127.0.0.1` is impossible because traefik's chart feeds that `hostIP` into
 traefik's own `--entryPoints.web.address` as well as into the pod spec, so traefik binds
 loopback *inside its own netns*, where the CNI portmap DNAT aimed at the pod's real address
