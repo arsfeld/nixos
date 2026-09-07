@@ -305,6 +305,36 @@ renaming a manifest attribute is a real operation with real consequences, not a 
 edit, and `traefik-clusterip` in particular must never be renamed. The module says why at
 length, next to the recovery steps.
 
+**PV data is backed up but does not restore itself.** basestar's backup plan excludes only
+`agent/containerd` (re-pullable layers) and `server/db` (a torn copy of a live sqlite is
+worse than none), so everything under `/var/lib/rancher/k3s/storage` is already in the
+rustic repo with no extra configuration — that half is true and needs nothing. The other
+half is that local-path names each directory `pvc-<uid>_<namespace>_<claim>`, and the uid
+is the *PersistentVolumeClaim's* uid, minted fresh by the API server. Rebuild the cluster
+and the restored bytes sit in a directory no new claim will ever look at, silently: the
+workload comes up on an empty volume rather than failing. So, after restoring the
+directory, either rename it or bind it by hand:
+
+```bash
+# a) rename to the new uid — simplest, and what to reach for first.
+#    Create the PVC (usually by deploying the app), scale its workload to 0, then:
+kubectl -n <ns> get pvc <claim> -o jsonpath='{.metadata.uid}'
+mv /var/lib/rancher/k3s/storage/pvc-<olduid>_<ns>_<claim> \
+   /var/lib/rancher/k3s/storage/pvc-<newuid>_<ns>_<claim>
+# scale back up.
+
+# b) or hand-write a PV over the restored directory and let the claim bind to it:
+#    kind: PersistentVolume with storageClassName: local-path,
+#    persistentVolumeReclaimPolicy: Retain, local.path: <restored dir>,
+#    nodeAffinity pinned to basestar, and a claimRef naming <ns>/<claim>.
+#    Use this when the directory must keep its name, or to restore a copy
+#    alongside the live volume.
+```
+
+`/var/lib/rancher/k3s/storage` does not exist yet — no PVC has been created. This is
+written before the first one on purpose; it is much cheaper to read here than to derive
+during a restore.
+
 k3s is pinned to `pkgs.k3s_1_35`, and must stay pinned to *some* explicit attribute rather
 than the floating `pkgs.k3s`. Kubernetes does not support skipping minor versions on
 upgrade, and `Weekly Update` runs `nix flake update` unattended every Sunday — unpinned,
