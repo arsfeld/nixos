@@ -315,7 +315,7 @@ CNAME makes every name under `arsfeld.dev` resolve whether or not any of this wo
 |---|---|---|
 | 1 | `systemctl status k3s` and `k3s kubectl get nodes` | node `Ready` |
 | 2 | `nft list ruleset` on basestar; `fail2ban-client status` | fail2ban's chains intact and populated alongside kube-proxy's |
-| 3 | `curl -I https://<unused>.arsfeld.dev` | **502**, not 200 with an empty body — proves the wildcard vhost is live and failing safe |
+| 3 | `curl -I https://<unused>.arsfeld.dev` | **404** from traefik — proves the vhost took, the wildcard cert covers it, and Caddy reaches the cluster. `200` means the vhost missed; `502` means the backend is unreachable |
 | 4 | Deploy a trivial app via Lane A; `curl https://<app>.arsfeld.dev` | 200 with the app's body, valid cert, no DNS or Caddy change made |
 | 5 | Remove that app from nix, deploy, then `k8s get all -n <ns>` | **empty** — this is risk 2, and the only check that catches it |
 | 6 | `just k8s-apply` a second app from raider | reachable within seconds, no `nixos-rebuild` |
