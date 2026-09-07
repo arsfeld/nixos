@@ -1003,10 +1003,16 @@ As in Task 3, the line count is the weak check. The one that matters:
 
 ```bash
 cd /home/arosenfeld/Code/nixos
-grep -rn "attic\.arsfeld\.dev\|system:mUX40QMM" --exclude-dir=.git --exclude-dir=docs --exclude-dir=blog .
+grep -rn "attic\.arsfeld\.dev\|system:mUX40QMM" \
+  --exclude-dir=.git --exclude-dir=docs --exclude-dir=blog --exclude=CLAUDE.md .
 ```
 
-Expected: **no output** — no surviving substituter URL or signing key anywhere outside the historical record.
+Expected: **no output** — no surviving substituter URL or signing key in any configuration.
+
+`CLAUDE.md` is excluded because its retirement paragraph names `attic.arsfeld.dev` in
+prose, deliberately, to explain why the hostname still resolves through the wildcard.
+Checking prose and checking configuration are different jobs; conflating them is what
+made three earlier versions of these sweeps assert impossible output.
 
 `CLAUDE.md` is excluded because it now narrates the retirement — checked separately in Task 3 Step 3. `docs/` and `blog/` are excluded on purpose: they are a historical record and should not be rewritten.
 
@@ -1057,10 +1063,11 @@ app and namespace on can-1 torn down, the `ATTIC_TOKEN` secret deleted, all four
 `attic.arsfeld.dev` DNS records removed, and the R2 buckets `attic`, `attic-data` and
 `attic-cache` deleted.
 
-`attic.arsfeld.dev` still *resolves*, and that is expected: the zone has a proxied
-`*.arsfeld.dev` wildcard CNAME, so the name now falls through to it and answers with a
-Cloudflare address. Nothing serves it — TLS fails there. Do not read a successful `dig`
-as evidence attic survived; check for a record of its own instead.
+`attic.arsfeld.dev` still *resolves*, and still answers HTTP 200, and both are expected:
+the zone has a proxied `*.arsfeld.dev` wildcard CNAME, so the name falls through to it and
+lands on the zone's catch-all. What comes back is an empty body with no `StoreDir`, which
+is not a usable binary cache. Neither a successful `dig` nor a 200 is evidence attic
+survived — check for a DNS record of its own, or for `StoreDir` in the response body.
 ```
 
 Leave the two paragraphs that follow it unchanged — the measurement and the

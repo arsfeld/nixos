@@ -1,7 +1,7 @@
 # Retire attic
 
 **Date:** 2026-09-06 (2026-09-07 UTC)
-**Status:** approved, not yet implemented
+**Status:** implemented 2026-09-07
 
 ## Problem
 
