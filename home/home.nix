@@ -564,27 +564,6 @@ in {
   #   enable = pkgs.stdenv.isLinux;
   # };
 
-  # Disabled on pegasus: the rclone config there has no "gdrive" section, so
-  # the unit crash-loops.
-  systemd.user.services.rclone-gdrive = mkIf (stdenv.isLinux && hostname != "pegasus") {
-    Unit = {
-      Description = "Mount Google Drive via rclone";
-      After = ["network-online.target"];
-    };
-    Service = {
-      Type = "notify";
-      ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p %h/gdrive";
-      ExecStart = "${pkgs.rclone}/bin/rclone mount gdrive: %h/gdrive --vfs-cache-mode full --vfs-cache-max-age 72h --dir-cache-time 5m";
-      ExecStop = "/run/wrappers/bin/fusermount3 -u %h/gdrive";
-      Restart = "on-failure";
-      RestartSec = 5;
-      Environment = ["PATH=/run/wrappers/bin"];
-    };
-    Install = {
-      WantedBy = ["default.target"];
-    };
-  };
-
   # `seaf-cli start` requires an already-initialised config directory (~/.ccnet)
   # and exits 1 with "Invalid config directory" without one. Nothing ever
   # created it, so the unit could only ever crash-loop — it had racked up 19811
