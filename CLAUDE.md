@@ -180,8 +180,8 @@ Configured via `.sops.yaml`. All hosts use `constellation.sops.enable = true`. U
 
 The Oracle Cloud tenancy behind basestar and the three in-use Cloudflare DNS
 zones (`arsfeld.dev`, `arsfeld.one`, `rosenfeld.one`) are managed as code under
-`infra/`, written as terranix Nix modules rather than HCL. 56 resources are
-under management: 50 `cloudflare_dns_record` plus 6 Oracle resources (VCN,
+`infra/`, written as terranix Nix modules rather than HCL. 52 resources are
+under management: 46 `cloudflare_dns_record` plus 6 Oracle resources (VCN,
 internet gateway, default route table, default security list, subnet,
 instance).
 

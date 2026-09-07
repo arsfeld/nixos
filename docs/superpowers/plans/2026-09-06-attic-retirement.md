@@ -1052,10 +1052,15 @@ with:
 ```
 attic is gone. It was the binary cache until niks3 replaced it on 2026-08-21 (`60dc149`,
 `194bfe3`), sat frozen as a read-only fallback for 17 days, and was retired entirely on
-2026-09-07: substituter and `system:` key removed from every host and from CI,
-`attic.arsfeld.dev` no longer resolving, the argocd app and namespace on can-1 torn down,
-the `ATTIC_TOKEN` secret deleted, and the R2 buckets `attic`, `attic-data` and
+2026-09-07: substituter and `system:` key removed from every host and from CI, the argocd
+app and namespace on can-1 torn down, the `ATTIC_TOKEN` secret deleted, all four
+`attic.arsfeld.dev` DNS records removed, and the R2 buckets `attic`, `attic-data` and
 `attic-cache` deleted.
+
+`attic.arsfeld.dev` still *resolves*, and that is expected: the zone has a proxied
+`*.arsfeld.dev` wildcard CNAME, so the name now falls through to it and answers with a
+Cloudflare address. Nothing serves it — TLS fails there. Do not read a successful `dig`
+as evidence attic survived; check for a record of its own instead.
 ```
 
 Leave the two paragraphs that follow it unchanged — the measurement and the
