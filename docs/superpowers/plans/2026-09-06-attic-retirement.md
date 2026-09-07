@@ -358,18 +358,27 @@ cd /home/arosenfeld/Code/nixos
 grep -rn "attic" justfile hosts/ modules/
 ```
 
-Expected exactly these six, all deliberate design rationale (per the spec's "What stays, and why"):
+Expected exactly these seven, all deliberate design rationale (per the spec's "What stays, and why"):
 
 ```
-modules/constellation/common.nix:53:          # which is the entire reason niks3 replaced attic: atticd sat in the
-modules/constellation/common.nix:57:          # This is the only cache we operate. attic was retired on 2026-09-07;
 justfile:72:    # Unlike the attic push this replaces, upload failures DO fold into
 hosts/raider/configuration.nix:43:  # regression: raider already held an attic write token in
+hosts/raider/configuration.nix:44:  # ~/.config/attic/config.toml.
 hosts/basestar/services/niks3.nix:9:# That split is the whole point of replacing attic. atticd terminated uploads,
 hosts/basestar/services/niks3.nix:55:    # 30 days, not attic's 6 months, because CI pins the tier-1 closures. The
+modules/constellation/common.nix:53:          # which is the entire reason niks3 replaced attic: atticd sat in the
+modules/constellation/common.nix:57:          # This is the only cache we operate. attic was retired on 2026-09-07;
 ```
 
-Both `common.nix` lines are prose the retirement itself introduced or preserved — line 53 is the niks3-vs-atticd rationale, line 57 the replacement comment from Task 1. Neither asserts attic is reachable.
+Note `raider:43` and `raider:44` are one wrapped comment, and both `common.nix` lines are prose the retirement itself introduced or preserved. None asserts attic is reachable.
+
+Counting comment lines by eye is what made two earlier versions of this step wrong. The check that actually matters is that no *functional* reference survives — assert that directly rather than trusting the line count:
+
+```bash
+grep -rn "attic\.arsfeld\.dev\|system:mUX40QMM" justfile hosts/ modules/ .github/ installer-iso.nix
+```
+
+Expected: **no output**.
 
 Then confirm `CLAUDE.md` no longer claims attic is reachable:
 
@@ -962,20 +971,30 @@ cd /home/arosenfeld/Code/nixos
 grep -rn "attic" --exclude-dir=.git --exclude-dir=docs --exclude-dir=blog --exclude=CLAUDE.md .
 ```
 
-Expected exactly these eight lines, all deliberate:
+Expected exactly these nine lines, all deliberate:
 
 ```
-modules/constellation/common.nix:53:          # which is the entire reason niks3 replaced attic: atticd sat in the
-modules/constellation/common.nix:57:          # This is the only cache we operate. attic was retired on 2026-09-07;
 justfile:72:    # Unlike the attic push this replaces, upload failures DO fold into
 .github/workflows/build.yml:162:          # keeps the exact shape the attic push had ...
 hosts/raider/configuration.nix:43:  # regression: raider already held an attic write token in
+hosts/raider/configuration.nix:44:  # ~/.config/attic/config.toml.
 hosts/basestar/services/niks3.nix:9:# That split is the whole point of replacing attic ...
 hosts/basestar/services/niks3.nix:55:    # 30 days, not attic's 6 months ...
+modules/constellation/common.nix:53:          # which is the entire reason niks3 replaced attic: atticd sat in the
+modules/constellation/common.nix:57:          # This is the only cache we operate. attic was retired on 2026-09-07;
 infra/dns/arsfeld-dev.nix:104:    # to it. attic's three went with attic on 2026-09-07.
 ```
 
-(The `infra/dns` line number shifts as records are removed; match the text, not the number.)
+(The `infra/dns` line number shifts as records are removed; match the text, not the number. `raider:43`/`:44` are one wrapped comment.)
+
+As in Task 3, the line count is the weak check. The one that matters:
+
+```bash
+cd /home/arosenfeld/Code/nixos
+grep -rn "attic\.arsfeld\.dev\|system:mUX40QMM" --exclude-dir=.git --exclude-dir=docs --exclude-dir=blog .
+```
+
+Expected: **no output** — no surviving substituter URL or signing key anywhere outside the historical record.
 
 `CLAUDE.md` is excluded because it now narrates the retirement — checked separately in Task 3 Step 3. `docs/` and `blog/` are excluded on purpose: they are a historical record and should not be rewritten.
 
