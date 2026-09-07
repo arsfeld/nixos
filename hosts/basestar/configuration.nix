@@ -142,6 +142,18 @@
         # re-pullable from a registry. Excluded fleet-wide so the same doesn't
         # accumulate here unnoticed.
         "**/.local/share/containers"
+        # k3s's containerd image store. Gigabytes of layers, every one of them
+        # re-pullable from a registry - the same case that made
+        # **/.local/share/containers an exclusion after it turned out to be
+        # 1.56M files on galactica.
+        "/var/lib/rancher/k3s/agent/containerd"
+        # The sqlite cluster store. A copy taken from a live sqlite is torn,
+        # and restoring one is worse than not having it. The cluster is
+        # disposable by design: Lane A manifests live in this flake and Lane B
+        # manifests live in git, so a lost cluster is rebuilt by deploying and
+        # re-applying. PV data under /var/lib/rancher/k3s/storage is what
+        # cannot be rebuilt, and it stays in the backup.
+        "/var/lib/rancher/k3s/server/db"
       ];
       excludeIfPresent = [".nobackup" "CACHEDIR.TAG"];
       schedule.cron = "30 3 * * *";
