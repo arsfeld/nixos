@@ -245,6 +245,21 @@ node's own network namespace: nothing off-box has a route to it and no host port
 anywhere. The isolation is a property of the address rather than of a firewall rule, which
 is what lets it hold without one.
 
+**Pinning the address is only half of it — the Service must also be `type: ClusterIP`.**
+It was not until 2026-09-07: the chart's default is `LoadBalancer`, and pinning
+`service.spec.clusterIP` does nothing to stop that type from *also* allocating NodePorts
+(80:31575, 443:31396 on the node address). The host firewall does not gate those. kube-proxy
+DNATs a NodePort at prerouting, so the packet is forwarded and never enters `inet nixos-fw
+input`, and `networking.firewall.filterForward = false` leaves the forward hook at policy
+accept with no `nixos-fw forward` chain — `allowedTCPPorts` is not in that path at all.
+Only Oracle's security list stood in front of them. The latent half was worse: the Service
+is `ipFamilyPolicy: PreferDualStack`, basestar's public IPv6 is already in `nft list set ip6
+kube-proxy nodeport-ips`, and OCI's v6 ingress rule is `::/0` for all protocols, so ever
+switching k3s to dual-stack would have put traefik on the public internet past both Caddy
+and the firewall with no change to any file. `type: ClusterIP` allocates no node port to
+leak. Both keys go under `service.spec` — the chart passes that through verbatim, which is
+why a top-level `service.type` is a silently dead key.
+
 **Anything exposed through an Ingress is public on the internet.** The wildcard vhost
 carries no `forward_auth` — the exact inverse of galactica's gateway, where Authelia is the
 default and `bypassAuth = true` is the exception. Auth is each app's own problem, or a
