@@ -341,39 +341,63 @@ In `modules/constellation/k3s.nix`, extend `options.constellation.k3s`:
     };
 ```
 
-- [ ] **Step 4: Pin traefik to the NodePort**
+- [ ] **Step 4: Bind traefik to loopback with hostPort**
 
-In the same file's `config` block, add to `services.k3s`:
+**Design correction (2026-09-07).** The original plan routed Caddy to traefik through a
+NodePort at `127.0.0.1:30080`. That cannot work: Task 1 puts kube-proxy in **nftables**
+mode, and the nftables proxier deliberately excludes loopback from NodePort matching. The
+live rule on basestar reads:
+
+```
+fib daddr type local ip daddr != 127.0.0.0/8 meta l4proto . th dport vmap @service-nodeports
+```
+
+Upstream calls this an intentional break from iptables mode, which did serve NodePorts on
+127.0.0.1. Reverting to iptables mode would undo the one Task 1 decision that keeps
+kube-proxy from sharing nftables with fail2ban and `nixos-fw` on a public host.
+
+The fix is to stop using a NodePort for ingress. traefik binds the host port directly via
+the CNI portmap plugin — verified present on basestar, with `"portMappings":true` in
+`/var/lib/rancher/k3s/agent/etc/cni/net.d/10-flannel.conflist` — and binds it to
+**127.0.0.1 only**, so the listener is loopback by binding rather than by firewall rule.
+kube-proxy leaves the ingress path entirely.
+
+In `modules/constellation/k3s.nix`, add to `services.k3s`:
 
 ```nix
-      manifests.traefik-nodeport.content = {
+      manifests.traefik-hostport.content = {
         apiVersion = "helm.cattle.io/v1";
         kind = "HelmChartConfig";
         metadata = {
           name = "traefik";
           namespace = "kube-system";
         };
-        # valuesContent is a YAML string the HelmChartConfig controller merges
-        # into the bundled chart's values.
+        # hostIP pins the listener to loopback, so this port is unreachable from
+        # outside the host by binding - not merely because allowedTCPPorts omits
+        # it. Caddy is the only client and it runs on this host.
+        #
+        # NOT a NodePort: kube-proxy's nftables proxier excludes 127.0.0.0/8 from
+        # NodePort matching by design, so a loopback NodePort can never work.
         spec.valuesContent = ''
-          service:
-            type: NodePort
           ports:
             web:
-              nodePort: ${toString cfg.nodePort}
-              forwardedHeaders:
-                trustedIPs:
-                  - 127.0.0.1/32
-                  - 10.42.0.0/16
-                  - 10.43.0.0/16
+              hostPort: ${toString cfg.nodePort}
+              hostIP: 127.0.0.1
         '';
       };
 ```
 
-Two notes for whoever reads this later:
+(The `nodePort` option name is kept for continuity; it now names the host port. Renaming it
+is a follow-up, not part of this task.)
 
-- `ports.websecure` is deliberately left exposed. Disabling it needs a chart-version-specific spelling (`expose: false` vs `expose.default: false`), and the extra NodePort is unreachable anyway: the host firewall allows only 22/80/443 and NodePorts are not in that allowlist.
-- `forwardedHeaders.trustedIPs` must cover the source address traefik actually sees. NodePort traffic is SNATed by kube-proxy under the default `externalTrafficPolicy: Cluster`, so the pod CIDR is the relevant range, not Caddy's address.
+Two notes:
+
+- traefik's Service is left alone. With servicelb disabled it stays `LoadBalancer` with no
+  external IP and allocates an unused NodePort — vestigial and harmless, since nothing
+  targets it and the firewall does not admit it. Do not fight the chart's `service.type`
+  key; the ingress path no longer depends on the Service at all.
+- `ports.web` must not carry a `redirectTo: websecure`. Caddy has already terminated TLS,
+  so that redirect is an infinite loop. Step 10 checks for it.
 
 - [ ] **Step 5: Generate the certs and vhosts**
 
@@ -457,14 +481,24 @@ curl -sS -o /dev/null -w '%{http_code}\n' https://k3s-probe.arsfeld.dev
 ```
 Expected: `502`. Nothing serves that name inside the cluster, and a 502 proves the wildcard vhost is live and failing safe. A `200` means the vhost did not take; a certificate error means the wildcard SAN is missing.
 
-- [ ] **Step 10: Verify traefik took the NodePort, and is not redirecting**
+- [ ] **Step 10: Verify traefik bound loopback, and is not redirecting**
 
 ```bash
-just k8s::k -n kube-system get svc traefik
-just k8s::k -n kube-system get helmchartconfig traefik -o jsonpath='{.spec.valuesContent}'
+just k8s::k -n kube-system get pod -l app.kubernetes.io/name=traefik \
+  -o jsonpath='{.items[0].spec.containers[0].ports}'
+ssh root@basestar.bat-boa.ts.net 'ss -tlnp | grep 30080'
 ssh root@basestar.bat-boa.ts.net 'curl -sS -o /dev/null -w "%{http_code} %{redirect_url}\n" -H "Host: k3s-probe.arsfeld.dev" http://127.0.0.1:30080/'
 ```
-Expected: `TYPE NodePort` with `80:30080/TCP` in the PORT(S) column; the valuesContent echoing what Step 4 set; and the loopback curl returning `404` with an **empty** redirect_url.
+Expected: the pod's port list showing `hostPort: 30080` **and** `hostIP: 127.0.0.1`; `ss` showing a listener on `127.0.0.1:30080` and **not** on `0.0.0.0:30080`; and the loopback curl returning `404` with an **empty** redirect_url.
+
+A listener on `0.0.0.0:30080` means `hostIP` did not take — the chart key may differ by version. Stop and report rather than accepting it: the whole point of `hostIP` is that the port is loopback-only by binding, not merely because `allowedTCPPorts` omits it.
+
+Also confirm from outside that it is genuinely not exposed:
+
+```bash
+timeout 5 curl -sS -o /dev/null -w '%{http_code}\n' http://basestar.bat-boa.ts.net:30080/ ; echo "exit=$?"
+```
+Expected: a connection failure (non-zero exit), not an HTTP status.
 
 A `301`/`308` to an `https://` URL means the chart carries `ports.web.redirectTo: websecure`. Caddy has already terminated TLS, so that redirect is an infinite loop — add `ports.web.redirectTo: ""` to the `valuesContent` in Step 4 and redeploy before continuing.
 
