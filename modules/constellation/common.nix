@@ -53,15 +53,13 @@ with lib; {
           # which is the entire reason niks3 replaced attic: atticd sat in the
           # read path, and every time can-1 ran out of memory three tier-1
           # hosts stopped being deployable under `max-jobs = 0`.
+          #
+          # This is the only cache we operate. attic was retired on 2026-09-07;
+          # there is no second endpoint to fall back to.
           "https://cache.arsfeld.dev"
-          # attic is frozen — CI no longer pushes to it — but still serves
-          # every path it already holds, which keeps the cold-cache window
-          # short while R2 fills. Dropped when attic is retired.
-          "https://attic.arsfeld.dev/system"
         ];
         trusted-public-keys = lib.mkAfter [
           "cache.arsfeld.dev-1:rf7PgrG/BVE3llOcYdiP0hNqIvOSvIQoz7zoH1kt1d8="
-          "system:mUX40QMM+dqZ0wQaHp7sH50UgiZnSXsInzc9/MvaZRc="
         ];
       };
 

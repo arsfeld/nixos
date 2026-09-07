@@ -19,11 +19,9 @@
     experimental-features = ["nix-command" "flakes"];
     extra-substituters = [
       "https://cache.arsfeld.dev"
-      "https://attic.arsfeld.dev/system"
     ];
     extra-trusted-public-keys = [
       "cache.arsfeld.dev-1:rf7PgrG/BVE3llOcYdiP0hNqIvOSvIQoz7zoH1kt1d8="
-      "system:mUX40QMM+dqZ0wQaHp7sH50UgiZnSXsInzc9/MvaZRc="
     ];
   };
 
