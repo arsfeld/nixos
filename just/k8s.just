@@ -47,7 +47,13 @@ k *ARGS:
     fi
     # `^out` skips kubectl's separate `man` output; plain `nixpkgs#kubectl`
     # resolves to two store paths, which breaks the single-path assumption below.
-    kubectl=$(nix build --no-link --print-out-paths 'nixpkgs#kubectl^out')/bin/kubectl
+    #
+    # --inputs-from is load-bearing: without it `nixpkgs#` comes from the flake
+    # registry, re-resolved on every invocation, against a server this flake
+    # pins to k3s 1.35. Kubernetes supports one minor of client/server skew, so
+    # a registry that has drifted two ahead breaks kubectl with no change here.
+    kubectl=$(nix build --no-link --print-out-paths \
+      --inputs-from '{{ justfile_directory() }}' 'nixpkgs#kubectl^out')/bin/kubectl
     KUBECONFIG='{{ KUBECONFIG_PATH }}' "$kubectl" {{ ARGS }}
 
 # Apply a manifest or kustomization from the workstation - the fast lane.
@@ -63,8 +69,9 @@ apply PATH:
         echo "no kubeconfig; run: just k8s::kubeconfig" >&2
         exit 1
     fi
-    # `^out` skips kubectl's separate `man` output; plain `nixpkgs#kubectl`
-    # resolves to two store paths, which breaks the single-path assumption below.
-    kubectl=$(nix build --no-link --print-out-paths 'nixpkgs#kubectl^out')/bin/kubectl
+    # `^out` and --inputs-from as in `k` above: one store path, and a kubectl
+    # from this flake's locked nixpkgs rather than from the ambient registry.
+    kubectl=$(nix build --no-link --print-out-paths \
+      --inputs-from '{{ justfile_directory() }}' 'nixpkgs#kubectl^out')/bin/kubectl
     KUBECONFIG='{{ KUBECONFIG_PATH }}' "$kubectl" apply \
         --server-side --validate=strict -f '{{ PATH }}'
