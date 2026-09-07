@@ -48,7 +48,7 @@ Four decisions, each of which removes something can-1 needs:
 | TLS | cert-manager (3 pods) | existing `security.acme` wildcard cert | 3 pods, a cert lifecycle |
 | DNS | external-dns (1 pod) | existing `*.arsfeld.dev` CNAME | 1 pod, Cloudflare API writes |
 | Delivery | ArgoCD (7 pods) | nix at activation + `kubectl` | 7 pods, a CRD surface |
-| Edge | traefik owns `:80`/`:443` | Caddy keeps them, traefik on a loopback hostPort | fail2ban and the existing vhosts stay untouched |
+| Edge | traefik owns `:80`/`:443` | Caddy keeps them, traefik on a pinned ClusterIP | fail2ban and the existing vhosts stay untouched; no host port bound at all |
 
 Platform cost lands at roughly **1.2 GiB** — k3s server, traefik, coredns, metrics-server,
 local-path — against 18 GiB available on a box sitting at load 0.2.
@@ -122,7 +122,7 @@ wildcard to it:
 > a stronger guarantee than the original loopback design, and it needs no firewall rule.
 
 ```
-*.arsfeld.dev  ->  reverse_proxy 127.0.0.1:30080   (useACMEHost = "arsfeld.dev")
+*.arsfeld.dev  ->  reverse_proxy 10.43.0.80:80   (useACMEHost = "arsfeld.dev")
 ```
 
 Because the wildcard DNS CNAME already exists and the wildcard TLS cert already exists, a
@@ -132,12 +132,10 @@ wildcards, so every existing explicit vhost (blog, planka, siyuan, niks3, radicl
 the apex, `www`, and the attic tombstone) keeps winning, unchanged. Migrating one into the
 cluster later is: delete its nix vhost, add an Ingress.
 
-Traefik terminates nothing. Caddy holds TLS; traffic from Caddy to the host port is plain
-HTTP on loopback. One traefik value is easy to miss: `ports.web` must not carry a
-`redirectTo: websecure` — Caddy has already terminated TLS, so that redirect is an infinite
-loop. (`forwardedHeaders.trustedIPs` was needed under the original NodePort design, because
-kube-proxy SNATs and traefik would have seen the pod CIDR rather than Caddy. With
-`hostPort` there is no SNAT: traefik sees `127.0.0.1` directly.)
+Traefik terminates nothing. Caddy holds TLS; traffic from Caddy to the ClusterIP is plain
+HTTP, and never leaves the node. One traefik value is easy to miss: `ports.web` must not
+carry a `redirectTo: websecure` — Caddy has already terminated TLS, so that redirect is an
+infinite loop.
 
 **A property to accept deliberately:** the wildcard vhost carries no `forward_auth`.
 Anything exposed through an Ingress is **public on the internet by default**. This is the
