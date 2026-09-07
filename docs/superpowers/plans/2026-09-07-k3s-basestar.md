@@ -1148,14 +1148,43 @@ nix build .#nixosConfigurations.galactica.config.system.build.toplevel
 ```
 Expected: PASS.
 
-- [ ] **Step 6: Install by hand, then run it early**
+- [ ] **Step 6: Install by hand — and read this before running the job**
 
 ```bash
 just deploy galactica
+```
+
+⚠️ **`systemctl start weekly-deploy` is not a local test. It deploys every tier-1 host from
+`origin/master`.** This bit during implementation on 2026-09-07: the job was started while
+this branch's commits were still local-only, so galactica reset its checkout to the last
+pushed commit and deployed *basestar* from it — rolling k3s off the host entirely
+(`k3s.service` gone, reconcile unit gone) while reporting `deploy: ok`. Recovery was a
+`just deploy basestar`; the cluster's own data under `/var/lib/rancher` survived, so only
+the systemd units had to come back.
+
+Two consequences worth internalising:
+
+- **Push first, and wait for CI.** `weekly-deploy` runs under `max-jobs = 0`, so it can only
+  deploy a commit CI has already built. Running it on an unpushed branch does not fail
+  safe — it silently deploys the *older* pushed commit over your work.
+- The stale-unit hazard CLAUDE.md documents has a mirror image: the deployer can deploy
+  *away* the very change you just installed by hand.
+
+So the sequence is: push, wait for `Build & Cache` to go green for your commit, then:
+
+```bash
 ssh root@galactica.bat-boa.ts.net 'systemctl start weekly-deploy'
 ssh root@galactica.bat-boa.ts.net 'journalctl -u weekly-deploy -n 60 --no-pager'
 ```
-Expected: the run completes and the summary contains a `disk:` field for each of galactica, basestar and raider, with a plausible percentage (basestar should read ~65).
+Expected: the summary carries a `DISK=` figure for each of galactica, basestar and raider,
+with basestar around 65-70.
+
+Afterwards, confirm the job did not disturb basestar:
+
+```bash
+ssh root@basestar.bat-boa.ts.net 'systemctl is-active k3s k3s-manifest-reconcile'
+```
+Expected: `active` twice.
 
 - [ ] **Step 7: Confirm the threshold logic**
 
