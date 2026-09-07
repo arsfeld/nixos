@@ -118,10 +118,14 @@
     }
   ];
 in {
-  services.k3s.manifests.whoami.content = mkApp {
-    name = "whoami";
-    image = "traefik/whoami:latest";
-    port = 80;
-    host = "whoami.arsfeld.dev";
-  };
+  # No apps declared. `mkApp` above is the entry point:
+  #
+  #   services.k3s.manifests.<name>.content = mkApp {
+  #     name = "<name>"; image = "..."; port = 80; host = "<name>.arsfeld.dev";
+  #   };
+  #
+  # Deleting such a block again is all that is needed - k3s-manifest-reconcile
+  # in modules/constellation/k3s.nix deletes the objects, the AddOn and the
+  # stale symlink on the next activation. That is how the whoami fixture this
+  # file used to carry was removed, and proving that is what retired it.
 }

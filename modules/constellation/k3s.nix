@@ -151,8 +151,14 @@ in {
       };
     };
 
-    # RULE: every rename of a services.k3s.manifests attribute needs its own
-    # "r" entry here, forever — not just the two below.
+    # Two "r" entries that predate the reconcile unit below, kept forever.
+    #
+    # The reconcile unit generalizes this: from now on a rename cleans itself
+    # up, because the old name is in the state file. These two are not — they
+    # were dropped before the state file existed, so reconcile can never see
+    # them and only an explicit rule removes them. They also survive a rollback
+    # to a generation older than the reconcile unit, which the state file
+    # cannot.
     #
     # services.k3s.manifests is realized as one systemd-tmpfiles "L+" rule per
     # attribute name, and "L+" only creates or updates the symlink for a rule
@@ -171,6 +177,127 @@ in {
       "r /var/lib/rancher/k3s/server/manifests/traefik-nodeport.yaml"
       "r /var/lib/rancher/k3s/server/manifests/traefik-hostport.yaml"
     ];
+
+    # Removing a manifest from nix does not remove it from the cluster, and
+    # nothing anywhere reports that. tmpfiles L+ rules create and replace but
+    # never remove, so the symlink survives; and k3s leaves an AddOn's
+    # resources running when its file disappears (k3s-io/k3s#1971).
+    #
+    # The state file is what makes this safe. k3s writes its OWN packaged
+    # manifests into this directory at startup - traefik.yaml, coredns.yaml,
+    # local-storage.yaml, ccm.yaml, rolebindings.yaml, runtimes.yaml and the
+    # metrics-server/ *directory*. Deleting "everything not declared in nix"
+    # would delete coredns and traefik. Only names that nix declared on a
+    # previous activation are ever eligible for removal, which is also why the
+    # loop iterates the state file and never the directory - a directory entry
+    # is never a candidate in the first place.
+    systemd.services.k3s-manifest-reconcile = {
+      description = "Remove k3s auto-deploy manifests no longer declared in nix";
+      after = ["k3s.service"];
+      requires = ["k3s.service"];
+      wantedBy = ["multi-user.target"];
+      path = [config.services.k3s.package];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = let
+        manifestDir = "/var/lib/rancher/k3s/server/manifests";
+        stateFile = "/var/lib/rancher/k3s/nix-managed-manifests";
+        # A store file, not a heredoc. Nix's '' strings strip common leading
+        # indentation from literal lines but splice interpolations in
+        # verbatim, so a multi-line list inside an indented heredoc produces
+        # a first line at one indent and the rest at another, and the EOF
+        # terminator's column depends on the rest of the script. writeText
+        # sidesteps all of it.
+        declared = pkgs.writeText "k3s-declared-manifests" (
+          concatMapStrings (t: t + "\n")
+          (mapAttrsToList (_: m: m.target)
+            (filterAttrs (_: m: m.enable)
+              (config.services.k3s.manifests // config.services.k3s.autoDeployCharts)))
+        );
+      in ''
+        set -euo pipefail
+
+        current=${declared}
+
+        touch ${stateFile}
+
+        # k3s.service being active does not mean the API answers yet.
+        for _ in $(seq 1 60); do
+          k3s kubectl get --raw /readyz >/dev/null 2>&1 && break
+          sleep 2
+        done
+
+        # A failed removal must not advance the state file. The state file is
+        # the only record that makes a name eligible for deletion at all, so
+        # dropping a name that was not actually removed leaves the resources
+        # running with nothing anywhere reporting it - the exact failure mode
+        # this unit exists to close. On failure the manifest and the state
+        # file are both left alone and the unit exits non-zero; the next
+        # activation retries, and every step is idempotent.
+        rc=0
+
+        while read -r base; do
+          [ -n "$base" ] || continue
+          # Still declared? Leave it alone.
+          grep -qxF "$base" "$current" && continue
+
+          addon="''${base%.*}"
+          file="${manifestDir}/$base"
+          echo "reconcile: $base is no longer declared in nix; removing addon $addon"
+
+          ok=1
+
+          # Deleting the AddOn does NOT delete what it applied. k3s tracks an
+          # AddOn's objects with objectset.rio.cattle.io/owner-* ANNOTATIONS,
+          # not ownerReferences - the objects are cluster-scoped or live in
+          # another namespace, which ownerReferences cannot express - and the
+          # deploy controller has no OnRemove handler to act on them
+          # (k3s-io/k3s#1971, still open). Measured on this host with k3s
+          # 1.35: `kubectl delete addon whoami` succeeded, the AddOn was gone,
+          # and the Namespace, Deployment, Service, Ingress and pod all kept
+          # running and serving 200.
+          #
+          # So delete the objects from the manifest itself. It is on disk
+          # precisely because tmpfiles never removed it - the other half of
+          # the bug is what makes the fix possible - and it is the narrowest
+          # delete available: it names exactly the objects nix declared under
+          # this one attribute and cannot name anything else.
+          #
+          # </dev/null on the AddOn delete because this loop's stdin is the
+          # state file; a child that read it would swallow the names still to
+          # be processed.
+          if [ -e "$file" ]; then
+            if ! k3s kubectl delete -f "$file" --ignore-not-found --wait=false; then
+              echo "reconcile: failed to delete $addon's objects from $file" >&2
+              ok=0
+            fi
+          else
+            echo "reconcile: $file is missing, so $addon's objects cannot be enumerated; they may still be running" >&2
+          fi
+
+          if ! k3s kubectl delete addon -n kube-system "$addon" \
+            --ignore-not-found --wait=false </dev/null; then
+            echo "reconcile: failed to delete addon $addon" >&2
+            ok=0
+          fi
+
+          # Only once both succeeded. Removing the manifest early would throw
+          # away the only list of objects a retry could work from.
+          if [ "$ok" -eq 1 ]; then
+            rm -f "$file"
+          else
+            echo "reconcile: keeping $base in ${stateFile} to retry on the next activation" >&2
+            rc=1
+          fi
+        done < ${stateFile}
+
+        [ "$rc" -eq 0 ] || exit 1
+
+        install -m 0644 "$current" ${stateFile}
+      '';
+    };
 
     # Host-level trust for the pod network, the same pattern already used for
     # podman0. Nothing is added to allowedTCPPorts and no per-service rule is
