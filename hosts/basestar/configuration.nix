@@ -11,7 +11,10 @@
   ];
 
   constellation.podman.enable = true;
-  constellation.k3s.enable = true;
+  constellation.k3s = {
+    enable = true;
+    domains = ["arsfeld.dev"];
+  };
   constellation.sites.arsfeld-dev.enable = true;
   constellation.sites.rosenfeld-one = {
     enable = true;
@@ -210,9 +213,6 @@
     ];
   };
 
-  security.acme.certs."arsfeld.dev" = {
-    extraDomainNames = ["*.arsfeld.dev"];
-  };
-
-  # Plausible will use the wildcard certificate above
+  # Plausible will use the wildcard certificate declared by
+  # constellation.sites.arsfeld-dev.
 }
