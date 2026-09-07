@@ -100,3 +100,5 @@ scripts/recover-from-r2.sh
 
 # superpowers SDD scratch (ledgers, briefs, review packages)
 .superpowers/
+
+.k8s/
