@@ -68,6 +68,13 @@ in {
         content is rendered into the nix store by pkgs.formats.yaml.generate,
         and the store is world-readable.
 
+        Rotation is handled: the generated unit re-runs on every activation,
+        so changing the *content* of a file on disk (a resealed sops secret,
+        say) reaches the cluster on the next deploy with nothing extra for
+        the caller to declare. That is why the unit is a plain oneshot and
+        not RemainAfterExit — see the comment on the unit below, and do not
+        add RemainAfterExit back.
+
         There is no reconcile path for removed entries, unlike the manifest
         reconcile unit below: deleting a `constellation.k3s.secrets.<name>`
         attribute removes the systemd unit that created it, but not the
@@ -292,6 +299,21 @@ in {
     # create secret`, piped to the API server; it is never written anywhere
     # this module controls, and never rendered into the nix store the way
     # services.k3s.manifests content is.
+    #
+    # NO RemainAfterExit HERE, deliberately. What this unit reads is the
+    # *content* of a path on disk, and that content is invisible to nix: a
+    # resealed sops secret changes /run/secrets/<x> without changing one byte
+    # of this unit's store hash. switch-to-configuration restarts a unit whose
+    # definition changed, so with RemainAfterExit=true an already-active
+    # oneshot is simply left alone — the rotated value never reaches the
+    # cluster and nothing anywhere says so. That is the same silent-failure
+    # shape as the dropped-manifest bug the reconcile unit below exists to
+    # close, and it deserves the same answer rather than a caller-side
+    # convention (sops.secrets.<x>.restartUnits) that only works when someone
+    # remembers it. Without RemainAfterExit the unit is inactive between
+    # activations, so starting multi-user.target runs it again every time.
+    # The script is idempotent and costs one `kubectl apply`, so re-running it
+    # unconditionally is the cheap half of this trade.
     systemd.services =
       mapAttrs' (name: s:
         nameValuePair "k3s-secret-${name}" {
@@ -300,10 +322,7 @@ in {
           requires = ["k3s.service"];
           wantedBy = ["multi-user.target"];
           path = [config.services.k3s.package];
-          serviceConfig = {
-            Type = "oneshot";
-            RemainAfterExit = true;
-          };
+          serviceConfig.Type = "oneshot";
           script = ''
             set -euo pipefail
 
