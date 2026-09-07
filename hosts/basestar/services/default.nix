@@ -5,6 +5,7 @@
   # back. Keeping them running split Cloudflare tunnel traffic between the
   # two hosts and caused split-brain writes to the stateful services.
   imports = [
+    ./attic-tombstone.nix
     ./blog.nix
     ./gatus.nix
     ./niks3.nix
