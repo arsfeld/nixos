@@ -48,7 +48,7 @@ Four decisions, each of which removes something can-1 needs:
 | TLS | cert-manager (3 pods) | existing `security.acme` wildcard cert | 3 pods, a cert lifecycle |
 | DNS | external-dns (1 pod) | existing `*.arsfeld.dev` CNAME | 1 pod, Cloudflare API writes |
 | Delivery | ArgoCD (7 pods) | nix at activation + `kubectl` | 7 pods, a CRD surface |
-| Edge | traefik owns `:80`/`:443` | Caddy keeps them, traefik on a NodePort | fail2ban and the existing vhosts stay untouched |
+| Edge | traefik owns `:80`/`:443` | Caddy keeps them, traefik on a loopback hostPort | fail2ban and the existing vhosts stay untouched |
 
 Platform cost lands at roughly **1.2 GiB** — k3s server, traefik, coredns, metrics-server,
 local-path — against 18 GiB available on a box sitting at load 0.2.
@@ -99,9 +99,18 @@ raider and from nowhere else.
 
 ### The edge
 
-Caddy keeps `:80` and `:443`. Traefik's Service becomes `type: NodePort` with a pinned
-`web` nodePort of 30080, set through a `HelmChartConfig` in `kube-system`. One new Caddy
-vhost per domain proxies the wildcard to it:
+Caddy keeps `:80` and `:443`. Traefik binds host port 30080 **on 127.0.0.1 only**, through
+a `HelmChartConfig` in `kube-system` setting `ports.web.hostPort` and `ports.web.hostIP`.
+One new Caddy vhost per domain proxies the wildcard to it:
+
+> **Corrected 2026-09-07, during implementation.** This originally specified a NodePort at
+> `127.0.0.1:30080`. That is unreachable: kube-proxy's nftables mode — chosen above, and
+> correctly, to keep the proxier out of fail2ban's and `nixos-fw`'s way — deliberately
+> excludes `127.0.0.0/8` from NodePort matching, an intentional break from iptables mode.
+> The live rule reads `fib daddr type local ip daddr != 127.0.0.0/8 … vmap @service-nodeports`.
+> `hostPort` with `hostIP` removes kube-proxy from the ingress path altogether and makes the
+> listener loopback-only *by binding* rather than by firewall rule — a stronger guarantee
+> than the original design had.
 
 ```
 *.arsfeld.dev  ->  reverse_proxy 127.0.0.1:30080   (useACMEHost = "arsfeld.dev")
@@ -114,11 +123,12 @@ wildcards, so every existing explicit vhost (blog, planka, siyuan, niks3, radicl
 the apex, `www`, and the attic tombstone) keeps winning, unchanged. Migrating one into the
 cluster later is: delete its nix vhost, add an Ingress.
 
-Traefik terminates nothing. Caddy holds TLS; traffic from Caddy to the NodePort is plain
-HTTP on loopback. Two traefik values need setting and are easy to miss: `ports.web` must
-not carry a `redirectTo: websecure` (Caddy has already terminated TLS, so the redirect is a
-loop), and `forwardedHeaders.trustedIPs` must include the node so `X-Forwarded-For` from
-Caddy survives into the pod.
+Traefik terminates nothing. Caddy holds TLS; traffic from Caddy to the host port is plain
+HTTP on loopback. One traefik value is easy to miss: `ports.web` must not carry a
+`redirectTo: websecure` — Caddy has already terminated TLS, so that redirect is an infinite
+loop. (`forwardedHeaders.trustedIPs` was needed under the original NodePort design, because
+kube-proxy SNATs and traefik would have seen the pod CIDR rather than Caddy. With
+`hostPort` there is no SNAT: traefik sees `127.0.0.1` directly.)
 
 **A property to accept deliberately:** the wildcard vhost carries no `forward_auth`.
 Anything exposed through an Ingress is **public on the internet by default**. This is the
@@ -140,7 +150,7 @@ constellation.k3s.domains = [ "arsfeld.dev" "myapp.dev" ];
 ```
 
 Each entry generates the pair: `security.acme.certs."<d>".extraDomainNames = ["*.<d>"]`
-and a Caddy vhost for `<d>` and `*.<d>` proxying to the NodePort. This works because ACME
+and a Caddy vhost for `<d>` and `*.<d>` proxying to the host port. This works because ACME
 here is **DNS-01 through Cloudflare** — `modules/media/config.nix:151` sets
 `dnsProvider = "cloudflare"` with a shared sops token, and vhosts consume the result via
 `useACMEHost`. No inbound challenge is needed, so apex names, wildcards, and
@@ -268,7 +278,8 @@ adds a second image store beside podman's. The caveat that matters: kubelet's im
 triggers at 85% of the *whole filesystem*, which here is shared with the nix store,
 podman's images, ClickHouse, and backrest's cache. GC will not fire until ~82 GiB, and it
 can be triggered by growth that has nothing to do with k3s. The answer is a disk alert in
-the gatus checks already running, not a tuned threshold — lowering the threshold would make
+`weekly-deploy`'s Sunday sweep — which already runs per tier-1 host over Tailscale SSH and
+posts one ntfy summary — not a tuned threshold. Lowering the threshold would make
 unrelated growth evict images the cluster needs.
 
 Risks, most likely first:
