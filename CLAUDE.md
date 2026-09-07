@@ -141,15 +141,24 @@ job red, tier-1 gate skips the commit — and `just deploy @tier1` is unaffected
 phase 1 finishes every push before phase 2 activates anything, and niks3 is socket-activated
 so connections queue across its own restart rather than being refused.
 
-attic (`attic.arsfeld.dev`, k3s on can-1) is frozen but still running, and both it and its
-key are still listed, so it remains the rollback. Restoring the **read** path needs no
-revert at all — `attic.arsfeld.dev/system` is already a substituter on every host. Restoring
-**pushes** takes two edits, not one: revert `82e84de` (the `build.yml` push step) *and* put
-`attic-client` back in `flake-modules/dev.nix`, because that step runs under `nix develop`
-and the client was removed separately in `acc7dad`. Reverting only the workflow gives
-`attic: command not found` — which fails safe, since a red job makes weekly-deploy's tier-1
-gate skip the commit, but it does not actually restore pushes. Retiring attic — the argocd
-app, the `attic-cache` bucket, the `ATTIC_TOKEN` secret — is a separate later change.
+attic is gone. It was the binary cache until niks3 replaced it on 2026-08-21 (`82e84de`,
+`6b2b185`), sat frozen as a read-only fallback for two weeks, and was retired entirely on
+2026-09-07: substituter and `system:` key removed from every host and from CI,
+`attic.arsfeld.dev` no longer resolves, the argocd app and namespace on can-1 torn down,
+the `ATTIC_TOKEN` secret deleted, and the R2 buckets `attic`, `attic-data` and
+`attic-cache` deleted.
+
+The measurement that justified it: of 60 paths sampled at random from raider's live
+closure, `cache.arsfeld.dev` held 60 and attic held 2 — **zero** that attic had and R2
+did not. Every narinfo in `nix-cache` is signed `cache.arsfeld.dev-1`, so nothing anywhere
+depended on attic's key. Full workings in
+`docs/superpowers/specs/2026-09-06-attic-retirement-design.md`.
+
+**There is no fallback binary cache any more.** A path missing from `cache.arsfeld.dev`
+falls through to `cache.nixos.org` and then to a local rebuild. That is harmless
+everywhere except `weekly-deploy`, which runs under `max-jobs = 0` where a miss is a hard
+failure — which is exactly what CI's `niks3 push --pin <host>` exists to prevent. Treat
+the pins as load-bearing, not as an optimization.
 
 ### Testing Changes
 ```bash
@@ -170,8 +179,8 @@ Configured via `.sops.yaml`. All hosts use `constellation.sops.enable = true`. U
 
 The Oracle Cloud tenancy behind basestar and the three in-use Cloudflare DNS
 zones (`arsfeld.dev`, `arsfeld.one`, `rosenfeld.one`) are managed as code under
-`infra/`, written as terranix Nix modules rather than HCL. 56 resources are
-under management: 50 `cloudflare_dns_record` plus 6 Oracle resources (VCN,
+`infra/`, written as terranix Nix modules rather than HCL. 52 resources are
+under management: 46 `cloudflare_dns_record` plus 6 Oracle resources (VCN,
 internet gateway, default route table, default security list, subnet,
 instance).
 
