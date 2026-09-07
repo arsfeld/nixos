@@ -33,8 +33,8 @@
 | `installer-iso.nix` | installer ISO's own copy of the cache config | remove attic substituter + `system:` key |
 | `.github/workflows/build.yml` | per-host build + niks3 push (2 jobs) | remove attic from both `extra_nix_config` blocks |
 | `.github/workflows/installer-iso.yml` | ISO build | remove attic from `extra_nix_config` |
-| `infra/dns/arsfeld-dev.nix` | terranix DNS for the zone | remove 4 resources + 4 `import` blocks, fix the count comment |
-| `CLAUDE.md` | operator documentation | replace the rollback paragraph, fix resource counts |
+| `infra/dns/arsfeld-dev.nix` | terranix DNS for the zone | remove 4 resources + 4 `import` blocks, fix the count comment (Task 8) |
+| `CLAUDE.md` | operator documentation | Task 3 replaces the rollback paragraph (true-as-of-then); Task 8 updates the resource counts with the records it destroys; Task 10 tightens the paragraph to final |
 
 **argocd repo (`/home/arosenfeld/Code/argocd`)**
 
@@ -311,12 +311,13 @@ app, the `attic-cache` bucket, the `ATTIC_TOKEN` secret — is a separate later 
 with:
 
 ```
-attic is gone. It was the binary cache until niks3 replaced it on 2026-08-21 (`82e84de`,
-`6b2b185`), sat frozen as a read-only fallback for two weeks, and was retired entirely on
-2026-09-07: substituter and `system:` key removed from every host and from CI,
-`attic.arsfeld.dev` no longer resolves, the argocd app and namespace on can-1 torn down,
-the `ATTIC_TOKEN` secret deleted, and the R2 buckets `attic`, `attic-data` and
-`attic-cache` deleted.
+attic is being retired. It was the binary cache until niks3 replaced it on 2026-08-21
+(`60dc149`, `194bfe3`), then sat frozen as a read-only fallback. As of 2026-09-07 its
+substituter and `system:` key are gone from every host and from CI, so nothing resolves
+against it any more. Still standing, pending the remaining steps of
+`docs/superpowers/plans/2026-09-06-attic-retirement.md`: the `attic.arsfeld.dev` DNS
+records, the argocd app and namespace on can-1, the `ATTIC_TOKEN` secret, and the R2
+buckets `attic`, `attic-data` and `attic-cache`.
 
 The measurement that justified it: of 60 paths sampled at random from raider's live
 closure, `cache.arsfeld.dev` held 60 and attic held 2 — **zero** that attic had and R2
@@ -331,23 +332,15 @@ failure — which is exactly what CI's `niks3 push --pin <host>` exists to preve
 the pins as load-bearing, not as an optimization.
 ```
 
-- [ ] **Step 2: Fix the managed resource counts**
+- [ ] **Step 2: Leave the managed resource counts alone**
 
-At `CLAUDE.md:173-174`, replace:
+`CLAUDE.md:173-174` currently reads `56 resources … 50 cloudflare_dns_record`, which is
+correct right now — the four attic records are still under management. They leave in
+**Task 8**, and Task 8 changes this line in the same commit that destroys them.
 
-```
-`infra/`, written as terranix Nix modules rather than HCL. 56 resources are
-under management: 50 `cloudflare_dns_record` plus 6 Oracle resources (VCN,
-```
-
-with:
-
-```
-`infra/`, written as terranix Nix modules rather than HCL. 52 resources are
-under management: 46 `cloudflare_dns_record` plus 6 Oracle resources (VCN,
-```
-
-Four records leave in Task 8: the `attic.arsfeld.dev` A record and three `_acme-challenge.attic` TXT records.
+Do not edit those numbers here. Documentation that runs ahead of the infrastructure it
+describes is what this step used to do, and it made `CLAUDE.md` disagree with
+`just tf state list` for the whole middle of the plan.
 
 - [ ] **Step 3: Verify remaining attic references are only the intended ones**
 
@@ -843,16 +836,35 @@ dig +short TXT _acme-challenge.attic.arsfeld.dev
 
 Expected: `46`; both `dig` commands return nothing.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 9: Update the managed resource counts**
+
+Now that the records are actually gone, `CLAUDE.md:173-174` becomes true. Replace:
+
+```
+`infra/`, written as terranix Nix modules rather than HCL. 56 resources are
+under management: 50 `cloudflare_dns_record` plus 6 Oracle resources (VCN,
+```
+
+with:
+
+```
+`infra/`, written as terranix Nix modules rather than HCL. 52 resources are
+under management: 46 `cloudflare_dns_record` plus 6 Oracle resources (VCN,
+```
+
+Step 8 has already confirmed `just tf state list` reports 46, so this documents
+verified reality rather than an intention.
+
+- [ ] **Step 10: Commit**
 
 ```bash
 cd /home/arosenfeld/Code/nixos
-git add infra/dns/arsfeld-dev.nix
+git add infra/dns/arsfeld-dev.nix CLAUDE.md
 git commit -m "chore(modules): remove attic's DNS records
 
 The A record for attic.arsfeld.dev and three _acme-challenge TXT leftovers,
 with their import blocks. Applied before committing so nothing is left
-staged. 50 managed DNS records becomes 46."
+staged. 50 managed DNS records becomes 46, in CLAUDE.md too."
 git push origin master
 ```
 
@@ -1020,7 +1032,36 @@ done
 
 Expected: empty `dig`; a non-200 for attic; `StoreDir: /nix/store … Priority: 30` from `cache.arsfeld.dev`; three `200`s for the tier-1 closures.
 
-- [ ] **Step 4: Mark the spec implemented**
+- [ ] **Step 4: Tighten CLAUDE.md to its final form**
+
+Task 3 deliberately wrote a paragraph describing a retirement in progress, because at that
+point it was. Everything it listed as "still standing" is now gone, so replace:
+
+```
+attic is being retired. It was the binary cache until niks3 replaced it on 2026-08-21
+(`60dc149`, `194bfe3`), then sat frozen as a read-only fallback. As of 2026-09-07 its
+substituter and `system:` key are gone from every host and from CI, so nothing resolves
+against it any more. Still standing, pending the remaining steps of
+`docs/superpowers/plans/2026-09-06-attic-retirement.md`: the `attic.arsfeld.dev` DNS
+records, the argocd app and namespace on can-1, the `ATTIC_TOKEN` secret, and the R2
+buckets `attic`, `attic-data` and `attic-cache`.
+```
+
+with:
+
+```
+attic is gone. It was the binary cache until niks3 replaced it on 2026-08-21 (`60dc149`,
+`194bfe3`), sat frozen as a read-only fallback for 17 days, and was retired entirely on
+2026-09-07: substituter and `system:` key removed from every host and from CI,
+`attic.arsfeld.dev` no longer resolving, the argocd app and namespace on can-1 torn down,
+the `ATTIC_TOKEN` secret deleted, and the R2 buckets `attic`, `attic-data` and
+`attic-cache` deleted.
+```
+
+Leave the two paragraphs that follow it unchanged — the measurement and the
+"no fallback binary cache any more" warning are already true and stay true.
+
+- [ ] **Step 5: Mark the spec implemented**
 
 In `docs/superpowers/specs/2026-09-06-attic-retirement-design.md`, change:
 
@@ -1036,12 +1077,12 @@ to:
 
 ```bash
 cd /home/arosenfeld/Code/nixos
-git add docs/superpowers/specs/2026-09-06-attic-retirement-design.md
-git commit -m "docs(modules): mark the attic retirement spec implemented"
+git add docs/superpowers/specs/2026-09-06-attic-retirement-design.md CLAUDE.md
+git commit -m "docs(modules): mark the attic retirement complete"
 git push origin master
 ```
 
-- [ ] **Step 5: Watch the Sunday deploy**
+- [ ] **Step 6: Watch the Sunday deploy**
 
 The real end-to-end confirmation is `weekly-deploy` on **Sunday 2026-09-13 06:00 UTC** — the only path running under `max-jobs = 0`, where a cache miss is a hard failure rather than a local rebuild. Its ntfy summary is the signal.
 
