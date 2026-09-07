@@ -26,8 +26,8 @@ external-dns, traefik, oauth2-proxy, and a full Prometheus + VictoriaMetrics + G
 vmagent stack. That ratio is the thing to avoid repeating.
 
 This repo has also been here before: `b540e25` added `modules/constellation/k3s.nix` and a
-375-line `modules/media/kubernetes.nix` k8s backend for `media.containers` in February;
-`0f23f9d` deleted both in April. The mistake that time was coupling the cluster to the
+375-line `modules/media/kubernetes.nix` k8s backend for `media.containers` on 2026-02-14;
+`0f23f9d` deleted both 23 days later, on 2026-03-09. The mistake that time was coupling the cluster to the
 media stack. This design does not touch `media.services` at all.
 
 ## Scope
@@ -111,7 +111,10 @@ wildcard to it:
 >
 > 1. kube-proxy's nftables mode — chosen above, correctly, to keep the proxier out of
 >    fail2ban's and `nixos-fw`'s way — deliberately excludes loopback from NodePort
->    matching: `fib daddr type local ip daddr != 127.0.0.0/8 … vmap @service-nodeports`.
+>    matching. Verify by effect, not by rule text: in `nft list table ip kube-proxy` the
+>    `nodeport-ips` set holds only the node's real address and never a loopback one.
+>    kube-proxy expresses this differently across versions (a negated `127.0.0.0/8`
+>    prefix in one, set membership in another), so quoting a rule verbatim rots.
 > 2. traefik's chart feeds `ports.web.hostIP` into *both* the pod's hostPort binding and
 >    traefik's own `--entryPoints.web.address`, so `hostIP: 127.0.0.1` binds traefik inside
 >    its own netns where the CNI DNAT cannot reach it (tcpdump: SYN in, RST out).

@@ -339,7 +339,9 @@ worth keeping:
 
 1. **NodePort at `127.0.0.1:30080`** — impossible. kube-proxy's nftables mode (Task 1,
    chosen to keep the proxier out of fail2ban's way) deliberately excludes loopback from
-   NodePort matching: `fib daddr type local ip daddr != 127.0.0.0/8 … vmap @service-nodeports`.
+   NodePort matching. Confirm it by effect: in `nft list table ip kube-proxy` the
+   `nodeport-ips` set holds only the node's real address, never a loopback one. The rule
+   text itself varies between kube-proxy versions, so do not match on it.
 2. **`hostPort` with `hostIP: 127.0.0.1`** — impossible in this chart. `ports.web.hostIP`
    feeds *both* the pod's hostPort binding *and* traefik's own
    `--entryPoints.web.address` (`_podtemplate.tpl:219`), so traefik binds `127.0.0.1:8000`
