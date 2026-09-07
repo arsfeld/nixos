@@ -136,6 +136,33 @@ in {
       #
       # ports.web must not carry a redirectTo: websecure — Caddy has already
       # terminated TLS, so that redirect would be an infinite loop.
+      #
+      # DO NOT RENAME THIS ATTRIBUTE. Renaming it is materially more dangerous
+      # than renaming an app manifest, and the danger is invisible from here.
+      #
+      # k3s-manifest-reconcile (below) removes a dropped manifest by running
+      # `kubectl delete -f` over the OLD file — that is the only way to delete
+      # an AddOn's objects, because deleting the AddOn itself deletes nothing
+      # (k3s tracks them with objectset.rio.cattle.io/owner-* annotations, not
+      # ownerReferences, so Kubernetes GC has nothing to cascade on; verified
+      # on this host against the live HelmChartConfig, which carries
+      # ownerReferences: None and owner-name: traefik-clusterip).
+      #
+      # An app manifest owns only its own objects, so deleting from the old
+      # file and recreating from the new one is a no-op in the steady state.
+      # This one is different: every traefik-* name past and present renders
+      # the SAME object, HelmChartConfig/traefik in kube-system. A rename
+      # therefore makes reconcile delete the live HelmChartConfig out from
+      # under helm-controller. The outcome is not a brief flap — it is the
+      # failure described at length in the ingressAddress docstring above:
+      # helm-controller deadlocks on its own EXPECTED_RELEASE_REVISION guard,
+      # its retry job exits doing nothing, Caddy is left proxying to an
+      # address no Service holds, and recovery is by hand with
+      #   kubectl -n kube-system delete svc traefik
+      #   kubectl -n kube-system delete job helm-install-traefik
+      #
+      # To change the pinned address, change cfg.ingressAddress. The attribute
+      # name is not the knob.
       manifests.traefik-clusterip.content = {
         apiVersion = "helm.cattle.io/v1";
         kind = "HelmChartConfig";
@@ -212,9 +239,12 @@ in {
         # sidesteps all of it.
         declared = pkgs.writeText "k3s-declared-manifests" (
           concatMapStrings (t: t + "\n")
+          # Operand order mirrors nixpkgs' own enabledManifests
+          # (services/cluster/rancher/default.nix:844), which is the source of
+          # truth for the tmpfiles rules this list has to shadow exactly.
           (mapAttrsToList (_: m: m.target)
             (filterAttrs (_: m: m.enable)
-              (config.services.k3s.manifests // config.services.k3s.autoDeployCharts)))
+              (config.services.k3s.autoDeployCharts // config.services.k3s.manifests)))
         );
       in ''
         set -euo pipefail
@@ -265,14 +295,28 @@ in {
           # delete available: it names exactly the objects nix declared under
           # this one attribute and cannot name anything else.
           #
-          # </dev/null on the AddOn delete because this loop's stdin is the
-          # state file; a child that read it would swallow the names still to
-          # be processed.
-          if [ -e "$file" ]; then
-            if ! k3s kubectl delete -f "$file" --ignore-not-found --wait=false; then
+          # </dev/null on both deletes because this loop's stdin is the state
+          # file; a child that read it would swallow the names still to be
+          # processed.
+          #
+          # The -L test is the structural half of the safety mechanism, and it
+          # does not depend on the state file being intact. Every nix-managed
+          # manifest is a SYMLINK into /nix/store, because that is what the
+          # tmpfiles "L+" rule creates; every manifest k3s writes itself is a
+          # regular file (and metrics-server is a directory). So a name that
+          # resolves to anything other than a live symlink is never deleted
+          # from, and is never rm'd. Get a k3s-owned name into the state file
+          # somehow - a hand edit, a bad merge - and this refuses loudly
+          # instead of deleting coredns.
+          if [ -L "$file" ] && [ -e "$file" ]; then
+            if ! k3s kubectl delete -f "$file" --ignore-not-found --wait=false </dev/null; then
               echo "reconcile: failed to delete $addon's objects from $file" >&2
               ok=0
             fi
+          elif [ -e "$file" ]; then
+            echo "reconcile: REFUSING to touch $file - it is not a symlink into the nix store, so k3s wrote it, not nix. A name k3s owns has got into ${stateFile}; fix that file. Nothing was deleted for $base." >&2
+            rc=1
+            continue
           else
             echo "reconcile: $file is missing, so $addon's objects cannot be enumerated; they may still be running" >&2
           fi
@@ -295,7 +339,13 @@ in {
 
         [ "$rc" -eq 0 ] || exit 1
 
-        install -m 0644 "$current" ${stateFile}
+        # Atomically, via a temp file in the same directory plus a rename. A
+        # plain `install` onto the live path truncates and rewrites in place,
+        # so a crash or a full disk mid-write leaves a half-written state
+        # file - and the state file is the record that decides what is
+        # eligible for deletion at all.
+        install -m 0644 "$current" ${stateFile}.new
+        mv -f ${stateFile}.new ${stateFile}
       '';
     };
 
