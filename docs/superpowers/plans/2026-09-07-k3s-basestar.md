@@ -46,7 +46,7 @@
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `constellation.k3s.enable` (bool). Later tasks add `domains`, `nodePort`, and `secrets` to the same `options.constellation.k3s` block.
+- Produces: `constellation.k3s.enable` (bool). Later tasks add `domains`, `ingressAddress`, and `secrets` to the same `options.constellation.k3s` block.
 
 - [ ] **Step 1: Write the failing check**
 
@@ -302,7 +302,7 @@ git commit -m "feat(modules): add just k8s recipes for basestar's cluster"
 
 **Interfaces:**
 - Consumes: `constellation.k3s.enable` from Task 1.
-- Produces: `constellation.k3s.nodePort` (port, default 30080) and `constellation.k3s.domains` (listOf str, default `[]`). Task 4 relies on an Ingress with `host: <name>.arsfeld.dev` being routable.
+- Produces: `constellation.k3s.ingressAddress` (str, default `10.43.0.80`) and `constellation.k3s.domains` (listOf str, default `[]`). Task 4 relies on an Ingress with `host: <name>.arsfeld.dev` being routable.
 
 - [ ] **Step 1: Write the failing check**
 
@@ -318,15 +318,6 @@ Expected right now: `200` — Caddy's default vhost answering with a zero-byte b
 In `modules/constellation/k3s.nix`, extend `options.constellation.k3s`:
 
 ```nix
-    nodePort = mkOption {
-      type = types.port;
-      default = 30080;
-      description = ''
-        NodePort that traefik's `web` entrypoint is pinned to, and that the
-        host's Caddy reverse-proxies each wildcard vhost to.
-      '';
-    };
-
     domains = mkOption {
       type = types.listOf types.str;
       default = [];
@@ -334,7 +325,7 @@ In `modules/constellation/k3s.nix`, extend `options.constellation.k3s`:
       description = ''
         Domains whose wildcard is routed into the cluster. Each entry gets a
         DNS-01 wildcard ACME certificate and a Caddy vhost for `*.<domain>`
-        proxying to `nodePort`. The cost is one entry per domain, not per app:
+        proxying to `ingressAddress`. The cost is one entry per domain, not per app:
         once a domain is listed, every subdomain under it is an Ingress with
         no further nix change.
       '';
@@ -504,7 +495,7 @@ just deploy basestar
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' https://k3s-probe.arsfeld.dev
 ```
-Expected: `502`. Nothing serves that name inside the cluster, and a 502 proves the wildcard vhost is live and failing safe. A `200` means the vhost did not take; a certificate error means the wildcard SAN is missing.
+Expected: **`404`** — traefik's own unmatched-Host answer, relayed through the wildcard vhost. That single code proves three things at once: the vhost took (not `200` from Caddy's default), the cert covers the wildcard (no TLS error), and Caddy actually reaches the cluster. A **`502` is a failure here**, not a pass: it means Caddy could not reach the backend at all.
 
 - [ ] **Step 10: Verify the ingress is reachable ONLY from the node**
 
@@ -521,6 +512,7 @@ Then confirm from raider that nothing is reachable off-box. **This is the check 
 
 ```bash
 timeout 5 curl -sS -o /dev/null http://basestar.bat-boa.ts.net:30080/ ; echo "tailnet hostport exit=$?"
+timeout 5 curl -sS -o /dev/null "http://basestar.bat-boa.ts.net:$(just k8s::k -n kube-system get svc traefik -o jsonpath='{.spec.ports[0].nodePort}')/" ; echo "tailnet auto-nodeport exit=$?"
 timeout 5 curl -sS -o /dev/null http://10.43.0.80:80/ ; echo "clusterip exit=$?"
 ```
 Expected: **both fail to connect** (non-zero exit), no HTTP status. A success on the first means a host port is bound and the tailnet can bypass Caddy; a success on the second would mean a route to the service CIDR exists off-box. Either is a stop-and-report condition.
@@ -533,7 +525,7 @@ for h in blog planka siyuan niks3 attic; do
   curl -sS -o /dev/null -w '%{http_code}\n' "https://$h.arsfeld.dev"
 done
 ```
-Expected: `blog 200`, `planka 200`, `siyuan 200`, `niks3` any non-502 (it is an API, 401/404 is fine), `attic 410`. Exact hostnames must still beat the wildcard. **A 502 for any of these means the wildcard is shadowing a real vhost — stop and fix before continuing.**
+Expected: `blog 200`, `planka 200`, `niks3` any non-502 (it is an API, 401/404 is fine), `attic 410`. **`siyuan` times out, and that is pre-existing** — its container hangs on its own `:6806`; Caddy's exact vhost for it answers 308. Do not read it as a regression. Exact hostnames must still beat the wildcard. **A 502 for any of these means the wildcard is shadowing a real vhost — stop and fix before continuing.**
 
 - [ ] **Step 12: Commit**
 
@@ -1209,7 +1201,7 @@ In `docs/superpowers/specs/2026-09-07-k3s-basestar-design.md`, the "Budget and r
 After the binary-cache section, add a section covering — in the file's existing dense, why-oriented prose style, not a bullet dump:
 
 - basestar runs a single-node k3s cluster; galactica does not. It is deliberately **not** wired into `media.services` — an earlier attempt coupled the two (`b540e25`) and was deleted (`0f23f9d`).
-- Caddy keeps `:80`/`:443`; traefik sits on NodePort 30080 behind a `*.arsfeld.dev` Caddy vhost. A new app needs no DNS record, no cert, no firewall rule and no Caddy change — only an Ingress. A new *domain* costs one entry in `constellation.k3s.domains`.
+- Caddy keeps `:80`/`:443`; traefik is reached at its pinned ClusterIP behind a `*.arsfeld.dev` Caddy vhost. A new app needs no DNS record, no cert, no firewall rule and no Caddy change — only an Ingress. A new *domain* costs one entry in `constellation.k3s.domains`.
 - **Anything exposed through an Ingress is public.** The wildcard vhost carries no `forward_auth`, the inverse of galactica's gateway where Authelia is the default.
 - **The behaviour change to record:** an unmatched `*.arsfeld.dev` name used to hit Caddy's default — HTTP 200 with a zero-byte body, the exact failure mode the attic tombstone paragraphs warn about. It is now a 502 from the wildcard vhost, which fails safe. Update the attic tombstone paragraph to say so; the tombstone is still load-bearing for `attic.arsfeld.dev` specifically, since an explicit vhost beats the wildcard and 410 is a better answer than 502.
 - Two lanes: `hosts/basestar/k8s/` at activation, `just k8s::apply` from raider. Secrets go through `constellation.k3s.secrets`, never through `services.k3s.manifests` — that content lands in the world-readable nix store.
@@ -1247,9 +1239,9 @@ Run the design doc's full table end to end. These are the three that catch other
 
 | # | Command | Expected |
 |---|---|---|
-| 3 | `curl -sS -o /dev/null -w '%{http_code}\n' https://k3s-probe.arsfeld.dev` | `502` — not `200` with an empty body |
+| 3 | `curl -sS -o /dev/null -w '%{http_code}\n' https://k3s-probe.arsfeld.dev` | `404` from traefik — not `200` (vhost missed) and not `502` (backend unreachable) |
 | 5 | Deploy an app via Lane A, remove it, redeploy, `just k8s::k -n <ns> get all` | `No resources found` |
-| 7 | `for h in blog planka siyuan niks3 attic; do curl -sS -o /dev/null -w "$h %{http_code}\n" https://$h.arsfeld.dev; done` | 200/200/200/non-502/410 — exact hostnames still beat the wildcard |
+| 7 | `for h in blog planka niks3 attic; do curl -sS -o /dev/null -w "$h %{http_code}\n" https://$h.arsfeld.dev; done` | 200/200/non-502/410 — exact hostnames still beat the wildcard (siyuan excluded: pre-existing hang) |
 
 And the standing ones:
 
