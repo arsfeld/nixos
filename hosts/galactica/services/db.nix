@@ -18,34 +18,49 @@
   # MariaDB database setup for Seafile (TCP password auth for container access)
   sops.secrets.seafile-mysql-password = {};
 
-  systemd.services.seafile-db-setup = {
-    description = "Create Seafile MariaDB databases and user";
-    after = ["mysql.service"];
-    requires = ["mysql.service"];
-    before = ["podman-seafile.service"];
-    requiredBy = ["podman-seafile.service"];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-    };
-    script = ''
-      PASS=$(cat ${config.sops.secrets.seafile-mysql-password.path})
-      ${pkgs.mariadb}/bin/mysql -u root <<SQL
-        CREATE DATABASE IF NOT EXISTS ccnet_db CHARACTER SET utf8mb4;
-        CREATE DATABASE IF NOT EXISTS seafile_db CHARACTER SET utf8mb4;
-        CREATE DATABASE IF NOT EXISTS seahub_db CHARACTER SET utf8mb4;
-        CREATE USER IF NOT EXISTS 'seafile'@'%' IDENTIFIED BY '$PASS';
-        ALTER USER 'seafile'@'%' IDENTIFIED BY '$PASS';
-        GRANT ALL PRIVILEGES ON \`ccnet_db\`.* TO 'seafile'@'%';
-        GRANT ALL PRIVILEGES ON \`seafile_db\`.* TO 'seafile'@'%';
-        GRANT ALL PRIVILEGES ON \`seahub_db\`.* TO 'seafile'@'%';
-        -- Grant root TCP access from Podman network (needed for Seafile container init)
-        CREATE USER IF NOT EXISTS 'root'@'10.88.0.%' IDENTIFIED BY '$PASS';
-        GRANT ALL PRIVILEGES ON *.* TO 'root'@'10.88.0.%' WITH GRANT OPTION;
-        FLUSH PRIVILEGES;
-      SQL
-    '';
-  };
+  systemd.services =
+    {
+      seafile-db-setup = {
+        description = "Create Seafile MariaDB databases and user";
+        after = ["mysql.service"];
+        requires = ["mysql.service"];
+        before = ["podman-seafile.service"];
+        requiredBy = ["podman-seafile.service"];
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+        };
+        script = ''
+          PASS=$(cat ${config.sops.secrets.seafile-mysql-password.path})
+          ${pkgs.mariadb}/bin/mysql -u root <<SQL
+            CREATE DATABASE IF NOT EXISTS ccnet_db CHARACTER SET utf8mb4;
+            CREATE DATABASE IF NOT EXISTS seafile_db CHARACTER SET utf8mb4;
+            CREATE DATABASE IF NOT EXISTS seahub_db CHARACTER SET utf8mb4;
+            CREATE USER IF NOT EXISTS 'seafile'@'%' IDENTIFIED BY '$PASS';
+            ALTER USER 'seafile'@'%' IDENTIFIED BY '$PASS';
+            GRANT ALL PRIVILEGES ON \`ccnet_db\`.* TO 'seafile'@'%';
+            GRANT ALL PRIVILEGES ON \`seafile_db\`.* TO 'seafile'@'%';
+            GRANT ALL PRIVILEGES ON \`seahub_db\`.* TO 'seafile'@'%';
+            -- Grant root TCP access from Podman network (needed for Seafile container init)
+            CREATE USER IF NOT EXISTS 'root'@'10.88.0.%' IDENTIFIED BY '$PASS';
+            GRANT ALL PRIVILEGES ON *.* TO 'root'@'10.88.0.%' WITH GRANT OPTION;
+            FLUSH PRIVILEGES;
+          SQL
+        '';
+      };
+
+      mysql-backup.after = ["mysql.service"];
+    }
+    // (
+      # Upstream postgresqlBackup sets Requires=postgresql.target without After=,
+      # racing startup/restarts and causing backup failures. Ensure backups wait for
+      # the database service to be ready before dumping.
+      lib.genAttrs
+      (map (db: "postgresqlBackup-${db}") config.services.postgresqlBackup.databases)
+      (_: {
+        after = ["postgresql.service"];
+      })
+    );
   services.mysql = {
     enable = true;
     package = pkgs.mariadb;
@@ -115,6 +130,7 @@
 
   services.postgresqlBackup = {
     enable = true;
+    startAt = "*-*-* 03:30:00";
     compression = "zstd";
     # bitmagnet is excluded deliberately: it is a DHT crawl index, so losing it
     # costs crawl time rather than irreplaceable data. Dumping it cost 5.3G per
@@ -127,7 +143,7 @@
   services.mysqlBackup = {
     enable = true;
     databases = config.services.mysql.ensureDatabases ++ ["ccnet_db" "seafile_db" "seahub_db"];
-    calendar = "daily";
+    calendar = "*-*-* 03:30:00";
     location = "/var/backup/mysql";
   };
 }
