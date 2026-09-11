@@ -1,6 +1,7 @@
 {
   lib,
   pkgs,
+  options,
   ...
 }: {
   imports = [
@@ -69,11 +70,22 @@
   };
 
   # Limit journal size
-  services.journald.extraConfig = ''
-    SystemMaxUse=100M
-    SystemKeepFree=50M
-    MaxRetentionSec=7day
-  '';
+  services.journald =
+    if options.services.journald ? settings
+    then {
+      settings.Journal = {
+        SystemMaxUse = "100M";
+        SystemKeepFree = "50M";
+        MaxRetentionSec = "7day";
+      };
+    }
+    else {
+      extraConfig = ''
+        SystemMaxUse=100M
+        SystemKeepFree=50M
+        MaxRetentionSec=7day
+      '';
+    };
 
   # Minimize documentation
   documentation.enable = false;

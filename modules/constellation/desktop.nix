@@ -386,7 +386,6 @@ in {
 
         environment.gnome.excludePackages = with pkgs; [
           gnome-music
-          gnome-photos
           gnome-tour
           gnome-console
           gnome-terminal
