@@ -37,121 +37,153 @@ in {
     };
   };
 
-  config = lib.mkIf config.constellation.podman.enable {
-    virtualisation.podman = {
-      enable = lib.mkDefault true;
+  config = lib.mkIf config.constellation.podman.enable (lib.mkMerge [
+    {
+      virtualisation.podman = {
+        enable = lib.mkDefault true;
 
-      # Create a `docker` alias for podman, to use it as a drop-in replacement
-      dockerCompat = true;
+        # Create a `docker` alias for podman, to use it as a drop-in replacement
+        dockerCompat = true;
 
-      # Required for containers under podman-compose to be able to talk to each other.
-      defaultNetwork.settings.dns_enabled = true;
+        # Required for containers under podman-compose to be able to talk to each other.
+        defaultNetwork.settings.dns_enabled = true;
 
-      dockerSocket.enable = true;
+        dockerSocket.enable = true;
 
-      autoPrune.enable = true;
-    };
-
-    environment.systemPackages = with pkgs; [
-      podman-compose
-    ];
-
-    virtualisation.containers.registries.search = ["docker.io"];
-
-    environment.etc."containers/registry.conf".source = toml.generate "registry.conf" {
-      registry = [
-        {
-          prefix = "docker.io";
-          location = "registry-1.docker.io";
-          mirror = [
-            {
-              location = "mirror.gcr.io";
-            }
-          ];
-        }
-      ];
-    };
-
-    virtualisation.oci-containers.backend = lib.mkDefault "podman";
-
-    systemd.timers."podman-image-pull" = {
-      wantedBy = ["timers.target"];
-      timerConfig = {
-        OnCalendar = "daily";
-        Persistent = true;
+        autoPrune.enable = true;
       };
-    };
 
-    systemd.services."podman-image-pull" = let
-      # Exclude containers managed by per-service image watchers
-      watchedNames =
-        lib.optionalAttrs (config ? media && config.media ? containers)
-        (lib.filterAttrs (_: c: c.watchImage or false) config.media.containers);
-      containerNames =
-        lib.filter
-        (name: !(watchedNames ? ${name}))
-        (builtins.attrNames config.virtualisation.oci-containers.containers);
-    in {
-      script = ''
-        # Wait for podman to be available
-        while ! ${pkgs.podman}/bin/podman info >/dev/null 2>&1; do
-          sleep 1
-        done
+      environment.systemPackages = with pkgs; [
+        podman-compose
+      ];
 
-        exit_code=0
+      virtualisation.containers.registries.search = ["docker.io"];
 
-        ${lib.concatMapStrings (name: let
-            container = config.virtualisation.oci-containers.containers.${name};
-          in ''
-            image_name="${container.image}"
-            echo "Checking $image_name..."
+      environment.etc."containers/registry.conf".source = toml.generate "registry.conf" {
+        registry = [
+          {
+            prefix = "docker.io";
+            location = "registry-1.docker.io";
+            mirror = [
+              {
+                location = "mirror.gcr.io";
+              }
+            ];
+          }
+        ];
+      };
 
-            # Get current image ID if container is running
-            current_id=$(${pkgs.podman}/bin/podman inspect "${name}" -f '{{.Image}}' 2>/dev/null || echo "none")
+      virtualisation.oci-containers.backend = lib.mkDefault "podman";
 
-            # Pull new image
-            if ! ${pkgs.podman}/bin/podman pull "$image_name"; then
-              echo "Failed to pull $image_name"
-              exit_code=1
-              continue
-            fi
+      # Allow containers adequate time to shut down cleanly on SIGTERM before SIGKILL.
+      # Podman's internal default is 10s (-t 10), which causes stateful containers
+      # (databases, vector stores, worker pools) to be forcibly killed on shutdown.
+      virtualisation.containers.containersConf.settings = {
+        engine = {
+          stop_timeout = lib.mkDefault 30;
+        };
+      };
 
-            # Get new image ID
-            new_id=$(${pkgs.podman}/bin/podman inspect "$image_name" -f '{{.Id}}' 2>/dev/null)
-            if [ $? -ne 0 ]; then
-              echo "Failed to inspect new image $image_name"
-              exit_code=1
-              continue
-            fi
+      systemd.timers."podman-image-pull" = {
+        wantedBy = ["timers.target"];
+        timerConfig = {
+          OnCalendar = "daily";
+          Persistent = true;
+        };
+      };
 
-            echo "--------------------------------"
-            echo "Current: $current_id"
-            echo "New:     $new_id"
-            echo "--------------------------------"
-            echo ""
+      systemd.services."podman-image-pull" = let
+        # Exclude containers managed by per-service image watchers
+        watchedNames =
+          lib.optionalAttrs (config ? media && config.media ? containers)
+          (lib.filterAttrs (_: c: c.watchImage or false) config.media.containers);
+        containerNames =
+          lib.filter
+          (name: !(watchedNames ? ${name}))
+          (builtins.attrNames config.virtualisation.oci-containers.containers);
+      in {
+        script = ''
+          # Wait for podman to be available
+          while ! ${pkgs.podman}/bin/podman info >/dev/null 2>&1; do
+            sleep 1
+          done
 
-            if [ "$current_id" != "none" ] && [ "$current_id" != "$new_id" ]; then
-              echo "New version available for $image_name"
-              echo "Current: $current_id"
-              echo "New: $new_id"
-              echo "Restarting container ${name}..."
-              if ! ${pkgs.systemd}/bin/systemctl restart "podman-${name}"; then
-                echo "Failed to restart podman-${name}"
+          exit_code=0
+
+          ${lib.concatMapStrings (name: let
+              container = config.virtualisation.oci-containers.containers.${name};
+            in ''
+              image_name="${container.image}"
+              echo "Checking $image_name..."
+
+              # Get current image ID if container is running
+              current_id=$(${pkgs.podman}/bin/podman inspect "${name}" -f '{{.Image}}' 2>/dev/null || echo "none")
+
+              # Pull new image
+              if ! ${pkgs.podman}/bin/podman pull "$image_name"; then
+                echo "Failed to pull $image_name"
                 exit_code=1
                 continue
               fi
-            fi
-          '')
-          containerNames}
 
-        exit $exit_code
-      '';
-      serviceConfig = {
-        Type = "oneshot";
-        User = "root";
+              # Get new image ID
+              new_id=$(${pkgs.podman}/bin/podman inspect "$image_name" -f '{{.Id}}' 2>/dev/null)
+              if [ $? -ne 0 ]; then
+                echo "Failed to inspect new image $image_name"
+                exit_code=1
+                continue
+              fi
+
+              echo "--------------------------------"
+              echo "Current: $current_id"
+              echo "New:     $new_id"
+              echo "--------------------------------"
+              echo ""
+
+              if [ "$current_id" != "none" ] && [ "$current_id" != "$new_id" ]; then
+                echo "New version available for $image_name"
+                echo "Current: $current_id"
+                echo "New: $new_id"
+                echo "Restarting container ${name}..."
+                if ! ${pkgs.systemd}/bin/systemctl restart "podman-${name}"; then
+                  echo "Failed to restart podman-${name}"
+                  exit_code=1
+                  continue
+                fi
+              fi
+            '')
+            containerNames}
+
+          exit $exit_code
+        '';
+        serviceConfig = {
+          Type = "oneshot";
+          User = "root";
+        };
+        wants = ["podman.service"];
+        after = ["podman.service"];
       };
-      wants = ["podman.service"];
-      after = ["podman.service"];
-    };
-  };
+    }
+    {
+      # Systemd service overrides for all OCI containers running on this host:
+      # 1. stopIfChanged = false: Do not stop containers in Phase 1 before system
+      #    activation. Instead, restart them in Phase 2 after the new configuration is active.
+      # 2. SuccessExitStatus: Podman returns the container exit status. When killed via
+      #    SIGKILL (137) or gracefully stopped via SIGTERM (143), systemd should treat
+      #    it as a clean stop rather than entering a failed state and triggering
+      #    OnFailure= alert emails.
+      # 3. TimeoutStopSec = 60: Give systemd a comfortable margin (well above Podman's
+      #    30s stop_timeout) before systemd itself issues SIGKILL to the podman unit.
+      systemd.services = lib.mapAttrs' (
+        name: _:
+          lib.nameValuePair "${config.virtualisation.oci-containers.backend}-${name}" {
+            stopIfChanged = lib.mkDefault false;
+            serviceConfig = {
+              TimeoutStopSec = lib.mkDefault 60;
+              SuccessExitStatus = [0 137 143];
+            };
+          }
+      ) (config.virtualisation.oci-containers.containers or {});
+    }
+  ]);
 }

@@ -237,6 +237,17 @@ with lib; {
       extraSetFlags = ["--ssh"];
     };
 
+    # Prevent Tailscale SSH drops during system activation.
+    # If tailscaled restarts while switch-to-configuration is running over Tailscale SSH,
+    # the SSH connection drops, closing the systemd-run pipe. The resulting EPIPE
+    # panics switch-to-configuration-ng (exit 101), aborting the switch before Phase 3
+    # can start stopped units. Setting stopIfChanged and restartIfChanged to false
+    # matches the upstream protection that sshd.service already has.
+    systemd.services.tailscaled = {
+      stopIfChanged = false;
+      restartIfChanged = false;
+    };
+
     networking.firewall = {
       checkReversePath = "loose";
       trustedInterfaces = ["tailscale0"];

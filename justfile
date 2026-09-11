@@ -141,10 +141,11 @@ _apply ACTION +TARGETS:
 deploy +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail
+    hosts=$(just _hosts {{ TARGETS }} | tr '\n' ' ')
+    # Guarantee _poke-targets runs even if an individual host switch fails or aborts,
+    # nudging multi-user.target so unstarted services are brought up.
+    trap 'just _poke-targets ${hosts}' EXIT
     just _apply switch {{ TARGETS }}
-    # Poke the expanded hostnames. Passing {{ TARGETS }} straight through would
-    # hand `_poke-targets` a literal "@tier1" and ssh to root@@tier1....
-    just _poke-targets $(just _hosts {{ TARGETS }} | tr '\n' ' ')
 
 # Deploy with boot activation (takes effect on next reboot)
 boot +TARGETS:
@@ -164,8 +165,8 @@ dry-run +TARGETS:
 deploy-all:
     #!/usr/bin/env bash
     set -euo pipefail
+    trap 'just _poke-targets' EXIT
     just _apply switch $(just info | tr '\n' ' ')
-    just _poke-targets
 
 # nixos-rebuild has no --reboot flag, so the reboot is explicit.
 # Deploy with boot activation and reboot (for kernel/bootloader changes).
