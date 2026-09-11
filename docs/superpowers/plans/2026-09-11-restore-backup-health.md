@@ -22,13 +22,13 @@
 **Files:**
 - Operational fix on `galactica` host
 
-- [ ] **Step 1: Fix ownership and permissions on `/mnt/storage/backups/restic-server`**
+- [x] **Step 1: Fix ownership and permissions on `/mnt/storage/backups/restic-server`**
 
 ```bash
 ssh galactica "sudo chown -R restic:restic /mnt/storage/backups/restic-server && sudo chmod -R u+rwX,go-rwx /mnt/storage/backups/restic-server"
 ```
 
-- [ ] **Step 2: Verify restic index is readable from clients**
+- [x] **Step 2: Verify restic index is readable from clients**
 
 Test from `raider`:
 ```bash
@@ -36,7 +36,7 @@ sudo backup-status
 ```
 Expected: `storage` repository query succeeds without `500 Internal Server Error` or permission denied.
 
-- [ ] **Step 3: Trigger a backup from `raider` to verify end-to-end write and forget**
+- [x] **Step 3: Trigger a backup from `raider` to verify end-to-end write and forget**
 
 ```bash
 sudo systemctl restart backrest
@@ -50,17 +50,17 @@ Verify `journalctl -u backrest -n 30` or wait for the backup/query cycle.
 **Files:**
 - Modify: `hosts/galactica/backup/backrest-client.nix:158-169`
 
-- [ ] **Step 1: Update `storage` repo URI in `backrest-client.nix`**
+- [x] **Step 1: Update `storage` repo URI in `backrest-client.nix`**
 
 Change `storage.uri` from `/mnt/storage/backups/restic-server` to `rest:http://127.0.0.1:8000/` and update comments explaining that routing through `rest-server` preserves `restic:restic` ownership during scheduled prune and check tasks.
 
-- [ ] **Step 2: Verify `nix eval .#nixosConfigurations.galactica.config.system.build.toplevel`**
+- [x] **Step 2: Verify `nix eval .#nixosConfigurations.galactica.config.system.build.toplevel`**
 
 ```bash
 nix eval .#nixosConfigurations.galactica.config.system.build.toplevel
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add hosts/galactica/backup/backrest-client.nix
@@ -75,7 +75,7 @@ git commit -m "fix(galactica): route storage repo through rest server to preserv
 - Modify: `hosts/galactica/backup/backrest-client.nix`
 - Modify: `docs/architecture/backup.md`
 
-- [ ] **Step 1: Remove Hetzner repo, plans, and secrets from `backrest-client.nix`**
+- [x] **Step 1: Remove Hetzner repo, plans, and secrets from `backrest-client.nix`**
 
 Remove:
 - `sops.secrets."hetzner-webdav-env"`
@@ -84,17 +84,17 @@ Remove:
 - `constellation.backrest.plans.hetzner-system`
 - `constellation.backrest.plans.hetzner`
 
-- [ ] **Step 2: Update `docs/architecture/backup.md`**
+- [x] **Step 2: Update `docs/architecture/backup.md`**
 
 Update the architecture document to remove references to the Hetzner Storage Box and note that offsite archive is handled by OVHcloud Cold Archive via `rustic`.
 
-- [ ] **Step 3: Verify evaluation of galactica**
+- [x] **Step 3: Verify evaluation of galactica**
 
 ```bash
 nix eval .#nixosConfigurations.galactica.config.system.build.toplevel
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add hosts/galactica/backup/backrest-client.nix docs/architecture/backup.md
@@ -108,17 +108,17 @@ git commit -m "refactor(galactica): remove decommissioned hetzner storage box ba
 **Files:**
 - Modify: `hosts/pegasus/backup/backup-client.nix:44`
 
-- [ ] **Step 1: Update `pegasus` system plan cron schedule**
+- [x] **Step 1: Update `pegasus` system plan cron schedule**
 
 Change `schedule.cron` in `hosts/pegasus/backup/backup-client.nix` from `"30 3 * * 0"` to `"00 4 * * 0"` to avoid colliding with `basestar`'s daily `"30 3 * * *"` run on the shared `storage` repository.
 
-- [ ] **Step 2: Verify evaluation of pegasus**
+- [x] **Step 2: Verify evaluation of pegasus**
 
 ```bash
 nix eval .#nixosConfigurations.pegasus.config.system.build.toplevel
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add hosts/pegasus/backup/backup-client.nix
@@ -129,11 +129,11 @@ git commit -m "fix(pegasus): stagger sunday backup schedule to avoid lock collis
 
 ### Task 5: Deploy and Verify Fleet Backup Status
 
-- [ ] **Step 1: Deploy to `galactica` and `pegasus`**
+- [x] **Step 1: Deploy to `galactica` and `pegasus`**
 
 Deploy the updated configurations to `galactica` and `pegasus`.
 
-- [ ] **Step 2: Run `backup-status` across the fleet**
+- [x] **Step 2: Run `backup-status` across the fleet**
 
 Check `sudo backup-status` on:
 - `galactica` (verify `local`, `pegasus`, `storage`, `ovh` are monitored; `hetzner` is absent)
