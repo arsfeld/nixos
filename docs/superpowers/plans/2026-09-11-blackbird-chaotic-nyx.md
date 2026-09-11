@@ -95,11 +95,11 @@ git commit -m "feat(blackbird): move to Chaotic-Nyx CachyOS BORE kernel and NVID
 - Remote: `origin/master`
 - Workflows: `.github/workflows/build.yml`, `.github/workflows/format.yml`
 
-- [ ] **Step 1: Push commit to `origin/master`**
+- [x] **Step 1: Push commit to `origin/master`**
 
 Run: `git push origin master`
 
-- [ ] **Step 2: Monitor GitHub Actions CI runs**
+- [x] **Step 2: Monitor GitHub Actions CI runs**
 
 Run: `gh run list --limit 4`
 Verify:
