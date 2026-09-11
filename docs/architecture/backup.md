@@ -14,27 +14,27 @@ backups pass?" feed. A single Caddy vhost at
 ```mermaid
 graph LR
     subgraph Clients
-        Storage[storage]
+        Galactica[galactica]
         Basestar[basestar]
         Pegasus[pegasus]
         Raider[raider]
     end
 
-    subgraph "Restic repos"
-        NAS["/mnt/storage/backups/restic<br/>(local on storage)"]
-        Hetzner["rclone:hetzner:backups/*<br/>(system + user)"]
+    subgraph "Backup Targets"
+        NAS["/mnt/storage/backups/restic<br/>(local on galactica)"]
+        OVH["galactica-backup-cold<br/>(OVHcloud Cold Archive via rustic)"]
         PegasusRest["rest:pegasus:8000<br/>(restic REST server)"]
-        StorageRest["rest:storage:8000<br/>(restic REST server)"]
+        StorageRest["rest:galactica:8000<br/>(restic REST server)"]
     end
 
-    Storage --> NAS
-    Storage --> Hetzner
-    Storage --> PegasusRest
+    Galactica --> NAS
+    Galactica --> OVH
+    Galactica --> PegasusRest
     Basestar --> StorageRest
     Pegasus --> StorageRest
     Raider --> StorageRest
 
-    Storage -.notify.-> Ntfy[ntfy.arsfeld.one/backups]
+    Galactica -.notify.-> Ntfy[ntfy.arsfeld.one/backups]
     Basestar -.notify.-> Ntfy
     Pegasus -.notify.-> Ntfy
     Raider -.notify.-> Ntfy
@@ -44,9 +44,9 @@ graph LR
 
 | Host     | Plans                                                     | Destinations |
 |----------|-----------------------------------------------------------|--------------|
-| storage  | `local-system`, `hetzner-system`, `hetzner`, `pegasus-system`, `pegasus` | local NAS, hetzner (×2), pegasus REST |
-| basestar | `system` (daily)                                          | storage REST |
-| pegasus  | `system` (weekly)                                         | storage REST |
+| galactica| `local-system`, `pegasus-system`, `pegasus`, `ovh` (rustic)| local NAS, pegasus REST, OVH Cold Archive |
+| basestar | `system` (daily 03:30)                                    | storage REST |
+| pegasus  | `system` (weekly Sunday 04:00)                            | storage REST |
 | raider   | `system` (every 24h, interval scheduler for laptop)       | storage REST |
 
 Snapshots on shared repos are distinguished by the restic `--host` tag,
@@ -134,20 +134,19 @@ Source: `modules/constellation/backrest.nix`.
 
 ## Repositories
 
-All repos share the `restic-password` secret from `common.yaml`.
+All repos share the `restic-password` secret from `common.yaml`, except the cold archive tier (`ovh`) which uses its own `rustic-ovh-password` scoped to galactica.
 Multi-writer compromise exposes the full snapshot graph on any
-shared repo; the three-copy topology (local NAS + hetzner + pegasus
+shared repo; the three-copy topology (local NAS + OVH Cold Archive + pegasus
 REST) is the mitigation.
 
 | Repo name        | URI                                                | Owner    | Notes |
 |------------------|----------------------------------------------------|----------|-------|
-| `local-system`   | `/mnt/storage/backups/restic`                      | storage  | Local, daily |
-| `hetzner-system` | `rclone:hetzner:backups/restic-system`             | storage  | rclone creds via `hetzner-webdav-env` |
-| `hetzner`        | `rclone:hetzner:backups/restic`                    | storage  | rclone creds via `hetzner-webdav-env` |
-| pegasus REST     | `rest:http://pegasus.bat-boa.ts.net:8000/`         | storage  | two plans share the URI; `pegasus-system` + `pegasus` (user data) |
-| storage REST     | `rest:http://storage.bat-boa.ts.net:8000/`         | basestar, pegasus, raider | multi-writer; `--host` tag distinguishes snapshots |
+| `local`          | `/mnt/storage/backups/restic`                      | galactica| Local, daily |
+| `ovh`            | S3: `galactica-backup-hot` / `galactica-backup-cold`| galactica| OVHcloud Cold Archive v2 (rustic), weekly |
+| pegasus REST     | `rest:http://pegasus.bat-boa.ts.net:8000/`         | galactica| two plans share the URI; `pegasus-system` + `pegasus` (user data) |
+| storage REST     | `rest:http://galactica.bat-boa.ts.net:8000/`       | basestar, pegasus, raider | multi-writer; `--host` tag distinguishes snapshots |
 
-The two REST servers (`services.restic.server` on storage and
+The two REST servers (`services.restic.server` on galactica and
 pegasus) stay `--no-auth` on Tailscale. They accept any authenticated
 tailnet peer; the repo password is the encryption boundary.
 
@@ -198,8 +197,8 @@ integrity reports).
 
 ## Secrets
 
-- `restic-password` (common.yaml) — all repos.
-- `hetzner-webdav-env` (storage.yaml) — rclone creds for the hetzner
-  repos; loaded as `EnvironmentFile=` on the Backrest unit on storage.
+- `restic-password` (common.yaml) — all Backrest restic repos.
+- `rustic-ovh-password` (galactica.yaml) — repo encryption key for OVH Cold Archive.
+- `ovh-s3-env` (galactica.yaml) — AWS credentials for OVH S3 buckets.
 - `ntfy-publisher-env` — publisher credential for the failure hook;
   shared across hosts via `secrets/sops/ntfy-client.yaml`.

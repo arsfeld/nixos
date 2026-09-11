@@ -1,15 +1,15 @@
-# Storage as a backup *client*: runs five Backrest plans pushing to
-# four repos — local NAS, hetzner, and pegasus, plus a fourth `storage`
-# repo that carries no plans of its own (see its own comment below: it's
-# the local path to the repository galactica's REST server serves to
-# basestar/raider/pegasus, addressed here only so galactica can own prune
-# and check for it). Both the system and user plans for hetzner/pegasus
-# share the same repo (distinguished by path set). Replaces the previous
-# hand-rolled services.restic.backups profiles in backup-restic.nix.
+# Storage as a backup *client*: runs three Backrest plans pushing to
+# two repos — local NAS and pegasus, plus a third `storage`
+# repo that carries no plans of its own (it points at galactica's local
+# restic REST server serving basestar/raider/pegasus, addressed via
+# 127.0.0.1:8000 so galactica can own prune and check for it).
+# Cold storage archive to OVH is handled separately by rustic-ovh.nix.
+# Both the system and user plans for pegasus share the same repo
+# (distinguished by path set).
 #
-# Retention, exclusion lists, and destination URIs are preserved 1:1
-# from the prior restic config. Schedules are fixed-time crons spread
-# across Sunday 02:30–07:30 local (previously weekly+RandomizedDelaySec).
+# Retention, exclusion lists, and destination URIs are preserved from
+# the prior restic config. Schedules are fixed-time crons spread
+# across Sunday local.
 #
 # Per-plan ionice for the three idle-class profiles is not preserved
 # in Phase A — Backrest runs one daemon with one scheduler; per-plan
@@ -119,17 +119,6 @@
     };
   };
 in {
-  # rclone creds for the hetzner repos. Mode 0400 matches the previous
-  # services.restic.backups hetzner profile so Backrest-as-root reads
-  # are unchanged.
-  sops.secrets."hetzner-webdav-env" = {
-    mode = "0400";
-  };
-  sops.secrets."hetzner-storagebox-ssh-key" = {
-    mode = "0400";
-    path = "/root/.ssh/hetzner_storagebox";
-  };
-
   constellation.backrest = {
     enable = true;
 
@@ -150,14 +139,15 @@ in {
       # holding the disk, and three client instances pruning one repo would
       # just contend for the same lock.
       #
-      # Addressed as a local path rather than rest://galactica:8000/ because
-      # prune is I/O-heavy and this skips the HTTP round trip. Verified that
-      # this path is the repo root (config, data, index, keys, locks,
-      # snapshots), and restic locks are objects inside the repo, so a
-      # local-path prune and a REST client still see each other's locks.
+      # Addressed via rest:http://127.0.0.1:8000/ rather than a local path
+      # (/mnt/storage/backups/restic-server) because Backrest runs as root:
+      # a local-path restic prune creates repacked index/data files as root:root
+      # 0400, which restic-rest-server (running as user restic) cannot read.
+      # Routing through loopback REST ensures all files are created and managed
+      # by rest-server under user restic.
       storage =
         {
-          uri = "/mnt/storage/backups/restic-server";
+          uri = "rest:http://127.0.0.1:8000/";
           passwordFile = config.sops.secrets."restic-password".path;
           # basestar writes here daily, so 48h is the right staleness bound.
           maxAgeHours = 48;
@@ -167,27 +157,13 @@ in {
           readData = 5;
         };
 
-      hetzner =
-        {
-          uri = "rclone:hetzner:backups/restic";
-          passwordFile = config.sops.secrets."restic-password".path;
-          envFile = config.sops.secrets."hetzner-webdav-env".path;
-          # hetzner-system (30 4 * * 0) and hetzner (30 5 * * 0) are both
-          # Sunday-only — weekly. 48h would report stale every week; 192h is
-          # 8 days, one day of slack past the interval (matches ovh).
-          maxAgeHours = 192;
-        }
-        // policies {
-          day = 4;
-          maxUnused = 40;
-        };
-
       pegasus =
         {
           uri = "rest:http://pegasus.bat-boa.ts.net:8000/";
           passwordFile = config.sops.secrets."restic-password".path;
           # pegasus-system (30 6 * * 0) and pegasus (30 7 * * 0) are both
-          # Sunday-only — weekly. Same 192h reasoning as hetzner above.
+          # Sunday-only — weekly. 192h is 8 days, one day of slack past the
+          # interval (matches ovh).
           maxAgeHours = 192;
         }
         // policies {
@@ -209,22 +185,6 @@ in {
         };
       };
 
-      hetzner-system = {
-        repo = "hetzner";
-        paths = ["/"];
-        excludes = systemExcludes;
-        schedule.cron = "30 4 * * 0";
-        retention = remoteRetention;
-      };
-
-      hetzner = {
-        repo = "hetzner";
-        paths = ["/home" "/mnt/storage"];
-        excludes = userExcludes;
-        schedule.cron = "30 5 * * 0";
-        retention = remoteRetention;
-      };
-
       pegasus-system = {
         repo = "pegasus";
         paths = ["/"];
@@ -244,11 +204,8 @@ in {
   };
 
   # /mnt/storage is mounted with "nofail" (hardware-configuration.nix), so
-  # galactica boots fine without it. Both the `local` and `storage` repos
-  # above are local paths under /mnt/storage, and `storage` still carries
-  # autoInitialize: true until a guid is written (backrest.nix's merge
-  # script) — so without this guard, a boot with the pool missing would let
-  # restic create a fresh empty repo on the root SSD, and every prune/check
-  # afterwards would succeed into it silently.
+  # galactica boots fine without it. `local` repo is a local path under
+  # /mnt/storage, and `storage` points to restic-rest-server which stores
+  # data under /mnt/storage/backups/restic-server.
   systemd.services.backrest.unitConfig.RequiresMountsFor = "/mnt/storage";
 }
