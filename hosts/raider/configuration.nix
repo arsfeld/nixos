@@ -14,11 +14,9 @@
     ./harmonia.nix
     ./samba.nix
     inputs.niks3.nixosModules.niks3-auto-upload
-    # Chaotic-Nyx: source of the BORE-scheduler CachyOS kernel below, plus the
-    # binary cache that keeps it substitutable. nyx-registry is deliberately NOT
-    # imported — common.nix already registers every flake input, so its separate
-    # nix.registry/nixPath entries for `chaotic` would collide with that.
-    inputs.chaotic.nixosModules.nyx-cache
+    # Chaotic-Nyx: source of the BORE-scheduler CachyOS kernel below.
+    # nyx-cache is in common.nix; nyx-registry is deliberately NOT imported
+    # (common.nix already registers every flake input).
     inputs.chaotic.nixosModules.nyx-overlay
   ];
 

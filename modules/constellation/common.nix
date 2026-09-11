@@ -58,9 +58,11 @@ with lib; {
           # This is the only cache we operate. attic was retired on 2026-09-07;
           # there is no second endpoint to fall back to.
           "https://cache.arsfeld.dev"
+          "https://nyx-cache.chaotic.cx/"
         ];
         trusted-public-keys = lib.mkAfter [
           "cache.arsfeld.dev-1:rf7PgrG/BVE3llOcYdiP0hNqIvOSvIQoz7zoH1kt1d8="
+          "nyx-cache.chaotic.cx:dJxTrgMC3V3cFfyIiBQDQorG6k1LsqurH/srpMSq7qk="
         ];
       };
 
