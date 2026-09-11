@@ -41,7 +41,9 @@
         "**/.local/share/containers"
       ];
       excludeIfPresent = [".nobackup" "CACHEDIR.TAG"];
-      schedule.cron = "30 3 * * 0";
+      # Sunday 04:00, staggered off basestar's daily 03:30 run to prevent
+      # repository lock collisions on the shared storage repo.
+      schedule.cron = "00 4 * * 0";
       # Was keep-all, which combined with the absent prune policy meant nothing
       # was ever removed from this repo. Matches the d7/w4/m6 that galactica
       # already uses for its hetzner and pegasus plans.
