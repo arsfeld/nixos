@@ -41,8 +41,11 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
-            extra-substituters = https://cache.arsfeld.dev
-            extra-trusted-public-keys = cache.arsfeld.dev-1:rf7PgrG/BVE3llOcYdiP0hNqIvOSvIQoz7zoH1kt1d8=
+            # raider's kernel is Chaotic-Nyx's CachyOS BORE build. Its own cache
+            # has to be present here or the runner compiles that kernel for the
+            # `raider` matrix job instead of substituting it.
+            extra-substituters = https://cache.arsfeld.dev https://nyx-cache.chaotic.cx/
+            extra-trusted-public-keys = cache.arsfeld.dev-1:rf7PgrG/BVE3llOcYdiP0hNqIvOSvIQoz7zoH1kt1d8= nyx-cache.chaotic.cx:dJxTrgMC3V3cFfyIiBQDQorG6k1LsqurH/srpMSq7qk=
             fallback = true
             connect-timeout = 5
             download-attempts = 3
@@ -114,8 +117,11 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
-            extra-substituters = https://cache.arsfeld.dev
-            extra-trusted-public-keys = cache.arsfeld.dev-1:rf7PgrG/BVE3llOcYdiP0hNqIvOSvIQoz7zoH1kt1d8=
+            # raider's kernel is Chaotic-Nyx's CachyOS BORE build. Its own cache
+            # has to be present here or the runner compiles that kernel for the
+            # `raider` matrix job instead of substituting it.
+            extra-substituters = https://cache.arsfeld.dev https://nyx-cache.chaotic.cx/
+            extra-trusted-public-keys = cache.arsfeld.dev-1:rf7PgrG/BVE3llOcYdiP0hNqIvOSvIQoz7zoH1kt1d8= nyx-cache.chaotic.cx:dJxTrgMC3V3cFfyIiBQDQorG6k1LsqurH/srpMSq7qk=
             fallback = true
             connect-timeout = 5
             download-attempts = 3
