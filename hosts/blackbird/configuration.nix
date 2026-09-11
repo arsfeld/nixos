@@ -149,6 +149,19 @@ in {
   boot.initrd.verbose = false;
   boot.consoleLogLevel = 0;
 
+  # Pin the kernel to the XanMod LTS branch on this host.
+  # `constellation.gaming` sets linuxPackages_xanmod_latest (lib.mkOverride 990),
+  # which bumped to 7.2.4 with the flake update. nvidia-open 595.71.05 —
+  # the driver this NVIDIA-hybrid laptop pulls via nvidiaPackages.stable — fails
+  # to compile against 7.2.4 because os-interface.c calls strncpy() without
+  # including <string.h>, which 7.2.4 headers no longer provide implicitly,
+  # and -Werror=implicit-function-declaration turns it fatal. The LTS branch is
+  # what the stable driver is validated against, so it builds cleanly. lib.mkForce
+  # is required to beat the gaming module's 990, matching raider's per-host override.
+  # Drop this once a newer nvidia driver or kernel patch lands in nixpkgs that
+  # compiles xanmod_latest again.
+  boot.kernelPackages = lib.mkForce pkgs.linuxPackages_xanmod;
+
   # Kernel parameters for performance and power management
   boot.kernelParams = [
     # Disable zswap - conflicts with zram (double compression wastes RAM)
