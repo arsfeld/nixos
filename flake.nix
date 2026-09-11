@@ -26,6 +26,10 @@
     eh5.inputs.nixpkgs.follows = "nixpkgs";
     vpn-confinement.url = "github:Maroka-chan/VPN-Confinement"; # VPN namespace confinement for services
     niri.url = "github:sodiboo/niri-flake"; # Niri compositor with declarative Nix config
+    # Chaotic-Nyx: CachyOS kernel (BORE scheduler) and bleeding-edge Mesa et al.
+    # Deliberately does NOT follow our nixpkgs — the nyxpkgs-unstable cache is
+    # keyed to its own lock, and a `follows` makes every package a local build.
+    chaotic.url = "github:chaotic-cx/nyx/nyxpkgs-unstable";
     det-nix-eval-jobs.url = "https://flakehub.com/f/DeterminateSystems/nix-eval-jobs/*"; # Determinate Nix eval-jobs
     llm-agents.url = "github:numtide/llm-agents.nix"; # AI coding agents and development tools
     apple-fonts.url = "github:Lyndeno/apple-fonts.nix"; # Apple fonts (SF Pro, SF Compact, SF Mono, New York)
