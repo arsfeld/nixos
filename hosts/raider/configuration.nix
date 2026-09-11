@@ -97,6 +97,11 @@
     gaming = {
       enable = true;
       cpuVendor = "intel";
+      # sched_ext (scx_lavd 1.1.3) has ABI mismatch on Linux 7.1+ (missing
+      # rescue_bandwidth_ppt / rescue_quantum_us) and starves UI threads under
+      # high CPU load on Intel hybrid topology, triggering runnable task stall
+      # kernel aborts. Stick with kernel default EEVDF.
+      scheduler = "none";
       # i5-12500H: CPUs 0-7 are the four SMT P-cores (4500 MHz), 8-15 the eight
       # E-cores (3300 MHz). Confine nix-daemon to the E-cores while a game runs
       # so builds never contend for a P-core with the game.

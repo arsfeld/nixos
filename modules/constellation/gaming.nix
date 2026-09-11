@@ -81,14 +81,13 @@ in {
 
     scheduler = lib.mkOption {
       type = lib.types.enum ["none" "lavd" "bpfland" "rusty"];
-      default = "lavd";
+      default = "none";
       description = ''
         sched_ext BPF scheduler to run via services.scx-loader.
-        - lavd: Latency-Aware Virtual Deadline (recommended, mixed desktop + dev + gaming)
+        - lavd: Latency-Aware Virtual Deadline (mixed desktop + dev + gaming)
         - bpfland: Simpler priority model, pure gaming boxes
         - rusty: Multi-domain round-robin, heavy compile workloads (hurts game latency)
-        - none: Stock CFS (no scx daemon)
-        The scx daemon auto-unloads the BPF program on failure, falling back to CFS.
+        - none: Stock EEVDF/CFS (no scx daemon)
       '';
     };
 
@@ -184,8 +183,9 @@ in {
           # Gaming performance.
           # NOTE: the old kernel.sched_child_runs_first / sched_latency_ns /
           # sched_min_granularity_ns / sched_wakeup_granularity_ns knobs were
-          # removed — they don't exist on EEVDF kernels (xanmod 6.6+) and are
-          # doubly moot here since scx_lavd (services.scx-loader) replaces CFS entirely.
+          # removed in Linux 6.6 with the transition to EEVDF.
+          # Autogrouping isolates each session/terminal into its own task group,
+          # preventing compile tasks from starving desktop and gaming threads.
           "kernel.sched_autogroup_enabled" = 1;
           "kernel.split_lock_mitigate" = 0;
 
@@ -229,12 +229,9 @@ in {
         lib.optionalString config.constellation.gaming.kernelOptimizations ''
           # NVMe: bypass scheduler (hardware handles queuing)
           ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="nvme[0-9]*n[0-9]*", ATTR{queue/scheduler}="none"
-          # SATA SSD: bfq. This module also runs ananicy-cpp, which tags build
-          # tools (rustc, cc1, cargo, ld, …) with the idle IO class so heavy
-          # background builds yield the disk to interactive apps. mq-deadline
-          # ignores IO priorities, so that tag did nothing on a SATA SSD (e.g.
-          # /home) and a build there would freeze the desktop. bfq honours the
-          # priorities and is built for interactivity under load.
+          # SATA SSD: bfq. BFQ honours IO priorities and cgroup IO weights (used by
+          # gaming-boost to deprioritize background builds under disk load),
+          # ensuring interactive apps don't stall.
           ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="bfq"
           # HDD: bfq (fair queuing, good for rotational)
           ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", ATTR{queue/scheduler}="bfq"
@@ -295,91 +292,100 @@ in {
       systemd.oomd.enable = lib.mkForce false;
 
       # Core Gaming Software
-      programs = {
-        # Steam with all features
-        steam = {
-          enable = true;
-          remotePlay.openFirewall = true;
-          dedicatedServer.openFirewall = true;
-          gamescopeSession.enable = true;
+      programs =
+        {
+          # Steam with all features
+          steam = {
+            enable = true;
+            remotePlay.openFirewall = true;
+            dedicatedServer.openFirewall = true;
+            gamescopeSession.enable = true;
 
-          extraCompatPackages = with pkgs; [
-            proton-ge-bin
-          ];
+            extraCompatPackages = with pkgs; [
+              proton-ge-bin
+            ];
 
-          # Native GTK theme for Steam
-          package = pkgs.steam.override {
-            extraEnv = lib.optionalAttrs config.constellation.gaming.performanceOsd {
-              MANGOHUD = "1";
+            # Native GTK theme for Steam
+            package = pkgs.steam.override {
+              extraEnv = lib.optionalAttrs config.constellation.gaming.performanceOsd {
+                MANGOHUD = "1";
+              };
+              extraPkgs = pkgs:
+                with pkgs; [
+                  adwsteamgtk # Adwaita theme manager for Steam
+                ];
+              extraLibraries = pkgs: [];
             };
-            extraPkgs = pkgs:
-              with pkgs; [
-                adwsteamgtk # Adwaita theme manager for Steam
-              ];
-            extraLibraries = pkgs: [];
           };
+
+          # GameMode for automatic optimizations
+          gamemode = {
+            enable = true;
+            settings =
+              {
+                general = {
+                  renice = 10;
+                  inhibit_screensaver = 1;
+                };
+
+                gpu = {
+                  apply_gpu_optimisations = "accept-responsibility";
+                  gpu_device = 0;
+                  amd_performance_level = "high";
+                  nv_powermizer_mode = 1;
+                };
+
+                cpu = {
+                  park_cores = "no";
+                  # Do not let GameMode artificially restrict CPU core affinity. On
+                  # Intel hybrid CPUs (P/E cores), GameMode's automatic pinning
+                  # can restrict games to too few cores. The kernel's EEVDF scheduler
+                  # and Intel Thread Director handle thread placement, while
+                  # gamingBoost confines background build daemons to E-cores.
+                  pin_cores = "no";
+                };
+              }
+              // lib.optionalAttrs cfg.gamingMode {
+                # Ride gamemode's own lifecycle rather than a manual toggle. These
+                # fire for anything launched via gamemoderun — Lutris/Heroic/Bottles
+                # do that by default, bare Steam needs `gamemoderun %command%` in
+                # the launch options. That is the same gate which already governs
+                # gpu.amd_performance_level above, so it is not a new limitation.
+                custom = {
+                  start = "${gamingBoost}/bin/gaming-boost on";
+                  end = "${gamingBoost}/bin/gaming-boost off";
+                };
+              };
+          };
+
+          # Gamescope compositor
+          gamescope = let
+            gs = config.constellation.gaming.gamescope;
+          in {
+            enable = true;
+            capSysNice = false;
+            # Output mode (-W/-H/-r) is host-configurable via
+            # constellation.gaming.gamescope.*. When unset, gamescope picks the
+            # native display mode — the right default for laptops. Pin it per-host
+            # for fixed panels (e.g. raider's 3440x1440@144 ultrawide).
+            args =
+              [
+                "--adaptive-sync"
+                "--immediate-flips"
+                "--force-grab-cursor"
+                # FSR upscaling — sharp Lanczos+RCAS instead of blurry bilinear
+                # when a game's render resolution doesn't match the output.
+                "-F fsr"
+              ]
+              ++ lib.optional (gs.width != null) "-W ${toString gs.width}"
+              ++ lib.optional (gs.height != null) "-H ${toString gs.height}"
+              ++ lib.optional (gs.refreshRate != null) "-r ${toString gs.refreshRate}"
+              ++ ["-f"];
+          };
+        }
+        // lib.optionalAttrs (options.programs ? solaar) {
+          solaar.enable = true;
         };
-
-        # GameMode for automatic optimizations
-        gamemode = {
-          enable = true;
-          settings =
-            {
-              general = {
-                renice = 10;
-                inhibit_screensaver = 1;
-              };
-
-              gpu = {
-                apply_gpu_optimisations = "accept-responsibility";
-                gpu_device = 0;
-                amd_performance_level = "high";
-                nv_powermizer_mode = 1;
-              };
-
-              cpu = {
-                park_cores = "no";
-                pin_cores = "yes";
-              };
-            }
-            // lib.optionalAttrs cfg.gamingMode {
-              # Ride gamemode's own lifecycle rather than a manual toggle. These
-              # fire for anything launched via gamemoderun — Lutris/Heroic/Bottles
-              # do that by default, bare Steam needs `gamemoderun %command%` in
-              # the launch options. That is the same gate which already governs
-              # gpu.amd_performance_level above, so it is not a new limitation.
-              custom = {
-                start = "${gamingBoost}/bin/gaming-boost on";
-                end = "${gamingBoost}/bin/gaming-boost off";
-              };
-            };
-        };
-
-        # Gamescope compositor
-        gamescope = let
-          gs = config.constellation.gaming.gamescope;
-        in {
-          enable = true;
-          capSysNice = false;
-          # Output mode (-W/-H/-r) is host-configurable via
-          # constellation.gaming.gamescope.*. When unset, gamescope picks the
-          # native display mode — the right default for laptops. Pin it per-host
-          # for fixed panels (e.g. raider's 3440x1440@144 ultrawide).
-          args =
-            [
-              "--adaptive-sync"
-              "--immediate-flips"
-              "--force-grab-cursor"
-              # FSR upscaling — sharp Lanczos+RCAS instead of blurry bilinear
-              # when a game's render resolution doesn't match the output.
-              "-F fsr"
-            ]
-            ++ lib.optional (gs.width != null) "-W ${toString gs.width}"
-            ++ lib.optional (gs.height != null) "-H ${toString gs.height}"
-            ++ lib.optional (gs.refreshRate != null) "-r ${toString gs.refreshRate}"
-            ++ ["-f"];
-        };
-      };
 
       # Gaming packages
       environment.systemPackages = with pkgs;
@@ -476,10 +482,13 @@ in {
         steam-hardware.enable = true;
 
         # Logitech support
-        logitech.wireless = {
-          enable = true;
-          enableGraphical = true;
-        };
+        logitech.wireless =
+          {
+            enable = true;
+          }
+          // lib.optionalAttrs (!(options.programs ? solaar)) {
+            enableGraphical = true;
+          };
       };
 
       # Audio optimizations for gaming
@@ -555,13 +564,11 @@ in {
 
       # Yield background build capacity to a running game.
       #
-      # This replaces the old gaming-mode unit, which pkill'd anything matching
-      # "python|pip"/"cargo|rustc"/"node|npm", stopped postgres/libvirt/containers
-      # and ran `echo 3 > /proc/sys/vm/drop_caches` — throwing away the page cache
-      # the game was about to need, and duplicating (badly) what ananicy-cpp below
-      # already does correctly. Bazzite made the same move away from killing
-      # background work and toward boosting the foreground app (dmemcg-booster,
-      # uresourced-dmemcg).
+      # This replaces the old destructive gaming-mode unit (which pkill'd build
+      # processes and dropped caches) with cgroup-based throttling. When a game
+      # starts, gaming-boost sets CPUWeight=20 / IOWeight=20 and confines
+      # nix-daemon to background E-cores via AllowedCPUs, leaving P-cores and
+      # I/O bandwidth unconstrained for the game and desktop UI.
       #
       # Properties are set --runtime so nothing survives a reboot, and assigning a
       # property an empty value resets it to the unit's default.
@@ -597,46 +604,6 @@ in {
           }
         });
       '';
-
-      # Process priority daemon — lowers Steam client/download CPU priority
-      # while leaving games at normal priority. CachyOS rules cover game
-      # processes (wine_proton/linux-native) with "Game" type (nice -5), so
-      # games launched by Steam get boosted back up even if they inherit
-      # Steam's nice value at fork time.
-      services.ananicy = {
-        enable = true;
-        package = pkgs.ananicy-cpp;
-        rulesProvider = pkgs.ananicy-rules-cachyos;
-        # Native Linux Steam client rules — CachyOS rules only cover Windows
-        # Steam.exe under Wine. We use nice+ionice (not SCHED_IDLE) so that
-        # games inheriting policy aren't stuck at idle priority.
-        extraRules = [
-          {
-            name = "steam";
-            nice = 15;
-            ioclass = "best-effort";
-            ionice = 7;
-          }
-          {
-            name = "steamwebhelper";
-            nice = 15;
-            ioclass = "best-effort";
-            ionice = 7;
-          }
-          {
-            name = "steam-runtime-l";
-            nice = 15;
-            ioclass = "best-effort";
-            ionice = 7;
-          }
-          {
-            name = "srt-bwrap";
-            nice = 15;
-            ioclass = "best-effort";
-            ionice = 7;
-          }
-        ];
-      };
 
       # Security settings that don't impact gaming
       security = {
