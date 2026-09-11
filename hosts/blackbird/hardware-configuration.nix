@@ -81,11 +81,11 @@
     # capability this machine does not have. Off, to keep the config honest.
     powerManagement.finegrained = false;
 
-    # Open modules: NVIDIA's recommendation for Turing+, and nothing measured
-    # here justifies deviating — see the GSP entry in the ruled-out list above.
-    open = true;
+    # Open modules: CachyOS pre-builds and packages proprietary nvidia modules for 610.x.
+    # Set open = false to use the prebuilt CachyOS nvidia driver.
+    open = false;
     nvidiaSettings = true;
-    package = config.boot.kernelPackages.nvidiaPackages.stable;
+    package = pkgs.nvidia_cachyos-bore;
 
     prime = {
       offload = {
