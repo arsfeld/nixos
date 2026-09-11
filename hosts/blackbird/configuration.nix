@@ -125,18 +125,72 @@ in {
 
   # Bootloader: rEFInd as the boot menu (replaces systemd-boot). The rEFInd
   # NixOS module wipes anything in /boot/efi/refind/ that it didn't install,
-  # so the previous manual install is cleanly superseded. dont_scan_dirs hides
-  # the stale systemd-boot binary and orphan /EFI/nixos/*.efi kernels that the
-  # old systemd-boot left behind on the ESP. use_nvram false keeps rEFInd's
-  # own variables on the ESP instead of motherboard NVRAM.
+  # so the previous manual install is cleanly superseded. use_nvram false keeps
+  # rEFInd's own variables on the ESP instead of motherboard NVRAM.
+  #
+  # Everything below is emitted into the module's extraConfig, which it writes
+  # to the top of /boot/efi/refind/refind.conf on every activation, followed by
+  # its own timeout/default_selection and then one menuentry per generation.
+  # Three things about that are load-bearing, all of them learned the hard way:
+  #
+  #   - A hand edit to refind.conf does not survive the next activation, and
+  #     neither does a file the module did not write (it deletes those). The
+  #     Windows stanza and the G14 input fixes live here for that reason.
+  #   - `scanfor manual` is not optional. rEFInd's default is "ieom", which
+  #     scans the ESP first, so auto-detected entries (a Windows entry, the
+  #     stale \EFI\BOOT\bootx64.efi, one per kernel-shaped file in
+  #     /efi/refind/kernels) are added BEFORE the manual ones. The module then
+  #     writes `default_selection 2`, a shortcut *digit* -- index 2 of the menu,
+  #     not the second NixOS generation -- and lands on one of them. That is how
+  #     this machine defaulted into Windows instead of NixOS: the menu was
+  #     ordered [auto Windows, auto Linux, ..., NixOS 52, ..., Windows 11] and
+  #     entry 2 was never a NixOS stanza.
+  #   - A default_selection written here is overridden, because the module
+  #     appends its own after this block. With `scanfor manual` and the Windows
+  #     stanza first, entry 2 is the newest generation, which is what the
+  #     module's `2` now happens to mean. To boot one specific generation by
+  #     hand, append `default_selection "Generation <N>"` to the bottom of
+  #     refind.conf on the ESP -- last setting wins, and a string is matched
+  #     against entry titles instead of as a digit.
+  #
+  # maxGenerations is what keeps the ESP from filling. /boot here *is* the
+  # 500 MB ESP (see disko-config.nix), and the installer copies each listed
+  # generation's kernel and initrd into /boot/efi/refind/kernels -- 14 MB and
+  # ~71 MB respectively. With the option unset every generation ever built is
+  # listed, nothing is ever pruned, and the copies already add up to ~384 MB of
+  # the 524 MB: measured from the ESP on 2026-09-11, five initrds (four for
+  # 7.1.9, one for 7.1.6) plus two bzImages, against a 0.7 MB theme. The next
+  # deploy alone would have left ~30 MB free and the one after it would fail
+  # mid-activation, because the installer copies kernels before it prunes.
+  # Four generations bounds that at four distinct initrds plus their kernels
+  # (~340 MB worst case) and leaves the previous three as fallback, which is
+  # the point of the option.
   boot.loader.systemd-boot.enable = false;
   boot.loader.grub.enable = false;
   boot.loader.efi.canTouchEfiVariables = true;
+  # 10s, not the module's default 5, matching what the menu has run with since
+  # the rEFInd migration.
+  boot.loader.timeout = 10;
   boot.loader.refind = {
     enable = true;
+    maxGenerations = 4;
     extraConfig = ''
       use_nvram false
       dont_scan_dirs +,EFI/systemd,EFI/nixos,EFI/Microsoft/Recovery
+      # rEFInd logs nothing at its default log_level 0; refind.log beside the
+      # config is the only diagnostic that survives a failed boot.
+      log_level 1
+      scanfor manual
+
+      # Input fixes for ASUS Zephyrus G14 (prevents touchpad from freezing keyboard)
+      enable_mouse false
+      enable_touch false
+
+      # Manual stanzas are appended in file order, so this is menu entry 1.
+      menuentry "Windows 11" {
+        loader /EFI/Microsoft/Boot/bootmgfw.efi
+        icon icons/os_win.png
+      }
     '';
   };
   services.refind-theme-regular = {
