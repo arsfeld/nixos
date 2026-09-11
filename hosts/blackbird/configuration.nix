@@ -2,6 +2,7 @@
   config,
   pkgs,
   lib,
+  inputs,
   ...
 }: let
   # Astra Monitor addresses GPUs by the PCI fields it parses out of `lspci -nnk`
@@ -58,6 +59,7 @@ in {
   imports = [
     ./hardware-configuration.nix
     ./disko-config.nix
+    inputs.chaotic.nixosModules.nyx-overlay
   ];
 
   # Publisher credential for claude-notify (authenticated ntfy.arsfeld.one
@@ -149,18 +151,8 @@ in {
   boot.initrd.verbose = false;
   boot.consoleLogLevel = 0;
 
-  # Pin the kernel to the XanMod LTS branch on this host.
-  # `constellation.gaming` sets linuxPackages_xanmod_latest (lib.mkOverride 990),
-  # which bumped to 7.2.4 with the flake update. nvidia-open 595.71.05 —
-  # the driver this NVIDIA-hybrid laptop pulls via nvidiaPackages.stable — fails
-  # to compile against 7.2.4 because os-interface.c calls strncpy() without
-  # including <string.h>, which 7.2.4 headers no longer provide implicitly,
-  # and -Werror=implicit-function-declaration turns it fatal. The LTS branch is
-  # what the stable driver is validated against, so it builds cleanly. lib.mkForce
-  # is required to beat the gaming module's 990, matching raider's per-host override.
-  # Drop this once a newer nvidia driver or kernel patch lands in nixpkgs that
-  # compiles xanmod_latest again.
-  boot.kernelPackages = lib.mkForce pkgs.linuxPackages_xanmod;
+  # CachyOS BORE kernel from Chaotic-Nyx, mirroring raider.
+  boot.kernelPackages = lib.mkForce pkgs.linuxPackages_cachyos-bore;
 
   # Kernel parameters for performance and power management
   boot.kernelParams = [
