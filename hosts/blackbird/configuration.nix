@@ -143,6 +143,19 @@ in {
     variant = "dark";
   };
 
+  # Pin the gaming kernel to the XanMod stable (LTS) branch on this host.
+  # `constellation.gaming` sets linuxPackages_xanmod_latest (lib.mkOverride 990),
+  # which advanced to 7.2.4 with the last flake update. nvidia-open 595.71.05 —
+  # the driver this NVIDIA-hybrid laptop pulls via nvidiaPackages.stable — fails
+  # to compile against that kernel: os-interface.c calls strncpy() without
+  # including <string.h>, which 7.2.4's headers no longer provide implicitly,
+  # and -Werror=implicit-function-declaration turns it fatal. The LTS branch is
+  # what the stable driver is validated against, so it builds cleanly. mkForce
+  # (priority 50) is required to beat the gaming module's 990, matching raider's
+  # per-host override. Drop this once a newer nvidia driver or kernel patch lands
+  # in nixpkgs that compiles xanmod_latest again.
+  boot.kernelPackages = lib.mkForce pkgs.linuxPackages_xanmod_stable;
+
   # Boot appearance
   boot.plymouth.enable = true;
   boot.plymouth.theme = "bgrt";
