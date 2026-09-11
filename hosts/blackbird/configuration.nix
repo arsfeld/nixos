@@ -149,6 +149,19 @@ in {
   boot.initrd.verbose = false;
   boot.consoleLogLevel = 0;
 
+  # constellation.gaming pins every gaming host to linuxPackages_xanmod_latest
+  # (lib.mkOverride 990). The 2026-09-10 flake update carried that build to Linux
+  # 7.2, whose headers no longer transitively include <string.h>, and the
+  # nvidia-open kernel module fails to compile against it:
+  #   os-interface.c:764: implicit declaration of function 'strncpy'
+  # The driver is nvidiaPackages.stable (595.71.05), pulled through
+  # config.boot.kernelPackages by hardware-configuration.nix. This host's entire
+  # dGPU 30 W-clamp workaround (nvidia-unclamp-tgp, dgpu-power) is calibrated
+  # against 595.71.05, so hold the driver and step the kernel back to XanMod's
+  # LTS branch, which nvidia-open 595 still builds against. lib.mkForce beats the
+  # gaming module's 990. Drop this once nixpkgs' nvidia stable carries the fix.
+  boot.kernelPackages = lib.mkForce pkgs.linuxPackages_xanmod;
+
   # Kernel parameters for performance and power management
   boot.kernelParams = [
     # Disable zswap - conflicts with zram (double compression wastes RAM)
