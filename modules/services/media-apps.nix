@@ -94,6 +94,8 @@ in {
             DOWNLOAD_CLIENT_1_HOST = pia.namespaceAddress;
             DOWNLOAD_CLIENT_1_PORT = "9091";
             DOWNLOAD_CLIENT_1_USE_SSL = "false";
+            DOWNLOAD_CLIENT_1_AUTO_REMOVE = "true";
+            DOWNLOAD_CLIENT_1_REMOVE_COMPLETED = "true";
             DOWNLOAD_CLIENT_1_DOWNLOAD_DIRECTORY = "${vars.storageDir}/media/Downloads";
           };
           environmentFiles = [
