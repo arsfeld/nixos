@@ -122,6 +122,8 @@ in {
         DOWNLOAD_CLIENT_1_PORT = "9091";
         DOWNLOAD_CLIENT_1_USERNAME = "admin";
         DOWNLOAD_CLIENT_1_USE_SSL = "false";
+        DOWNLOAD_CLIENT_1_AUTO_REMOVE = "true";
+        DOWNLOAD_CLIENT_1_REMOVE_COMPLETED = "true";
         DOWNLOAD_CLIENT_1_DOWNLOAD_DIRECTORY = "/mnt/storage/media/Downloads";
         # Search via the local Prowlarr (media.nix). mydia is host-networked,
         # so Prowlarr is on localhost:9696. INDEXER_1_API_KEY is in mydia-env.
