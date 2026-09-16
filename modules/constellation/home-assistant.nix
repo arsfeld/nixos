@@ -69,6 +69,12 @@
         pkgs.home-assistant-eufy-sdk # Eufy Security, via the eufy-sdk-bridge container
       ];
 
+      # Dashboard cards. Setting this switches lovelace resources to YAML mode,
+      # so cards come from here, not from HACS; dashboards stay UI-editable.
+      customLovelaceModules = with pkgs.home-assistant-custom-lovelace-modules; [
+        mushroom
+      ];
+
       # Extra Python packages required by HACS and custom integrations
       extraPackages = ps: [
         ps.aiogithubapi # Required by HACS
