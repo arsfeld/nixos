@@ -5,7 +5,7 @@
 #
 # Key features:
 # - Writable configuration for UI-managed automations and HACS installations
-# - Built-in support for ESPHome, Met.no weather, and default integrations
+# - Built-in support for ESPHome, Met.no weather, TP-Link Kasa, and default integrations
 # - Custom components for Tuya Local, Alarmo, Hilo and Eufy Security (eufy-sdk)
 #
 # Prefer packaging a component over installing it through HACS: pip is
@@ -59,6 +59,7 @@
         "default_config" # Includes common integrations (sun, person, zone, etc.)
         "met" # Met.no weather integration
         "esphome" # ESPHome device integration
+        "tplink" # Kasa/Tapo switches (local; KLAP devices need the TP-Link account)
       ];
 
       # Custom components from nixpkgs, plus two packaged in ./packages
