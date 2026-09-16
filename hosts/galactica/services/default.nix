@@ -12,6 +12,7 @@
     ./cloudflared.nix
     ./db.nix
     ./develop.nix
+    ./eufy.nix
     ./files.nix
     ./forgejo-runner.nix
     ./glance.nix
