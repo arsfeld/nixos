@@ -60,6 +60,7 @@
         "met" # Met.no weather integration
         "esphome" # ESPHome device integration
         "tplink" # Kasa/Tapo switches (local; KLAP devices need the TP-Link account)
+        "tuya" # Smart Life cloud; configured in the UI, so its deps must be listed here
       ];
 
       # Custom components from nixpkgs, plus two packaged in ./packages
