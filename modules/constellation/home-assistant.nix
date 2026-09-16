@@ -6,7 +6,11 @@
 # Key features:
 # - Writable configuration for UI-managed automations and HACS installations
 # - Built-in support for ESPHome, Met.no weather, and default integrations
-# - Custom components for Tuya Local and Alarmo security system
+# - Custom components for Tuya Local, Alarmo, Hilo and Eufy Security (eufy-sdk)
+#
+# Prefer packaging a component over installing it through HACS: pip is
+# disabled here, so a HACS-installed component whose Python requirements are
+# not in the Nix environment cannot load.
 # - Trusted proxy configuration for reverse proxy integration
 # - UI-managed automation, scene, and script files
 #
@@ -57,10 +61,12 @@
         "esphome" # ESPHome device integration
       ];
 
-      # Custom components from nixpkgs
+      # Custom components from nixpkgs, plus two packaged in ./packages
       customComponents = with pkgs.home-assistant-custom-components; [
         tuya_local # Local control of Tuya devices
         alarmo # Security system integration
+        pkgs.home-assistant-hilo # Hydro-Québec Hilo
+        pkgs.home-assistant-eufy-sdk # Eufy Security, via the eufy-sdk-bridge container
       ];
 
       # Extra Python packages required by HACS and custom integrations
