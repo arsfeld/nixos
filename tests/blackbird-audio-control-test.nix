@@ -38,9 +38,12 @@ in
   assert monitorSettings != null;
   assert monitorSettings.show-brightness;
   assert monitorSettings.show-volume;
-  assert monitorSettings.unify-volume;
-  assert !raider.constellation.desktop.gnome.monitorControl.enable;
-  assert !builtins.elem "monitor-control@ahmed-shaalan" (enabledExtensions raider);
+  assert raider.constellation.desktop.gnome.monitorControl.enable;
+  assert builtins.elem "monitor-control@ahmed-shaalan" (enabledExtensions raider);
+  assert builtins.elem "monitor@astraext.github.io" (enabledExtensions blackbird);
+  assert builtins.elem "monitor@astraext.github.io" (enabledExtensions raider);
+  assert !builtins.elem "Vitals@CoreCoding.com" (enabledExtensions blackbird);
+  assert !builtins.elem "Vitals@CoreCoding.com" (enabledExtensions raider);
   assert easyEffectsFiles ? "easyeffects/output/ASUS_G14_2020.json";
   assert easyEffectsFiles ? "easyeffects/output/No_Effects.json";
   assert easyEffectsFiles ? "easyeffects/autoload/output/alsa_output.pci-0000_04_00.6.analog-stereo:Speakers.json";

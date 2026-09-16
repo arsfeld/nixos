@@ -86,12 +86,15 @@ in {
         description = "Install GNOME extensions and tweaks";
       };
 
-      monitorControl.enable = lib.mkEnableOption "GNOME Quick Settings controls for DDC/CI monitors";
+      monitorControl.enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "GNOME Quick Settings controls for DDC/CI monitors";
+      };
 
-      # Astra Monitor (GPU menu: power limits, clocks, P-state) plus Executor
-      # (an arbitrary command's output in the top bar). Only the extensions are
-      # installed here -- the Executor command and Astra's GPU selection are
-      # host-specific, so the host configures them in its own dconf database.
+      # Executor (an arbitrary command's output in the top bar). Only the extension
+      # is installed here -- the Executor command is host-specific, so the host
+      # configures it in its own dconf database (e.g. blackbird's dGPU power readout).
       gpuMonitor.enable = lib.mkEnableOption "GNOME panel readouts for GPU power, clocks and load";
     };
 
@@ -330,8 +333,8 @@ in {
                       "azwallpaper@azwallpaper.gitlab.com"
                       "gsconnect@andyholmes.github.io"
                       "xwayland-indicator@swsnr.de"
-                      "Vitals@CoreCoding.com"
                       "user-theme@gnome-shell-extensions.gcampax.github.com"
+                      "monitor@astraext.github.io"
                       # Bazzite-GNOME parity extensions
                       "burn-my-windows@schneegans.github.com"
                       "desktop-cube@schneegans.github.com"
@@ -341,7 +344,6 @@ in {
                     ]
                     ++ lib.optional cfg.gnome.monitorControl.enable "monitor-control@ahmed-shaalan"
                     ++ lib.optionals cfg.gnome.gpuMonitor.enable [
-                      "monitor@astraext.github.io"
                       "executor@raujonas.github.io"
                     ];
                 };
@@ -420,7 +422,7 @@ in {
             gnomeExtensions.wallpaper-slideshow
             gnomeExtensions.gsconnect
             gnomeExtensions.xwayland-indicator
-            gnomeExtensions.vitals
+            gnomeExtensions.astra-monitor
             gnomeExtensions.user-themes
             gnomeExtensions.logo-menu
             gnomeExtensions.hot-edge
@@ -446,9 +448,6 @@ in {
             pkgs-unstable.gnomeExtensions.monitorcontrol-brightness-and-volume
           ]
           ++ lib.optionals cfg.gnome.gpuMonitor.enable [
-            # Astra reads the GPU list from `lspci -nnk` (pciutils comes from
-            # constellation.common) and NVIDIA telemetry from `nvidia-smi -q -x`.
-            gnomeExtensions.astra-monitor
             gnomeExtensions.executor
           ];
       })
