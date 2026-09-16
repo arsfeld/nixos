@@ -7,12 +7,12 @@
 # - Writable configuration for UI-managed automations and HACS installations
 # - Built-in support for ESPHome, Met.no weather, TP-Link Kasa, and default integrations
 # - Custom components for Tuya Local, Alarmo, Hilo and Eufy Security (eufy-sdk)
+# - Trusted proxy configuration for reverse proxy integration
+# - UI-managed automation, scene, and script files
 #
 # Prefer packaging a component over installing it through HACS: pip is
 # disabled here, so a HACS-installed component whose Python requirements are
 # not in the Nix environment cannot load.
-# - Trusted proxy configuration for reverse proxy integration
-# - UI-managed automation, scene, and script files
 #
 # The module enables configWritable to allow HACS to install custom integrations
 # and the UI to modify automation files. Configuration changes made through the
