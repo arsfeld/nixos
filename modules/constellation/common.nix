@@ -34,6 +34,17 @@ with lib; {
       '';
       default = true;
     };
+
+    minimal = mkOption {
+      type = types.bool;
+      default = false;
+      description = ''
+        Keep the baseline small, for hosts with little RAM or no binary cache
+        (cylon-link is cross-compiled for armv7l). Replaces the large tool
+        list with a few basics and skips nix-ld. Caches, SSH, Tailscale, GC
+        and the rest of the baseline are unchanged.
+      '';
+    };
   };
 
   config = lib.mkIf config.constellation.common.enable {
@@ -141,83 +152,101 @@ with lib; {
       "@wheel"
     ];
 
-    environment.systemPackages = with pkgs; [
-      # From base profile
-      w3m-nographics # needed for the manual anyway
-      testdisk # useful for repairing boot problems
-      ms-sys # for writing Microsoft boot sectors / MBRs
-      efibootmgr
-      efivar
-      parted
-      gptfdisk
-      ddrescue
-      ccrypt
-      cryptsetup # needed for dm-crypt volumes
+    environment.systemPackages =
+      if config.constellation.common.minimal
+      then
+        with pkgs; [
+          # Terminfo only: 5 KiB of data with no references, taken from the
+          # build platform so a cross-compiled host never builds ghostty.
+          buildPackages.ghostty.terminfo
+          file
+          htop
+          iproute2
+          lsof
+          psmisc
+          tcpdump
+          tmux
+          usbutils
+          vim
+        ]
+      else
+        with pkgs; [
+          # From base profile
+          w3m-nographics # needed for the manual anyway
+          testdisk # useful for repairing boot problems
+          ms-sys # for writing Microsoft boot sectors / MBRs
+          efibootmgr
+          efivar
+          parted
+          gptfdisk
+          ddrescue
+          ccrypt
+          cryptsetup # needed for dm-crypt volumes
 
-      # Some text editors.
-      vim
+          # Some text editors.
+          vim
 
-      # Some networking tools.
-      fuse
-      fuse3
-      sshfs-fuse
-      socat
-      screen
-      tcpdump
-      lsof
-      iftop
-      nmap
-      dnsutils
-      netcat
-      mtr
-      iproute2
-      ethtool
+          # Some networking tools.
+          fuse
+          fuse3
+          sshfs-fuse
+          socat
+          screen
+          tcpdump
+          lsof
+          iftop
+          nmap
+          dnsutils
+          netcat
+          mtr
+          iproute2
+          ethtool
 
-      # System diagnostics and tracing
-      iotop
-      strace
-      sysstat
+          # System diagnostics and tracing
+          iotop
+          strace
+          sysstat
 
-      # Hardware-related tools.
-      sdparm
-      hdparm
-      smartmontools # for diagnosing hard disks
-      pciutils
-      usbutils
-      nvme-cli
+          # Hardware-related tools.
+          sdparm
+          hdparm
+          smartmontools # for diagnosing hard disks
+          pciutils
+          usbutils
+          nvme-cli
 
-      # Some compression/archiver tools.
-      unzip
-      zip
+          # Some compression/archiver tools.
+          unzip
+          zip
 
-      # Add terminfo from ghostty
-      ghostty
+          # Add terminfo from ghostty
+          ghostty
 
-      binutils
-      bubblewrap
-      dosfstools
-      duf
-      exiftool
-      ffmpeg
-      file
-      git
-      gptfdisk
-      htop
-      home-manager
-      keychain
-      killall
-      moreutils
-      nano
-      ncdu
-      psmisc
-      rclone
-      tmux
-      usbutils
-      wget
-      zpaq
-    ];
+          binutils
+          bubblewrap
+          dosfstools
+          duf
+          exiftool
+          ffmpeg
+          file
+          git
+          gptfdisk
+          htop
+          home-manager
+          keychain
+          killall
+          moreutils
+          nano
+          ncdu
+          psmisc
+          rclone
+          tmux
+          usbutils
+          wget
+          zpaq
+        ];
 
-    programs.nix-ld.enable = true;
+    programs.nix-ld.enable = !config.constellation.common.minimal;
 
     services.openssh.enable = true;
     nixpkgs.config.allowUnfree = true;
