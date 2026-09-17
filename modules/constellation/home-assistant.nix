@@ -6,7 +6,8 @@
 # Key features:
 # - Writable configuration for UI-managed automations and HACS installations
 # - Built-in support for ESPHome, Met.no weather, TP-Link Kasa, and default integrations
-# - Custom components for Tuya Local, Alarmo, Hilo and Eufy Security (eufy-sdk)
+# - Custom components for Tuya Local, Alarmo, Hilo, Eufy Security (eufy-sdk)
+#   and Tuya IR air conditioners
 # - Trusted proxy configuration for reverse proxy integration
 # - UI-managed automation, scene, and script files
 #
@@ -63,12 +64,13 @@
         "tuya" # Smart Life cloud; configured in the UI, so its deps must be listed here
       ];
 
-      # Custom components from nixpkgs, plus two packaged in ./packages
+      # Custom components from nixpkgs, plus the ones packaged in ./packages
       customComponents = with pkgs.home-assistant-custom-components; [
         tuya_local # Local control of Tuya devices
         alarmo # Security system integration
         pkgs.home-assistant-hilo # Hydro-Québec Hilo
         pkgs.home-assistant-eufy-sdk # Eufy Security, via the eufy-sdk-bridge container
+        pkgs.home-assistant-tuya-smart-ir-ac # IR air conditioners behind Tuya Smart IR hubs
       ];
 
       # Dashboard cards. Setting this switches lovelace resources to YAML mode,
