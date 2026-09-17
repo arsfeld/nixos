@@ -9,6 +9,7 @@
   imports = [
     ./hardware.nix
     ./boot
+    ./image.nix
   ];
 
   networking.hostName = "cylon-link";
