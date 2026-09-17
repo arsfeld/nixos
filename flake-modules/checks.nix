@@ -32,6 +32,10 @@
         cylon-link-boot = import ../hosts/cylon-link/boot/test.nix {
           pkgs = inputs.nixpkgs.legacyPackages.${system};
         };
+        cylon-link-config = import ../hosts/cylon-link/config-test.nix {
+          inherit self;
+          pkgs = inputs.nixpkgs.legacyPackages.${system};
+        };
       };
   };
 }
