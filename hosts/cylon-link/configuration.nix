@@ -27,6 +27,18 @@
   programs.fish.enable = lib.mkForce false;
   users.users.arosenfeld.shell = lib.mkForce pkgs.bashInteractive;
 
+  # Closure size: the device only runs what raider built for it.
+  # Wired only; Wi-Fi is out of scope, so no firmware blobs.
+  hardware.enableRedistributableFirmware = lib.mkForce false;
+  # The device never evaluates Nix, so it needs no flake-input sources.
+  nix.registry = lib.mkForce {};
+  nix.nixPath = lib.mkForce [];
+  nixpkgs.flake.setNixPath = false;
+  nixpkgs.flake.setFlakeRegistry = false;
+  # `just deploy` runs nixos-rebuild on raider; the target only runs nix-env
+  # and the generation's switch-to-configuration.
+  system.tools.nixos-rebuild.enable = false;
+
   sops.secrets.tailscale-key.sopsFile = config.constellation.sops.commonSopsFile;
   services.tailscale.authKeyFile = config.sops.secrets.tailscale-key.path;
 
