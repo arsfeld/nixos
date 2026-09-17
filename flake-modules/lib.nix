@@ -73,7 +73,7 @@
       }
     ];
     homeManagerModules = homeManagerModulesFor inputs.home-manager;
-    lightHosts = ["raspi3" "octopi" "r2s"];
+    lightHosts = ["raspi3" "octopi" "r2s" "cylon-link"];
   in {
     inherit
       loadPackages

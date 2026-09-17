@@ -27,6 +27,11 @@
       tier1 = ["basestar" "galactica" "raider"];
     };
 
+    # Hosts CI never builds. cylon-link is cross-compiled for armv7l and its
+    # kernel alone outlasts the build job's 120-minute timeout on a GitHub
+    # runner. raider builds it in `just deploy` phase 1 instead.
+    ciExcludedHosts = ["cylon-link"];
+
     # CI build matrix, derived from the discovered hosts with auto-detected
     # platforms. Consumed by .github/workflows/build.yml via `nix eval`.
     # aarch64 hosts build on GitHub's free native ARM runners (public repo)
@@ -42,7 +47,7 @@
           then "ubuntu-24.04-arm"
           else "ubuntu-latest";
       })
-      self.hosts;
+      (builtins.filter (h: !(builtins.elem h self.ciExcludedHosts)) self.hosts);
 
     nixosConfigurations = builtins.listToAttrs (
       map (
