@@ -12,6 +12,7 @@ keys:
   - &host_pegasus age1pl5auq2g52ex88wn5ufty3jkjs5gzz204jrpq7z7cuqe2rrefqmqg8d4w4
   - &host_blackbird age1a0gfmynj3yplx9w5gapnuwftpz68up7swjcqukh6d7cstualsalsgn0366
   - &host_octopi age17vmpwxh5uaqke3sxyc4ehj5pun4mr85x9w93s40rg7s4pyaph5xscf9wsa
+  - &host_cylon_link age16hhnw7cm0x0s763kamu094mmm3sjt2hallyd0zuy7legzyg6cagqxnclc9
 
 creation_rules:
   - path_regex: secrets/sops/basestar\.yaml$
@@ -40,6 +41,14 @@ creation_rules:
       - age:
           - *user_arosenfeld
 
+  # cylon-link's SSH host key, kept so a reflash (`just flash-cylon-link`)
+  # preserves the host's sops identity. Only the flash recipe reads it, from
+  # a workstation, so no host key is a recipient.
+  - path_regex: secrets/sops/cylon-link-hostkey\.yaml$
+    key_groups:
+      - age:
+          - *user_arosenfeld
+
   - path_regex: secrets/sops/pegasus\.yaml$
     key_groups:
       - age:
@@ -59,6 +68,7 @@ creation_rules:
           - *host_pegasus
           - *host_blackbird
           - *host_octopi
+          - *host_cylon_link
 
   # ntfy publisher credentials — intentionally narrower than common.yaml.
   # Only hosts that publish to ntfy.arsfeld.one are recipients; embedded
