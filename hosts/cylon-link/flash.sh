@@ -31,7 +31,10 @@ part() {
 wipefs --all --quiet "$dev"
 # One sequential write. This stick is unusably slow at small scattered ones.
 zstd -dc "$image" | dd of="$dev" bs=4M iflag=fullblock oflag=direct conv=fsync status=progress
-blockdev --rereadpt "$dev"
+# An exclusive lock: udev's `watch` rule re-probes the device as soon as dd
+# closes it, and the kernel refuses BLKRRPART with EBUSY while that probe has
+# a partition open. The lock waits out any in-flight udev workers first.
+udevadm lock --device="$dev" blockdev --rereadpt "$dev"
 udevadm settle
 
 # The host key never enters the store, so it goes in after the image.
