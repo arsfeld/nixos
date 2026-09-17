@@ -38,6 +38,10 @@
   # `just deploy` runs nixos-rebuild on raider; the target only runs nix-env
   # and the generation's switch-to-configuration.
   system.tools.nixos-rebuild.enable = false;
+  # Cross-compiled msmtpq scripts get the build platform's bash as their
+  # interpreter, which pulls x86_64 glibc into the closure. Nothing here uses
+  # msmtpq; send-email-event and sendmail call the msmtp binary.
+  nixpkgs.overlays = [(_: prev: {msmtp = prev.msmtp.override {withScripts = false;};})];
 
   sops.secrets.tailscale-key.sopsFile = config.constellation.sops.commonSopsFile;
   services.tailscale.authKeyFile = config.sops.secrets.tailscale-key.path;
