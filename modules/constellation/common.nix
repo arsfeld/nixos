@@ -156,9 +156,11 @@ with lib; {
       if config.constellation.common.minimal
       then
         with pkgs; [
-          # Terminfo only: 5 KiB of data with no references, taken from the
-          # build platform so a cross-compiled host never builds ghostty.
-          buildPackages.ghostty.terminfo
+          # Terminfo only: 5 KiB of data with no references. pkgsBuildBuild
+          # shares hashes with the native x86_64 set, so this comes from
+          # cache.nixos.org. buildPackages targets the host platform, which
+          # changes the hashes and rebuilds ghostty's GUI stack from source.
+          pkgsBuildBuild.ghostty.terminfo
           file
           htop
           iproute2
