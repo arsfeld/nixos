@@ -341,6 +341,43 @@ build-octopi:
     echo ""
     echo "After flashing, insert the SD card into the Orange Pi Zero 3 and power it on."
 
+# Write a bootable cylon-link (Steam Link) USB stick. ERASES DEVICE, which
+# must be a whole-disk /dev/disk/by-id/usb-* path. Run inside `nix develop`.
+flash-cylon-link DEVICE:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dev='{{ DEVICE }}'
+    case "$dev" in
+      /dev/disk/by-id/usb-*-part*) echo "refusing: $dev is a partition; pass the whole disk" >&2; exit 1 ;;
+      /dev/disk/by-id/usb-*) ;;
+      *) echo "refusing: DEVICE must be a /dev/disk/by-id/usb-* path" >&2; exit 1 ;;
+    esac
+    [ -b "$dev" ] || { echo "refusing: $dev is not a block device" >&2; exit 1; }
+    if lsblk -nro MOUNTPOINTS "$dev" | grep -q .; then
+      echo "refusing: $dev has mounted filesystems" >&2; exit 1
+    fi
+    command -v sops >/dev/null || { echo "sops not found; run inside 'nix develop'" >&2; exit 1; }
+
+    echo "Building cylon-link..."
+    toplevel=$(nix build --no-link --print-out-paths '.#deployTargets.cylon-link')
+    boot_tool=$(nix build --no-link --print-out-paths '.#nixosConfigurations.cylon-link.config.system.build.cylonLinkBoot')
+    e2fsprogs=$(nix build --no-link --print-out-paths --inputs-from . 'nixpkgs#e2fsprogs.bin')
+
+    key_dir=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/cylon-link-key.XXXXXX")
+    trap 'rm -rf "$key_dir"' EXIT
+    secret=secrets/sops/cylon-link-hostkey.yaml
+    sops --decrypt --extract '["ssh_host_ed25519_key"]' "$secret" >"$key_dir/ssh_host_ed25519_key"
+    sops --decrypt --extract '["ssh_host_ed25519_key_pub"]' "$secret" >"$key_dir/ssh_host_ed25519_key.pub"
+
+    lsblk -o NAME,SIZE,MODEL,SERIAL,FSTYPE,LABEL "$dev"
+    read -r -p "Erase everything on $dev? [y/N] " answer
+    [ "$answer" = y ] || { echo "aborted"; exit 1; }
+
+    sudo env PATH="$e2fsprogs/bin:$PATH" bash hosts/cylon-link/flash.sh \
+      "$dev" "$toplevel" "$boot_tool/bin/cylon-link-boot" "$key_dir"
+    udisksctl power-off -b "$(readlink -f "$dev")"
+    echo "Done: move the stick to the Steam Link, plug in Ethernet, and power-cycle it."
+
 # Build custom kexec image with Tailscale support
 # This kexec image maintains Tailscale connectivity during nixos-anywhere installations
 build-kexec:
