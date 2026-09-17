@@ -16,10 +16,16 @@
     hash = "sha256-sbinlkoG1+vNRRcLZWX22eNIxfyIXro65/yBj0BLGVY=";
   };
 
+  # Static musl: it runs under the 3.8 kernel, which nixpkgs' glibc refuses.
+  # Only the binary is copied: pkgsStatic kexec-tools propagates static
+  # zlib/zstd dev outputs, whose build-platform references would land on the device.
+  kexecStatic = pkgs.runCommand "kexec-static" {allowedReferences = [];} ''
+    install -Dm755 ${pkgs.pkgsStatic.kexec-tools}/bin/kexec $out/bin/kexec
+  '';
+
   bootToolFor = p:
     p.callPackage ./package.nix {
-      # Static musl: it runs under the 3.8 kernel, which nixpkgs' glibc refuses.
-      kexec = "${pkgs.pkgsStatic.kexec-tools}/bin/kexec";
+      kexec = "${kexecStatic}/bin/kexec";
       kexecModule = "${kexecModule}";
       dtbName = config.hardware.deviceTree.name;
     };
