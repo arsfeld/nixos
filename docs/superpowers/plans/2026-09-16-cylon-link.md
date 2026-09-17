@@ -1226,6 +1226,283 @@ git commit -m "feat(cylon-link): add just flash-cylon-link"
 
 ---
 
+### Task 6b: Flash a disk image instead of copying files
+
+Added 2026-09-17 after the first real flash. The Kingston stick sits on a USB 2.0 port, and writing a store file by file averaged 0.32 MB/s, falling to about 46 KB/s. After 30 minutes about 950 MB was still unwritten, and the flash was abandoned. Its sequential writes are fine. This task makes `just flash-cylon-link` write a prebuilt image with `dd`, modelled on nixpkgs' `nixos/modules/installer/sd-card/sd-image.nix`.
+
+**Files:**
+- Create: `hosts/cylon-link/image.nix`
+- Modify: `hosts/cylon-link/configuration.nix` (imports)
+- Modify: `hosts/cylon-link/flash.sh` (rewritten)
+- Modify: `justfile` (`flash-cylon-link` body)
+- Modify: `hosts/cylon-link/config-test.nix` (two assertions)
+
+**Interfaces:**
+- Consumes: `config.system.build.cylonLinkBoot` (the build-platform `cylon-link-boot`, Task 4) and `config.system.build.toplevel`.
+- Produces:
+  - `config.system.build.cylonLinkImage`, a zstd-compressed raw MBR disk image. p1 is `CYLON_BOOT` (ext3, 1 GiB, staged by `cylon-link-boot install`, no `good` entry). p2 is `CYLON_ROOT` (ext4, sized to the closure, containing `/nix-path-registration` and an empty `/etc/ssh`).
+  - Two first-boot units: `cylon-link-grow-root.service` and `cylon-link-register-store.service`.
+  - `hosts/cylon-link/flash.sh DEVICE IMAGE KEY_DIR`, run as root, with `zstd` on PATH.
+
+- [ ] **Step 1: Write the failing check**
+
+In `hosts/cylon-link/config-test.nix`, add these two assertions after the `hardware.deviceTree.name` one:
+
+```nix
+  assert check (c.system.build ? cylonLinkImage) "just flash-cylon-link needs the disk image";
+  assert check (c.systemd.services ? cylon-link-register-store && c.systemd.services ? cylon-link-grow-root) "a flashed image must register its store and grow on first boot";
+```
+
+Run: `nix build .#checks.x86_64-linux.cylon-link-config -L`
+Expected: FAIL with `cylon-link: just flash-cylon-link needs the disk image`.
+
+- [ ] **Step 2: Write `image.nix`**
+
+Create `hosts/cylon-link/image.nix`:
+
+```nix
+# cylon-link's flashable disk image and the first-boot units it relies on.
+# `just flash-cylon-link` writes it with dd. The Kingston stick manages about
+# 46 KB/s at small scattered writes, so copying a store onto it file by file
+# takes hours, while one sequential write takes about a minute. Modelled on
+# nixpkgs' sd-image.nix, with an ext3 CYLON_BOOT partition instead of a FAT
+# firmware partition.
+{
+  config,
+  lib,
+  pkgs,
+  modulesPath,
+  ...
+}: let
+  inherit (config.system.build) toplevel;
+  registration = "/nix-path-registration";
+
+  rootfs = pkgs.callPackage (modulesPath + "/../lib/make-ext4-fs.nix") {
+    storePaths = [toplevel];
+    compressImage = true;
+    volumeLabel = "CYLON_ROOT";
+    # The host key is written after flashing, never into the store. This only
+    # creates its directory.
+    populateImageCommands = ''
+      mkdir -p ./files/etc/ssh
+    '';
+  };
+in {
+  system.build.cylonLinkImage =
+    pkgs.runCommand "cylon-link.img.zst" {
+      nativeBuildInputs = with pkgs.buildPackages; [e2fsprogs.bin fakeroot libfaketime util-linux zstd];
+    } ''
+      # p1: what Valve's firmware reads, staged exactly as the NixOS install
+      # hook stages it. No good entry: if the first boot fails, the stock
+      # firmware stays up.
+      mkdir p1
+      ${lib.getExe config.system.build.cylonLinkBoot} install ${toplevel} p1
+      truncate -s 1G p1.img
+      faketime -f "1970-01-01 00:00:01" fakeroot mkfs.ext3 -q -L CYLON_BOOT -d p1 p1.img
+
+      zstd -d --no-progress ${rootfs} -o p2.img
+
+      start=2048
+      p1Sectors=$(( $(stat -c %s p1.img) / 512 ))
+      p2Sectors=$(( $(stat -c %s p2.img) / 512 ))
+      truncate -s $(( (start + p1Sectors + p2Sectors) * 512 )) disk.img
+      sfdisk --no-reread --no-tell-kernel disk.img <<EOF
+      label: dos
+      start=$start, size=$p1Sectors, type=83
+      start=$(( start + p1Sectors )), size=$p2Sectors, type=83
+      EOF
+      dd conv=notrunc bs=4M oflag=seek_bytes if=p1.img of=disk.img seek=$(( start * 512 ))
+      dd conv=notrunc bs=4M oflag=seek_bytes if=p2.img of=disk.img seek=$(( (start + p1Sectors) * 512 ))
+      zstd -T$NIX_BUILD_CORES --no-progress disk.img -o $out
+    '';
+
+  # First boot of a flashed image: grow CYLON_ROOT over the rest of the
+  # stick. From sd-image.nix, except that the partition number comes from
+  # sysfs. sd-image derives it from the minor number, which is only right for
+  # the first disk.
+  systemd.services.cylon-link-grow-root = {
+    description = "Grow CYLON_ROOT to fill the USB stick";
+    unitConfig = {
+      DefaultDependencies = false;
+      ConditionPathExists = registration;
+    };
+    wantedBy = ["sysinit.target"];
+    before = ["sysinit.target" "shutdown.target" "cylon-link-register-store.service"];
+    after = ["local-fs.target"];
+    conflicts = ["shutdown.target"];
+    restartIfChanged = false;
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    path = [pkgs.util-linux pkgs.e2fsprogs];
+    script = ''
+      part=$(readlink -f "$(findmnt -n -o SOURCE /)")
+      disk=$(lsblk -npo PKNAME "$part")
+      num=$(cat "/sys/class/block/''${part##*/}/partition")
+      echo ",+," | sfdisk -N"$num" --no-reread "$disk"
+      partx -u --nr "$num" "$disk"
+      resize2fs "$part"
+    '';
+  };
+
+  # First boot of a flashed image: load the store registration that
+  # make-ext4-fs wrote, and create the system profile. From sd-image.nix.
+  systemd.services.cylon-link-register-store = {
+    description = "Register the flashed Nix store";
+    unitConfig = {
+      DefaultDependencies = false;
+      ConditionPathExists = registration;
+    };
+    wantedBy = ["sysinit.target"];
+    before = ["sysinit.target" "shutdown.target" "nix-daemon.socket" "nix-daemon.service"];
+    after = ["local-fs.target"];
+    conflicts = ["shutdown.target"];
+    restartIfChanged = false;
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      ${lib.getExe' config.nix.package.out "nix-store"} --load-db < ${registration}
+      touch /etc/NIXOS
+      ${lib.getExe' config.nix.package.out "nix-env"} -p /nix/var/nix/profiles/system --set /run/current-system
+      rm -f ${registration}
+    '';
+  };
+}
+```
+
+Add `./image.nix` to the `imports` list in `hosts/cylon-link/configuration.nix`, after `./boot`.
+
+- [ ] **Step 3: Build the image and run the check**
+
+```bash
+git add -N hosts/cylon-link/image.nix
+nix build .#checks.x86_64-linux.cylon-link-config -L
+img=$(nix build --no-link --print-out-paths .#nixosConfigurations.cylon-link.config.system.build.cylonLinkImage)
+ls -l "$img"; zstd -lv "$img" | grep -E 'Decompressed Size|Ratio'
+```
+
+Expected: the check passes. The image is a few hundred MB compressed, and roughly 1 GiB plus the closure size decompressed. It builds in minutes, because the closure is already in raider's store; run it as a `systemd-run --user` unit if it takes longer than your command timeout.
+
+- [ ] **Step 4: Rewrite `flash.sh`**
+
+Replace `hosts/cylon-link/flash.sh` with:
+
+```bash
+#!/usr/bin/env bash
+# Writes the cylon-link disk image to a USB stick and installs the host key.
+# Run as root; `just flash-cylon-link` guards DEVICE, builds the image and
+# decrypts the key first.
+#
+# Usage: flash.sh DEVICE IMAGE KEY_DIR
+#   DEVICE   whole block device, erased
+#   IMAGE    zstd-compressed disk image (system.build.cylonLinkImage)
+#   KEY_DIR  directory holding ssh_host_ed25519_key and its .pub
+# zstd must be on PATH.
+set -euo pipefail
+
+dev=$1 image=$2 key_dir=$3
+mnt=$(mktemp -d)
+
+cleanup() {
+  umount "$mnt" 2>/dev/null || true
+  rmdir "$mnt" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+# part N: path of partition N, for by-id, sdX and loopN/nvmeXnY names alike.
+part() {
+  case $dev in
+  /dev/disk/by-id/*) echo "$dev-part$1" ;;
+  *[0-9]) echo "${dev}p$1" ;;
+  *) echo "$dev$1" ;;
+  esac
+}
+
+wipefs --all --quiet "$dev"
+# One sequential write. This stick is unusably slow at small scattered ones.
+zstd -dc "$image" | dd of="$dev" bs=4M iflag=fullblock oflag=direct conv=fsync status=progress
+blockdev --rereadpt "$dev"
+udevadm settle
+
+# The host key never enters the store, so it goes in after the image.
+mount "$(part 2)" "$mnt"
+install -m 0600 "$key_dir/ssh_host_ed25519_key" "$mnt/etc/ssh/ssh_host_ed25519_key"
+install -m 0644 "$key_dir/ssh_host_ed25519_key.pub" "$mnt/etc/ssh/ssh_host_ed25519_key.pub"
+umount "$mnt"
+sync
+echo "Stick written."
+```
+
+- [ ] **Step 5: Update the recipe**
+
+In `justfile`'s `flash-cylon-link`, replace the three `nix build` lines with:
+
+```bash
+    image=$(nix build --no-link --print-out-paths '.#nixosConfigurations.cylon-link.config.system.build.cylonLinkImage')
+    zstd=$(nix build --no-link --print-out-paths --inputs-from . 'nixpkgs#zstd.bin')
+```
+
+(Change the `echo "Building cylon-link..."` text to `echo "Building the cylon-link image..."`.) Replace the `sudo env … flash.sh …` call with:
+
+```bash
+    sudo env PATH="$zstd/bin:$PATH" bash hosts/cylon-link/flash.sh "$dev" "$image" "$key_dir"
+```
+
+Leave the guards, key decryption, confirmation prompt and power-off unchanged.
+
+- [ ] **Step 6: Test on a loop device**
+
+As one script, inside `nix develop`, with `S=.superpowers/sdd/2026-09-16-cylon-link/scratch`. The image is already built; the loop file must be at least the decompressed image size, so use 4 GiB.
+
+```bash
+img=$(nix build --no-link --print-out-paths .#nixosConfigurations.cylon-link.config.system.build.cylonLinkImage)
+top=$(nix build --no-link --print-out-paths .#deployTargets.cylon-link)
+zstd=$(nix build --no-link --print-out-paths --inputs-from . 'nixpkgs#zstd.bin')
+e2fs=$(nix build --no-link --print-out-paths --inputs-from . 'nixpkgs#e2fsprogs.bin')
+file=$S/stick.img; rm -f "$file"; truncate -s 4G "$file"
+loop=$(sudo losetup --show -fP "$file")
+kd=$(mktemp -d "$XDG_RUNTIME_DIR/cylon-link-key.XXXXXX")
+sops --decrypt --extract '["ssh_host_ed25519_key"]' secrets/sops/cylon-link-hostkey.yaml >"$kd/ssh_host_ed25519_key"
+sops --decrypt --extract '["ssh_host_ed25519_key_pub"]' secrets/sops/cylon-link-hostkey.yaml >"$kd/ssh_host_ed25519_key.pub"
+time sudo env PATH="$zstd/bin:$PATH" bash hosts/cylon-link/flash.sh "$loop" "$img" "$kd"
+rm -rf "$kd"
+
+sudo "$e2fs/bin/e2fsck" -fn "${loop}p1"; sudo "$e2fs/bin/e2fsck" -fn "${loop}p2"
+sudo "$e2fs/bin/dumpe2fs" -h "${loop}p1" 2>/dev/null | grep -E '^(Filesystem volume name|Filesystem features)'
+sudo "$e2fs/bin/dumpe2fs" -h "${loop}p2" 2>/dev/null | grep -E '^Filesystem volume name'
+m=$(mktemp -d); mkdir "$m/p1" "$m/p2"
+sudo mount -o ro "${loop}p1" "$m/p1"; sudo mount -o ro "${loop}p2" "$m/p2"
+cmp "$m/p1/steamlink/factory_test/run.sh" hosts/cylon-link/boot/run.sh && echo "run.sh ok"
+sha256sum "$m/p1/steamlink/kexec_load.ko"; file "$m/p1/steamlink/bin/kexec"
+ls "$m/p1/nixos"; cat "$m/p1/nixos/new/cmdline"
+[ -d "$m/p2$top" ] && echo "toplevel present"
+[ -s "$m/p2/nix-path-registration" ] && grep -c "^/nix/store/" "$m/p2/nix-path-registration"
+sudo stat -c '%a %n' "$m/p2/etc/ssh/ssh_host_ed25519_key"; ssh-keygen -lf "$m/p2/etc/ssh/ssh_host_ed25519_key.pub"
+sudo umount "$m/p1" "$m/p2"; rmdir "$m/p1" "$m/p2" "$m"; sudo losetup -d "$loop"; rm -f "$file"
+```
+
+Expected:
+- the flash completes (report the `time`)
+- both `e2fsck` runs are clean
+- **p1:** `CYLON_BOOT`, with features exactly `has_journal ext_attr resize_inode dir_index filetype sparse_super large_file`; `run.sh ok`; `kexec_load.ko` sha256 `b1b8a7964a06d7ebcd45170b6565f6d9e348c5fc885eba3ae7fc818f404b1956`; a static ARM `kexec`; `nixos` holds only `new`, and its `cmdline` ends with `init=$top/init`
+- **p2:** `CYLON_ROOT`; `toplevel present`; the registration file is non-empty; the host key has mode `600` and its fingerprint reads `root@cylon-link`
+- no loop device left
+
+Always clean up, even on failure.
+
+- [ ] **Step 7: Commit**
+
+```bash
+just fmt
+git add hosts/cylon-link/image.nix hosts/cylon-link/configuration.nix hosts/cylon-link/flash.sh hosts/cylon-link/config-test.nix justfile
+git commit -m "feat(cylon-link): flash a prebuilt disk image"
+```
+
+---
+
 ### Task 7: Install on the Steam Link
 
 Needs the user for the physical steps. Nothing to commit unless troubleshooting changes code.
