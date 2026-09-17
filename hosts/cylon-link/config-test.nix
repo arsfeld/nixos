@@ -25,6 +25,8 @@ in
   assert check (c.fileSystems."/".device == "/dev/disk/by-label/CYLON_ROOT") "root must be CYLON_ROOT";
   assert check (c.fileSystems."/boot/steamlink".device == "/dev/disk/by-label/CYLON_BOOT") "the install hook needs CYLON_BOOT mounted";
   assert check (c.hardware.deviceTree.name == "berlin2cd-valve-steamlink.dtb") "wrong device tree";
+  assert check (c.system.build ? cylonLinkImage) "just flash-cylon-link needs the disk image";
+  assert check (c.systemd.services ? cylon-link-register-store && c.systemd.services ? cylon-link-grow-root) "a flashed image must register its store and grow on first boot";
   assert check (c.services.tailscale.authKeyFile == c.sops.secrets.tailscale-key.path) "must join the tailnet unattended";
   assert check (c.sops.secrets.tailscale-key.sopsFile == c.constellation.sops.commonSopsFile) "the Tailscale key comes from common.yaml";
     pkgs.runCommand "cylon-link-config" {} ''

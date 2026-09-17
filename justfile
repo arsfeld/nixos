@@ -357,24 +357,34 @@ flash-cylon-link DEVICE:
       echo "refusing: $dev has mounted filesystems" >&2; exit 1
     fi
     command -v sops >/dev/null || { echo "sops not found; run inside 'nix develop'" >&2; exit 1; }
-
-    echo "Building cylon-link..."
-    toplevel=$(nix build --no-link --print-out-paths '.#deployTargets.cylon-link')
-    boot_tool=$(nix build --no-link --print-out-paths '.#nixosConfigurations.cylon-link.config.system.build.cylonLinkBoot')
-    e2fsprogs=$(nix build --no-link --print-out-paths --inputs-from . 'nixpkgs#e2fsprogs.bin')
+    command -v nix-fast-build >/dev/null || { echo "nix-fast-build not found; run inside 'nix develop'" >&2; exit 1; }
 
     key_dir=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/cylon-link-key.XXXXXX")
-    trap 'rm -rf "$key_dir"' EXIT
+    out=$(mktemp -d)
+    trap 'rm -rf "$key_dir" "$out"' EXIT
     secret=secrets/sops/cylon-link-hostkey.yaml
     sops --decrypt --extract '["ssh_host_ed25519_key"]' "$secret" >"$key_dir/ssh_host_ed25519_key"
     sops --decrypt --extract '["ssh_host_ed25519_key_pub"]' "$secret" >"$key_dir/ssh_host_ed25519_key.pub"
+
+    echo "Building the cylon-link image..."
+    # Build and push like `just deploy` phase 1. toplevel is selected
+    # explicitly: the compressed image carries no store references, so pushing
+    # it alone would not cache the system for later deploys.
+    nix-fast-build \
+      --flake '.#nixosConfigurations.cylon-link.config.system.build' \
+      --select 't: { inherit (t) toplevel cylonLinkImage; }' \
+      --systems "x86_64-linux aarch64-linux" \
+      --niks3-server https://niks3.arsfeld.dev \
+      --out-link "$out/result"
+    [ -e "$out/result-cylonLinkImage" ] || { echo "nix-fast-build produced no image" >&2; exit 1; }
+    image=$(readlink -f "$out/result-cylonLinkImage")
+    zstd=$(nix build --no-link --print-out-paths --inputs-from . 'nixpkgs#zstd.bin')
 
     lsblk -o NAME,SIZE,MODEL,SERIAL,FSTYPE,LABEL "$dev"
     read -r -p "Erase everything on $dev? [y/N] " answer
     [ "$answer" = y ] || { echo "aborted"; exit 1; }
 
-    sudo env PATH="$e2fsprogs/bin:$PATH" bash hosts/cylon-link/flash.sh \
-      "$dev" "$toplevel" "$boot_tool/bin/cylon-link-boot" "$key_dir"
+    sudo env PATH="$zstd/bin:$PATH" bash hosts/cylon-link/flash.sh "$dev" "$image" "$key_dir"
     udisksctl power-off -b "$(readlink -f "$dev")"
     echo "Done: move the stick to the Steam Link, plug in Ethernet, and power-cycle it."
 
