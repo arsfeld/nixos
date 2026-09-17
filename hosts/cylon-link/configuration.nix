@@ -1,6 +1,11 @@
 # cylon-link: a Valve Steam Link running NixOS as an always-on helper.
 # It boots through Valve's firmware and kexec; see ./boot and CLAUDE.md.
-{config, ...}: {
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}: {
   imports = [
     ./hardware.nix
     ./boot
@@ -15,6 +20,12 @@
   constellation.netdataClient.enable = false;
   # Determinate publishes no armv7l build, so use nixpkgs' Nix.
   determinate.enable = false;
+  # fish does not cross-compile: its build-time xtask helper links for the
+  # build platform against the armv7l pcre2 ("skipping incompatible
+  # libpcre2-8.so"). Both settings go, since nixpkgs asserts a fish login
+  # shell has programs.fish enabled.
+  programs.fish.enable = lib.mkForce false;
+  users.users.arosenfeld.shell = lib.mkForce pkgs.bashInteractive;
 
   sops.secrets.tailscale-key.sopsFile = config.constellation.sops.commonSopsFile;
   services.tailscale.authKeyFile = config.sops.secrets.tailscale-key.path;
