@@ -144,8 +144,8 @@ booting with SSH.
 and `boot`. It stages `nixos/new.tmp/` from the generation being installed —
 `kernel`, `initrd`, the dtb from `hardware.deviceTree.name`, and a `cmdline`
 of `init=$toplevel/init` plus `boot.kernelParams` — renames it over
-`nixos/new`, removes `nixos/tried-new`, rewrites `run.sh` via temp file and
-rename, copies `kexec` and `kexec_load.ko` in if they differ, and `sync`s.
+`nixos/new`, removes `nixos/tried-new`, rewrites `run.sh`, `kexec` and
+`kexec_load.ko` each via temp file and rename, and `sync`s.
 
 **Boot confirmation.** `cylon-link-boot-ok.service` runs after
 `network-online.target` and `tailscaled.service`. It waits up to five minutes
@@ -269,9 +269,10 @@ identity, but Tailscale sees a new node.
    `cylon-link-boot-ok.service` succeeded; `nixos/good` exists and no markers
    remain; `free -m` looks sane.
 3. A trivial change deploys with `just deploy cylon-link`.
-4. The fallback works: `just boot` a generation with `init=/bogus`, power-cycle
-   twice, and the box returns on `good`. Then deploy a working generation
-   again.
+4. The fallback works: `just boot` a generation with the kernel parameter
+   `rd.systemd.unit=emergency.target` (this nixpkgs uses the systemd initrd,
+   which then waits forever for a console), power-cycle twice, and the box
+   returns on `good`. Then boot a working generation again.
 
 **Docs:** `CLAUDE.md` gets the host in "Available Hosts" and a short section on
 the boot chain, power-cycling instead of rebooting, the rescue switch, and why
