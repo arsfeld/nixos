@@ -15,9 +15,9 @@
   # USB storage, SCSI disks and ext4 are built in. The default initrd list
   # names PC storage modules this kernel does not have.
   boot.initrd.includeDefaultModules = false;
-  # The systemd initrd's TPM2 support asks for tpm-tis. This kernel leaves
-  # CONFIG_TCG_TIS unset, and the board has no TPM to drive.
-  boot.initrd.allowMissingModules = true;
+  # The board has no TPM, and this kernel does not build tpm-tis
+  # (CONFIG_TCG_TIS is unset), which the initrd's TPM2 support would load.
+  boot.initrd.systemd.tpm2.enable = false;
 
   fileSystems."/" = {
     device = "/dev/disk/by-label/CYLON_ROOT";
