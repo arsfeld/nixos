@@ -43,6 +43,10 @@
   # interpreter, which pulls x86_64 glibc into the closure. Nothing here uses
   # msmtpq; send-email-event and sendmail call the msmtp binary.
   nixpkgs.overlays = [(_: prev: {msmtp = prev.msmtp.override {withScripts = false;};})];
+  # nixpkgs' avahi unit re-allows setgroups and setresuid after ~@privileged,
+  # but 32-bit ARM glibc calls setgroups32 and setresuid32, which stay
+  # blocked, so seccomp kills the daemon with SIGSYS at startup.
+  systemd.services.avahi-daemon.serviceConfig.SystemCallFilter = ["setgroups32 setresuid32"];
 
   sops.secrets.tailscale-key.sopsFile = config.constellation.sops.commonSopsFile;
   services.tailscale.authKeyFile = config.sops.secrets.tailscale-key.path;
