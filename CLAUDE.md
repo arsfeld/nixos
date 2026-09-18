@@ -58,7 +58,7 @@ Two consequences of that flag are easy to hit and hard to diagnose from the erro
   `nixos-rebuild switch --flake .#basestar --target-host root@basestar.bat-boa.ts.net`.
 
 Phase 1 is a barrier: nothing activates unless every named host builds — including in
-`deploy-all`, which names all nine, so a single host that fails to build blocks the whole
+`deploy-all`, which names all ten, so a single host that fails to build blocks the whole
 fleet. That is a real behavior change from colmena, and intended. An *unreachable* host is
 a different case: phase 1 never contacts the targets, so it builds fine and only its own
 phase-2 activation fails while the others still activate. The exception is `basestar`,
@@ -500,6 +500,7 @@ Things worth knowing before touching it:
 - **blackbird** - ASUS ROG Zephyrus G14 laptop (BSG Blackbird — custom stealth ship)
 - **pegasus** - Secondary server (BSG Battlestar Pegasus)
 - **octopi** - OctoPrint device
+- **cylon-link** - Valve Steam Link (armv7l, 512 MB): always-on helper. Cross-compiled on raider, excluded from CI, boots through Valve's firmware and kexec
 
 ### Host Tiers
 
@@ -507,9 +508,92 @@ Hosts are grouped into deployment tiers, defined in `flake-modules/hosts.nix` as
 
 - **tier1** - `galactica`, `basestar`, `raider`. Always on, should always be deployed. Deploy the whole tier with `just deploy @tier1`.
 
-To add or change a tier, edit `tiers` in `flake-modules/hosts.nix`; the `@tier` selectors in the justfile and the README table follow from it. The CI build matrix (`.github/workflows/build.yml`) is derived from the `ciMatrix` flake output (all discovered hosts with auto-detected platform) — it is not tier-gated.
+To add or change a tier, edit `tiers` in `flake-modules/hosts.nix`; the `@tier` selectors in the justfile and the README table follow from it. The CI build matrix (`.github/workflows/build.yml`) is derived from the `ciMatrix` flake output (all discovered hosts except `ciExcludedHosts`, with auto-detected platform) — it is not tier-gated.
 
 For hardware specs (CPU, RAM, disks), see [HARDWARE.md](HARDWARE.md).
+
+### cylon-link (Valve Steam Link)
+
+A 2015 Steam Link running NixOS: one Cortex-A9 core, 512 MB of RAM, a
+29 GB USB stick. Design: `docs/superpowers/specs/2026-09-16-cylon-link-design.md`.
+
+**It is cross-compiled on raider and never built by CI.** `nixpkgs.buildPlatform`
+is x86_64, so every derivation is an x86_64 job: `just deploy cylon-link` works
+unchanged, and `ciExcludedHosts` in `flake-modules/hosts.nix` keeps it out of
+`ciMatrix`. nixpkgs caches nothing for armv7l, so a nixpkgs bump rebuilds its
+closure on raider; the kernel alone took 21 minutes there. A native build on
+basestar is possible but was abandoned after 86 minutes without finishing the
+toolchain. The device itself has `max-jobs = 0`.
+
+**Its kernel is `multi_v7_defconfig` plus an explicit list, and nothing else
+exists.** `autoModules = false` keeps the build short, so an option the
+defconfig does not set is not a module waiting to be loaded; it was never
+built. The symptom is `modprobe: FATAL: Module X not found`. That cost two
+rounds during bring-up. The Berlin reset controller (`reset-berlin`) is a
+module the USB PHY defers on, and the initrd did not carry it, so the stick
+never appeared and the first boot hung silently before mounting root. And the
+defconfig has no netfilter and no TUN at all, so neither tailscaled nor the
+nftables firewall could start. Both are now in `hosts/cylon-link/hardware.nix`.
+Anything new in the fleet that needs kernel support (a netfilter expression, a
+tunnel type) has to be added to that `structuredExtraConfig` list too. One known
+gap: without `NF_CONNTRACK_MARK`, tailscaled shows a health warning about
+connmark rules, which matter only for exit nodes and subnet routes.
+
+**There is no reboot.** The mainline kernel cannot restart this SoC. `just deploy`
+is fine, but a kernel or initrd change needs `just boot cylon-link` (or a deploy)
+and a power cycle, and `just reboot cylon-link` hangs the box until someone does
+that. Until then the old kernel keeps loading its modules from `/run/booted-system`,
+so a switch with a new kernel is safe.
+
+**How it boots.** Valve's signed bootloader only loads its own Linux 3.8.13,
+but that firmware runs `steamlink/factory_test/run.sh` from a USB stick at
+power-on, from `CYLON_BOOT` (p1, ext3) mounted at `/mnt/disk`. That script
+picks a staged generation and kexecs into nixpkgs' kernel, using a prebuilt
+`kexec_load.ko` and a static musl `kexec`. NixOS binaries cannot run there:
+nixpkgs' glibc needs Linux >= 3.10. NixOS lives on `CYLON_ROOT` (p2) and mounts
+p1 at `/boot/steamlink`. `boot.loader.external` stages every switch as
+`nixos/new`, and `cylon-link-boot-ok.service` promotes it to `nixos/good` once
+Tailscale is up. Keep `run.sh` POSIX sh with no externals beyond `sync`, `insmod`
+and `fts-set`; `checks.x86_64-linux.cylon-link-boot` tests it. A power cycle
+reaches the network in about 90 seconds. The first boot of a flashed stick takes
+about 3.5 minutes, because it grows `CYLON_ROOT` and registers the store before
+networking starts, and `ext4lazyinit` keeps the stick busy for a while after.
+
+**When a generation fails.** Each entry is tried once. A new generation that
+never reaches Tailscale costs one extra power cycle and the box comes back on
+`good`. If `good` fails too, or there is no `good` yet, the stock firmware stays
+up with SSH (`root`, Valve's default password `steamlink123`, not yet changed)
+and the stick mounted at `/mnt/disk`. `touch /boot/steamlink/steamlink/rescue`
+from NixOS forces that on the next power cycle. Delete the file to go back.
+Nothing is visible while it fails: there is no video under the mainline kernel
+and no serial console without opening the case. The fastest diagnosis is to
+move the stick to raider. `dumpe2fs -h` on `CYLON_ROOT` shows its mount count
+and last mount point, which tell you whether the initrd ever got as far as
+mounting root, and a `tried-*` marker on `CYLON_BOOT` shows that `run.sh`
+reached kexec. Its timestamp is 1970, because the firmware has no clock at that
+point.
+
+**Tailscale works differently on this host.**
+- **Login is by hand.** The shared `tailscale-key` is the OAuth client `tsnsrv`
+  uses to mint `tag:service` nodes, so it cannot log in a host. After a reflash,
+  run `tailscale up --hostname=cylon-link --advertise-tags=tag:server` over LAN
+  SSH and approve the URL. `tag:server` is what every host carries and what the
+  ACL keys on.
+- **Tailscale SSH is off.** Port 22 on `tailscale0` is OpenSSH (with raider's
+  key). On this one core, tailscaled's SSH server drops the exit status of fast
+  commands on multiplexed connections: 6 of 20 over `ControlMaster=auto`, against
+  0 of 20 on galactica. nixos-rebuild multiplexes, and it reads a lost status in
+  its `test -f …/nixos-version` check as "your NixOS configuration path seems to
+  be missing essential files". That message is therefore not about the store.
+- **tailscaled runs in nftables mode** (`TS_DEBUG_FIREWALL_MODE`). Its default,
+  iptables, is nixpkgs' nf_tables-backed iptables, whose `MARK` and `MASQUERADE`
+  targets need xtables modules this kernel does not build.
+
+**Reinstall or recover** with `just flash-cylon-link /dev/disk/by-id/usb-…` from
+raider. It erases the stick. The SSH host key, and with it the sops identity,
+comes from `secrets/sops/cylon-link-hostkey.yaml`, so a reflash keeps
+`common.yaml` readable. Tailscale sees a new node: log it in as above and delete
+the old one in the admin console.
 
 ## Architecture Overview
 

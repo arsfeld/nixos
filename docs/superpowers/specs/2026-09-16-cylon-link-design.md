@@ -1,7 +1,8 @@
 # cylon-link: NixOS on the Valve Steam Link
 
 **Date:** 2026-09-16
-**Status:** design approved, not implemented
+**Status:** implemented 2026-09-18. The first boot surfaced several gaps the
+design missed; see "Found during bring-up".
 
 ## Goal
 
@@ -285,17 +286,77 @@ These are not expected to block, but each is an assumption:
 - How the stock firmware mounts a two-partition stick. `run.sh` finding itself
   via `$0` is the hedge; if the firmware only looks at a partition other than
   p1, the layout changes.
+  Verified: the firmware mounts p1 at `/mnt/disk` (the ext3 superblock's "Last
+  mounted on") and runs `run.sh` from it.
 - The shared `tailscale-key` is reusable and makes non-ephemeral nodes, and the
   tailnet ACL lets raider use Tailscale SSH to the new node. Otherwise use a
   dedicated key.
+  Wrong on both counts. `tailscale-key` is an OAuth client secret (tsnsrv mints
+  `tag:service` nodes with it), and `tailscaled-autoconnect` fails with "oauth
+  authkeys require --advertise-tags". The ACL's SSH rules key on `tag:server`,
+  which every host carries. The host is now logged in by hand with
+  `--advertise-tags=tag:server`, and uses no key at all.
 - `boot.loader.external` accepts a hook that also needs `/boot/steamlink`
   mounted, and nothing in NixOS insists on another bootloader.
+  Verified: `nixos-rebuild boot` and `just deploy` both stage through the hook.
 - `nix-fast-build --systems "x86_64-linux aarch64-linux"` keeps the cross
   toplevel (its `system` attribute should be `x86_64-linux`).
+  Verified: `just deploy cylon-link` phase 1 builds and pushes it.
 - Whether `ghostty.terminfo` can be included cheaply in the minimal set.
+  Verified: 4.9 KiB, no references; included via `pkgsBuildBuild`.
 - Whether a hardware watchdog on the SoC can make `reboot` work. Nice to have.
+  Not investigated; reboot remains out of scope.
 - Valve firmware updates could, in principle, change the `factory_test` hook.
   The box applied one on 2026-09-16 and the hook still worked afterwards.
+  Unchanged; nothing to verify.
+
+## Found during bring-up
+
+Everything below surfaced on the device on 2026-09-17/18 and is fixed in
+`hosts/cylon-link/`.
+
+- **The first boot hung before mounting root.** The only enabled USB
+  controller's PHY takes its reset from `marvell,berlin2-reset`, which the 6.18
+  Kconfig builds as a module (`RESET_BERLIN=m`; djmuted's 6.1 kernel has it
+  built in). The initrd did not carry it, so the PHY deferred forever, the stick
+  never appeared, and nothing reached the network. There was no console to show
+  it. What gave it away was reading the stick on raider: `CYLON_ROOT`'s ext4 mount
+  count showed only the flash script's mount, and `nixos/tried-new` on p1 showed
+  that `run.sh` had reached kexec. Fixed with
+  `boot.initrd.kernelModules = ["reset-berlin"]`.
+- **Ruled out along the way: kexec placement.** The stock kernel's System RAM
+  starts at 16 MB. This kernel decompresses to 43 MB at physical `0x208000`
+  (`TEXT_OFFSET` is 0x208000 because multi_v7 includes Meson/QCOM). kexec-tools
+  leaves room for the whole decompressed kernel above the zImage, putting the
+  initrd at `0x04b47000`, above even the relocated decompressor (about
+  `0x3DD0000`). There is no overlap, but a much larger kernel would erode that
+  margin.
+- **`multi_v7_defconfig` has no netfilter and no TUN.** With `autoModules =
+  false`, tailscaled failed on `/dev/net/tun` and `nftables.service` on
+  "Protocol not supported". The ruleset and tailscaled's own chains need TUN,
+  conntrack, NAT, `nf_tables` (inet/ipv4/ipv6), `ct`, `fib` and masquerade,
+  which are now in `structuredExtraConfig`. The rebuild took 21 minutes on
+  raider. `NF_CONNTRACK_MARK` is still missing; tailscaled's connmark rules warn
+  without it, but they matter only for exit nodes and subnet routes.
+- **avahi dies from seccomp on 32-bit ARM.** nixpkgs' unit re-allows
+  `setgroups`/`setresuid` after `~@privileged`, but armv7 glibc calls
+  `setgroups32`/`setresuid32`. Both are added to its `SystemCallFilter`.
+- **tailscaled defaults to iptables**, whose nf_tables-backed `MARK` target needs
+  xtables compat modules. It runs with `TS_DEBUG_FIREWALL_MODE=nftables` instead.
+- **Tailscale SSH loses exit statuses on this core.** Over multiplexed
+  connections it dropped the exit status of fast commands 6 times in 20 (0 of 20
+  on galactica, 0 of 20 through OpenSSH). nixos-rebuild multiplexes and aborts
+  on a lost status in its `test -f …/nixos-version` check. Tailscale SSH is off
+  on this host (`extraSetFlags = ["--ssh=false"]`), and OpenSSH serves port 22
+  on the tailnet.
+- **Numbers.** A power cycle reaches the network in about 90 seconds, and the
+  first boot of a flashed stick in about 3.5 minutes. Installing a new kernel
+  over the LAN took 12m42s, while `ext4lazyinit` was still busy with the grown
+  root. A userspace-only `just deploy cylon-link` takes about 3 minutes. Under
+  6.18, 463 MiB is usable and about 370 MiB is free after boot.
+- **Not yet exercised: falling back from a broken `new` to `good`.** The
+  no-`good` path is proven: the first, hung boot fell back to the stock
+  firmware on the next power cycle, and its SSH worked.
 
 ## Rejected alternatives
 
