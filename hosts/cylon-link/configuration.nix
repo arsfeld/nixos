@@ -1,7 +1,6 @@
 # cylon-link: a Valve Steam Link running NixOS as an always-on helper.
 # It boots through Valve's firmware and kexec; see ./boot and CLAUDE.md.
 {
-  config,
   lib,
   pkgs,
   ...
@@ -48,8 +47,22 @@
   # blocked, so seccomp kills the daemon with SIGSYS at startup.
   systemd.services.avahi-daemon.serviceConfig.SystemCallFilter = ["setgroups32 setresuid32"];
 
-  sops.secrets.tailscale-key.sopsFile = config.constellation.sops.commonSopsFile;
-  services.tailscale.authKeyFile = config.sops.secrets.tailscale-key.path;
+  # Tailscale is logged in by hand, so a reflash needs one interactive login:
+  # `tailscale up --hostname=cylon-link --advertise-tags=tag:server`, the tag
+  # every other host carries. The shared tailscale-key is no substitute: it is
+  # the OAuth client tsnsrv uses to mint tag:service nodes.
+  # Unlike the rest of the fleet, Tailscale SSH is off and port 22 on
+  # tailscale0 is this host's OpenSSH. On this one slow core, tailscaled's SSH
+  # server drops the exit status of fast commands on multiplexed connections
+  # (6 of 20 over `ControlMaster=auto`, 0 of 20 on galactica), and
+  # nixos-rebuild multiplexes, then reads the lost status as a failed check
+  # and aborts the deploy.
+  services.tailscale.extraSetFlags = lib.mkForce ["--ssh=false"];
+  # tailscaled otherwise defaults to iptables, and nixpkgs' iptables is the
+  # nf_tables variant, whose MARK and MASQUERADE targets need xtables compat
+  # modules this kernel does not build. Native nftables needs only what
+  # hardware.nix already adds.
+  systemd.services.tailscaled.environment.TS_DEBUG_FIREWALL_MODE = "nftables";
 
   # The device never compiles. A path missing from cache.arsfeld.dev should
   # fail the deploy, not start a build on one Cortex-A9 core.
