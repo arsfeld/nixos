@@ -15,6 +15,10 @@
   # USB storage, SCSI disks and ext4 are built in. The default initrd list
   # names PC storage modules this kernel does not have.
   boot.initrd.includeDefaultModules = false;
+  # Except the reset controller, which Kconfig builds as a module. The USB
+  # PHY takes its reset from it and defers until it loads, so without it the
+  # stick never appears and the initrd waits for CYLON_ROOT forever.
+  boot.initrd.kernelModules = ["reset-berlin"];
   # The board has no TPM, and this kernel does not build tpm-tis
   # (CONFIG_TCG_TIS is unset), which the initrd's TPM2 support would load.
   boot.initrd.systemd.tpm2.enable = false;
