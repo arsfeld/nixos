@@ -22,6 +22,7 @@ Personal NixOS configuration managing multiple machines using Nix Flakes and [fl
 |------|------|--------|
 | **octopi** | OctoPrint | Offline |
 | **raspi3** | Raspberry Pi 3 | Offline |
+| **cylon-link** | Valve Steam Link, always-on helper | Online |
 
 ### Desktops & Laptops
 | Host | Role | Hardware | Status |

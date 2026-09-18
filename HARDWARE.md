@@ -28,6 +28,17 @@ Last updated: 2026-04-07
   - `sda` 100 GB - Block Volume (cloud provider)
 - **Note**: Oracle Cloud VM instance
 
+### cylon-link
+- **Role**: Always-on helper (Valve Steam Link running NixOS)
+- **Architecture**: armv7l (cross-compiled from x86_64)
+- **CPU**: Marvell Berlin BG2CD (DE3005), ARM Cortex-A9 - 1 core visible
+- **RAM**: 512 MB (463 MiB usable under the mainline kernel)
+- **Disks**:
+  - USB 28.8 GB - Kingston DataTraveler 3.0 (`CYLON_BOOT` 1 GiB ext3 + `CYLON_ROOT` ext4)
+  - internal 1 GB NAND - unused (no mainline driver)
+- **Network**: 100 Mb Ethernet (`pxa168_eth`, MAC e0:31:9e:19:06:5c); Marvell SDIO Wi-Fi/BT unused
+- **Note**: No reboot, no video output under the mainline kernel
+
 ### raider
 - **Role**: Desktop workstation (GNOME, gaming, development)
 - **Architecture**: x86_64
