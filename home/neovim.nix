@@ -84,11 +84,8 @@
         plugin = nvim-lspconfig;
         type = "lua";
         config = ''
-          local lspconfig = require('lspconfig')
-
           -- Nix LSP
-          lspconfig.nil_ls.setup({
-            autostart = true,
+          vim.lsp.config('nil_ls', {
             settings = {
               ['nil'] = {
                 formatting = {
@@ -98,17 +95,8 @@
             },
           })
 
-          -- TypeScript/JavaScript
-          lspconfig.tsserver.setup({})
-
-          -- Python
-          lspconfig.pyright.setup({})
-
-          -- Rust
-          lspconfig.rust_analyzer.setup({})
-
-          -- Go
-          lspconfig.gopls.setup({})
+          -- Enable configured LSP servers
+          vim.lsp.enable({ 'nil_ls', 'ts_ls', 'pyright', 'rust_analyzer', 'gopls' })
         '';
       }
 
@@ -231,23 +219,10 @@
         plugin = nvim-treesitter.withAllGrammars;
         type = "lua";
         config = ''
-          require('nvim-treesitter.configs').setup({
-            highlight = {
-              enable = true,
-              additional_vim_regex_highlighting = false,
-            },
-            indent = {
-              enable = true,
-            },
-            incremental_selection = {
-              enable = true,
-              keymaps = {
-                init_selection = "<C-space>",
-                node_incremental = "<C-space>",
-                scope_incremental = false,
-                node_decremental = "<bs>",
-              },
-            },
+          vim.api.nvim_create_autocmd('FileType', {
+            callback = function(args)
+              pcall(vim.treesitter.start, args.buf)
+            end,
           })
         '';
       }
