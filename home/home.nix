@@ -539,6 +539,7 @@ in {
       copy_on_select = true;
       pane_frames = false;
       scroll_buffer_size = 50000;
+      session_serialization = false;
     };
   };
 
