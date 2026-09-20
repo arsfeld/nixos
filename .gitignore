@@ -102,3 +102,6 @@ scripts/recover-from-r2.sh
 .superpowers/
 
 .k8s/
+
+# Downloaded eufy clips (just eufy::fetch)
+eufy-clips/
