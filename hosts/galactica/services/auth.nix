@@ -21,6 +21,12 @@
       server = {
         address = "tcp://0.0.0.0:${toString port}";
         endpoints.authz.forward-auth.implementation = lib.mkForce "ForwardAuth";
+        # The 4 KiB default answers 431 once the forwarded Cookie header grows
+        # past it — Cloudflare's cf_clearance + CF_Authorization alone are ~2.5 KiB.
+        buffers = {
+          read = 16384;
+          write = 16384;
+        };
       };
       log = {
         level = "debug";
