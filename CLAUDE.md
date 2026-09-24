@@ -134,8 +134,8 @@ The binary cache is two endpoints, and only one of them is a server:
 
 CI pushes every closure it builds with `niks3 push --pin <host>`, one pin per host name,
 retargeted on each push so the previous closure ages out normally. That is every host in
-`ciMatrix` — all nine — on a push to master, and the tier-1 three when `update.yml` calls
-the workflow with its `hosts` input. Pinned closures are exempt from the 30-day GC window,
+`ciMatrix` — all nine — on a push to master or when `update.yml` dispatches it after its
+lock commit, and the tier-1 three when `update.yml` calls the workflow with its `hosts` input. Pinned closures are exempt from the 30-day GC window,
 and object GC walks reachability from surviving closures, so everything beneath a pinned
 toplevel survives too.
 
