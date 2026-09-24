@@ -771,5 +771,6 @@ Never mention Claude in commit messages or author.
 ## CI/CD (.github/workflows/)
 
 - **build.yml** - Builds every host in `ciMatrix` (all nine) and pushes each closure to niks3 with `--pin <host>`; `update.yml` calls it with just the tier-1 three
+- **checks.yml** - Runs `nix flake check` (x86_64-linux, including the VM tests) on every push and PR; it gates nothing downstream
 - **format.yml** - Checks formatting with alejandra (fails if unformatted, run `just fmt` locally)
 - **update.yml** - Weekly flake input updates with automatic build testing, commits flake.lock if all hosts build

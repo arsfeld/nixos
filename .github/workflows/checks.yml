@@ -1,0 +1,46 @@
+name: "Flake Checks"
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: flake-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      # router-test, harmonia-cache-test and blackbird-audio-control-test boot
+      # VMs. Hosted runners have /dev/kvm but not readable by the runner user;
+      # without this the tests fall back to TCG and crawl or time out.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            extra-substituters = https://cache.arsfeld.dev https://nyx-cache.chaotic.cx/
+            extra-trusted-public-keys = cache.arsfeld.dev-1:rf7PgrG/BVE3llOcYdiP0hNqIvOSvIQoz7zoH1kt1d8= nyx-cache.chaotic.cx:dJxTrgMC3V3cFfyIiBQDQorG6k1LsqurH/srpMSq7qk=
+            system-features = nixos-test benchmark big-parallel kvm
+            fallback = true
+            connect-timeout = 5
+            download-attempts = 3
+
+      # x86_64-linux only: the other systems' checks are skipped as
+      # incompatible, and cylon-link's checks are defined only here anyway.
+      - name: nix flake check
+        run: nix flake check --keep-going -L
