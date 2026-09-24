@@ -4,12 +4,9 @@
   lib,
   ...
 }: let
-  cfg = config.constellation.networkTools;
   vars = config.media.config;
 in {
-  options.constellation.networkTools.enable = lib.mkEnableOption "network tools (Termix, Transfer, Cloudreve)";
-
-  config = lib.mkIf cfg.enable {
+  config = {
     media.services.termix = {
       port = 8080;
       image = "ghcr.io/lukegus/termix:latest";

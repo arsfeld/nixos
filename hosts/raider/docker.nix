@@ -21,19 +21,7 @@
   pkgs,
   ...
 }: {
-  options.constellation.docker = {
-    enable = lib.mkOption {
-      type = lib.types.bool;
-      description = ''
-        Enable Docker container runtime with automated image updates.
-        This includes Docker Compose support and daily image pull checks
-        for all configured OCI containers.
-      '';
-      default = false;
-    };
-  };
-
-  config = lib.mkIf config.constellation.docker.enable {
+  config = {
     virtualisation.docker = {
       enable = lib.mkDefault true;
 

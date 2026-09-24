@@ -28,19 +28,7 @@
   pkgs,
   ...
 }: {
-  options.constellation.home-assistant = {
-    enable = lib.mkOption {
-      type = lib.types.bool;
-      description = ''
-        Enable Home Assistant home automation platform.
-        This sets up Home Assistant with support for HACS custom integrations
-        and UI-configurable automations, scenes, and scripts.
-      '';
-      default = false;
-    };
-  };
-
-  config = lib.mkIf config.constellation.home-assistant.enable {
+  config = {
     media.gateway.services.hass = {
       port = 8123;
       exposeViaTailscale = true;

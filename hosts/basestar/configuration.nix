@@ -15,12 +15,9 @@
 
   constellation.podman.enable = true;
   constellation.k3s = {
-    enable = true;
     domains = ["arsfeld.dev"];
   };
-  constellation.sites.arsfeld-dev.enable = true;
   constellation.sites.rosenfeld-one = {
-    enable = true;
     dexUpstream = "galactica.bat-boa.ts.net:36958";
     usersUpstream = "galactica.bat-boa.ts.net:64459";
   };

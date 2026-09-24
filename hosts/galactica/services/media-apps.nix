@@ -4,13 +4,10 @@
   lib,
   ...
 }: let
-  cfg = config.constellation.mediaApps;
   vars = config.media.config;
   pia = config.constellation.pia;
 in {
-  options.constellation.mediaApps.enable = lib.mkEnableOption "media applications (Ohdio, Qui, Mydia)";
-
-  config = lib.mkIf cfg.enable (lib.mkMerge [
+  config = lib.mkMerge [
     {
       sops.secrets.ohdio-env.mode = "0444";
       sops.secrets.qui-oidc-env.mode = "0444";
@@ -105,5 +102,5 @@ in {
         bypassAuth = true;
       };
     }
-  ]);
+  ];
 }

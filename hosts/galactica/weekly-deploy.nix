@@ -555,8 +555,6 @@ with lib; let
   '';
 in {
   options.constellation.weeklyDeploy = {
-    enable = mkEnableOption "weekly tier-1 update, deploy and health report";
-
     hosts = mkOption {
       type = types.listOf types.str;
       default = self.tiers.tier1;
@@ -592,7 +590,7 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
+  config = {
     assertions = [
       {
         # Every loop in the script iterates $HOSTS, so an empty list is not a

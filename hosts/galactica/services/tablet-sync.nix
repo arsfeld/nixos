@@ -241,15 +241,6 @@ with lib; let
   '';
 in {
   options.constellation.tabletSync = {
-    enable = mkOption {
-      type = types.bool;
-      default = false;
-      description = ''
-        Enable tablet sync service for transcoding and syncing media
-        to mobile devices via Syncthing.
-      '';
-    };
-
     mediaDirectories = mkOption {
       type = types.listOf types.path;
       default = ["/mnt/storage/media/Series" "/mnt/storage/media/Movies"];
@@ -308,7 +299,7 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
+  config = {
     # Make the script available system-wide
     environment.systemPackages = [tabletSyncScript];
 

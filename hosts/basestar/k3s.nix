@@ -15,8 +15,6 @@ with lib; let
   tsDomain = "bat-boa.ts.net";
 in {
   options.constellation.k3s = {
-    enable = mkEnableOption "single-node k3s cluster alongside the host's Caddy";
-
     ingressAddress = mkOption {
       type = types.str;
       default = "10.43.0.80";
@@ -105,7 +103,7 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
+  config = {
     services.k3s = {
       enable = true;
       role = "server";

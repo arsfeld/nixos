@@ -37,7 +37,7 @@ with lib; {
   # a missing source. Create an empty one so Plex/Stash/mydia can start.
   #
   # Also ensure the media library dirs exist with the media (5000) owner: with
-  # mediaSync disabled for the move, nothing else creates them, and mydia/
+  # mediaSync is disabled (see below), nothing else creates them, and mydia/
   # Transmission import completed Movies/Series into them.
   systemd.tmpfiles.rules = [
     "d /mnt/storage/files 0775 media media -"
@@ -113,18 +113,14 @@ with lib; {
     };
   };
 
-  # mediaSync is DISABLED for the duration of the move.
+  # mediaSync stays DISABLED until its cleanup is fixed.
   #
-  # Its cleanup step deletes any unmarked *directory* under /mnt/storage/media,
-  # and when galactica is unreachable the remote marker scan fails so the
-  # "keep" set is empty — meaning the nightly run would wipe synced content
-  # (e.g. the Series/The Boys folder) the moment galactica goes offline.
-  #
-  # During the move, pegasus is populated by a one-off rsync instead (The Boys
-  # + the recent slice of the Stash/Vault library). Re-enable this after
-  # galactica is back online; loose Vault files survive cleanup (it skips
-  # files), but re-marking or relocating rsynced Vault *subdirs* avoids them
-  # being cleaned on the first managed run.
+  # Cleanup deletes any unmarked *directory* under /mnt/storage/media, and
+  # when galactica is unreachable the remote marker scan fails, so the "keep"
+  # set is empty and a nightly run would wipe every synced directory. Before
+  # re-enabling: make cleanup a no-op when the scan fails, and re-mark (or
+  # relocate) the Vault subdirectories the one-off rsync created during the
+  # galactica move, or the first managed run deletes them.
   constellation.mediaSync.enable = false;
 
   # Media stack with pegasus's own public domain (arsfeld.xyz), served over a

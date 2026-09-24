@@ -4,12 +4,9 @@
   lib,
   ...
 }: let
-  cfg = config.constellation.mediaAutomation;
   vars = config.media.config;
 in {
-  options.constellation.mediaAutomation.enable = lib.mkEnableOption "media automation services (Radarr, Sonarr, Bazarr, Prowlarr, etc.)";
-
-  config = lib.mkIf cfg.enable {
+  config = {
     media.services.radarr = {
       port = 7878;
       container = {

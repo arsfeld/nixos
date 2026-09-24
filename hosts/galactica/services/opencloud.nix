@@ -36,16 +36,6 @@ with lib; let
   vars = config.media.config;
 in {
   options.constellation.opencloud = {
-    enable = mkOption {
-      type = types.bool;
-      description = ''
-        Enable OpenCloud file storage and collaboration platform.
-        This configures the native NixOS OpenCloud service with
-        integration into the constellation infrastructure.
-      '';
-      default = false;
-    };
-
     port = mkOption {
       type = types.port;
       default = 9200;
@@ -81,7 +71,7 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
+  config = {
     media.gateway.services.opencloud = {
       port = 9200;
       exposeViaTailscale = true;

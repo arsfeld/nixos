@@ -4,12 +4,9 @@
   lib,
   ...
 }: let
-  cfg = config.constellation.homeApps;
   vars = config.media.config;
 in {
-  options.constellation.homeApps.enable = lib.mkEnableOption "home and utility apps (Audiobookshelf, Grocy, Stirling, Actual)";
-
-  config = lib.mkIf cfg.enable {
+  config = {
     media.services.audiobookshelf = {
       port = 80;
       image = "ghcr.io/advplyr/audiobookshelf:latest";

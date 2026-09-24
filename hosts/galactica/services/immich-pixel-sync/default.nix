@@ -51,8 +51,6 @@ with lib; let
   };
 in {
   options.constellation.immichPixelSync = {
-    enable = mkEnableOption "staging recent Immich assets for a Pixel via Syncthing";
-
     ownerId = mkOption {
       type = types.str;
       example = "c85fe467-a36a-457a-a260-a67dfe2199da";
@@ -169,7 +167,7 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
+  config = {
     environment.systemPackages = [immichPixelSync];
 
     systemd.tmpfiles.rules = [

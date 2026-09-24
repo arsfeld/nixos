@@ -19,6 +19,9 @@ in {
     ./services
     ./backup
     ./scripts
+    # galactica is the only always-on x86 host with Tailscale SSH to the rest of
+    # tier-1, and it never builds here (max-jobs = 0), so the weekly deploy costs
+    # it a download and an activation.
     ./weekly-deploy.nix
   ];
 
@@ -32,13 +35,6 @@ in {
   };
   constellation.podman.enable = true;
 
-  # Service modules (migrated from constellation.media)
-  constellation.mediaStreaming.enable = true;
-  constellation.mediaAutomation.enable = true;
-  constellation.mediaApps.enable = true;
-  constellation.homeApps.enable = true;
-  constellation.networkTools.enable = true;
-
   # Development environment with packages but using podman (not docker)
   constellation.development = {
     enable = true;
@@ -46,17 +42,9 @@ in {
   };
   services.isponsorblock.enable = false;
 
-  # Enable Home Assistant home automation platform
-  constellation.home-assistant.enable = true;
-
-  # Enable tablet sync for offline media viewing
-  # Drop .sync files in media folders to mark for transcoding
-  constellation.tabletSync.enable = true;
-
   # Stage the last 30 days of Immich photos for the Pixel, which forwards them to
   # Google Photos. Replaces the old iPhone → Resilio → Pixel chain.
   constellation.immichPixelSync = {
-    enable = true;
     # alex@rosenfeld.one. The on-disk directory is library/admin/ — that is the
     # storage label, not this UUID, and it can change; paths come from the database.
     ownerId = "c85fe467-a36a-457a-a260-a67dfe2199da";
@@ -70,14 +58,6 @@ in {
 
   # Enable sops-nix for secrets management
   constellation.sops.enable = true;
-
-  # OpenCloud - lightweight file storage and collaboration platform
-  constellation.opencloud.enable = true;
-
-  # galactica is the only always-on x86 host with Tailscale SSH to the rest of
-  # tier-1, and it never builds here (max-jobs = 0), so the weekly deploy costs
-  # it a download and an activation.
-  constellation.weeklyDeploy.enable = true;
 
   # Tailscale VPN exit nodes via AirVPN
   sops.secrets.airvpn-env = {};
@@ -96,7 +76,7 @@ in {
   # Enable qBittorrent with WireGuard VPN in network namespace
   services.qbittorrent-vpn.enable = true;
 
-  # Enable Transmission confined to the PIA VPN namespace (enables constellation.pia)
+  # Enable Transmission confined to the PIA VPN namespace (constellation.pia)
   services.transmission-vpn.enable = true;
 
   media.config.enable = true;
