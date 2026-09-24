@@ -12,7 +12,7 @@ Spec: `docs/superpowers/specs/2026-09-24-media-services-enforcement-design.md`
 
 ## Global Constraints
 
-- Every host's `config.system.build.toplevel.drvPath` must be identical before and after. A mismatch is a bug; do not accept it.
+- No host may change semantically. Because the flake source is in every closure, compare with `nix-diff` at the same HEAD: the only allowed differences are the source path and its revision. Anything else is a bug; do not accept it. (Corrected during execution; the original wording asked for identical `drvPath`s, which cannot hold.)
 - Scope is `media.gateway.services` and `media.containers` only. Do not touch `virtualisation.oci-containers.containers` writers (planka, siyuan, iroh-relay, isponsorblock, vpn-exit-nodes, tsnsrv).
 - `hosts/galactica/services/files.nix` has an unrelated uncommitted change. Never stage or commit it, and never revert it. Commit with explicit paths (`git commit -- <paths>`). The change is part of the working tree that every eval sees, so leave it alone throughout, and both the baseline and the after-hashes will include it consistently.
 - Conventional commits, no mention of Claude, and no attribution lines. Commit straight to master (no branches).
@@ -367,8 +367,8 @@ Expected: `Failed assertions:` followed by `- media.gateway.services is written 
 
 - [ ] **Step 6: Compare hashes on every host**
 
-Run: `bash $SCRATCH/hashes.sh $SCRATCH/after-guard.txt && diff $SCRATCH/before.txt $SCRATCH/after-guard.txt && echo IDENTICAL`
-Expected: `IDENTICAL`, with no `EVAL-FAILED`. The script evaluates each toplevel, which forces assertions, so this also proves the guard passes on every real host. `EVAL-FAILED` on any host means the guard is over-strict there. Inspect that host with `nix eval --raw .#nixosConfigurations.<host>.config.system.build.toplevel.drvPath` (without `2>/dev/null`) to see the assertion message.
+Raw `drvPath` equality cannot hold: the flake source (`self`) is in every closure, so any tracked change shifts every host's path. Other sessions may also be committing to master. So: stash your edits, run `bash $SCRATCH/hashes.sh $SCRATCH/pre-guard.txt` at the current HEAD, pop the stash, run `bash $SCRATCH/hashes.sh $SCRATCH/after-guard.txt`, and for every host whose paths differ run `nix run nixpkgs#nix-diff -- <pre.drv> <after.drv>`.
+Expected: no `EVAL-FAILED`, and every nix-diff difference traces only to the flake source path and its revision (`nix.registry.self.flake`, `NIX_PATH`, the sops `sopsFile` prefix, basestar's blog source). A difference in any package, unit or `/etc` file is a failure. The script evaluates each toplevel, which forces assertions, so this also proves the guard passes on every real host. `EVAL-FAILED` on any host means the guard is over-strict there. Inspect that host with `nix eval --raw .#nixosConfigurations.<host>.config.system.build.toplevel.drvPath` (without `2>/dev/null`) to see the assertion message.
 
 - [ ] **Step 7: Commit**
 
