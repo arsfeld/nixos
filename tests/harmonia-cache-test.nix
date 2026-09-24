@@ -31,6 +31,10 @@ in {
 
       networking.firewall.enable = false;
       networking.hostName = "raider";
+      # The test reboots and expects the seeded path to survive. The default
+      # tmpfs store overlay loses it while the Nix DB, on the disk image,
+      # keeps it registered, so harmonia serves a narinfo for a missing NAR.
+      virtualisation.writableStoreUseTmpfs = false;
       services.harmonia-dev.cache = {
         enable = true;
         signKeyPaths = ["/etc/harmonia/signing-key"];
@@ -87,7 +91,9 @@ in {
   testScript = ''
     start_all()
 
-    raider.wait_for_unit("harmonia-dev.service")
+    # harmonia-dev is socket-activated: the service stays inactive until the
+    # first request, so wait for the socket rather than the service.
+    raider.wait_for_unit("harmonia-dev.socket")
     harmonia_key = "${harmoniaPublicKey}"
 
     # Seed the cache with a fixed-output store path
@@ -115,8 +121,11 @@ in {
 
     # Validate persistence across garbage collection and a reboot
     raider.succeed("nix-collect-garbage -d")
-    raider.reboot()
-    raider.wait_for_unit("harmonia-dev.service")
+    # shutdown/start rather than reboot(): reboot() can return before the
+    # old boot is gone, and the next wait then loses its shell mid-shutdown.
+    raider.shutdown()
+    raider.start()
+    raider.wait_for_unit("harmonia-dev.socket")
     fetch_from_cache()
   '';
 }
