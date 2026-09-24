@@ -22,12 +22,7 @@
 # Access:
 # - Default port: 8123
 # - Should be exposed via constellation.services for reverse proxy access
-{
-  config,
-  lib,
-  pkgs,
-  ...
-}: {
+{pkgs, ...}: {
   config = {
     media.gateway.services.hass = {
       port = 8123;

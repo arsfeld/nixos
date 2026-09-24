@@ -1,8 +1,4 @@
-{
-  lib,
-  config,
-  ...
-}: let
+{...}: let
   domain = "arsfeld.dev";
 in {
   config = {
