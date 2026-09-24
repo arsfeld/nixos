@@ -13,8 +13,8 @@
 ## Global Constraints
 
 - Repo root: `/home/arosenfeld/Code/nixos`. Commit straight to `master`; no branches, no worktrees.
-- The working tree has unrelated uncommitted edits: `flake.lock`, `hosts/raider/configuration.nix`, `hosts/raider/fontconfig.nix`. **Never stage `flake.lock` or `hosts/raider/fontconfig.nix`.** `hosts/raider/configuration.nix` *is* edited by this plan, so stage only this plan's hunks of it with `git add -p` (the pre-existing hunks stay unstaged).
-- Always commit with an explicit pathspec or after a precise `git add`; never `git add -A` / `git commit -a`.
+- Start from a clean working tree. If `git status --short` shows anything before Task 0, stop and ask — do not stage someone else's edits.
+- Always commit after a precise `git add` or with an explicit pathspec; never `git add -A` / `git commit -a`.
 - Conventional commits, no mention of Claude, no attribution lines.
 - Flakes see only tracked files: `git mv` keeps files tracked; any newly created file needs `git add -N <path>` before evaluating.
 - Run `just fmt` (alejandra) before each commit.
@@ -76,7 +76,7 @@ exit $rc
 **Files:** none in the repo; creates `$S/snapshot.sh`, `$S/compare.sh`, `$S/base/`.
 
 - [ ] **Step 1:** Create `$S`, write the two scripts above into it, `chmod +x` both.
-- [ ] **Step 2:** Confirm the tree is in the expected state: `git status --short` shows only ` M flake.lock`, ` M hosts/raider/configuration.nix`, ` M hosts/raider/fontconfig.nix`.
+- [ ] **Step 2:** Confirm the tree is clean: `git status --short` prints nothing.
 - [ ] **Step 3:** `$S/snapshot.sh $S/base` — expect `17`.
 - [ ] **Step 4:** Sanity-check the harness against itself: `$S/compare.sh $S/base $S/base` — expect 17 × `same`, exit 0.
 
@@ -227,16 +227,16 @@ grep -rnE "modules/constellation/(weekly-deploy|rustic|opencloud|home-assistant|
 Expected: no output. (CLAUDE.md is handled in Task 4.)
 
 - [ ] **Step 5:** `just fmt`, then `$S/snapshot.sh $S/t2 && $S/compare.sh $S/base $S/t2` — apply the acceptance rule.
-- [ ] **Step 6: Commit.** Stage only this task's hunks of `hosts/raider/configuration.nix` with `git add -p hosts/raider/configuration.nix` (accept just the `./docker.nix`/`./project-vms.nix` import hunk), then:
+- [ ] **Step 6: Commit.**
 
 ```bash
 git add hosts/basestar/sites/default.nix hosts/galactica/configuration.nix hosts/galactica/backup/default.nix \
   hosts/galactica/services/default.nix hosts/basestar/configuration.nix hosts/pegasus/configuration.nix \
-  flake-modules/checks.nix hosts/basestar/k8s/default.nix hosts/basestar/k3s.nix
-git status --short   # renames staged; flake.lock and fontconfig.nix still ' M' (unstaged)
+  flake-modules/checks.nix hosts/basestar/k8s/default.nix hosts/basestar/k3s.nix hosts/raider/configuration.nix
+git status --short   # everything staged, nothing left ' M'
 git commit -m "refactor(modules): move host-only modules into their hosts"
 ```
-Verify with `git show --stat HEAD` that renames show as `R100` (or near) and `flake.lock` is absent.
+Verify with `git show --stat HEAD` that the moves show as renames (`R100`).
 
 ---
 
@@ -306,11 +306,11 @@ grep -rnE "constellation\.(weeklyDeploy|rustic|opencloud|home-assistant|tabletSy
 Expected: only lines in `hosts/galactica/services/vpn-exit-nodes.nix` and `hosts/pegasus/media-sync.nix` (both keep `cfg.enable`), plus `modules/media/__utils.nix:74` (unrelated `cfg.enable` on media services). Also grep the nested forms: `grep -n "enable = true" hosts/basestar/configuration.nix hosts/galactica/backup/rustic-ovh.nix hosts/galactica/services/transmission-vpn.nix` and check each remaining hit belongs to an unrelated option.
 
 - [ ] **Step 4:** `just fmt`, then `$S/snapshot.sh $S/t3 && $S/compare.sh $S/base $S/t3` — apply the acceptance rule. This is the step most likely to fail: an evaluation error `The option 'constellation.<x>.enable' does not exist` means a host line was missed; a unit-level diff means an unwrap changed semantics.
-- [ ] **Step 5: Commit.** `git add -p hosts/raider/configuration.nix` (only this task's two hunks), then:
+- [ ] **Step 5: Commit.**
 
 ```bash
-git add hosts/galactica hosts/basestar hosts/pegasus/configuration.nix hosts/raider/docker.nix hosts/raider/project-vms.nix
-git status --short   # flake.lock and fontconfig.nix still unstaged
+git add hosts/galactica hosts/basestar hosts/pegasus/configuration.nix hosts/raider
+git status --short   # nothing left unstaged
 git commit -m "refactor(modules): drop enable flags from host-local modules"
 ```
 
@@ -381,5 +381,5 @@ git commit -m "docs: document the shared-vs-host module rule" -- CLAUDE.md
 
 - [ ] **Step 1:** `$S/snapshot.sh $S/final && $S/compare.sh $S/base $S/final` — acceptance rule.
 - [ ] **Step 2:** `nix flake check --no-build` — expect success (evaluates `pre-commit-check` and everything else).
-- [ ] **Step 3:** `git status --short` — expect exactly the three pre-existing unstaged edits (` M flake.lock`, ` M hosts/raider/configuration.nix`, ` M hosts/raider/fontconfig.nix`) and nothing else. `git diff hosts/raider/configuration.nix` must show only the pre-existing hunks.
+- [ ] **Step 3:** `git status --short` — expect no output.
 - [ ] **Step 4:** `git log --oneline -5` — the four commits in order. Do not push unless the user asks.
