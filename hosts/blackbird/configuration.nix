@@ -423,18 +423,12 @@ in {
     };
   };
 
-  # Networking configuration
-  networking.nftables.enable = true;
-
   # Use NetworkManager for network management (better for laptops)
   networking.networkmanager.enable = true;
   networking.useDHCP = false;
 
   # Add user to networkmanager group for network management
   users.users.arosenfeld.extraGroups = ["networkmanager"];
-
-  # Disable wait-online service to speed up boot
-  systemd.services.NetworkManager-wait-online.enable = false;
 
   # Incus container management (in addition to libvirt from constellation.virtualization)
   virtualisation.incus = {
@@ -501,23 +495,11 @@ in {
     esac
   '';
 
-  # Set your time zone
-  time.timeZone = "America/Toronto";
-
-  # Select internationalisation properties
-  i18n.defaultLocale = "en_CA.UTF-8";
-
   # Configure keymap in X11
   services.xserver = {
     xkb.layout = "us";
     xkb.variant = "alt-intl";
   };
-
-  # Configure console keymap
-  console.keyMap = "us";
-
-  # Enable the OpenSSH daemon
-  services.openssh.enable = true;
 
   # Goodix 27c6:521d (built-in fingerprint reader) is on libfprint's
   # known-unsupported list, so fprintd is pointed at

@@ -315,8 +315,6 @@
   # Basic system configuration
   networking.hostName = "raider";
 
-  systemd.services.NetworkManager-wait-online.enable = false;
-
   # Bootloader
   boot.loader.systemd-boot.enable = true;
   boot.loader.systemd-boot.configurationLimit = 5;
@@ -345,28 +343,11 @@
   boot.kernelParams = ["ahci.mobile_lpm_policy=0"];
   powerManagement.scsiLinkPolicy = "max_performance";
 
-  networking.nftables.enable = true;
-
-  # Additional system services specific to this machine
-  # CoolerControl is configured in ./coolercontrol.nix
-
-  # Set your time zone
-  time.timeZone = "America/Toronto";
-
-  # Select internationalisation properties
-  i18n.defaultLocale = "en_CA.UTF-8";
-
   # Configure keymap in X11
   services.xserver = {
     xkb.layout = "us";
     xkb.variant = "alt-intl";
   };
-
-  # Configure console keymap
-  console.keyMap = "us";
-
-  # Enable the OpenSSH daemon
-  services.openssh.enable = true;
 
   # Filebrowser - web-based file manager accessible from browser/iPhone
   services.filebrowser = {
