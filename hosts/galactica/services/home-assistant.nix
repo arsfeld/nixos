@@ -24,12 +24,10 @@
 # - Should be exposed via constellation.services for reverse proxy access
 {pkgs, ...}: {
   config = {
-    media.gateway.services.hass = {
+    media.services.hass = {
       port = 8123;
-      exposeViaTailscale = true;
-      settings = {
-        bypassAuth = true;
-      };
+      tailscaleExposed = true;
+      bypassAuth = true;
     };
 
     services.home-assistant = {

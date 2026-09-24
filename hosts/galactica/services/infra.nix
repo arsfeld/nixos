@@ -3,16 +3,14 @@
   config,
   ...
 }: {
-  media.gateway.services.netdata = {
+  media.services.netdata = {
     port = 19999;
-    exposeViaTailscale = true;
+    tailscaleExposed = true;
   };
-  media.gateway.services.grafana = {
+  media.services.grafana = {
     port = 3010;
-    exposeViaTailscale = true;
-    settings = {
-      bypassAuth = true;
-    };
+    tailscaleExposed = true;
+    bypassAuth = true;
   };
   services.netdata = {
     enable = true;
