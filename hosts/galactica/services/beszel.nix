@@ -11,9 +11,9 @@ in {
 
   # Beszel ships its own auth (PocketBase) and is wired up to Authelia OIDC
   # via the UI, so bypass Authelia at the gateway.
-  media.gateway.services.beszel = {
+  media.services.beszel = {
     port = hubPort;
-    settings.bypassAuth = true;
+    bypassAuth = true;
   };
 
   # OIDC: PocketBase stores OAuth provider config in its DB, not env vars,

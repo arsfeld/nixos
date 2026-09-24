@@ -1,9 +1,9 @@
 {config, ...}: let
   vars = config.media.config;
 in {
-  media.gateway.services.ntfy = {
+  media.services.ntfy = {
     port = 2586;
-    settings.bypassAuth = true;
+    bypassAuth = true;
   };
 
   # Auth users + ACLs are provisioned declaratively via environment

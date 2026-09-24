@@ -72,12 +72,10 @@ in {
   };
 
   config = {
-    media.gateway.services.opencloud = {
+    media.services.opencloud = {
       port = 9200;
-      exposeViaTailscale = true;
-      settings = {
-        bypassAuth = true;
-      };
+      tailscaleExposed = true;
+      bypassAuth = true;
     };
 
     # Ensure the media user/group exists

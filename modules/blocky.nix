@@ -39,9 +39,9 @@ in {
   };
 
   config = lib.mkIf config.blocky.enable {
-    media.gateway.services.dns = {
+    media.services.dns = {
       port = dnsPort;
-      settings.bypassAuth = true;
+      bypassAuth = true;
     };
     services.redis = {
       servers = {
