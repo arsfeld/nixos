@@ -133,13 +133,13 @@ in {
     datadir = "/var/lib/nextcloud/data";
     hostName = "nextcloud.${vars.domain}";
     maxUploadSize = "10G";
-    package = pkgs-unstable.nextcloud34;
+    package = pkgs-unstable.nextcloud35;
     appstoreEnable = false; # Disable to avoid write permission issues with NixOS-managed apps
     autoUpdateApps.enable = false;
     configureRedis = true;
     database.createLocally = true;
     extraApps = {
-      inherit (config.services.nextcloud.package.packages.apps) memories calendar tasks mail contacts onlyoffice user_oidc;
+      inherit (config.services.nextcloud.package.packages.apps) calendar tasks mail contacts onlyoffice user_oidc;
     };
     extraAppsEnable = true; # Enable NixOS-managed apps
     config = {
