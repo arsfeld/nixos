@@ -330,24 +330,12 @@
   # default; verify after deploy with `cat /proc/sys/kernel/sched_bore`.
   boot.kernelPackages = lib.mkForce pkgs.linuxPackages_cachyos-bore;
 
-  # Boot appearance
-  boot.plymouth.enable = true;
-  boot.plymouth.theme = "bgrt";
-  boot.initrd.verbose = false;
-  boot.consoleLogLevel = 0;
-
-  # Remove zfs, add nfs for media mount
-  boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "nfs" "ntfs" "reiserfs" "vfat" "xfs"];
+  # nfs for the media mount; the rest come from constellation.desktop.
+  boot.supportedFilesystems = ["nfs"];
 
   # Disable aggressive SATA power management to prevent SSD freezing
   boot.kernelParams = ["ahci.mobile_lpm_policy=0"];
   powerManagement.scsiLinkPolicy = "max_performance";
-
-  # Configure keymap in X11
-  services.xserver = {
-    xkb.layout = "us";
-    xkb.variant = "alt-intl";
-  };
 
   # Filebrowser - web-based file manager accessible from browser/iPhone
   services.filebrowser = {

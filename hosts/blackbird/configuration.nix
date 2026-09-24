@@ -153,12 +153,6 @@ in {
   boot.loader.efi.canTouchEfiVariables = true;
   boot.loader.timeout = 10;
 
-  # Boot appearance
-  boot.plymouth.enable = true;
-  boot.plymouth.theme = "bgrt";
-  boot.initrd.verbose = false;
-  boot.consoleLogLevel = 0;
-
   # CachyOS BORE kernel from Chaotic-Nyx, mirroring raider.
   boot.kernelPackages = lib.mkForce pkgs.linuxPackages_cachyos-bore;
 
@@ -330,9 +324,6 @@ in {
     }
   ];
 
-  # Remove zfs support
-  boot.supportedFilesystems = lib.mkForce ["btrfs" "cifs" "f2fs" "jfs" "ntfs" "reiserfs" "vfat" "xfs"];
-
   # ASUS G14 specific hardware support
   services.supergfxd.enable = true; # ASUS GPU switching
   services.asusd = {
@@ -494,12 +485,6 @@ in {
         ;;
     esac
   '';
-
-  # Configure keymap in X11
-  services.xserver = {
-    xkb.layout = "us";
-    xkb.variant = "alt-intl";
-  };
 
   # Goodix 27c6:521d (built-in fingerprint reader) is on libfprint's
   # known-unsupported list, so fprintd is pointed at
