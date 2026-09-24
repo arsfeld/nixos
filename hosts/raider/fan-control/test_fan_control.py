@@ -237,6 +237,18 @@ class LoopTest(unittest.TestCase):
         self.assertEqual(dev.calls, [("fan2", 30), ("fan2", 35), ("fan2", 40)])
         self.assertEqual((ch.commits, ch.ramps), (3, 1))
 
+    def test_slow_rise_is_one_ramp_and_reversal_starts_another(self):
+        # Under stress on 2026-09-24 a rise committed every 10-110 s.
+        ch, dev = channel([(75, 75), (75, 75), (40, 40), (40, 40)]), FakeDevice()
+        ch.ema.update(75, 2)
+        tick(ch, 0.0, 2.0, dev)
+        tick(ch, 110.0, 2.0, dev)
+        self.assertEqual(ch.ramps, 1)
+        ch.ema.value = 40
+        tick(ch, 112.0, 2.0, dev)  # starts the down hold
+        tick(ch, 112.0 + DOWN_HOLD, 2.0, dev)
+        self.assertEqual((ch.commits, ch.ramps), (3, 2))
+
     def test_failed_write_keeps_current_and_retries(self):
         ch, dev = channel([(75, 75)] * 2), FakeDevice(ok=False)
         ch.ema.update(75, 2)

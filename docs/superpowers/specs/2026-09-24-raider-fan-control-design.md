@@ -141,7 +141,16 @@ The unit uses `Restart=always` and `RestartSec=10`.
    Adjust the fan2 points above 65 °C if the plateau lands outside roughly
    75–90% duty.
 3. **Success criteria**, one normal workday after deploy:
-   - under 20 ramps per day in total, where a ramp is a run of consecutive
-     same-direction commits, counted in the `daily` journal line (a
+   - under 20 ramps per day in total, where a ramp is a run of same-direction
+     commits no more than 120 s apart, counted in the `daily` journal line (a
      −1-per-tick ramp-down is many writes but one ramp);
    - zero ramps while idle.
+
+## Calibration result (2026-09-24)
+
+A 10-minute `stress-ng --cpu 16` run held the raw package temperature at 75–83 °C,
+peaking at 87 °C. The emergency path never fired. fan2 levelled off at 52–59%, below
+the 75–90% band this spec guessed before measuring. The curve was left unchanged:
+full sustained load holds about 17 °C under TjMax at about 55% duty, which is the
+balanced target, and pushing the fan to 75–90% would add noise with no thermal need.
+The rise committed every 10–110 s, which is why a ramp tolerates 120 s gaps.
