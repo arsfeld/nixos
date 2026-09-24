@@ -97,7 +97,15 @@
         "${self}/hosts/router/network.nix"
         "${self}/hosts/router/services.nix"
         "${self}/hosts/router/alerting.nix"
+        inputs.sops-nix.nixosModules.sops
       ];
+
+      # alerting.nix and client-monitor read these secrets' paths. The test VM
+      # holds no key to decrypt them, so declare them without sops files: the
+      # units that read them fail to start, and none of them is under test.
+      sops.validateSopsFiles = false;
+      sops.secrets.smtp_password.sopsFile = "/dev/null";
+      sops.secrets."ntfy-publisher-env".sopsFile = "/dev/null";
 
       # Apply overlays to make packages available
       nixpkgs.overlays = [
@@ -375,9 +383,9 @@
     router.wait_for_open_port(53)
 
     # Wait for monitoring stack
-    router.wait_for_unit("prometheus.service")
+    router.wait_for_unit("victoriametrics.service")
     router.wait_for_unit("grafana.service")
-    router.wait_for_open_port(9090)  # Prometheus
+    router.wait_for_open_port(8428)  # VictoriaMetrics
     router.wait_for_open_port(3000)  # Grafana
 
     # Wait for Caddy
@@ -483,7 +491,7 @@
         print("Kea DHCP server is running")
 
         # Check that monitoring services are running
-        router.succeed("systemctl is-active prometheus")
+        router.succeed("systemctl is-active victoriametrics")
         router.succeed("systemctl is-active grafana")
         print("Monitoring stack (Prometheus + Grafana) is running")
 
@@ -622,7 +630,7 @@
         client1.succeed("curl -f http://10.1.1.1/grafana/")
         print("✓ Grafana reverse proxy is working")
 
-        client1.succeed("curl -f http://10.1.1.1/prometheus/")
+        client1.succeed("curl -f http://10.1.1.1/prometheus/api/v1/query?query=up")
         print("✓ Prometheus reverse proxy is working")
 
         # Test dashboard template rendering
@@ -650,7 +658,7 @@
 
     with subtest("Monitoring stack is working"):
         # Just verify services are running
-        router.succeed("systemctl is-active prometheus")
+        router.succeed("systemctl is-active victoriametrics")
         router.succeed("systemctl is-active grafana")
         print("Prometheus and Grafana services are active")
 

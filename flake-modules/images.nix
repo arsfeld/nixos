@@ -15,11 +15,6 @@
       # Add ARM images from above to ensure we have all the entries
       inherit (self.packages.aarch64-linux) raspi3 octopi r2s;
 
-      # Router QEMU test
-      router-test =
-        inputs.nixpkgs.legacyPackages.x86_64-linux.callPackage ../tests/router-qemu-test.nix
-        {};
-
       # Custom kexec image with Tailscale for nixos-anywhere
       kexec-tailscale =
         (inputs.nixpkgs.lib.nixosSystem {

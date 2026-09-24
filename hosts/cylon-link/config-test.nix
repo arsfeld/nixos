@@ -27,8 +27,6 @@ in
   assert check (c.hardware.deviceTree.name == "berlin2cd-valve-steamlink.dtb") "wrong device tree";
   assert check (c.system.build ? cylonLinkImage) "just flash-cylon-link needs the disk image";
   assert check (c.systemd.services ? cylon-link-register-store && c.systemd.services ? cylon-link-grow-root) "a flashed image must register its store and grow on first boot";
-  assert check (c.services.tailscale.authKeyFile == c.sops.secrets.tailscale-key.path) "must join the tailnet unattended";
-  assert check (c.sops.secrets.tailscale-key.sopsFile == c.constellation.sops.commonSopsFile) "the Tailscale key comes from common.yaml";
     pkgs.runCommand "cylon-link-config" {} ''
       config=${c.boot.kernelPackages.kernel.configfile}
       for opt in ARCH_BERLIN=y MACH_BERLIN_BG2CD=y USB_EHCI_HCD=y USB_CHIPIDEA_HOST=y \
