@@ -58,6 +58,8 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: write
+      # For the dispatch step below.
+      actions: write
     steps:
       - uses: actions/checkout@v6
 
@@ -71,3 +73,15 @@ jobs:
           git commit -m "chore: update flake inputs"
           git pull --rebase origin master
           git push
+
+      # A push made with GITHUB_TOKEN starts no workflow runs, so the push above
+      # never triggers build.yml on its own. Without this, the bot's lock commits
+      # (50b5580, f338deb) got no "Build & Cache" run, and galactica's
+      # weekly-deploy gate, which looks for exactly that run by head_sha,
+      # skipped every one of them. workflow_dispatch is the documented
+      # exception to that rule. Not continue-on-error: a failed dispatch must
+      # turn this job red rather than surface as a silent skip on galactica.
+      - name: Build and cache the new commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build.yml --ref master
