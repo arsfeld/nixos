@@ -23,6 +23,14 @@
             python3 -m unittest discover -v -s . -p 'test_*.py'
             touch $out
           '';
+        raider-fan-control-test =
+          inputs.nixpkgs.legacyPackages.${system}.runCommand "raider-fan-control-test" {
+            nativeBuildInputs = [inputs.nixpkgs.legacyPackages.${system}.python3];
+          } ''
+            cp ${../hosts/raider/fan-control}/*.py .
+            python3 -m unittest discover -v -s . -p 'test_*.py'
+            touch $out
+          '';
       }
       // inputs.nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
         # cylon-link is cross-compiled from x86_64; its checks are too.
