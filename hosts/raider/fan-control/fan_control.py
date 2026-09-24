@@ -13,7 +13,13 @@ Design: docs/superpowers/specs/2026-09-24-raider-fan-control-design.md
 import glob
 import logging
 import math
+import signal
 import subprocess
+import sys
+import time
+from dataclasses import dataclass
+from datetime import date
+from typing import Callable
 
 log = logging.getLogger("fan-control")
 
@@ -153,3 +159,147 @@ class Device:
 
     def set_duty(self, fan: str, duty: int) -> bool:
         return self._liquidctl("set", fan, "speed", str(duty))
+
+
+TICK = 2.0  # s
+FAILSAFE_AFTER = 5  # consecutive sensor failures
+FAILSAFE_DUTY = 70
+EXIT_DUTY = 50  # the device holds its last duty if we die
+STATUS_EVERY = 300.0  # s
+
+Reading = tuple[float, float]  # (control signal, emergency signal), °C
+
+
+@dataclass
+class Channel:
+    fan: str  # liquidctl channel
+    name: str  # signal label for logs
+    read: Callable[[], Reading | None]
+    ema: Ema
+    governor: Governor
+    last: Reading | None = None
+    failures: int = 0
+    commits: int = 0
+    ramps: int = 0  # runs of consecutive same-direction commits; the success metric
+    last_dir: int = 0
+    last_commit: float = -math.inf
+
+
+def reader(signal_path: str, emergency_path: str) -> Callable[[], Reading | None]:
+    def read() -> Reading | None:
+        s, e = read_temp(signal_path), read_temp(emergency_path)
+        return None if s is None or e is None else (s, e)
+
+    return read
+
+
+def apply(ch: Channel, duty: int, now: float, device: Device, why: str) -> None:
+    previous = ch.governor.current
+    if not device.set_duty(ch.fan, duty):
+        return  # current unchanged, so the next tick retries
+    direction = 1 if duty > previous else -1
+    if direction != ch.last_dir or now - ch.last_commit > 1.5 * TICK:
+        ch.ramps += 1
+    ch.commits += 1
+    ch.last_dir, ch.last_commit = direction, now
+    ch.governor.commit(duty)
+    log.info("%s %d→%d%% (%s)", ch.fan, previous, duty, why)
+
+
+def prime(ch: Channel, device: Device) -> bool:
+    """Set the initial duty from the first reading; the device's own is unknown."""
+    reading = ch.read()
+    if reading is None:
+        duty = FAILSAFE_DUTY
+    else:
+        ch.last = reading
+        duty = round(ch.governor.curve(ch.ema.update(reading[0], TICK)))
+    if not device.set_duty(ch.fan, duty):
+        return False
+    ch.governor.commit(duty)
+    log.info("%s start at %d%%", ch.fan, duty)
+    return True
+
+
+def tick(ch: Channel, now: float, dt: float, device: Device) -> None:
+    reading = ch.read()
+    if reading is None:
+        ch.failures += 1
+        if ch.failures >= FAILSAFE_AFTER:
+            if ch.failures == FAILSAFE_AFTER:
+                log.error("%s: %d consecutive sensor failures", ch.fan, ch.failures)
+            if ch.governor.current != FAILSAFE_DUTY:
+                apply(ch, FAILSAFE_DUTY, now, device, "sensor failsafe")
+            return
+        if ch.last is None:
+            return
+        reading = ch.last
+    else:
+        ch.failures = 0
+        ch.last = reading
+    raw, emergency = reading
+    smoothed = ch.ema.update(raw, dt)
+    duty = ch.governor.step(smoothed, emergency, now)
+    if duty is not None:
+        apply(ch, duty, now, device, f"{ch.name} {smoothed:.1f} °C avg, {raw:.0f} °C raw")
+
+
+def status(channels: list[Channel]) -> str:
+    def avg(ch: Channel) -> str:
+        return "no reading" if ch.ema.value is None else f"{ch.ema.value:.1f} °C avg"
+
+    return ", ".join(f"{ch.fan} {ch.governor.current}% ({ch.name} {avg(ch)})" for ch in channels)
+
+
+def run(channels: list[Channel], device: Device) -> None:
+    last = time.monotonic()
+    next_status = last + STATUS_EVERY
+    day = date.today()
+    while True:
+        time.sleep(TICK)
+        now = time.monotonic()
+        dt, last = now - last, now
+        for ch in channels:
+            tick(ch, now, dt, device)
+        if now >= next_status:
+            log.info("status: %s", status(channels))
+            next_status = now + STATUS_EVERY
+        if date.today() != day:
+            summary = ", ".join(f"{ch.fan} {ch.ramps} ramps/{ch.commits} writes" for ch in channels)
+            log.info("daily %s: %s", day.isoformat(), summary)
+            for ch in channels:
+                ch.ramps = ch.commits = 0
+            day = date.today()
+
+
+def main() -> int:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    pkg = find_temp("coretemp", "Package id 0")
+    channels = [
+        Channel("fan2", "pkg", reader(pkg, pkg), Ema(60), Governor(Curve(FAN2_CURVE), 0)),
+        Channel(
+            "fan1",
+            "gpu",
+            reader(find_temp("amdgpu", "edge"), find_temp("amdgpu", "junction")),
+            Ema(30),
+            Governor(Curve(FAN1_CURVE), 0),
+        ),
+    ]
+    device = Device()
+    if not device.initialize():
+        return 1
+    try:
+        for ch in channels:
+            if not prime(ch, device):
+                return 1
+        run(channels, device)
+    finally:
+        for ch in channels:
+            device.set_duty(ch.fan, EXIT_DUTY)
+        log.info("exit: fans set to %d%%", EXIT_DUTY)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

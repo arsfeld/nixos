@@ -1,7 +1,5 @@
-# NZXT H1 V2 Dynamic Fan Control
-# Python-based fan control with exponential curve and anti-oscillation
+# NZXT H1 V2 fan control: smoothed curves, see fan-control/fan_control.py
 {pkgs, ...}: {
-  # Service to manage dynamic fan curves using Python script
   systemd.services.nzxt-fan-control = {
     description = "NZXT H1 V2 Dynamic Fan Control";
     after = ["multi-user.target"];
@@ -9,30 +7,20 @@
 
     serviceConfig = {
       Type = "simple";
-      Restart = "on-failure";
+      # The device holds its last duty if this dies, so always come back.
+      Restart = "always";
       RestartSec = "10";
-
-      # Run the Python fan control script
-      ExecStart = "${pkgs.python3}/bin/python3 ${./nzxt-fan-control.py}";
-
+      ExecStart = "${pkgs.python3}/bin/python3 ${./fan-control/fan_control.py}";
       # Run as root to access hardware
       User = "root";
-
-      # Logging
-      StandardOutput = "journal";
-      StandardError = "journal";
     };
 
-    path = with pkgs; [
-      liquidctl
-      lm_sensors
-      python3
-    ];
+    path = [pkgs.liquidctl];
   };
 
-  # Add required tools for fan control
+  # For device detection and manual control
   environment.systemPackages = with pkgs; [
-    liquidctl # For device detection and manual control
-    lm_sensors # For temperature monitoring
+    liquidctl
+    lm_sensors
   ];
 }

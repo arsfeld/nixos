@@ -5,7 +5,20 @@ import subprocess
 import tempfile
 import unittest
 
-from fan_control import DOWN_HOLD, FAN2_CURVE, Curve, Device, Ema, Governor, find_temp, read_temp
+from fan_control import (
+    DOWN_HOLD,
+    FAILSAFE_DUTY,
+    FAN2_CURVE,
+    Channel,
+    Curve,
+    Device,
+    Ema,
+    Governor,
+    find_temp,
+    prime,
+    read_temp,
+    tick,
+)
 
 
 def gov(current=25):
@@ -186,6 +199,67 @@ class DeviceTest(unittest.TestCase):
 
     def test_missing_binary_is_failure(self):
         self.assertFalse(Device(FakeRun(raises=FileNotFoundError())).set_duty("fan2", 40))
+
+
+class FakeDevice:
+    def __init__(self, ok=True):
+        self.ok, self.calls = ok, []
+
+    def set_duty(self, fan, duty):
+        self.calls.append((fan, duty))
+        return self.ok
+
+
+def channel(readings, current=25):
+    it = iter(readings)
+    return Channel("fan2", "pkg", lambda: next(it), Ema(60), Governor(Curve(FAN2_CURVE), current))
+
+
+class LoopTest(unittest.TestCase):
+    def test_prime_sets_curve_duty(self):
+        ch, dev = channel([(75, 75)], current=0), FakeDevice()
+        self.assertTrue(prime(ch, dev))
+        self.assertEqual((dev.calls, ch.governor.current), ([("fan2", 50)], 50))
+
+    def test_prime_without_reading_uses_failsafe(self):
+        ch, dev = channel([None], current=0), FakeDevice()
+        self.assertTrue(prime(ch, dev))
+        self.assertEqual(dev.calls, [("fan2", FAILSAFE_DUTY)])
+
+    def test_prime_fails_when_write_fails(self):
+        self.assertFalse(prime(channel([(40, 40)], current=0), FakeDevice(ok=False)))
+
+    def test_consecutive_commits_are_one_ramp(self):
+        ch, dev = channel([(75, 75)] * 3), FakeDevice()
+        ch.ema.update(75, 2)
+        for i in range(3):
+            tick(ch, i * 2.0, 2.0, dev)
+        self.assertEqual(dev.calls, [("fan2", 30), ("fan2", 35), ("fan2", 40)])
+        self.assertEqual((ch.commits, ch.ramps), (3, 1))
+
+    def test_failed_write_keeps_current_and_retries(self):
+        ch, dev = channel([(75, 75)] * 2), FakeDevice(ok=False)
+        ch.ema.update(75, 2)
+        tick(ch, 0.0, 2.0, dev)
+        self.assertEqual(ch.governor.current, 25)
+        dev.ok = True
+        tick(ch, 2.0, 2.0, dev)
+        self.assertEqual(ch.governor.current, 30)
+
+    def test_sensor_failures_reuse_last_then_failsafe(self):
+        ch, dev = channel([(40, 40)] + [None] * 5), FakeDevice()
+        for i in range(5):
+            tick(ch, i * 2.0, 2.0, dev)
+        self.assertEqual(dev.calls, [])
+        tick(ch, 10.0, 2.0, dev)
+        self.assertEqual(dev.calls, [("fan2", FAILSAFE_DUTY)])
+
+    def test_recovers_after_failsafe(self):
+        ch, dev = channel([None] * 5 + [(40, 40)]), FakeDevice()
+        for i in range(6):
+            tick(ch, i * 2.0, 2.0, dev)
+        self.assertEqual(ch.failures, 0)
+        self.assertEqual(ch.governor.current, FAILSAFE_DUTY)  # ramps down after DOWN_HOLD
 
 
 if __name__ == "__main__":
