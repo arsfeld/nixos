@@ -8,17 +8,6 @@
   ...
 }: let
   appleFontPkgs = inputs.apple-fonts.packages.${pkgs.stdenv.hostPlatform.system};
-  whitesurAssets =
-    pkgs.runCommand "whitesur-gtk-assets" {
-      buildInputs = [pkgs.glib.dev];
-    } ''
-      mkdir -p $out/windows-assets $out/assets
-      cp -r ${pkgs.whitesur-gtk-theme.src}/src/assets/gtk/windows-assets/titlebutton/* $out/windows-assets/
-      cp -r ${pkgs.whitesur-gtk-theme.src}/src/assets/gtk/common-assets/assets/* $out/assets/
-      cp -r ${pkgs.whitesur-gtk-theme.src}/src/assets/gtk/scalable $out/assets/
-      gresource extract ${pkgs.whitesur-gtk-theme}/share/themes/WhiteSur-Dark/gtk-4.0/gtk.gresource /org/gnome/theme/gtk-dark.css > $out/gtk-4.0.css
-      gresource extract ${pkgs.whitesur-gtk-theme}/share/themes/WhiteSur-Dark/gtk-3.0/gtk.gresource /org/gnome/theme/gtk-dark.css > $out/gtk-3.0.css
-    '';
 in {
   fonts.packages = [
     appleFontPkgs.sf-pro
@@ -27,71 +16,8 @@ in {
     appleFontPkgs.ny
   ];
 
-  # User-specific fontconfig, GTK Libadwaita theme, and dconf settings
+  # User-specific fontconfig and font dconf settings
   home-manager.users.arosenfeld = {pkgs, ...}: {
-    # GTK settings for user session
-    gtk = {
-      enable = true;
-      theme = {
-        name = "WhiteSur-Dark";
-        package = pkgs.whitesur-gtk-theme;
-      };
-      iconTheme = {
-        name = "WhiteSur-dark";
-        package = pkgs.whitesur-icon-theme;
-      };
-      cursorTheme = {
-        name = "WhiteSur-cursors";
-        package = pkgs.whitesur-cursors;
-        size = 24;
-      };
-      gtk3.extraConfig = {
-        gtk-application-prefer-dark-theme = true;
-        gtk-decoration-layout = "appmenu:minimize,maximize,close";
-      };
-      gtk4.theme = null;
-      gtk4.extraConfig = {
-        gtk-application-prefer-dark-theme = true;
-        gtk-decoration-layout = "appmenu:minimize,maximize,close";
-      };
-    };
-
-    # Libadwaita & GTK4 window controls and theme assets
-    xdg.configFile."gtk-4.0/gtk.css" = {
-      source = "${whitesurAssets}/gtk-4.0.css";
-      force = true;
-    };
-    xdg.configFile."gtk-4.0/gtk-dark.css" = {
-      source = "${whitesurAssets}/gtk-4.0.css";
-      force = true;
-    };
-    xdg.configFile."gtk-4.0/windows-assets" = {
-      source = "${whitesurAssets}/windows-assets";
-      force = true;
-    };
-    xdg.configFile."gtk-4.0/assets" = {
-      source = "${whitesurAssets}/assets";
-      force = true;
-    };
-
-    # GTK3 window controls and theme assets
-    xdg.configFile."gtk-3.0/gtk.css" = {
-      source = "${whitesurAssets}/gtk-3.0.css";
-      force = true;
-    };
-    xdg.configFile."gtk-3.0/gtk-dark.css" = {
-      source = "${whitesurAssets}/gtk-3.0.css";
-      force = true;
-    };
-    xdg.configFile."gtk-3.0/windows-assets" = {
-      source = "${whitesurAssets}/windows-assets";
-      force = true;
-    };
-    xdg.configFile."gtk-3.0/assets" = {
-      source = "${whitesurAssets}/assets";
-      force = true;
-    };
-
     # Custom fontconfig configuration
     xdg.configFile."fontconfig/conf.d/10-hinting.conf".text = ''
       <?xml version="1.0"?>
@@ -244,20 +170,16 @@ in {
     # zoom from it, so scaling here would shrink web content below macOS's 1:1.
     dconf.settings = {
       "org/gnome/desktop/interface" = {
-        color-scheme = "prefer-dark";
         font-name = "SF Pro Text 10";
         document-font-name = "SF Pro Text 10";
         monospace-font-name = "SF Mono 10";
         font-antialiasing = "grayscale";
         font-hinting = "slight";
         text-scaling-factor = 1.0;
-        cursor-theme = "WhiteSur-cursors";
-        cursor-size = 24;
       };
 
       "org/gnome/desktop/wm/preferences" = {
         titlebar-font = "SF Pro Display Bold 10";
-        button-layout = "appmenu:minimize,maximize,close";
       };
     };
   };
