@@ -59,16 +59,18 @@ unchanged.
 
 `modules/media/services.nix` gains one assertion per lower-layer option. Each
 reads `options.<path>.files` (the files that contributed a definition that
-survived `mkIf`) and fails if any file is outside an allowlist:
-
-- `media.gateway.services`: `modules/media/services.nix`, `modules/media/containers.nix`
-- `media.containers`: `modules/media/services.nix`
-
-Files are store paths, so they are matched by the suffix `/modules/media/<file>`.
-The message names each offending file, with the store prefix stripped, and
-points at `media.services.<name>`. Reads are unaffected, because
-`.files` records only definitions. That covers glance, auth, pegasus and
-`modules/constellation/podman.nix`.
+survived `mkIf` — or, with none, the file declaring the option's default) and
+fails if any file's repo-relative path does not start with `modules/media/`.
+The guard started as a per-option allowlist of files permitted to write
+`media.gateway.services` and `media.containers`, matched by the suffix
+`/modules/media/<file>`; it was replaced by this single prefix rule because on
+hosts with no `media.services` entries at all, the option has no definition
+surviving `mkIf`, so `.files` attributes its default to the declaring file
+(`gateway.nix` / `containers.nix`) instead — and the allowlist wrongly rejected
+that default on 7 of the fleet's 10 hosts. The message names each offending
+file, with the store prefix stripped, and points at `media.services.<name>`.
+Reads are unaffected, because `.files` records only definitions. That covers
+glance, auth, pegasus and `modules/constellation/podman.nix`.
 
 Assertions do not enter the system closure, so the guard itself leaves every
 hash unchanged.
@@ -97,12 +99,12 @@ who wrote a value.
    unit or `/etc` file is a bug in the migration, not an accepted difference.
    Also, galactica's `config.media.gateway.services` JSON must be byte-identical.
 2. **Negative check.** Add `checks.x86_64-linux.media-lower-layers-guarded` to
-   `flake-modules/checks.nix`. It extends galactica with a module that writes
-   `media.gateway.services.probe = {port = 1;}` and asserts that
-   `builtins.tryEval` of the toplevel `drvPath` fails. It is a trivial
-   `runCommand` when the guard holds and an eval error when it does not. It runs
-   in `checks.yml`. Without it, a guard that silently stopped matching (for example
-   after a store-path layout change) would go unnoticed.
+   `flake-modules/checks.nix`. It extends galactica with a probe module
+   (`_file = "media-guard-probe"`) writing both `media.gateway.services.probe`
+   and `media.containers.probe`, and requires that `config.assertions` holds a
+   failing assertion for each option naming the probe. It reads the assertions
+   rather than `tryEval`ing the toplevel, so an unrelated eval error cannot pass
+   for the guard working. It runs in `checks.yml`.
 3. Confirm the negative check fails when the guard is removed. Do this once, by
    hand, before committing.
 
