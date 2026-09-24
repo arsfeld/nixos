@@ -637,7 +637,7 @@ Opt-in feature modules that hosts compose. Key modules:
 | `netdata-client.nix` | Netdata agent |
 | `forgejo-runner.nix` | Forgejo Actions runner |
 | `virtualization.nix` | KVM/libvirt |
-| `development.nix` | Dev tools (Node, Python, Go, Rust, …) |
+| `development.nix` | Dev tools (Docker, Node, Python, Go, Rust, …) |
 | `desktop.nix` | Desktop environment (`variant` selects GNOME etc.) |
 | `gaming.nix` | Gaming environment |
 
@@ -718,7 +718,7 @@ Caddy reverse proxy consuming service definitions. Generates TLS configs, error 
 
 ### Directory Structure
 - `hosts/` - Per-machine configs (auto-discovered by `flake-modules/hosts.nix`)
-- `modules/` - All NixOS modules (auto-loaded by haumea)
+- `modules/` - Shared NixOS modules (auto-loaded into every host by haumea); host-only modules live under `hosts/<host>/`
   - `constellation/` - Opt-in feature modules
   - `media/` - Media stack (config, gateway, components)
 - `packages/` - Custom Nix derivations (auto-loaded by haumea)

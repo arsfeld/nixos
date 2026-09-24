@@ -15,7 +15,7 @@ reasons rather than by design:
 |---|---|---|
 | Client | Transmission 4.1.3, native `services.transmission` | Transmission 4.0.5, `haugene/transmission-openvpn` |
 | Tunnel | PIA **WireGuard**, host netns via VPN-Confinement | PIA **OpenVPN**, inside the container |
-| Confinement | `constellation.pia` (`modules/constellation/pia.nix`) | image's kill switch (`LOCAL_NETWORK` bypass only) |
+| Confinement | `constellation.pia` (`hosts/galactica/services/pia.nix`) | image's kill switch (`LOCAL_NETWORK` bypass only) |
 | Port forwarding | `constellation.pia` consumer hook + `ExecStartPost` | `/etc/openvpn/pia/update-port.sh` in the image |
 | Reached by mydia | `192.168.16.1:9091` (namespace IP) | `localhost:9091` |
 | RPC auth | none (namespace-isolated) | required, creds in sops |
@@ -226,7 +226,7 @@ nc -zv <vpn-exit-ip> <forwarded-port>
 
 ## Related
 
-- `modules/constellation/pia.nix` — the PIA namespace + port-forward control plane
+- `hosts/galactica/services/pia.nix` — the PIA namespace + port-forward control plane
 - `hosts/galactica/services/transmission-vpn.nix` — galactica's Transmission
 - `hosts/galactica/services/qbittorrent-vpn.nix` — the AirVPN `wg` namespace
 - `hosts/pegasus/services/transmission.nix` — pegasus's containerized Transmission
