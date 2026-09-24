@@ -10,9 +10,11 @@
 # still re-checks CI before deploying — not to re-derive that guarantee, but to
 # avoid racing a commit whose closures are still uploading. That check is scoped
 # to the tier-1 build jobs specifically (see the precondition below), not the
-# whole "Build & Cache" run's conclusion: the run that fires for master's new
-# HEAD rebuilds all nine hosts, and an unrelated octopi/blackbird/router
-# failure must not block a tier-1 deploy that already provably built.
+# whole "Build & Cache" run's conclusion: that run rebuilds all nine hosts, and
+# an unrelated octopi/blackbird/router failure must not block a tier-1 deploy
+# that already provably built. For a human commit the run comes from the push;
+# for update.yml's lock commit it is dispatched explicitly, because a push made
+# with GITHUB_TOKEN triggers no workflows at all.
 #
 # flake.lock's age is also reported and treated as a health signal in its own
 # right. update.yml's own ntfy notify step cannot fire on failure: Cloudflare
@@ -237,10 +239,12 @@ with lib; let
 
     # Precondition: only deploy once every tier-1 host's own build job
     # succeeded in this SHA's latest "Build & Cache" run — not once the
-    # whole run is green. A commit landing on master always triggers a
-    # fresh, full-fleet "Build & Cache" run (job names are bare "<host>"
-    # for all nine hosts); update.yml's own workflow_call invocation
-    # nests its jobs as "build / <host>" and only ever covers tier-1.
+    # whole run is green. Every commit landing on master gets a fresh,
+    # full-fleet "Build & Cache" run (job names are bare "<host>" for all
+    # nine hosts): from the push for human commits, from update.yml's
+    # dispatch step for its lock commit. update.yml's own workflow_call
+    # invocation nests its jobs as "build / <host>", covers only tier-1,
+    # and builds the pre-commit SHA, so it never matches here.
     # Gating on the run's overall conclusion would let an unrelated
     # octopi/blackbird/router failure block every tier-1 deploy — the
     # same failure mode Task 2 removed from the commit gate, reintroduced
@@ -567,8 +571,13 @@ in {
 
     schedule = mkOption {
       type = types.str;
-      default = "Sun *-*-* 06:00:00 UTC";
-      description = "OnCalendar spec. Must land after the Sunday 00:00 UTC CI run.";
+      default = "Sun *-*-* 12:00:00 UTC";
+      description = ''
+        OnCalendar spec. Must land after the lock commit's dispatched "Build &
+        Cache" run finishes: GitHub has started the "00:00 UTC" update cron as
+        late as 03:56, the update run takes up to ~1.5 h, and the dispatched
+        build another 20-50 min. 06:00 fired before that build was done.
+      '';
     };
 
     repoUrl = mkOption {

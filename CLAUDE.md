@@ -84,9 +84,11 @@ All hosts are reached via Tailscale: `<hostname>.bat-boa.ts.net`.
 
 - **GitHub `Weekly Update`** (Sun 00:00 UTC): `nix flake update`, builds tier-1, commits
   `flake.lock` to master. Gated on tier-1 only — a broken octopi will not block the lock.
+  Its push uses `GITHUB_TOKEN`, which triggers no workflows, so it then dispatches
+  `Build & Cache` on master explicitly; without that run `weekly-deploy` skips the commit.
   It sends no notification of its own: GitHub-hosted runners hit Cloudflare's managed
   challenge (HTTP 403) on `ntfy.arsfeld.one`, so a `curl` from CI can never post there.
-- **galactica `weekly-deploy`** (Sun 06:00 UTC): pulls master, then runs `nixos-rebuild
+- **galactica `weekly-deploy`** (Sun 12:00 UTC): pulls master, then runs `nixos-rebuild
   switch --flake <repo>#<host>` once per tier-1 host (remotes over Tailscale SSH first,
   galactica itself last) with `max-jobs = 0` so it never builds — it deploys the same
   `nixosConfigurations` attribute CI caches, which is why substitution always
