@@ -9,11 +9,12 @@
 #
 # Each entry is *lowered* into the existing media.containers.<name> /
 # media.gateway.services.<name> options (unchanged underneath). Those two
-# options remain implementation/lowering targets and should not be written by
-# hand.
+# options are lowering targets only: the assertions at the bottom of this file
+# reject a definition of either from any file outside modules/media/.
 {
   self,
   config,
+  options,
   lib,
   ...
 }:
@@ -22,6 +23,21 @@ with lib; let
   backend = config.virtualisation.oci-containers.backend;
   # Podman bridge subnet — containers reach host postgres from here.
   podmanSubnet = "10.88.0.0/16";
+
+  # Reject definitions of a lower-layer option from any file outside
+  # modules/media/. `opt.files` lists each file whose definition survived
+  # mkIf (or, with none, the file declaring the option's default) as a store
+  # path; relPath strips the store prefix for matching and for the message.
+  guardLowerLayer = path: opt: let
+    relPath = f: last (splitString "-source/" f);
+    strays = unique (filter (f: !hasPrefix "modules/media/" (relPath f)) opt.files);
+  in {
+    assertion = strays == [];
+    message = ''
+      ${path} is written only by media.services; declare media.services.<name> instead.
+      Defined directly in: ${concatMapStringsSep ", " relPath strays}
+    '';
+  };
 
   # Settings forwarded to the gateway entry for a service.
   serviceSettings = svc: {inherit (svc) bypassAuth cors funnel insecureTls;};
@@ -229,5 +245,9 @@ in {
     media.gateway.services = mkMerge (mapAttrsToList gatewayOf cfg);
     services.postgresql = mkMerge (mapAttrsToList pgServerOf cfg);
     systemd.services = mkMerge (mapAttrsToList pgUnitOf cfg);
+    assertions = [
+      (guardLowerLayer "media.gateway.services" options.media.gateway.services)
+      (guardLowerLayer "media.containers" options.media.containers)
+    ];
   };
 }
