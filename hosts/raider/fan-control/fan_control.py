@@ -10,7 +10,12 @@ so nothing here reacts to a raw reading except the emergency override.
 Design: docs/superpowers/specs/2026-09-24-raider-fan-control-design.md
 """
 
+import glob
+import logging
 import math
+import subprocess
+
+log = logging.getLogger("fan-control")
 
 FAN2_CURVE = [(55, 25), (65, 35), (75, 50), (85, 75), (92, 100)]
 FAN1_CURVE = [(60, 30), (75, 40), (85, 60), (95, 100)]
@@ -90,3 +95,61 @@ class Governor:
 
     def commit(self, duty: int) -> None:
         self.current = duty
+
+
+HWMON_ROOT = "/sys/class/hwmon"
+
+
+def _read_text(path: str) -> str | None:
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        return None
+
+
+def find_temp(chip: str, label: str, root: str = HWMON_ROOT) -> str:
+    """Path of the tempN_input for `chip`'s sensor labelled `label`.
+
+    hwmon indices are assigned at boot, so resolve by name, never by number.
+    """
+    for hwmon in sorted(glob.glob(f"{root}/hwmon*")):
+        if _read_text(f"{hwmon}/name") != chip:
+            continue
+        for label_path in sorted(glob.glob(f"{hwmon}/temp*_label")):
+            if _read_text(label_path) == label:
+                return label_path.removesuffix("_label") + "_input"
+    raise LookupError(f"no {chip} temperature labelled {label!r} under {root}")
+
+
+def read_temp(path: str) -> float | None:
+    try:
+        return int(_read_text(path)) / 1000
+    except (TypeError, ValueError):
+        return None
+
+
+class Device:
+    """The H1 V2 through the liquidctl CLI. Fixed duties only: the device has
+    no onboard curves and no coolant sensor."""
+
+    def __init__(self, run=subprocess.run):
+        self.run = run
+
+    def _liquidctl(self, *args: str) -> bool:
+        cmd = ["liquidctl", *args]
+        try:
+            result = self.run(cmd, capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            log.error("%s: %s", " ".join(cmd), e)
+            return False
+        if result.returncode != 0:
+            log.error("%s: exit %d: %s", " ".join(cmd), result.returncode, result.stderr.strip())
+            return False
+        return True
+
+    def initialize(self) -> bool:
+        return self._liquidctl("initialize")
+
+    def set_duty(self, fan: str, duty: int) -> bool:
+        return self._liquidctl("set", fan, "speed", str(duty))

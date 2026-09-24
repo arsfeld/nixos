@@ -1,7 +1,11 @@
 import math
+import os
+import shutil
+import subprocess
+import tempfile
 import unittest
 
-from fan_control import DOWN_HOLD, FAN2_CURVE, Curve, Ema, Governor
+from fan_control import DOWN_HOLD, FAN2_CURVE, Curve, Device, Ema, Governor, find_temp, read_temp
 
 
 def gov(current=25):
@@ -108,6 +112,80 @@ class GovernorTest(unittest.TestCase):
         trace = [41] * 60 + [52, 60, 71, 71, 64, 44, 42] + [42] * 60
         for i, raw in enumerate(trace):
             self.assertIsNone(g.step(ema.update(raw, 2), raw, i * 2))
+
+
+class SysfsTest(unittest.TestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root)
+
+    def hwmon(self, n, chip, temps):
+        path = os.path.join(self.root, f"hwmon{n}")
+        os.makedirs(path)
+        with open(os.path.join(path, "name"), "w") as f:
+            f.write(chip + "\n")
+        for i, (label, milli) in enumerate(temps, start=1):
+            with open(os.path.join(path, f"temp{i}_label"), "w") as f:
+                f.write(label + "\n")
+            with open(os.path.join(path, f"temp{i}_input"), "w") as f:
+                f.write(f"{milli}\n")
+        return path
+
+    def test_finds_by_chip_and_label_not_index(self):
+        self.hwmon(0, "nvme", [("Composite", 40000)])
+        gpu = self.hwmon(3, "amdgpu", [("edge", 55000), ("junction", 61000)])
+        self.assertEqual(find_temp("amdgpu", "junction", self.root), os.path.join(gpu, "temp2_input"))
+
+    def test_missing_label_raises(self):
+        self.hwmon(0, "coretemp", [("Core 0", 40000)])
+        with self.assertRaises(LookupError):
+            find_temp("coretemp", "Package id 0", self.root)
+
+    def test_reads_degrees(self):
+        path = self.hwmon(0, "coretemp", [("Package id 0", 42500)])
+        self.assertEqual(read_temp(os.path.join(path, "temp1_input")), 42.5)
+
+    def test_unreadable_is_none(self):
+        self.assertIsNone(read_temp(os.path.join(self.root, "absent")))
+
+    def test_garbage_is_none(self):
+        path = os.path.join(self.root, "bad")
+        with open(path, "w") as f:
+            f.write("n/a\n")
+        self.assertIsNone(read_temp(path))
+
+
+class FakeRun:
+    def __init__(self, returncode=0, raises=None):
+        self.returncode, self.raises, self.calls = returncode, raises, []
+
+    def __call__(self, cmd, **kwargs):
+        self.calls.append(cmd)
+        if self.raises:
+            raise self.raises
+        return subprocess.CompletedProcess(cmd, self.returncode, "", "boom")
+
+
+class DeviceTest(unittest.TestCase):
+    def test_set_duty_invokes_liquidctl(self):
+        run = FakeRun()
+        self.assertTrue(Device(run).set_duty("fan2", 40))
+        self.assertEqual(run.calls, [["liquidctl", "set", "fan2", "speed", "40"]])
+
+    def test_initialize(self):
+        run = FakeRun()
+        self.assertTrue(Device(run).initialize())
+        self.assertEqual(run.calls, [["liquidctl", "initialize"]])
+
+    def test_nonzero_exit_is_failure(self):
+        self.assertFalse(Device(FakeRun(returncode=1)).set_duty("fan2", 40))
+
+    def test_timeout_is_failure(self):
+        run = FakeRun(raises=subprocess.TimeoutExpired("liquidctl", 10))
+        self.assertFalse(Device(run).set_duty("fan2", 40))
+
+    def test_missing_binary_is_failure(self):
+        self.assertFalse(Device(FakeRun(raises=FileNotFoundError())).set_duty("fan2", 40))
 
 
 if __name__ == "__main__":
