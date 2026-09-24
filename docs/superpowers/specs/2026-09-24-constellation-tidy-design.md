@@ -49,7 +49,7 @@ not merely switched on once. Options that carry values (`k3s.domains`,
 | `modules/constellation/opencloud.nix` | `hosts/galactica/services/opencloud.nix` | dropped |
 | `modules/constellation/home-assistant.nix` | `hosts/galactica/services/home-assistant.nix` | dropped |
 | `modules/constellation/tablet-sync.nix` | `hosts/galactica/services/tablet-sync.nix` | dropped |
-| `modules/constellation/vpn-exit-nodes.nix` | `hosts/galactica/services/vpn-exit-nodes.nix` | top-level dropped; per-node `enable` kept |
+| `modules/constellation/vpn-exit-nodes.nix` | `hosts/galactica/services/vpn-exit-nodes.nix` | **kept**: galactica configures it with `enable = false` |
 | `modules/constellation/immich-pixel-sync/` | `hosts/galactica/services/immich-pixel-sync/` | dropped |
 | `modules/constellation/pia.nix` | `hosts/galactica/services/pia.nix` | dropped (and the `enable = true` in `transmission-vpn.nix`) |
 | `modules/services/media-apps.nix` | `hosts/galactica/services/media-apps.nix` | dropped |
