@@ -101,7 +101,7 @@ Three things about this that are not obvious and cost real time to rediscover:
   closure, so *any* tracked change shifts all three hosts' toplevel paths. A commit CI
   has not built is absent from the cache, and `max-jobs = 0` then fails rather than building.
   This is what the per-host CI job gate enforces; it is working as intended, not a bug.
-- **After changing `weekly-deploy.nix`, install it once by hand** (`just deploy galactica`).
+- **After changing `hosts/galactica/weekly-deploy.nix`, install it once by hand** (`just deploy galactica`).
   A broken deployer cannot deploy its own fix, and a stale unit will happily run old logic
   against a new commit — the tell is a summary describing machinery the current code no
   longer contains.
@@ -207,7 +207,7 @@ supersedes it.
 backend to `media.containers` on 2026-02-14; `0f23f9d` deleted it 23 days later, and the
 coupling was the reason. `media.services.<name>` remains the only way to declare a service;
 putting something in the cluster is a separate act with its own lane. Do not build a bridge
-between them again. The module is `modules/constellation/k3s.nix`, enabled from
+between them again. The module is `hosts/basestar/k3s.nix`, configured from
 `hosts/basestar/configuration.nix` under `constellation.k3s`.
 
 Caddy keeps `:80` and `:443`. traefik is the in-cluster ingress controller, reached at a
@@ -609,7 +609,17 @@ The flake uses **flake-parts** to organize outputs into modules under `flake-mod
 
 ### Module Auto-Discovery
 
-All `.nix` files under `modules/` are loaded automatically by haumea - no explicit imports needed. To add a new module, create a file in `modules/` (or a subdirectory) and it will be available to all hosts. Hosts then selectively enable modules via `constellation.<module>.enable = true`.
+All `.nix` files under `modules/` are loaded automatically by haumea into every host — no
+explicit imports needed. That makes `modules/` the place for code **more than one host
+uses**, switched on per host with `constellation.<module>.enable = true`.
+
+**Code only one host uses lives in `hosts/<host>/`, and importing it is what turns it on** —
+no `enable` flag unless the host genuinely toggles it (pegasus's `media-sync` and
+galactica's `vpn-exit-nodes` do; both are configured with `enable = false`). Options that
+carry values keep their `constellation.*` names even when the module is host-local
+(`constellation.k3s.domains`, `constellation.pia.consumers`, …). A shared module must never
+read a host-local option: it would fail to evaluate on every other host. When a module
+gains its second user, move it to `modules/constellation/` and give it an `enable` flag.
 
 ### Constellation Modules (`modules/constellation/`)
 
@@ -617,22 +627,25 @@ Opt-in feature modules that hosts compose. Key modules:
 
 | Module | Purpose |
 |--------|---------|
-| `common.nix` | Base config: Nix flakes, caches, SSH, Tailscale, Avahi |
+| `common.nix` | Base config: Nix flakes, caches, SSH, Tailscale, Avahi (on by default) |
 | `users.nix` | User accounts, SSH keys, sudo |
 | `sops.nix` | sops-nix infrastructure (age keys, default paths) |
-| `services.nix` | **Central service registry**: ports, auth, CORS, Tailscale exposure |
-| `media.nix` | **Container orchestration**: Plex, *arr, Stash, Nextcloud, etc. |
-| `podman.nix` / `docker.nix` | Container runtimes |
-| `k3s.nix` | Single-node Kubernetes beside the host's Caddy (**basestar only**) |
-| `backup.nix` | Automated rustic/restic backups |
-| `vpn-exit-nodes.nix` | Tailscale exit nodes via AirVPN/Gluetun |
-| `gnome.nix` / `cosmic.nix` / `niri.nix` | Desktop environments |
-| `development.nix` | Dev tools (Docker, Node, Python, Go, Rust) |
+| `podman.nix` | Container runtime |
+| `backrest.nix` | restic backups via Backrest |
+| `backup-notify.nix` / `backup-status.nix` | Backup notification and status helpers, enabled by `backrest` and galactica's `rustic` |
+| `email.nix` | Outgoing mail settings, read by `systemd-email-notify` |
+| `netdata-client.nix` | Netdata agent |
+| `forgejo-runner.nix` | Forgejo Actions runner |
+| `virtualization.nix` | KVM/libvirt |
+| `development.nix` | Dev tools (Node, Python, Go, Rust, …) |
+| `desktop.nix` | Desktop environment (`variant` selects GNOME etc.) |
 | `gaming.nix` | Gaming environment |
-| `metrics-client.nix` / `logs-client.nix` | Observability agents |
-| `observability-hub.nix` | Central Prometheus/Loki hub |
-| `home-assistant.nix` | Home automation |
-| `virtualization.nix` / `project-vms.nix` | KVM/libvirt VMs |
+
+Host-local modules (see the rule above): galactica — `weekly-deploy.nix`,
+`backup/rustic.nix`, and under `services/` `pia`, `opencloud`, `home-assistant`,
+`tablet-sync`, `vpn-exit-nodes`, `immich-pixel-sync/`, `media-apps`, `media-automation`,
+`media-streaming`, `home-apps`, `network-tools`; basestar — `k3s.nix`, `sites/`;
+raider — `docker.nix`, `project-vms.nix`; pegasus — `media-sync.nix`.
 
 ### Media Configuration Variables (`modules/media/config.nix`)
 
