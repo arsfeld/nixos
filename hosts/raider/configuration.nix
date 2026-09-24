@@ -17,10 +17,6 @@
     ./docker.nix
     ./project-vms.nix
     inputs.niks3.nixosModules.niks3-auto-upload
-    # Chaotic-Nyx: source of the BORE-scheduler CachyOS kernel below.
-    # nyx-cache is in common.nix; nyx-registry is deliberately NOT imported
-    # (common.nix already registers every flake input).
-    inputs.chaotic.nixosModules.nyx-overlay
   ];
 
   # Enable sops-nix for secrets management
@@ -319,16 +315,6 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.systemd-boot.configurationLimit = 5;
   boot.loader.efi.canTouchEfiVariables = true;
-
-  # BORE scheduler. `constellation.gaming` pins every gaming host to
-  # linuxPackages_xanmod_latest with `lib.mkOverride 990`, and that build carries
-  # no CONFIG_SCHED_BORE at all — XanMod enabled only sched_ext, so BORE cannot be
-  # switched on there. It has to come from Chaotic-Nyx's CachyOS kernel, and
-  # specifically the `cachyos-bore` variant: the default `linuxPackages_cachyos`
-  # (cachyos-lto) is EEVDF. `lib.mkForce` (priority 50) is required to beat the
-  # gaming module's 990. BORE is compiled on (CONFIG_SCHED_BORE=y) and enabled by
-  # default; verify after deploy with `cat /proc/sys/kernel/sched_bore`.
-  boot.kernelPackages = lib.mkForce pkgs.linuxPackages_cachyos-bore;
 
   # nfs for the media mount; the rest come from constellation.desktop.
   boot.supportedFilesystems = ["nfs"];

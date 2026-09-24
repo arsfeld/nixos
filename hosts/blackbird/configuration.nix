@@ -59,7 +59,6 @@ in {
   imports = [
     ./hardware-configuration.nix
     ./disko-config.nix
-    inputs.chaotic.nixosModules.nyx-overlay
   ];
 
   # Publisher credential for claude-notify (authenticated ntfy.arsfeld.one
@@ -152,9 +151,6 @@ in {
   };
   boot.loader.efi.canTouchEfiVariables = true;
   boot.loader.timeout = 10;
-
-  # CachyOS BORE kernel from Chaotic-Nyx, mirroring raider.
-  boot.kernelPackages = lib.mkForce pkgs.linuxPackages_cachyos-bore;
 
   # Kernel parameters for performance and power management
   boot.kernelParams = [

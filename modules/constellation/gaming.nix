@@ -5,6 +5,7 @@
   options,
   pkgs,
   lib,
+  inputs,
   ...
 }: let
   cfg = config.constellation.gaming;
@@ -27,6 +28,14 @@
     '';
   };
 in {
+  # Chaotic-Nyx: source of the CachyOS BORE kernel below (and of
+  # nvidia_cachyos-bore, which blackbird's hardware config uses). modules/ is
+  # loaded into every host, and the overlay's own enable defaults to true, so
+  # it is switched off here and back on only for gaming hosts. nyx-cache is in
+  # common.nix; nyx-registry is deliberately not imported (common.nix already
+  # registers every flake input).
+  imports = [inputs.chaotic.nixosModules.nyx-overlay];
+
   options.constellation.gaming = {
     enable = lib.mkEnableOption "gaming configuration with Bazzite-style optimizations";
 
@@ -128,10 +137,17 @@ in {
   };
 
   config = lib.mkMerge [
+    {chaotic.nyx.overlay.enable = lib.mkDefault config.constellation.gaming.enable;}
     (lib.mkIf config.constellation.gaming.enable {
       # Gaming kernel optimizations
       boot = lib.mkIf config.constellation.gaming.kernelOptimizations {
-        kernelPackages = lib.mkOverride 990 pkgs.linuxPackages_xanmod_latest;
+        # BORE scheduler, from Chaotic-Nyx's CachyOS kernel. XanMod carries no
+        # CONFIG_SCHED_BORE at all (only sched_ext), so BORE has to come from
+        # here, and specifically from the `cachyos-bore` variant: the default
+        # `linuxPackages_cachyos` (cachyos-lto) is EEVDF. BORE is compiled on
+        # and enabled by default; verify after deploy with
+        # `cat /proc/sys/kernel/sched_bore`.
+        kernelPackages = lib.mkOverride 990 pkgs.linuxPackages_cachyos-bore;
 
         kernelParams =
           [

@@ -85,6 +85,7 @@
     # Set open = false to use the prebuilt CachyOS nvidia driver.
     open = false;
     nvidiaSettings = true;
+    # Exists only via Chaotic-Nyx's overlay, which constellation.gaming enables.
     package = pkgs.nvidia_cachyos-bore;
 
     prime = {
