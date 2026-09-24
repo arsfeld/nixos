@@ -398,8 +398,6 @@ with lib; let
     (filterAttrs (_: c: c.port != null) cfg.consumers);
 in {
   options.constellation.pia = {
-    enable = mkEnableOption "PIA VPN namespace with dynamic port forwarding";
-
     credentialsFile = mkOption {
       type = types.path;
       default = config.sops.secrets."pia-credentials".path;
@@ -482,7 +480,7 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
+  config = {
     sops.secrets."pia-credentials" = mkDefault {mode = "0400";};
 
     # PIA WireGuard namespace, alongside the AirVPN "wg" namespace.

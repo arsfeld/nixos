@@ -4,12 +4,9 @@
   lib,
   ...
 }: let
-  cfg = config.constellation.mediaStreaming;
   vars = config.media.config;
 in {
-  options.constellation.mediaStreaming.enable = lib.mkEnableOption "media streaming services (Plex, Jellyfin, Stash, Kavita)";
-
-  config = lib.mkIf cfg.enable {
+  config = {
     media.services.jellyfin = {
       port = 8096;
       container = {

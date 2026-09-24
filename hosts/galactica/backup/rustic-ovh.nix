@@ -133,8 +133,6 @@ in {
   };
 
   constellation.rustic = {
-    enable = true;
-
     profiles.ovh = {
       # Sunday 04:30, taking over the slot the hetzner-system plan held. One unit
       # covers both snapshot definitions, so the old 05:30 hetzner slot is simply

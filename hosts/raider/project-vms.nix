@@ -544,8 +544,6 @@ with lib; let
   };
 in {
   options.constellation.projectVms = {
-    enable = mkEnableOption "project isolation VMs with Debian testing";
-
     storageDir = mkOption {
       type = types.path;
       default = "/var/lib/project-vms";
@@ -610,7 +608,7 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
+  config = {
     # Ensure virtualization is enabled
     constellation.virtualization.enable = true;
 

@@ -256,8 +256,6 @@ with lib; let
   };
 in {
   options.constellation.rustic = {
-    enable = mkEnableOption "rustic backup profiles (cold-storage tier)";
-
     package = mkOption {
       type = types.package;
       default = pkgs-unstable.rustic;
@@ -291,7 +289,7 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
+  config = {
     constellation.backupNotify.enable = mkDefault true;
     constellation.backupStatus.enable = mkDefault true;
     constellation.backupStatus.sources =

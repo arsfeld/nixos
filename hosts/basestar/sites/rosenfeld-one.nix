@@ -12,7 +12,6 @@ with lib; let
   usersPort = nameToPort "users";
 in {
   options.constellation.sites.rosenfeld-one = {
-    enable = lib.mkEnableOption "rosenfeld-one";
     dexUpstream = lib.mkOption {
       type = lib.types.str;
       default = "localhost:${toString dexPort}";
@@ -25,7 +24,7 @@ in {
     };
   };
 
-  config = lib.mkIf cfg.enable {
+  config = {
     security.acme.certs."${domain}" = {
       extraDomainNames = ["*.${domain}"];
     };

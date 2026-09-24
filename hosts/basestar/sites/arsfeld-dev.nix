@@ -5,11 +5,7 @@
 }: let
   domain = "arsfeld.dev";
 in {
-  options.constellation.sites.arsfeld-dev = {
-    enable = lib.mkEnableOption "arsfeld-dev";
-  };
-
-  config = lib.mkIf config.constellation.sites.arsfeld-dev.enable {
+  config = {
     security.acme.certs."${domain}" = {
       extraDomainNames = ["*.${domain}"];
     };

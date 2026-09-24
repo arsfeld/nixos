@@ -103,7 +103,6 @@ in {
       # to deadlock against pia-portforward (which dispatches this hook from
       # inside its own ExecStart).
       constellation.pia = {
-        enable = true;
         consumers.transmission = {
           port = rpcPort;
           onPortChange = ''${setPeerPort} "$PIA_FORWARDED_PORT"'';

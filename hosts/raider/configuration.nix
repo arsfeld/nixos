@@ -117,7 +117,6 @@
       };
     };
     development.enable = true;
-    docker.enable = true; # Enable Docker runtime
     backrest = {
       # Interval-based scheduler matches laptop usage: runs ~24h after the
       # last successful run, catches up once after long suspensions
@@ -170,7 +169,6 @@
 
   # Project Isolation VMs (Tailscale disabled for now — uses libvirt network SSH)
   constellation.projectVms = {
-    enable = true;
     sshPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBDeQP9ZHuDegrcgBEAuLpCWEK0v8eIBAgaLMSquCP0w arsfeld@gmail.com";
   };
 
