@@ -89,10 +89,13 @@ who wrote a value.
 
 ## Verification
 
-1. **Hash equality.** Record `config.system.build.toplevel.drvPath` for all ten
-   hosts (including cylon-link, evaluated only) before any change. After the
-   change, every one must match exactly. A mismatch is a bug in the migration,
-   not an accepted difference.
+1. **No semantic change.** For all ten hosts (including cylon-link, evaluated
+   only), compare `config.system.build.toplevel.drvPath` at the same HEAD with
+   and without the change. Raw equality cannot hold, because the flake's own
+   source is in every closure. Where paths differ, `nix-diff` must show only
+   the source path and the revision it carries. Any difference in a package,
+   unit or `/etc` file is a bug in the migration, not an accepted difference.
+   Also, galactica's `config.media.gateway.services` JSON must be byte-identical.
 2. **Negative check.** Add `checks.x86_64-linux.media-lower-layers-guarded` to
    `flake-modules/checks.nix`. It extends galactica with a module that writes
    `media.gateway.services.probe = {port = 1;}` and asserts that
@@ -105,6 +108,6 @@ who wrote a value.
 
 ## Risk
 
-With identical hashes, deploying changes nothing on any live host. The residual
+With no semantic change, deploying changes nothing on any live host. The residual
 risk is an over-strict assertion that breaks evaluation somewhere, and step 1
 catches that before commit, since it evaluates every host.
