@@ -166,6 +166,7 @@ FAILSAFE_AFTER = 5  # consecutive sensor failures
 FAILSAFE_DUTY = 70
 EXIT_DUTY = 50  # the device holds its last duty if we die
 STATUS_EVERY = 300.0  # s
+RAMP_GAP = 120.0  # s — same-direction commits closer than this are one ramp
 
 Reading = tuple[float, float]  # (control signal, emergency signal), °C
 
@@ -198,7 +199,7 @@ def apply(ch: Channel, duty: int, now: float, device: Device, why: str) -> None:
     if not device.set_duty(ch.fan, duty):
         return  # current unchanged, so the next tick retries
     direction = 1 if duty > previous else -1
-    if direction != ch.last_dir or now - ch.last_commit > 1.5 * TICK:
+    if direction != ch.last_dir or now - ch.last_commit > RAMP_GAP:
         ch.ramps += 1
     ch.commits += 1
     ch.last_dir, ch.last_commit = direction, now
