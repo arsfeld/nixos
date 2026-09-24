@@ -81,7 +81,7 @@ jobs:
       # skipped every one of them. workflow_dispatch is the documented
       # exception to that rule. Not continue-on-error: a failed dispatch must
       # turn this job red rather than surface as a silent skip on galactica.
-      - name: Build and cache the new commit
+      - name: Dispatch Build & Cache for the lock commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run build.yml --ref master
