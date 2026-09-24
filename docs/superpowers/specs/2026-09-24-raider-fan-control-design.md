@@ -45,7 +45,8 @@ and fan2go (no liquidctl backend) were considered and rejected.
 
 ## Structure
 
-The script moves to `hosts/raider/fan-control/nzxt-fan-control.py`, alongside
+The script moves to `hosts/raider/fan-control/fan_control.py` (underscores so the
+test can import it), alongside
 `test_fan_control.py`; `hosts/raider/fan-control.nix` points at the new path.
 Inside the script:
 
@@ -115,7 +116,7 @@ The unit uses `Restart=always` and `RestartSec=10`.
 
 - One line per committed change: `fan2 25→30% (pkg 58.2 °C avg, 61 °C raw)`.
 - A status line every 5 minutes.
-- A line at local midnight with the day's change count per fan.
+- A line at local midnight with the day's ramp and write counts per fan.
 
 ## Testing
 
@@ -140,5 +141,7 @@ The unit uses `Restart=always` and `RestartSec=10`.
    Adjust the fan2 points above 65 °C if the plateau lands outside roughly
    75–90% duty.
 3. **Success criteria**, one normal workday after deploy:
-   - under 20 committed changes per day in total;
-   - zero changes while idle.
+   - under 20 ramps per day in total, where a ramp is a run of consecutive
+     same-direction commits, counted in the `daily` journal line (a
+     −1-per-tick ramp-down is many writes but one ramp);
+   - zero ramps while idle.
