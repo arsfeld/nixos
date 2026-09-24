@@ -135,6 +135,26 @@ in {
 
         systemd.services.NetworkManager-wait-online.enable = false;
 
+        # Quiet graphical boot: firmware logo (bgrt) through to the greeter.
+        boot.plymouth = {
+          enable = true;
+          theme = "bgrt";
+        };
+        boot.initrd.verbose = false;
+        boot.consoleLogLevel = 0;
+
+        services.xserver.xkb = {
+          layout = "us";
+          variant = "alt-intl";
+        };
+
+        # Filesystems a desktop may meet on removable or network media. NixOS
+        # derives only what fileSystems declares (btrfs, vfat, xfs here), so
+        # these are additions, not a restriction. Nothing in this fleet
+        # contributes zfs; the "remove zfs" mkForce this replaces was stale.
+        # A plain definition, so hosts can append (raider adds nfs).
+        boot.supportedFilesystems = ["btrfs" "cifs" "f2fs" "jfs" "ntfs" "reiserfs" "vfat" "xfs"];
+
         services.flatpak = {
           enable = true;
           packages = cfg.flatpakPackages;
