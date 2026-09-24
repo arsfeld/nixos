@@ -61,9 +61,17 @@ not merely switched on once. Options that carry values (`k3s.domains`,
 | `modules/constellation/sites/` (minus rosenfeld-blog) | `hosts/basestar/sites/` | dropped per site |
 | `modules/constellation/project-vms.nix` | `hosts/raider/project-vms.nix` | top-level dropped; per-VM `enable` kept |
 | `modules/constellation/docker.nix` | `hosts/raider/docker.nix` | dropped |
-| `modules/constellation/media-sync.nix` | `hosts/pegasus/media-sync.nix` | **kept**: pegasus has it configured but set to `false` until galactica is back |
+| `modules/constellation/media-sync.nix` | `hosts/pegasus/media-sync.nix` | **kept**, still `false` — see below |
 
 `modules/services/` is empty afterwards and is removed.
+
+**media-sync stays off.** The comment in `hosts/pegasus/configuration.nix`
+blames "the move", which is over — galactica is back. The real blocker is a bug
+in the module: when the remote marker scan fails (galactica unreachable), the
+keep set is empty and cleanup deletes every synced directory under
+`/mnt/storage/media`. Re-enabling it would re-arm that. Commit 3 rewrites the
+comment to name the bug instead of the move; the flag stays `false`, so the
+system is unchanged. Re-enabling is follow-up work (below).
 
 ### Stays in `modules/`
 
@@ -153,3 +161,12 @@ move.
   must stay options anyway).
 - Changing any shared module's interface.
 - `modules/media/`, which several hosts use.
+
+## Follow-ups
+
+- **Re-enable media-sync on pegasus.** First make cleanup a no-op when the
+  marker scan fails, then re-mark the Vault subdirectories the one-off rsync
+  created (otherwise the first managed run deletes them), then flip the flag.
+- **Stale failover notes.** `hosts/pegasus/services/media.nix:4` and
+  `hosts/basestar/services/default.nix:2` still describe galactica as offline;
+  check what they configure and retire or reword them.
