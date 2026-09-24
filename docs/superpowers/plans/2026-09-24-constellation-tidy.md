@@ -69,7 +69,7 @@ done
 exit $rc
 ```
 
-**Acceptance rule (applies to every "compare" step):** each entry is either `same`, or a `DIFF` whose `nix-diff` output names *only* (a) the flake's own source store path (a `…-source` input) and (b) strings derived from the flake revision — `configurationRevision`, `/etc/os-release`'s version/build ID, the `nixos-version` JSON. A difference in any package, unit file, `/etc` entry, or option-derived file is a failure: stop, find which edit caused it, and fix it before committing.
+**Acceptance rule (applies to every "compare" step):** each entry is either `same`, or a `DIFF` whose `nix-diff` output names *only* (a) the flake's own source store path (a `…-source` input) and (b) strings derived from the flake revision — `configurationRevision`, `/etc/os-release`'s version/build ID, the `nixos-version` JSON. A difference in any package, unit file, `/etc` entry, or option-derived file is a failure: stop, find which edit caused it, and fix it before committing. Also acceptable, because moving a module into a host's own imports changes module-merge order: (c) a *reordering* of a list-valued option with the identical multiset of values, where order has no effect — `environment.systemPackages` (buildEnv), `networking.firewall.trustedInterfaces`, `users.groups.*.members`, and `systemd.tmpfiles.rules` **provided** no two rules for the same path changed relative order (tmpfiles resolves same-path duplicates by order; check with the multiset + duplicate-path comparison, as done for Task 2). Any other reordering is a failure.
 
 ---
 
