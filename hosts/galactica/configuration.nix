@@ -19,6 +19,7 @@ in {
     ./services
     ./backup
     ./scripts
+    ./weekly-deploy.nix
   ];
 
   # We're the netdata server, not a client.

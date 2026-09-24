@@ -16,16 +16,26 @@
     ./files.nix
     ./forgejo-runner.nix
     ./glance.nix
+    ./home-apps.nix
+    ./home-assistant.nix
     ./home.nix
+    ./immich-pixel-sync
     ./immich.nix
     ./infra.nix
     ./isponsorblock.nix
     ./linkding.nix
     ./marinara.nix
+    ./media-apps.nix
+    ./media-automation.nix
+    ./media-streaming.nix
     ./media.nix
     ./misc.nix
+    ./network-tools.nix
     ./ntfy.nix
+    ./opencloud.nix
+    ./pia.nix
     ./qbittorrent-vpn.nix
+    ./tablet-sync.nix
     ./transmission-vpn.nix
     ./nfs.nix
     ./samba.nix
@@ -33,6 +43,7 @@
     ./seafile.nix
     ./stashfin.nix
     ./vault.nix
+    ./vpn-exit-nodes.nix
     ./yarr.nix
   ];
 }

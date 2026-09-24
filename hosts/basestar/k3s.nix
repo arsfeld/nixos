@@ -488,7 +488,7 @@ in {
     # orange-clouded records all work.
     #
     # arsfeld.dev's cert is also declared in exactly one other place,
-    # modules/constellation/sites/arsfeld-dev.nix, with the same
+    # hosts/basestar/sites/arsfeld-dev.nix, with the same
     # extraDomainNames. security.acme.certs.<d>.extraDomainNames concatenates
     # rather than dedupes, so the list evaluates to two identical entries —
     # which ACME tolerates. A redundant third declaration in

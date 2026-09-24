@@ -12,6 +12,7 @@ with lib; {
     ./disko-config.nix
     ./services
     ./backup
+    ./media-sync.nix
   ];
 
   # Enable all constellation modules
