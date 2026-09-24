@@ -170,3 +170,8 @@ move.
 - **Stale failover notes.** `hosts/pegasus/services/media.nix:4` and
   `hosts/basestar/services/default.nix:2` still describe galactica as offline;
   check what they configure and retire or reword them.
+- **`checks.x86_64-linux.cylon-link-config` no longer evaluates** —
+  `attribute 'tailscale-key' missing` at `hosts/cylon-link/config-test.nix:30`,
+  left behind by `49a1926` when cylon-link moved to manual Tailscale login.
+  `router-test` and `router-test-production` also fail, but have since
+  `1595dea` (June). The verification harness excludes all three.
