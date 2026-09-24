@@ -9,6 +9,8 @@
     ./services
     ./services.nix
     ./k8s
+    ./k3s.nix
+    ./sites
   ];
 
   constellation.podman.enable = true;

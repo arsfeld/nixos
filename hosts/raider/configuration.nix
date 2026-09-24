@@ -14,6 +14,8 @@
     ./fontconfig.nix
     ./harmonia.nix
     ./samba.nix
+    ./docker.nix
+    ./project-vms.nix
     inputs.niks3.nixosModules.niks3-auto-upload
     # Chaotic-Nyx: source of the BORE-scheduler CachyOS kernel below.
     # nyx-cache is in common.nix; nyx-registry is deliberately NOT imported

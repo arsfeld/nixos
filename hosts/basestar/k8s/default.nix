@@ -6,7 +6,7 @@
 # deploy controller applies it.
 #
 # Deleting an app from this file is NOT enough to remove it from the cluster -
-# see the reconcile unit in modules/constellation/k3s.nix.
+# see the reconcile unit in hosts/basestar/k3s.nix.
 #
 # Secrets never belong here: this content is rendered into the world-readable
 # nix store. Use constellation.k3s.secrets instead.
@@ -28,7 +28,7 @@ in {
   #   };
   #
   # Deleting such a block again is all that is needed - k3s-manifest-reconcile
-  # in modules/constellation/k3s.nix deletes the objects, the AddOn and the
+  # in hosts/basestar/k3s.nix deletes the objects, the AddOn and the
   # stale symlink on the next activation. That is how the whoami fixture this
   # file used to carry was removed, and proving that is what retired it.
 }

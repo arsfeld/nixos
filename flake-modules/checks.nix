@@ -22,7 +22,7 @@
           inputs.nixpkgs.legacyPackages.${system}.runCommand "immich-pixel-sync-test" {
             nativeBuildInputs = [inputs.nixpkgs.legacyPackages.${system}.python3];
           } ''
-            cp ${../modules/constellation/immich-pixel-sync}/*.py .
+            cp ${../hosts/galactica/services/immich-pixel-sync}/*.py .
             python3 -m unittest discover -v -s . -p 'test_*.py'
             touch $out
           '';
