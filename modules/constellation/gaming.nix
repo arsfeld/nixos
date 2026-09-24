@@ -42,7 +42,10 @@ in {
     kernelOptimizations = lib.mkOption {
       type = lib.types.bool;
       default = true;
-      description = "Enable gaming kernel optimizations";
+      description = ''
+        Select the CachyOS BORE kernel (Chaotic-Nyx linuxPackages_cachyos-bore)
+        and apply gaming kernel parameters. Disable to fall back to the stock kernel.
+      '';
     };
 
     gamingMode = lib.mkOption {
@@ -662,7 +665,7 @@ in {
     # sched_ext BPF scheduler (replaces the old system76-scheduler, which
     # caused high context switches and freezing). scx_lavd is CachyOS/Bazzite's
     # default for mixed desktop + dev + gaming workloads. Auto-falls back to
-    # CFS if the BPF program errors. Requires kernel >= 6.12 (xanmod_latest).
+    # CFS if the BPF program errors. Requires kernel >= 6.12.
     #
     # scx-loader rather than the static services.scx: same daemon, same default
     # scheduler, but it also owns org.scx.Loader on the system bus so the

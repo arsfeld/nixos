@@ -149,7 +149,7 @@ in {
         };
 
         # Filesystems a desktop may meet on removable or network media. NixOS
-        # derives only what fileSystems declares (btrfs, vfat, xfs here), so
+        # derives only what fileSystems declares (btrfs, vfat, xfs on raider and blackbird), so
         # these are additions, not a restriction. Nothing in this fleet
         # contributes zfs; the "remove zfs" mkForce this replaces was stale.
         # A plain definition, so hosts can append (raider adds nfs).
