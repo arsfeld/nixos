@@ -28,7 +28,7 @@ Used by every task. `S` is a scratch directory outside the repo:
 S=/tmp/claude-1000/-home-arosenfeld-Code-nixos/38306b57-7c5d-49ec-bbcb-45ba536cb7fc/scratchpad/tidy
 ```
 
-`$S/snapshot.sh <dir>` — records the `drvPath` of every host toplevel and every flake check except `pre-commit-check` (which hashes the source tree, so it always changes):
+`$S/snapshot.sh <dir>` — records the `drvPath` of every host toplevel and every flake check except `pre-commit-check` (which hashes the source tree, so it always changes) and the three checks that already fail on master:
 
 ```bash
 #!/usr/bin/env bash
@@ -40,10 +40,12 @@ for h in basestar blackbird cylon-link galactica octopi pegasus r2s raider raspi
   nix eval --raw ".#nixosConfigurations.$h.config.system.build.toplevel.drvPath" >"$out/host-$h" &
 done
 wait
-for c in blackbird-audio-control-test cylon-link-boot cylon-link-config harmonia-cache-test immich-pixel-sync-test router-test router-test-production; do
+# router-test, router-test-production and cylon-link-config already fail to
+# evaluate on master (pre-existing, unrelated to this change), so they are left out.
+for c in blackbird-audio-control-test cylon-link-boot harmonia-cache-test immich-pixel-sync-test; do
   nix eval --raw ".#checks.x86_64-linux.$c.drvPath" >"$out/check-$c"
 done
-ls "$out" | wc -l   # expect 17
+ls "$out" | wc -l   # expect 14
 ```
 
 `$S/compare.sh <before> <after>` — prints `same`/`DIFF` per entry, and a `nix-diff` for each difference:
@@ -77,8 +79,8 @@ exit $rc
 
 - [ ] **Step 1:** Create `$S`, write the two scripts above into it, `chmod +x` both.
 - [ ] **Step 2:** Confirm the tree is clean: `git status --short` prints nothing.
-- [ ] **Step 3:** `$S/snapshot.sh $S/base` — expect `17`.
-- [ ] **Step 4:** Sanity-check the harness against itself: `$S/compare.sh $S/base $S/base` — expect 17 × `same`, exit 0.
+- [ ] **Step 3:** `$S/snapshot.sh $S/base` — expect `14`.
+- [ ] **Step 4:** Sanity-check the harness against itself: `$S/compare.sh $S/base $S/base` — expect 14 × `same`, exit 0.
 
 ---
 
