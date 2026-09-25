@@ -43,6 +43,25 @@
         "esphome" # ESPHome device integration
         "tplink" # Kasa/Tapo switches (local; KLAP devices need the TP-Link account)
         "tuya" # Smart Life cloud; configured in the UI, so its deps must be listed here
+
+        # Apple integrations
+        "homekit" # Apple HomeKit Bridge (exposes HA entities to Apple Home)
+        "homekit_controller" # Apple HomeKit Device (pairs HomeKit accessories directly)
+        "apple_tv" # Apple TV media player and remote
+        "icloud" # Apple iCloud device tracker and Find My
+
+        # Common core integrations
+        "mqtt" # MQTT broker integration
+        "matter" # Matter devices
+        "zha" # Zigbee Home Automation
+        "cast" # Google Cast / Chromecast / Google Home
+        "plex" # Plex Media Server
+        "shelly" # Shelly WiFi devices and sensors
+        "wled" # WLED addressable LED controllers
+        "sonos" # Sonos media players
+        "spotify" # Spotify media player
+        "ping" # Ping (ICMP) network presence detection
+        "wake_on_lan" # Wake on LAN
       ];
 
       # Custom components from nixpkgs, plus the ones packaged in ./packages
