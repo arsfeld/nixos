@@ -279,6 +279,35 @@ in {
 
         hardware.i2c.enable = cfg.gnome.monitorControl.enable;
 
+        # GNOME Settings saves a wallpaper as its /nix/store path, which dies the
+        # next time nix-gc (Persistent, so it catches up at boot) collects the
+        # backgrounds package an update replaced: the desktop comes up blank.
+        # Rewrite such URIs to the same file under /run/current-system/sw at login.
+        systemd.user.services.wallpaper-stable-path = {
+          description = "Repoint GNOME wallpapers from /nix/store to /run/current-system";
+          wantedBy = ["graphical-session.target"];
+          partOf = ["graphical-session.target"];
+          after = ["graphical-session.target"];
+          serviceConfig.Type = "oneshot";
+          path = [pkgs.glib];
+          script = ''
+            for key in "org.gnome.desktop.background picture-uri" \
+                       "org.gnome.desktop.background picture-uri-dark" \
+                       "org.gnome.desktop.screensaver picture-uri"; do
+              uri=$(gsettings get $key)
+              uri=''${uri//\'/}
+              case "$uri" in
+                file:///nix/store/*/share/backgrounds/*) ;;
+                *) continue ;;
+              esac
+              stable=/run/current-system/sw/share/backgrounds/''${uri#file:///nix/store/*/share/backgrounds/}
+              if [ -e "$stable" ]; then
+                gsettings set $key "file://$stable"
+              fi
+            done
+          '';
+        };
+
         programs.dconf.enable = true;
         programs.dconf.profiles.user.databases = [
           {
