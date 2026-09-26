@@ -320,6 +320,13 @@ in {
     }
   ];
 
+  # asus-shutdown ignores SIGTERM and its upstream unit sets SendSIGKILL=no with
+  # TimeoutStopSec=45, so restarting it on a switch never succeeds: the stop
+  # phase blocks ~90 s (with NetworkManager and every other changed unit already
+  # stopped, i.e. no Wi-Fi), then the start fails and the switch exits 4. It only
+  # acts at shutdown, so let a new version take over at the next boot instead.
+  systemd.services.asus-shutdown.restartIfChanged = false;
+
   # ASUS G14 specific hardware support
   services.supergfxd.enable = true; # ASUS GPU switching
   services.asusd = {
