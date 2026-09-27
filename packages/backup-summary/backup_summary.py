@@ -357,16 +357,20 @@ Content-Type: text/html; charset="utf-8"
         time.sleep(delay)
 
 
-def main():
+def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Weekly fleet backup summary auditor and email reporter")
     parser.add_argument("--dry-run", action="store_true", help="Print summary table to stdout without sending email")
     parser.add_argument("--stdout", action="store_true", help="Render HTML to stdout without sending email")
     parser.add_argument("--send", action="store_true", help="Send email report (default behavior if no flag specified)")
-    parser.add_argument("--email-to", default=os.environ.get("EMAIL_TO", "alex@rosenfeld.one"), help="Recipient email")
-    parser.add_argument("--email-from", default=os.environ.get("EMAIL_FROM", "admin@rosenfeld.one"), help="Sender email")
+    parser.add_argument("--to", "--email-to", dest="email_to", default=os.environ.get("EMAIL_TO", "alex@rosenfeld.one"), help="Recipient email")
+    parser.add_argument("--from-email", "--from", "--email-from", dest="email_from", default=os.environ.get("EMAIL_FROM", "admin@rosenfeld.one"), help="Sender email")
     parser.add_argument("--template", default=os.environ.get("EMAIL_TEMPLATE"), help="Path to jinja2 template")
     parser.add_argument("--password-file", default=os.environ.get("RESTIC_PASSWORD_FILE", "/run/secrets/restic-password"), help="Path to restic password file")
+    return parser
 
+
+def main():
+    parser = create_parser()
     args = parser.parse_args()
 
     now = datetime.datetime.now(datetime.timezone.utc).astimezone()
