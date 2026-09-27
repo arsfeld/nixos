@@ -7,6 +7,10 @@ mod eufy 'just/eufy.just'
 fmt:
     alejandra .
 
+# Run the autonomous weekly flake update, healing, and tier-1 deployment
+auto-update:
+    systemctl start weekly-update.service || weekly-update
+
 
 # Private recipe to nudge systems back into the default target after activation
 _poke-targets *TARGETS:

@@ -75,46 +75,20 @@ nixos-rebuild fallback (single host, sequential): `just nr-deploy <host>`,
 never `import inputs.nixpkgs` to build its own package set. Doing so loses the flake's
 revision and yields `…-26.05pre-git` derivations that differ from the dated ones CI
 builds and caches, so substitution never hits. That is what colmena did, and why it was
-removed. `just deploy`, the CI matrix (`ciMatrix`) and `weekly-deploy` all evaluate the
+removed. `just deploy` and the CI matrix (`ciMatrix`) both evaluate the
 same attribute today; keep it that way.
 
 All hosts are reached via Tailscale: `<hostname>.bat-boa.ts.net`.
 
 ### Weekly Automation
 
-- **GitHub `Weekly Update`** (Sun 00:00 UTC): `nix flake update`, builds tier-1, commits
-  `flake.lock` to master. Gated on tier-1 only — a broken octopi will not block the lock.
-  Its push uses `GITHUB_TOKEN`, which triggers no workflows, so it then dispatches
-  `Build & Cache` on master explicitly; without that run `weekly-deploy` skips the commit.
-  It sends no notification of its own: GitHub-hosted runners hit Cloudflare's managed
-  challenge (HTTP 403) on `ntfy.arsfeld.one`, so a `curl` from CI can never post there.
-- **galactica `weekly-deploy`** (Sun 12:00 UTC): pulls master, then runs `nixos-rebuild
-  switch --flake <repo>#<host>` once per tier-1 host (remotes over Tailscale SSH first,
-  galactica itself last) with `max-jobs = 0` so it never builds — it deploys the same
-  `nixosConfigurations` attribute CI caches, which is why substitution always
-  hits. Verifies failed units and backup freshness over
-  Tailscale SSH, checks `flake.lock`'s age (escalates past 14 days stale — the signal
-  that CI stopped landing updates), and posts one ntfy summary. State in
-  `/var/lib/weekly-deploy/`. Run it early with `sudo systemctl start weekly-deploy`.
-
-Three things about this that are not obvious and cost real time to rediscover:
-
-- **It can only deploy a commit CI has already built.** `self` is part of every system
-  closure, so *any* tracked change shifts all three hosts' toplevel paths. A commit CI
-  has not built is absent from the cache, and `max-jobs = 0` then fails rather than building.
-  This is what the per-host CI job gate enforces; it is working as intended, not a bug.
-- **After changing `hosts/galactica/weekly-deploy.nix`, install it once by hand** (`just deploy galactica`).
-  A broken deployer cannot deploy its own fix, and a stale unit will happily run old logic
-  against a new commit — the tell is a summary describing machinery the current code no
-  longer contains.
-- **`sudo systemctl start weekly-deploy` is not a local test.** It pulls `origin/master`
-  and deploys *every* tier-1 host from whatever that resolves to. Started on 2026-09-07
-  while a session's commits were still local-only, it reset galactica's checkout to the
-  last pushed commit and deployed basestar from it — rolling k3s off the host entirely,
-  units and all, while reporting `deploy: ok`. This is the mirror image of the hazard
-  above, and unlike a broken deployer it does not fail safe: the job will deploy *away*
-  the change you just installed by hand and tell you it succeeded. Push, wait for `Build
-  & Cache` to go green for your commit, and only then start it by hand.
+- **raider `weekly-update`** (Sun 03:00 local time): Runs autonomously on raider via `systemd.timers.weekly-update` (with `Persistent = true` to run upon wake/boot if sleeping).
+  1. Operates inside an isolated checkout at `~/.local/share/nixos-weekly-update/nixos` (never touching `~/Code/nixos`).
+  2. Runs `nix flake update` and verifies tier-1 builds via `just dry-run @tier1`.
+  3. If build/eval breakage occurs (e.g. insecure packages, renamed options), invokes `agy` (Antigravity CLI) non-interactively to diagnose and fix configurations, guarded by an independent verification gate.
+  4. Pushes valid commits to `master` and executes `just deploy @tier1` (pushing closures to `niks3.arsfeld.dev` and switching `basestar`, `galactica`, and `raider`).
+  5. Dispatches run reports to both **ntfy** (`https://ntfy.arsfeld.one/backups`) and **email** (`admin@rosenfeld.one` -> `alex@rosenfeld.one`).
+- **Manual Trigger**: Run `just auto-update` or `sudo systemctl start weekly-update`.
 
 The binary cache is two endpoints, and only one of them is a server:
 
@@ -134,16 +108,15 @@ The binary cache is two endpoints, and only one of them is a server:
 
 CI pushes every closure it builds with `niks3 push --pin <host>`, one pin per host name,
 retargeted on each push so the previous closure ages out normally. That is every host in
-`ciMatrix` — all nine — on a push to master or when `update.yml` dispatches it after its
-lock commit, and the tier-1 three when `update.yml` calls the workflow with its `hosts`
-input. Pinned closures are exempt from the 30-day GC window, and object GC walks
-reachability from surviving closures, so everything beneath a pinned toplevel survives too.
+`ciMatrix` — all nine — on a push to master. Pinned closures are exempt from the 30-day GC
+window, and object GC walks reachability from surviving closures, so everything beneath a
+pinned toplevel survives too.
 
-What that buys is specifically the `max-jobs = 0` invariant: the closure `weekly-deploy`
-needs can never age out from under it. What actually expires is un-pinned material —
-chiefly the derivations raider auto-uploads via its post-build hook, which is most of the
-bucket's growth. If it grows past expectations, shorten `olderThan` rather than disabling
-auto-upload; the pins are what make a shorter window safe.
+What that buys is that current closures on master can never age out from under deployers.
+What actually expires is un-pinned material — chiefly the derivations raider auto-uploads
+via its post-build hook, which is most of the bucket's growth. If it grows past
+expectations, shorten `olderThan` rather than disabling auto-upload; the pins are what
+make a shorter window safe.
 
 One consequence worth knowing before you touch basestar: it is now in CI's push path.
 Deploying or rebooting it during a `build.yml` run fails that run's push. It fails safe —
@@ -190,10 +163,9 @@ depended on attic's key. Full workings in
 `docs/superpowers/specs/2026-09-06-attic-retirement-design.md`.
 
 **There is no fallback binary cache any more.** A path missing from `cache.arsfeld.dev`
-falls through to `cache.nixos.org` and then to a local rebuild. That is harmless
-everywhere except `weekly-deploy`, which runs under `max-jobs = 0` where a miss is a hard
-failure — which is exactly what CI's `niks3 push --pin <host>` exists to prevent. Treat
-the pins as load-bearing, not as an optimization.
+falls through to `cache.nixos.org` and then to a local rebuild. CI's `niks3 push --pin <host>`
+ensures closures for current master revisions are always cached. Treat the pins as
+load-bearing, not as an optimization.
 
 ### Kubernetes (k3s on basestar)
 
@@ -339,7 +311,7 @@ during a restore.
 
 k3s is pinned to `pkgs.k3s_1_35`, and must stay pinned to *some* explicit attribute rather
 than the floating `pkgs.k3s`. Kubernetes does not support skipping minor versions on
-upgrade, and `Weekly Update` runs `nix flake update` unattended every Sunday — unpinned,
+upgrade, and `weekly-update` runs `nix flake update` unattended every Sunday — unpinned,
 that job can carry the cluster a minor version, or two, with nobody reading the diff. A
 Kubernetes upgrade should be a deliberate one-line commit.
 
@@ -643,11 +615,11 @@ Opt-in feature modules that hosts compose. Key modules:
 | `desktop.nix` | Desktop environment (`variant` selects GNOME etc.) |
 | `gaming.nix` | Gaming environment |
 
-Host-local modules (see the rule above): galactica — `weekly-deploy.nix`,
+Host-local modules (see the rule above): galactica —
 `backup/rustic.nix`, and under `services/` `pia`, `opencloud`, `home-assistant`,
 `tablet-sync`, `vpn-exit-nodes`, `immich-pixel-sync/`, `media-apps`, `media-automation`,
 `media-streaming`, `home-apps`, `network-tools`; basestar — `k3s.nix`, `sites/`;
-raider — `docker.nix`, `project-vms.nix`; pegasus — `media-sync.nix`.
+raider — `docker.nix`, `project-vms.nix`, `weekly-update.nix`; pegasus — `media-sync.nix`.
 
 ### Media Configuration Variables (`modules/media/config.nix`)
 
@@ -772,7 +744,6 @@ Never mention Claude in commit messages or author.
 
 ## CI/CD (.github/workflows/)
 
-- **build.yml** - Builds every host in `ciMatrix` (all nine) and pushes each closure to niks3 with `--pin <host>`; `update.yml` calls it with just the tier-1 three
+- **build.yml** - Builds every host in `ciMatrix` (all nine) and pushes each closure to niks3 with `--pin <host>` on push to master
 - **checks.yml** - Runs `nix flake check` (x86_64-linux, including the VM tests) on every push and PR; it gates nothing downstream
 - **format.yml** - Checks formatting with alejandra (fails if unformatted, run `just fmt` locally)
-- **update.yml** - Weekly flake input updates with automatic build testing, commits flake.lock if all hosts build

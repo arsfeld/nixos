@@ -1,3 +1,5 @@
+> **SUPERSEDED:** This design has been superseded by `2026-09-27-autonomous-weekly-update-design.md`, which replaces the GitHub Actions + galactica handoff with an autonomous agent on raider.
+
 # Weekly update → deploy handoff
 
 ## Problem
