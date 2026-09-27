@@ -147,16 +147,12 @@ with lib; {
     # Use DHCP as fallback on all interfaces
     useDHCP = true;
 
-    # Ensure network doesn't block boot
+    # Wait for DHCP only if carrier is present, so unplugged interfaces don't block boot
     dhcpcd = {
-      wait = "background"; # Don't wait for DHCP during boot
+      wait = "if-carrier-up";
       extraConfig = ''
-        # Shorter timeout for faster boot
-        timeout 10
         # Don't wait for IPv6
         noipv6rs
-        # Continue even without lease
-        fallback
       '';
     };
   };
