@@ -189,7 +189,7 @@ Content-Type: text/html; charset="utf-8"
     # The recipient must be an argument: msmtp only reads To: when given -t.
     # Retry here rather than via systemd's Restart=, which Type=oneshot units
     # cannot use, so a transient outage is still ridden out.
-    attempts = 5
+    attempts = 8
     for attempt in range(1, attempts + 1):
         result = subprocess.run(
             ["msmtp", email_to],
@@ -205,7 +205,7 @@ Content-Type: text/html; charset="utf-8"
                 f"Giving up after {attempts} attempts: {result.stderr.strip()}"
             )
             raise SystemExit(1)
-        delay = 2**attempt
+        delay = min(2**attempt, 30)
         logger.warning(
             f"Send attempt {attempt}/{attempts} failed "
             f"({result.stderr.strip()}); retrying in {delay}s"
