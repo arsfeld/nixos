@@ -65,6 +65,10 @@ in {
           "EMAIL_FROM=${cfg.fromEmail}"
           "RESTIC_PASSWORD_FILE=${config.sops.secrets."restic-password".path}"
           "BACKREST_PORTAL_URL=${cfg.backrestPortalUrl}"
+          "RUSTIC_PROFILE_SUBSTITUTE_ENV=true"
+        ];
+        EnvironmentFile = mkIf (builtins.hasAttr "ovh-s3-env" config.sops.secrets) [
+          config.sops.secrets."ovh-s3-env".path
         ];
         ExecStart = "${pkgs.backup-summary}/bin/backup-summary --send";
       };

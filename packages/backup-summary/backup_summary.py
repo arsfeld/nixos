@@ -4,6 +4,7 @@ import datetime
 import json
 import logging
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -95,7 +96,28 @@ def query_restic_snapshots(uri: str, password_file: str, timeout_sec: int = 60) 
 
 
 def query_rustic_snapshots(profile: str = "ovh", timeout_sec: int = 60) -> Tuple[List[dict], Optional[str]]:
-    cmd = ["rustic", "-P", profile, "snapshots", "--json"]
+    env = os.environ.copy()
+    wrapper = shutil.which(f"rustic-{profile}")
+    if not wrapper and os.path.exists(f"/run/current-system/sw/bin/rustic-{profile}"):
+        wrapper = f"/run/current-system/sw/bin/rustic-{profile}"
+
+    if wrapper:
+        cmd = [wrapper, "snapshots", "--json"]
+    else:
+        cmd = ["rustic", "-P", profile, "snapshots", "--json"]
+        env["RUSTIC_PROFILE_SUBSTITUTE_ENV"] = "true"
+        for env_file in [f"/run/secrets/{profile}-s3-env", f"/run/secrets/rustic-{profile}-env"]:
+            if os.path.exists(env_file):
+                try:
+                    with open(env_file) as f:
+                        for line in f:
+                            line = line.strip()
+                            if line and not line.startswith("#") and "=" in line:
+                                k, _, v = line.partition("=")
+                                env[k.strip()] = v.strip().strip("'\"")
+                except Exception as e:
+                    logger.warning(f"Could not read {env_file}: {e}")
+
     try:
         proc = subprocess.run(
             cmd,
@@ -103,6 +125,7 @@ def query_rustic_snapshots(profile: str = "ovh", timeout_sec: int = 60) -> Tuple
             stderr=subprocess.PIPE,
             text=True,
             timeout=timeout_sec,
+            env=env,
         )
         if proc.returncode != 0:
             return [], proc.stderr.strip()
