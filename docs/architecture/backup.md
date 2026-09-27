@@ -159,10 +159,23 @@ header built from `NTFY_BASIC_AUTH_B64` (loaded from the
 `ntfy-publisher-env` sops secret). Body includes hostname, repo id,
 plan id, and the restic error.
 
-Phase A does **not** send success notifications. Operators confirm
-green state via the Backrest UI on demand. If "silently stopped
-backing up" becomes a real failure mode, add a scheduled heartbeat
-then — don't pre-build for it.
+### Weekly Backup Summary Digest
+
+Every Sunday evening at 20:00 UTC (16:00 EDT), `galactica` runs
+`backup-summary.service` (managed by `constellation.backupSummary`).
+The service:
+- Inspects `/mnt/storage/backups/restic` (galactica local-system).
+- Inspects `/mnt/storage/backups/restic-server` partitioned by `--host`
+  (`basestar`, `pegasus`, `raider`).
+- Inspects the pegasus REST server and OVH Cold Archive rustic repo.
+- Measures `/mnt/storage` filesystem pool capacity and repository sizes.
+- Generates a responsive HTML email dashboard sent to `alex@rosenfeld.one`
+  via `msmtp`.
+
+When enabled, `galactica`'s generic `systemd.timers."weekly-mail-alert"`
+is disabled, replacing redundant heartbeats with an actionable audit.
+If the summary service encounters a fatal execution error, it notifies
+`ntfy.arsfeld.one/backups` via `OnFailure=backup-notify@backup-summary.service`.
 
 ## Retention
 
