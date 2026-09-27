@@ -143,19 +143,11 @@ with lib; {
   # Host-specific settings
   networking = {
     hostName = "pegasus";
-
-    # Use DHCP as fallback on all interfaces
-    useDHCP = true;
-
-    # Wait for DHCP only if carrier is present, so unplugged interfaces don't block boot
-    dhcpcd = {
-      wait = "if-carrier-up";
-      extraConfig = ''
-        # Don't wait for IPv6
-        noipv6rs
-      '';
-    };
+    useNetworkd = true;
+    useDHCP = false;
   };
+
+  systemd.network.wait-online.anyInterface = true;
 
   nixpkgs.hostPlatform = "x86_64-linux";
 
