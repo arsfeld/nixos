@@ -366,6 +366,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--from-email", "--from", "--email-from", dest="email_from", default=os.environ.get("EMAIL_FROM", "admin@rosenfeld.one"), help="Sender email")
     parser.add_argument("--template", default=os.environ.get("EMAIL_TEMPLATE"), help="Path to jinja2 template")
     parser.add_argument("--password-file", default=os.environ.get("RESTIC_PASSWORD_FILE", "/run/secrets/restic-password"), help="Path to restic password file")
+    parser.add_argument("--backrest-url", default=os.environ.get("BACKREST_PORTAL_URL", "https://backrest.arsfeld.one/"), help="URL to the Backrest Web UI")
     return parser
 
 
@@ -374,7 +375,7 @@ def main():
     args = parser.parse_args()
 
     now = datetime.datetime.now(datetime.timezone.utc).astimezone()
-    data = build_report_data(now=now, restic_pw_file=args.password_file)
+    data = build_report_data(now=now, restic_pw_file=args.password_file, backrest_url=args.backrest_url)
 
     template_path = args.template
     if not template_path:

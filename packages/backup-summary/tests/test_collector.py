@@ -2,6 +2,7 @@ import os
 import sys
 import types
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone, timedelta
 
 # Support running tests both as a package and directly from repo root
@@ -115,6 +116,17 @@ class TestCollector(unittest.TestCase):
         # Test --from-email
         args3 = parser.parse_args(["--from-email", "src3@example.com"])
         self.assertEqual(args3.email_from, "src3@example.com")
+
+        # Test --backrest-url
+        args4 = parser.parse_args(["--backrest-url", "https://custom-backrest.example.com/"])
+        self.assertEqual(args4.backrest_url, "https://custom-backrest.example.com/")
+
+        # Test BACKREST_PORTAL_URL env var
+        with patch.dict(os.environ, {"BACKREST_PORTAL_URL": "https://env-backrest.example.com/"}):
+            env_parser = create_parser()
+            env_args = env_parser.parse_args([])
+            self.assertEqual(env_args.backrest_url, "https://env-backrest.example.com/")
+
 
 if __name__ == "__main__":
     unittest.main()
