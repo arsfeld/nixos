@@ -22,7 +22,10 @@ with lib; let
       pkgs.jq
       pkgs.curl
       pkgs.systemd
-    ]}:/home/arosenfeld/.nix-profile/bin:/home/arosenfeld/.local/share/gemini/bin:$PATH"
+      pkgs.nix-fast-build
+      pkgs.niks3
+      pkgs.nixos-rebuild
+    ]}:/run/wrappers/bin:/run/current-system/sw/bin:/home/arosenfeld/.nix-profile/bin:/home/arosenfeld/.local/share/gemini/bin:$PATH"
 
     WORKSPACE="${cfg.workspaceDir}"
     STATE_DIR="${cfg.stateDir}"
@@ -65,6 +68,7 @@ with lib; let
       echo "ERROR: Failed at line $line command '$cmd'"
       if [ -d "$WORKSPACE/.git" ]; then
         cd "$WORKSPACE"
+        git rebase --abort 2>/dev/null || true
         git reset --hard origin/master || true
         git clean -fd || true
       fi
@@ -127,14 +131,14 @@ Your task:
                "$PROMPT" >"$HEAL_LOG" 2>&1; then
         echo "--> agy healing command failed or timed out."
         cat "$HEAL_LOG"
-        exit 1
+        on_failure $LINENO "agy healing failed or timed out"
       fi
 
       echo "--> agy completed. Running independent verification gate..."
       if ! just dry-run @tier1 >"$ERROR_LOG" 2>&1; then
         echo "--> Independent verification failed after AI healing attempt."
         cat "$ERROR_LOG"
-        exit 1
+        on_failure $LINENO "independent verification failed after AI healing attempt"
       fi
 
       HEALED=true
@@ -175,11 +179,15 @@ EOF
       echo "Checking failed units on $host..."
       if [ "$host" = "raider" ]; then
         HOST_FAILED="$(systemctl --failed --no-legend || true)"
+        if [ -n "$HOST_FAILED" ]; then
+          FAILED_SERVICES="$FAILED_SERVICES"$'\n'"[$host]"$'\n'"$HOST_FAILED"
+        fi
       else
-        HOST_FAILED="$(ssh -o BatchMode=yes -o ConnectTimeout=10 "root@$host.bat-boa.ts.net" "systemctl --failed --no-legend" || true)"
-      fi
-      if [ -n "$HOST_FAILED" ]; then
-        FAILED_SERVICES="$FAILED_SERVICES"$'\n'"[$host]"$'\n'"$HOST_FAILED"
+        if ! HOST_FAILED="$(ssh -o BatchMode=yes -o ConnectTimeout=10 "root@$host.bat-boa.ts.net" "systemctl --failed --no-legend" 2>&1)"; then
+          FAILED_SERVICES="$FAILED_SERVICES"$'\n'"[$host] SSH connection failed or host unreachable"
+        elif [ -n "$HOST_FAILED" ]; then
+          FAILED_SERVICES="$FAILED_SERVICES"$'\n'"[$host]"$'\n'"$HOST_FAILED"
+        fi
       fi
     done
 
@@ -228,8 +236,10 @@ in {
 
     systemd.services.weekly-update = {
       description = "Autonomous weekly flake update, healing and tier-1 deployment";
-      after = ["network-online.target"];
-      wants = ["network-online.target"];
+      after = ["network-online.target" "tailscaled.service"];
+      wants = ["network-online.target" "tailscaled.service"];
+      restartIfChanged = false;
+      stopIfChanged = false;
       path = [
         pkgs.git
         pkgs.nix
@@ -241,6 +251,9 @@ in {
         pkgs.jq
         pkgs.curl
         pkgs.systemd
+        pkgs.nix-fast-build
+        pkgs.niks3
+        pkgs.nixos-rebuild
       ];
 
       environment = {
