@@ -1,5 +1,5 @@
 {pkgs, ...}:
-pkgs.buildGo125Module {
+pkgs.buildGoModule {
   pname = "tsnsrv";
   version = "0.0.0";
 
