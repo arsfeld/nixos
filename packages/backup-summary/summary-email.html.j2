@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>[{{ hostname }}] Weekly Backup Summary</title>
+  <style>
+    body, table, td { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    table { border-collapse: collapse !important; }
+    body { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+
+    @media screen and (max-width: 640px) {
+      .container { width: 100% !important; }
+      .px { padding-left: 16px !important; padding-right: 16px !important; }
+      .tile-cell { display: block !important; width: 100% !important; padding: 0 0 10px 0 !important; }
+      .table-cell { display: block !important; width: 100% !important; }
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .body-bg { background-color: #0b0b0d !important; }
+      .card-bg { background-color: #18181b !important; border-color: #27272a !important; }
+      .text-primary { color: #f4f4f5 !important; }
+      .text-secondary { color: #a1a1aa !important; }
+      .text-muted { color: #71717a !important; }
+      .divider { border-color: #27272a !important; }
+      .tile-bg { background-color: #27272a !important; }
+      .bar-track { background-color: #3f3f46 !important; }
+      .row-alt { background-color: #1f1f23 !important; }
+    }
+
+    .badge-ok { background-color: #059669; color: #ffffff; }
+    .badge-warn { background-color: #d97706; color: #ffffff; }
+    .badge-stale { background-color: #dc2626; color: #ffffff; }
+    .badge-unreachable { background-color: #6b7280; color: #ffffff; }
+  </style>
+</head>
+<body class="body-bg" style="margin:0;padding:0;background-color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+
+  <div style="display:none;font-size:1px;color:#fefefe;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+    [{{ hostname }}] Backup Summary: {{ status_summary }}
+  </div>
+
+  <table class="body-bg" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f5f5f7;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+
+        <table class="container card-bg" align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:680px;background-color:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+
+          <!-- Header -->
+          <tr>
+            <td class="px divider" style="padding:22px 28px;border-bottom:1px solid #f3f4f6;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="vertical-align:middle;">
+                    <p class="text-secondary" style="margin:0 0 4px 0;font-size:11px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#6b7280;">
+                      {{ hostname }} • BACKUP AUDIT
+                    </p>
+                    <h1 class="text-primary" style="margin:0;font-size:20px;font-weight:600;line-height:1.3;color:#111827;">
+                      Weekly Fleet Backup Summary
+                    </h1>
+                  </td>
+                  <td align="right" style="vertical-align:middle;white-space:nowrap;font-size:12px;color:#6b7280;padding-left:16px;">
+                    {{ current_date }}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Hero Status Banner -->
+          <tr>
+            <td style="padding:16px 28px 8px 28px;">
+              {% if overall_status == "HEALTHY" %}
+              <div style="background-color:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:12px 16px;color:#065f46;font-size:14px;font-weight:600;">
+                ✓ {{ status_summary }}
+              </div>
+              {% else %}
+              <div style="background-color:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;color:#92400e;font-size:14px;font-weight:600;">
+                ⚠ Attention Needed: {{ status_summary }}
+              </div>
+              {% endif %}
+            </td>
+          </tr>
+
+          <!-- Summary Metric Tiles -->
+          <tr>
+            <td style="padding:12px 28px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td class="tile-cell" width="25%" style="padding:0 6px 0 0;">
+                    <div class="tile-bg" style="background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;text-align:center;">
+                      <p class="text-secondary" style="margin:0;font-size:10px;font-weight:600;text-transform:uppercase;color:#6b7280;">Monitored</p>
+                      <p class="text-primary" style="margin:6px 0 0 0;font-size:18px;font-weight:700;color:#111827;">{{ metrics.total_targets }}</p>
+                    </div>
+                  </td>
+                  <td class="tile-cell" width="25%" style="padding:0 3px 0 3px;">
+                    <div class="tile-bg" style="background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;text-align:center;">
+                      <p class="text-secondary" style="margin:0;font-size:10px;font-weight:600;text-transform:uppercase;color:#6b7280;">Healthy</p>
+                      <p style="margin:6px 0 0 0;font-size:18px;font-weight:700;color:#059669;">{{ metrics.healthy_targets }}</p>
+                    </div>
+                  </td>
+                  <td class="tile-cell" width="25%" style="padding:0 3px 0 3px;">
+                    <div class="tile-bg" style="background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;text-align:center;">
+                      <p class="text-secondary" style="margin:0;font-size:10px;font-weight:600;text-transform:uppercase;color:#6b7280;">Issues</p>
+                      <p style="margin:6px 0 0 0;font-size:18px;font-weight:700;color:{% if metrics.attention_targets > 0 %}#dc2626{% else %}#6b7280{% endif %};">{{ metrics.attention_targets }}</p>
+                    </div>
+                  </td>
+                  <td class="tile-cell" width="25%" style="padding:0 0 0 6px;">
+                    <div class="tile-bg" style="background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;text-align:center;">
+                      <p class="text-secondary" style="margin:0;font-size:10px;font-weight:600;text-transform:uppercase;color:#6b7280;">Pool Used</p>
+                      <p class="text-primary" style="margin:6px 0 0 0;font-size:18px;font-weight:700;color:#111827;">{{ metrics.pool_percent }}%</p>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Targets Table -->
+          <tr>
+            <td style="padding:16px 28px 8px 28px;">
+              <p class="text-secondary" style="margin:0 0 10px 0;font-size:11px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#6b7280;">
+                Target Status Details
+              </p>
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size:12px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+                <thead>
+                  <tr style="background-color:#f9fafb;border-bottom:1px solid #e5e7eb;text-align:left;">
+                    <th style="padding:10px 12px;font-weight:600;color:#4b5563;">Target</th>
+                    <th style="padding:10px 12px;font-weight:600;color:#4b5563;">Destination</th>
+                    <th style="padding:10px 12px;font-weight:600;color:#4b5563;">Last Snapshot</th>
+                    <th style="padding:10px 12px;font-weight:600;color:#4b5563;">Age</th>
+                    <th style="padding:10px 12px;font-weight:600;color:#4b5563;text-align:center;">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for t in targets %}
+                  <tr style="border-bottom:1px solid #f3f4f6;" class="{% if loop.index is even %}row-alt{% endif %}">
+                    <td style="padding:10px 12px;">
+                      <strong class="text-primary" style="color:#111827;">{{ t.host }}</strong><br/>
+                      <span class="text-muted" style="font-size:11px;color:#6b7280;">{{ t.name }}</span>
+                    </td>
+                    <td style="padding:10px 12px;" class="text-secondary">
+                      {{ t.destination }}
+                    </td>
+                    <td style="padding:10px 12px;" class="text-primary">
+                      {{ t.last_snapshot_str }}
+                    </td>
+                    <td style="padding:10px 12px;" class="text-secondary">
+                      {{ "%.1f"|format(t.age_hours) }}h <span class="text-muted" style="font-size:10px;">(max {{ t.max_age_hours }}h)</span>
+                    </td>
+                    <td style="padding:10px 12px;text-align:center;">
+                      <span class="{{ t.status_badge_class }}" style="display:inline-block;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:0.5px;">
+                        {{ t.status_text }}
+                      </span>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Storage Pool & Breakdown -->
+          {% if storage_breakdown %}
+          <tr>
+            <td style="padding:16px 28px;">
+              <p class="text-secondary" style="margin:0 0 10px 0;font-size:11px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#6b7280;">
+                Storage Pool & Repo Footprint (/mnt/storage)
+              </p>
+              <div class="tile-bg" style="background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td class="text-secondary" style="font-size:11px;font-weight:600;color:#4b5563;">Pool Capacity: {{ "%.1f"|format(metrics.pool_used_gib / 1024.0) }} / {{ "%.1f"|format(metrics.pool_total_gib / 1024.0) }} TiB</td>
+                    <td class="text-primary" align="right" style="font-size:12px;font-weight:600;color:#111827;">{{ metrics.pool_percent }}%</td>
+                  </tr>
+                </table>
+                <table class="bar-track" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#e5e7eb;border-radius:999px;margin:8px 0 12px 0;">
+                  <tr>
+                    <td height="6" width="{{ metrics.pool_percent }}%" bgcolor="#4f46e5" style="background-color:#4f46e5;line-height:6px;font-size:0;border-radius:999px;">&nbsp;</td>
+                    <td height="6" width="{{ 100 - metrics.pool_percent }}%" style="line-height:6px;font-size:0;">&nbsp;</td>
+                  </tr>
+                </table>
+
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size:11px;color:#6b7280;">
+                  {% for s in storage_breakdown %}
+                  <tr>
+                    <td style="padding:2px 0;">{{ s.name }} (<code>{{ s.path }}</code>)</td>
+                    <td align="right" style="padding:2px 0;font-weight:600;color:#111827;">{{ "%.1f"|format(s.size_gib) }} GiB</td>
+                  </tr>
+                  {% endfor %}
+                </table>
+              </div>
+            </td>
+          </tr>
+          {% endif %}
+
+          <!-- Action Portal Button -->
+          <tr>
+            <td align="center" style="padding:8px 28px 24px 28px;">
+              <a href="{{ backrest_portal_url }}" target="_blank" style="display:inline-block;background-color:#4f46e5;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:10px 20px;border-radius:6px;">
+                Open Backrest Portal →
+              </a>
+            </td>
+          </tr>
+
+        </table>
+
+        <!-- Footer -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:680px;">
+          <tr>
+            <td class="text-muted" align="center" style="padding:14px 8px 0 8px;font-size:11px;color:#9ca3af;line-height:1.5;">
+              Automated weekly summary from {{ hostname }}. Diagnostic command: <code>ssh {{ hostname }} backup-status</code>
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
