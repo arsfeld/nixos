@@ -19,10 +19,6 @@ in {
     ./services
     ./backup
     ./scripts
-    # galactica is the only always-on x86 host with Tailscale SSH to the rest of
-    # tier-1, and it never builds here (max-jobs = 0), so the weekly deploy costs
-    # it a download and an activation.
-    ./weekly-deploy.nix
   ];
 
   # We're the netdata server, not a client.
