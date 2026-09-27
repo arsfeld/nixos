@@ -105,3 +105,6 @@ scripts/recover-from-r2.sh
 
 # Downloaded eufy clips (just eufy::fetch)
 eufy-clips/
+
+# Git worktrees
+.worktrees/
