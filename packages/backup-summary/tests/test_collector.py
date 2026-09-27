@@ -23,6 +23,7 @@ except ImportError:
     pass
 
 from packages.backup_summary.backup_summary import (
+    create_parser,
     evaluate_target_status,
     partition_snapshots_by_host,
     parse_iso_timestamp,
@@ -97,6 +98,23 @@ class TestCollector(unittest.TestCase):
         self.assertEqual(status, "STALE")
         self.assertEqual(badge, "badge-stale")
         self.assertEqual(text, "NO DATA")
+
+    def test_cli_argument_aliases(self):
+        parser = create_parser()
+
+        # Test --to and --from
+        args = parser.parse_args(["--to", "dest@example.com", "--from", "src@example.com"])
+        self.assertEqual(args.email_to, "dest@example.com")
+        self.assertEqual(args.email_from, "src@example.com")
+
+        # Test --email-to and --email-from
+        args2 = parser.parse_args(["--email-to", "dest2@example.com", "--email-from", "src2@example.com"])
+        self.assertEqual(args2.email_to, "dest2@example.com")
+        self.assertEqual(args2.email_from, "src2@example.com")
+
+        # Test --from-email
+        args3 = parser.parse_args(["--from-email", "src3@example.com"])
+        self.assertEqual(args3.email_from, "src3@example.com")
 
 if __name__ == "__main__":
     unittest.main()
