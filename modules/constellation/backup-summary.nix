@@ -64,6 +64,7 @@ in {
           "EMAIL_TO=${cfg.toEmail}"
           "EMAIL_FROM=${cfg.fromEmail}"
           "RESTIC_PASSWORD_FILE=${config.sops.secrets."restic-password".path}"
+          "BACKREST_PORTAL_URL=${cfg.backrestPortalUrl}"
         ];
         ExecStart = "${pkgs.backup-summary}/bin/backup-summary --send";
       };

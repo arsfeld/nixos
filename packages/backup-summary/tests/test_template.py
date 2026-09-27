@@ -47,11 +47,12 @@ class TestSummaryEmailTemplate(unittest.TestCase):
         self.assertIn("basestar", html)
         self.assertIn("https://backrest.arsfeld.one/", html)
         self.assertIn("12.1", html)
+        self.assertIn("ssh galactica backup-status", html)
 
     def test_render_template_attention_needed(self):
         template = self.env.get_template("summary-email.html.j2")
         context = {
-            "hostname": "galactica",
+            "hostname": "customhost",
             "current_date": "Sunday, Sep 27, 2026 • 20:00 UTC",
             "overall_status": "ATTENTION_NEEDED",
             "status_summary": "1 target stale, 1 target warning",
@@ -84,6 +85,7 @@ class TestSummaryEmailTemplate(unittest.TestCase):
         self.assertIn("Attention Needed", html)
         self.assertIn("raider", html)
         self.assertIn("badge-warn", html)
+        self.assertIn("ssh customhost backup-status", html)
 
 if __name__ == "__main__":
     unittest.main()
