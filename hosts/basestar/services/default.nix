@@ -11,7 +11,6 @@
     ./niks3.nix
     ./planka.nix
     ./plausible.nix
-    ./radicle.nix
     ./siyuan.nix
     ./sillytavern.nix
     ./webui.nix
