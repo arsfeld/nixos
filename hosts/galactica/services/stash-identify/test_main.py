@@ -1,4 +1,7 @@
 """Unit tests for stash-identify's per-scene flow, with fake Stash and LLM."""
+import json
+import os
+import tempfile
 import unittest
 
 import main
@@ -146,11 +149,6 @@ class ApplyTest(unittest.TestCase):
         self.assertEqual((st.updates, st.created), ([], []))
 
 
-import json
-import os
-import tempfile
-
-
 class PathTest(unittest.TestCase):
     def test_host_to_container(self):
         self.assertEqual(main.to_container("/mnt/storage/media/Vault/a b/c"), "/media/Vault/a b/c")
@@ -177,9 +175,10 @@ class SkipTagsTest(unittest.TestCase):
 
 class PassTest(unittest.TestCase):
     class PassStash(FakeStash):
-        def __init__(self, bare):
+        def __init__(self, bare, scenes_dict=None):
             super().__init__()
             self.bare, self.jobs = bare, []
+            self.scenes_dict = scenes_dict or {}
 
         def max_scene_id(self):
             return 10
@@ -198,6 +197,9 @@ class PassTest(unittest.TestCase):
 
         def bare_scenes(self):
             return self.bare
+
+        def scenes(self, ids):
+            return [self.scenes_dict[sid] for sid in ids if sid in self.scenes_dict]
 
     defaults = {"scan": {}, "generate": {}, "identify": {}}
 
@@ -249,6 +251,21 @@ class PassTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             main.run_pass(st, FakeLLM({"title": "T", "query": ""}), self.state(d), self.defaults, None)
             self.assertEqual([u["id"] for u in st.updates], ["11"])
+
+    def test_scene_ids_ignore_state_and_bare_filter(self):
+        st = self.PassStash([], scenes_dict={"11": scene("11"), "12": scene("12")})
+
+        def boom(*args):
+            raise AssertionError("bare_scenes should not be called")
+        st.bare_scenes = boom
+        with tempfile.TemporaryDirectory() as d:
+            state = self.state(d)
+            state.add("12")
+            main.run_pass(st, FakeLLM({"title": "T", "query": ""}), state, self.defaults,
+                          None, jobs=False, scene_ids=["12"])
+            self.assertEqual(st.jobs, [])
+            self.assertEqual([u["id"] for u in st.updates], ["12"])
+            self.assertIn("12", state)  # updated even though already in state
 
 
 if __name__ == "__main__":
