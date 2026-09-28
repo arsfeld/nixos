@@ -158,7 +158,7 @@ def resolve_performer(stash, name, create_input=None, endpoint=None, remote_id=N
     return hit or stash.create_performer(create_input or {"name": name})
 
 
-def apply(stash, scene, prop, skip_tag_ids):
+def apply(stash, scene, prop, skip_tag_ids, overwrite=False):
     if prop["kind"] == "scrape":
         p, ep = prop["primary"], prop["primary_endpoint"]
         studio_id = None
@@ -175,7 +175,8 @@ def apply(stash, scene, prop, skip_tag_ids):
                          for x in p.get("performers") or [] if x.get("name")]
         tag_ids = [t["stored_id"] for t in p.get("tags") or [] if t.get("stored_id")]
         stash.update_scene(match.scrape_update(scene, p, prop["stash_ids"], studio_id,
-                                               performer_ids, tag_ids, skip_tag_ids))
+                                               performer_ids, tag_ids, skip_tag_ids,
+                                               overwrite=overwrite))
     elif prop["kind"] == "llm":
         parse = prop["parse"]
         studio_id = parse.get("studio") and resolve_studio(stash, parse["studio"])
@@ -263,6 +264,15 @@ class State:
             self._write(self.failures_path, self.failures)
 
 
+def is_upgrade(scene, llm_tag_id):
+    """An earlier LLM guess on a file named by a JAV code: re-checked every pass (lookup
+    only, never the LLM) and overwritten once the code is found. Removing the tag in the
+    UI opts a scene out."""
+    tags = {t["id"] for t in scene.get("tags") or []}
+    return bool(llm_tag_id) and llm_tag_id in tags and \
+        match.jav_code(rel_path(scene["files"][0]["path"])) is not None
+
+
 def skip_tags(defaults):
     opts = defaults.get("identify", {}).get("options", {})
     return {t for t in (opts.get("skipMultipleMatchTag"), opts.get("skipSingleNamePerformerTag")) if t}
@@ -288,35 +298,49 @@ def run_pass(stash, llm, state, defaults, paths, *, jobs=True, dry_run=False, li
         except Exception as e:
             log(f"stash jobs failed, continuing to the LLM step: {e}")
 
-    todo = stash.scenes(scene_ids) if scene_ids else \
-        [s for s in stash.bare_scenes() if s["id"] not in state]
+    llm_tag = stash.tag_id(LLM_TAG)
+    if scene_ids:
+        todo = stash.scenes(scene_ids)
+    else:
+        todo = [s for s in stash.bare_scenes() if s["id"] not in state]
+        if llm_tag:
+            todo += [s for s in stash.scenes_with_tag(llm_tag) if is_upgrade(s, llm_tag)]
     if limit:
         todo = todo[:limit]
     log(f"llm step: {len(todo)} scene(s)")
     drop = skip_tags(defaults)
     for scene in todo:
+        upgrade = is_upgrade(scene, llm_tag)
         try:
-            prop = identify_scene(stash, llm, scene, tpdb)
+            if upgrade:
+                prop = jav_prop(stash, tpdb, scene)
+                if prop is None:
+                    log(f"[{scene['id']}] llm guess, no JAV match yet")
+                    continue
+            else:
+                prop = identify_scene(stash, llm, scene, tpdb)
             print(format_line(scene, prop), flush=True)
             if dry_run:
                 continue
             # Re-fetch: the LLM step can take minutes, so re-check against a fresh copy
             # right before writing, in case the scene was edited (or identified) by hand
             # -- or deleted outright -- in the meantime. An explicit --scene run means it
-            # should apply regardless of an edit, but a deletion is never applicable.
+            # should apply regardless of an edit, but a deletion is never applicable. An
+            # upgrade counts as untouched for as long as it keeps the llm-identified tag.
             fresh = stash.scenes([scene["id"]])
             if not fresh:
                 log(f"[{scene['id']}] gone, skipped")
                 state.clear_failures(scene["id"])
                 continue
             fresh = fresh[0]
-            if scene_ids is None and (fresh.get("title") or fresh.get("studio")
-                                       or fresh.get("performers")):
+            edited = (not is_upgrade(fresh, llm_tag)) if upgrade else \
+                (fresh.get("title") or fresh.get("studio") or fresh.get("performers"))
+            if scene_ids is None and edited:
                 log(f"[{scene['id']}] edited meanwhile, skipped")
                 state.add(scene["id"])
                 state.clear_failures(scene["id"])
                 continue
-            apply(stash, fresh, prop, drop)
+            apply(stash, fresh, prop, drop | {llm_tag} if upgrade else drop, overwrite=upgrade)
             state.add(scene["id"])
             state.clear_failures(scene["id"])
         except Exception as e:

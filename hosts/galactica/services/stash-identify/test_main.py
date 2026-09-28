@@ -26,6 +26,10 @@ class FakeStash:
         self.studios = list(studios)
         self.tags = dict(tags or {})      # name -> id
         self.updates, self.created = [], []
+        self.tagged = []                  # scenes returned by scenes_with_tag
+
+    def scenes_with_tag(self, tag_id):
+        return self.tagged
 
     def search(self, endpoint, query):
         r = self.results.get(endpoint, [])
@@ -447,6 +451,17 @@ class PassTest(unittest.TestCase):
     def state(self, d):
         return main.State(os.path.join(d, "s.json"))
 
+    def guessed(self, id="20", path="/media/Vault/CAWD-910.mp4", tags=("t-llm-identified",)):
+        return scene(id, path=path, duration=7519.0, title="Kawaii* – CAWD-910",
+                     studio={"id": "s9"}, performers=[{"id": "p9"}],
+                     tags=[{"id": t} for t in tags])
+
+    def upgrade_stash(self, stale, fresh=None):
+        st = self.PassStash([], scenes_dict={stale["id"]: fresh or stale})
+        st.tags = {"llm-identified": "t-llm-identified"}
+        st.tagged = [stale]
+        return st
+
     def test_steps_in_order_and_state_recorded(self):
         st = self.PassStash([scene("11"), scene("12")])
         with tempfile.TemporaryDirectory() as d:
@@ -649,6 +664,51 @@ class PassTest(unittest.TestCase):
                           None, jobs=False, scene_ids=["11"])
             self.assertEqual(len(st.updates), 1)
             self.assertIn("11", state)
+
+    def test_llm_guess_with_jav_code_is_upgraded(self):
+        st = self.upgrade_stash(self.guessed())
+        with tempfile.TemporaryDirectory() as d:
+            state = self.state(d)
+            state.add("20")  # done long ago; upgrades ignore the state file
+            main.run_pass(st, NO_LLM, state, self.defaults, None, jobs=False,
+                          tpdb=FakeTPDB([jav_hit("CAWD-910")]))
+        up = st.updates[0]
+        self.assertEqual(up["title"], "CAWD-910 - Some Title")
+        self.assertEqual(up["studio_id"], "s-Kawaii")
+        self.assertEqual(up["performer_ids"], ["p-Kurea Hasumi"])
+        self.assertEqual(up["tag_ids"], [])  # llm-identified dropped
+
+    def test_upgrade_miss_writes_nothing_and_leaves_state(self):
+        st = self.upgrade_stash(self.guessed())
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "s.json")
+            main.run_pass(st, NO_LLM, main.State(path), self.defaults, None, jobs=False,
+                          tpdb=FakeTPDB([]))
+            state = main.State(path)
+            self.assertEqual((st.updates, st.created), ([], []))
+            self.assertNotIn("20", state)
+            self.assertEqual(state.failures, {})
+
+    def test_llm_guess_without_code_is_not_revisited(self):
+        tp = FakeTPDB([jav_hit("CAWD-910")])
+        st = self.upgrade_stash(self.guessed(path="/media/Vault/Some Title.mp4"))
+        with tempfile.TemporaryDirectory() as d:
+            main.run_pass(st, NO_LLM, self.state(d), self.defaults, None, jobs=False, tpdb=tp)
+        self.assertEqual((st.updates, tp.calls), ([], []))
+
+    def test_upgrade_skipped_once_tag_removed_meanwhile(self):
+        st = self.upgrade_stash(self.guessed(), fresh=self.guessed(tags=()))
+        with tempfile.TemporaryDirectory() as d:
+            main.run_pass(st, NO_LLM, self.state(d), self.defaults, None, jobs=False,
+                          tpdb=FakeTPDB([jav_hit("CAWD-910")]))
+        self.assertEqual(st.updates, [])
+
+    def test_explicit_scene_run_upgrades_too(self):
+        st = self.upgrade_stash(self.guessed())
+        with tempfile.TemporaryDirectory() as d:
+            main.run_pass(st, NO_LLM, self.state(d), self.defaults, None, jobs=False,
+                          scene_ids=["20"], tpdb=FakeTPDB([jav_hit("CAWD-910")]))
+        self.assertEqual(st.updates[0]["title"], "CAWD-910 - Some Title")
 
 
 class DebouncerTest(unittest.TestCase):
