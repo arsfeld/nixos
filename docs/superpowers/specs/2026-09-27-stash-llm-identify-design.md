@@ -189,8 +189,15 @@ The service logs the same lines to the journal for what it actually applied.
   whose per-scene processing keeps failing this way is billed for a fresh parse, search
   and Jev call on every pass with nothing to show for it. A failure counter (persisted
   next to the state file, in `failures.json`) caps that at 3 consecutive failures, after
-  which the scene is given up on (added to state) and logged rather than retried forever.
-  A success clears its count.
+  which the scene is given up on (added to state) and logged, with the error that caused
+  the final failure, rather than retried forever. A success clears its count. Only
+  scene-specific failures (a Stash create/update mutation error, or a malformed LLM parse
+  reply) count toward that cap -- a stash-box search, a Jev call, or any network/transport
+  failure from an OpenRouter or Stash call is transient and retries indefinitely without
+  ever being counted.
+- A scene deleted mid-run (the pre-write re-fetch finds nothing) is logged and skipped:
+  nothing is created or updated, and it is not recorded, so a genuinely new scene at that
+  ID later gets its own pass.
 - One bad scene never ends the pass, and a crash of the watcher is handled by `Restart=always`.
 
 ## Running it

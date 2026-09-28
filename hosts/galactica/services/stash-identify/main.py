@@ -12,6 +12,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
 
 import match
 from llm import OpenRouter
@@ -32,12 +33,25 @@ def rel_path(container_path):
     return container_path.removeprefix(LIBRARY_CONTAINER + "/")
 
 
+class TransientError(RuntimeError):
+    """Raised by identify_scene when a stash-box search or the Jev call fails. These are
+    typically an external-service blip rather than anything wrong with the scene, so
+    run_pass retries the scene next pass without counting it toward State's failure cap
+    (see TRANSIENT below, which also covers raw network/transport errors from any
+    OpenRouter or Stash call, however they surface)."""
+
+
+TRANSIENT = (TransientError, urllib.error.URLError, TimeoutError, ConnectionError)
+
+
 def identify_scene(stash, llm, scene):
     """Propose metadata for one bare scene. Raises if the parse, a stash-box search, or
     the Jev call fails: those are transient failures, and run_pass must retry the scene
     next pass rather than record a downgraded llm-only guess that would lose a possible
     scrape for good. Only downgrades to llm-only when every search succeeded and turned
-    up nothing usable (or Jev affirmatively picked none)."""
+    up nothing usable (or Jev affirmatively picked none). A search or Jev failure raises
+    TransientError specifically; a malformed LLM parse reply (llm.parse's own ValueError)
+    is scene-specific and propagates as-is."""
     f = scene["files"][0]
     path, duration = rel_path(f["path"]), f["duration"]
     parse = llm.parse(path)
@@ -52,7 +66,7 @@ def identify_scene(stash, llm, scene):
             try:
                 hits = stash.search(ep, parse["query"])[:PER_BOX]
             except Exception as e:
-                raise RuntimeError(f"scene {scene['id']}: search {ep} failed: {e}") from e
+                raise TransientError(f"scene {scene['id']}: search {ep} failed: {e}") from e
             everything += [(ep, c) for c in hits]
     cands = match.dedupe([t for t in everything if match.duration_ok(t[1], duration)])
     if not cands:
@@ -64,7 +78,7 @@ def identify_scene(stash, llm, scene):
         try:
             answer = llm.choose(path, duration, parse, cands)
         except Exception as e:
-            raise RuntimeError(f"scene {scene['id']}: jev failed: {e}") from e
+            raise TransientError(f"scene {scene['id']}: jev failed: {e}") from e
         chosen, prop["confidence"] = match.jev_pick(answer, cands), answer.get("confidence")
     if chosen is None:
         return prop
@@ -244,9 +258,14 @@ def run_pass(stash, llm, state, defaults, paths, *, jobs=True, dry_run=False, li
                 continue
             # Re-fetch: the LLM step can take minutes, so re-check against a fresh copy
             # right before writing, in case the scene was edited (or identified) by hand
-            # in the meantime. An explicit --scene run means it should apply regardless.
+            # -- or deleted outright -- in the meantime. An explicit --scene run means it
+            # should apply regardless of an edit, but a deletion is never applicable.
             fresh = stash.scenes([scene["id"]])
-            fresh = fresh[0] if fresh else scene
+            if not fresh:
+                log(f"[{scene['id']}] gone, skipped")
+                state.clear_failures(scene["id"])
+                continue
+            fresh = fresh[0]
             if scene_ids is None and (fresh.get("title") or fresh.get("studio")
                                        or fresh.get("performers")):
                 log(f"[{scene['id']}] edited meanwhile, skipped")
@@ -257,12 +276,11 @@ def run_pass(stash, llm, state, defaults, paths, *, jobs=True, dry_run=False, li
             state.add(scene["id"])
             state.clear_failures(scene["id"])
         except Exception as e:
-            if dry_run:
-                log(f"  [{scene['id']}] failed, will retry next pass: {e}")
-            elif state.fail(scene["id"]):
-                log(f"giving up on [{scene['id']}] after {State.FAILURE_LIMIT} failures")
-            else:
-                log(f"  [{scene['id']}] failed, will retry next pass: {e}")
+            if not dry_run and not isinstance(e, TRANSIENT):
+                if state.fail(scene["id"]):
+                    log(f"giving up on [{scene['id']}] after {State.FAILURE_LIMIT} failures: {e}")
+                    continue
+            log(f"  [{scene['id']}] failed, will retry next pass: {e}")
 
 
 SETTLE = 120            # seconds without events before a pass runs

@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 import unittest
+import urllib.error
 
 import main
 import stash as stash_mod
@@ -247,10 +248,11 @@ class SkipTagsTest(unittest.TestCase):
 
 class PassTest(unittest.TestCase):
     class PassStash(FakeStash):
-        def __init__(self, bare, scenes_dict=None):
+        def __init__(self, bare, scenes_dict=None, missing=()):
             super().__init__()
             self.bare, self.jobs = bare, []
             self.scenes_dict = scenes_dict or {}
+            self.missing = set(missing)
 
         def max_scene_id(self):
             return 10
@@ -271,7 +273,11 @@ class PassTest(unittest.TestCase):
             return self.bare
 
         def scenes(self, ids):
-            return [self.scenes_dict[sid] for sid in ids if sid in self.scenes_dict]
+            # Real Stash still returns a scene's current data on a plain re-fetch; only an
+            # id in `missing` simulates one deleted mid-run. `scenes_dict` overrides a bare
+            # entry to stage a "fresh copy differs from the stale one" case.
+            by_id = {**{s["id"]: s for s in self.bare}, **self.scenes_dict}
+            return [by_id[sid] for sid in ids if sid in by_id and sid not in self.missing]
 
     defaults = {"scan": {}, "generate": {}, "identify": {}}
 
@@ -362,6 +368,58 @@ class PassTest(unittest.TestCase):
             self.assertIsNone(state.failures.get("11"))
             self.assertIn("11", state)
 
+    def test_transient_search_failure_never_counted(self):
+        # A stash-box outage: search raises on every pass. The scene must never be
+        # recorded and the failure count must never move, however many passes run.
+        st = self.PassStash([scene("11")])
+        st.results = {TPDB: RuntimeError("stash-box down")}
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "s.json")
+            for _ in range(main.State.FAILURE_LIMIT + 2):
+                main.run_pass(st, FakeLLM({"title": "T", "query": "q"}), main.State(path),
+                              self.defaults, None, jobs=False)
+            state = main.State(path)
+            self.assertNotIn("11", state)
+            self.assertEqual(state.failures, {})
+
+    def test_transient_network_error_never_counted(self):
+        # An OpenRouter outage surfacing as a raw urllib error, not a TransientError:
+        # still must not count, however many passes run.
+        st = self.PassStash([scene("11")])
+        llm = FakeLLM(urllib.error.URLError("timed out"))
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "s.json")
+            for _ in range(main.State.FAILURE_LIMIT + 2):
+                main.run_pass(st, llm, main.State(path), self.defaults, None, jobs=False)
+            state = main.State(path)
+            self.assertNotIn("11", state)
+            self.assertEqual(state.failures, {})
+
+    def test_scene_specific_failure_gives_up_with_error_in_log(self):
+        # A Stash-side mutation error (not transient) must still count, and the give-up
+        # line must carry the error that caused the final failure.
+        st = self.PassStash([scene("11")])
+
+        def boom(inp):
+            raise RuntimeError("sceneUpdate: bad studio_id")
+        st.update_scene = boom
+        logs = []
+        orig_log = main.log
+        main.log = lambda *a: logs.append(" ".join(str(x) for x in a))
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                path = os.path.join(d, "s.json")
+                for _ in range(main.State.FAILURE_LIMIT):
+                    main.run_pass(st, FakeLLM({"title": "T", "query": ""}), main.State(path),
+                                  self.defaults, None, jobs=False)
+                state = main.State(path)
+                self.assertIn("11", state)
+        finally:
+            main.log = orig_log
+        giveup = [l for l in logs if "giving up on [11]" in l]
+        self.assertEqual(len(giveup), 1)
+        self.assertIn("bad studio_id", giveup[0])
+
     def test_scene_ids_ignore_state_and_bare_filter(self):
         st = self.PassStash([], scenes_dict={"11": scene("11"), "12": scene("12")})
 
@@ -387,6 +445,24 @@ class PassTest(unittest.TestCase):
                           None, jobs=False)
             self.assertEqual(st.updates, [])
             self.assertIn("11", state)
+
+    def test_gone_mid_run_is_skipped(self):
+        # The re-fetch finds nothing: the scene was deleted while the LLM step ran.
+        # Nothing should be created or updated, and it must not be recorded as done.
+        st = self.PassStash([scene("11")], missing={"11"})
+        logs = []
+        orig_log = main.log
+        main.log = lambda *a: logs.append(" ".join(str(x) for x in a))
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                state = self.state(d)
+                main.run_pass(st, FakeLLM({"title": "T", "query": ""}), state, self.defaults,
+                              None, jobs=False)
+                self.assertEqual((st.updates, st.created), ([], []))
+                self.assertNotIn("11", state)
+        finally:
+            main.log = orig_log
+        self.assertTrue(any("[11] gone, skipped" in l for l in logs))
 
     def test_apply_uses_freshly_refetched_scene(self):
         stale = scene("11", tags=[{"id": "stale-tag"}])
