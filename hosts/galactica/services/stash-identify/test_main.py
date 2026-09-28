@@ -25,7 +25,10 @@ class FakeStash:
         self.updates, self.created = [], []
 
     def search(self, endpoint, query):
-        return self.results.get(endpoint, [])
+        r = self.results.get(endpoint, [])
+        if isinstance(r, Exception):
+            raise r
+        return r
 
     def performer_by_stash_id(self, endpoint, sid):
         return next((p["id"] for p in self.performers if sid in p.get("sids", [])), None)
@@ -66,6 +69,8 @@ class FakeLLM:
         return self._parse
 
     def choose(self, path, duration, parse, cands):
+        if isinstance(self._choice, Exception):
+            raise self._choice
         return {"choice": self._choice, "confidence": 0.4}
 
 
@@ -110,6 +115,27 @@ class IdentifyTest(unittest.TestCase):
     def test_parse_failure_propagates(self):
         with self.assertRaises(ValueError):
             main.identify_scene(FakeStash(), FakeLLM(ValueError("bad")), scene())
+
+    def test_search_failure_raises_instead_of_downgrading(self):
+        st = FakeStash({TPDB: RuntimeError("timeout")})
+        with self.assertRaises(RuntimeError):
+            main.identify_scene(st, FakeLLM({"title": "T", "query": "q"}), scene())
+
+    def test_jev_failure_raises_instead_of_downgrading(self):
+        st = FakeStash({TPDB: [scraped("Snowed In", "Frolic Me", rid="t1")],
+                        STASHDB: [scraped("SNOWED IN", "Frolic Me", rid="s1")]})
+        llm = FakeLLM({"title": "T", "query": "q"}, choice=RuntimeError("jev down"))
+        with self.assertRaises(RuntimeError):
+            main.identify_scene(st, llm, scene())
+
+    def test_duration_filter_runs_before_dedupe(self):
+        # The TPDB copy sorts first into dedupe but has no usable duration; without
+        # filtering first it would win dedupe and the whole match would be lost.
+        st = FakeStash({TPDB: [scraped("Cow", "Trip", duration=None, rid="t1")],
+                        STASHDB: [scraped("Cow", "Trip", duration=600, rid="s1")]})
+        p = main.identify_scene(st, FakeLLM({"query": "q"}, choice="c0"), scene())
+        self.assertEqual(p["kind"], "scrape")
+        self.assertEqual(p["primary_endpoint"], STASHDB)
 
 
 class ApplyTest(unittest.TestCase):

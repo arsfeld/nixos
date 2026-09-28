@@ -33,7 +33,11 @@ def rel_path(container_path):
 
 
 def identify_scene(stash, llm, scene):
-    """Propose metadata for one bare scene. Raises if the parse itself fails."""
+    """Propose metadata for one bare scene. Raises if the parse, a stash-box search, or
+    the Jev call fails: those are transient failures, and run_pass must retry the scene
+    next pass rather than record a downgraded llm-only guess that would lose a possible
+    scrape for good. Only downgrades to llm-only when every search succeeded and turned
+    up nothing usable (or Jev affirmatively picked none)."""
     f = scene["files"][0]
     path, duration = rel_path(f["path"]), f["duration"]
     parse = llm.parse(path)
@@ -46,10 +50,11 @@ def identify_scene(stash, llm, scene):
     if parse.get("query"):
         for ep in BOXES:
             try:
-                everything += [(ep, c) for c in stash.search(ep, parse["query"])[:PER_BOX]]
+                hits = stash.search(ep, parse["query"])[:PER_BOX]
             except Exception as e:
-                log(f"  [{scene['id']}] search {ep}: {e}")
-    cands = [c for c in match.dedupe(everything) if match.duration_ok(c[1], duration)]
+                raise RuntimeError(f"scene {scene['id']}: search {ep} failed: {e}") from e
+            everything += [(ep, c) for c in hits]
+    cands = match.dedupe([t for t in everything if match.duration_ok(t[1], duration)])
     if not cands:
         return prop
 
@@ -58,9 +63,9 @@ def identify_scene(stash, llm, scene):
         rule = "jev"
         try:
             answer = llm.choose(path, duration, parse, cands)
-            chosen, prop["confidence"] = match.jev_pick(answer, cands), answer.get("confidence")
         except Exception as e:
-            log(f"  [{scene['id']}] jev: {e}")
+            raise RuntimeError(f"scene {scene['id']}: jev failed: {e}") from e
+        chosen, prop["confidence"] = match.jev_pick(answer, cands), answer.get("confidence")
     if chosen is None:
         return prop
 
