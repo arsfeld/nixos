@@ -104,9 +104,13 @@ that also have no studio and no performers. Today those are the same 134.
    `{studio, title, performers[], date, query}`. It returns null or `[]` rather than
    guessing. This runs once per scene.
 2. **Search.** Run `scrapeSingleScene` with `query` against ThePornDB, then StashDB, and
-   keep the top 6 from each, de-duplicated.
-3. **Filter by duration.** Drop every candidate whose duration is unknown or more than 10s
-   from the file's.
+   keep the top 6 from each.
+3. **Filter, then de-duplicate.** Drop every candidate whose duration is unknown or more
+   than 10s from the file's, *then* de-duplicate by (title, studio). Filtering first
+   matters: TPDB and StashDB sometimes return the same scene with different duration
+   metadata (one missing it entirely), and de-duplicating first would keep whichever copy
+   happened to sort first even if it's the one that fails the duration check, discarding
+   the correctly-timed twin along with it.
 4. **Match.** Apply the first rule that fires:
    - **Deterministic:** the candidate's studio matches the parsed studio (normalized:
      lowercase, alphanumerics only, so "TripForFuck" = "Trip For Fuck"), **and** its date
@@ -175,9 +179,18 @@ The service logs the same lines to the journal for what it actually applied.
 
 - A failed Stash job, or one that times out after 6 hours, is logged, and the pass skips
   to step 4 for scenes that already exist.
-- A failed search or Jev call makes that scene LLM-only. A failed parse, or one malformed
-  reply after a re-ask, skips the scene **without** recording it, so the next pass retries it.
-- A failed create or update is logged and not recorded either.
+- A failed parse, a failed search against either endpoint, or a failed Jev call all raise
+  out of `identify_scene` and skip the scene **without** recording it, so the next pass
+  retries it. None of them downgrades to an llm-only guess: that would write a permanent
+  guess over what might just be a network blip, silently losing a real scrape. The llm-only
+  guess is only used when every search succeeded and turned up nothing usable, or Jev
+  affirmatively picked `none`.
+- A failed create or update is likewise not recorded, so it's retried too -- but a scene
+  whose per-scene processing keeps failing this way is billed for a fresh parse, search
+  and Jev call on every pass with nothing to show for it. A failure counter (persisted
+  next to the state file, in `failures.json`) caps that at 3 consecutive failures, after
+  which the scene is given up on (added to state) and logged rather than retried forever.
+  A success clears its count.
 - One bad scene never ends the pass, and a crash of the watcher is handled by `Restart=always`.
 
 ## Running it
