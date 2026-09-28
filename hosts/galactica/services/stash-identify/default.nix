@@ -1,9 +1,11 @@
 # stash-identify: watches the Stash library and, for every new file, runs Stash's own
 # scan -> generate -> identify with the defaults saved in the Stash UI, then fills title,
 # studio and performers on any scene still bare, using an LLM filename parse confirmed
-# against StashDB/ThePornDB where it can. Guesses are tagged `llm-identified`.
+# against StashDB/ThePornDB where it can. Guesses are tagged `llm-identified`. JAV files
+# are looked up by product code first (StashDB, then ThePornDB's JAV API).
 #
 # Design: docs/superpowers/specs/2026-09-27-stash-llm-identify-design.md
+# JAV: docs/superpowers/specs/2026-09-28-stash-identify-jav-design.md
 # Unit tests: `python3 -m unittest -v` in this directory.
 {
   config,

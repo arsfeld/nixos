@@ -83,6 +83,28 @@ def scraped(title, studio, date=None, duration=600, rid="r", **kw):
             "tags": [], "image": "data:img", **kw}
 
 
+class FakeTPDB:
+    def __init__(self, hits):
+        self.hits, self.calls = hits, []
+
+    def jav_search(self, code):
+        self.calls.append(code)
+        if isinstance(self.hits, Exception):
+            raise self.hits
+        return self.hits
+
+
+def jav_hit(code, title=None, site="Kawaii", duration=7800, performers=("Kurea Hasumi",)):
+    return {"external_id": code.lower(), "slug": f"x-{code.lower()}",
+            "title": title or f"{code} - Some Title", "date": "2026-03-03", "description": "d",
+            "duration": duration, "url": "https://r18.dev/x", "background": {"full": "https://img"},
+            "site": {"name": site},
+            "performers": [{"name": n, "image": None, "parent": {"name": n}} for n in performers]}
+
+
+NO_LLM = FakeLLM(AssertionError("LLM must not be called for a JAV code hit"))
+
+
 class RelPathTest(unittest.TestCase):
     def test_strips_library_root(self):
         self.assertEqual(main.rel_path("/media/Vault/a/b.mp4"), "a/b.mp4")
@@ -148,6 +170,70 @@ class IdentifyTest(unittest.TestCase):
         self.assertEqual(p["primary_endpoint"], STASHDB)
 
 
+class JavIdentifyTest(unittest.TestCase):
+    path = "/media/Vault/CAWD-910.mp4"
+
+    def test_stashdb_exact_code_wins_without_llm(self):
+        st = FakeStash({STASHDB: [scraped("IPZZ-795", "Idea Pocket", duration=9499, rid="s1",
+                                          code="IPZZ-795"),
+                                  scraped("DVDES-795", "Deep’s", rid="s2", code="DVDES-795")]})
+        tp = FakeTPDB([])
+        p = main.identify_scene(st, NO_LLM, scene(path="/media/Vault/IPZZ-795.mp4", duration=9500), tp)
+        self.assertEqual((p["kind"], p["rule"], p["source"]), ("scrape", "code", "stashdb"))
+        self.assertEqual(p["primary_endpoint"], STASHDB)
+        self.assertEqual(p["stash_ids"], [{"endpoint": STASHDB, "stash_id": "s1"}])
+        self.assertEqual(p["delta"], -1)
+        self.assertEqual(tp.calls, [])  # StashDB hit: TPDB never asked
+
+    def test_tpdb_jav_hit_ignores_duration(self):
+        # StashDB only has same-number neighbours; TPDB's nominal 7800 s is 281 s off.
+        st = FakeStash({STASHDB: [scraped("PPPD-910", "Oppai", code="PPPD-910")]})
+        p = main.identify_scene(st, NO_LLM, scene(path=self.path, duration=7519.0),
+                                FakeTPDB([jav_hit("CAWD-910")]))
+        self.assertEqual((p["kind"], p["rule"], p["source"]), ("scrape", "code", "tpdb-jav"))
+        self.assertEqual(p["primary_endpoint"], main.TPDB_JAV)
+        self.assertEqual(p["primary"]["code"], "CAWD-910")
+        self.assertEqual((p["stash_ids"], p["delta"]), ([], 281))
+
+    def test_both_miss_falls_back_to_llm(self):
+        p = main.identify_scene(FakeStash(), FakeLLM({"title": "T", "query": ""}),
+                                scene(path=self.path), FakeTPDB([jav_hit("CAWD-190")]))
+        self.assertEqual(p["kind"], "llm")
+
+    def test_no_tpdb_client_uses_stashdb_only(self):
+        p = main.identify_scene(FakeStash(), FakeLLM({"title": "T", "query": ""}),
+                                scene(path=self.path), None)
+        self.assertEqual(p["kind"], "llm")
+
+    def test_ambiguous_exact_hits_fall_back(self):
+        tp = FakeTPDB([jav_hit("CAWD-910", title="One"), jav_hit("CAWD-910", title="Two")])
+        p = main.identify_scene(FakeStash(), FakeLLM({"title": "T", "query": ""}),
+                                scene(path=self.path), tp)
+        self.assertEqual(p["kind"], "llm")
+
+    def test_tpdb_failure_is_transient(self):
+        with self.assertRaises(main.TransientError):
+            main.identify_scene(FakeStash(), NO_LLM, scene(path=self.path),
+                                FakeTPDB(urllib.error.URLError("down")))
+
+    def test_stashdb_failure_is_transient(self):
+        with self.assertRaises(main.TransientError):
+            main.identify_scene(FakeStash({STASHDB: RuntimeError("down")}), NO_LLM,
+                                scene(path=self.path), FakeTPDB([]))
+
+    def test_tpdb_jav_apply_resolves_by_name(self):
+        st = FakeStash()
+        p = main.identify_scene(st, NO_LLM, scene(path=self.path, duration=7519.0),
+                                FakeTPDB([jav_hit("CAWD-910")]))
+        main.apply(st, scene(path=self.path), p, skip_tag_ids=set())
+        self.assertEqual(st.created, [("studio", {"name": "Kawaii"}),
+                                      ("performer", {"name": "Kurea Hasumi"})])
+        up = st.updates[0]
+        self.assertEqual((up["title"], up["code"]), ("CAWD-910 - Some Title", "CAWD-910"))
+        self.assertEqual((up["studio_id"], up["performer_ids"]), ("s-Kawaii", ["p-Kurea Hasumi"]))
+        self.assertEqual(up["stash_ids"], [])
+
+
 class ApplyTest(unittest.TestCase):
     def test_scrape_resolves_by_stash_id_then_creates(self):
         known = {"id": "1019", "name": "Kattie Gold", "alias_list": ["Vivian"], "sids": []}
@@ -196,6 +282,20 @@ class FormatLineTest(unittest.TestCase):
         prop = {"kind": "llm", "parse": {"title": "Guess", "studio": "S"}, "confidence": None}
         line = main.format_line(scene(), prop)
         self.assertIn("'Guess'", line)
+
+    def test_tpdb_jav_line_shows_source_and_delta(self):
+        prop = main.identify_scene(FakeStash(), NO_LLM,
+                                   scene(path="/media/Vault/CAWD-910.mp4", duration=7519.0),
+                                   FakeTPDB([jav_hit("CAWD-910")]))
+        line = main.format_line(scene(path="/media/Vault/CAWD-910.mp4"), prop)
+        self.assertIn("tpdb-jav (code)", line)
+        self.assertIn("Δ+281s", line)
+
+    def test_unknown_delta_does_not_crash(self):
+        prop = main.identify_scene(FakeStash({STASHDB: [scraped("IPZZ-795", "Idea Pocket",
+                                                                duration=None, code="IPZZ-795")]}),
+                                   NO_LLM, scene(path="/media/Vault/IPZZ-795.mp4"), None)
+        self.assertIn("Δ?", main.format_line(scene(), prop))
 
 
 class StashLookupTest(unittest.TestCase):

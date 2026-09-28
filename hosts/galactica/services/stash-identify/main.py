@@ -1,7 +1,9 @@
 """stash-identify: scan, generate and identify new Stash files, then fill bare scenes
-from an LLM filename parse, confirmed against stash-box where possible.
+from an LLM filename parse, confirmed against stash-box where possible. JAV files are
+looked up by product code first, and replace earlier LLM guesses.
 
 Design: docs/superpowers/specs/2026-09-27-stash-llm-identify-design.md
+JAV:    docs/superpowers/specs/2026-09-28-stash-identify-jav-design.md
 """
 import argparse
 import json
@@ -17,8 +19,10 @@ import urllib.error
 import match
 from llm import OpenRouter
 from stash import JobFailed, Stash
+from tpdb import JAV_URL as TPDB_JAV, TPDBJav
 
-BOXES = ["https://theporndb.net/graphql", "https://stashdb.org/graphql"]  # preference order
+STASHDB = "https://stashdb.org/graphql"
+BOXES = ["https://theporndb.net/graphql", STASHDB]  # preference order
 PER_BOX = 6
 LLM_TAG = "llm-identified"
 LIBRARY_HOST = "/mnt/storage/media/Vault"
@@ -44,14 +48,52 @@ class TransientError(RuntimeError):
 TRANSIENT = (TransientError, urllib.error.URLError, TimeoutError, ConnectionError)
 
 
-def identify_scene(stash, llm, scene):
-    """Propose metadata for one bare scene. Raises if the parse, a stash-box search, or
-    the Jev call fails: those are transient failures, and run_pass must retry the scene
-    next pass rather than record a downgraded llm-only guess that would lose a possible
-    scrape for good. Only downgrades to llm-only when every search succeeded and turned
-    up nothing usable (or Jev affirmatively picked none). A search or Jev failure raises
-    TransientError specifically; a malformed LLM parse reply (llm.parse's own ValueError)
-    is scene-specific and propagates as-is."""
+def jav_prop(stash, tpdb, scene):
+    """A "scrape" proposal for a file named by a JAV code, or None (no code, or no exact
+    hit). StashDB first, for its stash_ids and tags; then ThePornDB's JAV database. The
+    code is the identity check, so there's no duration gate: TPDB lists JAV durations in
+    whole minutes, and multi-part files share one code. A failed lookup raises
+    TransientError rather than letting the scene fall through to a guess."""
+    f = scene["files"][0]
+    code = match.jav_code(rel_path(f["path"]))
+    if not code:
+        return None
+    key = match.code_key(code)
+    try:
+        hits = stash.search(STASHDB, code)
+    except Exception as e:
+        raise TransientError(f"scene {scene['id']}: search {STASHDB} failed: {e}") from e
+    chosen = match.single_scene([c for c in hits if match.code_key(c.get("code")) == key])
+    ep, source = STASHDB, "stashdb"
+    if chosen is None and tpdb:
+        try:
+            hits = tpdb.jav_search(code)
+        except Exception as e:
+            raise TransientError(f"scene {scene['id']}: TPDB JAV search failed: {e}") from e
+        chosen = match.single_scene([match.tpdb_jav_scene(h) for h in hits
+                                     if match.code_key(h.get("external_id")) == key])
+        ep, source = TPDB_JAV, "tpdb-jav"
+    if chosen is None:
+        return None
+    d = chosen.get("duration")
+    return {"kind": "scrape", "rule": "code", "source": source, "parse": None,
+            "primary": chosen, "primary_endpoint": ep, "confidence": None,
+            "stash_ids": match.stash_ids_for(ep, chosen.get("remote_site_id")),
+            "delta": round(d - f["duration"]) if d else None}
+
+
+def identify_scene(stash, llm, scene, tpdb=None):
+    """Propose metadata for one bare scene. A JAV-coded file is looked up by its code
+    first (jav_prop), and only reaches the LLM if that finds nothing. Raises if the
+    parse, a stash-box search, or the Jev call fails: those are transient failures, and
+    run_pass must retry the scene next pass rather than record a downgraded llm-only
+    guess that would lose a possible scrape for good. Only downgrades to llm-only when
+    every search succeeded and turned up nothing usable (or Jev affirmatively picked
+    none). A search or Jev failure raises TransientError specifically; a malformed LLM
+    parse reply (llm.parse's own ValueError) is scene-specific and propagates as-is."""
+    prop = jav_prop(stash, tpdb, scene)
+    if prop:
+        return prop
     f = scene["files"][0]
     path, duration = rel_path(f["path"]), f["duration"]
     parse = llm.parse(path)
@@ -146,11 +188,13 @@ def format_line(scene, prop):
     head = f"[{scene['id']}] {rel_path(scene['files'][0]['path'])}"
     if prop["kind"] == "scrape":
         p = prop["primary"]
-        src = "+".join(sorted({s["endpoint"].split("/")[2].split(".")[-2] for s in prop["stash_ids"]}))
+        src = prop.get("source") or "+".join(
+            sorted({s["endpoint"].split("/")[2].split(".")[-2] for s in prop["stash_ids"]}))
         conf = f" conf={prop['confidence']:.2f}" if prop["confidence"] is not None else ""
         perf = ", ".join(x["name"] for x in p.get("performers") or [])
+        delta = f"Δ{prop['delta']:+d}s" if prop["delta"] is not None else "Δ?"
         body = (f"{src} ({prop['rule']}{conf}) | {p.get('title')!r} | {match.studio_name(p)} | "
-                f"{perf or '-'} | Δ{prop['delta']:+d}s")
+                f"{perf or '-'} | {delta}")
     elif prop["kind"] == "llm":
         q = prop["parse"]
         body = (f"llm-only | {match.display_title(q)!r} | {q.get('studio') or '-'} | "
@@ -225,7 +269,7 @@ def skip_tags(defaults):
 
 
 def run_pass(stash, llm, state, defaults, paths, *, jobs=True, dry_run=False, limit=None,
-             scene_ids=None):
+             scene_ids=None, tpdb=None):
     """One pass. paths=None means the whole library (the sweep). jobs=False skips Stash's
     scan/generate/identify; scene_ids processes exactly those scenes, ignoring state."""
     if jobs and not dry_run:
@@ -252,7 +296,7 @@ def run_pass(stash, llm, state, defaults, paths, *, jobs=True, dry_run=False, li
     drop = skip_tags(defaults)
     for scene in todo:
         try:
-            prop = identify_scene(stash, llm, scene)
+            prop = identify_scene(stash, llm, scene, tpdb)
             print(format_line(scene, prop), flush=True)
             if dry_run:
                 continue
@@ -324,7 +368,7 @@ def next_action(debouncer, last_sweep, now):
     return None
 
 
-def watch(stash, llm, state):
+def watch(stash, llm, state, tpdb):
     exts = {e.lower() for e in stash.video_extensions()}
     proc = subprocess.Popen(
         ["inotifywait", "-m", "-r", "-q", "-e", "close_write,moved_to",
@@ -341,7 +385,7 @@ def watch(stash, llm, state):
 
     def safe_pass(paths):
         try:
-            run_pass(stash, llm, state, stash.defaults(), paths)
+            run_pass(stash, llm, state, stash.defaults(), paths, tpdb=tpdb)
         except Exception as e:
             log(f"pass failed: {e}")
 
@@ -380,7 +424,10 @@ def clients():
                      os.environ.get("PARSE_MODEL", "~deepseek/deepseek-flash-latest"),
                      os.environ.get("JEV_MODEL", "typesafe/jev-1.13"))
     state = State(os.environ.get("STATE_FILE", "/var/lib/stash-identify/attempted.json"))
-    return stash, llm, state
+    key = stash.tpdb_api_key()
+    if not key:
+        log("no ThePornDB key in Stash's stash-box config; JAV lookup uses StashDB only")
+    return stash, llm, state, TPDBJav(key) if key else None
 
 
 def main(argv):
@@ -393,13 +440,13 @@ def main(argv):
                      help="only this scene ID (repeatable); ignores the state file")
     sub.add_parser("watch", help="the service: watch the library, sweep daily")
     args = ap.parse_args(argv)
-    stash, llm, state = clients()
+    stash, llm, state, tpdb = clients()
     if args.cmd == "run":
         # A manual run never scans; it only does the LLM step.
         run_pass(stash, llm, state, stash.defaults(), None, jobs=False, dry_run=args.dry_run,
-                 limit=args.limit, scene_ids=args.scenes)
+                 limit=args.limit, scene_ids=args.scenes, tpdb=tpdb)
     if args.cmd == "watch":
-        watch(stash, llm, state)
+        watch(stash, llm, state, tpdb)
     return 0
 
 
