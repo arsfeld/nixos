@@ -135,19 +135,26 @@ comes back as base64) and the stash_ids of both are kept.
 - Studio: use `stored_id` if Stash already matched it. Otherwise create it with
   name, urls, image, aliases and the endpoint stash_id. The parent studio is linked if it
   already exists (not created).
-- Performers: use `stored_id` where present. Otherwise create them with every field
-  returned (disambiguation, gender, birthdate, country, ethnicity, measurements, height,
+- Performers: **never** use Stash's `stored_id`, because it matches by alias. The Lustery
+  performer "Vivian" came back as #1019 Kattie Gold, one of whose 34 aliases is "Vivian".
+  Resolve by the scraped performer's stash-box ID, then by exact name, and otherwise
+  create them with every field returned (disambiguation, gender, birthdate, country, ethnicity, measurements, height,
   aliases, urls, details, …), the first entry of `images` as the image, and the endpoint
   stash_id.
 - Tags: link those with a `stored_id`. Tags Stash doesn't know are skipped, not created,
   so the tag list doesn't balloon.
 
-**LLM-only:** title; the studio and performers matched by name, then by alias,
+**LLM-only:** title; the studio and performers matched by name, then by alias
+(for performers, alias matches only for names of two or more words),
 case-insensitive (`findStudios`/`findPerformers`); anything unmatched is created by
 name only. No cover, no date. The scene gets the tag **`llm-identified`** (created if
 missing), so guesses can be filtered for in Stash and checked or fixed later.
 
 **Always:** only empty fields are filled. Nothing already set on a scene is overwritten.
+The exception is the cover on a scrape match, which replaces the screenshot generated
+at scan time (the same thing Identify's `setCoverImage` does). A scrape match also removes
+Identify's skip tag (`SKIP`, #1398), which it adds to scenes it matched but refused because
+of single-name performers. 19 of the bare scenes carry it today.
 Existing performers and studios are linked, never edited.
 
 ## Manual runs
