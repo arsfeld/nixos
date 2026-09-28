@@ -7,6 +7,7 @@ import urllib.error
 
 import main
 import stash as stash_mod
+import tpdb
 
 TPDB, STASHDB = main.BOXES
 
@@ -239,6 +240,48 @@ class StashLookupTest(unittest.TestCase):
         exact_call = next(q for q, v in calls if "studio_filter" in q)
         self.assertIn("modifier: EQUALS", exact_call)
         self.assertIn("per_page: -1", exact_call)
+
+
+class ClientTest(unittest.TestCase):
+    def test_tpdb_jav_search_sends_key_and_returns_data(self):
+        seen = {}
+
+        def fake_get_json(url, headers=None, timeout=120):
+            seen.update(url=url, headers=headers)
+            return {"data": [{"external_id": "cawd-910"}]}
+        orig = tpdb.get_json
+        tpdb.get_json = fake_get_json
+        try:
+            hits = tpdb.TPDBJav("k").jav_search("CAWD-910")
+        finally:
+            tpdb.get_json = orig
+        self.assertEqual(hits, [{"external_id": "cawd-910"}])
+        self.assertEqual(seen["url"], "https://api.theporndb.net/jav?q=CAWD-910&per_page=10")
+        self.assertEqual(seen["headers"]["Authorization"], "Bearer k")
+        self.assertIn("User-Agent", seen["headers"])
+
+    def test_tpdb_api_key_from_stash_box_config(self):
+        s = stash_mod.Stash("http://x/graphql")
+        s.gql = lambda q, **v: {"configuration": {"general": {"stashBoxes": [
+            {"endpoint": "https://stashdb.org/graphql", "api_key": "sdb"},
+            {"endpoint": "https://theporndb.net/graphql", "api_key": "tp"}]}}}
+        self.assertEqual(s.tpdb_api_key(), "tp")
+        s.gql = lambda q, **v: {"configuration": {"general": {"stashBoxes": []}}}
+        self.assertIsNone(s.tpdb_api_key())
+
+    def test_scenes_with_tag_filters_by_tag(self):
+        s = stash_mod.Stash("http://x/graphql")
+        calls = []
+
+        def fake_gql(query, **variables):
+            calls.append((query, variables))
+            return {"findScenes": {"scenes": [{"id": "20"}]}}
+        s.gql = fake_gql
+        self.assertEqual(s.scenes_with_tag("77"), [{"id": "20"}])
+        query, variables = calls[0]
+        self.assertIn("tags:", query)
+        self.assertIn("INCLUDES", query)
+        self.assertEqual(variables, {"t": ["77"]})
 
 
 class PathTest(unittest.TestCase):

@@ -81,6 +81,13 @@ class Stash:
         q = "{ configuration { general { videoExtensions } } }"
         return self.gql(q)["configuration"]["general"]["videoExtensions"]
 
+    def tpdb_api_key(self):
+        """The key Stash holds for ThePornDB's stash-box, reused for its JAV API."""
+        q = "{ configuration { general { stashBoxes { endpoint api_key } } } }"
+        boxes = self.gql(q)["configuration"]["general"]["stashBoxes"]
+        return next((b["api_key"] for b in boxes
+                     if "theporndb" in b["endpoint"] and b.get("api_key")), None)
+
     # --- jobs ----------------------------------------------------------------
 
     def _run_job(self, mutation, inp):
@@ -132,6 +139,12 @@ class Stash:
         d = self.gql(f'{{ findScenes(scene_filter: {{is_missing: "title"}}, filter: {{per_page: -1}}) '
                      f'{{ scenes {{ {SCENE_FIELDS} }} }} }}')
         return [s for s in d["findScenes"]["scenes"] if not s["studio"] and not s["performers"]]
+
+    def scenes_with_tag(self, tag_id):
+        d = self.gql(f"""query($t: [ID!]) {{ findScenes(
+              scene_filter: {{tags: {{value: $t, modifier: INCLUDES}}}}, filter: {{per_page: -1}})
+              {{ scenes {{ {SCENE_FIELDS} }} }} }}""", t=[tag_id])
+        return d["findScenes"]["scenes"]
 
     def search(self, endpoint, query):
         d = self.gql(f"""query($s: ScraperSourceInput!, $i: ScrapeSingleSceneInput!) {{
