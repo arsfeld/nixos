@@ -148,11 +148,15 @@ comes back as base64) and the stash_ids of both are kept.
 - Tags: link those with a `stored_id`. Tags Stash doesn't know are skipped, not created,
   so the tag list doesn't balloon.
 
-**LLM-only:** title; the studio and performers matched by name, then by alias
+**LLM-only:** title -- the parsed title when there is one, otherwise a "Creator – date"
+style fallback built by `match.display_title` from the series/studio/performer plus the
+parsed date, time or a filename clip ID (never a bare creator name with nothing to
+distinguish it); the studio and performers matched by name, then by alias
 (for performers, alias matches only for names of two or more words),
 case-insensitive (`findStudios`/`findPerformers`); anything unmatched is created by
-name only. No cover, no date. The scene gets the tag **`llm-identified`** (created if
-missing), so guesses can be filtered for in Stash and checked or fixed later.
+name only. The parsed date is filled when the scene has none. No cover. The scene gets
+the tag **`llm-identified`** (created if missing), so guesses can be filtered for in
+Stash and checked or fixed later.
 
 **Always:** only empty fields are filled. Nothing already set on a scene is overwritten.
 The exception is the cover on a scrape match, which replaces the screenshot generated

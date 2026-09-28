@@ -134,6 +134,77 @@ class UpdateTest(unittest.TestCase):
         self.assertEqual(up, {"id": "5", "title": "Guess", "studio_id": "3",
                               "performer_ids": ["4"], "tag_ids": ["1398", "9", "77"]})
 
+    def test_llm_update_fills_date(self):
+        up = match.llm_update(self.scene, {"title": "Guess", "date": "2026-01-02"},
+                              None, [], "77")
+        self.assertEqual(up["date"], "2026-01-02")
+
+    def test_llm_update_does_not_overwrite_existing_date(self):
+        scene = {**self.scene, "date": "2020-01-01"}
+        up = match.llm_update(scene, {"title": "Guess", "date": "2026-01-02"}, None, [], "77")
+        self.assertNotIn("date", up)
+
+    def test_llm_update_uses_display_title_fallback(self):
+        up = match.llm_update(self.scene, {"title": None, "studio": "X", "date": "2026-01-02"},
+                              "3", [], "77")
+        self.assertEqual(up["title"], "X – 2026-01-02")
+        self.assertEqual(up["date"], "2026-01-02")
+
+    def test_llm_update_no_title_when_nothing_to_build_with(self):
+        up = match.llm_update(self.scene, {"title": None, "studio": "X"}, "3", [], "77")
+        self.assertNotIn("title", up)
+
+
+class DisplayTitleTest(unittest.TestCase):
+    def test_real_title_returned_unchanged(self):
+        self.assertEqual(match.display_title(
+            {"title": "Sex Magic", "studio": "Erika Lust", "date": "2024-01-01"}), "Sex Magic")
+
+    def test_studio_and_date(self):
+        self.assertEqual(match.display_title(
+            {"title": None, "studio": "RealCollegeGirls", "date": "2025-10-11"}),
+            "RealCollegeGirls – 2025-10-11")
+
+    def test_studio_date_and_time(self):
+        self.assertEqual(match.display_title(
+            {"title": None, "studio": "MoonKittenBBL", "date": "2021-06-16", "time": "21:11"}),
+            "MoonKittenBBL – 2021-06-16 21:11")
+
+    def test_series_and_clip_id(self):
+        self.assertEqual(match.display_title(
+            {"title": None, "series": "College Fun 2004", "studio": "RealCollegeGirls",
+             "clip_id": "2508-02"}),
+            "College Fun 2004 – 2508-02")
+
+    def test_series_and_performer(self):
+        self.assertEqual(match.display_title(
+            {"title": None, "series": "College Fun 2004", "studio": "RealCollegeGirls",
+             "performers": ["LilMissFerg"]}),
+            "College Fun 2004 – LilMissFerg")
+
+    def test_nothing_to_build_with_is_none(self):
+        self.assertIsNone(match.display_title({"title": None, "studio": "X"}))
+
+    def test_performer_only_base(self):
+        self.assertEqual(match.display_title(
+            {"title": None, "performers": ["Sofia Young"], "date": "2021-06-16"}),
+            "Sofia Young – 2021-06-16")
+
+    def test_studio_and_clip_id_no_date(self):
+        self.assertEqual(match.display_title(
+            {"title": None, "studio": "X", "clip_id": "abc-1"}), "X – abc-1")
+
+    def test_studio_base_with_only_performers_is_none(self):
+        # The performer-name fallback only applies when base came from "series".
+        self.assertIsNone(match.display_title(
+            {"title": None, "studio": "X", "performers": ["Someone"]}))
+
+    def test_date_and_time_beat_clip_id(self):
+        self.assertEqual(match.display_title(
+            {"title": None, "studio": "X", "date": "2024-01-01", "time": "10:00",
+             "clip_id": "ignored"}),
+            "X – 2024-01-01 10:00")
+
 
 class JevTest(unittest.TestCase):
     def test_request_and_pick(self):

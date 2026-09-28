@@ -188,11 +188,44 @@ def scrape_update(scene, primary, stash_ids, studio_id, performer_ids, tag_ids, 
     return up
 
 
+def display_title(parse):
+    """A scene title for an LLM parse, or None if there's nothing usable.
+
+    Returns the parsed title unchanged when there is one. Otherwise, for a filename with
+    no real title, builds a "Creator - date" style fallback: base is the series, studio,
+    or first performer (in that order); suffix is date+time, date, a clip_id, or -- only
+    when base came from a series -- the first performer's name. No suffix means no title:
+    a bare creator name on its own isn't worth writing.
+    """
+    if parse.get("title"):
+        return parse["title"]
+    performers = parse.get("performers") or []
+    series = parse.get("series")
+    base = series or parse.get("studio") or (performers[0] if performers else None)
+    if not base:
+        return None
+    date, time, clip_id = parse.get("date"), parse.get("time"), parse.get("clip_id")
+    if date and time:
+        suffix = f"{date} {time}"
+    elif date:
+        suffix = date
+    elif clip_id:
+        suffix = clip_id
+    elif series and performers:
+        suffix = performers[0]
+    else:
+        suffix = None
+    return f"{base} – {suffix}" if suffix else None
+
+
 def llm_update(scene, parse, studio_id, performer_ids, llm_tag_id):
     """SceneUpdateInput for an unconfirmed filename guess, tagged for later review."""
     up = {"id": scene["id"]}
-    if parse.get("title") and not scene.get("title"):
-        up["title"] = parse["title"]
+    title = display_title(parse)
+    if title and not scene.get("title"):
+        up["title"] = title
+    if parse.get("date") and not scene.get("date"):
+        up["date"] = parse["date"]
     if studio_id and not scene.get("studio"):
         up["studio_id"] = studio_id
     up["performer_ids"] = _merge(_ids(scene.get("performers")), performer_ids)

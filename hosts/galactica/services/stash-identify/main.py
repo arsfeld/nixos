@@ -57,7 +57,7 @@ def identify_scene(stash, llm, scene):
     parse = llm.parse(path)
     prop = {"kind": "none", "rule": None, "parse": parse, "primary": None,
             "primary_endpoint": None, "stash_ids": [], "confidence": None, "delta": None}
-    if parse.get("title") or parse.get("studio") or parse.get("performers"):
+    if match.display_title(parse) or parse.get("studio") or parse.get("performers"):
         prop["kind"] = "llm"
 
     everything = []
@@ -153,7 +153,7 @@ def format_line(scene, prop):
                 f"{perf or '-'} | Δ{prop['delta']:+d}s")
     elif prop["kind"] == "llm":
         q = prop["parse"]
-        body = (f"llm-only | {q.get('title')!r} | {q.get('studio') or '-'} | "
+        body = (f"llm-only | {match.display_title(q)!r} | {q.get('studio') or '-'} | "
                 f"{', '.join(q.get('performers') or []) or '-'}")
     else:
         body = "nothing found"

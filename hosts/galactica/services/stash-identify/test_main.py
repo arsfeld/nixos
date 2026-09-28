@@ -114,6 +114,13 @@ class IdentifyTest(unittest.TestCase):
         p = main.identify_scene(FakeStash(), FakeLLM({"query": ""}), scene())
         self.assertEqual(p["kind"], "none")
 
+    def test_series_and_date_without_studio_or_title_is_llm(self):
+        # No title, studio or performers, but display_title can still build a fallback
+        # name from series + date -- that must count as a proposal, not "none".
+        parse = {"series": "College Fun 2004", "date": "2025-01-01", "query": ""}
+        p = main.identify_scene(FakeStash(), FakeLLM(parse), scene())
+        self.assertEqual(p["kind"], "llm")
+
     def test_parse_failure_propagates(self):
         with self.assertRaises(ValueError):
             main.identify_scene(FakeStash(), FakeLLM(ValueError("bad")), scene())
@@ -175,6 +182,19 @@ class ApplyTest(unittest.TestCase):
         st = FakeStash()
         main.apply(st, scene(), {"kind": "none"}, skip_tag_ids=set())
         self.assertEqual((st.updates, st.created), ([], []))
+
+
+class FormatLineTest(unittest.TestCase):
+    def test_llm_only_shows_display_title_fallback(self):
+        prop = {"kind": "llm", "parse": {"title": None, "studio": "RealCollegeGirls",
+                                         "date": "2025-10-11"}, "confidence": None}
+        line = main.format_line(scene(), prop)
+        self.assertIn("RealCollegeGirls – 2025-10-11", line)
+
+    def test_llm_only_shows_real_title_unchanged(self):
+        prop = {"kind": "llm", "parse": {"title": "Guess", "studio": "S"}, "confidence": None}
+        line = main.format_line(scene(), prop)
+        self.assertIn("'Guess'", line)
 
 
 class StashLookupTest(unittest.TestCase):
