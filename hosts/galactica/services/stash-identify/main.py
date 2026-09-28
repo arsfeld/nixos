@@ -151,26 +151,58 @@ def to_container(host_path):
 
 
 class State:
-    """Scene IDs the LLM step has finished with, so hopeless files aren't re-billed."""
+    """Scene IDs the LLM step has finished with, so hopeless files aren't re-billed.
+
+    Also counts per-scene failures in a sibling `failures.json`, so a scene whose
+    per-scene processing keeps failing (network blip aside, see identify_scene) is
+    eventually given up on -- added to the done set -- instead of being retried, and
+    re-billed for LLM calls, forever.
+    """
+
+    FAILURE_LIMIT = 3
 
     def __init__(self, path):
         self.path = path
+        self.failures_path = os.path.join(os.path.dirname(path) or ".", "failures.json")
         try:
             with open(path) as f:
                 self.ids = set(json.load(f))
         except FileNotFoundError:
             self.ids = set()
+        try:
+            with open(self.failures_path) as f:
+                self.failures = json.load(f)
+        except FileNotFoundError:
+            self.failures = {}
 
     def __contains__(self, scene_id):
         return scene_id in self.ids
 
+    def _write(self, path, data):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path))
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f)
+        os.replace(tmp, path)
+
     def add(self, scene_id):
         self.ids.add(scene_id)
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(self.path))
-        with os.fdopen(fd, "w") as f:
-            json.dump(sorted(self.ids, key=int), f)
-        os.replace(tmp, self.path)
+        self._write(self.path, sorted(self.ids, key=int))
+
+    def fail(self, scene_id):
+        """Record a failure for scene_id. Once it reaches FAILURE_LIMIT, give up on it
+        (add it to the done set) and return True; otherwise return False."""
+        n = self.failures.get(scene_id, 0) + 1
+        self.failures[scene_id] = n
+        self._write(self.failures_path, self.failures)
+        if n >= self.FAILURE_LIMIT:
+            self.add(scene_id)
+            return True
+        return False
+
+    def clear_failures(self, scene_id):
+        if self.failures.pop(scene_id, None) is not None:
+            self._write(self.failures_path, self.failures)
 
 
 def skip_tags(defaults):
@@ -210,10 +242,27 @@ def run_pass(stash, llm, state, defaults, paths, *, jobs=True, dry_run=False, li
             print(format_line(scene, prop), flush=True)
             if dry_run:
                 continue
-            apply(stash, scene, prop, drop)
+            # Re-fetch: the LLM step can take minutes, so re-check against a fresh copy
+            # right before writing, in case the scene was edited (or identified) by hand
+            # in the meantime. An explicit --scene run means it should apply regardless.
+            fresh = stash.scenes([scene["id"]])
+            fresh = fresh[0] if fresh else scene
+            if scene_ids is None and (fresh.get("title") or fresh.get("studio")
+                                       or fresh.get("performers")):
+                log(f"[{scene['id']}] edited meanwhile, skipped")
+                state.add(scene["id"])
+                state.clear_failures(scene["id"])
+                continue
+            apply(stash, fresh, prop, drop)
             state.add(scene["id"])
+            state.clear_failures(scene["id"])
         except Exception as e:
-            log(f"  [{scene['id']}] failed, will retry next pass: {e}")
+            if dry_run:
+                log(f"  [{scene['id']}] failed, will retry next pass: {e}")
+            elif state.fail(scene["id"]):
+                log(f"giving up on [{scene['id']}] after {State.FAILURE_LIMIT} failures")
+            else:
+                log(f"  [{scene['id']}] failed, will retry next pass: {e}")
 
 
 SETTLE = 120            # seconds without events before a pass runs

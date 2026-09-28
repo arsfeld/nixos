@@ -233,7 +233,8 @@ class StateTest(unittest.TestCase):
             self.assertNotIn("5", s)
             s.add("5")
             self.assertIn("5", main.State(path))
-            self.assertEqual(json.load(open(path)), ["5"])
+            with open(path) as f:
+                self.assertEqual(json.load(f), ["5"])
 
 
 class SkipTagsTest(unittest.TestCase):
@@ -323,6 +324,44 @@ class PassTest(unittest.TestCase):
             main.run_pass(st, FakeLLM({"title": "T", "query": ""}), self.state(d), self.defaults, None)
             self.assertEqual([u["id"] for u in st.updates], ["11"])
 
+    def test_failure_cap_gives_up_after_three_failures(self):
+        st = self.PassStash([scene("11")])
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "s.json")
+            for _ in range(main.State.FAILURE_LIMIT - 1):
+                main.run_pass(st, FakeLLM(ValueError("bad")), main.State(path), self.defaults,
+                              None, jobs=False)
+                self.assertNotIn("11", main.State(path))
+            main.run_pass(st, FakeLLM(ValueError("bad")), main.State(path), self.defaults,
+                          None, jobs=False)
+            self.assertIn("11", main.State(path))
+
+    def test_failure_cap_not_counted_in_dry_run(self):
+        st = self.PassStash([scene("11")])
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "s.json")
+            for _ in range(main.State.FAILURE_LIMIT + 2):
+                main.run_pass(st, FakeLLM(ValueError("bad")), main.State(path), self.defaults,
+                              None, jobs=False, dry_run=True)
+            state = main.State(path)
+            self.assertEqual(state.failures, {})
+            self.assertNotIn("11", state)
+
+    def test_success_clears_failure_count(self):
+        st = self.PassStash([scene("11")])
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "s.json")
+            main.run_pass(st, FakeLLM(ValueError("bad")), main.State(path), self.defaults,
+                          None, jobs=False)
+            main.run_pass(st, FakeLLM(ValueError("bad")), main.State(path), self.defaults,
+                          None, jobs=False)
+            self.assertEqual(main.State(path).failures.get("11"), 2)
+            main.run_pass(st, FakeLLM({"title": "T", "query": ""}), main.State(path), self.defaults,
+                          None, jobs=False)
+            state = main.State(path)
+            self.assertIsNone(state.failures.get("11"))
+            self.assertIn("11", state)
+
     def test_scene_ids_ignore_state_and_bare_filter(self):
         st = self.PassStash([], scenes_dict={"11": scene("11"), "12": scene("12")})
 
@@ -337,6 +376,40 @@ class PassTest(unittest.TestCase):
             self.assertEqual(st.jobs, [])
             self.assertEqual([u["id"] for u in st.updates], ["12"])
             self.assertIn("12", state)  # updated even though already in state
+
+    def test_edited_meanwhile_not_applied(self):
+        # Listed bare, but a fresh re-fetch shows the scene picked up a title by other
+        # means (UI edit, a concurrent identify) while the LLM step was running.
+        st = self.PassStash([scene("11")], scenes_dict={"11": scene("11", title="Already Titled")})
+        with tempfile.TemporaryDirectory() as d:
+            state = self.state(d)
+            main.run_pass(st, FakeLLM({"title": "T", "query": ""}), state, self.defaults,
+                          None, jobs=False)
+            self.assertEqual(st.updates, [])
+            self.assertIn("11", state)
+
+    def test_apply_uses_freshly_refetched_scene(self):
+        stale = scene("11", tags=[{"id": "stale-tag"}])
+        fresh = scene("11", tags=[{"id": "fresh-tag"}])
+        st = self.PassStash([stale], scenes_dict={"11": fresh})
+        with tempfile.TemporaryDirectory() as d:
+            state = self.state(d)
+            main.run_pass(st, FakeLLM({"title": "T", "query": ""}), state, self.defaults,
+                          None, jobs=False)
+            self.assertEqual(len(st.updates), 1)
+            self.assertEqual(st.updates[0]["tag_ids"], ["fresh-tag", "t-llm-identified"])
+            self.assertIn("11", state)
+
+    def test_explicit_scene_run_applies_even_if_edited_meanwhile(self):
+        # --scene ID is an explicit ask; it should not be silently skipped.
+        edited = scene("11", title="Existing Title")
+        st = self.PassStash([], scenes_dict={"11": edited})
+        with tempfile.TemporaryDirectory() as d:
+            state = self.state(d)
+            main.run_pass(st, FakeLLM({"title": "T", "query": ""}), state, self.defaults,
+                          None, jobs=False, scene_ids=["11"])
+            self.assertEqual(len(st.updates), 1)
+            self.assertIn("11", state)
 
 
 class DebouncerTest(unittest.TestCase):
