@@ -68,6 +68,12 @@ def jav_prop(stash, tpdb, scene):
     if chosen is None and tpdb:
         try:
             hits = tpdb.jav_search(code)
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                log(f"scene {scene['id']}: ThePornDB refused the key ({e.code}); treating as a miss")
+                hits = []
+            else:
+                raise TransientError(f"scene {scene['id']}: TPDB JAV search failed: {e}") from e
         except Exception as e:
             raise TransientError(f"scene {scene['id']}: TPDB JAV search failed: {e}") from e
         chosen = match.single_scene([match.tpdb_jav_scene(h) for h in hits
@@ -267,9 +273,10 @@ class State:
 def is_upgrade(scene, llm_tag_id):
     """An earlier LLM guess on a file named by a JAV code: re-checked every pass (lookup
     only, never the LLM) and overwritten once the code is found. Removing the tag in the
-    UI opts a scene out."""
+    UI opts a scene out. A scene with no files (shouldn't happen, but tags aren't proof
+    of a file) is never an upgrade."""
     tags = {t["id"] for t in scene.get("tags") or []}
-    return bool(llm_tag_id) and llm_tag_id in tags and \
+    return bool(llm_tag_id) and llm_tag_id in tags and bool(scene.get("files")) and \
         match.jav_code(rel_path(scene["files"][0]["path"])) is not None
 
 

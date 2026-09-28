@@ -225,6 +225,25 @@ class JavIdentifyTest(unittest.TestCase):
             main.identify_scene(FakeStash({STASHDB: RuntimeError("down")}), NO_LLM,
                                 scene(path=self.path), FakeTPDB([]))
 
+    def test_tpdb_auth_failure_is_a_miss_not_transient(self):
+        logs = []
+        orig_log = main.log
+        main.log = lambda *a: logs.append(" ".join(str(x) for x in a))
+        try:
+            tp = FakeTPDB(urllib.error.HTTPError("url", 401, "Unauthorized", None, None))
+            p = main.identify_scene(FakeStash(), FakeLLM({"title": "T", "query": ""}),
+                                    scene(path=self.path), tp)
+        finally:
+            main.log = orig_log
+        self.assertEqual(p["kind"], "llm")
+        self.assertEqual(len(logs), 1)
+        self.assertIn("ThePornDB", logs[0])
+
+    def test_tpdb_server_error_is_still_transient(self):
+        tp = FakeTPDB(urllib.error.HTTPError("url", 500, "Server Error", None, None))
+        with self.assertRaises(main.TransientError):
+            main.identify_scene(FakeStash(), NO_LLM, scene(path=self.path), tp)
+
     def test_tpdb_jav_apply_resolves_by_name(self):
         st = FakeStash()
         p = main.identify_scene(st, NO_LLM, scene(path=self.path, duration=7519.0),
@@ -411,6 +430,12 @@ class SkipTagsTest(unittest.TestCase):
                                       "skipSingleNamePerformerTag": "1398"}}}
         self.assertEqual(main.skip_tags(d), {"1398"})
         self.assertEqual(main.skip_tags({"identify": {}}), set())
+
+
+class IsUpgradeTest(unittest.TestCase):
+    def test_tagged_scene_with_no_files_is_not_an_upgrade(self):
+        s = scene(tags=[{"id": "t-llm-identified"}], files=[])
+        self.assertFalse(main.is_upgrade(s, "t-llm-identified"))
 
 
 class PassTest(unittest.TestCase):
