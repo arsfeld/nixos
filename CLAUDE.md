@@ -617,7 +617,7 @@ Opt-in feature modules that hosts compose. Key modules:
 
 Host-local modules (see the rule above): galactica —
 `backup/rustic.nix`, and under `services/` `pia`, `opencloud`, `home-assistant`,
-`tablet-sync`, `vpn-exit-nodes`, `immich-pixel-sync/`, `media-apps`, `media-automation`,
+`tablet-sync`, `vpn-exit-nodes`, `immich-pixel-sync/`, `stash-identify/`, `media-apps`, `media-automation`,
 `media-streaming`, `home-apps`, `network-tools`; basestar — `k3s.nix`, `sites/`;
 raider — `docker.nix`, `project-vms.nix`, `weekly-update.nix`; pegasus — `media-sync.nix`.
 

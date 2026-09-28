@@ -35,6 +35,7 @@
     ./opencloud.nix
     ./pia.nix
     ./qbittorrent-vpn.nix
+    ./stash-identify
     ./tablet-sync.nix
     ./transmission-vpn.nix
     ./nfs.nix
