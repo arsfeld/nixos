@@ -242,6 +242,16 @@ def changed_dir(line, video_exts):
     return None
 
 
+def next_action(debouncer, last_sweep, now):
+    """Decide what to do: ("pass", dirs), ("sweep", None), or None."""
+    dirs = debouncer.ready(now)
+    if dirs:
+        return ("pass", dirs)
+    if last_sweep == 0.0 or now - last_sweep >= SWEEP_EVERY:
+        return ("sweep", None)
+    return None
+
+
 def watch(stash, llm, state):
     exts = {e.lower() for e in stash.video_extensions()}
     proc = subprocess.Popen(
@@ -257,24 +267,31 @@ def watch(stash, llm, state):
                 events.put(d)
     threading.Thread(target=reader, daemon=True).start()
 
+    def safe_pass(paths):
+        try:
+            run_pass(stash, llm, state, stash.defaults(), paths)
+        except Exception as e:
+            log(f"pass failed: {e}")
+
     debouncer, last_sweep = Debouncer(SETTLE), 0.0   # 0 => sweep at startup (backfill)
     while True:
         if proc.poll() is not None:
             raise RuntimeError(f"inotifywait exited with {proc.returncode}")
         try:
             debouncer.add(events.get(timeout=10), time.monotonic())
-            continue
         except queue.Empty:
             pass
         now = time.monotonic()
-        dirs = debouncer.ready(now)
-        if dirs:
-            log(f"changed: {sorted(dirs)}")
-            run_pass(stash, llm, state, stash.defaults(), sorted(dirs))
-        elif now - last_sweep >= SWEEP_EVERY or last_sweep == 0.0:
-            log("sweep")
-            run_pass(stash, llm, state, stash.defaults(), None)
-            last_sweep = time.monotonic()
+        action = next_action(debouncer, last_sweep, now)
+        if action:
+            action_type, data = action
+            if action_type == "pass":
+                log(f"changed: {sorted(data)}")
+                safe_pass(sorted(data))
+            elif action_type == "sweep":
+                log("sweep")
+                safe_pass(None)
+                last_sweep = time.monotonic()
 
 
 def openrouter_key():

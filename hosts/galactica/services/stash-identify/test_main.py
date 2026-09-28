@@ -293,5 +293,38 @@ class ChangedDirTest(unittest.TestCase):
         self.assertIsNone(main.changed_dir("garbage", self.exts))
 
 
+class NextActionTest(unittest.TestCase):
+    def test_startup_triggers_sweep(self):
+        # Startup with last_sweep == 0.0 should trigger sweep immediately
+        d = main.Debouncer(quiet=120)
+        action = main.next_action(d, 0.0, 100.0)
+        self.assertEqual(action, ("sweep", None))
+
+    def test_pending_dirs_after_quiet_triggers_pass(self):
+        # After quiet period, pending dirs should trigger a pass
+        d = main.Debouncer(quiet=120)
+        d.add("/dir/a", 0.0)
+        d.add("/dir/b", 50.0)
+        action = main.next_action(d, 50.0, 170.1)  # 120.1s after last event
+        self.assertEqual(action[0], "pass")
+        self.assertEqual(action[1], {"/dir/a", "/dir/b"})
+
+    def test_nothing_due_returns_none(self):
+        # No events and no sweep due = None
+        d = main.Debouncer(quiet=120)
+        action = main.next_action(d, 100.0, 200.0)  # 100s after last sweep, no pending
+        self.assertIsNone(action)
+
+    def test_sweep_not_starved_by_pending_events(self):
+        # Even if debouncer has pending dirs that aren't quiet yet,
+        # sweep should fire if SWEEP_EVERY has passed
+        d = main.Debouncer(quiet=120)
+        now = 100000.0
+        last_sweep = now - main.SWEEP_EVERY - 1  # sweep is due
+        d.add("/dir/a", now - 10.0)  # event 10s ago, not quiet yet
+        action = main.next_action(d, last_sweep, now)
+        self.assertEqual(action, ("sweep", None))
+
+
 if __name__ == "__main__":
     unittest.main()
