@@ -50,6 +50,17 @@ def strip_nulls(v):
     return v
 
 
+def _dedupe_by_id(*groups):
+    """Concatenate record lists, keeping the first occurrence of each id."""
+    seen, out = set(), []
+    for group in groups:
+        for r in group:
+            if r["id"] not in seen:
+                seen.add(r["id"])
+                out.append(r)
+    return out
+
+
 class Stash:
     def __init__(self, url, api_key=None):
         self.url = url
@@ -144,14 +155,25 @@ class Stash:
         return self._by_stash_id("Studio", endpoint, stash_id)
 
     def performers_like(self, name):
-        d = self.gql("""query($q: String!) { findPerformers(filter: {q: $q, per_page: 50})
-              { performers { id name alias_list } } }""", q=name)
-        return d["findPerformers"]["performers"]
+        # The q= search is a fuzzy full-text search capped at 50 hits and not ordered by
+        # relevance, so it can miss a performer by their own exact name entirely (seen for
+        # "Be", "Ro", ...), which then makes resolve_performer create a duplicate every
+        # pass. An exact-name lookup alongside it closes that gap; q= is kept for alias
+        # matching, which an exact-name filter can't do.
+        exact = self.gql("""query($n: String!) { findPerformers(
+              performer_filter: {name: {value: $n, modifier: EQUALS}}, filter: {per_page: -1})
+              { performers { id name alias_list } } }""", n=name)["findPerformers"]["performers"]
+        fuzzy = self.gql("""query($q: String!) { findPerformers(filter: {q: $q, per_page: 50})
+              { performers { id name alias_list } } }""", q=name)["findPerformers"]["performers"]
+        return _dedupe_by_id(exact, fuzzy)
 
     def studios_like(self, name):
-        d = self.gql("""query($q: String!) { findStudios(filter: {q: $q, per_page: 50})
-              { studios { id name aliases } } }""", q=name)
-        return d["findStudios"]["studios"]
+        exact = self.gql("""query($n: String!) { findStudios(
+              studio_filter: {name: {value: $n, modifier: EQUALS}}, filter: {per_page: -1})
+              { studios { id name aliases } } }""", n=name)["findStudios"]["studios"]
+        fuzzy = self.gql("""query($q: String!) { findStudios(filter: {q: $q, per_page: 50})
+              { studios { id name aliases } } }""", q=name)["findStudios"]["studios"]
+        return _dedupe_by_id(exact, fuzzy)
 
     def tag_id(self, name, create=False):
         d = self.gql("""query($q: String!) { findTags(filter: {q: $q, per_page: 50})

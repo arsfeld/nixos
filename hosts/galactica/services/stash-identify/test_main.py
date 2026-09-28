@@ -5,6 +5,7 @@ import tempfile
 import unittest
 
 import main
+import stash as stash_mod
 
 TPDB, STASHDB = main.BOXES
 
@@ -173,6 +174,50 @@ class ApplyTest(unittest.TestCase):
         st = FakeStash()
         main.apply(st, scene(), {"kind": "none"}, skip_tag_ids=set())
         self.assertEqual((st.updates, st.created), ([], []))
+
+
+class StashLookupTest(unittest.TestCase):
+    """Real Stash: the q= fuzzy search is capped at 50 hits and not relevance-ordered, so
+    it can miss a performer/studio's own exact name (seen live for "Be", "Ro", ...).
+    performers_like/studios_like must also run an exact-name lookup and union the results."""
+
+    def test_performers_like_unions_exact_and_fuzzy_by_id(self):
+        s = stash_mod.Stash("http://x/graphql")
+        calls = []
+
+        def fake_gql(query, **variables):
+            calls.append((query, variables))
+            if "performer_filter" in query:
+                return {"findPerformers": {"performers": [{"id": "1", "name": "Be", "alias_list": []}]}}
+            return {"findPerformers": {"performers": [
+                {"id": "1", "name": "Be", "alias_list": []},
+                {"id": "2", "name": "Bee", "alias_list": []}]}}
+        s.gql = fake_gql
+        result = s.performers_like("Be")
+        self.assertEqual([r["id"] for r in result], ["1", "2"])
+        self.assertEqual(len(calls), 2)
+        exact_call = next(q for q, v in calls if "performer_filter" in q)
+        self.assertIn("modifier: EQUALS", exact_call)
+        self.assertIn("per_page: -1", exact_call)
+
+    def test_studios_like_unions_exact_and_fuzzy_by_id(self):
+        s = stash_mod.Stash("http://x/graphql")
+        calls = []
+
+        def fake_gql(query, **variables):
+            calls.append((query, variables))
+            if "studio_filter" in query:
+                # The exact-name query finds "Ro", which the capped/unordered q= search
+                # below misses entirely.
+                return {"findStudios": {"studios": [{"id": "9", "name": "Ro", "aliases": []}]}}
+            return {"findStudios": {"studios": [{"id": "10", "name": "Robot", "aliases": []}]}}
+        s.gql = fake_gql
+        result = s.studios_like("Ro")
+        self.assertEqual([r["id"] for r in result], ["9", "10"])
+        self.assertEqual(len(calls), 2)
+        exact_call = next(q for q, v in calls if "studio_filter" in q)
+        self.assertIn("modifier: EQUALS", exact_call)
+        self.assertIn("per_page: -1", exact_call)
 
 
 class PathTest(unittest.TestCase):
