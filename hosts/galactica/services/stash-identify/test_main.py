@@ -268,5 +268,30 @@ class PassTest(unittest.TestCase):
             self.assertIn("12", state)  # updated even though already in state
 
 
+class DebouncerTest(unittest.TestCase):
+    def test_fires_once_after_quiet(self):
+        d = main.Debouncer(quiet=120)
+        self.assertIsNone(d.ready(0))
+        d.add("/v/a", 0)
+        d.add("/v/b", 100)
+        self.assertIsNone(d.ready(219))           # 119 s since the last event
+        self.assertEqual(d.ready(220), {"/v/a", "/v/b"})
+        self.assertIsNone(d.ready(1000))          # drained
+
+
+class ChangedDirTest(unittest.TestCase):
+    exts = {"mp4", "mkv"}
+
+    def test_video_file_gives_its_folder(self):
+        self.assertEqual(main.changed_dir("CLOSE_WRITE,CLOSE|/v/a b/x.MP4", self.exts), "/v/a b")
+
+    def test_moved_in_folder_gives_itself(self):
+        self.assertEqual(main.changed_dir("MOVED_TO,ISDIR|/v/New Folder", self.exts), "/v/New Folder")
+
+    def test_other_files_ignored(self):
+        self.assertIsNone(main.changed_dir("CLOSE_WRITE,CLOSE|/v/x.nfo", self.exts))
+        self.assertIsNone(main.changed_dir("garbage", self.exts))
+
+
 if __name__ == "__main__":
     unittest.main()

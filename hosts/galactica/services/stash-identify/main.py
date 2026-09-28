@@ -6,8 +6,12 @@ Design: docs/superpowers/specs/2026-09-27-stash-llm-identify-design.md
 import argparse
 import json
 import os
+import queue
+import subprocess
 import sys
 import tempfile
+import threading
+import time
 
 import match
 from llm import OpenRouter
@@ -207,6 +211,72 @@ def run_pass(stash, llm, state, defaults, paths, *, jobs=True, dry_run=False, li
             log(f"  [{scene['id']}] failed, will retry next pass: {e}")
 
 
+SETTLE = 120            # seconds without events before a pass runs
+SWEEP_EVERY = 24 * 3600
+
+
+class Debouncer:
+    def __init__(self, quiet):
+        self.quiet, self.pending, self.last = quiet, set(), 0.0
+
+    def add(self, path, now):
+        self.pending.add(path)
+        self.last = now
+
+    def ready(self, now):
+        if self.pending and now - self.last >= self.quiet:
+            out, self.pending = self.pending, set()
+            return out
+        return None
+
+
+def changed_dir(line, video_exts):
+    """One `inotifywait --format '%e|%w%f'` line -> the folder Stash should scan."""
+    events, sep, path = line.rstrip("\n").partition("|")
+    if not sep:
+        return None
+    if "ISDIR" in events.split(","):
+        return path
+    if path.rsplit(".", 1)[-1].lower() in video_exts:
+        return os.path.dirname(path)
+    return None
+
+
+def watch(stash, llm, state):
+    exts = {e.lower() for e in stash.video_extensions()}
+    proc = subprocess.Popen(
+        ["inotifywait", "-m", "-r", "-q", "-e", "close_write,moved_to",
+         "--format", "%e|%w%f", LIBRARY_HOST],
+        stdout=subprocess.PIPE, text=True)
+    events = queue.Queue()
+
+    def reader():
+        for line in proc.stdout:
+            d = changed_dir(line, exts)
+            if d:
+                events.put(d)
+    threading.Thread(target=reader, daemon=True).start()
+
+    debouncer, last_sweep = Debouncer(SETTLE), 0.0   # 0 => sweep at startup (backfill)
+    while True:
+        if proc.poll() is not None:
+            raise RuntimeError(f"inotifywait exited with {proc.returncode}")
+        try:
+            debouncer.add(events.get(timeout=10), time.monotonic())
+            continue
+        except queue.Empty:
+            pass
+        now = time.monotonic()
+        dirs = debouncer.ready(now)
+        if dirs:
+            log(f"changed: {sorted(dirs)}")
+            run_pass(stash, llm, state, stash.defaults(), sorted(dirs))
+        elif now - last_sweep >= SWEEP_EVERY or last_sweep == 0.0:
+            log("sweep")
+            run_pass(stash, llm, state, stash.defaults(), None)
+            last_sweep = time.monotonic()
+
+
 def openrouter_key():
     if os.environ.get("OPENROUTER_API_KEY"):
         return os.environ["OPENROUTER_API_KEY"]
@@ -232,12 +302,15 @@ def main(argv):
     run.add_argument("--limit", type=int)
     run.add_argument("--scene", action="append", dest="scenes",
                      help="only this scene ID (repeatable); ignores the state file")
+    sub.add_parser("watch", help="the service: watch the library, sweep daily")
     args = ap.parse_args(argv)
     stash, llm, state = clients()
     if args.cmd == "run":
         # A manual run never scans; it only does the LLM step.
         run_pass(stash, llm, state, stash.defaults(), None, jobs=False, dry_run=args.dry_run,
                  limit=args.limit, scene_ids=args.scenes)
+    if args.cmd == "watch":
+        watch(stash, llm, state)
     return 0
 
 
