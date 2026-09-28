@@ -1,4 +1,5 @@
 """Pure matching and payload-building logic for stash-identify. No I/O here."""
+import os
 import re
 
 # A candidate must be within this many seconds of the file. It is the gate that makes
@@ -65,6 +66,53 @@ def twins(chosen, all_cands, file_duration):
     key = scene_key(chosen[1])
     return [(ep, c) for ep, c in all_cands
             if scene_key(c) == key and duration_ok(c, file_duration)]
+
+
+# A JAV product code leading a filename: 2-6 letters, a hyphen, 3-5 digits, then nothing
+# or a separator and anything (MIDA-796.H265, START-601-C). The hyphen is required so
+# gachi958_sd, kaly0720 and tokens inside Western names don't match; a false positive
+# only costs a lookup before the LLM flow takes over.
+JAV_CODE = re.compile(r"([A-Za-z]{2,6})-(\d{3,5})(?:[-_. ].*)?")
+
+
+def jav_code(path):
+    stem = os.path.splitext(os.path.basename(path))[0]
+    m = JAV_CODE.fullmatch(stem)
+    return f"{m[1].upper()}-{m[2]}" if m else None
+
+
+def code_key(s):
+    """("CRVR", 402) for crvr00402, CRVR-402 and crvr-402 alike; None for non-codes."""
+    m = re.fullmatch(r"\s*([A-Za-z]{2,6})[-_ ]?(\d{2,6})\s*", s or "")
+    return (m[1].upper(), int(m[2])) if m else None
+
+
+def single_scene(cands):
+    """cands already share the file's code. The one scene they all are, or None when
+    there are none or they disagree on the title."""
+    if cands and len({norm(c.get("title")) for c in cands}) == 1:
+        return cands[0]
+    return None
+
+
+def tpdb_jav_scene(hit):
+    """A ThePornDB /jav record -> the ScrapedScene shape apply() consumes. There is no
+    remote_site_id: TPDB JAV isn't a stash-box, so studio and performers resolve by name.
+    TPDB's JAV tags carry no Stash id, so none are passed on."""
+    site = hit.get("site") or {}
+    performers = []
+    for p in hit.get("performers") or []:
+        name = (p.get("parent") or {}).get("name") or p.get("name")
+        if name:
+            performers.append({"name": name, "images": [p["image"]] if p.get("image") else []})
+    urls = [f"https://theporndb.net/jav/{hit['slug']}" if hit.get("slug") else None, hit.get("url")]
+    return {"title": hit.get("title"), "code": (hit.get("external_id") or "").upper() or None,
+            "date": hit.get("date"), "details": hit.get("description"),
+            "duration": hit.get("duration"),
+            "image": (hit.get("background") or {}).get("full") or hit.get("poster"),
+            "urls": [u for u in urls if u],
+            "studio": {"name": site["name"]} if site.get("name") else None,
+            "performers": performers, "tags": []}
 
 
 def describe(c):
@@ -167,20 +215,23 @@ def _merge(existing, new):
     return out
 
 
-def scrape_update(scene, primary, stash_ids, studio_id, performer_ids, tag_ids, drop_tag_ids):
+def scrape_update(scene, primary, stash_ids, studio_id, performer_ids, tag_ids, drop_tag_ids,
+                  overwrite=False):
     """SceneUpdateInput for a confirmed stash-box match. Fills empty fields only,
-    except the cover, which replaces the generated screenshot."""
+    except the cover, which replaces the generated screenshot. overwrite (upgrading an
+    llm-identified guess) replaces the guessed fields and performers outright."""
     up = {"id": scene["id"]}
     for k in ("title", "code", "details", "director", "date"):
-        if primary.get(k) and not scene.get(k):
+        if primary.get(k) and (overwrite or not scene.get(k)):
             up[k] = primary[k]
-    if primary.get("urls") and not scene.get("urls"):
+    if primary.get("urls") and (overwrite or not scene.get("urls")):
         up["urls"] = primary["urls"]
     if primary.get("image"):
         up["cover_image"] = primary["image"]
-    if studio_id and not scene.get("studio"):
+    if studio_id and (overwrite or not scene.get("studio")):
         up["studio_id"] = studio_id
-    up["performer_ids"] = _merge(_ids(scene.get("performers")), performer_ids)
+    up["performer_ids"] = (list(performer_ids) if overwrite
+                           else _merge(_ids(scene.get("performers")), performer_ids))
     up["tag_ids"] = [t for t in _merge(_ids(scene.get("tags")), tag_ids) if t not in drop_tag_ids]
     have = scene.get("stash_ids") or []
     seen = {(s["endpoint"], s["stash_id"]) for s in have}

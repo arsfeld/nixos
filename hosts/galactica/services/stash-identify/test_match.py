@@ -216,5 +216,103 @@ class JevTest(unittest.TestCase):
         self.assertIsNone(match.jev_pick({"choice": "none"}, cands))
 
 
+class JavCodeTest(unittest.TestCase):
+    def test_real_codes(self):
+        for path, code in [("CAWD-910.mp4", "CAWD-910"), ("MIDA-796.H265.mp4", "MIDA-796"),
+                           ("sub/dir/ipzz-795.mp4", "IPZZ-795"), ("START-601-C.mp4", "START-601"),
+                           ("JUR-843 uncensored.mkv", "JUR-843")]:
+            self.assertEqual(match.jav_code(path), code, path)
+
+    def test_non_jav_names_from_the_library(self):
+        for path in ["gachi958_sd.wmv", "kaly0720.mp4", "PBB026_s04_1080.mp4",
+                     "LegalPorno - Hlohan, Onlydabad aka Baby Belle - Horny (DAP) OB643.mp4",
+                     "3.Deseos.2026.1080p.EN.Bisexual.Queer.Threesome.erikalust.com.mp4",
+                     "reunited-and-railed-540p.mp4", "18Lust - Lady D - First DP.mp4",
+                     "angelslove.24.08.03.eva.generosi.and.laia.hot.eyes.1080p.mp4"]:
+            self.assertIsNone(match.jav_code(path), path)
+
+
+class CodeKeyTest(unittest.TestCase):
+    def test_equivalent_spellings(self):
+        self.assertEqual(match.code_key("crvr00402"), ("CRVR", 402))
+        self.assertEqual(match.code_key("CRVR-402"), match.code_key("crvr-402"))
+
+    def test_different_codes_and_non_codes(self):
+        self.assertNotEqual(match.code_key("SONE-732"), match.code_key("MIDA-732"))
+        self.assertIsNone(match.code_key(None))
+        self.assertIsNone(match.code_key("Snowed In"))
+
+
+class SingleSceneTest(unittest.TestCase):
+    def test_agreeing_hits_give_the_first(self):
+        a, b = cand("IPZZ-795", "Idea Pocket"), cand("ipzz-795", "Idea Pocket")
+        self.assertIs(match.single_scene([a, b]), a)
+
+    def test_disagreeing_or_empty_give_none(self):
+        self.assertIsNone(match.single_scene([cand("One", "S"), cand("Two", "S")]))
+        self.assertIsNone(match.single_scene([]))
+
+
+# Trimmed from a real `GET https://api.theporndb.net/jav?q=CAWD-910` response.
+TPDB_JAV_HIT = {
+    "external_id": "cawd-910", "slug": "kawaii-cawd-910-two-kirekawa",
+    "title": "CAWD-910 - Two Kirekawa Sex Workers", "date": "2026-03-03",
+    "description": "d", "duration": 7800, "url": "https://r18.dev/videos/vod/movies/detail/-/id=cawd910/",
+    "poster": "https://thumb/poster", "background": {"full": "https://cdn/bg"},
+    "site": {"name": "Kawaii"},
+    "performers": [{"name": "Kurea Hasumi", "image": "https://cdn/p1", "parent": {"name": "Kurea Hasumi"}},
+                   {"name": "Riho F.", "image": None, "parent": {"name": "Riho Fujimori"}},
+                   {"name": "", "image": None, "parent": None}],
+    "tags": [{"name": "Av Loves Campaign"}],
+}
+
+
+class TpdbJavSceneTest(unittest.TestCase):
+    def test_maps_to_scraped_scene_shape(self):
+        s = match.tpdb_jav_scene(TPDB_JAV_HIT)
+        self.assertEqual(s["title"], "CAWD-910 - Two Kirekawa Sex Workers")
+        self.assertEqual(s["code"], "CAWD-910")
+        self.assertEqual((s["date"], s["details"], s["duration"]), ("2026-03-03", "d", 7800))
+        self.assertEqual(s["image"], "https://cdn/bg")
+        self.assertEqual(s["urls"], ["https://theporndb.net/jav/kawaii-cawd-910-two-kirekawa",
+                                     "https://r18.dev/videos/vod/movies/detail/-/id=cawd910/"])
+        self.assertEqual(s["studio"], {"name": "Kawaii"})
+        # parent (the canonical performer) wins over the site-local name; nameless dropped
+        self.assertEqual(s["performers"], [{"name": "Kurea Hasumi", "images": ["https://cdn/p1"]},
+                                           {"name": "Riho Fujimori", "images": []}])
+        self.assertEqual(s["tags"], [])
+        self.assertIsNone(s.get("remote_site_id"))
+
+    def test_poster_fallback_and_missing_site(self):
+        s = match.tpdb_jav_scene({**TPDB_JAV_HIT, "background": {"full": None}, "site": None})
+        self.assertEqual(s["image"], "https://thumb/poster")
+        self.assertIsNone(s["studio"])
+
+
+class ScrapeUpdateOverwriteTest(unittest.TestCase):
+    guessed = {"id": "20", "title": "Kawaii* – CAWD-910", "code": "", "details": "",
+               "director": "", "date": "2026-01-01", "urls": [], "studio": {"id": "s9"},
+               "performers": [{"id": "p9"}], "tags": [{"id": "t-llm"}, {"id": "t2"}],
+               "stash_ids": []}
+
+    def test_overwrite_replaces_guess_and_drops_llm_tag(self):
+        primary = match.tpdb_jav_scene(TPDB_JAV_HIT)
+        up = match.scrape_update(self.guessed, primary, [], "s2", ["p1"], [], {"t-llm"},
+                                 overwrite=True)
+        self.assertEqual(up["title"], "CAWD-910 - Two Kirekawa Sex Workers")
+        self.assertEqual((up["code"], up["date"]), ("CAWD-910", "2026-03-03"))
+        self.assertEqual(up["studio_id"], "s2")
+        self.assertEqual(up["performer_ids"], ["p1"])
+        self.assertEqual(up["tag_ids"], ["t2"])
+        self.assertEqual(up["cover_image"], "https://cdn/bg")
+
+    def test_without_overwrite_existing_fields_stay(self):
+        primary = match.tpdb_jav_scene(TPDB_JAV_HIT)
+        up = match.scrape_update(self.guessed, primary, [], "s2", ["p1"], [], set())
+        self.assertNotIn("title", up)
+        self.assertNotIn("studio_id", up)
+        self.assertEqual(up["performer_ids"], ["p9", "p1"])
+
+
 if __name__ == "__main__":
     unittest.main()
