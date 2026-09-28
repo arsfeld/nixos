@@ -1,8 +1,9 @@
 # Stash LLM identify: design
 
-A quick, disposable script that fills title, studio and performers on Stash scenes that
-have none, by reading their file paths with an LLM and confirming against StashDB and
-ThePornDB where possible.
+A service on galactica that watches the Stash library for new files and runs Stash's
+own scan, generate and identify steps on them. For any scene still bare after that, it fills
+title, studio and performers by reading the file path with an LLM, confirming against
+StashDB and ThePornDB where it can.
 
 ## Why
 
@@ -34,19 +35,65 @@ Read-only runs over all 134 scenes (2026-09-27, about $0.20 on OpenRouter):
 
 ## Shape
 
-One file, `scripts/stash-llm-identify.py`, standard library only, run from raider:
+A host-local module, `hosts/galactica/services/stash-identify.nix`, which
+`hosts/galactica/services/default.nix` imports. The Python script sits next to it in
+`hosts/galactica/services/stash-identify/` and is packaged with `inotify-tools` on its
+PATH. It uses the standard library only.
 
-```
-python3 scripts/stash-llm-identify.py                 # dry run, writes proposals JSON
-python3 scripts/stash-llm-identify.py --limit 10      # dry run on 10 scenes
-python3 scripts/stash-llm-identify.py --apply         # apply the saved proposals
-```
-
-- Stash: GraphQL at `http://galactica.bat-boa.ts.net:9999/graphql`, which is reachable
-  from the tailnet. It sends Stash's `api_key` if `STASH_API_KEY` is set.
-- OpenRouter: `OPENROUTER_API_KEY` from the environment (already set on raider).
-- Models: `~deepseek/deepseek-flash-latest` for parsing and `typesafe/jev-1.13` for
+- **Unit:** `systemd.services.stash-identify`, a plain unit rather than `media.services`,
+  because it has no port and no web UI. Runs as the `media` user, `Restart=always`,
+  `StateDirectory=stash-identify`.
+- **Stash:** GraphQL at `http://localhost:9999/graphql` (the container uses host
+  networking). It sends `ApiKey` if `STASH_API_KEY` is set.
+- **OpenRouter:** a new `openrouter-api-key` secret in `secrets/sops/galactica.yaml`, set
+  non-interactively from raider's `OPENROUTER_API_KEY` and passed in through `EnvironmentFile`.
+- **Models:** `~deepseek/deepseek-flash-latest` for parsing and `typesafe/jev-1.13` for
   picking a candidate, both overridable with flags.
+
+```
+stash-identify watch                   # the service: watcher + daily sweep
+stash-identify run [--dry-run] [--limit N] [--scene ID]   # one pass, by hand
+```
+
+## Trigger
+
+- `inotifywait -m -r` on `/mnt/storage/media/Vault` (plain btrfs, so inotify is
+  reliable; the limit of 524k watches is plenty), listening for `close_write` and `moved_to` on
+  files with Stash's video extensions.
+- **Settle:** changed folders accumulate until 2 minutes pass with no new events, then one
+  pass runs. A download still being written, or a folder being copied, is handled once
+  it finishes.
+- **Daily sweep:** once a day the same pass runs over the whole library. That catches events
+  missed while the service was down.
+
+## A pass
+
+Every job-starting mutation below is followed by polling `findJob` until the job finishes.
+All options are read at run time from Stash's saved defaults
+(`configuration { defaults { scan generate identify } }`), so changing them in the Stash
+UI changes the service too, with nothing hardcoded.
+
+1. **Scan:** `metadataScan` over the changed folders (the whole library for the sweep),
+   using the saved **scan** options. Host paths are translated to container paths:
+   `/mnt/storage/media/Vault/…` → `/media/Vault/…`.
+2. **Generate:** `metadataGenerate` for the scenes the scan created (their `created_at`
+   is after the pass started) using the saved **generate** options. Today those are covers,
+   phashes, previews and sprites, with `overwrite: false`. The sweep runs it library-wide,
+   which fills in only the supporting files that are missing.
+3. **Identify:** `metadataIdentify` on those scenes, using the saved **identify** options:
+   StashDB then TPDB by fingerprint, create missing, set cover, mark organized, skip
+   multiple matches, and skip single-name performers. That last option is why Lustery-style
+   scenes reach step 4.
+4. **LLM pipeline** (below) on every scene that is still completely bare and not listed in
+   the state file.
+
+**Backfill:** the first pass finds the existing 134 bare scenes in step 4 and handles them
+like new ones. Turning the service on is the backfill.
+
+**State file:** `/var/lib/stash-identify/attempted.json` holds the IDs of scenes step 4 has
+finished with, whether it applied a match, a guess or nothing. Unidentifiable files
+like `Movie on 2012-01-01.mov` are therefore not retried, and billed, on every pass.
+Removing an ID makes that scene eligible again.
 
 ## Pipeline, per scene
 
@@ -78,7 +125,7 @@ that also have no studio and no performers. Today those are the same 134.
 When both endpoints return the same scene, the TPDB one is preferred for the cover (it
 comes back as base64) and the stash_ids of both are kept.
 
-## What gets written (`--apply`)
+## What gets written
 
 **Scrape match: everything stash-box returned.**
 
@@ -97,14 +144,16 @@ comes back as base64) and the stash_ids of both are kept.
 
 **LLM-only:** title; the studio and performers matched by name, then by alias,
 case-insensitive (`findStudios`/`findPerformers`); anything unmatched is created by
-name only. No cover, no date.
+name only. No cover, no date. The scene gets the tag **`llm-identified`** (created if
+missing), so guesses can be filtered for in Stash and checked or fixed later.
 
 **Always:** only empty fields are filled. Nothing already set on a scene is overwritten.
 Existing performers and studios are linked, never edited.
 
-## Dry run and review
+## Manual runs
 
-The default mode prints one line per scene:
+`stash-identify run --dry-run` does a pass without writing anything: it skips steps 1–3
+and does not record anything in the state file. It prints one line per scene, e.g.
 
 ```
 [11751] SinDeluxe - Angels…Scene 2 1080p.mp4
@@ -113,35 +162,33 @@ The default mode prints one line per scene:
     tpdb+stashdb (date) | "Big Boobs Are Made For Fucking" | Lustery (#161) | Vivian (#1019), Clark (#2130) | Δ0s
 ```
 
-It writes every proposal, including the full scraped payload with its cover, to
-`stash-identify-proposals.json` in the working directory. `--apply` reads that file and
-writes exactly what was reviewed, with no new LLM or search calls. Delete a scene's entry
-from the file to skip it. `--only-scraped` applies only scrape matches.
+The service logs the same lines to the journal for what it actually applied.
 
 ## Errors
 
-A failed LLM, search or Jev call, or a malformed reply, is logged against its scene, and
-that scene falls back to the next stage (search failure means LLM-only, parse failure
-means skipped). One re-ask on malformed JSON, and no other retries. During `--apply`, a
-failed create or update is logged and the script moves on. A re-run skips scenes that are
-already filled, because selection happens again.
+- A failed Stash job, or one that times out after 6 hours, is logged, and the pass skips
+  to step 4 for scenes that already exist.
+- A failed search or Jev call makes that scene LLM-only. A failed parse, or one malformed
+  reply after a re-ask, skips the scene **without** recording it, so the next pass retries it.
+- A failed create or update is logged and not recorded either.
+- One bad scene never ends the pass, and a crash of the watcher is handled by `Restart=always`.
 
-## When to run it
+## Running it
 
-By hand, from raider. There is no timer: the LLM-only proposals are guesses and deserve
-a look before they are written.
-
-- Once now, to backfill the 134 scenes.
-- After new downloads: run Stash's Identify task first (the fingerprint match catches the easy
-  ones), then this script for whatever is still bare.
+It runs all the time as a service. There is nothing to do by hand after downloads.
 
 ## Testing
 
-Dry run with `--limit 10`, and read the table. `--apply` on those 10, then check them in
-the Stash UI: cover, studio logo, performer images, stash-box links. Then run the rest.
-Expected on today's data: about 17 scraped, about 113 LLM-only, 4 empty.
+Before enabling the unit, run `stash-identify run --dry-run --limit 10` on galactica and
+read the output. Then run `stash-identify run --scene <id>` against a couple of known
+scenes and check them in the Stash UI: cover, studio logo, performer images, stash-box
+links, and the `llm-identified` tag on guesses. Then deploy with the unit enabled and watch
+the journal while it does the backfill. Expected on today's data: about 17 scraped, about
+113 LLM-only, 4 empty. Last, drop a test file into Vault and check that it goes through all
+four steps.
 
 ## Out of scope
 
-Web search for scene URLs; per-site URL scrapers; creating unknown tags; a scheduled
-mode; packaging as a Stash plugin or a nix module.
+Web search for scene URLs; per-site URL scrapers; creating unknown tags on scrape
+matches; packaging as a Stash plugin; a review queue for guesses (the tag stands in for
+one).
