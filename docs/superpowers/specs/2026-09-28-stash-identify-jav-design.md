@@ -45,9 +45,11 @@ When `jav_code` returns a code, the LLM parse is skipped and the scene goes thro
 these steps:
 
 1. **StashDB:** run `stash.search("https://stashdb.org/graphql", code)` and keep the hits
-   whose `code_key(c["code"])` equals the file's. If every kept hit is the same scene
-   (per `scene_key`), use it as the primary, with twins and stash_ids as today, and
-   `rule = "code"`. Hits that disagree count as no match.
+   whose `code_key(c["code"])` equals the file's. If those hits all agree on title
+   (`match.single_scene`), the chosen hit becomes the primary, `rule = "code"`, and only
+   its own `stash_id` is recorded (`match.stash_ids_for`) -- there is no twin grouping
+   across endpoints here, unlike the LLM-parse path. Hits that disagree on title, or an
+   empty set, count as no match.
 2. **TPDB JAV:** otherwise call `tpdb.jav_search(code)` (a new small client in
    `tpdb.py`, using a new `net.get_json` beside `post_json`; the request needs a
    `User-Agent` header, `Accept: application/json` and `Authorization: Bearer <key>`). Keep the hits whose
@@ -66,7 +68,12 @@ these steps:
    computed and logged.
 4. **Both miss:** a new scene continues into the existing LLM flow unchanged.
 5. **Errors:** a failure in either request raises `TransientError`, so the scene is
-   retried next pass and never downgraded to llm-only.
+   retried next pass and never downgraded to llm-only -- except an `HTTPError` 401 or
+   403 from `tpdb.jav_search`, which is a permanent auth failure (a bad or revoked key),
+   not a transient one. That's logged once per occurrence and treated as a miss instead:
+   `chosen` stays `None`, so a bare scene falls through to the LLM and an upgrade
+   candidate just logs "no JAV match yet" rather than being retried forever. The StashDB
+   branch is unchanged -- any exception there still raises `TransientError`.
 
 The proposal `kind` stays `"scrape"`. `format_line` shows the source as `stashdb` or
 `tpdb-jav`, and the rule as `code`.
@@ -77,9 +84,13 @@ such entry, JAV lookup falls back to StashDB only and logs that once.
 
 ### Upgrading `llm-identified` scenes
 
-- **Selection:** `run_pass` (unless `scene_ids` is given) adds scenes tagged
-  `llm-identified` whose file has a JAV code, regardless of the state file. It needs a
-  new `stash.scenes_with_tag(tag_id)` query.
+- **Selection:** for the full sweep (no `scene_ids`), `run_pass` adds scenes tagged
+  `llm-identified` whose file has a JAV code, regardless of the state file (a new
+  `stash.scenes_with_tag(tag_id)` query). Whether a scene is an upgrade is decided
+  per-scene (`is_upgrade`), independent of how it entered `todo` -- so an explicit
+  `run --scene` on an llm-tagged scene with a JAV code takes the upgrade path too:
+  lookup only, never the LLM. A miss just logs and writes nothing, so `--scene` can't be
+  used to force a fresh LLM guess onto an upgrade candidate.
 - **Lookup only:** these upgrade candidates run just the JAV lookup. On a miss nothing is
   written, nothing is billed, and the state file is untouched. They are re-queried every
   pass, which costs at most two HTTP calls per scene.
