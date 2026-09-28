@@ -146,5 +146,110 @@ class ApplyTest(unittest.TestCase):
         self.assertEqual((st.updates, st.created), ([], []))
 
 
+import json
+import os
+import tempfile
+
+
+class PathTest(unittest.TestCase):
+    def test_host_to_container(self):
+        self.assertEqual(main.to_container("/mnt/storage/media/Vault/a b/c"), "/media/Vault/a b/c")
+
+
+class StateTest(unittest.TestCase):
+    def test_persists_ids(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "sub", "attempted.json")
+            s = main.State(path)
+            self.assertNotIn("5", s)
+            s.add("5")
+            self.assertIn("5", main.State(path))
+            self.assertEqual(json.load(open(path)), ["5"])
+
+
+class SkipTagsTest(unittest.TestCase):
+    def test_collects_identify_skip_tags(self):
+        d = {"identify": {"options": {"skipMultipleMatchTag": "1398",
+                                      "skipSingleNamePerformerTag": "1398"}}}
+        self.assertEqual(main.skip_tags(d), {"1398"})
+        self.assertEqual(main.skip_tags({"identify": {}}), set())
+
+
+class PassTest(unittest.TestCase):
+    class PassStash(FakeStash):
+        def __init__(self, bare):
+            super().__init__()
+            self.bare, self.jobs = bare, []
+
+        def max_scene_id(self):
+            return 10
+
+        def scan(self, paths, options):
+            self.jobs.append(("scan", paths))
+
+        def scene_ids_after(self, sid):
+            return ["11"]
+
+        def generate(self, ids, options):
+            self.jobs.append(("generate", ids))
+
+        def identify(self, ids, options):
+            self.jobs.append(("identify", ids))
+
+        def bare_scenes(self):
+            return self.bare
+
+    defaults = {"scan": {}, "generate": {}, "identify": {}}
+
+    def state(self, d):
+        return main.State(os.path.join(d, "s.json"))
+
+    def test_steps_in_order_and_state_recorded(self):
+        st = self.PassStash([scene("11"), scene("12")])
+        with tempfile.TemporaryDirectory() as d:
+            state = self.state(d)
+            state.add("12")
+            main.run_pass(st, FakeLLM({"title": "T", "query": ""}), state, self.defaults,
+                          ["/mnt/storage/media/Vault/new"])
+            self.assertEqual(st.jobs, [("scan", ["/media/Vault/new"]),
+                                       ("generate", ["11"]), ("identify", ["11"])])
+            self.assertEqual([u["id"] for u in st.updates], ["11"])  # 12 was already attempted
+            self.assertIn("11", state)
+
+    def test_dry_run_skips_jobs_writes_and_state(self):
+        st = self.PassStash([scene("11")])
+        with tempfile.TemporaryDirectory() as d:
+            state = self.state(d)
+            main.run_pass(st, FakeLLM({"title": "T", "query": ""}), state, self.defaults,
+                          None, dry_run=True)
+            self.assertEqual((st.jobs, st.updates), ([], []))
+            self.assertNotIn("11", state)
+
+    def test_manual_run_skips_jobs_but_applies(self):
+        st = self.PassStash([scene("11")])
+        with tempfile.TemporaryDirectory() as d:
+            main.run_pass(st, FakeLLM({"title": "T", "query": ""}), self.state(d), self.defaults,
+                          None, jobs=False)
+            self.assertEqual(st.jobs, [])
+            self.assertEqual([u["id"] for u in st.updates], ["11"])
+
+    def test_parse_failure_is_not_recorded(self):
+        st = self.PassStash([scene("11")])
+        with tempfile.TemporaryDirectory() as d:
+            state = self.state(d)
+            main.run_pass(st, FakeLLM(ValueError("bad")), state, self.defaults, None)
+            self.assertNotIn("11", state)
+
+    def test_job_failure_still_reaches_llm_step(self):
+        st = self.PassStash([scene("11")])
+
+        def boom(paths, options):
+            raise main.JobFailed("scan failed")
+        st.scan = boom
+        with tempfile.TemporaryDirectory() as d:
+            main.run_pass(st, FakeLLM({"title": "T", "query": ""}), self.state(d), self.defaults, None)
+            self.assertEqual([u["id"] for u in st.updates], ["11"])
+
+
 if __name__ == "__main__":
     unittest.main()
