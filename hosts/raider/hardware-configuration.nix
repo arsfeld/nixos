@@ -57,9 +57,19 @@
   hardware.enableAllFirmware = true;
 
   # Dual GPU configuration
-  # - Intel Iris Xe Graphics (iGPU) at PCI 00:02.0 → /dev/dri/renderD129 for hardware video decode
-  # - AMD Radeon RX 6650 XT (dGPU) at PCI 03:00.0 → /dev/dri/renderD128 for graphics
+  # - Intel Iris Xe Graphics (iGPU) at PCI 00:02.0 → /dev/dri/renderD128 for hardware video decode
+  # - AMD Radeon RX 6650 XT (dGPU) at PCI 03:00.0 → /dev/dri/renderD129 for graphics
   services.xserver.videoDrivers = ["amdgpu" "modesetting"];
+
+  # Pin rendering to the dGPU. Inside Steam's pressure-vessel container Vulkan
+  # enumerates the iGPU first, so vkd3d/DXVK handed games the Iris Xe (Witcher 3
+  # ran entirely on it, the 6650 XT idle). The trailing `!` hides every other
+  # Vulkan device. DRI_PRIME must name the device: `=1` means "not the display
+  # GPU", which here is the iGPU. VA-API video decode is unaffected.
+  environment.sessionVariables = {
+    MESA_VK_DEVICE_SELECT = "1002:73ef!";
+    DRI_PRIME = "pci-0000_03_00_0";
+  };
 
   # Hardware acceleration for both GPUs
   hardware.graphics = {
