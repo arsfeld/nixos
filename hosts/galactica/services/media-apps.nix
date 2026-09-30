@@ -21,7 +21,7 @@ in {
         PLUGIN_0_SETTINGS=${builtins.toJSON {
           provider = "OpenRouter";
           api_key = config.sops.placeholder.openrouter-api-key;
-          model = "deepseek/deepseek-v4-flash";
+          model = "deepseek/deepseek-v4.1-flash";
           model_choice = "Users can choose";
         }}
       '';
