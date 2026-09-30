@@ -12,6 +12,19 @@ in {
       sops.secrets.ohdio-env.mode = "0444";
       sops.secrets.qui-oidc-env.mode = "0444";
       sops.secrets.mydia-env.mode = "0444";
+
+      # Settings for the sideloaded Assistant plugin. Mydia applies them at
+      # startup (and saves them to its database); the key is the same
+      # OpenRouter key stash-identify uses. Users can switch models on the page.
+      sops.templates.mydia-assistant-env.content = ''
+        PLUGIN_0_SLUG=assistant-openai
+        PLUGIN_0_SETTINGS=${builtins.toJSON {
+          provider = "OpenRouter";
+          api_key = config.sops.placeholder.openrouter-api-key;
+          model = "deepseek/deepseek-v4-flash";
+          model_choice = "Users can choose";
+        }}
+      '';
     }
 
     {
@@ -97,6 +110,7 @@ in {
           };
           environmentFiles = [
             config.sops.secrets.mydia-env.path
+            config.sops.templates.mydia-assistant-env.path
           ];
         };
         bypassAuth = true;
