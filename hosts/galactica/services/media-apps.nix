@@ -25,6 +25,9 @@ in {
           model_choice = "Users can choose";
         }}
       '';
+      # The env file path never changes, so a new model or key would not
+      # restart the container on its own.
+      sops.templates.mydia-assistant-env.restartUnits = ["${config.virtualisation.oci-containers.backend}-mydia.service"];
     }
 
     {
