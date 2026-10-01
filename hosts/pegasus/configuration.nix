@@ -210,6 +210,25 @@ with lib; {
   #
   # Re-enable once the lane is clean: check that the phy counters stay at 0 under
   # load, then rebuild devid 5 (btrfs replace) before the first scrub.
+  #
+  # 2026-10-01: the cable cannot be touched for a while (nobody is on site), so
+  # the disk is back in service on the suspect lane. It rejoined the pool by
+  # itself at the 2026-09-26 reboot, still carrying everything it missed while
+  # it was off the bus -- reads from it failed checksums and were repaired from
+  # the other copies, ~190k in three days. A resync of that one device was
+  # started by hand instead of a replace, since there is no spare to replace to:
+  #
+  #   echo $((60*1024*1024)) > /sys/fs/btrfs/<fsid>/devinfo/5/scrub_speed_max
+  #   btrfs scrub start /dev/disk/by-id/ata-ST4000VN000-1H4168_Z304SS33
+  #
+  # A single-device scrub reads only devid 5 and rewrites what is stale; the
+  # throttle (not persistent, lost on remount) keeps it well under the disk's
+  # sequential rate. If the disk drops again it will not come back until the
+  # pool is unmounted and mounted again, or the host is rebooted.
+  #
+  # The weekly scrub stays off: it loads all five disks for 16h, and nothing
+  # about the lane has been fixed. btrfs-health-check below watches the phy
+  # counters in the meantime.
   services.btrfs.autoScrub = {
     enable = false;
     fileSystems = ["/mnt/storage"];
@@ -229,6 +248,12 @@ with lib; {
   # -z zeroes the counters after printing, so each run reports only what is new
   # since yesterday rather than re-alerting forever on one historical failure.
   # The cumulative record still lives in SMART, which smartd already watches.
+  #
+  # A third signal comes before either of those: the HBA's per-lane link error
+  # counters. They climb while a cable is going bad and the disk is still on the
+  # bus, which is the only warning there is before a drop. They cannot be
+  # zeroed, so the last reading is kept under /run and only a change alerts;
+  # both reset together at boot.
   systemd.services.btrfs-health-check = let
     btrfs = "${pkgs.btrfs-progs}/bin/btrfs";
     grep = "${pkgs.gnugrep}/bin/grep";
@@ -238,7 +263,11 @@ with lib; {
     # service onFailure = ["email@%n.service"], which mails status plus recent
     # logs. Failing this unit loudly is the whole notification mechanism.
     unitConfig.RequiresMountsFor = "/mnt/storage";
-    serviceConfig.Type = "oneshot";
+    serviceConfig = {
+      Type = "oneshot";
+      RuntimeDirectory = "btrfs-health-check";
+      RuntimeDirectoryPreserve = true;
+    };
     script = ''
       set -u
       rc=0
@@ -251,6 +280,17 @@ with lib; {
         echo "new I/O errors on /mnt/storage since last check (counters reset)" >&2
         rc=1
       fi
+      for phy in /sys/class/sas_phy/phy-*; do
+        [ -e "$phy/invalid_dword_count" ] || continue
+        name=''${phy##*/}
+        cur="$(cat "$phy/invalid_dword_count") $(cat "$phy/running_disparity_error_count") $(cat "$phy/loss_of_dword_sync_count")"
+        prev=$(cat "$RUNTIME_DIRECTORY/$name" 2>/dev/null || echo "0 0 0")
+        if [ "$cur" != "$prev" ]; then
+          echo "new SAS link errors on $name (invalid_dword disparity loss_of_sync): $prev -> $cur" >&2
+          rc=1
+        fi
+        echo "$cur" > "$RUNTIME_DIRECTORY/$name"
+      done
       exit $rc
     '';
   };
