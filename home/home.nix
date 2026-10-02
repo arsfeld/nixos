@@ -36,7 +36,9 @@
       esac
     done
     if [ -n "$creating" ] && [ "''${ZELLIJ_GUARD:-1}" != 0 ] && command -v pgrep >/dev/null; then
-      live=$("$real" list-sessions --no-formatting --short 2>/dev/null || true)
+      # Not --short: that also lists exited, resurrectable sessions by bare
+      # name, and an orphaned server looks exactly like one.
+      live=$("$real" list-sessions --no-formatting 2>/dev/null | grep -v EXITED | cut -d' ' -f1 || true)
       while read -r pid cmd; do
         sock=''${cmd##*--server }
         name=''${sock##*/}
