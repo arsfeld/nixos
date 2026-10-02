@@ -18,6 +18,7 @@
     ./project-vms.nix
     inputs.niks3.nixosModules.niks3-auto-upload
     ./weekly-update.nix
+    ./zellij-socket-watch.nix
   ];
 
   # Autonomous weekly flake update and AI healing

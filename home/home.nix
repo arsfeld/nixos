@@ -22,6 +22,48 @@
 
   claude-notify = pkgs.writeScriptBin "claude-notify" (builtins.readFile ./scripts/claude-notify);
 
+  # zellij decides a session exists by probing its socket, and when the probe
+  # fails `attach --create` starts a second server that unlinks the first one's
+  # socket before binding. The first server keeps running with its clients
+  # attached but can never be attached to again. Refuse to create a session
+  # whose server process is still alive; ZELLIJ_GUARD=0 bypasses.
+  zellijGuard = pkgs.writeShellScript "zellij-guard" ''
+    real=${pkgs.zellij}/bin/zellij
+    creating=
+    for a in "$@"; do
+      case "$a" in
+        -c | --create | -b | --create-background | -s | --session) creating=1 ;;
+      esac
+    done
+    if [ -n "$creating" ] && [ "''${ZELLIJ_GUARD:-1}" != 0 ] && command -v pgrep >/dev/null; then
+      live=$("$real" list-sessions --no-formatting --short 2>/dev/null || true)
+      while read -r pid cmd; do
+        sock=''${cmd##*--server }
+        name=''${sock##*/}
+        for a in "$@"; do
+          if [ "$a" = "$name" ] && ! grep -qxF -- "$name" <<<"$live"; then
+            state=$(ls -la -- "$sock" 2>&1)
+            msg="refusing to create '$name': server pid $pid is alive but does not answer on its socket ($state)"
+            command -v logger >/dev/null && logger -t zellij-guard -- "$msg"
+            echo "zellij-guard: $msg" >&2
+            echo "zellij-guard: ZELLIJ_GUARD=0 to create anyway, which orphans that server" >&2
+            exit 1
+          fi
+        done
+      done < <(pgrep -u "$(id -u)" -af -- '/bin/zellij --server ' || true)
+    fi
+    exec "$real" "$@"
+  '';
+  zellijGuarded = pkgs.symlinkJoin {
+    pname = "zellij-guarded";
+    inherit (pkgs.zellij) version;
+    paths = [pkgs.zellij];
+    postBuild = ''
+      rm $out/bin/zellij
+      ln -s ${zellijGuard} $out/bin/zellij
+    '';
+  };
+
   llmAgentScripts = let
     pkgs' = inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system} or {};
     entries = builtins.attrValues (
@@ -118,7 +160,6 @@ in {
         uv
         vim
         yt-dlp
-        zellij
 
         (python3.withPackages (ps: with ps; [llm llm-gemini]))
 
@@ -533,6 +574,7 @@ in {
 
   programs.zellij = {
     enable = true;
+    package = zellijGuarded;
     settings = {
       #theme = "catppuccin-mocha";
       #mouse_mode = false;
