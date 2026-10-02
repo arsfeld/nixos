@@ -226,13 +226,64 @@ with lib; {
   # sequential rate. If the disk drops again it will not come back until the
   # pool is unmounted and mounted again, or the host is rebooted.
   #
+  # That first pass ran 13h at 6.0 Gbit. The lane logged link errors from the
+  # second hour on and lost sync three times overnight (a few seconds each; the
+  # disk came back under the same name), so the pass left holes, and a crash at
+  # 07:48 on 2026-10-02 cut it off just short of the end. phy 7 was then capped
+  # at 3.0 Gbit (sas-phy7-3g below) and the pass restarted from the beginning.
+  #
   # The weekly scrub stays off: it loads all five disks for 16h, and nothing
   # about the lane has been fixed. btrfs-health-check below watches the phy
-  # counters in the meantime.
+  # counters in the meantime. Turn it back on only after a single-device pass
+  # has completed at 3.0 Gbit with the phy 7 counters still at 0.
   services.btrfs.autoScrub = {
     enable = false;
     fileSystems = ["/mnt/storage"];
     interval = "weekly";
+  };
+
+  # Cap HBA phy 7 (devid 5, serial Z304SS33) at 3.0 Gbit before the pool mounts.
+  # The cable on that lane is marginal at 6.0 Gbit, and a 4 TB spinning disk
+  # never needs more than 3.0. The cap is not stored anywhere: the HBA
+  # renegotiates 6.0 on every boot, so it has to be reapplied each time, and it
+  # has to happen before the mount because changing it resets the link.
+  #
+  # Matched by phy_identifier, not by name: the SCSI host number in phy-N:7
+  # depends on what else enumerated first.
+  #
+  # Remove this once the disk is moved to an onboard SATA port or the breakout
+  # cable is replaced. With nothing linked on phy 7 it waits out its 90s, fails
+  # (which mails), and the mount proceeds anyway.
+  systemd.services.sas-phy7-3g = {
+    description = "Cap SAS phy 7 at 3.0 Gbit";
+    wantedBy = ["mnt-storage.mount"];
+    before = ["mnt-storage.mount" "shutdown.target"];
+    conflicts = ["shutdown.target"];
+    unitConfig.DefaultDependencies = false;
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      set -u
+      for _ in $(seq 1 45); do
+        for phy in /sys/class/sas_phy/phy-*; do
+          [ "$(cat "$phy/phy_identifier" 2>/dev/null)" = 7 ] || continue
+          case "$(cat "$phy/negotiated_linkrate")" in
+            "3.0 Gbit")
+              udevadm settle
+              exit 0
+              ;;
+            "6.0 Gbit")
+              echo "3.0 Gbit" > "$phy/maximum_linkrate"
+              ;;
+          esac
+        done
+        sleep 2
+      done
+      echo "phy 7 never settled at 3.0 Gbit" >&2
+      exit 1
+    '';
   };
 
   # Daily pool health check. The scrub above catches corruption but is blind to
