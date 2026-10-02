@@ -72,7 +72,7 @@ Last updated: 2026-04-07
 
 - **Cabling**: the four HBA disks are SATA drives, so they hang off one SFF-8087 to 4x SATA forward breakout cable (inferred from the card and the drives, not seen). Four onboard SATA ports are free.
 - **Pool**: `cottage-data`, btrfs RAID1C3 across the five 4 TB disks, mounted at `/mnt/storage` (~18 TiB raw, ~6 TiB usable)
-- **Known fault**: the phy 7 lane (serial Z304SS33) has dropped its disk off the bus twice under scrub load (July and August 2026). The disk tests healthy; the cable or connector on that lane is the suspect. Not yet replaced. The fix is to move that disk to a free onboard SATA port or replace the breakout cable. Details in `hosts/pegasus/configuration.nix`.
+- **Known fault**: the phy 7 lane (serial Z304SS33) has dropped its disk off the bus twice under scrub load (July and August 2026). The disk tests healthy; the cable or connector on that lane is the suspect. Not yet replaced. Since 2026-10-02 the lane is capped at 3.0 Gbit at every boot (`sas-phy7-3g`), after it lost sync three times in one night at 6.0 Gbit. The fix is to move that disk to a free onboard SATA port or replace the breakout cable. Details in `hosts/pegasus/configuration.nix`.
 
 ## Offline / Unreachable Hosts
 
