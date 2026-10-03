@@ -98,9 +98,21 @@ in {
       # resolves the AirVPN endpoint hostname before bringing the tunnel up.
       # Without nss-lookup.target the resolver can fail with "Name or service
       # not known" at boot.
+      #
+      # nss-lookup.target is not enough on its own: it can be reached before
+      # DHCP finishes, and then lookups go through tailscale's 100.100.100.100
+      # while tailscaled is still bootstrapping. wg-up's own retries (~77s) ran
+      # out that way on 2026-10-02. So retry the whole unit; wg-down
+      # (ExecStopPost) tears down any half-built state, so a retry starts clean.
+      # qbittorrent-nox BindsTo wg, but its start job has already failed with
+      # "dependency" by then, so wg pulls it back in when it comes up.
       systemd.services.wg = {
         after = ["nss-lookup.target"];
-        wants = ["nss-lookup.target"];
+        wants = ["nss-lookup.target" "qbittorrent-nox.service"];
+        serviceConfig = {
+          Restart = "on-failure";
+          RestartSec = "30s";
+        };
       };
 
       # Override wg-up script to remove ping check which fails on some AirVPN servers (e.g. ca3)
