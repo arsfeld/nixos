@@ -147,7 +147,6 @@ in {
         gh
         git-lfs
         glances
-        htop
         kondo
         kotlin
         mosh
@@ -250,9 +249,64 @@ in {
     source = ./files/antigravity-statusline.sh;
     executable = true;
   };
-  xdg.configFile."htop/htoprc" = {
-    source = ./files/htoprc;
+  programs.htop = {
+    enable = true;
+    settings =
+      {
+        header_layout = "two_67_33";
+        fields = with config.lib.htop.fields; [
+          PID
+          USER
+          M_RESIDENT
+          M_SHARE
+          STATE
+          PERCENT_CPU
+          PERCENT_MEM
+          TIME
+          COMM
+        ];
+        sort_key = config.lib.htop.fields.PERCENT_CPU;
+        sort_direction = -1;
+        # CCGROUP sizes itself to the longest cgroup, which would push Command
+        # off-screen in Main, so it gets its own tab. HM writes keys
+        # alphabetically and cannot emit a screen's `.sort_key` line, so this
+        # tab opens sorted by PID. Main and I/O are htop's built-in screens.
+        "screen:Units" = "PID USER PERCENT_CPU PERCENT_MEM CCGROUP Command";
+        screen_tabs = true;
+        delay = 15;
+        enable_mouse = true;
+        color_scheme = 0;
+        hide_kernel_threads = true;
+        hide_userland_threads = true;
+        show_cpu_usage = true;
+        highlight_base_name = true;
+        show_program_path = true;
+        shadow_distribution_path_prefix = true;
+        highlight_changes = true;
+        highlight_megabytes = true;
+        highlight_threads = true;
+      }
+      // (with config.lib.htop;
+        leftMeters [
+          (bar "AllCPUs2")
+          (bar "Memory")
+          (bar "Swap")
+        ])
+      // (with config.lib.htop;
+        rightMeters [
+          (text "Hostname")
+          (text "Uptime")
+          (text "Tasks")
+          (text "LoadAverage")
+          (text "PressureStallCPUSome")
+          (text "PressureStallMemorySome")
+          (text "DiskIO")
+          (text "NetworkIO")
+        ]);
   };
+  # programs.htop links ~/.config/htop as a whole directory, but it is a real
+  # directory today; link per file instead so activation never has to move it.
+  xdg.configFile."htop".recursive = true;
 
   programs.home-manager.enable = true;
 
