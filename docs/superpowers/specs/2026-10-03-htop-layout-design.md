@@ -18,11 +18,13 @@ entry in `home/home.nix` with home-manager's `programs.htop`. Its
 `fields`) declare each meter together with its mode, so the counts cannot
 drift apart again, and the file no longer pins a `htop_version`.
 
-Check during implementation: HM writes flat `key=value` lines. If it cannot
-emit the `screen:<name>=…` lines and their `.key=value` continuation lines in
-order, drop the explicit screens, let htop derive Main from `fields`, and add
-the I/O screen back by appending raw text to the generated file. Decide this by
-inspecting the generated file and rendering it, not by assumption.
+HM writes `left_meters`/`right_meters`, which htop 3.5 still reads, and it
+writes keys alphabetically with `header_layout` first. That ordering means it
+cannot emit the `.sort_key`-style continuation lines that follow a `screen:`
+line. So there are no explicit Main or I/O screens. With no `screen:` lines,
+htop 3.5 builds `[Main]` from `fields`/`sort_key` and adds its built-in
+`[I/O]` tab, and a single `screen:Units=…` line adds a third tab while keeping
+both defaults (verified by rendering).
 
 ## Header
 
@@ -38,11 +40,19 @@ same config.
 
 ## Process list
 
-- Main screen: `PID USER M_RESIDENT M_SHARE STATE PERCENT_CPU PERCENT_MEM TIME
-  CCGROUP Command`, sorted by `PERCENT_CPU` descending. `PRIORITY`, `NICE` and
-  `M_VIRT` are removed. `CCGROUP` shows the systemd unit or podman container.
-- I/O screen: unchanged (`PID USER COMM IO_PRIORITY IO_RATE IO_READ_RATE
-  IO_WRITE_RATE`, sorted by `IO_RATE`).
+`screen_tabs=1` shows three tabs: `[Main] [I/O] [Units]`.
+
+- Main: `PID USER M_RESIDENT M_SHARE STATE PERCENT_CPU PERCENT_MEM TIME
+  Command`, sorted by `PERCENT_CPU` descending. `PRIORITY`, `NICE` and
+  `M_VIRT` are removed.
+- I/O: htop 3.5's built-in screen (`PID USER IO_PRIORITY IO_RATE IO_READ_RATE
+  IO_WRITE_RATE PERCENT_SWAP_DELAY PERCENT_IO_DELAY Command`). It is the old
+  tab plus two delay columns.
+- Units: `PID USER PERCENT_CPU PERCENT_MEM CCGROUP Command`. `CCGROUP` shows
+  the systemd unit or podman container. It lives in its own tab because the
+  column sizes itself to the longest cgroup and would push Command off-screen
+  in Main at 80 and 120 columns. The tab opens sorted by PID, since HM cannot
+  write its sort line. F6 re-sorts it for the session.
 - Highlighting: `highlight_base_name=1`, `show_program_path=1`,
   `shadow_distribution_path_prefix=1` (dims `/nix/store/…`), and
   `highlight_changes=1` (colors new and exiting processes).
@@ -55,5 +65,5 @@ same config.
 2. Render htop headless in tmux at 80, 120 and 200 columns with `HTOPRC`
    pointed at a writable copy of the generated file. Confirm that both header
    columns render, that all 16 CPUs and every sidebar meter appear, and that
-   the Main screen shows the CGROUP column and both tabs.
+   Command is visible in Main at 80 columns, and the Units tab shows the CGROUP column.
 3. Run `just fmt`, then deploy raider.
