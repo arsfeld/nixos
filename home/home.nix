@@ -319,6 +319,9 @@ in {
       "x-scheme-handler/https" = "app.zen_browser.zen.desktop";
       "x-scheme-handler/about" = "app.zen_browser.zen.desktop";
       "x-scheme-handler/unknown" = "app.zen_browser.zen.desktop";
+      # Without an entry, every flatpak browser claims PDFs and the opener picks one.
+      # Papers is a flatpak installed by hand; COSMIC Reader is the fallback.
+      "application/pdf" = ["org.gnome.Papers.desktop" "com.system76.CosmicReader.desktop"];
     };
   };
 
