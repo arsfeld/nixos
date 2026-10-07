@@ -161,7 +161,7 @@ in {
       </fontconfig>
     '';
 
-    # GNOME-specific font settings via dconf
+    # GTK font settings via dconf (read by GTK apps under COSMIC too)
     #
     # Sizes are tuned to match macOS on the shared 34" 3440x1440 panel (scale 1,
     # no HiDPI on either side). GTK converts points at a fixed 96 DPI, so 10pt
