@@ -15,6 +15,7 @@
     ./eufy.nix
     ./files.nix
     ./forgejo-runner.nix
+    ./garage.nix
     ./glance.nix
     ./home-apps.nix
     ./home-assistant.nix
