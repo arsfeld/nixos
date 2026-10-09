@@ -28,6 +28,13 @@ in {
       # The env file path never changes, so a new model or key would not
       # restart the container on its own.
       sops.templates.mydia-assistant-env.restartUnits = ["${config.virtualisation.oci-containers.backend}-mydia.service"];
+
+      # Credentials for the garage storage backend (garage.nix).
+      sops.templates.mydia-s3-env.content = ''
+        STORAGE_BACKEND_1_ACCESS_KEY_ID=${config.sops.placeholder.garage-mydia-access-key-id}
+        STORAGE_BACKEND_1_SECRET_ACCESS_KEY=${config.sops.placeholder.garage-mydia-secret-access-key}
+      '';
+      sops.templates.mydia-s3-env.restartUnits = ["${config.virtualisation.oci-containers.backend}-mydia.service"];
     }
 
     {
@@ -110,10 +117,21 @@ in {
             DOWNLOAD_CLIENT_1_AUTO_REMOVE = "true";
             DOWNLOAD_CLIENT_1_REMOVE_COMPLETED = "true";
             DOWNLOAD_CLIENT_1_DOWNLOAD_DIRECTORY = "${vars.storageDir}/media/Downloads";
+            # An extra movies library in S3, served by the local Garage
+            # (garage.nix), to test mydia's S3 storage end to end.
+            STORAGE_BACKEND_1_NAME = "garage";
+            STORAGE_BACKEND_1_ENDPOINT = "http://127.0.0.1:3900";
+            STORAGE_BACKEND_1_REGION = "garage";
+            STORAGE_BACKEND_1_BUCKET = "mydia";
+            STORAGE_BACKEND_1_PATH_STYLE = "true";
+            LIBRARY_PATH_1_PATH = "s3://garage/movies";
+            LIBRARY_PATH_1_NAME = "S3 Movies (test)";
+            LIBRARY_PATH_1_TYPE = "movies";
           };
           environmentFiles = [
             config.sops.secrets.mydia-env.path
             config.sops.templates.mydia-assistant-env.path
+            config.sops.templates.mydia-s3-env.path
           ];
         };
         bypassAuth = true;
