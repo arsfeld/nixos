@@ -35,6 +35,7 @@
     ./ntfy.nix
     ./opencloud.nix
     ./pia.nix
+    ./plab
     ./qbittorrent-vpn.nix
     ./stash-identify
     ./tablet-sync.nix
