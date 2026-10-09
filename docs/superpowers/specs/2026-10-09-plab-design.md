@@ -37,8 +37,10 @@ pip dependencies.
 | `parse.py` | Pure HTML → data. Tracker rows: topic id, title, size, seeders, leechers, completed, forum id, upload date. Post: ordered image URLs. No I/O. |
 | `transmission.py` | `add(torrent_bytes)`: handles the `X-Transmission-Session-Id` 409 handshake, sends `torrent-add` with `metainfo` (base64) and `download-dir`. Returns Transmission's `result` / torrent name. |
 | `store.py` | Files under the state dir: `cache.json`, `added.json`, `img/<sha1>`. Atomic writes, image pruning. |
-| `page.py` | Pure render of the card grid (HTML, CSS, a little JS) from the cache. |
-| `main.py` | `refresh`, `serve` and `set-cookie` subcommands. Holds the video-forum allowlist. |
+| `page.py` | Pure render of the card grid and filter bar from the cache. Its static CSS and JS live in `assets.py`. |
+| `labels.py` | Pure: `labels(title, forum)` → tags, quality, studio and category read from a release title. |
+| `forums.py` | The video-forum allowlist (`FORUMS`), grouped by category name, and `category(forum_id)`. |
+| `main.py` | `refresh`, `serve` and `set-cookie` subcommands. |
 | `default.nix` | `plab` service, `plab-refresh` service + timer, sops secret, `media.services.plab`. |
 
 ### Deployment shape
@@ -77,7 +79,7 @@ at most once, and `refresh` aborts on a `LoginError` rather than logging in per 
 
 ### Video-only filter
 
-An allowlist of the tracker's forum ids in `main.py`, built from its category tree:
+An allowlist of the tracker's forum ids in `forums.py`, built from its category tree:
 everything video (clips, siterips, full movies, JAV, …) in; photo sets, comics/art and
 games out. Sent as `f[]=` parameters so the tracker filters server-side.
 
@@ -106,6 +108,21 @@ games out. Sent as `f[]=` parameters so the tracker filters server-side.
   Client-side, `localStorage["plab.seen"]` holds the ids shown on the previous visit:
   cards absent from it get a NEW badge and the header gains "· N new". The key is then
   overwritten with the current ids; a first visit, or no localStorage, shows no badges.
+- Labels (`labels.py`): the tags are the comma-separated tokens of the title's last bracket
+  group that has a comma, lowercased and deduplicated, minus dates; the first resolution
+  token (`1080p`, `4K`/`UHD` as `2160p`) becomes the quality; the studio is the first name
+  in a leading `[...]`; the category is the forum's group in `forums.py` ("Other" if unknown).
+  Each card carries them as `data-tags` (joined with `|`), `data-quality`, `data-studio`,
+  `data-category`, plus `data-fresh` and `data-state` (`added`, `queued` or empty).
+- Stronger indicators: a NEW card gets a larger badge and an accent outline (`.is-new`);
+  a card under 24 h old also gets an orange badge on the thumbnail (`7h`, or `25m`).
+- Filter bar, sticky at the top, filtering client-side by hiding cards (order stays by
+  seeders): toggles for last 24 h, new only and hide added/queued; selects for category,
+  quality and studio (options and counts from the current list); the 20 most common tags
+  as chips plus a text input with a datalist of all tags. Selected tags are ANDed. A
+  "Showing X of Y" count and Clear sit at the end. The state is written to the URL hash
+  (`#h24=1&new=1&hide=1&cat=…&q=…&studio=…&tags=a,b`) and to `localStorage["plab.filters"]`;
+  on load the hash wins, then storage. Filters apply after the NEW pass.
 - Clicking a thumbnail opens an overlay with all of the post's images.
 - `GET /img/<sha1>` — serves a cached image. For a URL not yet cached (non-first images
   of a post), fetches it, stores it, then serves it. Only URLs present in `cache.json`

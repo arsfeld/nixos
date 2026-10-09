@@ -2,82 +2,13 @@
 import html
 import json
 import time
+from collections import Counter
 
+from assets import CSS, FILTER_JS, JS
+from labels import labels
 from store import key
 
 TOPIC_URL = "https://pornolab.net/forum/viewtopic.php?t=%d"
-
-CSS = """
-:root { color-scheme: dark; --bg: #111; --card: #1c1c1c; --fg: #ddd; --dim: #888; --accent: #4a9; }
-* { box-sizing: border-box; }
-body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; }
-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; }
-h1 { font-size: 20px; margin: 0; }
-.dim { color: var(--dim); }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-.card { position: relative; background: var(--card); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
-.thumb { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; cursor: zoom-in; background: #000; display: block; }
-.thumb.none { cursor: default; }
-.body { padding: 10px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
-.title { color: var(--fg); text-decoration: none; word-break: break-word; }
-.title:hover { text-decoration: underline; }
-.meta { color: var(--dim); font-size: 12px; }
-.actions { margin-top: auto; display: flex; gap: 8px; align-items: center; }
-button.add { background: var(--accent); color: #000; border: 0; border-radius: 4px; padding: 6px 12px; font-weight: 600; cursor: pointer; }
-button.add:disabled { background: #333; color: var(--dim); cursor: default; }
-button.add.queued:hover { background: #522; color: #fcc; }
-.badge.new { position: absolute; top: 8px; left: 8px; background: var(--accent); color: #000; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
-.fresh { color: var(--accent); font-weight: 700; }
-.err { color: #e66; font-size: 12px; }
-#ov { position: fixed; inset: 0; background: rgba(0, 0, 0, .92); overflow-y: auto; padding: 16px; text-align: center; cursor: zoom-out; }
-#ov img { max-width: 100%; margin: 0 auto 12px; display: block; }
-"""
-
-JS = """
-document.querySelectorAll('button.add').forEach(b => b.onclick = async () => {
-  const err = b.nextElementSibling;
-  const unq = b.classList.contains('queued');
-  b.disabled = true; b.textContent = unq ? 'Removing…' : 'Adding…'; err.textContent = '';
-  try {
-    const r = await fetch((unq ? 'unqueue/' : 'add/') + b.dataset.id, {method: 'POST'});
-    let j;
-    try { j = await r.json(); } catch (_) { throw new Error('HTTP ' + r.status + ' — reload the page'); }
-    if (!j.ok) throw new Error(j.error);
-    if (unq) {
-      b.classList.remove('queued'); b.removeAttribute('title'); b.disabled = false;
-      b.textContent = 'Add to Vault'; err.textContent = '';
-    } else if (j.queued) {
-      b.classList.add('queued'); b.title = 'Click to remove from queue'; b.disabled = false;
-      b.textContent = 'Queued ⏳'; err.textContent = j.message;
-    } else b.textContent = 'Added ✓';
-  } catch (e) {
-    b.disabled = false; b.textContent = unq ? 'Queued ⏳' : 'Retry'; err.textContent = e.message;
-  }
-});
-try {
-  const ids = [...document.querySelectorAll('button.add[data-id]')].map(b => b.dataset.id);
-  let seen = null;
-  try { const raw = localStorage.getItem('plab.seen'); if (raw !== null) seen = new Set(JSON.parse(raw).map(String)); } catch (_) {}
-  if (seen) {
-    let n = 0;
-    document.querySelectorAll('.card').forEach(c => {
-      const b = c.querySelector('button.add[data-id]');
-      if (!b || seen.has(b.dataset.id)) return;
-      const s = document.createElement('span');
-      s.className = 'badge new'; s.textContent = 'NEW'; c.prepend(s); n++;
-    });
-    if (n) document.getElementById('newcount').textContent = ' · ' + n + ' new';
-  }
-  try { localStorage.setItem('plab.seen', JSON.stringify(ids)); } catch (_) {}
-} catch (_) {}
-const ov = document.getElementById('ov');
-document.querySelectorAll('img.thumb[data-images]').forEach(i => i.onclick = () => {
-  ov.innerHTML = JSON.parse(i.dataset.images).map(k => '<img loading="lazy" src="img/' + k + '">').join('');
-  ov.hidden = false;
-});
-ov.onclick = () => { ov.hidden = true; ov.innerHTML = ''; };
-"""
-
 
 def size(n):
     for unit in ("B", "KB", "MB", "GB"):
@@ -93,7 +24,12 @@ def age(updated, now):
     return f"{minutes} min ago" if minutes < 60 else f"{minutes // 60} h ago"
 
 
-def _card(t, added, queued, now):
+def _fresh_short(updated, now):
+    minutes = max(0, int((now - updated) // 60))
+    return f"{minutes}m" if minutes < 60 else f"{minutes // 60}h"
+
+
+def _card(t, lab, added, queued, now):
     e = html.escape
     if t["images"]:
         keys = [key(u) for u in t["images"]]
@@ -101,31 +37,74 @@ def _card(t, added, queued, now):
     else:
         thumb = '<div class="thumb none"></div>'
     if t["id"] in added:
-        cls, attrs, label = "add", " disabled", "Added ✓"
+        cls, attrs, label, state = "add", " disabled", "Added ✓", "added"
     elif t["id"] in queued:
-        cls, attrs, label = "add queued", ' title="Click to remove from queue"', "Queued ⏳"
+        cls, attrs, label, state = "add queued", ' title="Click to remove from queue"', "Queued ⏳", "queued"
     else:
-        cls, attrs, label = "add", "", "Add to Vault"
+        cls, attrs, label, state = "add", "", "Add to Vault", ""
     button = (f'<button class="{cls}" data-id="{t["id"]}"{attrs}>'
               f'{label}</button><span class="err"></span>')
-    if now - t["added"] < 86400:
+    fresh = now - t["added"] < 86400
+    if fresh:
         date = f'<span class="fresh">uploaded {age(t["added"], now)}</span>'
+        badge = f'<span class="badge fresh-badge">{_fresh_short(t["added"], now)}</span>'
     else:
         date = time.strftime("%Y-%m-%d", time.gmtime(t["added"]))
-    return (f'<div class="card">{thumb}<div class="body">'
+        badge = ""
+    data = {"tags": "|".join(lab["tags"]), "quality": lab["quality"] or "", "studio": lab["studio"] or "",
+            "category": lab["category"], "fresh": "1" if fresh else "", "state": state}
+    attrs_data = "".join(f' data-{k}="{e(v)}"' for k, v in data.items())
+    return (f'<div class="card"{attrs_data}>{badge}{thumb}<div class="body">'
             f'<a class="title" href="{TOPIC_URL % t["id"]}" target="_blank" rel="noreferrer">{e(t["title"])}</a>'
             f'<div class="meta">{size(t["size"])} · ▲ {t["seeders"]} ▼ {t["leechers"]} · {date}</div>'
             f'<div class="actions">{button}</div></div></div>')
 
 
+def _options(counter):
+    """<option>s for a select: "All", then values by count descending (ties alphabetical)."""
+    e = html.escape
+    rows = sorted(counter.items(), key=lambda kv: (-kv[1], kv[0]))
+    return '<option value="">All</option>' + "".join(
+        f'<option value="{e(v)}">{e(v)} ({n})</option>' for v, n in rows)
+
+
+def _filter_bar(labs):
+    e = html.escape
+    tags = Counter(tag for lab in labs for tag in lab["tags"])
+    top = sorted(tags.items(), key=lambda kv: (-kv[1], kv[0]))[:20]
+    selects = "".join(
+        f'<select data-key="{key_}" aria-label="{name}" title="{name}">'
+        f'{_options(Counter(lab[field] for lab in labs if lab[field]))}</select>'
+        for key_, field, name in (("cat", "category", "Category"), ("q", "quality", "Quality"),
+                                  ("studio", "studio", "Studio")))
+    chips = "".join(f'<button type="button" data-tag="{e(t)}">{e(t)}<i>{n}</i></button>' for t, n in top)
+    datalist = "".join(f'<option value="{e(t)}">' for t in sorted(tags))
+    return ('<div id="filters">'
+            '<div class="frow">'
+            '<button type="button" data-toggle="h24">Last 24h</button>'
+            '<button type="button" data-toggle="new">New only</button>'
+            '<button type="button" data-toggle="hide">Hide added/queued</button>'
+            f'{selects}</div>'
+            f'<div class="frow" id="chips">{chips}</div>'
+            '<div class="frow"><span id="seltags" class="frow"></span>'
+            '<input id="tagin" list="taglist" placeholder="add tag" autocomplete="off">'
+            f'<datalist id="taglist">{datalist}</datalist>'
+            '<button type="button" id="clear">Clear</button>'
+            f'<span id="count" class="dim">Showing {len(labs)} of {len(labs)}</span></div>'
+            '</div>')
+
+
 def render(cache, added, queued, now):
     pending = len(queued - added)
-    cards = "".join(_card(t, added, queued, now) for t in cache["topics"])
+    topics = cache["topics"]
+    labs = [labels(t["title"], t["forum"]) for t in topics]
+    cards = "".join(_card(t, lab, added, queued, now) for t, lab in zip(topics, labs))
     return ("<!doctype html><html><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
             "<meta name=\"referrer\" content=\"no-referrer\">"
             f"<title>plab</title><style>{CSS}</style></head><body>"
-            f"<header><h1>plab</h1><span class=\"dim\">{len(cache['topics'])} releases · last 7 days · "
+            f"<header><h1>plab</h1><span class=\"dim\">{len(topics)} releases · last 7 days · "
             f"updated {age(cache['updated'], now)}{f' · {pending} queued' if pending else ''}<span id=\"newcount\"></span></span></header>"
+            f"{_filter_bar(labs)}"
             f"<div class=\"grid\">{cards}</div><div id=\"ov\" hidden></div>"
-            f"<script>{JS}</script></body></html>")
+            f"<script>{JS}{FILTER_JS}</script></body></html>")
