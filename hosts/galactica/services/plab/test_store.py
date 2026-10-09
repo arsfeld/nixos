@@ -50,6 +50,23 @@ class StoreTest(unittest.TestCase):
         self.assertTrue(os.path.exists(keep))
         self.assertFalse(os.path.exists(drop))
 
+    def test_prune_keeps_in_flight_temp_files(self):
+        keep = self.store.ensure_image("https://x/keep.jpg", lambda url: b"x")
+        tmp = os.path.join(self.store.img, key("https://x/other.jpg") + ".123.456.tmp")
+        with open(tmp, "wb") as f:
+            f.write(b"partial")
+        self.store.prune_images(["https://x/keep.jpg"])
+        self.assertTrue(os.path.exists(keep))
+        self.assertTrue(os.path.exists(tmp))
+
+    def test_corrupt_json_reads_as_defaults(self):
+        with open(os.path.join(self.dir.name, "cache.json"), "w") as f:
+            f.write("")
+        with open(os.path.join(self.dir.name, "added.json"), "w") as f:
+            f.write("not json{")
+        self.assertEqual(self.store.cache(), {"updated": 0, "topics": []})
+        self.assertEqual(self.store.added(), set())
+
 
 if __name__ == "__main__":
     unittest.main()

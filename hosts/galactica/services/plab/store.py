@@ -32,7 +32,8 @@ class Store:
         try:
             with open(os.path.join(self.root, name)) as f:
                 return json.load(f)
-        except FileNotFoundError:
+        except (FileNotFoundError, json.JSONDecodeError):
+            # Missing or half-written/corrupt: treat as empty rather than crash the server.
             return default
 
     def cache(self):
@@ -61,5 +62,10 @@ class Store:
     def prune_images(self, keep_urls):
         keep = {key(u) for u in keep_urls}
         for name in os.listdir(self.img):
-            if name not in keep:
+            # In-flight temp files belong to a concurrent writer; leave them alone.
+            if name in keep or name.endswith(".tmp"):
+                continue
+            try:
                 os.remove(os.path.join(self.img, name))
+            except FileNotFoundError:
+                pass  # another process pruned it first
