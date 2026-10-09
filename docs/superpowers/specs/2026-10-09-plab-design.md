@@ -105,9 +105,12 @@ games out. Sent as `f[]=` parameters so the tracker filters server-side.
   to the topic, **Add to Vault** button. Topics in `added.json` render as already added.
 - Two indicators. A release uploaded under 24 h ago shows `uploaded N min/h ago` in
   the accent color in place of its date (server-side; a future timestamp reads 0 min).
-  Client-side, `localStorage["plab.seen"]` holds the ids shown on the previous visit:
-  cards absent from it get a NEW badge and the header gains "· N new". The key is then
-  overwritten with the current ids; a first visit, or no localStorage, shows no badges.
+  Client-side, `localStorage["plab.seen"]` holds `{prev, cur, at}`: the ids of the
+  previous visit, of the current one, and when it began. Cards absent from `prev` get a
+  NEW badge and the header gains "· N new", so NEW means "since your last visit", where a
+  visit is separated from the next by 30 minutes: a reload inside that window keeps `prev`
+  and only refreshes `cur`; after it, `prev` becomes `cur`. The old plain-array format is
+  read as `prev = cur`. A first visit, or no localStorage, shows no badges.
 - Labels (`labels.py`): the tags are the comma-separated tokens of the title's last bracket
   group that has a comma, lowercased and deduplicated, minus dates; the first resolution
   token (`1080p`, `4K`/`UHD` as `2160p`) becomes the quality; the studio is the first name

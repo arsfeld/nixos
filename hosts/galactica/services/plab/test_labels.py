@@ -40,9 +40,9 @@ class Labels(unittest.TestCase):
         self.assertEqual(r["tags"], ["foo"])
 
     def test_4k_and_uhd(self):
-        self.assertEqual(labels("[S] a [2026, 4K, Anal]", 1)["quality"], "2160p")
-        self.assertEqual(labels("[S] a [2026, UHD, Anal]", 1)["quality"], "2160p")
-        self.assertEqual(labels("[S] a [2026, 4K, Anal]", 1)["tags"], ["anal"])
+        self.assertEqual(labels("[S.com] a [2026, 4K, Anal]", 1)["quality"], "2160p")
+        self.assertEqual(labels("[S.com] a [2026, UHD, Anal]", 1)["quality"], "2160p")
+        self.assertEqual(labels("[S.com] a [2026, 4K, Anal]", 1)["tags"], ["anal"])
 
     def test_first_quality_wins_and_all_removed_from_tags(self):
         r = labels("a [Anal, 720p, 1080p]", 1)
@@ -52,6 +52,15 @@ class Labels(unittest.TestCase):
     def test_dedupe_and_order(self):
         r = labels("a [Anal, anal , Gape, ANAL, Bbw]", 1)
         self.assertEqual(r["tags"], ["anal", "gape", "bbw"])
+
+    def test_leading_bracket_never_tags(self):
+        r = labels("[Site.com, Other.com] Title [2026, Anal]", 1)
+        self.assertEqual(r["tags"], ["anal"])
+        self.assertEqual(labels("[A, B] Title", 1)["tags"], [])
+
+    def test_studio_needs_a_domain(self):
+        self.assertIsNone(labels("[Studio] a [2026, Anal]", 1)["studio"])
+        self.assertEqual(labels("  [Site.com] a [2026, Anal]", 1)["studio"], "Site.com")
 
     def test_studio_only_if_title_starts_with_bracket(self):
         self.assertIsNone(labels("x [Studio.com] y [a, b]", 1)["studio"])

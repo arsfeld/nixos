@@ -117,9 +117,9 @@ class Labels(unittest.TestCase):
         self.assertIn('data-state=""', c)
 
     def test_attributes_escaped(self):
-        out = self.render([tp(1, '[St"x<b>] A [2026, Ta"g<i>, Foo]')])
+        out = self.render([tp(1, '[St"x.<b>] A [2026, Ta"g<i>, Foo]')])
         c = self.card(out, 1)
-        self.assertIn('data-studio="St&quot;x&lt;b&gt;"', c)
+        self.assertIn('data-studio="St&quot;x.&lt;b&gt;"', c)
         self.assertIn('data-tags="ta&quot;g&lt;i&gt;|foo"', c)
         self.assertNotIn("<i>,", out)
         self.assertNotIn('<option value="ta"g', out)
@@ -218,13 +218,23 @@ class FilterBar(unittest.TestCase):
     def test_filter_script_hooks(self):
         script = self.render().split("<script>")[1]
         for hook in ("plab.filters", "h24", "'new'", "'hide'", "replaceState", "location.hash",
-                     "c.hidden", "'tags'", "d.state"):
+                     "'tags'", "d.state"):
             self.assertIn(hook, script)
         # the NEW pass must come before the filter pass
         self.assertLess(script.index("plab.seen"), script.index("plab.filters"))
 
+    def test_hidden_attribute_wins_over_card_display(self):
+        css = self.render().split("<style>")[1].split("</style>")[0]
+        self.assertIn("[hidden] { display: none !important; }", css)
+
+    def test_new_survives_reload_hooks(self):
+        script = self.render().split("<script>")[1]
+        for hook in ("prev", "cur", "30 * 60 * 1000", "Array.isArray", "Object.hasOwn"):
+            self.assertIn(hook, script)
+
     def test_sticky_and_mobile_css(self):
         out = self.render()
+        self.assertIn("@media (max-width: 640px) { #filters { position: static; } }", out)
         self.assertIn("position: sticky", out)
         self.assertIn("flex-wrap: wrap", out)
         self.assertIn("overflow-x: hidden", out)

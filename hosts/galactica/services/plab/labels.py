@@ -17,7 +17,9 @@ def _quality(token):
 
 def labels(title, forum):
     tags, quality = [], None
-    commas = [g for g in _GROUP.findall(title) if "," in g]
+    title = title.lstrip()
+    # The leading bracket is the studio, not a tag list, even if it holds a comma.
+    commas = [m.group(1) for m in _GROUP.finditer(title) if "," in m.group(1) and m.start() != 0]
     for raw in commas[-1].split(",") if commas else ():
         token = raw.strip().lower()
         if not token or _DATE.fullmatch(token):
@@ -30,5 +32,6 @@ def labels(title, forum):
     studio = None
     if title.startswith("["):
         m = _GROUP.match(title)
-        studio = m and m.group(1).split(" / ")[0].strip() or None
+        first = m and m.group(1).split(" / ")[0].strip()
+        studio = first if first and "." in first else None
     return {"tags": tags, "quality": quality, "studio": studio, "category": category(forum)}

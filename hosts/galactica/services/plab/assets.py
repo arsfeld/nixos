@@ -3,6 +3,7 @@
 CSS = """
 :root { color-scheme: dark; --bg: #111; --card: #1c1c1c; --fg: #ddd; --dim: #888; --accent: #4a9; --fresh: #f90; }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; overflow-x: hidden; }
 header { display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
 h1 { font-size: 20px; margin: 0; }
@@ -34,6 +35,7 @@ button.add.queued:hover { background: #522; color: #fcc; }
 .badge.fresh-badge { top: 8px; right: 8px; background: var(--fresh); color: #000; font-size: 12px; padding: 3px 7px; }
 .fresh { color: var(--fresh); font-weight: 700; }
 .err { color: #e66; font-size: 12px; }
+@media (max-width: 640px) { #filters { position: static; } }
 #ov { position: fixed; inset: 0; background: rgba(0, 0, 0, .92); overflow-y: auto; padding: 16px; text-align: center; cursor: zoom-out; }
 #ov img { max-width: 100%; margin: 0 auto 12px; display: block; }
 """
@@ -62,9 +64,19 @@ document.querySelectorAll('button.add').forEach(b => b.onclick = async () => {
 });
 try {
   const ids = [...document.querySelectorAll('button.add[data-id]')].map(b => b.dataset.id);
-  let seen = null;
-  try { const raw = localStorage.getItem('plab.seen'); if (raw !== null) seen = new Set(JSON.parse(raw).map(String)); } catch (_) {}
-  if (seen) {
+  const now = Date.now(), WINDOW = 30 * 60 * 1000;
+  let rec = null;
+  try {
+    const raw = JSON.parse(localStorage.getItem('plab.seen'));
+    if (Array.isArray(raw)) rec = {prev: raw.map(String), cur: raw.map(String), at: now};  // old format
+    else if (raw && Array.isArray(raw.prev) && Array.isArray(raw.cur)) rec = {prev: raw.prev.map(String), cur: raw.cur.map(String), at: Number(raw.at) || 0};
+  } catch (_) {}
+  let next;
+  if (!rec) next = {prev: ids, cur: ids, at: now};
+  else if (now - rec.at > WINDOW) next = {prev: rec.cur, cur: ids, at: now};
+  else next = {prev: rec.prev, cur: ids, at: rec.at};
+  if (rec) {
+    const seen = new Set(next.prev);
     let n = 0;
     document.querySelectorAll('.card').forEach(c => {
       const b = c.querySelector('button.add[data-id]');
@@ -74,7 +86,7 @@ try {
     });
     if (n) document.getElementById('newcount').textContent = ' · ' + n + ' new';
   }
-  try { localStorage.setItem('plab.seen', JSON.stringify(ids)); } catch (_) {}
+  try { localStorage.setItem('plab.seen', JSON.stringify(next)); } catch (_) {}
 } catch (_) {}
 const ov = document.getElementById('ov');
 document.querySelectorAll('img.thumb[data-images]').forEach(i => i.onclick = () => {
@@ -103,8 +115,8 @@ FILTER_JS = """
       const k = i < 0 ? p : p.slice(0, i), v = i < 0 ? '' : p.slice(i + 1);
       try {
         if (TOGGLES.includes(k)) o[k] = v === '1';
-        else if (k in SELECTS) o[k] = decodeURIComponent(v);
-        else if (k === 'tags') o.tags = v.split(',').filter(Boolean).map(decodeURIComponent);
+        else if (Object.hasOwn(SELECTS, k)) o[k] = decodeURIComponent(v);
+        else if (k === 'tags') v.split(',').filter(Boolean).forEach(t => { try { o.tags.push(decodeURIComponent(t)); } catch (_) {} });
       } catch (_) {}
     });
     return o;
@@ -172,10 +184,15 @@ FILTER_JS = """
     if (t && !st.tags.includes(t)) { st.tags.push(t); change(); }
   }
   input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); addTyped(); } };
-  input.onchange = addTyped;  // choosing a datalist value
+  const known = new Set([...document.querySelectorAll('#taglist option')].map(o => o.value));
+  input.oninput = () => { if (known.has(input.value.trim().toLowerCase())) addTyped(); };  // chose a datalist value
   document.getElementById('clear').onclick = () => { st = empty(); change(); };
 
   st = load();
+  Object.keys(SELECTS).forEach(k => {
+    const el = bar.querySelector('select[data-key="' + k + '"]');
+    if (st[k] && !(el && [...el.options].some(o => o.value === st[k]))) st[k] = '';
+  });
   render();
   if (location.hash.length > 1 || !isEmpty(st)) save();
 })();
