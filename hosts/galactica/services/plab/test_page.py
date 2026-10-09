@@ -30,8 +30,12 @@ class Render(unittest.TestCase):
 
     def test_added_topic(self):
         out = self.render([TOPIC], added={3313754})
-        self.assertIn("Added ✓", out)
-        self.assertIn("disabled", out)
+        self.assertIn('<button class="add" data-id="3313754" disabled>Added ✓</button>', out)
+
+    def test_not_added_topic(self):
+        out = self.render([TOPIC], added=set())
+        self.assertIn('<button class="add" data-id="3313754">Add to Vault</button>', out)
+        self.assertNotIn('data-id="3313754" disabled', out)
 
     def test_no_images(self):
         out = self.render([dict(TOPIC, images=[])])
