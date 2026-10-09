@@ -13,7 +13,7 @@ class Render(unittest.TestCase):
         return page.render({"updated": updated, "topics": topics}, set(added), set(queued), now)
 
     def test_card(self):
-        out = self.render([TOPIC])
+        out = self.render([TOPIC], updated=TOPIC["added"] + 2 * 86400 - 7200, now=TOPIC["added"] + 2 * 86400)
         self.assertIn('src="img/%s"' % key("https://x/cover.jpg"), out)
         self.assertIn(key("https://x/shot.jpg"), out)
         self.assertIn('data-id="3313754"', out)
@@ -22,6 +22,36 @@ class Render(unittest.TestCase):
         self.assertIn("2026-10-04", out)  # UTC
         self.assertIn("https://pornolab.net/forum/viewtopic.php?t=3313754", out)
         self.assertIn("updated 2 h ago", out)
+
+    def fresh(self, delta):
+        return self.render([TOPIC], now=TOPIC["added"] + delta)
+
+    def test_fresh_minutes(self):
+        out = self.fresh(25 * 60)
+        self.assertIn('<span class="fresh">uploaded 25 min ago</span>', out)
+        self.assertNotIn("2026-10-04", out)
+
+    def test_fresh_hours(self):
+        self.assertIn('<span class="fresh">uploaded 3 h ago</span>', self.fresh(3 * 3600 + 5))
+        self.assertIn('<span class="fresh">uploaded 23 h ago</span>', self.fresh(86400 - 1))
+
+    def test_old_upload_shows_date(self):
+        out = self.fresh(86400)
+        self.assertIn("2026-10-04", out)
+        self.assertNotIn('class="fresh"', out)
+
+    def test_future_upload_not_negative(self):
+        out = self.fresh(-600)
+        self.assertIn('<span class="fresh">uploaded 0 min ago</span>', out)
+        self.assertNotIn("-", out.split('class="meta"')[1].split("</div>")[0].replace("▲", "").split("·")[-1])
+
+    def test_new_badge_hooks(self):
+        out = self.render([TOPIC])
+        self.assertIn("plab.seen", out)
+        self.assertIn("badge new", out)
+        self.assertIn('id="newcount"', out)
+        self.assertIn(".card { ", out.replace("\n", " "))
+        self.assertIn("position: relative", out)
 
     def test_title_escaped(self):
         out = self.render([TOPIC])
@@ -61,6 +91,7 @@ class Render(unittest.TestCase):
         self.assertEqual(page.age(0, 100), "never")
         self.assertEqual(page.age(100, 100 + 600), "10 min ago")
         self.assertEqual(page.age(100, 100 + 3 * 3600), "3 h ago")
+        self.assertEqual(page.age(100, 100 - 600), "0 min ago")
 
 
 if __name__ == "__main__":

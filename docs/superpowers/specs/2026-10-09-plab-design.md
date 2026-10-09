@@ -101,6 +101,11 @@ games out. Sent as `f[]=` parameters so the tracker filters server-side.
 - `GET /` — server-rendered grid, sorted by seeders. Header shows when the cache was
   last refreshed. Each card: thumbnail, title, size, seeders/leechers, upload date, link
   to the topic, **Add to Vault** button. Topics in `added.json` render as already added.
+- Two indicators. A release uploaded under 24 h ago shows `uploaded N min/h ago` in
+  the accent color in place of its date (server-side; a future timestamp reads 0 min).
+  Client-side, `localStorage["plab.seen"]` holds the ids shown on the previous visit:
+  cards absent from it get a NEW badge and the header gains "· N new". The key is then
+  overwritten with the current ids; a first visit, or no localStorage, shows no badges.
 - Clicking a thumbnail opens an overlay with all of the post's images.
 - `GET /img/<sha1>` — serves a cached image. For a URL not yet cached (non-first images
   of a post), fetches it, stores it, then serves it. Only URLs present in `cache.json`
