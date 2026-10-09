@@ -27,6 +27,15 @@ class FakeStash:
         self.tags = dict(tags or {})      # name -> id
         self.updates, self.created = [], []
         self.tagged = []                  # scenes returned by scenes_with_tag
+        self.fc2 = {}                     # article URL -> scraped scene, None or Exception
+        self.scraped_urls = []
+
+    def scrape_url(self, url):
+        self.scraped_urls.append(url)
+        r = self.fc2.get(url)
+        if isinstance(r, Exception):
+            raise r
+        return r
 
     def scenes_with_tag(self, tag_id):
         return self.tagged
@@ -67,8 +76,15 @@ class FakeStash:
 
 
 class FakeLLM:
-    def __init__(self, parse, choice="none"):
-        self._parse, self._choice = parse, choice
+    def __init__(self, parse, choice="none", translation="English Title"):
+        self._parse, self._choice, self._translation = parse, choice, translation
+        self.translated = []
+
+    def translate_title(self, title):
+        self.translated.append(title)
+        if isinstance(self._translation, Exception):
+            raise self._translation
+        return self._translation
 
     def parse(self, path):
         if isinstance(self._parse, Exception):
@@ -255,6 +271,68 @@ class JavIdentifyTest(unittest.TestCase):
         self.assertEqual((up["title"], up["code"]), ("CAWD-910 - Some Title", "CAWD-910"))
         self.assertEqual((up["studio_id"], up["performer_ids"]), ("s-Kawaii", ["p-Kurea Hasumi"]))
         self.assertEqual(up["stash_ids"], [])
+
+
+FC2_URL = "https://adult.contents.fc2.com/article/4987084/"
+
+
+def fc2_hit(title="金欠スレンダー美女", seller="イカせげぇむ"):
+    return {"title": title, "code": "FC2-PPV-4987084", "date": "2026-10-04", "details": None,
+            "image": "data:img", "duration": None, "remote_site_id": None,
+            "studio": {"name": "FC2"}, "performers": [{"name": seller}] if seller else [],
+            "tags": [], "urls": [FC2_URL]}
+
+
+class Fc2IdentifyTest(unittest.TestCase):
+    path = "/media/Vault/FC2-PPV-4987084.mp4"
+    PARSE_ONLY = FakeLLM({"title": "T", "query": ""}, translation=AssertionError("no hit"))
+
+    def stash(self, result):
+        st = FakeStash(studios=[{"id": "632", "name": "FC2-PPV", "aliases": []}])
+        st.fc2[FC2_URL] = result
+        return st
+
+    def test_hit_is_translated_and_skips_stash_box_and_tpdb(self):
+        st, tp = self.stash(fc2_hit()), FakeTPDB([])
+        llm = FakeLLM(AssertionError("no parse"), translation="Slender Beauty")
+        p = main.identify_scene(st, llm, scene(path=self.path), tp)
+        self.assertEqual((p["kind"], p["rule"], p["source"]), ("scrape", "code", "fc2"))
+        self.assertEqual((p["primary"]["title"], p["primary"]["details"]),
+                         ("Slender Beauty", "金欠スレンダー美女"))
+        self.assertEqual((p["stash_ids"], p["delta"]), ([], None))
+        self.assertEqual(llm.translated, ["金欠スレンダー美女"])
+        self.assertEqual((st.scraped_urls, tp.calls), ([FC2_URL], []))
+
+    def test_removed_listing_falls_back_to_llm(self):
+        # Stash's fc2 scraper nil-derefs on FC2's "product not found" page.
+        st = self.stash(RuntimeError([{"message": "nil pointer dereference"}]))
+        p = main.identify_scene(st, self.PARSE_ONLY, scene(path=self.path))
+        self.assertEqual(p["kind"], "llm")
+
+    def test_empty_scrape_falls_back_to_llm(self):
+        p = main.identify_scene(self.stash(None), self.PARSE_ONLY, scene(path=self.path))
+        self.assertEqual(p["kind"], "llm")
+
+    def test_stash_unreachable_is_transient(self):
+        with self.assertRaises(main.TransientError):
+            main.identify_scene(self.stash(urllib.error.URLError("down")), NO_LLM,
+                                scene(path=self.path))
+
+    def test_translation_failure_is_transient(self):
+        llm = FakeLLM(AssertionError("no parse"), translation=ValueError("malformed"))
+        with self.assertRaises(main.TransientError):
+            main.identify_scene(self.stash(fc2_hit()), llm, scene(path=self.path))
+
+    def test_apply_puts_seller_under_existing_fc2_ppv(self):
+        st = self.stash(fc2_hit())
+        p = main.identify_scene(st, FakeLLM(None, translation="Slender Beauty"),
+                                scene(path=self.path))
+        main.apply(st, scene(path=self.path), p, skip_tag_ids=set())
+        self.assertEqual(st.created, [("studio", {"name": "イカせげぇむ", "parent_id": "632"})])
+        up = st.updates[0]
+        self.assertEqual((up["title"], up["code"], up["studio_id"], up["performer_ids"]),
+                         ("Slender Beauty", "FC2-PPV-4987084", "s-イカせげぇむ", []))
+        self.assertEqual(up["urls"], [FC2_URL])
 
 
 class ApplyTest(unittest.TestCase):
@@ -734,6 +812,16 @@ class PassTest(unittest.TestCase):
             main.run_pass(st, NO_LLM, self.state(d), self.defaults, None, jobs=False,
                           scene_ids=["20"], tpdb=FakeTPDB([jav_hit("CAWD-910")]))
         self.assertEqual(st.updates[0]["title"], "CAWD-910 - Some Title")
+
+    def test_fc2_llm_guess_is_upgraded_with_translation(self):
+        st = self.upgrade_stash(self.guessed(path="/media/Vault/FC2-PPV-4987084.mp4"))
+        st.fc2[FC2_URL] = fc2_hit()
+        with tempfile.TemporaryDirectory() as d:
+            main.run_pass(st, FakeLLM(AssertionError("no parse"), translation="Slender Beauty"),
+                          self.state(d), self.defaults, None, jobs=False)
+        up = st.updates[0]
+        self.assertEqual((up["title"], up["details"]), ("Slender Beauty", "金欠スレンダー美女"))
+        self.assertEqual((up["performer_ids"], up["tag_ids"]), ([], []))
 
 
 class DebouncerTest(unittest.TestCase):

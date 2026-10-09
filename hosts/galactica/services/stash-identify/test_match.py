@@ -220,8 +220,21 @@ class JavCodeTest(unittest.TestCase):
     def test_real_codes(self):
         for path, code in [("CAWD-910.mp4", "CAWD-910"), ("MIDA-796.H265.mp4", "MIDA-796"),
                            ("sub/dir/ipzz-795.mp4", "IPZZ-795"), ("START-601-C.mp4", "START-601"),
-                           ("JUR-843 uncensored.mkv", "JUR-843")]:
+                           ("JUR-843 uncensored.mkv", "JUR-843"),
+                           ("hhd800.com@CAWD-910.mp4", "CAWD-910")]:
             self.assertEqual(match.jav_code(path), code, path)
+
+    def test_fc2_codes(self):
+        for path, code in [("FC2-PPV-4118714.mp4", "FC2-PPV-4118714"),
+                           ("FC2-PPV-4986793/FC2-PPV-4986793_1.mp4", "FC2-PPV-4986793"),
+                           ("hhd800.com@FC2-PPV-4703775.mp4", "FC2-PPV-4703775"),
+                           ("fc2ppv-834923.mp4", "FC2-PPV-834923"),
+                           ("FC2-3108890.mkv", "FC2-PPV-3108890")]:
+            self.assertEqual(match.jav_code(path), code, path)
+
+    def test_fc2_number(self):
+        self.assertEqual(match.fc2_number("FC2-PPV-4118714"), "4118714")
+        self.assertIsNone(match.fc2_number("CAWD-910"))
 
     def test_non_jav_names_from_the_library(self):
         for path in ["gachi958_sd.wmv", "kaly0720.mp4", "PBB026_s04_1080.mp4",
@@ -230,6 +243,27 @@ class JavCodeTest(unittest.TestCase):
                      "reunited-and-railed-540p.mp4", "18Lust - Lady D - First DP.mp4",
                      "angelslove.24.08.03.eva.generosi.and.laia.hot.eyes.1080p.mp4"]:
             self.assertIsNone(match.jav_code(path), path)
+
+
+class Fc2SceneTest(unittest.TestCase):
+    hit = {"title": "金欠スレンダー美女", "code": "FC2-PPV-4987084", "date": "2026-10-04",
+           "details": None, "image": "data:img", "studio": {"name": "FC2"},
+           "performers": [{"name": "イカせげぇむ"}], "tags": [{"name": "素人", "stored_id": "9"}],
+           "urls": ["https://adult.contents.fc2.com/article/4987084/"]}
+
+    def test_seller_becomes_studio_under_fc2_ppv(self):
+        c = match.fc2_scene(self.hit, "Slender Beauty")
+        self.assertEqual(c["title"], "Slender Beauty")
+        self.assertEqual(c["details"], "金欠スレンダー美女")
+        self.assertEqual(c["studio"], {"name": "イカせげぇむ", "parent": {"name": "FC2-PPV"}})
+        self.assertEqual(c["performers"], [])
+        self.assertEqual((c["code"], c["date"], c["image"]), ("FC2-PPV-4987084", "2026-10-04", "data:img"))
+        self.assertEqual(c["tags"], self.hit["tags"])
+
+    def test_no_seller_falls_back_to_fc2_ppv(self):
+        c = match.fc2_scene({**self.hit, "performers": [], "details": "extra"}, "T")
+        self.assertEqual(c["studio"], {"name": "FC2-PPV"})
+        self.assertEqual(c["details"], "金欠スレンダー美女\n\nextra")
 
 
 class CodeKeyTest(unittest.TestCase):

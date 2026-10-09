@@ -152,6 +152,12 @@ class Stash:
                      s={"stash_box_endpoint": endpoint}, i={"query": query})
         return d["scrapeSingleScene"]
 
+    def scrape_url(self, url):
+        """Scrape one scene page with whichever installed scraper claims its URL."""
+        d = self.gql(f"""query($u: String!) {{ scrapeSceneURL(url: $u) {{ {SCRAPED_FIELDS} }} }}""",
+                     u=url)
+        return d["scrapeSceneURL"]
+
     # --- lookups and creates ---------------------------------------------------
 
     def _by_stash_id(self, kind, endpoint, stash_id):

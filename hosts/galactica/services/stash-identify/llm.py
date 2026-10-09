@@ -1,4 +1,5 @@
-"""OpenRouter calls: filename parse (chat, JSON mode) and Jev candidate choice."""
+"""OpenRouter calls: filename parse and title translation (chat, JSON mode), and Jev
+candidate choice."""
 import json
 
 from match import jev_request
@@ -22,17 +23,24 @@ from the filename for telling same-series clips apart when there's no real title
 available. "query" is the best short search string for a scene database (studio +
 performers + title keywords). Use null / [] rather than guessing."""
 
+TRANSLATE_PROMPT = """Translate this Japanese adult video title into natural English, as
+a title. Drop store promotions that aren't part of the title: sale deadlines, prices and
+point offers, "bonus included" and the like. Return JSON: {"title": str}"""
+
 
 class OpenRouter:
     def __init__(self, api_key, parse_model, jev_model):
         self.headers = {"Authorization": f"Bearer {api_key}"}
         self.parse_model = parse_model
         self.jev_model = jev_model
+        # By original title, so the parts of a multi-part FC2 article (one title) get one
+        # English title rather than a fresh rewording each.
+        self.translations = {}
 
-    def parse(self, path):
+    def _json(self, prompt, text):
         body = {"model": self.parse_model, "response_format": {"type": "json_object"},
-                "messages": [{"role": "system", "content": PARSE_PROMPT},
-                             {"role": "user", "content": path}]}
+                "messages": [{"role": "system", "content": prompt},
+                             {"role": "user", "content": text}]}
         for _ in range(2):  # one re-ask on a malformed reply
             d = post_json(CHAT_URL, body, self.headers)
             try:
@@ -41,7 +49,18 @@ class OpenRouter:
                 continue
             if isinstance(out, dict):
                 return out
-        raise ValueError(f"malformed parse reply for {path!r}")
+        raise ValueError(f"malformed reply for {text!r}")
+
+    def parse(self, path):
+        return self._json(PARSE_PROMPT, path)
+
+    def translate_title(self, title):
+        if title not in self.translations:
+            out = self._json(TRANSLATE_PROMPT, title).get("title")
+            if not isinstance(out, str) or not out.strip():
+                raise ValueError(f"no translation for {title!r}")
+            self.translations[title] = out.strip()
+        return self.translations[title]
 
     def choose(self, path, duration, parse, cands):
         state, questions = jev_request(path, duration, parse, cands)

@@ -104,6 +104,39 @@ such entry, JAV lookup falls back to StashDB only and logs that once.
 - **Orphaned studios:** studios the LLM created (`Kawaii*`, `Muku`, …) are left in
   place. Deleting studios is out of scope.
 
+## Addendum (2026-10-09): FC2-PPV
+
+FC2 Content Market files (`FC2-PPV-4118714.mp4`) never matched `JAV_CODE`: "FC2" has
+a digit and the code has two hyphenated parts. All eight in the Vault went through the
+LLM flow and came back as `FC2-PPV – <n>` guesses with no performers. Fixing detection
+alone would not have helped. StashDB and TPDB JAV had none of the seven article numbers,
+searched as `FC2-PPV-<n>`, `FC2 <n>` and the bare number. FC2 coverage on StashDB is
+sparse, and TPDB JAV has none.
+
+What does have them is FC2 itself, through the `fc2` community scraper Stash already has
+installed. `scrapeSceneURL("https://adult.contents.fc2.com/article/<n>/")` returns a
+Japanese title, date, tags, cover and the seller, but no description. FC2 pulls old
+articles. In that case the page reads "product not found", and the scraper fails with a
+nil-dereference GraphQL error. On 2026-10-09, 4 of the 8 had been pulled. `fc2ppvdb`,
+the other installed scraper, was down (Cloudflare 526).
+
+- **Detection:** `jav_code` also accepts `FC2[-_ ]?(PPV[-_ ]?)?<5-8 digits>` and
+  normalises it to `FC2-PPV-<n>`. It now ignores everything up to the last `@`, the
+  `hhd800.com@` style site prefix, for both FC2 and regular codes.
+- **Lookup:** `fc2_prop` scrapes the article URL through Stash. A GraphQL error or empty
+  result counts as a miss, since that is what a pulled article looks like. The scene then
+  gets an `llm-identified` guess, and the upgrade path looks it up again every pass. Stash
+  being unreachable is `TransientError`. StashDB and TPDB are not asked.
+- **Translation:** the Japanese title is translated by the parse model
+  (`OpenRouter.translate_title`), which also drops store promotions such as sale
+  deadlines and point prices. The original goes to `details`, since FC2 provides none.
+  Translations are cached by original title for the life of the process, so the parts of
+  a multi-part article get one title. A failed translation is `TransientError`, retried
+  next pass.
+- **Studio:** the scraper's single "performer" is the seller. It becomes a studio whose
+  parent is the existing `FC2-PPV` studio, resolved by name and not created. No
+  performers are set, because FC2 names none.
+
 ## Testing
 
 - `test_match.py`: `jav_code` cases taken from the real library, both positive (`CAWD-910.mp4`,

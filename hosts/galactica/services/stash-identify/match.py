@@ -73,12 +73,23 @@ def twins(chosen, all_cands, file_duration):
 # gachi958_sd, kaly0720 and tokens inside Western names don't match; a false positive
 # only costs a lookup before the LLM flow takes over.
 JAV_CODE = re.compile(r"([A-Za-z]{2,6})-(\d{3,5})(?:[-_. ].*)?")
+# FC2 Content Market (amateur, sold per article): FC2-PPV-4118714, FC2PPV 834923 and
+# FC2-3108890 all name article 4118714 etc. Normalised to FC2-PPV-<n>.
+FC2_CODE = re.compile(r"FC2[-_ ]?(?:PPV[-_ ]?)?(\d{5,8})(?:[-_. ].*)?", re.IGNORECASE)
 
 
 def jav_code(path):
-    stem = os.path.splitext(os.path.basename(path))[0]
+    # Download sites prefix their name: hhd800.com@FC2-PPV-4703775.mp4.
+    stem = os.path.splitext(os.path.basename(path))[0].rpartition("@")[2]
+    if m := FC2_CODE.fullmatch(stem):
+        return f"FC2-PPV-{m[1]}"
     m = JAV_CODE.fullmatch(stem)
     return f"{m[1].upper()}-{m[2]}" if m else None
+
+
+def fc2_number(code):
+    """The FC2 article number in a jav_code() result, or None for any other code."""
+    return code.removeprefix("FC2-PPV-") if code.startswith("FC2-PPV-") else None
 
 
 def code_key(s):
@@ -113,6 +124,21 @@ def tpdb_jav_scene(hit):
             "urls": [u for u in urls if u],
             "studio": {"name": site["name"]} if site.get("name") else None,
             "performers": performers, "tags": []}
+
+
+FC2_STUDIO = "FC2-PPV"
+
+
+def fc2_scene(hit, title):
+    """Stash's fc2 scraper result -> the ScrapedScene shape apply() consumes, with title
+    the English translation. The Japanese original goes to details, as FC2 gives none.
+    The scraper's lone "performer" is the seller, so it becomes a studio under FC2-PPV;
+    FC2 names no actual performers."""
+    seller = next((p["name"] for p in hit.get("performers") or [] if p.get("name")), None)
+    studio = {"name": seller, "parent": {"name": FC2_STUDIO}} if seller else {"name": FC2_STUDIO}
+    details = "\n\n".join(x for x in (hit.get("title"), hit.get("details")) if x)
+    return {**hit, "title": title, "details": details or None, "studio": studio,
+            "performers": []}
 
 
 def describe(c):

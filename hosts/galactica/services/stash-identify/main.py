@@ -1,6 +1,7 @@
 """stash-identify: scan, generate and identify new Stash files, then fill bare scenes
 from an LLM filename parse, confirmed against stash-box where possible. JAV files are
-looked up by product code first, and replace earlier LLM guesses.
+looked up by product code first (FC2-PPV ones on FC2 itself, title translated), and
+replace earlier LLM guesses.
 
 Design: docs/superpowers/specs/2026-09-27-stash-llm-identify-design.md
 JAV:    docs/superpowers/specs/2026-09-28-stash-identify-jav-design.md
@@ -27,6 +28,7 @@ PER_BOX = 6
 LLM_TAG = "llm-identified"
 LIBRARY_HOST = "/mnt/storage/media/Vault"
 LIBRARY_CONTAINER = "/media/Vault"
+FC2_ARTICLE = "https://adult.contents.fc2.com/article/{}/"
 
 
 def log(*a):
@@ -48,16 +50,44 @@ class TransientError(RuntimeError):
 TRANSIENT = (TransientError, urllib.error.URLError, TimeoutError, ConnectionError)
 
 
-def jav_prop(stash, tpdb, scene):
+def fc2_prop(stash, llm, scene, number):
+    """A "scrape" proposal from the FC2 article itself, via Stash's fc2 scraper, or None.
+    Neither StashDB nor ThePornDB carries FC2-PPV, so this is the only source. FC2 pulls
+    articles after a while, and the scraper answers a pulled one with a GraphQL error (a
+    nil dereference), so any Stash-side error counts as a miss. That costs nothing: a
+    miss leaves an llm-identified guess, which every pass looks up again. Only Stash
+    being unreachable, or the translation failing, raises TransientError."""
+    try:
+        hit = stash.scrape_url(FC2_ARTICLE.format(number))
+    except TRANSIENT as e:
+        raise TransientError(f"scene {scene['id']}: fc2 scrape failed: {e}") from e
+    except RuntimeError as e:
+        log(f"scene {scene['id']}: fc2 article {number} not scraped, treating as a miss: {e}")
+        return None
+    if not hit or not hit.get("title"):
+        return None
+    try:
+        title = llm.translate_title(hit["title"])
+    except Exception as e:
+        raise TransientError(f"scene {scene['id']}: title translation failed: {e}") from e
+    return {"kind": "scrape", "rule": "code", "source": "fc2", "parse": None,
+            "primary": match.fc2_scene(hit, title), "primary_endpoint": None,
+            "confidence": None, "stash_ids": [], "delta": None}
+
+
+def jav_prop(stash, llm, tpdb, scene):
     """A "scrape" proposal for a file named by a JAV code, or None (no code, or no exact
-    hit). StashDB first, for its stash_ids and tags; then ThePornDB's JAV database. The
-    code is the identity check, so there's no duration gate: TPDB lists JAV durations in
-    whole minutes, and multi-part files share one code. A failed lookup raises
-    TransientError rather than letting the scene fall through to a guess."""
+    hit). FC2-PPV codes go to fc2_prop. Others try StashDB first, for its stash_ids and
+    tags; then ThePornDB's JAV database. The code is the identity check, so there's no
+    duration gate: TPDB lists JAV durations in whole minutes, and multi-part files share
+    one code. A failed lookup raises TransientError rather than letting the scene fall
+    through to a guess."""
     f = scene["files"][0]
     code = match.jav_code(rel_path(f["path"]))
     if not code:
         return None
+    if number := match.fc2_number(code):
+        return fc2_prop(stash, llm, scene, number)
     key = match.code_key(code)
     try:
         hits = stash.search(STASHDB, code)
@@ -97,7 +127,7 @@ def identify_scene(stash, llm, scene, tpdb=None):
     every search succeeded and turned up nothing usable (or Jev affirmatively picked
     none). A search or Jev failure raises TransientError specifically; a malformed LLM
     parse reply (llm.parse's own ValueError) is scene-specific and propagates as-is."""
-    prop = jav_prop(stash, tpdb, scene)
+    prop = jav_prop(stash, llm, tpdb, scene)
     if prop:
         return prop
     f = scene["files"][0]
@@ -320,7 +350,7 @@ def run_pass(stash, llm, state, defaults, paths, *, jobs=True, dry_run=False, li
         upgrade = is_upgrade(scene, llm_tag)
         try:
             if upgrade:
-                prop = jav_prop(stash, tpdb, scene)
+                prop = jav_prop(stash, llm, tpdb, scene)
                 if prop is None:
                     log(f"[{scene['id']}] llm guess, no JAV match yet")
                     continue
