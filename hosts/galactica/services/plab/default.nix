@@ -17,6 +17,34 @@
   secrets = config.sops.secrets;
   port = 8577;
 
+  # The page's styling, fetched here and served by plab under /static, so viewing the
+  # page loads nothing from a CDN. Versions: newest at least two weeks old on 2026-10-09.
+  static = pkgs.linkFarm "plab-static" [
+    {
+      name = "daisyui.css";
+      path = pkgs.fetchurl {
+        url = "https://cdn.jsdelivr.net/npm/daisyui@5.7.46/daisyui.css";
+        hash = "sha256-/1rGqRlvstR7MyvRV2HQs0OfgSzeb9C3wK3Y5bT3waY=";
+      };
+    }
+    {
+      # daisyui.css carries only the light and dark themes; the page uses "dim".
+      name = "themes.css";
+      path = pkgs.fetchurl {
+        url = "https://cdn.jsdelivr.net/npm/daisyui@5.7.46/themes.css";
+        hash = "sha256-qwwmodLUHH9le4maIKL5NP98DoMSRmhRGBq5gYG87RU=";
+      };
+    }
+    {
+      # Compiles the Tailwind utility classes in the page (and those JS adds) at runtime.
+      name = "tailwind.js";
+      path = pkgs.fetchurl {
+        url = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.3/dist/index.global.js";
+        hash = "sha256-pgx4VjCgYZaAjL555ve9tKvMj0QhpHtW8pM4/ISAXjs=";
+      };
+    }
+  ];
+
   plab = pkgs.writeShellApplication {
     name = "plab";
     text = ''
@@ -28,6 +56,7 @@
       export PLAB_TRANSMISSION_URL="http://${config.constellation.pia.namespaceAddress}:9091/transmission/rpc"
       # The path Prowlarr's `Vault` category produces too; a symlink to ../Vault.
       export PLAB_DOWNLOAD_DIR="${vars.storageDir}/media/Downloads/Vault"
+      export PLAB_STATIC_DIR="''${PLAB_STATIC_DIR:-${static}}"
       exec ${pkgs.python3}/bin/python3 ${./.}/main.py "$@"
     '';
   };

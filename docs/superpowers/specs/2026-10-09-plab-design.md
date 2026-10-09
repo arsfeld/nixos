@@ -119,14 +119,25 @@ games out. Sent as `f[]=` parameters so the tracker filters server-side.
   `data-category`, plus `data-fresh` and `data-state` (`added`, `queued` or empty).
 - Stronger indicators: a NEW card gets a larger badge and an accent outline (`.is-new`);
   a card under 24 h old also gets an orange badge on the thumbnail (`7h`, or `25m`).
-- Filter bar, sticky at the top, filtering client-side by hiding cards (order stays by
+- Filter bar, sticky at the top from 640 px up, filtering client-side by hiding cards (order stays by
   seeders): toggles for last 24 h, new only and hide added/queued; selects for category,
   quality and studio (options and counts from the current list); the 20 most common tags
   as chips plus a text input with a datalist of all tags. Selected tags are ANDed. A
   "Showing X of Y" count and Clear sit at the end. The state is written to the URL hash
   (`#h24=1&new=1&hide=1&cat=…&q=…&studio=…&tags=a,b`) and to `localStorage["plab.filters"]`;
   on load the hash wins, then storage. Filters apply after the NEW pass.
-- Clicking a thumbnail opens an overlay with all of the post's images.
+- Clicking a thumbnail opens a daisyUI `modal` (`<dialog>`, closed by a click anywhere or
+  Escape) with all of the post's images.
+- Styling is daisyUI 5 (`dim` theme) plus the Tailwind v4 browser runtime, which compiles
+  the utility classes in the page (and those the JS adds) at load time. Nothing comes from
+  a CDN when the page is viewed: `default.nix` fetches `daisyui.css`, `themes.css` and the
+  runtime with pinned `fetchurl` hashes into a `linkFarm` and exports it as
+  `PLAB_STATIC_DIR`. Tailwind cannot see daisyUI's colours, so a utility such as
+  `ring-accent` does not exist; name the variable instead (`ring-(--color-accent)`).
+- `GET /static/<name>` — serves only `daisyui.css`, `themes.css` and `tailwind.js` from
+  `PLAB_STATIC_DIR` (exact-name allowlist, so no traversal), cached for a day since the
+  names carry no version. Without `PLAB_STATIC_DIR` it is a 404 and the page still works,
+  unstyled.
 - `GET /img/<sha1>` — serves a cached image. For a URL not yet cached (non-first images
   of a post), fetches it, stores it, then serves it. Only URLs present in `cache.json`
   are fetchable, so this is not an open proxy.

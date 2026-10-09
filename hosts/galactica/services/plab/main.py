@@ -2,7 +2,7 @@
 
   refresh     send adds queued by the daily download limit, then scrape the list and
               each new topic's images into the state dir (timer)
-  serve       the page, the image proxy, POST /add/<topic> (queues past the daily limit)
+  serve       the page, its vendored /static assets, the image proxy, POST /add/<topic> (queues past the daily limit)
               and POST /unqueue/<topic>
   set-cookie  seed the session cookie by hand when a login hits a captcha
 
@@ -155,7 +155,28 @@ def image_for(lab, store, image_key):
     return data, sniff(data)
 
 
-def serve(lab, store, bind, port, rpc_url, download_dir):
+# The vendored daisyUI and Tailwind files the page links (see default.nix). Exact names
+# only: anything else under /static is a 404, so the directory is never browsed.
+STATIC = {
+    "daisyui.css": "text/css; charset=utf-8",
+    "themes.css": "text/css; charset=utf-8",
+    "tailwind.js": "text/javascript; charset=utf-8",
+}
+
+
+def static_file(static_dir, name):
+    """(bytes, content type) of an allowlisted file in `static_dir`, or None."""
+    ctype = STATIC.get(name)
+    if ctype is None or not static_dir:
+        return None
+    try:
+        with open(os.path.join(static_dir, name), "rb") as f:
+            return f.read(), ctype
+    except OSError:
+        return None
+
+
+def serve(lab, store, bind, port, rpc_url, download_dir, static_dir=None):
     lock = threading.Lock()  # one add at a time: added.json is read-modify-write
 
     class Handler(BaseHTTPRequestHandler):
@@ -171,6 +192,13 @@ def serve(lab, store, bind, port, rpc_url, download_dir):
             if self.path == "/":
                 body = page.render(store.cache(), store.added(), set(store.queued()), time.time()).encode()
                 return self._send(200, body, "text/html; charset=utf-8")
+            m = re.fullmatch(r"/static/([^/]+)", self.path)
+            if m:
+                found = static_file(static_dir, m.group(1))
+                if found:
+                    # A day, not forever: the names carry no version, and a bump must arrive.
+                    return self._send(200, found[0], found[1], "public, max-age=86400")
+                return self._send(404, b"not found", "text/plain")
             m = re.fullmatch(r"/img/([0-9a-f]{40})", self.path)
             if m:
                 try:
@@ -226,7 +254,8 @@ def main(argv=None):
     if args.cmd == "refresh":
         run_refresh(lab, store, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"])
     elif args.cmd == "serve":
-        serve(lab, store, args.bind, args.port, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"])
+        serve(lab, store, args.bind, args.port, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"],
+              os.environ.get("PLAB_STATIC_DIR"))
     else:
         lab.set_cookie(args.value)
         log("cookie saved")

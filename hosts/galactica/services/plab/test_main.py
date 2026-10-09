@@ -275,5 +275,39 @@ class Routes(unittest.TestCase):
         self.assertIsNone(main.sniff(b"<html>"))
 
 
+class Static(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        for name in ("daisyui.css", "themes.css", "tailwind.js", "secret.txt"):
+            with open(os.path.join(self.dir.name, name), "w") as f:
+                f.write(name)
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def test_allowed_names_with_types(self):
+        self.assertEqual(main.static_file(self.dir.name, "daisyui.css"), (b"daisyui.css", "text/css; charset=utf-8"))
+        self.assertEqual(main.static_file(self.dir.name, "themes.css")[1], "text/css; charset=utf-8")
+        self.assertEqual(main.static_file(self.dir.name, "tailwind.js"),
+                         (b"tailwind.js", "text/javascript; charset=utf-8"))
+
+    def test_unknown_name(self):
+        self.assertIsNone(main.static_file(self.dir.name, "secret.txt"))
+        self.assertIsNone(main.static_file(self.dir.name, ""))
+
+    def test_traversal(self):
+        for name in ("../main.py", "%2e%2e/main.py", "%2e%2e%2fmain.py", "/etc/passwd", "./daisyui.css",
+                     "daisyui.css/", "sub/../daisyui.css"):
+            self.assertIsNone(main.static_file(HERE, name), name)
+
+    def test_no_static_dir(self):
+        self.assertIsNone(main.static_file(None, "daisyui.css"))
+        self.assertIsNone(main.static_file("", "daisyui.css"))
+
+    def test_missing_file(self):
+        os.remove(os.path.join(self.dir.name, "themes.css"))
+        self.assertIsNone(main.static_file(self.dir.name, "themes.css"))
+
+
 if __name__ == "__main__":
     unittest.main()

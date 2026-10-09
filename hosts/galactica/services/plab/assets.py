@@ -1,66 +1,40 @@
-"""The page's static CSS and JS, kept apart from the renderer in page.py."""
+"""The page's static CSS and JS, kept apart from the renderer in page.py.
+
+Styling is daisyUI plus the Tailwind browser runtime (both served from /static); the CSS
+here is only what no component class expresses."""
 
 CSS = """
-:root { color-scheme: dark; --bg: #111; --card: #1c1c1c; --fg: #ddd; --dim: #888; --accent: #4a9; --fresh: #f90; }
-* { box-sizing: border-box; }
 [hidden] { display: none !important; }
-body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; overflow-x: hidden; }
-header { display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
-h1 { font-size: 20px; margin: 0; }
-.dim { color: var(--dim); }
-#filters { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 8px 0; margin-bottom: 8px; border-bottom: 1px solid #2a2a2a; display: flex; flex-direction: column; gap: 8px; }
-.frow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-#filters select, #filters input { background: var(--card); color: var(--fg); border: 1px solid #333; border-radius: 4px; padding: 5px 8px; font: inherit; max-width: 100%; min-width: 0; }
-#filters button { background: var(--card); color: var(--fg); border: 1px solid #333; border-radius: 14px; padding: 4px 10px; font: inherit; cursor: pointer; }
-#filters button.on { background: var(--accent); color: #000; border-color: var(--accent); }
-#filters button i { font-style: normal; color: var(--dim); margin-left: 4px; }
-#filters button.on i { color: #024; }
-#chips { max-height: 5.5em; overflow-y: auto; }
-#count { margin-left: auto; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: 16px; }
-.card { position: relative; background: var(--card); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
-.card.is-new { outline: 2px solid var(--accent); }
-.thumb { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; cursor: zoom-in; background: #000; display: block; }
-.thumb.none { cursor: default; }
-.body { padding: 10px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
-.title { color: var(--fg); text-decoration: none; word-break: break-word; }
-.title:hover { text-decoration: underline; }
-.meta { color: var(--dim); font-size: 12px; }
-.actions { margin-top: auto; display: flex; gap: 8px; align-items: center; }
-button.add { background: var(--accent); color: #000; border: 0; border-radius: 4px; padding: 6px 12px; font-weight: 600; cursor: pointer; }
-button.add:disabled { background: #333; color: var(--dim); cursor: default; }
-button.add.queued:hover { background: #522; color: #fcc; }
-.badge { position: absolute; z-index: 1; font-weight: 700; border-radius: 4px; }
-.badge.new { top: 8px; left: 8px; background: var(--accent); color: #000; font-size: 15px; padding: 4px 10px; }
-.badge.fresh-badge { top: 8px; right: 8px; background: var(--fresh); color: #000; font-size: 12px; padding: 3px 7px; }
-.fresh { color: var(--fresh); font-weight: 700; }
-.err { color: #e66; font-size: 12px; }
-@media (max-width: 640px) { #filters { position: static; } }
-#ov { position: fixed; inset: 0; background: rgba(0, 0, 0, .92); overflow-y: auto; padding: 16px; text-align: center; cursor: zoom-out; }
-#ov img { max-width: 100%; margin: 0 auto 12px; display: block; }
+.add.queued:not(:disabled):hover { --btn-color: var(--color-error); --btn-fg: var(--color-error-content); }
 """
 
 JS = """
-document.querySelectorAll('button.add').forEach(b => b.onclick = async () => {
-  const err = b.nextElementSibling;
-  const card = b.closest('.card');
-  const unq = b.classList.contains('queued');
-  b.disabled = true; b.textContent = unq ? 'Removing…' : 'Adding…'; err.textContent = '';
-  try {
-    const r = await fetch((unq ? 'unqueue/' : 'add/') + b.dataset.id, {method: 'POST'});
-    let j;
-    try { j = await r.json(); } catch (_) { throw new Error('HTTP ' + r.status + ' — reload the page'); }
-    if (!j.ok) throw new Error(j.error);
-    if (unq) {
-      b.classList.remove('queued'); b.removeAttribute('title'); b.disabled = false;
-      b.textContent = 'Add to Vault'; err.textContent = ''; card.dataset.state = '';
-    } else if (j.queued) {
-      b.classList.add('queued'); b.title = 'Click to remove from queue'; b.disabled = false;
-      b.textContent = 'Queued ⏳'; err.textContent = j.message; card.dataset.state = 'queued';
-    } else { b.textContent = 'Added ✓'; card.dataset.state = 'added'; }
-  } catch (e) {
-    b.disabled = false; b.textContent = unq ? 'Queued ⏳' : 'Retry'; err.textContent = e.message;
-  }
+const ADD = 'btn-primary', QUEUED = 'btn-warning';
+const queuedLabel = b => b.classList.contains('queued') && !b.disabled;
+document.querySelectorAll('button.add').forEach(b => {
+  b.onmouseenter = () => { if (queuedLabel(b)) b.textContent = 'Remove ✕'; };
+  b.onmouseleave = () => { if (queuedLabel(b)) b.textContent = 'Queued ⏳'; };
+  b.onclick = async () => {
+    const err = b.nextElementSibling;
+    const card = b.closest('.card');
+    const unq = b.classList.contains('queued');
+    b.disabled = true; b.textContent = unq ? 'Removing…' : 'Adding…'; err.textContent = '';
+    try {
+      const r = await fetch((unq ? 'unqueue/' : 'add/') + b.dataset.id, {method: 'POST'});
+      let j;
+      try { j = await r.json(); } catch (_) { throw new Error('HTTP ' + r.status + ' — reload the page'); }
+      if (!j.ok) throw new Error(j.error);
+      if (unq) {
+        b.classList.remove('queued', QUEUED); b.classList.add(ADD); b.removeAttribute('title'); b.disabled = false;
+        b.textContent = 'Add to Vault'; err.textContent = ''; card.dataset.state = '';
+      } else if (j.queued) {
+        b.classList.remove(ADD); b.classList.add('queued', QUEUED); b.title = 'Click to remove from queue'; b.disabled = false;
+        b.textContent = 'Queued ⏳'; err.textContent = j.message; card.dataset.state = 'queued';
+      } else { b.textContent = 'Added ✓'; card.dataset.state = 'added'; }
+    } catch (e) {
+      b.disabled = false; b.textContent = unq ? 'Queued ⏳' : 'Retry'; err.textContent = e.message;
+    }
+  };
 });
 try {
   const ids = [...document.querySelectorAll('button.add[data-id]')].map(b => b.dataset.id);
@@ -82,18 +56,22 @@ try {
       const b = c.querySelector('button.add[data-id]');
       if (!b || seen.has(b.dataset.id)) return;
       const s = document.createElement('span');
-      s.className = 'badge new'; s.textContent = 'NEW'; c.prepend(s); c.classList.add('is-new'); n++;
+      s.className = 'new badge badge-accent badge-lg font-bold absolute top-2 left-2 z-[1]'; s.textContent = 'NEW';
+      (c.querySelector('figure') || c).prepend(s);
+      // ring-accent does not exist: Tailwind's runtime knows no daisyUI colours, so name the variable.
+      c.classList.add('is-new', 'ring-2', 'ring-(--color-accent)'); n++;
     });
     if (n) document.getElementById('newcount').textContent = ' · ' + n + ' new';
   }
   try { localStorage.setItem('plab.seen', JSON.stringify(next)); } catch (_) {}
 } catch (_) {}
-const ov = document.getElementById('ov');
+const ov = document.getElementById('ov'), ovbox = ov.querySelector('.modal-box');
 document.querySelectorAll('img.thumb[data-images]').forEach(i => i.onclick = () => {
-  ov.innerHTML = JSON.parse(i.dataset.images).map(k => '<img loading="lazy" src="img/' + k + '">').join('');
-  ov.hidden = false;
+  ovbox.innerHTML = JSON.parse(i.dataset.images).map(k => '<img class="block mx-auto mb-3 max-w-full" loading="lazy" src="img/' + k + '">').join('');
+  ov.showModal();
 });
-ov.onclick = () => { ov.hidden = true; ov.innerHTML = ''; };
+ov.onclick = () => ov.close();  // anywhere, images included, as before; Escape closes it natively
+ov.onclose = () => { ovbox.innerHTML = ''; };
 """
 
 # Client-side filtering. Runs after the NEW pass above, so "New only" sees .is-new.
@@ -142,13 +120,13 @@ FILTER_JS = """
   }
 
   function render() {
-    bar.querySelectorAll('[data-toggle]').forEach(b => b.classList.toggle('on', st[b.dataset.toggle]));
+    bar.querySelectorAll('[data-toggle]').forEach(b => b.classList.toggle('btn-primary', st[b.dataset.toggle]));
     Object.keys(SELECTS).forEach(k => { const el = bar.querySelector('select[data-key="' + k + '"]'); if (el) el.value = st[k]; });
-    bar.querySelectorAll('#chips [data-tag]').forEach(b => b.classList.toggle('on', st.tags.includes(b.dataset.tag)));
+    bar.querySelectorAll('#chips [data-tag]').forEach(b => b.classList.toggle('btn-primary', st.tags.includes(b.dataset.tag)));
     const sel = document.getElementById('seltags');
     sel.replaceChildren(...st.tags.map(t => {
       const b = document.createElement('button');
-      b.type = 'button'; b.className = 'on'; b.dataset.remove = t; b.textContent = t + ' ×';
+      b.type = 'button'; b.className = 'btn btn-xs btn-primary'; b.dataset.remove = t; b.textContent = t + ' ×';
       return b;
     }));
     let shown = 0;
