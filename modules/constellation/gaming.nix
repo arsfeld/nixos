@@ -141,6 +141,18 @@ in {
 
   config = lib.mkMerge [
     {chaotic.nyx.overlay.enable = lib.mkDefault config.constellation.gaming.enable;}
+    # OBS virtual camera. OBS finds the device by its exclusive_caps loopback,
+    # not by number, so video_nr is just kept clear of real webcams, which take
+    # two nodes each (raider's own uses video0 and video1).
+    (lib.mkIf config.constellation.gaming.enable {
+      boot = {
+        extraModulePackages = [config.boot.kernelPackages.v4l2loopback];
+        kernelModules = ["v4l2loopback"];
+        extraModprobeConfig = ''
+          options v4l2loopback devices=1 video_nr=10 card_label="OBS Cam" exclusive_caps=1
+        '';
+      };
+    })
     (lib.mkIf config.constellation.gaming.enable {
       # Gaming kernel optimizations
       boot = lib.mkIf config.constellation.gaming.kernelOptimizations {
@@ -225,10 +237,6 @@ in {
           "kernel.shmmax" = 68719476736;
           "kernel.shmall" = 4294967296;
         };
-
-        extraModulePackages = with config.boot.kernelPackages; [
-          v4l2loopback # Virtual camera support for streaming
-        ];
 
         # ntsync: Wine/Proton synchronization primitive, in-tree since 6.14.
         # Loading the module eagerly exposes /dev/ntsync to the udev rule below.
@@ -401,6 +409,19 @@ in {
               ++ lib.optional (gs.refreshRate != null) "-r ${toString gs.refreshRate}"
               ++ ["-f"];
           };
+
+          # Plugins only load when wrapped into OBS, so they go here rather than
+          # in systemPackages. The virtual camera is set up in boot below, not
+          # with enableVirtualCamera, which hardcodes video_nr=1.
+          obs-studio = {
+            enable = true;
+            plugins = with pkgs.obs-studio-plugins; [
+              obs-vkcapture
+              obs-vaapi
+              obs-pipewire-audio-capture
+              obs-backgroundremoval # webcam background blur, fed to the virtual camera
+            ];
+          };
         }
         // lib.optionalAttrs (options.programs ? solaar) {
           solaar.enable = true;
@@ -444,10 +465,6 @@ in {
           game-devices-udev-rules
 
           # Streaming and recording
-          obs-studio
-          obs-studio-plugins.obs-vkcapture
-          obs-studio-plugins.obs-vaapi
-          obs-studio-plugins.obs-pipewire-audio-capture
           gpu-screen-recorder
           gpu-screen-recorder-gtk
 
