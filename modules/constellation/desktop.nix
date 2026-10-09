@@ -506,6 +506,15 @@ in {
         services.desktopManager.cosmic.enable = true;
         services.displayManager.cosmic-greeter.enable = true;
 
+        # Community applets (CPU/memory, weather) plus Tweaks. Applets are
+        # added to the panel by hand in COSMIC Settings.
+        environment.systemPackages = with pkgs; [
+          cosmic-ext-applet-minimon
+          cosmic-ext-applet-sysinfo
+          cosmic-ext-applet-weather
+          cosmic-ext-tweaks
+        ];
+
         environment.sessionVariables = {
           NIXOS_OZONE_WL = "1";
           MOZ_ENABLE_WAYLAND = "1";
