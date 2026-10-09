@@ -36,14 +36,18 @@ pip dependencies.
 | `lab.py` | Tracker client. Login, cookie jar, re-login on session expiry, windows-1251 decoding. `top(days, forums)` → tracker rows; `topic(id)` → post HTML; `torrent(id)` → `.torrent` bytes. |
 | `parse.py` | Pure HTML → data. Tracker rows: topic id, title, size, seeders, leechers, completed, forum id, upload date. Post: ordered image URLs. No I/O. |
 | `transmission.py` | `add(torrent_bytes)`: handles the `X-Transmission-Session-Id` 409 handshake, sends `torrent-add` with `metainfo` (base64) and `download-dir`. Returns Transmission's `result` / torrent name. |
-| `main.py` | `refresh` subcommand (timer) and `serve` subcommand (HTTP). Holds the video-forum allowlist. |
+| `store.py` | Files under the state dir: `cache.json`, `added.json`, `img/<sha1>`. Atomic writes, image pruning. |
+| `page.py` | Pure render of the card grid (HTML, CSS, a little JS) from the cache. |
+| `main.py` | `refresh`, `serve` and `set-cookie` subcommands. Holds the video-forum allowlist. |
 | `default.nix` | `plab` service, `plab-refresh` service + timer, sops secret, `media.services.plab`. |
 
 ### Deployment shape
 
 - `media.services.plab` as a gateway-only entry (native service, no container), behind
   Authelia — no `bypassAuth`.
-- `plab.service` runs `serve` as `media` with `StateDirectory = "plab"`.
+- `plab.service` runs `serve` as `media` with `StateDirectory = "plab"`, bound to
+  `127.0.0.1:8577`. The gateway entry sets `host = "127.0.0.1"`, because its default
+  (the hostname) resolves to `127.0.0.2` on galactica.
 - `plab-refresh.service` runs `refresh`; `plab-refresh.timer` fires every 3 hours and on
   boot (`OnBootSec`), `Persistent = true`.
 - Transmission is reached directly at `config.constellation.pia.namespaceAddress:9091`,
@@ -62,11 +66,11 @@ plab never reads Prowlarr at runtime.
 The tracker's login form can demand an image captcha (Prowlarr's definition handles
 `cap_sid` / `cap_code_*`), typically after failed attempts. plab persists its cookie jar
 to `/var/lib/plab/cookies.txt` and logs in only when a response shows it is logged out
-(the `logout` link in the top menu is missing), so logins are rare. If the login page
+(the `{logout: 1}` handler in the top menu is missing), so logins are rare. If the login page
 comes back with a captcha, plab does not retry: it logs that, `refresh` fails (old cache
 stays) and `/add` returns "login needs captcha". Recovery is manual: log in once in a
-browser and paste the `bb_session` cookie into the optional sops secret
-`plab-cookie`, which plab seeds the jar from when present.
+browser, copy the `bb_data` cookie (domain `.pornolab.net`, path `/forum/`), and run
+`sudo -u media plab set-cookie <value>` on galactica, which writes it into the jar.
 
 ### Video-only filter
 
