@@ -19,7 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import page
 import parse
 import transmission
-from lab import Lab
+from lab import Lab, LoginError
 from store import Store, key
 
 DAYS = 7
@@ -94,6 +94,8 @@ def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep)
             sleep(DELAY)
             try:
                 images = parse.images(lab.topic(row["id"]))
+            except LoginError:
+                raise  # the session is gone: stop, don't log in once per remaining topic
             except Exception as e:  # noqa: BLE001 -- one bad topic must not sink the refresh
                 log(f"topic {row['id']}: {e}")
         if images:

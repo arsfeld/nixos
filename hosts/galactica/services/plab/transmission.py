@@ -26,6 +26,7 @@ def add(url, torrent, download_dir):
             with urllib.request.urlopen(request, timeout=30) as response:
                 reply = json.load(response)
         except urllib.error.HTTPError as e:
+            e.close()
             if e.code == 409:
                 session = e.headers.get("X-Transmission-Session-Id", "")
                 continue

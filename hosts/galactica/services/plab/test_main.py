@@ -3,6 +3,7 @@ import tempfile
 import unittest
 
 import main
+from lab import LoginError
 from store import Store, key
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -20,7 +21,8 @@ def row(topic_id):
 
 
 class FakeLab:
-    def __init__(self, rows, broken_topics=()):
+    def __init__(self, rows, broken_topics=(), logged_out=()):
+        self.logged_out = set(logged_out)
         self.rows = rows
         self.broken = set(broken_topics)
         self.topics_fetched = []
@@ -32,6 +34,8 @@ class FakeLab:
 
     def topic(self, topic_id):
         self.topics_fetched.append(topic_id)
+        if topic_id in self.logged_out:
+            raise LoginError("login needs captcha")
         if topic_id in self.broken:
             raise OSError("boom")
         return fixture("topic.html")
@@ -86,6 +90,14 @@ class Refresh(unittest.TestCase):
         self.refresh(FakeLab([row(1)]))
         with self.assertRaises(RuntimeError):
             self.refresh(FakeLab([]))
+        self.assertEqual([t["id"] for t in self.store.cache()["topics"]], [1])
+
+    def test_login_error_aborts_refresh_and_keeps_cache(self):
+        self.refresh(FakeLab([row(1)]))
+        lab = FakeLab([row(2), row(3), row(4)], logged_out={2})
+        with self.assertRaises(LoginError):
+            self.refresh(lab)
+        self.assertEqual(lab.topics_fetched, [2])
         self.assertEqual([t["id"] for t in self.store.cache()["topics"]], [1])
 
     def test_prunes_images_of_dropped_topics(self):

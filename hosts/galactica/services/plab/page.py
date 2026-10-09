@@ -36,7 +36,8 @@ document.querySelectorAll('button.add').forEach(b => b.onclick = async () => {
   b.disabled = true; b.textContent = 'Adding…'; err.textContent = '';
   try {
     const r = await fetch('add/' + b.dataset.id, {method: 'POST'});
-    const j = await r.json();
+    let j;
+    try { j = await r.json(); } catch (_) { throw new Error('HTTP ' + r.status + ' — reload the page'); }
     if (!j.ok) throw new Error(j.error);
     b.textContent = 'Added ✓';
   } catch (e) {

@@ -109,6 +109,51 @@ class LabTest(unittest.TestCase):
         new_lab = Lab("user", "pдssword", self.jar, opener=FakeOpener([]))
         self.assertTrue(any(c.name == "bb_data" and c.value == "abc123" for c in new_lab.jar))
 
+    def test_new_cookie_file_is_reloaded_without_login(self):
+        lab, opener = self.lab(LOGGED_OUT, fixture("tracker.html"))
+        other = Lab("user", "pдssword", self.jar, opener=FakeOpener([]))
+        other.set_cookie("fresh")
+        later = os.stat(self.jar).st_mtime + 10
+        os.utime(self.jar, (later, later))
+        self.assertIn("tor-tbl", lab.page("tracker.php"))
+        self.assertEqual([url for url, _ in opener.calls], [BASE + "tracker.php"] * 2)
+        self.assertTrue(any(c.name == "bb_data" and c.value == "fresh" for c in lab.jar))
+
+    def test_new_cookie_file_still_logged_out_logs_in_once(self):
+        lab, opener = self.lab(LOGGED_OUT, LOGGED_OUT, LOGGED_IN, fixture("tracker.html"))
+        Lab("user", "pдssword", self.jar, opener=FakeOpener([])).set_cookie("dead")
+        later = os.stat(self.jar).st_mtime + 10
+        os.utime(self.jar, (later, later))
+        lab.page("tracker.php")
+        self.assertEqual([url for url, _ in opener.calls].count(BASE + "login.php"), 1)
+
+    def test_torrent_reloads_new_cookie_file_without_login(self):
+        lab, opener = self.lab(LOGGED_OUT, b"d8:announce1:xe")
+        Lab("user", "pдssword", self.jar, opener=FakeOpener([])).set_cookie("fresh")
+        later = os.stat(self.jar).st_mtime + 10
+        os.utime(self.jar, (later, later))
+        self.assertEqual(lab.torrent(1), b"d8:announce1:xe")
+        self.assertEqual(len(opener.calls), 2)
+        self.assertNotIn(BASE + "login.php", [url for url, _ in opener.calls])
+
+    def test_own_save_is_not_reloaded(self):
+        lab, opener = self.lab(LOGGED_OUT, LOGGED_IN, fixture("tracker.html"), LOGGED_OUT, LOGGED_IN, fixture("tracker.html"))
+        lab.page("tracker.php")  # logs in and saves
+        lab.page("tracker.php")
+        # our own save is not "newer": a logged-out reply goes straight to login, no reload retry
+        self.assertEqual(len(opener.calls), 6)
+
+    def test_successful_page_saves_the_jar(self):
+        lab, _ = self.lab(fixture("tracker.html"))
+        lab.page("tracker.php")
+        self.assertTrue(os.path.exists(self.jar))
+
+    def test_corrupt_jar_is_an_empty_jar(self):
+        with open(self.jar, "w") as f:
+            f.write("garbage\nnot a cookie jar")
+        lab, _ = self.lab()
+        self.assertEqual(len(lab.jar), 0)
+
     def test_set_cookie(self):
         lab, _ = self.lab()
         lab.set_cookie("abc123")

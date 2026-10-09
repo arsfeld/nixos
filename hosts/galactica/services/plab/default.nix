@@ -6,7 +6,8 @@
 #
 # If a login ever hits a captcha, refresh fails (the page keeps its last list) and the
 # button says "login needs captcha": log in once in a browser and run
-# `sudo -u media plab set-cookie <bb_data cookie value>`.
+# `sudo -u media plab set-cookie <bb_data cookie value>`. No restart needed: the running
+# server notices the newer cookies.txt and uses it before it would try to log in.
 {
   config,
   pkgs,
@@ -35,6 +36,7 @@
     User = vars.user;
     Group = vars.group;
     StateDirectory = "plab";
+    UMask = "0077"; # cookies.txt is the session credential
   };
 in {
   sops.secrets.plab-username.owner = vars.user;

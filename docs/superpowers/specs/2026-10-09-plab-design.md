@@ -70,7 +70,10 @@ to `/var/lib/plab/cookies.txt` and logs in only when a response shows it is logg
 comes back with a captcha, plab does not retry: it logs that, `refresh` fails (old cache
 stays) and `/add` returns "login needs captcha". Recovery is manual: log in once in a
 browser, copy the `bb_data` cookie (domain `.pornolab.net`, path `/forum/`), and run
-`sudo -u media plab set-cookie <value>` on galactica, which writes it into the jar.
+`sudo -u media plab set-cookie <value>` on galactica, which writes it into the jar. No
+restart is needed: before logging in, `serve` checks whether `cookies.txt` is newer than
+what it loaded, and if so reloads it and retries once without a login. Each request logs in
+at most once, and `refresh` aborts on a `LoginError` rather than logging in per topic.
 
 ### Video-only filter
 
