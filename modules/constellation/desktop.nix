@@ -518,6 +518,11 @@ in {
         environment.sessionVariables = {
           NIXOS_OZONE_WL = "1";
           MOZ_ENABLE_WAYLAND = "1";
+          # GTK 4 delegates input to the compositor's text-input protocol, and
+          # with no IME running under COSMIC the alt-intl dead keys (' " ` ~ ^)
+          # are swallowed — Ghostty can't type quotes. GTK's built-in "simple"
+          # context does dead keys and compose sequences itself.
+          GTK_IM_MODULE = "simple";
         };
       })
 
