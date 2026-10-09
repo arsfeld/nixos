@@ -43,7 +43,7 @@ document.querySelectorAll('button.add').forEach(b => b.onclick = async () => {
     if (!j.ok) throw new Error(j.error);
     if (unq) {
       b.classList.remove('queued'); b.removeAttribute('title'); b.disabled = false;
-      b.textContent = 'Add to Vault'; err.textContent = ''; err.title = '';
+      b.textContent = 'Add to Vault'; err.textContent = '';
     } else if (j.queued) {
       b.classList.add('queued'); b.title = 'Click to remove from queue'; b.disabled = false;
       b.textContent = 'Queued ⏳'; err.textContent = j.message;
@@ -83,12 +83,11 @@ def _card(t, added, queued):
     else:
         thumb = '<div class="thumb none"></div>'
     if t["id"] in added:
-        attrs, label = ' disabled', "Added ✓"
+        cls, attrs, label = "add", " disabled", "Added ✓"
     elif t["id"] in queued:
-        attrs, label = ' title="Click to remove from queue"', "Queued ⏳"
+        cls, attrs, label = "add queued", ' title="Click to remove from queue"', "Queued ⏳"
     else:
-        attrs, label = "", "Add to Vault"
-    cls = "add queued" if t["id"] not in added and t["id"] in queued else "add"
+        cls, attrs, label = "add", "", "Add to Vault"
     button = (f'<button class="{cls}" data-id="{t["id"]}"{attrs}>'
               f'{label}</button><span class="err"></span>')
     date = time.strftime("%Y-%m-%d", time.gmtime(t["added"]))

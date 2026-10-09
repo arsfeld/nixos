@@ -2,7 +2,8 @@
 
   refresh     send adds queued by the daily download limit, then scrape the list and
               each new topic's images into the state dir (timer)
-  serve       the page, the image proxy and POST /add/<topic> (queues past the daily limit) and /unqueue/<topic>
+  serve       the page, the image proxy, POST /add/<topic> (queues past the daily limit)
+              and POST /unqueue/<topic>
   set-cookie  seed the session cookie by hand when a login hits a captcha
 
 Design: docs/superpowers/specs/2026-10-09-plab-design.md
@@ -115,6 +116,8 @@ def add_topic(lab, store, topic_id, rpc_url, download_dir, add=transmission.add)
 
     Returns {"name": ...}, or {"queued": True, "message": ...} when the tracker's daily
     download limit is reached: the topic waits in the queue for `drain_queue`."""
+    if topic_id in store.added():
+        return {"name": "already added"}  # a stale page must not burn a daily-quota slot
     if topic_id not in {t["id"] for t in store.cache()["topics"]}:
         raise ValueError(f"topic {topic_id} is not on the list")
     try:
@@ -210,19 +213,17 @@ def serve(lab, store, bind, port, rpc_url, download_dir):
             if not m:
                 return self._send(404, b"not found", "text/plain")
             action, topic_id = m.group(1), int(m.group(2))
-            if action == "unqueue":
-                with lock:
-                    unqueue_topic(store, topic_id)
-                log(f"unqueued {topic_id}")
-                return self._send(200, b'{"ok": true}', "application/json")
             try:
                 with lock:
-                    result = add_topic(lab, store, topic_id, rpc_url, download_dir)
+                    if action == "unqueue":
+                        result = unqueue_topic(store, topic_id)
+                    else:
+                        result = add_topic(lab, store, topic_id, rpc_url, download_dir)
                 code, reply = 200, {"ok": True, **result}
-                log(f"added {topic_id}: {result}")
+                log(f"{action} {topic_id}: {result}")
             except Exception as e:  # noqa: BLE001 -- the reason goes back to the button
                 code, reply = 502, {"ok": False, "error": str(e)}
-                log(f"add {topic_id} failed: {e}")
+                log(f"{action} {topic_id} failed: {e}")
             self._send(code, json.dumps(reply).encode(), "application/json")
 
     log(f"serving on {bind}:{port}")

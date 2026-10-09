@@ -233,6 +233,12 @@ class Routes(unittest.TestCase):
         self.assertEqual(self.store.queued(), [1])
         self.assertEqual(self.store.added(), set())
 
+    def test_add_already_added_topic_skips_fetch(self):
+        self.store.mark_added(1)
+        result = main.add_topic(self.lab, self.store, 1, "http://rpc", "/vault", add=None)
+        self.assertEqual(result, {"name": "already added"})
+        self.assertEqual(self.lab.torrents, [])
+
     def test_unqueue_removes_from_queue(self):
         self.store.enqueue(1)
         self.store.enqueue(2)
