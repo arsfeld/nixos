@@ -7,6 +7,7 @@ so; `plab set-cookie` is the way back in (see the design doc).
 """
 import http.cookiejar
 import os
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -18,6 +19,10 @@ UA = "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0"
 
 
 class LoginError(Exception):
+    pass
+
+
+class TrackerError(Exception):
     pass
 
 
@@ -83,11 +88,15 @@ class Lab:
     def torrent(self, topic_id):
         for attempt in range(2):
             data = self._open(f"{BASE}dl.php?t={topic_id}")
-            if data.startswith(b"d"):  # bencoded dictionary, not a login page
+            if re.match(rb"d\d+:", data):  # bencoded dictionary, not a login page
                 return data
+            # Only a missing session earns a login; a logged-in reply that is not a torrent
+            # (deleted topic, no access) is the tracker's answer, not a reason to log in again.
+            if parse.logged_in(data.decode("cp1251", "replace")):
+                raise TrackerError(f"no torrent for topic {topic_id}")
             if attempt == 0:
                 self.login()
-        raise LoginError(f"no torrent for topic {topic_id}")
+        raise LoginError(f"still logged out after login: topic {topic_id}")
 
     def fetch(self, url):
         return self._open(url)

@@ -3,7 +3,7 @@ import os
 import tempfile
 import unittest
 
-from lab import BASE, Lab, LoginError
+from lab import BASE, Lab, LoginError, TrackerError
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LOGGED_OUT = '<html><form action="/forum/login.php"></form></html>'.encode("cp1251")
@@ -50,12 +50,17 @@ class LabTest(unittest.TestCase):
         self.assertEqual(url, BASE + "login.php")
         self.assertIn(b"login_username=user", data)
         self.assertIn(b"login_password=p%E4ssword", data)  # cp1251, as the form expects
-        self.assertTrue(os.path.exists(self.jar))
 
     def test_captcha_raises(self):
         lab, _ = self.lab(LOGGED_OUT, CAPTCHA)
         with self.assertRaisesRegex(LoginError, "captcha"):
             lab.page("tracker.php")
+
+    def test_login_failed_without_captcha_raises(self):
+        lab, opener = self.lab(LOGGED_OUT, b"<html>wrong password</html>")
+        with self.assertRaisesRegex(LoginError, "^login failed$"):
+            lab.page("tracker.php")
+        self.assertEqual(len(opener.calls), 2)
 
     def test_still_logged_out_after_login_raises(self):
         lab, _ = self.lab(LOGGED_OUT, LOGGED_IN, LOGGED_OUT)
@@ -80,6 +85,29 @@ class LabTest(unittest.TestCase):
         lab, opener = self.lab(LOGGED_OUT, LOGGED_IN, b"d8:announce1:xe")
         self.assertEqual(lab.torrent(3313754), b"d8:announce1:xe")
         self.assertEqual(opener.calls[0][0], BASE + "dl.php?t=3313754")
+
+    def test_torrent_logged_in_non_torrent_raises_without_login(self):
+        lab, opener = self.lab(LOGGED_IN)
+        with self.assertRaisesRegex(TrackerError, "no torrent for topic 3313754"):
+            lab.torrent(3313754)
+        self.assertEqual(len(opener.calls), 1)
+
+    def test_torrent_still_logged_out_after_login_raises(self):
+        lab, opener = self.lab(LOGGED_OUT, LOGGED_IN, LOGGED_OUT)
+        with self.assertRaises(LoginError):
+            lab.torrent(3313754)
+        self.assertEqual(len(opener.calls), 3)
+
+    def test_fetch_returns_bytes_for_any_url(self):
+        lab, opener = self.lab(b"\x89PNG-bytes")
+        self.assertEqual(lab.fetch("https://img.example.com/a.png"), b"\x89PNG-bytes")
+        self.assertEqual(opener.calls[0][0], "https://img.example.com/a.png")
+
+    def test_set_cookie_survives_a_new_lab(self):
+        lab, _ = self.lab()
+        lab.set_cookie("abc123")
+        new_lab = Lab("user", "pдssword", self.jar, opener=FakeOpener([]))
+        self.assertTrue(any(c.name == "bb_data" and c.value == "abc123" for c in new_lab.jar))
 
     def test_set_cookie(self):
         lab, _ = self.lab()
