@@ -21,6 +21,27 @@ class Markers(unittest.TestCase):
         self.assertFalse(parse.needs_captcha(fixture("tracker.html")))
 
 
+class Limit(unittest.TestCase):
+    def test_daily_limit(self):
+        self.assertEqual(parse.daily_limit(fixture("limit.html")), 10)
+
+    def test_daily_limit_without_number(self):
+        self.assertEqual(parse.daily_limit("<div>Вы уже исчерпали суточный лимит скачиваний</div>"), 0)
+
+    def test_daily_limit_absent(self):
+        self.assertIsNone(parse.daily_limit(fixture("tracker.html")))
+
+    def test_info_message(self):
+        self.assertEqual(
+            parse.info_message(fixture("limit.html")),
+            "Вы уже исчерпали суточный лимит скачиваний торрент-файлов Ваш текущий лимит: 10 в день")
+        self.assertEqual(parse.info_message('<div class="mrg_16"> Тема\n  удалена &amp; всё </div>'),
+                         "Тема удалена & всё")
+
+    def test_info_message_absent(self):
+        self.assertIsNone(parse.info_message("<html></html>"))
+
+
 class Rows(unittest.TestCase):
     def test_rows(self):
         rows = parse.rows(fixture("tracker.html"))

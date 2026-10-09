@@ -9,8 +9,8 @@ TOPIC = {"id": 3313754, "title": "Studio <script>alert(1)</script> & Co", "forum
 
 
 class Render(unittest.TestCase):
-    def render(self, topics, added=frozenset(), updated=1791117232, now=1791117232 + 7200):
-        return page.render({"updated": updated, "topics": topics}, set(added), now)
+    def render(self, topics, added=frozenset(), queued=frozenset(), updated=1791117232, now=1791117232 + 7200):
+        return page.render({"updated": updated, "topics": topics}, set(added), set(queued), now)
 
     def test_card(self):
         out = self.render([TOPIC])
@@ -36,6 +36,19 @@ class Render(unittest.TestCase):
         out = self.render([TOPIC], added=set())
         self.assertIn('<button class="add" data-id="3313754">Add to Vault</button>', out)
         self.assertNotIn('data-id="3313754" disabled', out)
+
+    def test_queued_topic(self):
+        out = self.render([TOPIC], queued={3313754})
+        self.assertIn('<button class="add" data-id="3313754" disabled>Queued ⏳</button>', out)
+        self.assertIn("· 1 queued", out)
+
+    def test_added_wins_over_queued(self):
+        out = self.render([TOPIC], added={3313754}, queued={3313754})
+        self.assertIn('disabled>Added ✓</button>', out)
+        self.assertNotIn("Queued ⏳</button>", out)
+
+    def test_no_queued_in_header_by_default(self):
+        self.assertNotIn("queued", self.render([TOPIC]).split("<script>")[0])
 
     def test_no_images(self):
         out = self.render([dict(TOPIC, images=[])])

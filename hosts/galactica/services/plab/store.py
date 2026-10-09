@@ -1,4 +1,4 @@
-"""plab's files under the state dir: cache.json, added.json and img/<sha1 of url>.
+"""plab's files under the state dir: cache.json, added.json, queued.json and img/<sha1 of url>.
 
 `refresh` and `serve` are separate processes sharing this directory, so every write is a
 temp file + rename: a reader sees the old file or the new one, never half of either.
@@ -49,6 +49,22 @@ class Store:
     def mark_added(self, topic_id):
         ids = sorted(self.added() | {topic_id})
         _write(os.path.join(self.root, "added.json"), json.dumps(ids).encode())
+
+    def queued(self):
+        return list(self._read_json("queued.json", []))
+
+    def _save_queue(self, ids):
+        _write(os.path.join(self.root, "queued.json"), json.dumps(ids).encode())
+
+    def enqueue(self, topic_id):
+        ids = self.queued()
+        if topic_id not in ids and topic_id not in self.added():
+            self._save_queue(ids + [topic_id])
+
+    def dequeue(self, topic_id):
+        ids = self.queued()
+        if topic_id in ids:
+            self._save_queue([i for i in ids if i != topic_id])
 
     def image_path(self, url):
         return os.path.join(self.img, key(url))

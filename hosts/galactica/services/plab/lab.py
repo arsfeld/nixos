@@ -27,6 +27,10 @@ class TrackerError(Exception):
     pass
 
 
+class LimitError(TrackerError):
+    """The account's daily .torrent download quota is used up."""
+
+
 class Lab:
     def __init__(self, username, password, jar_path, opener=None):
         self.username = username
@@ -131,8 +135,12 @@ class Lab:
                 return data
             # Only a missing session earns a login; a logged-in reply that is not a torrent
             # (deleted topic, no access) is the tracker's answer, not a reason to log in again.
-            if parse.logged_in(data.decode("cp1251", "replace")):
-                raise TrackerError(f"no torrent for topic {topic_id}")
+            text = data.decode("cp1251", "replace")
+            if parse.logged_in(text):
+                limit = parse.daily_limit(text)
+                if limit is not None:
+                    raise LimitError(f"daily download limit reached ({limit}/day)")
+                raise TrackerError(parse.info_message(text) or f"no torrent for topic {topic_id}")
             if not reloaded and self._reload_if_newer():
                 reloaded = True
             elif not logged_in:

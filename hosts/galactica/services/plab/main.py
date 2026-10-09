@@ -1,7 +1,8 @@
 """plab: the tracker's most-seeded video releases of the last week, one click into Vault.
 
-  refresh     scrape the list and each new topic's images into the state dir (timer)
-  serve       the page, the image proxy and POST /add/<topic>
+  refresh     send adds queued by the daily download limit, then scrape the list and
+              each new topic's images into the state dir (timer)
+  serve       the page, the image proxy and POST /add/<topic> (queues past the daily limit)
   set-cookie  seed the session cookie by hand when a login hits a captcha
 
 Design: docs/superpowers/specs/2026-10-09-plab-design.md
@@ -19,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import page
 import parse
 import transmission
-from lab import Lab, LoginError
+from lab import Lab, LimitError, LoginError, TrackerError
 from store import Store, key
 
 DAYS = 7
@@ -110,12 +111,41 @@ def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep)
 
 
 def add_topic(lab, store, topic_id, rpc_url, download_dir, add=transmission.add):
-    """Send a listed topic's torrent to Transmission; return the torrent's name."""
+    """Send a listed topic's torrent to Transmission.
+
+    Returns {"name": ...}, or {"queued": True, "message": ...} when the tracker's daily
+    download limit is reached: the topic waits in the queue for `drain_queue`."""
     if topic_id not in {t["id"] for t in store.cache()["topics"]}:
         raise ValueError(f"topic {topic_id} is not on the list")
-    name = add(rpc_url, lab.torrent(topic_id), download_dir)
+    try:
+        torrent = lab.torrent(topic_id)
+    except LimitError as e:
+        store.enqueue(topic_id)
+        return {"queued": True, "message": str(e)}
+    name = add(rpc_url, torrent, download_dir)
     store.mark_added(topic_id)
-    return name
+    return {"name": name}
+
+
+def drain_queue(lab, store, rpc_url, download_dir, add=transmission.add):
+    """Add queued topics, oldest first. Stops at the first limit reply: every further
+    attempt would only fetch the limit page again."""
+    for topic_id in store.queued():
+        try:
+            add(rpc_url, lab.torrent(topic_id), download_dir)
+            store.mark_added(topic_id)
+            store.dequeue(topic_id)
+            log(f"queued {topic_id}: added")
+        except LimitError as e:
+            log(f"queue: {e}; {len(store.queued())} still queued")
+            return
+        except LoginError:
+            raise  # never loop logins
+        except TrackerError as e:  # permanent (deleted topic, no access): drop it
+            store.dequeue(topic_id)
+            log(f"queued {topic_id} dropped: {e}")
+        except Exception as e:  # noqa: BLE001 -- Transmission or network: retry next time
+            log(f"queued {topic_id} kept: {e}")
 
 
 def image_for(lab, store, image_key):
@@ -145,7 +175,7 @@ def serve(lab, store, bind, port, rpc_url, download_dir):
 
         def do_GET(self):
             if self.path == "/":
-                body = page.render(store.cache(), store.added(), time.time()).encode()
+                body = page.render(store.cache(), store.added(), set(store.queued()), time.time()).encode()
                 return self._send(200, body, "text/html; charset=utf-8")
             m = re.fullmatch(r"/img/([0-9a-f]{40})", self.path)
             if m:
@@ -164,9 +194,9 @@ def serve(lab, store, bind, port, rpc_url, download_dir):
                 return self._send(404, b"not found", "text/plain")
             try:
                 with lock:
-                    name = add_topic(lab, store, int(m.group(1)), rpc_url, download_dir)
-                code, reply = 200, {"ok": True, "name": name}
-                log(f"added {m.group(1)}: {name}")
+                    result = add_topic(lab, store, int(m.group(1)), rpc_url, download_dir)
+                code, reply = 200, {"ok": True, **result}
+                log(f"added {m.group(1)}: {result}")
             except Exception as e:  # noqa: BLE001 -- the reason goes back to the button
                 code, reply = 502, {"ok": False, "error": str(e)}
                 log(f"add {m.group(1)} failed: {e}")
@@ -196,6 +226,12 @@ def main(argv=None):
     store = Store(state)
     lab = Lab(_secret("PLAB_USERNAME_FILE"), _secret("PLAB_PASSWORD_FILE"), os.path.join(state, "cookies.txt"))
     if args.cmd == "refresh":
+        try:
+            drain_queue(lab, store, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"])
+        except LoginError:
+            raise
+        except Exception as e:  # noqa: BLE001 -- the list refresh must still run
+            log(f"queue drain failed: {e}")
         refresh(lab, store)
     elif args.cmd == "serve":
         serve(lab, store, args.bind, args.port, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"])

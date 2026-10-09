@@ -3,7 +3,7 @@ import tempfile
 import unittest
 
 import main
-from lab import LoginError
+from lab import LimitError, LoginError, TrackerError
 from store import Store, key
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -21,7 +21,8 @@ def row(topic_id):
 
 
 class FakeLab:
-    def __init__(self, rows, broken_topics=(), logged_out=()):
+    def __init__(self, rows, broken_topics=(), logged_out=(), errors=None):
+        self.errors = errors or {}
         self.logged_out = set(logged_out)
         self.rows = rows
         self.broken = set(broken_topics)
@@ -46,6 +47,8 @@ class FakeLab:
 
     def torrent(self, topic_id):
         self.torrents.append(topic_id)
+        if topic_id in self.errors:
+            raise self.errors[topic_id]
         return b"d4:infoe"
 
 
@@ -107,6 +110,79 @@ class Refresh(unittest.TestCase):
         self.assertTrue(os.path.exists(self.store.image_path(COVER)))
 
 
+class Drain(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.store = Store(self.dir.name)
+        self.calls = []
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def add(self, url, torrent, ddir):
+        self.calls.append((url, torrent, ddir))
+        return "n"
+
+    def drain(self, lab, add=None):
+        main.drain_queue(lab, self.store, "http://rpc", "/vault", add=add or self.add)
+
+    def queue(self, *ids):
+        for i in ids:
+            self.store.enqueue(i)
+
+    def test_drains_oldest_first_without_cache(self):
+        self.queue(3, 1, 2)
+        lab = FakeLab([])
+        self.drain(lab)
+        self.assertEqual(lab.torrents, [3, 1, 2])
+        self.assertEqual(self.store.queued(), [])
+        self.assertEqual(self.store.added(), {1, 2, 3})
+        self.assertEqual(self.calls[0], ("http://rpc", b"d4:infoe", "/vault"))
+
+    def test_stops_at_limit_and_keeps_the_rest(self):
+        self.queue(1, 2, 3)
+        lab = FakeLab([], errors={2: LimitError("limit")})
+        self.drain(lab)
+        self.assertEqual(lab.torrents, [1, 2])
+        self.assertEqual(self.store.queued(), [2, 3])
+        self.assertEqual(self.store.added(), {1})
+
+    def test_tracker_error_dequeues_and_continues(self):
+        self.queue(1, 2)
+        lab = FakeLab([], errors={1: TrackerError("gone")})
+        self.drain(lab)
+        self.assertEqual(self.store.queued(), [])
+        self.assertEqual(self.store.added(), {2})
+
+    def test_other_errors_keep_queued_and_continue(self):
+        self.queue(1, 2)
+
+        def add(url, torrent, ddir):
+            if not self.calls:
+                self.calls.append(1)
+                raise OSError("transmission down")
+            return "n"
+
+        lab = FakeLab([])
+        self.drain(lab, add=add)
+        self.assertEqual(lab.torrents, [1, 2])
+        self.assertEqual(self.store.queued(), [1])
+        self.assertEqual(self.store.added(), {2})
+
+    def test_network_error_fetching_keeps_queued(self):
+        self.queue(1)
+        self.drain(FakeLab([], errors={1: OSError("net")}))
+        self.assertEqual(self.store.queued(), [1])
+
+    def test_login_error_propagates(self):
+        self.queue(1, 2)
+        lab = FakeLab([], errors={1: LoginError("captcha")})
+        with self.assertRaises(LoginError):
+            self.drain(lab)
+        self.assertEqual(lab.torrents, [1])
+        self.assertEqual(self.store.queued(), [1, 2])
+
+
 class Routes(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
@@ -120,10 +196,17 @@ class Routes(unittest.TestCase):
     def test_add_known_topic(self):
         calls = []
         add = lambda url, torrent, ddir: calls.append((url, torrent, ddir)) or "Release"  # noqa: E731
-        name = main.add_topic(self.lab, self.store, 1, "http://rpc", "/vault", add=add)
-        self.assertEqual(name, "Release")
+        result = main.add_topic(self.lab, self.store, 1, "http://rpc", "/vault", add=add)
+        self.assertEqual(result, {"name": "Release"})
         self.assertEqual(calls, [("http://rpc", b"d4:infoe", "/vault")])
         self.assertEqual(self.store.added(), {1})
+
+    def test_add_over_the_limit_is_queued(self):
+        lab = FakeLab([], errors={1: LimitError("daily download limit reached (10/day)")})
+        result = main.add_topic(lab, self.store, 1, "http://rpc", "/vault", add=None)
+        self.assertEqual(result, {"queued": True, "message": "daily download limit reached (10/day)"})
+        self.assertEqual(self.store.queued(), [1])
+        self.assertEqual(self.store.added(), set())
 
     def test_add_unknown_topic_rejected(self):
         with self.assertRaises(ValueError):

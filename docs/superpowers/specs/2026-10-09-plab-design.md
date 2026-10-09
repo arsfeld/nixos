@@ -109,6 +109,22 @@ games out. Sent as `f[]=` parameters so the tracker filters server-side.
   `transmission.add`, records the topic in `added.json`, returns JSON. The button turns
   to "Added ✓" or shows the error inline via a small `fetch()`; no page reload.
 
+### Daily download limit
+
+The tracker allows this account 10 `.torrent` downloads per day. Past that, `dl.php`
+answers with a logged-in HTML page ("Вы уже исчерпали суточный лимит…") instead of a
+torrent; `lab.torrent` raises `LimitError` for it. Prowlarr/Radarr download through the
+same account, so they share the quota and the web UI may hit it before plab does.
+
+- `POST /add/<topic>` on a limit reply queues the topic in `queued.json` (oldest first)
+  and replies `{"ok": true, "queued": true, "message": ...}`; the card shows a disabled
+  "Queued ⏳" button and the header gains "· N queued".
+- `plab refresh` (every 3 h) drains the queue before refreshing the list, oldest first.
+  It stops at the first limit reply, keeping the rest queued, so no download is wasted
+  on a page that is only the limit message. A deleted topic (`TrackerError`) is dropped;
+  Transmission or network errors leave it queued. A `LoginError` aborts the run.
+- Queued topics need not be on the current list.
+
 Images are always proxied: the tracker and its image hosts block hotlinking, and the
 browser never contacts them directly.
 

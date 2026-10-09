@@ -25,6 +25,22 @@ def needs_captcha(page):
     return "cap_sid" in page
 
 
+def daily_limit(page):
+    """The tracker's per-day .torrent quota if `page` is its limit-reached reply, else None."""
+    if "исчерпали суточный лимит" not in page:
+        return None
+    m = re.search(r"текущий лимит:\s*(\d+)", page)
+    return int(m.group(1)) if m else 0
+
+
+def info_message(page):
+    """Text of the tracker's info box (first mrg_16 div), or None; best effort."""
+    m = re.search(r'<div class="mrg_16">(.*?)</div>', page, re.S)
+    if not m:
+        return None
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", m.group(1))).split()) or None
+
+
 def rows(page):
     """Tracker result rows in page order."""
     start = page.find('id="tor-tbl"')

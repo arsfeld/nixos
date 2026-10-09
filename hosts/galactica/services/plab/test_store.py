@@ -28,6 +28,21 @@ class StoreTest(unittest.TestCase):
         self.store.mark_added(3)
         self.assertEqual(Store(self.dir.name).added(), {3, 5})
 
+    def test_queue(self):
+        self.assertEqual(self.store.queued(), [])
+        self.store.enqueue(5)
+        self.store.enqueue(3)
+        self.store.enqueue(5)  # no duplicates
+        self.assertEqual(Store(self.dir.name).queued(), [5, 3])  # oldest first
+        self.store.dequeue(5)
+        self.store.dequeue(99)  # unknown: no-op
+        self.assertEqual(self.store.queued(), [3])
+
+    def test_enqueue_skips_added(self):
+        self.store.mark_added(4)
+        self.store.enqueue(4)
+        self.assertEqual(self.store.queued(), [])
+
     def test_ensure_image_fetches_once(self):
         calls = []
 
@@ -66,6 +81,9 @@ class StoreTest(unittest.TestCase):
             f.write("not json{")
         self.assertEqual(self.store.cache(), {"updated": 0, "topics": []})
         self.assertEqual(self.store.added(), set())
+        with open(os.path.join(self.dir.name, "queued.json"), "w") as f:
+            f.write("[1,")
+        self.assertEqual(self.store.queued(), [])
 
 
 if __name__ == "__main__":

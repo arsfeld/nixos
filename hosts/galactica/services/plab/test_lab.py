@@ -3,7 +3,7 @@ import os
 import tempfile
 import unittest
 
-from lab import BASE, Lab, LoginError, TrackerError
+from lab import BASE, Lab, LimitError, LoginError, TrackerError
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LOGGED_OUT = '<html><form action="/forum/login.php"></form></html>'.encode("cp1251")
@@ -91,6 +91,19 @@ class LabTest(unittest.TestCase):
         with self.assertRaisesRegex(TrackerError, "no torrent for topic 3313754"):
             lab.torrent(3313754)
         self.assertEqual(len(opener.calls), 1)
+
+    def test_torrent_daily_limit_raises_without_login(self):
+        lab, opener = self.lab(fixture("limit.html"))
+        with self.assertRaisesRegex(LimitError, r"daily download limit reached \(10/day\)"):
+            lab.torrent(1)
+        self.assertEqual(len(opener.calls), 1)
+        self.assertTrue(issubclass(LimitError, TrackerError))
+
+    def test_torrent_other_info_page_carries_tracker_message(self):
+        page = '<html>{logout: 1}<div class="mrg_16">Тема удалена</div></html>'.encode("cp1251")
+        lab, _ = self.lab(page)
+        with self.assertRaisesRegex(TrackerError, "Тема удалена"):
+            lab.torrent(1)
 
     def test_torrent_still_logged_out_after_login_raises(self):
         lab, opener = self.lab(LOGGED_OUT, LOGGED_IN, LOGGED_OUT)

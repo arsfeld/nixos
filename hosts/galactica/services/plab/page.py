@@ -39,6 +39,7 @@ document.querySelectorAll('button.add').forEach(b => b.onclick = async () => {
     let j;
     try { j = await r.json(); } catch (_) { throw new Error('HTTP ' + r.status + ' — reload the page'); }
     if (!j.ok) throw new Error(j.error);
+    if (j.queued) { b.textContent = 'Queued ⏳'; err.textContent = j.message; b.disabled = true; return; }
     b.textContent = 'Added ✓';
   } catch (e) {
     b.disabled = false; b.textContent = 'Retry'; err.textContent = e.message;
@@ -67,16 +68,16 @@ def age(updated, now):
     return f"{minutes} min ago" if minutes < 60 else f"{minutes // 60} h ago"
 
 
-def _card(t, added):
+def _card(t, added, queued):
     e = html.escape
     if t["images"]:
         keys = [key(u) for u in t["images"]]
         thumb = f'<img class="thumb" loading="lazy" src="img/{keys[0]}" data-images="{e(json.dumps(keys))}" alt="">'
     else:
         thumb = '<div class="thumb none"></div>'
-    done = t["id"] in added
-    button = (f'<button class="add" data-id="{t["id"]}"{" disabled" if done else ""}>'
-              f'{"Added ✓" if done else "Add to Vault"}</button><span class="err"></span>')
+    label = "Added ✓" if t["id"] in added else "Queued ⏳" if t["id"] in queued else None
+    button = (f'<button class="add" data-id="{t["id"]}"{" disabled" if label else ""}>'
+              f'{label or "Add to Vault"}</button><span class="err"></span>')
     date = time.strftime("%Y-%m-%d", time.gmtime(t["added"]))
     return (f'<div class="card">{thumb}<div class="body">'
             f'<a class="title" href="{TOPIC_URL % t["id"]}" target="_blank" rel="noreferrer">{e(t["title"])}</a>'
@@ -84,13 +85,14 @@ def _card(t, added):
             f'<div class="actions">{button}</div></div></div>')
 
 
-def render(cache, added, now):
-    cards = "".join(_card(t, added) for t in cache["topics"])
+def render(cache, added, queued, now):
+    pending = len(queued - added)
+    cards = "".join(_card(t, added, queued) for t in cache["topics"])
     return ("<!doctype html><html><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
             "<meta name=\"referrer\" content=\"no-referrer\">"
             f"<title>plab</title><style>{CSS}</style></head><body>"
             f"<header><h1>plab</h1><span class=\"dim\">{len(cache['topics'])} releases · last 7 days · "
-            f"updated {age(cache['updated'], now)}</span></header>"
+            f"updated {age(cache['updated'], now)}{f' · {pending} queued' if pending else ''}</span></header>"
             f"<div class=\"grid\">{cards}</div><div id=\"ov\" hidden></div>"
             f"<script>{JS}</script></body></html>")
