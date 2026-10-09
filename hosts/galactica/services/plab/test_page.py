@@ -39,16 +39,17 @@ class Render(unittest.TestCase):
 
     def test_queued_topic(self):
         out = self.render([TOPIC], queued={3313754})
-        self.assertIn('<button class="add" data-id="3313754" disabled>Queued ⏳</button>', out)
+        self.assertIn('<button class="add queued" data-id="3313754" title="Click to remove from queue">Queued ⏳</button>', out)
+        self.assertNotIn("disabled>Queued", out)
         self.assertIn("· 1 queued", out)
 
     def test_added_wins_over_queued(self):
         out = self.render([TOPIC], added={3313754}, queued={3313754})
-        self.assertIn('disabled>Added ✓</button>', out)
+        self.assertIn('<button class="add" data-id="3313754" disabled>Added ✓</button>', out)
         self.assertNotIn("Queued ⏳</button>", out)
 
     def test_no_queued_in_header_by_default(self):
-        self.assertNotIn("queued", self.render([TOPIC]).split("<script>")[0])
+        self.assertNotIn("queued", self.render([TOPIC]).split("<header>")[1].split("</header>")[0])
 
     def test_no_images(self):
         out = self.render([dict(TOPIC, images=[])])

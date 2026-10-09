@@ -233,6 +233,16 @@ class Routes(unittest.TestCase):
         self.assertEqual(self.store.queued(), [1])
         self.assertEqual(self.store.added(), set())
 
+    def test_unqueue_removes_from_queue(self):
+        self.store.enqueue(1)
+        self.store.enqueue(2)
+        self.assertEqual(main.unqueue_topic(self.store, 1), {})
+        self.assertEqual(self.store.queued(), [2])
+
+    def test_unqueue_is_idempotent(self):
+        self.assertEqual(main.unqueue_topic(self.store, 1), {})
+        self.assertEqual(self.store.queued(), [])
+
     def test_add_unknown_topic_rejected(self):
         with self.assertRaises(ValueError):
             main.add_topic(self.lab, self.store, 99, "http://rpc", "/vault", add=None)

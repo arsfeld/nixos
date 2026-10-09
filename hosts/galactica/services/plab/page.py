@@ -25,6 +25,7 @@ h1 { font-size: 20px; margin: 0; }
 .actions { margin-top: auto; display: flex; gap: 8px; align-items: center; }
 button.add { background: var(--accent); color: #000; border: 0; border-radius: 4px; padding: 6px 12px; font-weight: 600; cursor: pointer; }
 button.add:disabled { background: #333; color: var(--dim); cursor: default; }
+button.add.queued:hover { background: #522; color: #fcc; }
 .err { color: #e66; font-size: 12px; }
 #ov { position: fixed; inset: 0; background: rgba(0, 0, 0, .92); overflow-y: auto; padding: 16px; text-align: center; cursor: zoom-out; }
 #ov img { max-width: 100%; margin: 0 auto 12px; display: block; }
@@ -33,16 +34,22 @@ button.add:disabled { background: #333; color: var(--dim); cursor: default; }
 JS = """
 document.querySelectorAll('button.add').forEach(b => b.onclick = async () => {
   const err = b.nextElementSibling;
-  b.disabled = true; b.textContent = 'Adding…'; err.textContent = '';
+  const unq = b.classList.contains('queued');
+  b.disabled = true; b.textContent = unq ? 'Removing…' : 'Adding…'; err.textContent = '';
   try {
-    const r = await fetch('add/' + b.dataset.id, {method: 'POST'});
+    const r = await fetch((unq ? 'unqueue/' : 'add/') + b.dataset.id, {method: 'POST'});
     let j;
     try { j = await r.json(); } catch (_) { throw new Error('HTTP ' + r.status + ' — reload the page'); }
     if (!j.ok) throw new Error(j.error);
-    if (j.queued) { b.textContent = 'Queued ⏳'; err.textContent = j.message; b.disabled = true; return; }
-    b.textContent = 'Added ✓';
+    if (unq) {
+      b.classList.remove('queued'); b.removeAttribute('title'); b.disabled = false;
+      b.textContent = 'Add to Vault'; err.textContent = ''; err.title = '';
+    } else if (j.queued) {
+      b.classList.add('queued'); b.title = 'Click to remove from queue'; b.disabled = false;
+      b.textContent = 'Queued ⏳'; err.textContent = j.message;
+    } else b.textContent = 'Added ✓';
   } catch (e) {
-    b.disabled = false; b.textContent = 'Retry'; err.textContent = e.message;
+    b.disabled = false; b.textContent = unq ? 'Queued ⏳' : 'Retry'; err.textContent = e.message;
   }
 });
 const ov = document.getElementById('ov');
@@ -75,9 +82,15 @@ def _card(t, added, queued):
         thumb = f'<img class="thumb" loading="lazy" src="img/{keys[0]}" data-images="{e(json.dumps(keys))}" alt="">'
     else:
         thumb = '<div class="thumb none"></div>'
-    label = "Added ✓" if t["id"] in added else "Queued ⏳" if t["id"] in queued else None
-    button = (f'<button class="add" data-id="{t["id"]}"{" disabled" if label else ""}>'
-              f'{label or "Add to Vault"}</button><span class="err"></span>')
+    if t["id"] in added:
+        attrs, label = ' disabled', "Added ✓"
+    elif t["id"] in queued:
+        attrs, label = ' title="Click to remove from queue"', "Queued ⏳"
+    else:
+        attrs, label = "", "Add to Vault"
+    cls = "add queued" if t["id"] not in added and t["id"] in queued else "add"
+    button = (f'<button class="{cls}" data-id="{t["id"]}"{attrs}>'
+              f'{label}</button><span class="err"></span>')
     date = time.strftime("%Y-%m-%d", time.gmtime(t["added"]))
     return (f'<div class="card">{thumb}<div class="body">'
             f'<a class="title" href="{TOPIC_URL % t["id"]}" target="_blank" rel="noreferrer">{e(t["title"])}</a>'

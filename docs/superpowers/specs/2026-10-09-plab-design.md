@@ -117,8 +117,9 @@ torrent; `lab.torrent` raises `LimitError` for it. Prowlarr/Radarr download thro
 same account, so they share the quota and the web UI may hit it before plab does.
 
 - `POST /add/<topic>` on a limit reply queues the topic in `queued.json` (oldest first)
-  and replies `{"ok": true, "queued": true, "message": ...}`; the card shows a disabled
-  "Queued ⏳" button and the header gains "· N queued".
+  and replies `{"ok": true, "queued": true, "message": ...}`; the card shows a
+  "Queued ⏳" button and the header gains "· N queued". Clicking the queued button cancels
+  it (`POST /unqueue/<topic>`, idempotent) and the button returns to "Add to Vault".
 - `plab refresh` (every 3 h) drains the queue before refreshing the list, oldest first.
   It stops at the first limit reply, keeping the rest queued, so no download is wasted
   on a page that is only the limit message. A deleted topic (`TrackerError`) is dropped;
