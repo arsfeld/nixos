@@ -133,8 +133,8 @@ def drain_queue(lab, store, rpc_url, download_dir, add=transmission.add):
     for topic_id in store.queued():
         try:
             add(rpc_url, lab.torrent(topic_id), download_dir)
+            store.dequeue(topic_id)  # first: a crash between the two must not re-download
             store.mark_added(topic_id)
-            store.dequeue(topic_id)
             log(f"queued {topic_id}: added")
         except LimitError as e:
             log(f"queue: {e}; {len(store.queued())} still queued")
@@ -146,6 +146,17 @@ def drain_queue(lab, store, rpc_url, download_dir, add=transmission.add):
             log(f"queued {topic_id} dropped: {e}")
         except Exception as e:  # noqa: BLE001 -- Transmission or network: retry next time
             log(f"queued {topic_id} kept: {e}")
+
+
+def run_refresh(lab, store, rpc_url, download_dir):
+    """The `refresh` subcommand: drain the queue, then rebuild the list."""
+    try:
+        drain_queue(lab, store, rpc_url, download_dir)
+    except LoginError:
+        raise  # the session is gone; the list refresh would only fail the same way
+    except Exception as e:  # noqa: BLE001 -- the list refresh must still run
+        log(f"queue drain failed: {e}")
+    refresh(lab, store)
 
 
 def image_for(lab, store, image_key):
@@ -226,13 +237,7 @@ def main(argv=None):
     store = Store(state)
     lab = Lab(_secret("PLAB_USERNAME_FILE"), _secret("PLAB_PASSWORD_FILE"), os.path.join(state, "cookies.txt"))
     if args.cmd == "refresh":
-        try:
-            drain_queue(lab, store, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"])
-        except LoginError:
-            raise
-        except Exception as e:  # noqa: BLE001 -- the list refresh must still run
-            log(f"queue drain failed: {e}")
-        refresh(lab, store)
+        run_refresh(lab, store, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"])
     elif args.cmd == "serve":
         serve(lab, store, args.bind, args.port, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"])
     else:

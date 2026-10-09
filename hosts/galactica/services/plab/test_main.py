@@ -183,6 +183,31 @@ class Drain(unittest.TestCase):
         self.assertEqual(self.store.queued(), [1, 2])
 
 
+class RunRefresh(unittest.TestCase):
+    def run_it(self, drain_error):
+        calls = self.calls = []
+
+        def drain(*args):
+            calls.append("drain")
+            raise drain_error
+
+        saved = main.drain_queue, main.refresh
+        main.drain_queue, main.refresh = drain, lambda lab, store: calls.append("refresh")
+        try:
+            main.run_refresh(None, None, "http://rpc", "/vault")
+        finally:
+            main.drain_queue, main.refresh = saved
+        return calls
+
+    def test_drain_failure_does_not_stop_refresh(self):
+        self.assertEqual(self.run_it(RuntimeError("boom")), ["drain", "refresh"])
+
+    def test_login_error_aborts_before_refresh(self):
+        with self.assertRaises(LoginError):
+            self.run_it(LoginError("captcha"))
+        self.assertEqual(self.calls, ["drain"])  # refresh never ran
+
+
 class Routes(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
