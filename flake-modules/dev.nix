@@ -13,6 +13,9 @@
   }: {
     _module.args.pkgs = import inputs.nixpkgs {
       inherit system;
+      # packages/claude-desktop is unfree; `nix flake check` evaluates every
+      # `packages` output and refuses it without this.
+      config.allowUnfree = true;
       overlays = [
         (import ../overlays/python-packages.nix)
       ];
