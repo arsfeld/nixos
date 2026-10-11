@@ -65,6 +65,17 @@
       ttl = 1;
       proxied = true;
     };
+    # Authored here, not adopted (no import block): Talorys, a Cloudflare
+    # Pages project with assistant.arsfeld.dev attached as a custom domain.
+    # Nothing on basestar serves it; this exact name beats the wildcard above.
+    cname_assistant_arsfeld_dev = {
+      zone_id = "5b658a2265b2562c6f51ac93de8d21bf";
+      name = "assistant.arsfeld.dev";
+      type = "CNAME";
+      content = "talorys-v58c1br3-web.pages.dev";
+      ttl = 1;
+      proxied = true;
+    };
     cname_cache_arsfeld_dev = {
       zone_id = "5b658a2265b2562c6f51ac93de8d21bf";
       name = "cache.arsfeld.dev";
