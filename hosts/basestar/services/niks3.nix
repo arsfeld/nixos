@@ -52,7 +52,7 @@
       boundSubject = ["repo:arsfeld/nixos:*"];
     };
 
-    # 30 days, not attic's 6 months, because CI pins the tier-1 closures. The
+    # 14 days, not attic's 6 months, because CI pins every host's closure. The
     # server's delete query is explicit about the exemption:
     #
     #   DELETE FROM closures
@@ -63,11 +63,17 @@
     # everything beneath a pinned toplevel lives too. That decouples two
     # retention needs a single olderThan cannot serve: the closure
     # weekly-deploy needs can never age out from under it, while everything
-    # else — including every derivation raider auto-uploads — expires in a
-    # month. Shorten this before disabling auto-upload if the bucket grows.
+    # else — including every derivation raider auto-uploads — expires in two
+    # weeks. Shorten this before disabling auto-upload if the bucket grows.
+    #
+    # It was 30 days until 2026-10-11. Simulating GC against the live
+    # database then, 30 days kept 416 GB of uncompressed NARs and 14 days kept
+    # 207 GB, of which 105 GB hangs off the pins. Three quarters of the
+    # unpinned remainder was raider's auto-uploads (Android SDK images, CUDA
+    # sources, CEF, vscode), and only 12% of it existed on cache.nixos.org.
     gc = {
       enable = true;
-      olderThan = "720h";
+      olderThan = "336h";
     };
 
     # maxNarSize is deliberately left unset. Multipart upload handles large

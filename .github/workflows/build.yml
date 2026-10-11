@@ -177,7 +177,7 @@ jobs:
           # `|| true` or continue-on-error here would turn a clean skip into a
           # broken deploy.
           #
-          # --pin exempts this closure from the 30-day GC window; pushing again
+          # --pin exempts this closure from the 14-day GC window; pushing again
           # under the same name retargets the pin and lets the previous closure
           # age out normally. Dropping it would leave weekly-deploy able to
           # fail on a closure that aged out from under it.
