@@ -62,6 +62,19 @@ with lib; let
             --email-to "${config.constellation.email.toEmail}" || true
         }
 
+        # The dry-run log runs to megabytes; passed whole as agy's prompt argument
+        # it overflows ARG_MAX ("Argument list too long"). Hand over the error
+        # lines and the tail, capped, and point at the full log by path.
+        error_excerpt() {
+          {
+            sed 's/\x1b\[[0-9;]*m//g' "$1" \
+              | grep -E '(^|> )error:|Reason:|builder failed|Cannot build|^✘' \
+              | grep -v 'niks3-hook' | head -n 60 || true
+            echo "..."
+            tail -n 40 "$1" | sed 's/\x1b\[[0-9;]*m//g' || true
+          } | head -c 16000
+        }
+
         on_failure() {
           local line="$1"
           local cmd="$2"
@@ -74,7 +87,7 @@ with lib; let
           fi
           local err_summary="Weekly update failed during execution at line $line ($cmd). See log: $RUN_LOG"
           if [ -s "$ERROR_LOG" ]; then
-            err_summary="$err_summary"$'\n\n'"Build error:"$'\n'"$(head -n 25 "$ERROR_LOG")"
+            err_summary="$err_summary"$'\n\n'"Build error:"$'\n'"$(error_excerpt "$ERROR_LOG" | head -n 40)"
           fi
           notify_all "failure" "ACTION NEEDED: Weekly update failed on raider" "$err_summary"
           exit 1
@@ -113,9 +126,13 @@ with lib; let
           cat "$ERROR_LOG"
 
           PROMPT="You are an automated maintenance agent for this NixOS flake repository.
-    We ran 'nix flake update', but 'just dry-run @tier1' failed with the following error:
+    We ran 'nix flake update', but 'just dry-run @tier1' failed. Excerpt of the error output:
 
-    $(cat "$ERROR_LOG")
+    $(error_excerpt "$ERROR_LOG")
+
+    The full log is at $ERROR_LOG. nix-fast-build keeps only the last 10000 lines per
+    host, so the root failure may be missing from it; if so, build the failing host with
+    'nix build .#nixosConfigurations.<host>.config.system.build.toplevel -L --keep-going'.
 
     Your task:
     1. Investigate and diagnose the root cause of the evaluation or build failure.
