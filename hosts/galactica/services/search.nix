@@ -1,21 +1,9 @@
-{
-  config,
-  pkgs,
-  inputs,
-  lib,
-  ...
-}: let
+{config, ...}: let
   port = 8888;
-  # Pull searxng from nixpkgs-unstable for engine fixes:
-  # - duckduckgo: Sec-Fetch-* headers (e92f6b7, 2026-04-04) — fixes constant CAPTCHAs
-  # - google: drop arc/async params + Android UA (a563127..c4f51aa, Mar 2026) — fixes 403s
-  # Rebuild against stable's python3 so the NixOS uwsgi vassal (built from stable
-  # pkgs) can construct a working Python env containing the searx module.
-  pkgs-unstable = import inputs.nixpkgs-unstable {
-    system = pkgs.stdenv.hostPlatform.system;
-    config = pkgs.config;
-  };
-  searxng = pkgs-unstable.searxng.override {python3 = pkgs.python3;};
+  # Stable's searxng (2026-05-16) already carries the duckduckgo Sec-Fetch-* and
+  # google 403 fixes that once justified pulling it from nixpkgs-unstable. Don't
+  # bring the unstable override back without its python set: unstable searxng
+  # rebuilt against stable's python3 fails its requirements check (babel>=2.18).
 in {
   media.services.search = {
     inherit port;
@@ -28,7 +16,6 @@ in {
 
   services.searx = {
     enable = true;
-    package = searxng;
     configureUwsgi = true;
     redisCreateLocally = true;
     environmentFile = config.sops.secrets.searxng-env.path;
