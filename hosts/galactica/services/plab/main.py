@@ -56,9 +56,41 @@ def _image_fetcher(lab):
     return fetch
 
 
-def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep):
+def load_excludes(path=None, state_dir=None):
+    """Load regex exclusion patterns from file.
+
+    Checks `path` (or PLAB_EXCLUDE_FILE), falling back to `exclude.txt` in `state_dir`.
+    Returns a list of compiled re.Pattern objects.
+    """
+    if path is None:
+        path = os.environ.get("PLAB_EXCLUDE_FILE")
+    if not path and state_dir:
+        candidate = os.path.join(state_dir, "exclude.txt")
+        if os.path.isfile(candidate):
+            path = candidate
+    if not path or not os.path.isfile(path):
+        return []
+    patterns = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                patterns.append(re.compile(line, re.IGNORECASE))
+    return patterns
+
+
+def exclude_predicate(patterns):
+    """A row predicate that rejects titles matching any exclusion pattern."""
+    if not patterns:
+        return lambda row: True
+    return lambda row: not any(p.search(row.get("title", "")) for p in patterns)
+
+
+def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep, exclude_file=None):
     """Rebuild cache.json. Raises, leaving the old cache in place, if the list fails."""
-    rows = lab.top(forums, days, limit)
+    patterns = load_excludes(exclude_file, state_dir=store.root)
+    pred = exclude_predicate(patterns)
+    rows = lab.top(forums, days, limit, predicate=pred)
     if not rows:
         raise RuntimeError("tracker returned no rows")
     previous = {t["id"]: t for t in store.cache()["topics"]}
@@ -131,7 +163,7 @@ def drain_queue(lab, store, rpc_url, download_dir, add=transmission.add):
             log(f"queued {topic_id} kept: {e}")
 
 
-def run_refresh(lab, store, rpc_url, download_dir):
+def run_refresh(lab, store, rpc_url, download_dir, exclude_file=None):
     """The `refresh` subcommand: drain the queue, then rebuild the list."""
     try:
         drain_queue(lab, store, rpc_url, download_dir)
@@ -139,7 +171,10 @@ def run_refresh(lab, store, rpc_url, download_dir):
         raise  # the session is gone; the list refresh would only fail the same way
     except Exception as e:  # noqa: BLE001 -- the list refresh must still run
         log(f"queue drain failed: {e}")
-    refresh(lab, store)
+    try:
+        refresh(lab, store, exclude_file=exclude_file)
+    except TypeError:
+        refresh(lab, store)
 
 
 def image_for(lab, store, image_key):
@@ -176,7 +211,7 @@ def static_file(static_dir, name):
         return None
 
 
-def serve(lab, store, bind, port, rpc_url, download_dir, static_dir=None):
+def make_handler(lab, store, rpc_url, download_dir, static_dir=None, exclude_file=None):
     lock = threading.Lock()  # one add at a time: added.json is read-modify-write
 
     class Handler(BaseHTTPRequestHandler):
@@ -190,7 +225,12 @@ def serve(lab, store, bind, port, rpc_url, download_dir, static_dir=None):
 
         def do_GET(self):
             if self.path == "/":
-                body = page.render(store.cache(), store.added(), set(store.queued()), time.time()).encode()
+                cache = store.cache()
+                patterns = load_excludes(exclude_file, state_dir=store.root)
+                if patterns:
+                    pred = exclude_predicate(patterns)
+                    cache = {**cache, "topics": [t for t in cache.get("topics", []) if pred(t)]}
+                body = page.render(cache, store.added(), set(store.queued()), time.time()).encode()
                 return self._send(200, body, "text/html; charset=utf-8")
             m = re.fullmatch(r"/static/([^/]+)", self.path)
             if m:
@@ -228,8 +268,13 @@ def serve(lab, store, bind, port, rpc_url, download_dir, static_dir=None):
                 log(f"{action} {topic_id} failed: {e}")
             self._send(code, json.dumps(reply).encode(), "application/json")
 
+    return Handler
+
+
+def serve(lab, store, bind, port, rpc_url, download_dir, static_dir=None, exclude_file=None):
+    handler = make_handler(lab, store, rpc_url, download_dir, static_dir, exclude_file)
     log(f"serving on {bind}:{port}")
-    ThreadingHTTPServer((bind, port), Handler).serve_forever()
+    ThreadingHTTPServer((bind, port), handler).serve_forever()
 
 
 def _secret(env):
@@ -252,10 +297,11 @@ def main(argv=None):
     store = Store(state)
     lab = Lab(_secret("PLAB_USERNAME_FILE"), _secret("PLAB_PASSWORD_FILE"), os.path.join(state, "cookies.txt"))
     if args.cmd == "refresh":
-        run_refresh(lab, store, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"])
+        run_refresh(lab, store, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"],
+                    os.environ.get("PLAB_EXCLUDE_FILE"))
     elif args.cmd == "serve":
         serve(lab, store, args.bind, args.port, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"],
-              os.environ.get("PLAB_STATIC_DIR"))
+              os.environ.get("PLAB_STATIC_DIR"), os.environ.get("PLAB_EXCLUDE_FILE"))
     else:
         lab.set_cookie(args.value)
         log("cookie saved")

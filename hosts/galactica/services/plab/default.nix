@@ -57,6 +57,7 @@
       # The path Prowlarr's `Vault` category produces too; a symlink to ../Vault.
       export PLAB_DOWNLOAD_DIR="${vars.storageDir}/media/Downloads/Vault"
       export PLAB_STATIC_DIR="''${PLAB_STATIC_DIR:-${static}}"
+      export PLAB_EXCLUDE_FILE="''${PLAB_EXCLUDE_FILE:-${secrets.plab-exclude.path}}"
       exec ${pkgs.python3}/bin/python3 ${./.}/main.py "$@"
     '';
   };
@@ -70,6 +71,7 @@
 in {
   sops.secrets.plab-username.owner = vars.user;
   sops.secrets.plab-password.owner = vars.user;
+  sops.secrets.plab-exclude.owner = vars.user;
 
   environment.systemPackages = [plab];
 

@@ -108,18 +108,23 @@ class Lab:
             else:
                 raise LoginError(f"still logged out after login: {path}")
 
-    def top(self, forums, days, limit):
+    def top(self, forums, days, limit, predicate=None):
         """The most-seeded releases uploaded in the last `days` days, best first."""
         query = urllib.parse.urlencode([("f[]", f) for f in forums] + [("o", 10), ("s", 2), ("tm", days)])
         page = self.page("tracker.php?" + query)
         rows = parse.rows(page)
+        if predicate:
+            rows = [r for r in rows if predicate(r)]
         start = 50
         while len(rows) < limit:
             link = parse.page_link(page, start)
             if not link:
                 break
             page = self.page(link)
-            rows += parse.rows(page)
+            more = parse.rows(page)
+            if predicate:
+                more = [r for r in more if predicate(r)]
+            rows += more
             start += 50
         return rows[:limit]
 

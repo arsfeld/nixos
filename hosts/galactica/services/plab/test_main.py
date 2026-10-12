@@ -1,6 +1,9 @@
 import os
 import tempfile
+import threading
 import unittest
+import urllib.request
+from http.server import ThreadingHTTPServer
 
 import main
 from lab import LimitError, LoginError, TrackerError
@@ -15,8 +18,8 @@ def fixture(name):
         return f.read()
 
 
-def row(topic_id):
-    return {"id": topic_id, "title": f"t{topic_id}", "forum": 1875, "size": 1, "seeders": 9,
+def row(topic_id, title=None):
+    return {"id": topic_id, "title": title or f"t{topic_id}", "forum": 1875, "size": 1, "seeders": 9,
             "leechers": 0, "completed": 0, "added": 0}
 
 
@@ -30,8 +33,11 @@ class FakeLab:
         self.fetched = []
         self.torrents = []
 
-    def top(self, forums, days, limit):
-        return self.rows
+    def top(self, forums, days, limit, predicate=None):
+        rows = self.rows
+        if predicate:
+            rows = [r for r in rows if predicate(r)]
+        return rows
 
     def topic(self, topic_id):
         self.topics_fetched.append(topic_id)
@@ -307,6 +313,78 @@ class Static(unittest.TestCase):
     def test_missing_file(self):
         os.remove(os.path.join(self.dir.name, "themes.css"))
         self.assertIsNone(main.static_file(self.dir.name, "themes.css"))
+
+
+class ExcludeTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.store = Store(self.dir.name)
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def test_load_excludes_from_file(self):
+        path = os.path.join(self.dir.name, "terms.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("# comment line\n\n  apple  \n\\bbanana\\w*  \n")
+        patterns = main.load_excludes(path)
+        self.assertEqual(len(patterns), 2)
+        pred = main.exclude_predicate(patterns)
+        self.assertFalse(pred({"title": "A big red apple pie"}))
+        self.assertFalse(pred({"title": "Sweet bananas for sale"}))
+        self.assertTrue(pred({"title": "Fresh orange juice"}))
+
+    def test_load_excludes_fallback_to_state_dir(self):
+        candidate = os.path.join(self.dir.name, "exclude.txt")
+        with open(candidate, "w", encoding="utf-8") as f:
+            f.write("pear\n")
+        patterns = main.load_excludes(state_dir=self.dir.name)
+        self.assertEqual(len(patterns), 1)
+        pred = main.exclude_predicate(patterns)
+        self.assertFalse(pred({"title": "A sweet pear"}))
+        self.assertTrue(pred({"title": "An orange"}))
+
+    def test_load_excludes_missing_file_returns_empty(self):
+        patterns = main.load_excludes("/nonexistent/file/path", state_dir=self.dir.name)
+        self.assertEqual(patterns, [])
+        pred = main.exclude_predicate(patterns)
+        self.assertTrue(pred({"title": "anything"}))
+
+    def test_refresh_filters_releases_with_exclude_file(self):
+        exclude_path = os.path.join(self.dir.name, "exclude.txt")
+        with open(exclude_path, "w", encoding="utf-8") as f:
+            f.write("cherry\n")
+        lab = FakeLab([
+            row(1, "Fresh Apple"),
+            row(2, "Ripe Cherry"),
+            row(3, "Sweet Banana"),
+        ])
+        main.refresh(lab, self.store, exclude_file=exclude_path, sleep=lambda _: None)
+        cached = self.store.cache()["topics"]
+        self.assertEqual([t["id"] for t in cached], [1, 3])
+
+    def test_serve_filters_cached_topics(self):
+        exclude_path = os.path.join(self.dir.name, "exclude.txt")
+        with open(exclude_path, "w", encoding="utf-8") as f:
+            f.write("cherry\n")
+        self.store.save_cache([
+            dict(row(1, "Fresh Apple"), images=[]),
+            dict(row(2, "Ripe Cherry"), images=[]),
+        ])
+        handler = main.make_handler(FakeLab([]), self.store, "http://rpc", "/vault", exclude_file=exclude_path)
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        port = httpd.server_address[1]
+        t = threading.Thread(target=httpd.serve_forever)
+        t.daemon = True
+        t.start()
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/") as resp:
+                body = resp.read().decode()
+                self.assertIn("Fresh Apple", body)
+                self.assertNotIn("Ripe Cherry", body)
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
 
 
 if __name__ == "__main__":

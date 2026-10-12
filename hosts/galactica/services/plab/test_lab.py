@@ -81,6 +81,13 @@ class LabTest(unittest.TestCase):
         self.assertEqual(len(lab.top([1875], 7, 2)), 2)
         self.assertEqual(len(opener.calls), 1)
 
+    def test_top_with_predicate_filters_and_pages_for_limit(self):
+        lab, opener = self.lab(fixture("tracker.html"), fixture("tracker.html"))
+        # Predicate skips id 3313754, so each page yields 1 row (3314001)
+        rows = lab.top([1875], 7, 2, predicate=lambda r: r["id"] != 3313754)
+        self.assertEqual([r["id"] for r in rows], [3314001, 3314001])
+        self.assertEqual(len(opener.calls), 2)
+
     def test_torrent_logs_in_once(self):
         lab, opener = self.lab(LOGGED_OUT, LOGGED_IN, b"d8:announce1:xe")
         self.assertEqual(lab.torrent(3313754), b"d8:announce1:xe")
