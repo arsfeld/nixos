@@ -90,8 +90,10 @@
     # 2026-10-11 weekly-update). Upstream's DSN-pragma fix for #409 is in the
     # pinned version and is not enough; capping the pool at one connection is.
     # Design: docs/superpowers/specs/2026-10-12-niks3-hook-sqlite-busy-design.md
-    # Delete this once the pinned niks3 has an equivalent fix. If upstream
-    # changes hook/queue.go the patch stops applying and the build says so.
+    # Delete this once the pinned niks3 has an equivalent fix; check
+    # hook/queue.go on every niks3 bump. The patch only fails to apply if
+    # upstream changes the lines around OpenQueue's sql.Open, so a clean
+    # build is not proof upstream is still unfixed.
     package =
       (pkgs.callPackage "${inputs.niks3}/nix/packages/niks3-hook.nix" {}).overrideAttrs
       (old: {patches = (old.patches or []) ++ [./niks3-hook-single-conn.patch];});

@@ -10,6 +10,8 @@
 
 Spec: `docs/superpowers/specs/2026-10-12-niks3-hook-sqlite-busy-design.md`
 
+> **Executed 2026-10-12 against niks3 1.15.0**, not the 1.4.0 (`e64338d7`) below: flake input bump `5421f1da` landed between planning and execution. Red/green re-run on 1.15.0: unpatched 123× SQLITE_BUSY, patched `go test ./hook` ok. Version strings and store paths in the steps are as planned and now stale; on 1.15.0 the running unpatched hook was `91n12kni…` and the patched one is `2wqndy0f…`.
+
 ## Global Constraints
 
 - Never open a PR or issue on Mic92/niks3. The fix is carried locally only.
