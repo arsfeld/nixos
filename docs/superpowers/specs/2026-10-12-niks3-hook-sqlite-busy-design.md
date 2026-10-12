@@ -24,16 +24,27 @@ SQLite connections, and the hook server's `Enqueue` races the worker's
 `TestQueueConcurrentWriters` passes because it exercises only concurrent
 `Enqueue`, not that mix.
 
+Measured during planning against the pinned source, with a test where 64
+writers enqueue while a loop drains via `FetchBatch` → `Remove`/`Retry`: the
+unpatched code fails with `inserting path …: database is locked`. Contention at
+that fan-in starves some waiters in SQLite's busy handler past the 5 s
+`busy_timeout`. At 8 writers it passes, which is why upstream's test does not
+catch it.
+
 Only this daemon ever opens the database (`send` talks to it over a socket), and
 no queue method calls another while holding a transaction, so capping the pool
-at one connection removes the contention: callers wait in Go for the connection
-instead of SQLite returning BUSY.
+at one connection removes the contention: callers queue in `database/sql`
+instead of SQLite's busy handler. With `SetMaxOpenConns(1)` the full hook suite
+plus the new test passes 3/3. `_txlock=immediate` was also tried and is worse:
+it fails 154 enqueues at `begin transaction` and breaks upstream's own
+`TestQueueConcurrentWriters`.
 
 ## Rejected alternatives
 
 - **Postgres.** Needs a server: on raider, a database for a path buffer; on
   basestar, the queue would fail in the very outages it exists to absorb. The
   hook is SQLite-only, so it would mean carrying a fork of its storage layer.
+- **`_txlock=immediate`.** Measured worse; see above.
 - **Retry on BUSY in the hook server.** Treats the symptom; the contention is
   self-inflicted.
 - **Upstream PR.** Not opened, by policy. The patch is carried locally.
@@ -41,11 +52,12 @@ instead of SQLite returning BUSY.
 ## Design
 
 1. **Patch** `hosts/raider/niks3-hook-single-conn.patch`, a unified diff against
-   the niks3 source:
-   - `hook/queue.go`: `db.SetMaxOpenConns(1)` in `OpenQueue`, with a comment.
-   - `hook/queue_test.go`: `TestQueueEnqueueDuringDrain` — 8 writers enqueueing
-     while a loop runs `FetchBatch` → `Remove`/`Retry`, asserting no `Enqueue`
-     error.
+   the niks3 source touching only `hook/queue.go`: `db.SetMaxOpenConns(1)` in
+   `OpenQueue`, with a comment. The regression test
+   (`TestQueueEnqueueDuringDrain`, 64 writers against a live drain) is not
+   carried: the hook package builds from a test-free fileset with
+   `doCheck = false`, so a test hunk would not apply and nothing would run it.
+   It lives in the implementation plan as the red/green gate.
 2. **Wiring** in `hosts/raider/configuration.nix`:
    `services.niks3-auto-upload.package` set to the module's default package with
    the patch appended via `overrideAttrs` (which preserves the `.override` the
@@ -56,10 +68,11 @@ instead of SQLite returning BUSY.
 
 ## Verification
 
-- **Red:** the new test fails with SQLITE_BUSY against unpatched source. If it
-  cannot be made to fail, the diagnosis is wrong; stop and re-investigate.
-- **Green:** the patched package builds and the hook tests pass (in its
-  `checkPhase` if it runs them, else `go test ./hook/` on the patched tree).
+- **Red:** the new test fails with SQLITE_BUSY against unpatched source (done
+  once during planning; the plan repeats it). If it cannot be made to fail, the
+  diagnosis is wrong; stop and re-investigate.
+- **Green:** `go test ./hook` passes on the patched tree, and the patched
+  package builds.
 - **Live:** `just test raider`; after the next heavy build,
   `journalctl -u niks3-auto-upload | grep -c SQLITE_BUSY` is 0.
 
