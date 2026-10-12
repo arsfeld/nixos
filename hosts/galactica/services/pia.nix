@@ -506,6 +506,11 @@ in {
       wants = ["network-online.target" "nss-lookup.target"];
       before = ["${ns}.service"];
       requiredBy = ["${ns}.service"];
+      # Restarting the tunnel (a deploy, a manual restart) must re-run connect.
+      # Otherwise this RemainAfterExit oneshot stays "active" and the tunnel comes
+      # back up against the server cached in wg0.conf, which PIA may have retired
+      # since: pia-up then dies with "failed to reach '<ip>' after 5 attempts".
+      partOf = ["${ns}.service"];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
