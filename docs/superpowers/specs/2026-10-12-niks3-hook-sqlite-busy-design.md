@@ -63,8 +63,9 @@ it fails 154 enqueues at `begin transaction` and breaks upstream's own
    the patch appended via `overrideAttrs` (which preserves the `.override` the
    module uses to inject the socket path; `go.mod` is untouched, so `vendorHash`
    holds). The comment states why the patch exists and to delete it once the
-   pinned niks3 contains an equivalent fix. If upstream changes `queue.go`, the
-   patch fails to apply and the build fails loudly.
+   pinned niks3 contains an equivalent fix. The patch only fails to apply if
+   upstream changes the lines around `OpenQueue`'s `sql.Open`, so the
+   delete-when-fixed comment, not the build, is the real guard.
 
 ## Verification
 
