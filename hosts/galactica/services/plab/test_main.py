@@ -39,7 +39,7 @@ class FakeLab:
             rows = [r for r in rows if predicate(r)]
         return rows
 
-    def search(self, query, forums, days=30, limit=20, predicate=None):
+    def search(self, query, forums, days=32, limit=20, predicate=None):
         rows = getattr(self, "searched_rows", {}).get(query, [])
         if predicate:
             rows = [r for r in rows if predicate(r)]

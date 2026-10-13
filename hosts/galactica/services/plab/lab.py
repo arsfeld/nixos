@@ -128,7 +128,7 @@ class Lab:
             start += 50
         return rows[:limit]
 
-    def search(self, query, forums, days=30, limit=20, predicate=None):
+    def search(self, query, forums, days=32, limit=20, predicate=None):
         """Search releases matching `query` within `forums` uploaded in the last `days` days."""
         params = [("f[]", f) for f in forums] + [
             ("nm", query),

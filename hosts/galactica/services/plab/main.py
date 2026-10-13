@@ -147,7 +147,7 @@ def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep,
     for term in search_terms:
         sleep(DELAY)
         try:
-            results = lab.search(term, forums, days=30, limit=20, predicate=pred)
+            results = lab.search(term, forums, days=32, limit=20, predicate=pred)
             clean_term = term.strip('"').strip("'")
             for r in results:
                 if r["id"] not in curated_reasons:
