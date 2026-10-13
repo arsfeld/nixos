@@ -80,9 +80,9 @@ FILTER_JS = """
   const bar = document.getElementById('filters');
   if (!bar) return;
   const cards = [...document.querySelectorAll('.card')];
-  const TOGGLES = ['h24', 'new', 'hide'];
+  const TOGGLES = ['h24', 'new', 'hide', 'couples'];
   const SELECTS = {cat: 'category', q: 'quality', studio: 'studio'};
-  const empty = () => ({h24: false, new: false, hide: false, cat: '', q: '', studio: '', tags: []});
+  const empty = () => ({h24: false, new: false, hide: false, couples: false, cat: '', q: '', studio: '', tags: []});
   let st = empty();
 
   function fromHash(h) {
@@ -136,6 +136,7 @@ FILTER_JS = """
       const ok = (!st.h24 || d.fresh === '1')
         && (!st.new || c.classList.contains('is-new'))
         && (!st.hide || !d.state)
+        && (!st.couples || d.curated === '1')
         && (!st.cat || d.category === st.cat)
         && (!st.q || d.quality === st.q)
         && (!st.studio || d.studio === st.studio)

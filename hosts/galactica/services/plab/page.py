@@ -5,7 +5,7 @@ import time
 from collections import Counter
 
 from assets import CSS, FILTER_JS, JS
-from labels import labels
+from labels import is_curated, labels
 from store import key
 
 TOPIC_URL = "https://pornolab.net/forum/viewtopic.php?t=%d"
@@ -57,11 +57,14 @@ def _card(t, lab, added, queued, now):
     else:
         date = time.strftime("%Y-%m-%d", time.gmtime(t["added"]))
         badge = ""
+    curated = bool(t.get("curated") or is_curated(t["title"], lab["studio"], lab["tags"]))
+    curated_badge = '<span class="badge badge-secondary font-bold absolute bottom-2 left-2 z-[1]">Couples</span>' if curated else ''
     data = {"tags": "|".join(lab["tags"]), "quality": lab["quality"] or "", "studio": lab["studio"] or "",
-            "category": lab["category"], "fresh": "1" if fresh else "", "state": state}
+            "category": lab["category"], "fresh": "1" if fresh else "", "state": state,
+            "curated": "1" if curated else ""}
     attrs_data = "".join(f' data-{k}="{e(v)}"' for k, v in data.items())
     return (f'<div class="card bg-base-200 shadow-sm overflow-hidden"{attrs_data}>'
-            f'<figure class="relative aspect-[16/10] bg-black">{badge}{thumb}</figure>'
+            f'<figure class="relative aspect-[16/10] bg-black">{badge}{curated_badge}{thumb}</figure>'
             '<div class="card-body p-3 gap-2">'
             f'<a class="title link link-hover break-words" href="{TOPIC_URL % t["id"]}" target="_blank" '
             f'rel="noreferrer">{e(t["title"])}</a>'
@@ -90,7 +93,8 @@ def _filter_bar(labs):
                     f'<span class="badge badge-xs">{n}</span></button>' for t, n in top)
     datalist = "".join(f'<option value="{e(t)}">' for t in sorted(tags))
     toggles = "".join(f'<button type="button" class="btn btn-sm" data-toggle="{k}">{name}</button>'
-                      for k, name in (("h24", "Last 24h"), ("new", "New only"), ("hide", "Hide added/queued")))
+                      for k, name in (("h24", "Last 24h"), ("new", "New only"),
+                                      ("couples", "Indie & Couples"), ("hide", "Hide added/queued")))
     row = "flex flex-wrap items-center gap-2"
     return ('<div id="filters" class="sm:sticky top-0 z-10 bg-base-100 py-2 mb-4 border-b border-base-300 '
             'flex flex-col gap-2">'
@@ -108,6 +112,8 @@ def render(cache, added, queued, now):
     pending = len(queued - added)
     topics = cache["topics"]
     labs = [labels(t["title"], t["forum"]) for t in topics]
+    curated_n = sum(1 for t, lab in zip(topics, labs) if t.get("curated") or is_curated(t["title"], lab["studio"], lab["tags"]))
+    curated_sub = f" · {curated_n} curated" if curated_n else ""
     cards = "".join(_card(t, lab, added, queued, now) for t, lab in zip(topics, labs))
     # The stylesheets and the Tailwind runtime are served by plab itself from
     # PLAB_STATIC_DIR (vendored at build time); without them the page still works, unstyled.
@@ -123,7 +129,7 @@ def render(cache, added, queued, now):
             "<header class=\"navbar min-h-0 p-0 mb-2 flex-wrap items-baseline gap-x-4 gap-y-1\">"
             "<h1 class=\"text-xl font-bold\">plab</h1>"
             f"<span class=\"text-sm text-base-content/60\">{len(topics)} releases · last 7 days · "
-            f"updated {age(cache['updated'], now)}{f' · {pending} queued' if pending else ''}"
+            f"updated {age(cache['updated'], now)}{curated_sub}{f' · {pending} queued' if pending else ''}"
             "<span id=\"newcount\"></span></span></header>"
             f"{_filter_bar(labs)}"
             "<div id=\"grid\" class=\"grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(280px,100%),1fr))]\">"

@@ -292,5 +292,60 @@ class Shell(unittest.TestCase):
         self.assertIn(".add.queued:not(:disabled):hover", self.out.split("<style>")[1])
 
 
+class Card(unittest.TestCase):
+    def test_card_renders_curated_attribute_and_badge(self):
+        t = {"id": 1, "title": "Test Title", "forum": 1875, "size": 100, "seeders": 1,
+             "leechers": 0, "completed": 0, "added": 0, "images": [], "curated": True}
+        lab = {"tags": [], "quality": None, "studio": None, "category": "Clips"}
+        html = page._card(t, lab, set(), set(), 1000)
+        self.assertIn('data-curated="1"', html)
+        self.assertIn('>Couples</span>', html)
+
+    def test_filter_bar_has_couples_toggle(self):
+        labs = [{"tags": [], "quality": None, "studio": None, "category": "Clips"}]
+        html = page._filter_bar(labs)
+        self.assertIn('data-toggle="couples">Indie & Couples</button>', html)
+
+    def test_card_curated_from_is_curated(self):
+        t = {"id": 1, "title": "Lustery - Couple having fun", "forum": 1875, "size": 100, "seeders": 1,
+             "leechers": 0, "completed": 0, "added": 0, "images": []}
+        lab = {"tags": [], "quality": None, "studio": "Lustery", "category": "Clips"}
+        html = page._card(t, lab, set(), set(), 1000)
+        self.assertIn('data-curated="1"', html)
+        self.assertIn('>Couples</span>', html)
+
+    def test_card_not_curated(self):
+        t = {"id": 1, "title": "Test Title", "forum": 1875, "size": 100, "seeders": 1,
+             "leechers": 0, "completed": 0, "added": 0, "images": []}
+        lab = {"tags": [], "quality": None, "studio": None, "category": "Clips"}
+        html = page._card(t, lab, set(), set(), 1000)
+        self.assertIn('data-curated=""', html)
+        self.assertNotIn('Couples', html)
+
+    def test_header_curated_count(self):
+        topics = [
+            {"id": 1, "title": "Test 1", "forum": 1875, "size": 100, "seeders": 1,
+             "leechers": 0, "completed": 0, "added": 1000, "images": [], "curated": True},
+            {"id": 2, "title": "Test 2", "forum": 1875, "size": 100, "seeders": 1,
+             "leechers": 0, "completed": 0, "added": 1000, "images": []},
+        ]
+        out = page.render({"updated": 1000, "topics": topics}, set(), set(), 2000)
+        self.assertIn(" · 1 curated", out)
+
+    def test_header_no_curated_count_when_zero(self):
+        topics = [
+            {"id": 1, "title": "Test 1", "forum": 1875, "size": 100, "seeders": 1,
+             "leechers": 0, "completed": 0, "added": 1000, "images": []},
+        ]
+        out = page.render({"updated": 1000, "topics": topics}, set(), set(), 2000)
+        self.assertNotIn("curated", out.split("<header")[1].split("</header>")[0])
+
+    def test_filter_script_couples_toggle_and_curated_hooks(self):
+        script = page.render({"updated": 0, "topics": [TOPIC]}, set(), set(), 1791117232).split("<script>")[1]
+        self.assertIn("'couples'", script)
+        self.assertIn("d.curated === '1'", script)
+
+
 if __name__ == "__main__":
     unittest.main()
+
