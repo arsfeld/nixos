@@ -37,50 +37,61 @@ def labels(title, forum):
     return {"tags": tags, "quality": quality, "studio": studio, "category": category(forum)}
 
 
-CURATED_STUDIO_PREFIXES = (
-    "lustery",
-    "joybear",
-    "erika lust",
-    "erikalust",
-    "xconfessions",
-    "lust cinema",
-    "lustcinema",
-    "frolicme",
-    "sssh",
-    "x-art",
-    "xart",
-    "colette",
-    "viv thomas",
-    "vivthomas",
-    "bellesa",
-    "metart",
-)
+CURATED_STUDIOS = {
+    "lustery": "Lustery",
+    "joybear": "Joybear",
+    "erika lust": "Erika Lust",
+    "erikalust": "Erika Lust",
+    "xconfessions": "XConfessions",
+    "lust cinema": "Lust Cinema",
+    "lustcinema": "Lust Cinema",
+    "frolicme": "FrolicMe",
+    "sssh": "Sssh",
+    "x-art": "X-Art",
+    "xart": "X-Art",
+    "colette": "Colette",
+    "viv thomas": "Viv Thomas",
+    "vivthomas": "Viv Thomas",
+    "bellesa": "Bellesa",
+    "metart": "MetArt",
+}
 
-CURATED_KEYWORDS = (
-    "real couple",
-    "amateur couple",
-    "romantic",
-    "sensual",
-    "homemade couple",
-    "threesome",
-)
+CURATED_KEYWORDS = {
+    "real couple": "Real Couple",
+    "amateur couple": "Amateur Couple",
+    "romantic": "Romantic",
+    "sensual": "Sensual",
+    "homemade couple": "Homemade Couple",
+    "threesome": "Threesome",
+}
+
+CURATED_STUDIO_PREFIXES = tuple(CURATED_STUDIOS.keys())
+
+
+def curated_reason(title, studio=None, tags=None):
+    """The matched reason/term (e.g. 'Threesome', 'Lustery') if curated, else None."""
+    if studio:
+        s = studio.lower()
+        for prefix, name in CURATED_STUDIOS.items():
+            if prefix in s:
+                return name
+    if tags:
+        for t in tags:
+            tl = t.lower()
+            for k, name in CURATED_KEYWORDS.items():
+                if k in tl:
+                    return name
+    tl = title.lower()
+    for prefix, name in CURATED_STUDIOS.items():
+        if prefix in tl:
+            return name
+    for k, name in CURATED_KEYWORDS.items():
+        if k in tl:
+            return name
+    return None
 
 
 def is_curated(title, studio=None, tags=None):
     """True if release matches indie/romantic couples studios, tags or title keywords."""
-    if studio:
-        s = studio.lower()
-        if any(prefix in s for prefix in CURATED_STUDIO_PREFIXES):
-            return True
-    if tags:
-        for t in tags:
-            tl = t.lower()
-            if any(k in tl for k in CURATED_KEYWORDS):
-                return True
-    tl = title.lower()
-    if any(prefix in tl for prefix in CURATED_STUDIO_PREFIXES):
-        return True
-    if any(k in tl for k in CURATED_KEYWORDS):
-        return True
-    return False
+    return curated_reason(title, studio, tags) is not None
 

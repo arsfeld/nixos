@@ -80,9 +80,9 @@ FILTER_JS = """
   const bar = document.getElementById('filters');
   if (!bar) return;
   const cards = [...document.querySelectorAll('.card')];
-  const TOGGLES = ['h24', 'new', 'hide', 'couples'];
+  const TOGGLES = ['h24', 'new', 'hide', 'curated'];
   const SELECTS = {cat: 'category', q: 'quality', studio: 'studio'};
-  const empty = () => ({h24: false, new: false, hide: false, couples: false, cat: '', q: '', studio: '', tags: []});
+  const empty = () => ({h24: false, new: false, hide: false, curated: false, cat: '', q: '', studio: '', tags: []});
   let st = empty();
 
   function fromHash(h) {
@@ -93,6 +93,7 @@ FILTER_JS = """
       const k = i < 0 ? p : p.slice(0, i), v = i < 0 ? '' : p.slice(i + 1);
       try {
         if (TOGGLES.includes(k)) o[k] = v === '1';
+        else if (k === 'couples') o.curated = v === '1';
         else if (Object.hasOwn(SELECTS, k)) o[k] = decodeURIComponent(v);
         else if (k === 'tags') v.split(',').filter(Boolean).forEach(t => { try { o.tags.push(decodeURIComponent(t)); } catch (_) {} });
       } catch (_) {}
@@ -136,7 +137,7 @@ FILTER_JS = """
       const ok = (!st.h24 || d.fresh === '1')
         && (!st.new || c.classList.contains('is-new'))
         && (!st.hide || !d.state)
-        && (!st.couples || d.curated === '1')
+        && (!st.curated || d.curated === '1')
         && (!st.cat || d.category === st.cat)
         && (!st.q || d.quality === st.q)
         && (!st.studio || d.studio === st.studio)

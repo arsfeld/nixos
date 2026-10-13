@@ -89,6 +89,15 @@ class Labels(unittest.TestCase):
         self.assertTrue(is_curated("Hot Passionate Threesome [1080p]"))
         self.assertFalse(is_curated("Random Big Release [1080p]"))
 
+    def test_curated_reason(self):
+        from labels import curated_reason
+        self.assertEqual(curated_reason("[Lustery.com] Couple Fun [1080p]", studio="Lustery.com"), "Lustery")
+        self.assertEqual(curated_reason("[Joybear.com] Movie [1080p]", studio="Joybear.com"), "Joybear")
+        self.assertEqual(curated_reason("Title", tags=["threesome"]), "Threesome")
+        self.assertEqual(curated_reason("Hot Passionate Threesome [1080p]"), "Threesome")
+        self.assertEqual(curated_reason("Love Story", tags=["real couple"]), "Real Couple")
+        self.assertIsNone(curated_reason("Random Big Release [1080p]"))
+
 
 if __name__ == "__main__":
     unittest.main()

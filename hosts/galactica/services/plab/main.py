@@ -23,7 +23,7 @@ import parse
 import transmission
 from forums import FORUMS
 from lab import Lab, LimitError, LoginError, TrackerError
-from labels import is_curated, labels
+from labels import curated_reason, is_curated, labels
 from store import Store, key
 
 DAYS = 7
@@ -142,14 +142,16 @@ def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep,
 
     # Run targeted curated searches
     search_terms = load_searches(searches_file, state_dir=store.root)
-    curated_ids = set()
+    curated_reasons = {}
     extra_rows = []
     for term in search_terms:
         sleep(DELAY)
         try:
             results = lab.search(term, forums, days=30, limit=20, predicate=pred)
+            clean_term = term.strip('"').strip("'")
             for r in results:
-                curated_ids.add(r["id"])
+                if r["id"] not in curated_reasons:
+                    curated_reasons[r["id"]] = clean_term
                 extra_rows.append(r)
         except LoginError:
             raise
@@ -183,8 +185,8 @@ def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep,
             except Exception as e:  # noqa: BLE001
                 log(f"image {images[0]}: {e}")
         lab_info = labels(row["title"], row["forum"])
-        is_cur = row["id"] in curated_ids or is_curated(row["title"], lab_info["studio"], lab_info["tags"])
-        topics.append({**row, "images": images, "curated": is_cur})
+        matched = curated_reasons.get(row["id"]) or curated_reason(row["title"], lab_info["studio"], lab_info["tags"])
+        topics.append({**row, "images": images, "curated": bool(matched), "curated_reason": matched})
     store.save_cache(topics)
     store.prune_images(u for t in topics for u in t["images"])
     log(f"refreshed: {len(topics)} topics ({len([t for t in topics if t.get('curated')])} curated)")

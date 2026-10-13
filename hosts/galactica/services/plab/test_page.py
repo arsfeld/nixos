@@ -295,16 +295,17 @@ class Shell(unittest.TestCase):
 class Card(unittest.TestCase):
     def test_card_renders_curated_attribute_and_badge(self):
         t = {"id": 1, "title": "Test Title", "forum": 1875, "size": 100, "seeders": 1,
-             "leechers": 0, "completed": 0, "added": 0, "images": [], "curated": True}
+             "leechers": 0, "completed": 0, "added": 0, "images": [], "curated": True,
+             "curated_reason": "Threesome"}
         lab = {"tags": [], "quality": None, "studio": None, "category": "Clips"}
         html = page._card(t, lab, set(), set(), 1000)
         self.assertIn('data-curated="1"', html)
-        self.assertIn('>Couples</span>', html)
+        self.assertIn('>Threesome</span>', html)
 
-    def test_filter_bar_has_couples_toggle(self):
+    def test_filter_bar_has_curated_toggle(self):
         labs = [{"tags": [], "quality": None, "studio": None, "category": "Clips"}]
         html = page._filter_bar(labs)
-        self.assertIn('data-toggle="couples">Indie & Couples</button>', html)
+        self.assertIn('data-toggle="curated">Curated</button>', html)
 
     def test_card_curated_from_is_curated(self):
         t = {"id": 1, "title": "Lustery - Couple having fun", "forum": 1875, "size": 100, "seeders": 1,
@@ -312,7 +313,7 @@ class Card(unittest.TestCase):
         lab = {"tags": [], "quality": None, "studio": "Lustery", "category": "Clips"}
         html = page._card(t, lab, set(), set(), 1000)
         self.assertIn('data-curated="1"', html)
-        self.assertIn('>Couples</span>', html)
+        self.assertIn('>Lustery</span>', html)
 
     def test_card_not_curated(self):
         t = {"id": 1, "title": "Test Title", "forum": 1875, "size": 100, "seeders": 1,
@@ -320,7 +321,7 @@ class Card(unittest.TestCase):
         lab = {"tags": [], "quality": None, "studio": None, "category": "Clips"}
         html = page._card(t, lab, set(), set(), 1000)
         self.assertIn('data-curated=""', html)
-        self.assertNotIn('Couples', html)
+        self.assertNotIn('badge-secondary', html)
 
     def test_header_curated_count(self):
         topics = [
@@ -340,9 +341,9 @@ class Card(unittest.TestCase):
         out = page.render({"updated": 1000, "topics": topics}, set(), set(), 2000)
         self.assertNotIn("curated", out.split("<header")[1].split("</header>")[0])
 
-    def test_filter_script_couples_toggle_and_curated_hooks(self):
+    def test_filter_script_curated_toggle_and_curated_hooks(self):
         script = page.render({"updated": 0, "topics": [TOPIC]}, set(), set(), 1791117232).split("<script>")[1]
-        self.assertIn("'couples'", script)
+        self.assertIn("'curated'", script)
         self.assertIn("d.curated === '1'", script)
 
 

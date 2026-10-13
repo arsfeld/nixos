@@ -5,7 +5,7 @@ import time
 from collections import Counter
 
 from assets import CSS, FILTER_JS, JS
-from labels import is_curated, labels
+from labels import curated_reason, is_curated, labels
 from store import key
 
 TOPIC_URL = "https://pornolab.net/forum/viewtopic.php?t=%d"
@@ -57,8 +57,17 @@ def _card(t, lab, added, queued, now):
     else:
         date = time.strftime("%Y-%m-%d", time.gmtime(t["added"]))
         badge = ""
-    curated = bool(t.get("curated") or is_curated(t["title"], lab["studio"], lab["tags"]))
-    curated_badge = '<span class="badge badge-secondary font-bold absolute bottom-2 left-2 z-[1]">Couples</span>' if curated else ''
+    cur_reason = (
+        t.get("curated_reason")
+        or (t.get("curated") if isinstance(t.get("curated"), str) else None)
+        or curated_reason(t["title"], lab["studio"], lab["tags"])
+    )
+    curated = bool(t.get("curated") or cur_reason)
+    curated_badge = (
+        f'<span class="badge badge-secondary font-bold absolute bottom-2 left-2 z-[1]">{e(cur_reason)}</span>'
+        if cur_reason
+        else ('<span class="badge badge-secondary font-bold absolute bottom-2 left-2 z-[1]">Curated</span>' if curated else '')
+    )
     data = {"tags": "|".join(lab["tags"]), "quality": lab["quality"] or "", "studio": lab["studio"] or "",
             "category": lab["category"], "fresh": "1" if fresh else "", "state": state,
             "curated": "1" if curated else ""}
@@ -94,7 +103,7 @@ def _filter_bar(labs):
     datalist = "".join(f'<option value="{e(t)}">' for t in sorted(tags))
     toggles = "".join(f'<button type="button" class="btn btn-sm" data-toggle="{k}">{name}</button>'
                       for k, name in (("h24", "Last 24h"), ("new", "New only"),
-                                      ("couples", "Indie & Couples"), ("hide", "Hide added/queued")))
+                                      ("curated", "Curated"), ("hide", "Hide added/queued")))
     row = "flex flex-wrap items-center gap-2"
     return ('<div id="filters" class="sm:sticky top-0 z-10 bg-base-100 py-2 mb-4 border-b border-base-300 '
             'flex flex-col gap-2">'

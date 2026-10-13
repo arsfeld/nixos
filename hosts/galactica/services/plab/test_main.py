@@ -454,6 +454,8 @@ class ExcludeTest(unittest.TestCase):
         t2 = next(t for t in cached if t["id"] == 2)
         self.assertTrue(t1.get("curated"))  # present in targeted search
         self.assertTrue(t2.get("curated"))
+        self.assertEqual(t1.get("curated_reason"), "Lustery")
+        self.assertEqual(t2.get("curated_reason"), "Lustery")
 
 
 class SearchesTest(unittest.TestCase):
