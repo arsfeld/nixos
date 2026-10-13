@@ -1,89 +1,22 @@
 """The page's static CSS and JS, kept apart from the renderer in page.py.
 
 Styling is daisyUI plus the Tailwind browser runtime (both served from /static); the CSS
-here is only what no component class expresses."""
+here is only what no component class expresses.
+
+Alpine.js components manage client-side filtering, persistence, image preview modal,
+and async queue/vault actions."""
 
 CSS = """
+[x-cloak] { display: none !important; }
 [hidden] { display: none !important; }
 .add.queued:not(:disabled):hover { --btn-color: var(--color-error); --btn-fg: var(--color-error-content); }
 """
 
 JS = """
-const ADD = 'btn-primary', QUEUED = 'btn-warning';
-const queuedLabel = b => b.classList.contains('queued') && !b.disabled;
-document.querySelectorAll('button.add').forEach(b => {
-  b.onmouseenter = () => { if (queuedLabel(b)) b.textContent = 'Remove ✕'; };
-  b.onmouseleave = () => { if (queuedLabel(b)) b.textContent = 'Queued ⏳'; };
-  b.onclick = async () => {
-    const err = b.nextElementSibling;
-    const card = b.closest('.card');
-    const unq = b.classList.contains('queued');
-    b.disabled = true; b.textContent = unq ? 'Removing…' : 'Adding…'; err.textContent = '';
-    try {
-      const r = await fetch((unq ? 'unqueue/' : 'add/') + b.dataset.id, {method: 'POST'});
-      let j;
-      try { j = await r.json(); } catch (_) { throw new Error('HTTP ' + r.status + ' — reload the page'); }
-      if (!j.ok) throw new Error(j.error);
-      if (unq) {
-        b.classList.remove('queued', QUEUED); b.classList.add(ADD); b.removeAttribute('title'); b.disabled = false;
-        b.textContent = 'Add to Vault'; err.textContent = ''; card.dataset.state = '';
-      } else if (j.queued) {
-        b.classList.remove(ADD); b.classList.add('queued', QUEUED); b.title = 'Click to remove from queue'; b.disabled = false;
-        b.textContent = 'Queued ⏳'; err.textContent = j.message; card.dataset.state = 'queued';
-      } else { b.textContent = 'Added ✓'; card.dataset.state = 'added'; }
-    } catch (e) {
-      b.disabled = false; b.textContent = unq ? 'Queued ⏳' : 'Retry'; err.textContent = e.message;
-    }
-  };
-});
-try {
-  const ids = [...document.querySelectorAll('button.add[data-id]')].map(b => b.dataset.id);
-  const now = Date.now(), WINDOW = 30 * 60 * 1000;
-  let rec = null;
-  try {
-    const raw = JSON.parse(localStorage.getItem('plab.seen'));
-    if (Array.isArray(raw)) rec = {prev: raw.map(String), cur: raw.map(String), at: now};  // old format
-    else if (raw && Array.isArray(raw.prev) && Array.isArray(raw.cur)) rec = {prev: raw.prev.map(String), cur: raw.cur.map(String), at: Number(raw.at) || 0};
-  } catch (_) {}
-  let next;
-  if (!rec) next = {prev: ids, cur: ids, at: now};
-  else if (now - rec.at > WINDOW) next = {prev: rec.cur, cur: ids, at: now};
-  else next = {prev: rec.prev, cur: ids, at: rec.at};
-  if (rec) {
-    const seen = new Set(next.prev);
-    let n = 0;
-    document.querySelectorAll('.card').forEach(c => {
-      const b = c.querySelector('button.add[data-id]');
-      if (!b || seen.has(b.dataset.id)) return;
-      const s = document.createElement('span');
-      s.className = 'new badge badge-accent badge-lg font-bold absolute top-2 left-2 z-[1]'; s.textContent = 'NEW';
-      (c.querySelector('figure') || c).prepend(s);
-      // ring-accent does not exist: Tailwind's runtime knows no daisyUI colours, so name the variable.
-      c.classList.add('is-new', 'ring-2', 'ring-(--color-accent)'); n++;
-    });
-    if (n) document.getElementById('newcount').textContent = ' · ' + n + ' new';
-  }
-  try { localStorage.setItem('plab.seen', JSON.stringify(next)); } catch (_) {}
-} catch (_) {}
-const ov = document.getElementById('ov'), ovbox = ov.querySelector('.modal-box');
-document.querySelectorAll('img.thumb[data-images]').forEach(i => i.onclick = () => {
-  ovbox.innerHTML = JSON.parse(i.dataset.images).map(k => '<img class="block mx-auto mb-3 max-w-full" loading="lazy" src="img/' + k + '">').join('');
-  ov.showModal();
-});
-ov.onclick = () => ov.close();  // anywhere, images included, as before; Escape closes it natively
-ov.onclose = () => { ovbox.innerHTML = ''; };
-"""
-
-# Client-side filtering. Runs after the NEW pass above, so "New only" sees .is-new.
-FILTER_JS = """
 (() => {
-  const bar = document.getElementById('filters');
-  if (!bar) return;
-  const cards = [...document.querySelectorAll('.card')];
-  const TOGGLES = ['h24', 'new', 'hide', 'curated'];
+  const TOGGLES = ['h24', 'new', 'hide', 'couples'];
   const SELECTS = {cat: 'category', q: 'quality', studio: 'studio'};
-  const empty = () => ({h24: false, new: false, hide: false, curated: false, cat: '', q: '', studio: '', tags: []});
-  let st = empty();
+  const empty = () => ({h24: false, new: false, hide: false, couples: false, cat: '', q: '', studio: '', tags: []});
 
   function fromHash(h) {
     const o = empty();
@@ -93,13 +26,13 @@ FILTER_JS = """
       const k = i < 0 ? p : p.slice(0, i), v = i < 0 ? '' : p.slice(i + 1);
       try {
         if (TOGGLES.includes(k)) o[k] = v === '1';
-        else if (k === 'couples') o.curated = v === '1';
         else if (Object.hasOwn(SELECTS, k)) o[k] = decodeURIComponent(v);
         else if (k === 'tags') v.split(',').filter(Boolean).forEach(t => { try { o.tags.push(decodeURIComponent(t)); } catch (_) {} });
       } catch (_) {}
     });
     return o;
   }
+
   function toHash(s) {
     const p = [];
     TOGGLES.forEach(k => { if (s[k]) p.push(k + '=1'); });
@@ -107,73 +40,207 @@ FILTER_JS = """
     if (s.tags.length) p.push('tags=' + s.tags.map(encodeURIComponent).join(','));
     return p.join('&');
   }
+
   const isEmpty = s => toHash(s) === '';
 
-  function load() {
-    if (location.hash.length > 1) return fromHash(location.hash);
-    try { const raw = localStorage.getItem('plab.filters'); if (raw) return fromHash(raw); } catch (_) {}
-    return empty();
-  }
-  function save() {
-    const h = toHash(st);
-    try { history.replaceState(null, '', h ? '#' + h : location.pathname + location.search); } catch (_) {}
-    try { localStorage.setItem('plab.filters', h); } catch (_) {}
-  }
+  const register = () => {
+    Alpine.data('plabApp', () => ({
+      st: empty(),
+      cards: [],
+      newIds: new Set(),
+      newCount: 0,
+      modalImages: [],
 
-  function render() {
-    bar.querySelectorAll('[data-toggle]').forEach(b => b.classList.toggle('btn-primary', st[b.dataset.toggle]));
-    Object.keys(SELECTS).forEach(k => { const el = bar.querySelector('select[data-key="' + k + '"]'); if (el) el.value = st[k]; });
-    bar.querySelectorAll('#chips [data-tag]').forEach(b => b.classList.toggle('btn-primary', st.tags.includes(b.dataset.tag)));
-    const sel = document.getElementById('seltags');
-    sel.replaceChildren(...st.tags.map(t => {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'btn btn-xs btn-primary'; b.dataset.remove = t; b.textContent = t + ' ×';
-      return b;
+      registerCard(card) {
+        this.cards.push(card);
+      },
+
+      isVisible(card) {
+        return (!this.st.h24 || card.fresh)
+          && (!this.st.new || card.isNew)
+          && (!this.st.hide || !card.state)
+          && (!this.st.couples || card.curated)
+          && (!this.st.cat || card.cat === this.st.cat)
+          && (!this.st.q || card.q === this.st.q)
+          && (!this.st.studio || card.studio === this.st.studio)
+          && this.st.tags.every(t => card.tags.includes(t));
+      },
+
+      get shownCount() {
+        return this.cards.filter(c => this.isVisible(c)).length;
+      },
+
+      init() {
+        this.initSeen();
+        this.initFilters();
+        if (this.$watch) {
+          this.$watch('st', () => this.saveFilters());
+        }
+      },
+
+      initSeen() {
+        try {
+          const ids = [...document.querySelectorAll('button.add[data-id]')].map(b => b.dataset.id);
+          const now = Date.now(), WINDOW = 30 * 60 * 1000;
+          let rec = null;
+          try {
+            const raw = JSON.parse(localStorage.getItem('plab.seen'));
+            if (Array.isArray(raw)) rec = {prev: raw.map(String), cur: raw.map(String), at: now};
+            else if (raw && Array.isArray(raw.prev) && Array.isArray(raw.cur)) rec = {prev: raw.prev.map(String), cur: raw.cur.map(String), at: Number(raw.at) || 0};
+          } catch (_) {}
+          let next;
+          if (!rec) next = {prev: ids, cur: ids, at: now};
+          else if (now - rec.at > WINDOW) next = {prev: rec.cur, cur: ids, at: now};
+          else next = {prev: rec.prev, cur: ids, at: rec.at};
+          this.newIds = new Set(next.prev);
+          if (rec) {
+            this.newCount = ids.filter(id => !this.newIds.has(String(id))).length;
+            const el = document.getElementById('newcount');
+            if (el && this.newCount) el.textContent = ' · ' + this.newCount + ' new';
+          } else {
+            this.newCount = 0;
+          }
+          try { localStorage.setItem('plab.seen', JSON.stringify(next)); } catch (_) {}
+        } catch (_) {}
+      },
+
+      initFilters() {
+        let initial = null;
+        if (location.hash.length > 1) initial = fromHash(location.hash);
+        else {
+          try {
+            const raw = localStorage.getItem('plab.filters');
+            if (raw) initial = fromHash(raw);
+          } catch (_) {}
+        }
+        if (initial) {
+          Object.assign(this.st, initial);
+        }
+        Object.keys(SELECTS).forEach(k => {
+          const el = document.querySelector('select[data-key="' + k + '"]');
+          if (this.st[k] && el && ![...el.options].some(o => o.value === this.st[k])) this.st[k] = '';
+        });
+        if (location.hash.length > 1 || !isEmpty(this.st)) this.saveFilters();
+      },
+
+      saveFilters() {
+        const h = toHash(this.st);
+        try { history.replaceState(null, '', h ? '#' + h : location.pathname + location.search); } catch (_) {}
+        try { localStorage.setItem('plab.filters', h); } catch (_) {}
+      },
+
+      toggle(key) {
+        this.st[key] = !this.st[key];
+      },
+
+      toggleTag(tag) {
+        const i = this.st.tags.indexOf(tag);
+        if (i < 0) this.st.tags.push(tag);
+        else this.st.tags.splice(i, 1);
+      },
+
+      clearFilters() {
+        this.st = empty();
+      },
+
+      addTyped(input) {
+        const inp = input || document.getElementById('tagin');
+        if (!inp) return;
+        const t = inp.value.trim().toLowerCase();
+        inp.value = '';
+        if (t && !this.st.tags.includes(t)) this.st.tags.push(t);
+      },
+
+      onTagInput(e) {
+        const inp = (e && e.target) || document.getElementById('tagin');
+        if (!inp) return;
+        const val = inp.value.trim().toLowerCase();
+        const known = new Set([...document.querySelectorAll('#taglist option')].map(o => o.value));
+        if (known.has(val)) {
+          inp.value = '';
+          if (!this.st.tags.includes(val)) this.st.tags.push(val);
+        }
+      },
+
+      openGallery(images) {
+        this.modalImages = images;
+        const ov = (this.$refs && this.$refs.modal) || document.getElementById('ov');
+        if (ov && ov.showModal) ov.showModal();
+      },
+
+      closeGallery() {
+        const ov = (this.$refs && this.$refs.modal) || document.getElementById('ov');
+        if (ov && ov.close) ov.close();
+        this.modalImages = [];
+      },
     }));
-    let shown = 0;
-    cards.forEach(c => {
-      const d = c.dataset;
-      const tags = d.tags ? d.tags.split('|') : [];
-      const ok = (!st.h24 || d.fresh === '1')
-        && (!st.new || c.classList.contains('is-new'))
-        && (!st.hide || !d.state)
-        && (!st.curated || d.curated === '1')
-        && (!st.cat || d.category === st.cat)
-        && (!st.q || d.quality === st.q)
-        && (!st.studio || d.studio === st.studio)
-        && st.tags.every(t => tags.includes(t));
-      c.hidden = !ok;
-      if (ok) shown++;
-    });
-    document.getElementById('count').textContent = 'Showing ' + shown + ' of ' + cards.length;
-  }
-  function change() { save(); render(); }
 
-  bar.querySelectorAll('[data-toggle]').forEach(b => b.onclick = () => { st[b.dataset.toggle] = !st[b.dataset.toggle]; change(); });
-  bar.querySelectorAll('select[data-key]').forEach(el => el.onchange = () => { st[el.dataset.key] = el.value; change(); });
-  const toggleTag = t => { const i = st.tags.indexOf(t); if (i < 0) st.tags.push(t); else st.tags.splice(i, 1); change(); };
-  bar.querySelectorAll('#chips [data-tag]').forEach(b => b.onclick = () => toggleTag(b.dataset.tag));
-  document.getElementById('seltags').onclick = e => {
-    const t = e.target.dataset && e.target.dataset.remove;
-    if (t) toggleTag(t);
+    Alpine.data('plabCard', (cfg = {}) => ({
+      id: cfg.id,
+      fresh: Boolean(cfg.fresh),
+      curated: Boolean(cfg.curated),
+      cat: cfg.cat || '',
+      q: cfg.q || '',
+      studio: cfg.studio || '',
+      tags: cfg.tags || [],
+      state: cfg.initialState || '',
+      loading: false,
+      hoverQueued: false,
+      error: '',
+      isNew: false,
+
+      init() {
+        if (this.registerCard) this.registerCard(this);
+        if (this.newIds) this.isNew = !this.newIds.has(String(this.id));
+      },
+
+      get btnLabel() {
+        if (this.loading) return this.state === 'queued' ? 'Removing…' : 'Adding…';
+        if (this.state === 'added') return 'Added ✓';
+        if (this.state === 'queued') return this.hoverQueued ? 'Remove ✕' : 'Queued ⏳';
+        return this.error ? 'Retry' : 'Add to Vault';
+      },
+
+      get btnClass() {
+        return this.state === 'queued' ? 'btn-warning queued' : 'btn-primary';
+      },
+
+      async toggleAdd() {
+        if (this.loading || this.state === 'added') return;
+        const unq = this.state === 'queued';
+        this.loading = true;
+        this.error = '';
+        try {
+          const r = await fetch((unq ? 'unqueue/' : 'add/') + this.id, {method: 'POST'});
+          let j;
+          try {
+            j = await r.json();
+          } catch (_) {
+            throw new Error('HTTP ' + r.status + ' — reload the page');
+          }
+          if (!j.ok) throw new Error(j.error);
+          if (unq) {
+            this.state = '';
+            this.error = '';
+          } else if (j.queued) {
+            this.state = 'queued';
+            this.error = j.message || '';
+          } else {
+            this.state = 'added';
+          }
+        } catch (e) {
+          this.error = e.message || String(e);
+        } finally {
+          this.loading = false;
+          this.hoverQueued = false;
+        }
+      },
+    }));
   };
-  const input = document.getElementById('tagin');
-  function addTyped() {
-    const t = input.value.trim().toLowerCase();
-    input.value = '';
-    if (t && !st.tags.includes(t)) { st.tags.push(t); change(); }
-  }
-  input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); addTyped(); } };
-  const known = new Set([...document.querySelectorAll('#taglist option')].map(o => o.value));
-  input.oninput = () => { if (known.has(input.value.trim().toLowerCase())) addTyped(); };  // chose a datalist value
-  document.getElementById('clear').onclick = () => { st = empty(); change(); };
 
-  st = load();
-  Object.keys(SELECTS).forEach(k => {
-    const el = bar.querySelector('select[data-key="' + k + '"]');
-    if (st[k] && !(el && [...el.options].some(o => o.value === st[k]))) st[k] = '';
-  });
-  render();
-  if (location.hash.length > 1 || !isEmpty(st)) save();
+  if (window.Alpine) register();
+  else document.addEventListener('alpine:init', register);
 })();
 """
+
+FILTER_JS = ""

@@ -51,9 +51,8 @@ class Render(unittest.TestCase):
         out = self.render([TOPIC])
         self.assertIn("plab.seen", out)
         script = out.split("<script>")[1]
-        self.assertIn("new badge badge-accent badge-lg", script)
-        self.assertIn("'is-new', 'ring-2', 'ring-(--color-accent)'", script)
-        self.assertIn("querySelector('figure')", script)
+        self.assertIn("newIds", script)
+        self.assertIn("isNew", script)
         self.assertIn('id="newcount"', out)
         self.assertIn('<figure class="relative aspect-[16/10] bg-black">', out)
 
@@ -148,8 +147,8 @@ class Labels(unittest.TestCase):
 
     def test_is_new_is_the_filter_hook(self):
         script = self.render([TOPIC]).split("<script>")[1]
-        self.assertIn("classList.add('is-new'", script)
-        self.assertIn("c.classList.contains('is-new')", script)
+        self.assertIn("isNew", script)
+        self.assertIn("card.isNew", script)
 
 
 class FilterBar(unittest.TestCase):
@@ -220,8 +219,8 @@ class FilterBar(unittest.TestCase):
 
     def test_filter_script_hooks(self):
         script = self.render().split("<script>")[1]
-        for hook in ("plab.filters", "h24", "'new'", "'hide'", "replaceState", "location.hash",
-                     "'tags'", "d.state"):
+        for hook in ("Alpine.data('plabApp'", "Alpine.data('plabCard'", "plab.filters", "h24",
+                     "'new'", "'hide'", "'couples'", "replaceState", "location.hash", "'tags'"):
             self.assertIn(hook, script)
         # the NEW pass must come before the filter pass
         self.assertLess(script.index("plab.seen"), script.index("plab.filters"))
@@ -232,7 +231,7 @@ class FilterBar(unittest.TestCase):
 
     def test_new_survives_reload_hooks(self):
         script = self.render().split("<script>")[1]
-        for hook in ("prev", "cur", "30 * 60 * 1000", "Array.isArray", "Object.hasOwn"):
+        for hook in ("plab.seen", "prev", "cur", "30 * 60 * 1000", "Array.isArray", "Object.hasOwn"):
             self.assertIn(hook, script)
 
     def test_sticky_only_from_sm_and_no_horizontal_scroll(self):
@@ -251,8 +250,8 @@ class FilterBar(unittest.TestCase):
 
     def test_selected_state_toggles_btn_primary(self):
         script = self.render().split("<script>")[1]
-        self.assertIn("classList.toggle('btn-primary', st[b.dataset.toggle])", script)
-        self.assertIn("classList.toggle('btn-primary', st.tags.includes(b.dataset.tag))", script)
+        self.assertIn("toggle(key)", script)
+        self.assertIn("toggleTag(tag)", script)
         self.assertNotIn("'on'", script)
 
 
@@ -285,9 +284,9 @@ class Shell(unittest.TestCase):
 
     def test_queued_state_swaps_daisyui_classes(self):
         script = self.out.split("<script>")[1]
-        self.assertIn("QUEUED = 'btn-warning'", script)
-        self.assertIn("b.classList.remove('queued', QUEUED); b.classList.add(ADD)", script)
-        self.assertIn("b.classList.remove(ADD); b.classList.add('queued', QUEUED)", script)
+        self.assertIn("btnClass", script)
+        self.assertIn("btnLabel", script)
+        self.assertIn("'btn-warning queued'", script)
         self.assertIn("'Remove ✕'", script)
         self.assertIn(".add.queued:not(:disabled):hover", self.out.split("<style>")[1])
 
@@ -341,10 +340,12 @@ class Card(unittest.TestCase):
         out = page.render({"updated": 1000, "topics": topics}, set(), set(), 2000)
         self.assertNotIn("curated", out.split("<header")[1].split("</header>")[0])
 
-    def test_filter_script_curated_toggle_and_curated_hooks(self):
+    def test_filter_script_couples_toggle_and_curated_hooks(self):
         script = page.render({"updated": 0, "topics": [TOPIC]}, set(), set(), 1791117232).split("<script>")[1]
-        self.assertIn("'curated'", script)
-        self.assertIn("d.curated === '1'", script)
+        self.assertIn("'couples'", script)
+        self.assertIn("card.curated", script)
+
+    test_filter_script_curated_toggle_and_curated_hooks = test_filter_script_couples_toggle_and_curated_hooks
 
 
 if __name__ == "__main__":
