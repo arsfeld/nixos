@@ -335,7 +335,7 @@ class Routes(unittest.TestCase):
 class Static(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
-        for name in ("daisyui.css", "themes.css", "tailwind.js", "secret.txt"):
+        for name in ("daisyui.css", "themes.css", "tailwind.js", "alpine.js", "secret.txt"):
             with open(os.path.join(self.dir.name, name), "w") as f:
                 f.write(name)
 
@@ -347,6 +347,8 @@ class Static(unittest.TestCase):
         self.assertEqual(main.static_file(self.dir.name, "themes.css")[1], "text/css; charset=utf-8")
         self.assertEqual(main.static_file(self.dir.name, "tailwind.js"),
                          (b"tailwind.js", "text/javascript; charset=utf-8"))
+        self.assertEqual(main.static_file(self.dir.name, "alpine.js"),
+                         (b"alpine.js", "text/javascript; charset=utf-8"))
 
     def test_unknown_name(self):
         self.assertIsNone(main.static_file(self.dir.name, "secret.txt"))
@@ -467,6 +469,7 @@ class SearchesTest(unittest.TestCase):
         self.assertIn("Joybear", terms)
         self.assertIn("X-Art", terms)
         self.assertIn("real couple", terms)
+        self.assertIn("threesome", terms)
 
     def test_load_searches_from_file_strips_comments_and_whitespace(self):
         path = os.path.join(self.dir.name, "searches.txt")

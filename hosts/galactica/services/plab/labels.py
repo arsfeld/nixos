@@ -62,6 +62,7 @@ CURATED_KEYWORDS = (
     "romantic",
     "sensual",
     "homemade couple",
+    "threesome",
 )
 
 

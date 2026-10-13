@@ -74,6 +74,7 @@ DEFAULT_SEARCHES = [
     "amateur couple",
     "romantic",
     "sensual",
+    "threesome",
 ]
 
 
@@ -268,6 +269,7 @@ STATIC = {
     "daisyui.css": "text/css; charset=utf-8",
     "themes.css": "text/css; charset=utf-8",
     "tailwind.js": "text/javascript; charset=utf-8",
+    "alpine.js": "text/javascript; charset=utf-8",
 }
 
 

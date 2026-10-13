@@ -79,12 +79,14 @@ class Labels(unittest.TestCase):
         from labels import is_curated
         self.assertTrue(is_curated("Title", tags=["anal", "real couple"]))
         self.assertTrue(is_curated("Title", tags=["sensual", "brunette"]))
+        self.assertTrue(is_curated("Title", tags=["threesome"]))
         self.assertFalse(is_curated("Title", tags=["anal", "blowjob"]))
 
     def test_is_curated_by_title_text(self):
         from labels import is_curated
         self.assertTrue(is_curated("Lustery: Alice & Bob at home"))
         self.assertTrue(is_curated("Erika Lust - The Cab Ride [1080p]"))
+        self.assertTrue(is_curated("Hot Passionate Threesome [1080p]"))
         self.assertFalse(is_curated("Random Big Release [1080p]"))
 
 

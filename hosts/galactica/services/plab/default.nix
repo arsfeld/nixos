@@ -43,6 +43,13 @@
         hash = "sha256-pgx4VjCgYZaAjL555ve9tKvMj0QhpHtW8pM4/ISAXjs=";
       };
     }
+    {
+      name = "alpine.js";
+      path = pkgs.fetchurl {
+        url = "https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js";
+        hash = "sha256-tgDjY9mdlURNtUrL+y3v/smueSqpmgkim82geOW1VkM=";
+      };
+    }
   ];
 
   plab = pkgs.writeShellApplication {
