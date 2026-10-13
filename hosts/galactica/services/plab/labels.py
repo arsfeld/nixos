@@ -35,3 +35,51 @@ def labels(title, forum):
         first = m and m.group(1).split(" / ")[0].strip()
         studio = first if first and "." in first else None
     return {"tags": tags, "quality": quality, "studio": studio, "category": category(forum)}
+
+
+CURATED_STUDIO_PREFIXES = (
+    "lustery",
+    "joybear",
+    "erika lust",
+    "erikalust",
+    "xconfessions",
+    "lust cinema",
+    "lustcinema",
+    "frolicme",
+    "sssh",
+    "x-art",
+    "xart",
+    "colette",
+    "viv thomas",
+    "vivthomas",
+    "bellesa",
+    "metart",
+)
+
+CURATED_KEYWORDS = (
+    "real couple",
+    "amateur couple",
+    "romantic",
+    "sensual",
+    "homemade couple",
+)
+
+
+def is_curated(title, studio=None, tags=None):
+    """True if release matches indie/romantic couples studios, tags or title keywords."""
+    if studio:
+        s = studio.lower()
+        if any(prefix in s for prefix in CURATED_STUDIO_PREFIXES):
+            return True
+    if tags:
+        for t in tags:
+            tl = t.lower()
+            if any(k in tl for k in CURATED_KEYWORDS):
+                return True
+    tl = title.lower()
+    if any(prefix in tl for prefix in CURATED_STUDIO_PREFIXES):
+        return True
+    if any(k in tl for k in CURATED_KEYWORDS):
+        return True
+    return False
+
