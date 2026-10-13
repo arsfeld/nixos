@@ -23,7 +23,7 @@ import parse
 import transmission
 from forums import FORUMS
 from lab import Lab, LimitError, LoginError, TrackerError
-from labels import curated_reason, is_curated, labels
+from labels import CURATED_KEYWORDS, CURATED_STUDIOS, curated_reason, is_curated, labels
 from store import Store, key
 
 DAYS = 7
@@ -149,9 +149,10 @@ def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep,
         try:
             results = lab.search(term, forums, days=32, limit=20, predicate=pred)
             clean_term = term.strip('"').strip("'")
+            canonical = CURATED_KEYWORDS.get(clean_term.lower(), CURATED_STUDIOS.get(clean_term.lower(), clean_term.title()))
             for r in results:
                 if r["id"] not in curated_reasons:
-                    curated_reasons[r["id"]] = clean_term
+                    curated_reasons[r["id"]] = canonical
                 extra_rows.append(r)
         except LoginError:
             raise
