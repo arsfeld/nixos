@@ -124,8 +124,8 @@ def _filter_bar(labs):
                     f'<span class="badge badge-xs">{n}</span></button>' for t, n in top)
     datalist = "".join(f'<option value="{e(t)}">' for t in sorted(tags))
     toggles = "".join(f'<button type="button" class="btn btn-sm" data-toggle="{k}" '
-                      f':class="{{ \'btn-primary\': st.{k if k != "curated" else "couples"} }}" '
-                      f'@click="toggle(\'{k if k != "curated" else "couples"}\')">{name}</button>'
+                      f':class="{{ \'btn-primary\': st.{k} }}" '
+                      f'@click="toggle(\'{k}\')">{name}</button>'
                       for k, name in (("h24", "Last 24h"), ("new", "New only"),
                                       ("curated", "Curated"), ("hide", "Hide added/queued")))
     row = "flex flex-wrap items-center gap-2"

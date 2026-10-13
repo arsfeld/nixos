@@ -62,14 +62,13 @@ CURATED_KEYWORDS = {
     "romantic": "Romantic",
     "sensual": "Sensual",
     "homemade couple": "Homemade Couple",
-    "threesome": "Threesome",
 }
 
 CURATED_STUDIO_PREFIXES = tuple(CURATED_STUDIOS.keys())
 
 
 def curated_reason(title, studio=None, tags=None):
-    """The matched reason/term (e.g. 'Threesome', 'Lustery') if curated, else None."""
+    """The matched reason/term (e.g. 'Lustery', 'Real Couple') if curated, else None."""
     if studio:
         s = studio.lower()
         for prefix, name in CURATED_STUDIOS.items():
@@ -94,4 +93,6 @@ def curated_reason(title, studio=None, tags=None):
 def is_curated(title, studio=None, tags=None):
     """True if release matches indie/romantic couples studios, tags or title keywords."""
     return curated_reason(title, studio, tags) is not None
+
+
 

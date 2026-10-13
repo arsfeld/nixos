@@ -447,6 +447,14 @@ class ExcludeTest(unittest.TestCase):
         lab = FakeLab([row(1, "Mainstream Top 100")])
         lab.searched_rows = {"Lustery": [row(2, "Lustery Release"), row(1, "Mainstream Top 100")]}
 
+    def test_refresh_merges_and_tags_curated_searches(self):
+        searches_path = os.path.join(self.dir.name, "filter.txt")
+        with open(searches_path, "w", encoding="utf-8") as f:
+            f.write("Lustery\n")
+
+        lab = FakeLab([row(1, "Mainstream Top 100")])
+        lab.searched_rows = {"Lustery": [row(2, "Lustery Release"), row(1, "Mainstream Top 100")]}
+
         main.refresh(lab, self.store, searches_file=searches_path, sleep=lambda _: None)
         cached = self.store.cache()["topics"]
         self.assertEqual([t["id"] for t in cached], [1, 2])
@@ -471,7 +479,6 @@ class SearchesTest(unittest.TestCase):
         self.assertIn("Joybear", terms)
         self.assertIn("X-Art", terms)
         self.assertIn("real couple", terms)
-        self.assertIn("threesome", terms)
 
     def test_load_searches_from_file_strips_comments_and_whitespace(self):
         path = os.path.join(self.dir.name, "searches.txt")
@@ -481,11 +488,26 @@ class SearchesTest(unittest.TestCase):
         self.assertEqual(terms, ["Lustery", "\"real couple\""])
 
     def test_load_searches_from_state_dir(self):
-        path = os.path.join(self.dir.name, "searches.txt")
+        path = os.path.join(self.dir.name, "filter.txt")
         with open(path, "w", encoding="utf-8") as f:
             f.write("FrolicMe\n")
         terms = main.load_searches(state_dir=self.dir.name)
         self.assertEqual(terms, ["FrolicMe"])
+
+    def test_load_searches_from_filter_file_env(self):
+        path = os.path.join(self.dir.name, "custom.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("CustomTerm\n")
+        old_env = os.environ.get("PLAB_FILTER_FILE")
+        os.environ["PLAB_FILTER_FILE"] = path
+        try:
+            terms = main.load_searches()
+            self.assertEqual(terms, ["CustomTerm"])
+        finally:
+            if old_env is None:
+                os.environ.pop("PLAB_FILTER_FILE", None)
+            else:
+                os.environ["PLAB_FILTER_FILE"] = old_env
 
 
 if __name__ == "__main__":

@@ -229,7 +229,7 @@ class FilterBar(unittest.TestCase):
     def test_filter_script_hooks(self):
         script = self.render().split("<script>")[1]
         for hook in ("Alpine.data('plabApp'", "Alpine.data('plabCard'", "plab.filters", "h24",
-                     "'new'", "'hide'", "'couples'", "replaceState", "location.hash", "'tags'"):
+                     "'new'", "'hide'", "'curated'", "replaceState", "location.hash", "'tags'"):
             self.assertIn(hook, script)
         # the NEW pass must come before the filter pass
         self.assertLess(script.index("plab.seen"), script.index("plab.filters"))
@@ -312,11 +312,12 @@ class Card(unittest.TestCase):
     def test_card_renders_curated_attribute_and_badge(self):
         t = {"id": 1, "title": "Test Title", "forum": 1875, "size": 100, "seeders": 1,
              "leechers": 0, "completed": 0, "added": 0, "images": [], "curated": True,
-             "curated_reason": "Threesome"}
+             "curated_reason": "Lustery"}
         lab = {"tags": [], "quality": None, "studio": None, "category": "Clips"}
         html = page._card(t, lab, set(), set(), 1000)
         self.assertIn('data-curated="1"', html)
-        self.assertIn('>Threesome</span>', html)
+        self.assertIn('>Lustery</span>', html)
+        self.assertIn('badge-secondary', html)
         self.assertIn('x-data="plabCard(', html)
         self.assertIn('x-show="isVisible($data)"', html)
 
@@ -333,6 +334,7 @@ class Card(unittest.TestCase):
         html = page._card(t, lab, set(), set(), 1000)
         self.assertIn('data-curated="1"', html)
         self.assertIn('>Lustery</span>', html)
+        self.assertIn('badge-secondary', html)
 
     def test_card_not_curated(self):
         t = {"id": 1, "title": "Test Title", "forum": 1875, "size": 100, "seeders": 1,
@@ -360,12 +362,10 @@ class Card(unittest.TestCase):
         out = page.render({"updated": 1000, "topics": topics}, set(), set(), 2000)
         self.assertNotIn("curated", out.split("<header")[1].split("</header>")[0])
 
-    def test_filter_script_couples_toggle_and_curated_hooks(self):
+    def test_filter_script_curated_toggle_and_curated_hooks(self):
         script = page.render({"updated": 0, "topics": [TOPIC]}, set(), set(), 1791117232).split("<script>")[1]
-        self.assertIn("'couples'", script)
+        self.assertIn("'curated'", script)
         self.assertIn("card.curated", script)
-
-    test_filter_script_curated_toggle_and_curated_hooks = test_filter_script_couples_toggle_and_curated_hooks
 
 
 if __name__ == "__main__":

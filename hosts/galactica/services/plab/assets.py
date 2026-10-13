@@ -14,9 +14,9 @@ CSS = """
 
 JS = """
 (() => {
-  const TOGGLES = ['h24', 'new', 'hide', 'couples'];
+  const TOGGLES = ['h24', 'new', 'hide', 'curated'];
   const SELECTS = {cat: 'category', q: 'quality', studio: 'studio'};
-  const empty = () => ({h24: false, new: false, hide: false, couples: false, cat: '', q: '', studio: '', tags: []});
+  const empty = () => ({h24: false, new: false, hide: false, curated: false, cat: '', q: '', studio: '', tags: []});
 
   function fromHash(h) {
     const o = empty();
@@ -59,7 +59,7 @@ JS = """
         return (!this.st.h24 || card.fresh)
           && (!this.st.new || card.isNew)
           && (!this.st.hide || !card.state)
-          && (!this.st.couples || card.curated)
+          && (!this.st.curated || card.curated)
           && (!this.st.cat || card.cat === this.st.cat)
           && (!this.st.q || card.q === this.st.q)
           && (!this.st.studio || card.studio === this.st.studio)

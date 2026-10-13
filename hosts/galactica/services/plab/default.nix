@@ -65,11 +65,14 @@
       export PLAB_DOWNLOAD_DIR="${vars.storageDir}/media/Downloads/Vault"
       export PLAB_STATIC_DIR="''${PLAB_STATIC_DIR:-${static}}"
       export PLAB_EXCLUDE_FILE="''${PLAB_EXCLUDE_FILE:-${secrets.plab-exclude.path}}"
-      export PLAB_SEARCHES_FILE="''${PLAB_SEARCHES_FILE:-${
-        if secrets ? plab-searches
+      export PLAB_FILTER_FILE="''${PLAB_FILTER_FILE:-${
+        if secrets ? plab-filter
+        then secrets.plab-filter.path
+        else if secrets ? plab-searches
         then secrets.plab-searches.path
         else ""
       }}"
+      export PLAB_SEARCHES_FILE="''${PLAB_SEARCHES_FILE:-$PLAB_FILTER_FILE}"
       exec ${pkgs.python3}/bin/python3 ${./.}/main.py "$@"
     '';
   };
@@ -84,6 +87,7 @@ in {
   sops.secrets.plab-username.owner = vars.user;
   sops.secrets.plab-password.owner = vars.user;
   sops.secrets.plab-exclude.owner = vars.user;
+  sops.secrets.plab-filter.owner = vars.user;
 
   environment.systemPackages = [plab];
 

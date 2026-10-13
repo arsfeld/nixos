@@ -74,22 +74,23 @@ DEFAULT_SEARCHES = [
     "amateur couple",
     "romantic",
     "sensual",
-    "threesome",
 ]
 
 
 def load_searches(path=None, state_dir=None):
     """Load search queries from file.
 
-    Checks `path` (or PLAB_SEARCHES_FILE), falling back to `searches.txt` in `state_dir`.
+    Checks `path` (or PLAB_FILTER_FILE / PLAB_SEARCHES_FILE), falling back to `filter.txt` or `searches.txt` in `state_dir`.
     If neither exists, returns DEFAULT_SEARCHES.
     """
     if path is None:
-        path = os.environ.get("PLAB_SEARCHES_FILE")
+        path = os.environ.get("PLAB_FILTER_FILE") or os.environ.get("PLAB_SEARCHES_FILE")
     if not path and state_dir:
-        candidate = os.path.join(state_dir, "searches.txt")
-        if os.path.isfile(candidate):
-            path = candidate
+        for candidate_name in ("filter.txt", "searches.txt"):
+            candidate = os.path.join(state_dir, candidate_name)
+            if os.path.isfile(candidate):
+                path = candidate
+                break
     if not path or not os.path.isfile(path):
         return list(DEFAULT_SEARCHES)
     terms = []
@@ -187,10 +188,16 @@ def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep,
                 log(f"image {images[0]}: {e}")
         lab_info = labels(row["title"], row["forum"])
         matched = curated_reasons.get(row["id"]) or curated_reason(row["title"], lab_info["studio"], lab_info["tags"])
-        topics.append({**row, "images": images, "curated": bool(matched), "curated_reason": matched})
+        topics.append({
+            **row,
+            "images": images,
+            "curated": bool(matched),
+            "curated_reason": matched,
+        })
     store.save_cache(topics)
     store.prune_images(u for t in topics for u in t["images"])
-    log(f"refreshed: {len(topics)} topics ({len([t for t in topics if t.get('curated')])} curated)")
+    c_count = len([t for t in topics if t.get('curated')])
+    log(f"refreshed: {len(topics)} topics ({c_count} curated)")
 
 
 def add_topic(lab, store, topic_id, rpc_url, download_dir, add=transmission.add):
