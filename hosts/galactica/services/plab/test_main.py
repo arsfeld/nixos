@@ -387,5 +387,35 @@ class ExcludeTest(unittest.TestCase):
             httpd.server_close()
 
 
+class SearchesTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def test_load_searches_fallback_to_defaults(self):
+        terms = main.load_searches("/nonexistent/file", state_dir=self.dir.name)
+        self.assertIn("Lustery", terms)
+        self.assertIn("Joybear", terms)
+        self.assertIn("X-Art", terms)
+        self.assertIn("real couple", terms)
+
+    def test_load_searches_from_file_strips_comments_and_whitespace(self):
+        path = os.path.join(self.dir.name, "searches.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("# comment\n\n  Lustery  \n# another comment\n\"real couple\"\n")
+        terms = main.load_searches(path)
+        self.assertEqual(terms, ["Lustery", "\"real couple\""])
+
+    def test_load_searches_from_state_dir(self):
+        path = os.path.join(self.dir.name, "searches.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("FrolicMe\n")
+        terms = main.load_searches(state_dir=self.dir.name)
+        self.assertEqual(terms, ["FrolicMe"])
+
+
 if __name__ == "__main__":
     unittest.main()
+

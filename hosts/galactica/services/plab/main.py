@@ -56,6 +56,49 @@ def _image_fetcher(lab):
     return fetch
 
 
+DEFAULT_SEARCHES = [
+    "Lustery",
+    "Joybear",
+    "Erika Lust",
+    "XConfessions",
+    "Lust Cinema",
+    "FrolicMe",
+    "Sssh",
+    "X-Art",
+    "Colette",
+    "Viv Thomas",
+    "Bellesa",
+    "MetArt",
+    "real couple",
+    "amateur couple",
+    "romantic",
+    "sensual",
+]
+
+
+def load_searches(path=None, state_dir=None):
+    """Load search queries from file.
+
+    Checks `path` (or PLAB_SEARCHES_FILE), falling back to `searches.txt` in `state_dir`.
+    If neither exists, returns DEFAULT_SEARCHES.
+    """
+    if path is None:
+        path = os.environ.get("PLAB_SEARCHES_FILE")
+    if not path and state_dir:
+        candidate = os.path.join(state_dir, "searches.txt")
+        if os.path.isfile(candidate):
+            path = candidate
+    if not path or not os.path.isfile(path):
+        return list(DEFAULT_SEARCHES)
+    terms = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                terms.append(line)
+    return terms if terms else list(DEFAULT_SEARCHES)
+
+
 def load_excludes(path=None, state_dir=None):
     """Load regex exclusion patterns from file.
 
