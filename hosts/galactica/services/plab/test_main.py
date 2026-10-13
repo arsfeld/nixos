@@ -39,6 +39,12 @@ class FakeLab:
             rows = [r for r in rows if predicate(r)]
         return rows
 
+    def search(self, query, forums, days=30, limit=20, predicate=None):
+        rows = getattr(self, "searched_rows", {}).get(query, [])
+        if predicate:
+            rows = [r for r in rows if predicate(r)]
+        return rows
+
     def topic(self, topic_id):
         self.topics_fetched.append(topic_id)
         if topic_id in self.logged_out:
@@ -80,7 +86,7 @@ class Refresh(unittest.TestCase):
         self.assertEqual([t["id"] for t in topics], [1, 2])
         self.assertEqual(topics[0]["images"][0], COVER)
         self.assertEqual(lab.fetched, [COVER])  # same cover for both; fetched once
-        self.assertEqual(self.sleeps, [main.DELAY, main.DELAY])
+        self.assertEqual(self.sleeps, [main.DELAY] * (len(main.DEFAULT_SEARCHES) + 2))
 
     def test_reuses_cached_images(self):
         self.refresh(FakeLab([row(1)]))
@@ -114,6 +120,40 @@ class Refresh(unittest.TestCase):
         self.refresh(FakeLab([row(1)]))
         self.assertFalse(os.path.exists(self.store.image_path("https://old/gone.jpg")))
         self.assertTrue(os.path.exists(self.store.image_path(COVER)))
+
+    def test_refresh_tags_curated_from_labels_without_search(self):
+        searches_path = os.path.join(self.dir.name, "search.txt")
+        with open(searches_path, "w", encoding="utf-8") as f:
+            f.write("nonexistent_search\n")
+        lab = FakeLab([
+            row(1, "[Lustery.com] Couple Movie [1080p]"),
+            row(2, "Regular Movie [1080p]"),
+        ])
+        main.refresh(lab, self.store, searches_file=searches_path, sleep=lambda _: None)
+        cached = self.store.cache()["topics"]
+        t1 = next(t for t in cached if t["id"] == 1)
+        t2 = next(t for t in cached if t["id"] == 2)
+        self.assertTrue(t1.get("curated"))
+        self.assertFalse(t2.get("curated"))
+
+    def test_search_failure_continues_refresh(self):
+        lab = FakeLab([row(1, "Top 1")])
+        lab.search = lambda *args, **kwargs: (_ for _ in ()).throw(OSError("tracker timed out"))
+        searches_path = os.path.join(self.dir.name, "searches.txt")
+        with open(searches_path, "w", encoding="utf-8") as f:
+            f.write("Lustery\n")
+        main.refresh(lab, self.store, searches_file=searches_path, sleep=lambda _: None)
+        cached = self.store.cache()["topics"]
+        self.assertEqual([t["id"] for t in cached], [1])
+
+    def test_search_login_error_aborts_refresh(self):
+        lab = FakeLab([row(1, "Top 1")])
+        lab.search = lambda *args, **kwargs: (_ for _ in ()).throw(LoginError("captcha"))
+        searches_path = os.path.join(self.dir.name, "searches.txt")
+        with open(searches_path, "w", encoding="utf-8") as f:
+            f.write("Lustery\n")
+        with self.assertRaises(LoginError):
+            main.refresh(lab, self.store, searches_file=searches_path, sleep=lambda _: None)
 
 
 class Drain(unittest.TestCase):
@@ -212,6 +252,17 @@ class RunRefresh(unittest.TestCase):
         with self.assertRaises(LoginError):
             self.run_it(LoginError("captcha"))
         self.assertEqual(self.calls, ["drain"])  # refresh never ran
+
+    def test_run_refresh_passes_searches_file(self):
+        calls = []
+        saved = main.drain_queue, main.refresh
+        main.drain_queue = lambda *args: None
+        main.refresh = lambda lab, store, exclude_file=None, searches_file=None: calls.append(searches_file)
+        try:
+            main.run_refresh(None, None, "http://rpc", "/vault", searches_file="/path/searches.txt")
+        finally:
+            main.drain_queue, main.refresh = saved
+        self.assertEqual(calls, ["/path/searches.txt"])
 
 
 class Routes(unittest.TestCase):
@@ -385,6 +436,22 @@ class ExcludeTest(unittest.TestCase):
         finally:
             httpd.shutdown()
             httpd.server_close()
+
+    def test_refresh_merges_and_tags_curated_searches(self):
+        searches_path = os.path.join(self.dir.name, "searches.txt")
+        with open(searches_path, "w", encoding="utf-8") as f:
+            f.write("Lustery\n")
+
+        lab = FakeLab([row(1, "Mainstream Top 100")])
+        lab.searched_rows = {"Lustery": [row(2, "Lustery Release"), row(1, "Mainstream Top 100")]}
+
+        main.refresh(lab, self.store, searches_file=searches_path, sleep=lambda _: None)
+        cached = self.store.cache()["topics"]
+        self.assertEqual([t["id"] for t in cached], [1, 2])
+        t1 = next(t for t in cached if t["id"] == 1)
+        t2 = next(t for t in cached if t["id"] == 2)
+        self.assertTrue(t1.get("curated"))  # present in targeted search
+        self.assertTrue(t2.get("curated"))
 
 
 class SearchesTest(unittest.TestCase):

@@ -23,6 +23,7 @@ import parse
 import transmission
 from forums import FORUMS
 from lab import Lab, LimitError, LoginError, TrackerError
+from labels import is_curated, labels
 from store import Store, key
 
 DAYS = 7
@@ -129,17 +130,43 @@ def exclude_predicate(patterns):
     return lambda row: not any(p.search(row.get("title", "")) for p in patterns)
 
 
-def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep, exclude_file=None):
+def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep,
+            exclude_file=None, searches_file=None):
     """Rebuild cache.json. Raises, leaving the old cache in place, if the list fails."""
     patterns = load_excludes(exclude_file, state_dir=store.root)
     pred = exclude_predicate(patterns)
     rows = lab.top(forums, days, limit, predicate=pred)
     if not rows:
         raise RuntimeError("tracker returned no rows")
+
+    # Run targeted curated searches
+    search_terms = load_searches(searches_file, state_dir=store.root)
+    curated_ids = set()
+    extra_rows = []
+    for term in search_terms:
+        sleep(DELAY)
+        try:
+            results = lab.search(term, forums, days=30, limit=20, predicate=pred)
+            for r in results:
+                curated_ids.add(r["id"])
+                extra_rows.append(r)
+        except LoginError:
+            raise
+        except Exception as err:
+            log(f"search failed for {term!r}: {err}")
+
+    # Combine & deduplicate rows by id
+    seen = set()
+    combined = []
+    for r in rows + extra_rows:
+        if r["id"] not in seen:
+            seen.add(r["id"])
+            combined.append(r)
+
     previous = {t["id"]: t for t in store.cache()["topics"]}
     fetch = _image_fetcher(lab)
     topics = []
-    for row in rows:
+    for row in combined:
         images = previous.get(row["id"], {}).get("images") or []
         if not images:
             sleep(DELAY)
@@ -154,10 +181,12 @@ def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep,
                 store.ensure_image(images[0], fetch)
             except Exception as e:  # noqa: BLE001
                 log(f"image {images[0]}: {e}")
-        topics.append({**row, "images": images})
+        lab_info = labels(row["title"], row["forum"])
+        is_cur = row["id"] in curated_ids or is_curated(row["title"], lab_info["studio"], lab_info["tags"])
+        topics.append({**row, "images": images, "curated": is_cur})
     store.save_cache(topics)
     store.prune_images(u for t in topics for u in t["images"])
-    log(f"refreshed: {len(topics)} topics")
+    log(f"refreshed: {len(topics)} topics ({len([t for t in topics if t.get('curated')])} curated)")
 
 
 def add_topic(lab, store, topic_id, rpc_url, download_dir, add=transmission.add):
@@ -206,7 +235,7 @@ def drain_queue(lab, store, rpc_url, download_dir, add=transmission.add):
             log(f"queued {topic_id} kept: {e}")
 
 
-def run_refresh(lab, store, rpc_url, download_dir, exclude_file=None):
+def run_refresh(lab, store, rpc_url, download_dir, exclude_file=None, searches_file=None):
     """The `refresh` subcommand: drain the queue, then rebuild the list."""
     try:
         drain_queue(lab, store, rpc_url, download_dir)
@@ -215,7 +244,7 @@ def run_refresh(lab, store, rpc_url, download_dir, exclude_file=None):
     except Exception as e:  # noqa: BLE001 -- the list refresh must still run
         log(f"queue drain failed: {e}")
     try:
-        refresh(lab, store, exclude_file=exclude_file)
+        refresh(lab, store, exclude_file=exclude_file, searches_file=searches_file)
     except TypeError:
         refresh(lab, store)
 
@@ -341,7 +370,7 @@ def main(argv=None):
     lab = Lab(_secret("PLAB_USERNAME_FILE"), _secret("PLAB_PASSWORD_FILE"), os.path.join(state, "cookies.txt"))
     if args.cmd == "refresh":
         run_refresh(lab, store, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"],
-                    os.environ.get("PLAB_EXCLUDE_FILE"))
+                    os.environ.get("PLAB_EXCLUDE_FILE"), os.environ.get("PLAB_SEARCHES_FILE"))
     elif args.cmd == "serve":
         serve(lab, store, args.bind, args.port, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"],
               os.environ.get("PLAB_STATIC_DIR"), os.environ.get("PLAB_EXCLUDE_FILE"))
