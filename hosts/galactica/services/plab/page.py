@@ -38,8 +38,9 @@ def _card(t, lab, added, queued, now):
     e = html.escape
     if t["images"]:
         keys = [key(u) for u in t["images"]]
+        keys_json = e(json.dumps(keys))
         thumb = (f'<img class="thumb w-full h-full object-cover cursor-zoom-in" loading="lazy" '
-                 f'src="img/{keys[0]}" data-images="{e(json.dumps(keys))}" alt="">')
+                 f'src="img/{keys[0]}" data-images="{keys_json}" @click="openGallery({keys_json})" alt="">')
     else:
         thumb = '<div class="thumb none w-full h-full"></div>'
     if t["id"] in added:
@@ -48,8 +49,14 @@ def _card(t, lab, added, queued, now):
         cls, attrs, label, state = QUEUED_BTN, ' title="Click to remove from queue"', "Queued ⏳", "queued"
     else:
         cls, attrs, label, state = ADD_BTN, "", "Add to Vault", ""
-    button = (f'<button class="{cls}" data-id="{t["id"]}"{attrs}>'
-              f'{label}</button><span class="err text-xs text-error"></span>')
+    button = (f'<button class="{cls}" data-id="{t["id"]}"{attrs} :class="btnClass" '
+              ':disabled="loading || state === \'added\'" '
+              ':title="state === \'queued\' ? \'Click to remove from queue\' : \'\'" '
+              '@mouseenter="hoverQueued = (state === \'queued\' && !loading)" '
+              '@mouseleave="hoverQueued = false" '
+              '@click="toggleAdd()">'
+              f'<span x-text="btnLabel">{label}</span></button>'
+              '<span class="err text-xs text-error" x-text="error"></span>')
     fresh = now - t["added"] < 86400
     if fresh:
         date = f'<span class="fresh text-warning font-bold">uploaded {age(t["added"], now)}</span>'
@@ -72,8 +79,20 @@ def _card(t, lab, added, queued, now):
             "category": lab["category"], "fresh": "1" if fresh else "", "state": state,
             "curated": "1" if curated else ""}
     attrs_data = "".join(f' data-{k}="{e(v)}"' for k, v in data.items())
-    return (f'<div class="card bg-base-200 shadow-sm overflow-hidden"{attrs_data}>'
-            f'<figure class="relative aspect-[16/10] bg-black">{badge}{curated_badge}{thumb}</figure>'
+    cfg = json.dumps({
+        "id": t["id"],
+        "fresh": fresh,
+        "curated": curated,
+        "cat": lab["category"],
+        "q": lab["quality"] or "",
+        "studio": lab["studio"] or "",
+        "tags": lab["tags"],
+        "initialState": state,
+    })
+    return (f'<div class="card bg-base-200 shadow-sm overflow-hidden"{attrs_data} '
+            f'x-data="plabCard({e(cfg)})" x-show="isVisible($data)" '
+            ':class="{ \'is-new ring-2 ring-(--color-accent)\': isNew }">'
+            f'<figure class="relative aspect-[16/10] bg-black"><span x-show="isNew" class="new badge badge-accent badge-lg font-bold absolute top-2 left-2 z-[1]">NEW</span>{badge}{curated_badge}{thumb}</figure>'
             '<div class="card-body p-3 gap-2">'
             f'<a class="title link link-hover break-words" href="{TOPIC_URL % t["id"]}" target="_blank" '
             f'rel="noreferrer">{e(t["title"])}</a>'
@@ -94,26 +113,37 @@ def _filter_bar(labs):
     tags = Counter(tag for lab in labs for tag in lab["tags"])
     top = sorted(tags.items(), key=lambda kv: (-kv[1], kv[0]))[:20]
     selects = "".join(
-        f'<select class="select select-sm w-auto max-w-full" data-key="{key_}" aria-label="{name}" title="{name}">'
+        f'<select class="select select-sm w-auto max-w-full" data-key="{key_}" aria-label="{name}" title="{name}" '
+        f'x-model="st.{key_}">'
         f'{_options(Counter(lab[field] for lab in labs if lab[field]))}</select>'
         for key_, field, name in (("cat", "category", "Category"), ("q", "quality", "Quality"),
                                   ("studio", "studio", "Studio")))
-    chips = "".join(f'<button type="button" class="btn btn-xs" data-tag="{e(t)}">{e(t)}'
+    chips = "".join(f'<button type="button" class="btn btn-xs" data-tag="{e(t)}" '
+                    f':class="{{ \'btn-primary\': st.tags.includes(\'{e(t)}\') }}" '
+                    f'@click="toggleTag(\'{e(t)}\')">{e(t)}'
                     f'<span class="badge badge-xs">{n}</span></button>' for t, n in top)
     datalist = "".join(f'<option value="{e(t)}">' for t in sorted(tags))
-    toggles = "".join(f'<button type="button" class="btn btn-sm" data-toggle="{k}">{name}</button>'
+    toggles = "".join(f'<button type="button" class="btn btn-sm" data-toggle="{k}" '
+                      f':class="{{ \'btn-primary\': st.{k if k != "curated" else "couples"} }}" '
+                      f'@click="toggle(\'{k if k != "curated" else "couples"}\')">{name}</button>'
                       for k, name in (("h24", "Last 24h"), ("new", "New only"),
                                       ("curated", "Curated"), ("hide", "Hide added/queued")))
     row = "flex flex-wrap items-center gap-2"
+    selected_tags = (
+        '<template x-for="t in st.tags" :key="t">'
+        '<button type="button" class="btn btn-xs btn-primary" @click="toggleTag(t)" x-text="t + \' ×\'"></button>'
+        '</template>'
+    )
     return ('<div id="filters" class="sm:sticky top-0 z-10 bg-base-100 py-2 mb-4 border-b border-base-300 '
             'flex flex-col gap-2">'
             f'<div class="{row}">{toggles}{selects}</div>'
             f'<div id="chips" class="{row} max-h-[5.5em] overflow-y-auto">{chips}</div>'
-            f'<div class="{row}"><span id="seltags" class="{row}"></span>'
-            '<input id="tagin" class="input input-sm w-40" list="taglist" placeholder="add tag" autocomplete="off">'
+            f'<div class="{row}"><span id="seltags" class="{row}">{selected_tags}</span>'
+            '<input id="tagin" class="input input-sm w-40" list="taglist" placeholder="add tag" autocomplete="off" '
+            '@keydown.enter.prevent="addTyped($el)" @input="onTagInput($el)">'
             f'<datalist id="taglist">{datalist}</datalist>'
-            '<button type="button" id="clear" class="btn btn-ghost btn-sm">Clear</button>'
-            f'<span id="count" class="ml-auto text-sm text-base-content/60">Showing {len(labs)} of {len(labs)}</span>'
+            '<button type="button" id="clear" class="btn btn-ghost btn-sm" @click="clearFilters()">Clear</button>'
+            f'<span id="count" class="ml-auto text-sm text-base-content/60" x-text="\'Showing \' + shownCount + \' of \' + cards.length">Showing {len(labs)} of {len(labs)}</span>'
             '</div></div>')
 
 
@@ -133,16 +163,20 @@ def render(cache, added, queued, now):
             "<link rel=\"stylesheet\" href=\"static/daisyui.css\">"
             "<link rel=\"stylesheet\" href=\"static/themes.css\">"
             "<script src=\"static/tailwind.js\"></script>"
+            "<script defer src=\"static/alpine.js\"></script>"
             f"<style>{CSS}</style></head>"
-            "<body class=\"min-h-screen bg-base-100 text-base-content p-4 overflow-x-hidden\">"
+            "<body class=\"min-h-screen bg-base-100 text-base-content p-4 overflow-x-hidden\" x-data=\"plabApp\">"
             "<header class=\"navbar min-h-0 p-0 mb-2 flex-wrap items-baseline gap-x-4 gap-y-1\">"
             "<h1 class=\"text-xl font-bold\">plab</h1>"
             f"<span class=\"text-sm text-base-content/60\">{len(topics)} releases · last 7 days · "
             f"updated {age(cache['updated'], now)}{curated_sub}{f' · {pending} queued' if pending else ''}"
-            "<span id=\"newcount\"></span></span></header>"
+            "<span id=\"newcount\" x-show=\"newCount > 0\" x-text=\"' · ' + newCount + ' new'\"></span></span></header>"
             f"{_filter_bar(labs)}"
             "<div id=\"grid\" class=\"grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(280px,100%),1fr))]\">"
             f"{cards}</div>"
-            "<dialog id=\"ov\" class=\"modal\"><div class=\"modal-box w-11/12 max-w-5xl p-2 cursor-zoom-out\">"
-            "</div><form method=\"dialog\" class=\"modal-backdrop\"><button>close</button></form></dialog>"
+            "<dialog id=\"ov\" x-ref=\"modal\" class=\"modal\" @click=\"closeGallery()\">"
+            "<div class=\"modal-box w-11/12 max-w-5xl p-2 cursor-zoom-out\" @click.stop=\"closeGallery()\">"
+            "<template x-for=\"img in modalImages\" :key=\"img\">"
+            "<img class=\"block mx-auto mb-3 max-w-full\" loading=\"lazy\" :src=\"'img/' + img\">"
+            "</template></div><form method=\"dialog\" class=\"modal-backdrop\"><button>close</button></form></dialog>"
             f"<script>{JS}{FILTER_JS}</script></body></html>")

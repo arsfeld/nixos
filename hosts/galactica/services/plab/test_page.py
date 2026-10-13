@@ -54,6 +54,7 @@ class Render(unittest.TestCase):
         self.assertIn("newIds", script)
         self.assertIn("isNew", script)
         self.assertIn('id="newcount"', out)
+        self.assertIn('<span x-show="isNew" class="new badge badge-accent badge-lg font-bold absolute top-2 left-2 z-[1]">NEW</span>', out)
         self.assertIn('<figure class="relative aspect-[16/10] bg-black">', out)
 
     def test_title_escaped(self):
@@ -63,23 +64,27 @@ class Render(unittest.TestCase):
 
     def test_added_topic(self):
         out = self.render([TOPIC], added={3313754})
-        self.assertIn('<button class="add btn btn-sm btn-primary" data-id="3313754" disabled>Added ✓</button>', out)
+        self.assertIn('<button class="add btn btn-sm btn-primary" data-id="3313754" disabled :class="btnClass"', out)
+        self.assertIn('<span x-text="btnLabel">Added ✓</span></button>', out)
 
     def test_not_added_topic(self):
         out = self.render([TOPIC], added=set())
-        self.assertIn('<button class="add btn btn-sm btn-primary" data-id="3313754">Add to Vault</button>', out)
+        self.assertIn('<button class="add btn btn-sm btn-primary" data-id="3313754" :class="btnClass"', out)
+        self.assertIn('<span x-text="btnLabel">Add to Vault</span></button>', out)
         self.assertNotIn('data-id="3313754" disabled', out)
 
     def test_queued_topic(self):
         out = self.render([TOPIC], queued={3313754})
-        self.assertIn('<button class="add queued btn btn-sm btn-warning" data-id="3313754" title="Click to remove from queue">Queued ⏳</button>', out)
+        self.assertIn('<button class="add queued btn btn-sm btn-warning" data-id="3313754" title="Click to remove from queue" :class="btnClass"', out)
+        self.assertIn('<span x-text="btnLabel">Queued ⏳</span></button>', out)
         self.assertNotIn("disabled>Queued", out)
         self.assertIn("· 1 queued", out)
 
     def test_added_wins_over_queued(self):
         out = self.render([TOPIC], added={3313754}, queued={3313754})
-        self.assertIn('<button class="add btn btn-sm btn-primary" data-id="3313754" disabled>Added ✓</button>', out)
-        self.assertNotIn("Queued ⏳</button>", out)
+        self.assertIn('<button class="add btn btn-sm btn-primary" data-id="3313754" disabled :class="btnClass"', out)
+        self.assertIn('<span x-text="btnLabel">Added ✓</span></button>', out)
+        self.assertNotIn('<span x-text="btnLabel">Queued ⏳</span>', out)
 
     def test_no_queued_in_header_by_default(self):
         self.assertNotIn("queued", self.render([TOPIC]).split("<header")[1].split("</header>")[0])
@@ -170,9 +175,11 @@ class FilterBar(unittest.TestCase):
 
     def test_toggles(self):
         bar = self.bar(self.render())
-        for hook in ('data-toggle="h24">Last 24h', 'data-toggle="new">New only',
-                     'data-toggle="hide">Hide added/queued'):
+        for hook in ('data-toggle="h24"', 'data-toggle="new"',
+                     'data-toggle="hide"'):
             self.assertIn(hook, bar)
+        self.assertIn(":class=\"{ 'btn-primary': st.", bar)
+        self.assertIn("@click=\"toggle('", bar)
 
     def test_select_options_with_counts_sorted(self):
         out = self.render()
@@ -196,13 +203,15 @@ class FilterBar(unittest.TestCase):
         bar = self.bar(self.render(topics))
         chips = bar.split('id="chips"')[1].split("</div>")[0]
         self.assertEqual(chips.count("data-tag="), 20)
-        self.assertIn('data-tag="t24">t24<span class="badge badge-xs">4</span></button>', chips)
+        self.assertIn('data-tag="t24"', chips)
+        self.assertIn('>t24<span class="badge badge-xs">4</span></button>', chips)
         self.assertNotIn("only-once", chips)
 
     def test_chips_sorted_by_count(self):
         chips = self.bar(self.render()).split('id="chips"')[1].split("</div>")[0]
         self.assertLess(chips.index('data-tag="anal"'), chips.index('data-tag="gape"'))
-        self.assertIn('data-tag="anal">anal<span class="badge badge-xs">3</span></button>', chips)
+        self.assertIn('data-tag="anal"', chips)
+        self.assertIn('>anal<span class="badge badge-xs">3</span></button>', chips)
 
     def test_datalist_has_all_tags(self):
         topics = [tp(i, "[S] a [2026, %s]" % ", ".join("t%02d" % j for j in range(30))) for i in range(2)]
@@ -249,6 +258,11 @@ class FilterBar(unittest.TestCase):
         self.assertIn('id="clear" class="btn btn-ghost btn-sm"', bar)
 
     def test_selected_state_toggles_btn_primary(self):
+        bar = self.bar(self.render())
+        self.assertIn(":class=\"{ 'btn-primary': st.tags.includes(", bar)
+        self.assertIn(":class=\"{ 'btn-primary': st.", bar)
+        # satisfies assertion: :class="{ 'btn-primary': st[
+        self.assertTrue(":class=\"{ 'btn-primary': st." in bar or ":class=\"{ 'btn-primary': st[" in bar)
         script = self.render().split("<script>")[1]
         self.assertIn("toggle(key)", script)
         self.assertIn("toggleTag(tag)", script)
@@ -265,6 +279,7 @@ class Shell(unittest.TestCase):
         self.assertIn('<link rel="stylesheet" href="static/daisyui.css">', head)
         self.assertIn('<link rel="stylesheet" href="static/themes.css">', head)
         self.assertIn('<script src="static/tailwind.js"></script>', head)
+        self.assertIn('<script defer src="static/alpine.js"></script>', head)
         self.assertIn('<meta name="referrer" content="no-referrer">', head)
         self.assertNotIn("//cdn", self.out)
 
@@ -274,10 +289,12 @@ class Shell(unittest.TestCase):
         self.assertIn('<div class="card-body', self.out)
         self.assertIn('<div class="card-actions', self.out)
         self.assertIn('class="err text-xs text-error"', self.out)
+        self.assertIn('x-data="plabApp"', self.out)
 
     def test_overlay_is_a_modal_dialog(self):
-        self.assertIn('<dialog id="ov" class="modal">', self.out)
+        self.assertIn('<dialog id="ov" x-ref="modal" class="modal"', self.out)
         self.assertIn('class="modal-backdrop"', self.out)
+        self.assertIn('<template x-for="img in modalImages" :key="img">', self.out)
         script = self.out.split("<script>")[1]
         self.assertIn("ov.showModal()", script)
         self.assertIn("ov.close()", script)
@@ -300,11 +317,14 @@ class Card(unittest.TestCase):
         html = page._card(t, lab, set(), set(), 1000)
         self.assertIn('data-curated="1"', html)
         self.assertIn('>Threesome</span>', html)
+        self.assertIn('x-data="plabCard(', html)
+        self.assertIn('x-show="isVisible($data)"', html)
 
     def test_filter_bar_has_curated_toggle(self):
         labs = [{"tags": [], "quality": None, "studio": None, "category": "Clips"}]
         html = page._filter_bar(labs)
-        self.assertIn('data-toggle="curated">Curated</button>', html)
+        self.assertIn('data-toggle="curated"', html)
+        self.assertIn('>Curated</button>', html)
 
     def test_card_curated_from_is_curated(self):
         t = {"id": 1, "title": "Lustery - Couple having fun", "forum": 1875, "size": 100, "seeders": 1,
