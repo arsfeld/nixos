@@ -16,14 +16,22 @@ def fixture(name):
         return f.read().encode("cp1251")
 
 
+class Call(tuple):
+    @property
+    def full_url(self):
+        return self[0]
+
+
 class FakeOpener:
     def __init__(self, responses):
         self.responses = list(responses)
         self.calls = []
 
     def open(self, url, data=None, timeout=None):
-        self.calls.append((url, data))
-        return io.BytesIO(self.responses.pop(0))
+        self.calls.append(Call((url, data)))
+        resp = self.responses.pop(0) if self.responses else LOGGED_IN
+        return io.BytesIO(resp)
+
 
 
 class LabTest(unittest.TestCase):
@@ -87,6 +95,28 @@ class LabTest(unittest.TestCase):
         rows = lab.top([1875], 7, 2, predicate=lambda r: r["id"] != 3313754)
         self.assertEqual([r["id"] for r in rows], [3314001, 3314001])
         self.assertEqual(len(opener.calls), 2)
+
+    def test_search_encodes_params_and_filters(self):
+        lab, opener = self.lab(fixture("tracker.html"))
+        pred = lambda r: r["id"] != 3314001
+        rows = lab.search("Lustery", [1875, 1818], days=30, limit=10, predicate=pred)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["id"], 3313754)
+        call_url = opener.calls[0].full_url
+        self.assertIn("f%5B%5D=1875", call_url)
+        self.assertIn("f%5B%5D=1818", call_url)
+        self.assertIn("nm=Lustery", call_url)
+        self.assertIn("tm=30", call_url)
+        self.assertIn("o=10", call_url)
+        self.assertIn("s=2", call_url)
+
+    def test_search_pagination(self):
+        lab, opener = self.lab(fixture("tracker.html"), fixture("tracker.html"))
+        rows = lab.search("Lustery", [1875], days=30, limit=3)
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(len(opener.calls), 2)
+        self.assertEqual(opener.calls[1][0], BASE + "tracker.php?search_id=AbCdEf123&start=50")
+
 
     def test_torrent_logs_in_once(self):
         lab, opener = self.lab(LOGGED_OUT, LOGGED_IN, b"d8:announce1:xe")

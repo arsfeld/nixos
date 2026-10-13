@@ -128,6 +128,32 @@ class Lab:
             start += 50
         return rows[:limit]
 
+    def search(self, query, forums, days=30, limit=20, predicate=None):
+        """Search releases matching `query` within `forums` uploaded in the last `days` days."""
+        params = [("f[]", f) for f in forums] + [
+            ("nm", query),
+            ("o", 10),
+            ("s", 2),
+            ("tm", days),
+        ]
+        url = "tracker.php?" + urllib.parse.urlencode(params)
+        page = self.page(url)
+        rows = parse.rows(page)
+        if predicate:
+            rows = [r for r in rows if predicate(r)]
+        start = 50
+        while len(rows) < limit:
+            link = parse.page_link(page, start)
+            if not link:
+                break
+            page = self.page(link)
+            more = parse.rows(page)
+            if predicate:
+                more = [r for r in more if predicate(r)]
+            rows += more
+            start += 50
+        return rows[:limit]
+
     def topic(self, topic_id):
         return self.page(f"viewtopic.php?t={topic_id}")
 
