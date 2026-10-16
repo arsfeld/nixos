@@ -86,7 +86,7 @@ class Refresh(unittest.TestCase):
         self.assertEqual([t["id"] for t in topics], [1, 2])
         self.assertEqual(topics[0]["images"][0], COVER)
         self.assertEqual(lab.fetched, [COVER])  # same cover for both; fetched once
-        self.assertEqual(self.sleeps, [main.DELAY] * (len(main.DEFAULT_SEARCHES) + 2))
+        self.assertEqual(self.sleeps, [main.DELAY] * 2)  # no filter file: no searches
 
     def test_reuses_cached_images(self):
         self.refresh(FakeLab([row(1)]))
@@ -121,39 +121,53 @@ class Refresh(unittest.TestCase):
         self.assertFalse(os.path.exists(self.store.image_path("https://old/gone.jpg")))
         self.assertTrue(os.path.exists(self.store.image_path(COVER)))
 
-    def test_refresh_tags_curated_from_labels_without_search(self):
-        searches_path = os.path.join(self.dir.name, "search.txt")
-        with open(searches_path, "w", encoding="utf-8") as f:
-            f.write("nonexistent_search\n")
+    def write_filters(self, text):
+        path = os.path.join(self.dir.name, "filters.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        return path
+
+    def test_refresh_assigns_top_list_rows_to_filters_by_title(self):
+        path = self.write_filters("[Group A]\nAlpha Studio\n[Group B]\n\"beta word\"\n")
         lab = FakeLab([
-            row(1, "[Lustery.com] Couple Movie [1080p]"),
+            row(1, "[AlphaStudio.com] Movie [1080p]"),
             row(2, "Regular Movie [1080p]"),
+            row(3, "Alpha Studio - Beta Word Scene"),
         ])
-        main.refresh(lab, self.store, searches_file=searches_path, sleep=lambda _: None)
-        cached = self.store.cache()["topics"]
-        t1 = next(t for t in cached if t["id"] == 1)
-        t2 = next(t for t in cached if t["id"] == 2)
-        self.assertTrue(t1.get("curated"))
-        self.assertFalse(t2.get("curated"))
+        main.refresh(lab, self.store, filter_file=path, sleep=lambda _: None)
+        cache = self.store.cache()
+        by_id = {t["id"]: t for t in cache["topics"]}
+        self.assertEqual(cache["filters"], ["Group A", "Group B"])
+        self.assertEqual(by_id[1]["filters"], ["Group A"])
+        self.assertEqual(by_id[1]["curated_reason"], "Alpha Studio")
+        self.assertEqual(by_id[2]["filters"], [])
+        self.assertIsNone(by_id[2]["curated_reason"])
+        self.assertEqual(by_id[3]["filters"], ["Group A", "Group B"])
+
+    def test_refresh_merges_search_results_into_their_filter(self):
+        path = self.write_filters("[Group A]\nAlpha\n[Group B]\nBeta\n")
+        lab = FakeLab([row(1, "Mainstream Top 100")])
+        lab.searched_rows = {"Alpha": [row(2, "Unrelated Title")],
+                             "Beta": [row(1, "Mainstream Top 100"), row(2, "Unrelated Title")]}
+        main.refresh(lab, self.store, filter_file=path, sleep=lambda _: None)
+        by_id = {t["id"]: t for t in self.store.cache()["topics"]}
+        self.assertEqual(list(by_id), [1, 2])
+        self.assertEqual(by_id[1]["filters"], ["Group B"])
+        self.assertEqual(by_id[1]["curated_reason"], "Beta")
+        self.assertEqual(by_id[2]["filters"], ["Group A", "Group B"])
+        self.assertEqual(by_id[2]["curated_reason"], "Alpha")
 
     def test_search_failure_continues_refresh(self):
         lab = FakeLab([row(1, "Top 1")])
         lab.search = lambda *args, **kwargs: (_ for _ in ()).throw(OSError("tracker timed out"))
-        searches_path = os.path.join(self.dir.name, "searches.txt")
-        with open(searches_path, "w", encoding="utf-8") as f:
-            f.write("Lustery\n")
-        main.refresh(lab, self.store, searches_file=searches_path, sleep=lambda _: None)
-        cached = self.store.cache()["topics"]
-        self.assertEqual([t["id"] for t in cached], [1])
+        main.refresh(lab, self.store, filter_file=self.write_filters("Alpha\n"), sleep=lambda _: None)
+        self.assertEqual([t["id"] for t in self.store.cache()["topics"]], [1])
 
     def test_search_login_error_aborts_refresh(self):
         lab = FakeLab([row(1, "Top 1")])
         lab.search = lambda *args, **kwargs: (_ for _ in ()).throw(LoginError("captcha"))
-        searches_path = os.path.join(self.dir.name, "searches.txt")
-        with open(searches_path, "w", encoding="utf-8") as f:
-            f.write("Lustery\n")
         with self.assertRaises(LoginError):
-            main.refresh(lab, self.store, searches_file=searches_path, sleep=lambda _: None)
+            main.refresh(lab, self.store, filter_file=self.write_filters("Alpha\n"), sleep=lambda _: None)
 
 
 class Drain(unittest.TestCase):
@@ -238,7 +252,7 @@ class RunRefresh(unittest.TestCase):
             raise drain_error
 
         saved = main.drain_queue, main.refresh
-        main.drain_queue, main.refresh = drain, lambda lab, store: calls.append("refresh")
+        main.drain_queue, main.refresh = drain, lambda lab, store, **kw: calls.append("refresh")
         try:
             main.run_refresh(None, None, "http://rpc", "/vault")
         finally:
@@ -253,16 +267,16 @@ class RunRefresh(unittest.TestCase):
             self.run_it(LoginError("captcha"))
         self.assertEqual(self.calls, ["drain"])  # refresh never ran
 
-    def test_run_refresh_passes_searches_file(self):
+    def test_run_refresh_passes_filter_file(self):
         calls = []
         saved = main.drain_queue, main.refresh
         main.drain_queue = lambda *args: None
-        main.refresh = lambda lab, store, exclude_file=None, searches_file=None: calls.append(searches_file)
+        main.refresh = lambda lab, store, exclude_file=None, filter_file=None: calls.append(filter_file)
         try:
-            main.run_refresh(None, None, "http://rpc", "/vault", searches_file="/path/searches.txt")
+            main.run_refresh(None, None, "http://rpc", "/vault", filter_file="/path/filter.txt")
         finally:
             main.drain_queue, main.refresh = saved
-        self.assertEqual(calls, ["/path/searches.txt"])
+        self.assertEqual(calls, ["/path/filter.txt"])
 
 
 class Routes(unittest.TestCase):
@@ -439,70 +453,47 @@ class ExcludeTest(unittest.TestCase):
             httpd.shutdown()
             httpd.server_close()
 
-    def test_refresh_merges_and_tags_curated_searches(self):
-        searches_path = os.path.join(self.dir.name, "searches.txt")
-        with open(searches_path, "w", encoding="utf-8") as f:
-            f.write("Lustery\n")
 
-        lab = FakeLab([row(1, "Mainstream Top 100")])
-        lab.searched_rows = {"Lustery": [row(2, "Lustery Release"), row(1, "Mainstream Top 100")]}
-
-    def test_refresh_merges_and_tags_curated_searches(self):
-        searches_path = os.path.join(self.dir.name, "filter.txt")
-        with open(searches_path, "w", encoding="utf-8") as f:
-            f.write("Lustery\n")
-
-        lab = FakeLab([row(1, "Mainstream Top 100")])
-        lab.searched_rows = {"Lustery": [row(2, "Lustery Release"), row(1, "Mainstream Top 100")]}
-
-        main.refresh(lab, self.store, searches_file=searches_path, sleep=lambda _: None)
-        cached = self.store.cache()["topics"]
-        self.assertEqual([t["id"] for t in cached], [1, 2])
-        t1 = next(t for t in cached if t["id"] == 1)
-        t2 = next(t for t in cached if t["id"] == 2)
-        self.assertTrue(t1.get("curated"))  # present in targeted search
-        self.assertTrue(t2.get("curated"))
-        self.assertEqual(t1.get("curated_reason"), "Lustery")
-        self.assertEqual(t2.get("curated_reason"), "Lustery")
-
-
-class SearchesTest(unittest.TestCase):
+class FiltersTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
 
     def tearDown(self):
         self.dir.cleanup()
 
-    def test_load_searches_fallback_to_defaults(self):
-        terms = main.load_searches("/nonexistent/file", state_dir=self.dir.name)
-        self.assertIn("Lustery", terms)
-        self.assertIn("Joybear", terms)
-        self.assertIn("X-Art", terms)
-        self.assertIn("real couple", terms)
-
-    def test_load_searches_from_file_strips_comments_and_whitespace(self):
-        path = os.path.join(self.dir.name, "searches.txt")
+    def write(self, name, text):
+        path = os.path.join(self.dir.name, name)
         with open(path, "w", encoding="utf-8") as f:
-            f.write("# comment\n\n  Lustery  \n# another comment\n\"real couple\"\n")
-        terms = main.load_searches(path)
-        self.assertEqual(terms, ["Lustery", "\"real couple\""])
+            f.write(text)
+        return path
 
-    def test_load_searches_from_state_dir(self):
-        path = os.path.join(self.dir.name, "filter.txt")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("FrolicMe\n")
-        terms = main.load_searches(state_dir=self.dir.name)
-        self.assertEqual(terms, ["FrolicMe"])
+    def test_no_file_means_no_filters(self):
+        self.assertEqual(main.load_filters("/nonexistent/file", state_dir=self.dir.name), [])
 
-    def test_load_searches_from_filter_file_env(self):
-        path = os.path.join(self.dir.name, "custom.txt")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("CustomTerm\n")
+    def test_sections_comments_and_whitespace(self):
+        path = self.write("f.txt", "# comment\n\n[Group A]\n  Alpha  \n# more\n\"two words\"\n\n"
+                                   "[ Group B ]\nBeta\n[Empty]\n")
+        self.assertEqual(main.load_filters(path),
+                         [("Group A", ["Alpha", "\"two words\""]), ("Group B", ["Beta"])])
+
+    def test_terms_before_any_header_are_curated(self):
+        path = self.write("f.txt", "Alpha\n[Group B]\nBeta\n")
+        self.assertEqual(main.load_filters(path), [("Curated", ["Alpha"]), ("Group B", ["Beta"])])
+
+    def test_repeated_header_extends_the_filter(self):
+        path = self.write("f.txt", "[A]\nx\n[B]\ny\n[A]\nz\n")
+        self.assertEqual(main.load_filters(path), [("A", ["x", "z"]), ("B", ["y"])])
+
+    def test_from_state_dir(self):
+        self.write("filter.txt", "[Group A]\nAlpha\n")
+        self.assertEqual(main.load_filters(state_dir=self.dir.name), [("Group A", ["Alpha"])])
+
+    def test_from_env(self):
+        path = self.write("custom.txt", "Alpha\n")
         old_env = os.environ.get("PLAB_FILTER_FILE")
         os.environ["PLAB_FILTER_FILE"] = path
         try:
-            terms = main.load_searches()
-            self.assertEqual(terms, ["CustomTerm"])
+            self.assertEqual(main.load_filters(), [("Curated", ["Alpha"])])
         finally:
             if old_env is None:
                 os.environ.pop("PLAB_FILTER_FILE", None)

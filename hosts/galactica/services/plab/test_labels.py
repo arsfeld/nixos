@@ -68,34 +68,19 @@ class Labels(unittest.TestCase):
     def test_bracket_without_comma_ignored_for_tags(self):
         self.assertEqual(labels("[Studio] y [solo]", 1)["tags"], [])
 
-    def test_is_curated_by_studio(self):
-        from labels import is_curated
-        self.assertTrue(is_curated("[Lustery.com] Couple Fun [1080p]", studio="Lustery.com"))
-        self.assertTrue(is_curated("[Joybear.com] Movie [1080p]", studio="Joybear.com"))
-        self.assertTrue(is_curated("[X-Art.com] Romance [1080p]", studio="X-Art.com"))
-        self.assertFalse(is_curated("[Brazzers.com] Scene [1080p]", studio="Brazzers.com"))
+    def test_match_term_ignores_case_spaces_and_punctuation(self):
+        from labels import match_term
+        self.assertTrue(match_term("Alpha Studio", "[AlphaStudio.com] Scene [1080p]"))
+        self.assertTrue(match_term('"two words"', "Some Two-Words Release"))
+        self.assertTrue(match_term("A-B", "ab release"))
+        self.assertFalse(match_term("Alpha Studio", "Beta Studio Release"))
+        self.assertFalse(match_term('""', "anything"))
 
-    def test_is_curated_by_tags(self):
-        from labels import is_curated
-        self.assertTrue(is_curated("Title", tags=["anal", "real couple"]))
-        self.assertTrue(is_curated("Title", tags=["sensual", "brunette"]))
-        self.assertFalse(is_curated("Title", tags=["anal", "blowjob"]))
-
-    def test_is_curated_by_title_text(self):
-        from labels import is_curated
-        self.assertTrue(is_curated("Lustery: Alice & Bob at home"))
-        self.assertTrue(is_curated("Erika Lust - The Cab Ride [1080p]"))
-        self.assertFalse(is_curated("Random Big Release [1080p]"))
-
-    def test_curated_reason(self):
-        from labels import curated_reason
-        self.assertEqual(curated_reason("[Lustery.com] Couple Fun [1080p]", studio="Lustery.com"), "Lustery")
-        self.assertEqual(curated_reason("[Joybear.com] Movie [1080p]", studio="Joybear.com"), "Joybear")
-        self.assertEqual(curated_reason("Love Story", tags=["real couple"]), "Real Couple")
-        self.assertIsNone(curated_reason("Random Big Release [1080p]"))
+    def test_term_label(self):
+        from labels import term_label
+        self.assertEqual(term_label('"two words"'), "Two Words")
+        self.assertEqual(term_label("AlphaCo"), "AlphaCo")
 
 
 if __name__ == "__main__":
     unittest.main()
-
-

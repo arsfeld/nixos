@@ -229,7 +229,7 @@ class FilterBar(unittest.TestCase):
     def test_filter_script_hooks(self):
         script = self.render().split("<script>")[1]
         for hook in ("Alpine.data('plabApp'", "Alpine.data('plabCard'", "plab.filters", "h24",
-                     "'new'", "'hide'", "'curated'", "replaceState", "location.hash", "'tags'"):
+                     "'new'", "'hide'", "pick(name)", "replaceState", "location.hash", "'tags'"):
             self.assertIn(hook, script)
         # the NEW pass must come before the filter pass
         self.assertLess(script.index("plab.seen"), script.index("plab.filters"))
@@ -240,7 +240,7 @@ class FilterBar(unittest.TestCase):
 
     def test_new_survives_reload_hooks(self):
         script = self.render().split("<script>")[1]
-        for hook in ("plab.seen", "prev", "cur", "30 * 60 * 1000", "Array.isArray", "Object.hasOwn"):
+        for hook in ("plab.seen", "prev", "cur", "30 * 60 * 1000", "Array.isArray"):
             self.assertIn(hook, script)
 
     def test_sticky_only_from_sm_and_no_horizontal_scroll(self):
@@ -309,63 +309,54 @@ class Shell(unittest.TestCase):
 
 
 class Card(unittest.TestCase):
-    def test_card_renders_curated_attribute_and_badge(self):
-        t = {"id": 1, "title": "Test Title", "forum": 1875, "size": 100, "seeders": 1,
-             "leechers": 0, "completed": 0, "added": 0, "images": [], "curated": True,
-             "curated_reason": "Lustery"}
-        lab = {"tags": [], "quality": None, "studio": None, "category": "Clips"}
-        html = page._card(t, lab, set(), set(), 1000)
+    LAB = {"tags": [], "quality": None, "studio": None, "category": "Clips"}
+
+    def topic(self, i=1, **kw):
+        return {"id": i, "title": "Test Title", "forum": 1875, "size": 100, "seeders": 1,
+                "leechers": 0, "completed": 0, "added": 0, "images": [], **kw}
+
+    def test_card_renders_filters_and_badge(self):
+        html = page._card(self.topic(filters=["Group A", "Group B"], curated_reason="Alpha"),
+                          self.LAB, set(), set(), 1000)
         self.assertIn('data-curated="1"', html)
-        self.assertIn('>Lustery</span>', html)
+        self.assertIn('>Alpha</span>', html)
         self.assertIn('badge-secondary', html)
-        self.assertIn('x-data="plabCard(', html)
+        self.assertIn('&quot;filters&quot;: [&quot;Group A&quot;, &quot;Group B&quot;]', html)
         self.assertIn('x-show="isVisible($data)"', html)
 
-    def test_filter_bar_has_curated_toggle(self):
-        labs = [{"tags": [], "quality": None, "studio": None, "category": "Clips"}]
-        html = page._filter_bar(labs)
-        self.assertIn('data-toggle="curated"', html)
-        self.assertIn('>Curated</button>', html)
-
-    def test_card_curated_from_is_curated(self):
-        t = {"id": 1, "title": "Lustery - Couple having fun", "forum": 1875, "size": 100, "seeders": 1,
-             "leechers": 0, "completed": 0, "added": 0, "images": []}
-        lab = {"tags": [], "quality": None, "studio": "Lustery", "category": "Clips"}
-        html = page._card(t, lab, set(), set(), 1000)
-        self.assertIn('data-curated="1"', html)
-        self.assertIn('>Lustery</span>', html)
-        self.assertIn('badge-secondary', html)
-
     def test_card_not_curated(self):
-        t = {"id": 1, "title": "Test Title", "forum": 1875, "size": 100, "seeders": 1,
-             "leechers": 0, "completed": 0, "added": 0, "images": []}
-        lab = {"tags": [], "quality": None, "studio": None, "category": "Clips"}
-        html = page._card(t, lab, set(), set(), 1000)
+        html = page._card(self.topic(), self.LAB, set(), set(), 1000)
         self.assertIn('data-curated=""', html)
         self.assertNotIn('badge-secondary', html)
+        self.assertIn('&quot;filters&quot;: []', html)
+
+    def test_filter_bar_has_one_button_per_filter(self):
+        html = page._filter_bar([self.LAB], ["Group A", "B & C"])
+        self.assertIn('data-filter="Group A"', html)
+        self.assertIn('@click="pick(&quot;Group A&quot;)"', html)
+        self.assertIn('>B &amp; C</button>', html)
+        self.assertNotIn('data-toggle="curated"', html)
+
+    def test_filter_bar_without_filters(self):
+        self.assertNotIn("data-filter=", page._filter_bar([self.LAB], []))
+
+    def test_render_takes_filters_from_cache(self):
+        out = page.render({"updated": 1000, "topics": [self.topic()], "filters": ["Group A"]}, set(), set(), 2000)
+        self.assertIn('data-filter="Group A"', out)
 
     def test_header_curated_count(self):
-        topics = [
-            {"id": 1, "title": "Test 1", "forum": 1875, "size": 100, "seeders": 1,
-             "leechers": 0, "completed": 0, "added": 1000, "images": [], "curated": True},
-            {"id": 2, "title": "Test 2", "forum": 1875, "size": 100, "seeders": 1,
-             "leechers": 0, "completed": 0, "added": 1000, "images": []},
-        ]
+        topics = [self.topic(1, filters=["Group A"]), self.topic(2, filters=[])]
         out = page.render({"updated": 1000, "topics": topics}, set(), set(), 2000)
         self.assertIn(" · 1 curated", out)
 
     def test_header_no_curated_count_when_zero(self):
-        topics = [
-            {"id": 1, "title": "Test 1", "forum": 1875, "size": 100, "seeders": 1,
-             "leechers": 0, "completed": 0, "added": 1000, "images": []},
-        ]
-        out = page.render({"updated": 1000, "topics": topics}, set(), set(), 2000)
+        out = page.render({"updated": 1000, "topics": [self.topic()]}, set(), set(), 2000)
         self.assertNotIn("curated", out.split("<header")[1].split("</header>")[0])
 
-    def test_filter_script_curated_toggle_and_curated_hooks(self):
+    def test_filter_script_hooks(self):
         script = page.render({"updated": 0, "topics": [TOPIC]}, set(), set(), 1791117232).split("<script>")[1]
-        self.assertIn("'curated'", script)
-        self.assertIn("card.curated", script)
+        self.assertIn("card.filters.includes(this.st.f)", script)
+        self.assertIn("button[data-filter]", script)  # a stale filter name is dropped
 
 
 if __name__ == "__main__":

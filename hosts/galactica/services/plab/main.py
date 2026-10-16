@@ -23,7 +23,7 @@ import parse
 import transmission
 from forums import FORUMS
 from lab import Lab, LimitError, LoginError, TrackerError
-from labels import CURATED_KEYWORDS, CURATED_STUDIOS, curated_reason, is_curated, labels
+from labels import match_term, term_label
 from store import Store, key
 
 DAYS = 7
@@ -57,49 +57,35 @@ def _image_fetcher(lab):
     return fetch
 
 
-DEFAULT_SEARCHES = [
-    "Lustery",
-    "Joybear",
-    "Erika Lust",
-    "XConfessions",
-    "Lust Cinema",
-    "FrolicMe",
-    "Sssh",
-    "X-Art",
-    "Colette",
-    "Viv Thomas",
-    "Bellesa",
-    "MetArt",
-    "real couple",
-    "amateur couple",
-    "romantic",
-    "sensual",
-]
+def load_filters(path=None, state_dir=None):
+    """The curated filters as [(name, [search terms])], in file order.
 
-
-def load_searches(path=None, state_dir=None):
-    """Load search queries from file.
-
-    Checks `path` (or PLAB_FILTER_FILE / PLAB_SEARCHES_FILE), falling back to `filter.txt` or `searches.txt` in `state_dir`.
-    If neither exists, returns DEFAULT_SEARCHES.
+    Read from `path` (or PLAB_FILTER_FILE), falling back to `filter.txt` in `state_dir`;
+    neither means no curated filters. A `[Name]` line starts a filter, each line under it
+    is a tracker search term, and terms before any header belong to "Curated". Blank lines
+    and `#` comments are ignored. On galactica the file is the plab-filter sops secret:
+    the names and terms are kept out of this repository on purpose.
     """
     if path is None:
-        path = os.environ.get("PLAB_FILTER_FILE") or os.environ.get("PLAB_SEARCHES_FILE")
+        path = os.environ.get("PLAB_FILTER_FILE")
     if not path and state_dir:
-        for candidate_name in ("filter.txt", "searches.txt"):
-            candidate = os.path.join(state_dir, candidate_name)
-            if os.path.isfile(candidate):
-                path = candidate
-                break
+        candidate = os.path.join(state_dir, "filter.txt")
+        if os.path.isfile(candidate):
+            path = candidate
     if not path or not os.path.isfile(path):
-        return list(DEFAULT_SEARCHES)
-    terms = []
+        return []
+    filters = {}
+    name = "Curated"
     with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
-            if line and not line.startswith("#"):
-                terms.append(line)
-    return terms if terms else list(DEFAULT_SEARCHES)
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("[") and line.endswith("]"):
+                name = line[1:-1].strip() or "Curated"
+            else:
+                filters.setdefault(name, []).append(line)
+    return list(filters.items())
 
 
 def load_excludes(path=None, state_dir=None):
@@ -133,7 +119,7 @@ def exclude_predicate(patterns):
 
 
 def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep,
-            exclude_file=None, searches_file=None):
+            exclude_file=None, filter_file=None):
     """Rebuild cache.json. Raises, leaving the old cache in place, if the list fails."""
     patterns = load_excludes(exclude_file, state_dir=store.root)
     pred = exclude_predicate(patterns)
@@ -141,24 +127,23 @@ def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep,
     if not rows:
         raise RuntimeError("tracker returned no rows")
 
-    # Run targeted curated searches
-    search_terms = load_searches(searches_file, state_dir=store.root)
-    curated_reasons = {}
+    # Each filter's terms are searched over a longer window: that content rarely makes the top list.
+    filters = load_filters(filter_file, state_dir=store.root)
+    found = {}  # topic id -> {filter name: badge of the first term that found it}
     extra_rows = []
-    for term in search_terms:
-        sleep(DELAY)
-        try:
-            results = lab.search(term, forums, days=32, limit=20, predicate=pred)
-            clean_term = term.strip('"').strip("'")
-            canonical = CURATED_KEYWORDS.get(clean_term.lower(), CURATED_STUDIOS.get(clean_term.lower(), clean_term.title()))
+    for name, terms in filters:
+        for term in terms:
+            sleep(DELAY)
+            try:
+                results = lab.search(term, forums, days=32, limit=20, predicate=pred)
+            except LoginError:
+                raise
+            except Exception as err:  # noqa: BLE001 -- one failed search must not sink the refresh
+                log(f"search failed for {term!r}: {err}")
+                continue
             for r in results:
-                if r["id"] not in curated_reasons:
-                    curated_reasons[r["id"]] = canonical
+                found.setdefault(r["id"], {}).setdefault(name, term_label(term))
                 extra_rows.append(r)
-        except LoginError:
-            raise
-        except Exception as err:
-            log(f"search failed for {term!r}: {err}")
 
     # Combine & deduplicate rows by id
     seen = set()
@@ -186,18 +171,18 @@ def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep,
                 store.ensure_image(images[0], fetch)
             except Exception as e:  # noqa: BLE001
                 log(f"image {images[0]}: {e}")
-        lab_info = labels(row["title"], row["forum"])
-        matched = curated_reasons.get(row["id"]) or curated_reason(row["title"], lab_info["studio"], lab_info["tags"])
-        topics.append({
-            **row,
-            "images": images,
-            "curated": bool(matched),
-            "curated_reason": matched,
-        })
-    store.save_cache(topics)
+        # A top-list release whose title names a term belongs to that filter too.
+        matched = dict(found.get(row["id"], {}))
+        for name, terms in filters:
+            term = name not in matched and next((t for t in terms if match_term(t, row["title"])), None)
+            if term:
+                matched[name] = term_label(term)
+        names = [name for name, _ in filters if name in matched]
+        topics.append({**row, "images": images, "filters": names,
+                       "curated_reason": matched[names[0]] if names else None})
+    store.save_cache(topics, [name for name, _ in filters])
     store.prune_images(u for t in topics for u in t["images"])
-    c_count = len([t for t in topics if t.get('curated')])
-    log(f"refreshed: {len(topics)} topics ({c_count} curated)")
+    log(f"refreshed: {len(topics)} topics ({sum(1 for t in topics if t['filters'])} curated)")
 
 
 def add_topic(lab, store, topic_id, rpc_url, download_dir, add=transmission.add):
@@ -246,7 +231,7 @@ def drain_queue(lab, store, rpc_url, download_dir, add=transmission.add):
             log(f"queued {topic_id} kept: {e}")
 
 
-def run_refresh(lab, store, rpc_url, download_dir, exclude_file=None, searches_file=None):
+def run_refresh(lab, store, rpc_url, download_dir, exclude_file=None, filter_file=None):
     """The `refresh` subcommand: drain the queue, then rebuild the list."""
     try:
         drain_queue(lab, store, rpc_url, download_dir)
@@ -254,10 +239,7 @@ def run_refresh(lab, store, rpc_url, download_dir, exclude_file=None, searches_f
         raise  # the session is gone; the list refresh would only fail the same way
     except Exception as e:  # noqa: BLE001 -- the list refresh must still run
         log(f"queue drain failed: {e}")
-    try:
-        refresh(lab, store, exclude_file=exclude_file, searches_file=searches_file)
-    except TypeError:
-        refresh(lab, store)
+    refresh(lab, store, exclude_file=exclude_file, filter_file=filter_file)
 
 
 def image_for(lab, store, image_key):
@@ -382,7 +364,7 @@ def main(argv=None):
     lab = Lab(_secret("PLAB_USERNAME_FILE"), _secret("PLAB_PASSWORD_FILE"), os.path.join(state, "cookies.txt"))
     if args.cmd == "refresh":
         run_refresh(lab, store, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"],
-                    os.environ.get("PLAB_EXCLUDE_FILE"), os.environ.get("PLAB_SEARCHES_FILE"))
+                    os.environ.get("PLAB_EXCLUDE_FILE"), os.environ.get("PLAB_FILTER_FILE"))
     elif args.cmd == "serve":
         serve(lab, store, args.bind, args.port, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"],
               os.environ.get("PLAB_STATIC_DIR"), os.environ.get("PLAB_EXCLUDE_FILE"))

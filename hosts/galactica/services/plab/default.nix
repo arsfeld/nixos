@@ -65,14 +65,8 @@
       export PLAB_DOWNLOAD_DIR="${vars.storageDir}/media/Downloads/Vault"
       export PLAB_STATIC_DIR="''${PLAB_STATIC_DIR:-${static}}"
       export PLAB_EXCLUDE_FILE="''${PLAB_EXCLUDE_FILE:-${secrets.plab-exclude.path}}"
-      export PLAB_FILTER_FILE="''${PLAB_FILTER_FILE:-${
-        if secrets ? plab-filter
-        then secrets.plab-filter.path
-        else if secrets ? plab-searches
-        then secrets.plab-searches.path
-        else ""
-      }}"
-      export PLAB_SEARCHES_FILE="''${PLAB_SEARCHES_FILE:-$PLAB_FILTER_FILE}"
+      # The curated filters' names and search terms: kept in sops, out of the repo.
+      export PLAB_FILTER_FILE="''${PLAB_FILTER_FILE:-${secrets.plab-filter.path}}"
       exec ${pkgs.python3}/bin/python3 ${./.}/main.py "$@"
     '';
   };

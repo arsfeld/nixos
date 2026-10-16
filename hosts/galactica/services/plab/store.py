@@ -39,8 +39,8 @@ class Store:
     def cache(self):
         return self._read_json("cache.json", {"updated": 0, "topics": []})
 
-    def save_cache(self, topics):
-        data = {"updated": int(time.time()), "topics": topics}
+    def save_cache(self, topics, filters=()):
+        data = {"updated": int(time.time()), "topics": topics, "filters": list(filters)}
         _write(os.path.join(self.root, "cache.json"), json.dumps(data).encode())
 
     def added(self):

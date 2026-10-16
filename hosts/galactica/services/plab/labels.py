@@ -37,62 +37,17 @@ def labels(title, forum):
     return {"tags": tags, "quality": quality, "studio": studio, "category": category(forum)}
 
 
-CURATED_STUDIOS = {
-    "lustery": "Lustery",
-    "joybear": "Joybear",
-    "erika lust": "Erika Lust",
-    "erikalust": "Erika Lust",
-    "xconfessions": "XConfessions",
-    "lust cinema": "Lust Cinema",
-    "lustcinema": "Lust Cinema",
-    "frolicme": "FrolicMe",
-    "sssh": "Sssh",
-    "x-art": "X-Art",
-    "xart": "X-Art",
-    "colette": "Colette",
-    "viv thomas": "Viv Thomas",
-    "vivthomas": "Viv Thomas",
-    "bellesa": "Bellesa",
-    "metart": "MetArt",
-}
-
-CURATED_KEYWORDS = {
-    "real couple": "Real Couple",
-    "amateur couple": "Amateur Couple",
-    "romantic": "Romantic",
-    "sensual": "Sensual",
-    "homemade couple": "Homemade Couple",
-}
-
-CURATED_STUDIO_PREFIXES = tuple(CURATED_STUDIOS.keys())
+def _squash(s):
+    return re.sub(r"[\W_]+", "", s.lower())
 
 
-def curated_reason(title, studio=None, tags=None):
-    """The matched reason/term (e.g. 'Lustery', 'Real Couple') if curated, else None."""
-    if studio:
-        s = studio.lower()
-        for prefix, name in CURATED_STUDIOS.items():
-            if prefix in s:
-                return name
-    if tags:
-        for t in tags:
-            tl = t.lower()
-            for k, name in CURATED_KEYWORDS.items():
-                if k in tl:
-                    return name
-    tl = title.lower()
-    for prefix, name in CURATED_STUDIOS.items():
-        if prefix in tl:
-            return name
-    for k, name in CURATED_KEYWORDS.items():
-        if k in tl:
-            return name
-    return None
+def match_term(term, title):
+    """True if `title` contains the search `term`, ignoring case, spaces and punctuation."""
+    t = _squash(term)
+    return bool(t) and t in _squash(title)
 
 
-def is_curated(title, studio=None, tags=None):
-    """True if release matches indie/romantic couples studios, tags or title keywords."""
-    return curated_reason(title, studio, tags) is not None
-
-
-
+def term_label(term):
+    """A search term as a badge: quotes dropped, an all-lowercase term capitalized."""
+    t = term.strip().strip("\"'")
+    return t.title() if t == t.lower() else t

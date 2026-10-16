@@ -5,7 +5,7 @@ import time
 from collections import Counter
 
 from assets import CSS, FILTER_JS, JS
-from labels import curated_reason, is_curated, labels
+from labels import labels
 from store import key
 
 TOPIC_URL = "https://pornolab.net/forum/viewtopic.php?t=%d"
@@ -64,25 +64,18 @@ def _card(t, lab, added, queued, now):
     else:
         date = time.strftime("%Y-%m-%d", time.gmtime(t["added"]))
         badge = ""
-    cur_reason = (
-        t.get("curated_reason")
-        or (t.get("curated") if isinstance(t.get("curated"), str) else None)
-        or curated_reason(t["title"], lab["studio"], lab["tags"])
-    )
-    curated = bool(t.get("curated") or cur_reason)
-    curated_badge = (
-        f'<span class="badge badge-secondary font-bold absolute bottom-2 left-2 z-[1]">{e(cur_reason)}</span>'
-        if cur_reason
-        else ('<span class="badge badge-secondary font-bold absolute bottom-2 left-2 z-[1]">Curated</span>' if curated else '')
-    )
+    filters = t.get("filters") or []
+    reason = t.get("curated_reason")
+    curated_badge = (f'<span class="badge badge-secondary font-bold absolute bottom-2 left-2 z-[1]">{e(reason)}</span>'
+                     if filters and reason else "")
     data = {"tags": "|".join(lab["tags"]), "quality": lab["quality"] or "", "studio": lab["studio"] or "",
             "category": lab["category"], "fresh": "1" if fresh else "", "state": state,
-            "curated": "1" if curated else ""}
+            "curated": "1" if filters else ""}
     attrs_data = "".join(f' data-{k}="{e(v)}"' for k, v in data.items())
     cfg = json.dumps({
         "id": t["id"],
         "fresh": fresh,
-        "curated": curated,
+        "filters": filters,
         "cat": lab["category"],
         "q": lab["quality"] or "",
         "studio": lab["studio"] or "",
@@ -108,7 +101,7 @@ def _options(counter):
         f'<option value="{e(v)}">{e(v)} ({n})</option>' for v, n in rows)
 
 
-def _filter_bar(labs):
+def _filter_bar(labs, filters):
     e = html.escape
     tags = Counter(tag for lab in labs for tag in lab["tags"])
     top = sorted(tags.items(), key=lambda kv: (-kv[1], kv[0]))[:20]
@@ -126,8 +119,11 @@ def _filter_bar(labs):
     toggles = "".join(f'<button type="button" class="btn btn-sm" data-toggle="{k}" '
                       f':class="{{ \'btn-primary\': st.{k} }}" '
                       f'@click="toggle(\'{k}\')">{name}</button>'
-                      for k, name in (("h24", "Last 24h"), ("new", "New only"),
-                                      ("curated", "Curated"), ("hide", "Hide added/queued")))
+                      for k, name in (("h24", "Last 24h"), ("new", "New only"), ("hide", "Hide added/queued")))
+    # One button per curated filter, named in the filter file; at most one is active.
+    toggles += "".join(f'<button type="button" class="btn btn-sm" data-filter="{e(n)}" '
+                       f':class="{{ \'btn-secondary\': st.f === {e(json.dumps(n))} }}" '
+                       f'@click="pick({e(json.dumps(n))})">{e(n)}</button>' for n in filters)
     row = "flex flex-wrap items-center gap-2"
     selected_tags = (
         '<template x-for="t in st.tags" :key="t">'
@@ -151,7 +147,7 @@ def render(cache, added, queued, now):
     pending = len(queued - added)
     topics = cache["topics"]
     labs = [labels(t["title"], t["forum"]) for t in topics]
-    curated_n = sum(1 for t, lab in zip(topics, labs) if t.get("curated") or is_curated(t["title"], lab["studio"], lab["tags"]))
+    curated_n = sum(1 for t in topics if t.get("filters"))
     curated_sub = f" · {curated_n} curated" if curated_n else ""
     cards = "".join(_card(t, lab, added, queued, now) for t, lab in zip(topics, labs))
     # The stylesheets and the Tailwind runtime are served by plab itself from
@@ -171,7 +167,7 @@ def render(cache, added, queued, now):
             f"<span class=\"text-sm text-base-content/60\">{len(topics)} releases · last 7 days · "
             f"updated {age(cache['updated'], now)}{curated_sub}{f' · {pending} queued' if pending else ''}"
             "<span id=\"newcount\" x-show=\"newCount > 0\" x-text=\"' · ' + newCount + ' new'\"></span></span></header>"
-            f"{_filter_bar(labs)}"
+            f"{_filter_bar(labs, cache.get('filters') or [])}"
             "<div id=\"grid\" class=\"grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(280px,100%),1fr))]\">"
             f"{cards}</div>"
             "<dialog id=\"ov\" x-ref=\"modal\" class=\"modal\" @click=\"closeGallery()\">"

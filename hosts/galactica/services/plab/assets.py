@@ -14,9 +14,10 @@ CSS = """
 
 JS = """
 (() => {
-  const TOGGLES = ['h24', 'new', 'hide', 'curated'];
+  const TOGGLES = ['h24', 'new', 'hide'];
   const SELECTS = {cat: 'category', q: 'quality', studio: 'studio'};
-  const empty = () => ({h24: false, new: false, hide: false, curated: false, cat: '', q: '', studio: '', tags: []});
+  const STRINGS = [...Object.keys(SELECTS), 'f'];  // f: the active curated filter's name
+  const empty = () => ({h24: false, new: false, hide: false, f: '', cat: '', q: '', studio: '', tags: []});
 
   function fromHash(h) {
     const o = empty();
@@ -26,7 +27,7 @@ JS = """
       const k = i < 0 ? p : p.slice(0, i), v = i < 0 ? '' : p.slice(i + 1);
       try {
         if (TOGGLES.includes(k)) o[k] = v === '1';
-        else if (Object.hasOwn(SELECTS, k)) o[k] = decodeURIComponent(v);
+        else if (STRINGS.includes(k)) o[k] = decodeURIComponent(v);
         else if (k === 'tags') v.split(',').filter(Boolean).forEach(t => { try { o.tags.push(decodeURIComponent(t)); } catch (_) {} });
       } catch (_) {}
     });
@@ -36,7 +37,7 @@ JS = """
   function toHash(s) {
     const p = [];
     TOGGLES.forEach(k => { if (s[k]) p.push(k + '=1'); });
-    Object.keys(SELECTS).forEach(k => { if (s[k]) p.push(k + '=' + encodeURIComponent(s[k])); });
+    STRINGS.forEach(k => { if (s[k]) p.push(k + '=' + encodeURIComponent(s[k])); });
     if (s.tags.length) p.push('tags=' + s.tags.map(encodeURIComponent).join(','));
     return p.join('&');
   }
@@ -59,7 +60,7 @@ JS = """
         return (!this.st.h24 || card.fresh)
           && (!this.st.new || card.isNew)
           && (!this.st.hide || !card.state)
-          && (!this.st.curated || card.curated)
+          && (!this.st.f || card.filters.includes(this.st.f))
           && (!this.st.cat || card.cat === this.st.cat)
           && (!this.st.q || card.q === this.st.q)
           && (!this.st.studio || card.studio === this.st.studio)
@@ -120,6 +121,9 @@ JS = """
           const el = document.querySelector('select[data-key="' + k + '"]');
           if (this.st[k] && el && ![...el.options].some(o => o.value === this.st[k])) this.st[k] = '';
         });
+        // A filter since renamed or removed from the filter file would hide every card.
+        const names = [...document.querySelectorAll('button[data-filter]')].map(b => b.dataset.filter);
+        if (this.st.f && !names.includes(this.st.f)) this.st.f = '';
         if (location.hash.length > 1 || !isEmpty(this.st)) this.saveFilters();
       },
 
@@ -131,6 +135,10 @@ JS = """
 
       toggle(key) {
         this.st[key] = !this.st[key];
+      },
+
+      pick(name) {
+        this.st.f = this.st.f === name ? '' : name;
       },
 
       toggleTag(tag) {
@@ -178,7 +186,7 @@ JS = """
     Alpine.data('plabCard', (cfg = {}) => ({
       id: cfg.id,
       fresh: Boolean(cfg.fresh),
-      curated: Boolean(cfg.curated),
+      filters: cfg.filters || [],
       cat: cfg.cat || '',
       q: cfg.q || '',
       studio: cfg.studio || '',
