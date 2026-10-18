@@ -7,7 +7,7 @@
 # - Writable configuration for UI-managed automations and HACS installations
 # - Built-in support for ESPHome, Met.no weather, TP-Link Kasa, and default integrations
 # - Custom components for Tuya Local, Alarmo, Hilo, Eufy Security (eufy-sdk)
-#   and Tuya IR air conditioners
+#   Tuya IR air conditioners, and Midea-protocol IR air conditioners
 # - Trusted proxy configuration for reverse proxy integration
 # - UI-managed automation, scene, and script files
 #
@@ -71,6 +71,7 @@
         pkgs.home-assistant-hilo # Hydro-Québec Hilo
         pkgs.home-assistant-eufy-sdk # Eufy Security, via the eufy-sdk-bridge container
         pkgs.home-assistant-tuya-smart-ir-ac # IR air conditioners behind Tuya Smart IR hubs
+        pkgs.home-assistant-midea-ir # Midea-protocol IR ACs, encoded locally
       ];
 
       # Dashboard cards. Setting this switches lovelace resources to YAML mode,
@@ -101,9 +102,22 @@
         };
 
         # The living room heat pump (Kanion) is IR-only, behind the "Living
-        # room IR" Tuya hub. Tuya's cloud remote never offers heat for it, so
-        # its presets are codes learned from the physical remote through
-        # tuya_local, stored under the remote device "living_room_ac":
+        # room IR" Tuya hub, and Tuya's cloud remote never offers heat for it.
+        # Its remote speaks the Midea protocol, so midea_ir builds any
+        # mode/temperature/fan frame itself and sends it through the hub.
+        climate = [
+          {
+            platform = "midea_ir";
+            name = "Living room heat pump";
+            unique_id = "living_room_heat_pump";
+            remote = "remote.living_room_ir";
+            temperature_sensor = "sensor.living_room_ir_temperature_2";
+          }
+        ];
+
+        # Fallback presets: codes learned from the physical remote through
+        # tuya_local, stored under the remote device "living_room_ac". The
+        # heat_21 code was learned with the remote on 22 and sets 22°C:
         #
         #   remote.learn_command  entity_id: remote.living_room_ir
         #                         device: living_room_ac
@@ -134,7 +148,16 @@
 
         # Hilo challenges. sensor.defi_hilo is "reduction" while the challenge
         # is live; any later state (recovery, completed, off) ends it.
-        "automation manual" = [
+        "automation manual" = let
+          heatTo = temperature: {
+            action = "climate.set_temperature";
+            target.entity_id = "climate.living_room_heat_pump";
+            data = {
+              hvac_mode = "heat";
+              inherit temperature;
+            };
+          };
+        in [
           {
             alias = "Hilo Challenge - Lower Heat Pump";
             description = "Set the living room heat pump to 18°C during Hilo challenges";
@@ -145,7 +168,7 @@
                 to = "reduction";
               }
             ];
-            actions = [{action = "script.living_room_ac_heat_18";}];
+            actions = [(heatTo 18)];
             mode = "single";
           }
           {
@@ -158,7 +181,7 @@
                 from = "reduction";
               }
             ];
-            actions = [{action = "script.living_room_ac_heat_21";}];
+            actions = [(heatTo 21)];
             mode = "single";
           }
         ];
