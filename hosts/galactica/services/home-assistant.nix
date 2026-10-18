@@ -100,48 +100,65 @@
           trusted_proxies = ["127.0.0.1" "100.64.0.0/10"];
         };
 
-        # Declarative automations for Hilo challenge response
-        # NOTE: Entity names (climate.tuya_heat_pump, binary_sensor.hilo_challenge)
-        # need to be updated based on actual device names after Tuya and Hilo
-        # integrations are configured in the Home Assistant UI.
+        # The living room heat pump (Kanion) is IR-only, behind the "Living
+        # room IR" Tuya hub. Tuya's cloud remote never offers heat for it, so
+        # its presets are codes learned from the physical remote through
+        # tuya_local, stored under the remote device "living_room_ac":
+        #
+        #   remote.learn_command  entity_id: remote.living_room_ir
+        #                         device: living_room_ac
+        #                         command: heat_21   (then heat_18, off)
+        #
+        # An AC remote sends its whole state on every press, so set the
+        # physical remote to the preset first, then press a button that
+        # re-sends it (e.g. temperature down then up) while learning.
+        "script manual" = let
+          send = command: {
+            sequence = [
+              {
+                action = "remote.send_command";
+                target.entity_id = "remote.living_room_ir";
+                data = {
+                  device = "living_room_ac";
+                  inherit command;
+                };
+              }
+            ];
+            mode = "queued";
+          };
+        in {
+          living_room_ac_heat_21 = send "heat_21" // {alias = "Living room AC - Heat 21°C";};
+          living_room_ac_heat_18 = send "heat_18" // {alias = "Living room AC - Heat 18°C";};
+          living_room_ac_off = send "off" // {alias = "Living room AC - Off";};
+        };
+
+        # Hilo challenges. sensor.defi_hilo is "reduction" while the challenge
+        # is live; any later state (recovery, completed, off) ends it.
         "automation manual" = [
           {
             alias = "Hilo Challenge - Lower Heat Pump";
-            description = "Lower Tuya heat pump to 18°C during Hilo challenges";
-            trigger = [
+            description = "Set the living room heat pump to 18°C during Hilo challenges";
+            triggers = [
               {
-                platform = "state";
-                entity_id = "binary_sensor.hilo_challenge";
-                to = "on";
+                trigger = "state";
+                entity_id = "sensor.defi_hilo";
+                to = "reduction";
               }
             ];
-            action = [
-              {
-                service = "climate.set_temperature";
-                target.entity_id = "climate.tuya_heat_pump"; # Adjust to match actual Tuya device entity
-                data.temperature = 18;
-              }
-            ];
+            actions = [{action = "script.living_room_ac_heat_18";}];
             mode = "single";
           }
           {
             alias = "Hilo Challenge End - Restore Heat Pump";
-            description = "Restore Tuya heat pump to 21°C after Hilo challenge";
-            trigger = [
+            description = "Restore the living room heat pump to 21°C after a Hilo challenge";
+            triggers = [
               {
-                platform = "state";
-                entity_id = "binary_sensor.hilo_challenge";
-                from = "on";
-                to = "off";
+                trigger = "state";
+                entity_id = "sensor.defi_hilo";
+                from = "reduction";
               }
             ];
-            action = [
-              {
-                service = "climate.set_temperature";
-                target.entity_id = "climate.tuya_heat_pump"; # Adjust to match actual Tuya device entity
-                data.temperature = 21;
-              }
-            ];
+            actions = [{action = "script.living_room_ac_heat_21";}];
             mode = "single";
           }
         ];
