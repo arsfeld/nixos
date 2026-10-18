@@ -8,13 +8,13 @@
 pkgs.buildHomeAssistantComponent rec {
   owner = "dvd-dev";
   domain = "hilo";
-  version = "2026.9.5";
+  version = "2026.10.2";
 
   src = pkgs.fetchFromGitHub {
     owner = "dvd-dev";
     repo = "hilo";
     tag = "v${version}";
-    hash = "sha256-npAxmQj12o+HsfUNk8inUiiAkvk5zB2x5o927ExxOas=";
+    hash = "sha256-ta+7NBNXr2snBT7jlbUMZOz5mUeVQ7w5Omfek0Q+g2o=";
   };
 
   dependencies = [pkgs.home-assistant.python3Packages.python-hilo];
