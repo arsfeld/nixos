@@ -62,6 +62,11 @@
         "spotify" # Spotify media player
         "ping" # Ping (ICMP) network presence detection
         "wake_on_lan" # Wake on LAN
+
+        # Found by default_config's discovery; without their deps every
+        # discovery round logs a failed flow.
+        "hue" # Philips Hue bridge
+        "androidtv_remote" # Android TV / Google TV
       ];
 
       # Custom components from nixpkgs, plus the ones packaged in ./packages
@@ -91,6 +96,15 @@
         # loaded by this key. Among others it loads `my`, without which OAuth
         # flows (Hilo) send a redirect URI their provider has not registered.
         default_config = {};
+
+        logger = {
+          default = "warning";
+          logs = {
+            "homeassistant.helpers.config_entry_oauth2_flow" = "debug";
+            "custom_components.hilo" = "debug";
+            "pyhilo" = "debug";
+          };
+        };
 
         homeassistant = {
           name = "Home";
