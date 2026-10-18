@@ -1,0 +1,10 @@
+{
+  "domain": "midea_ir",
+  "name": "Midea IR",
+  "codeowners": [],
+  "dependencies": ["remote"],
+  "documentation": "https://github.com/arsfeld/nixos",
+  "iot_class": "assumed_state",
+  "requirements": [],
+  "version": "0.1.0"
+}
