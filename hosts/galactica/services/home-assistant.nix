@@ -97,6 +97,11 @@
         # flows (Hilo) send a redirect URI their provider has not registered.
         default_config = {};
 
+        # Hilo's generated energy meters call utility_meter's setup
+        # themselves; unless HA has already set the domain up from here, its
+        # later setup wipes their meter data and every meter fails.
+        utility_meter = {};
+
         homeassistant = {
           name = "Home";
           time_zone = "America/Toronto";
