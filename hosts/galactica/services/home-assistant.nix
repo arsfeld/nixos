@@ -97,15 +97,6 @@
         # flows (Hilo) send a redirect URI their provider has not registered.
         default_config = {};
 
-        logger = {
-          default = "warning";
-          logs = {
-            "homeassistant.helpers.config_entry_oauth2_flow" = "debug";
-            "custom_components.hilo" = "debug";
-            "pyhilo" = "debug";
-          };
-        };
-
         homeassistant = {
           name = "Home";
           time_zone = "America/Toronto";
