@@ -87,6 +87,11 @@
 
       # Base configuration
       config = {
+        # extraComponents only installs default_config's dependencies; it is
+        # loaded by this key. Among others it loads `my`, without which OAuth
+        # flows (Hilo) send a redirect URI their provider has not registered.
+        default_config = {};
+
         homeassistant = {
           name = "Home";
           time_zone = "America/Toronto";
