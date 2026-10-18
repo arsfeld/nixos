@@ -17,6 +17,7 @@
     ./forgejo-runner.nix
     ./garage.nix
     ./glance.nix
+    ./hermes.nix
     ./home-apps.nix
     ./home-assistant.nix
     ./home.nix
