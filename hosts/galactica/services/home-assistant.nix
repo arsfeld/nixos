@@ -67,6 +67,7 @@
         # discovery round logs a failed flow.
         "hue" # Philips Hue bridge
         "androidtv_remote" # Android TV / Google TV
+        "upnp" # UPnP/IGD router
       ];
 
       # Custom components from nixpkgs, plus the ones packaged in ./packages
