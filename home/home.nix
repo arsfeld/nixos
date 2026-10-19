@@ -120,6 +120,7 @@
         }) {
         nixos = "--spawn same-dir";
         mydia = "--spawn worktree --no-create-session-in-dir";
+        job-hunting = "--spawn same-dir";
       }
     );
 
