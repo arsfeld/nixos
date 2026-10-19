@@ -94,6 +94,35 @@
     config.allowUnfree = true;
   };
 
+  # Claude Code remote-control servers, one per project, so sessions can be
+  # opened from claude.ai/code or the mobile app. A server is bound to the
+  # directory it starts in, hence one unit per project. It runs headless fine,
+  # but the folder must already be trusted (run `claude` there once by hand).
+  # nixos never uses worktrees; mydia only ever does, so it also skips the
+  # session pre-created in the main checkout.
+  claudeRcServices = let
+    claude = lib.findFirst (p: p.name == "claude") null llmAgentScripts;
+  in
+    lib.optionalAttrs (hostname == "raider" && claude != null) (
+      lib.mapAttrs' (project: extraArgs:
+        lib.nameValuePair "claude-rc-${project}" {
+          Unit = {
+            Description = "Claude Code remote-control for ~/Code/${project}";
+            After = ["network-online.target"];
+          };
+          Service = {
+            WorkingDirectory = "%h/Code/${project}";
+            ExecStart = "${lib.getExe claude} remote-control --name raider-${project} --permission-mode auto ${extraArgs}";
+            Restart = "on-failure";
+            RestartSec = 30;
+          };
+          Install.WantedBy = ["default.target"];
+        }) {
+        nixos = "--spawn same-dir";
+        mydia = "--spawn worktree --no-create-session-in-dir";
+      }
+    );
+
   linuxOnlyPkgs = with pkgs;
     optionals stdenv.isLinux [
       distrobox
@@ -674,26 +703,30 @@ in {
   #
   # `seaf-cli init` creates it and is idempotent (re-running prints "already
   # exists" and exits 0), so it is safe as an unconditional ExecStartPre.
-  systemd.user.services.seafile-cli = mkIf stdenv.isLinux {
-    Unit = {
-      Description = "Seafile CLI sync daemon";
-      After = ["network-online.target"];
+  systemd.user.services =
+    claudeRcServices
+    // {
+      seafile-cli = mkIf stdenv.isLinux {
+        Unit = {
+          Description = "Seafile CLI sync daemon";
+          After = ["network-online.target"];
+        };
+        Service = {
+          Type = "forking";
+          ExecStartPre = [
+            "${pkgs.coreutils}/bin/mkdir -p %h/Seafile %h/seafile-client"
+            "${pkgs.seafile-shared}/bin/seaf-cli init -d %h/seafile-client"
+          ];
+          ExecStart = "${pkgs.seafile-shared}/bin/seaf-cli start";
+          ExecStop = "${pkgs.seafile-shared}/bin/seaf-cli stop";
+          Restart = "on-failure";
+          RestartSec = 10;
+        };
+        Install = {
+          WantedBy = ["default.target"];
+        };
+      };
     };
-    Service = {
-      Type = "forking";
-      ExecStartPre = [
-        "${pkgs.coreutils}/bin/mkdir -p %h/Seafile %h/seafile-client"
-        "${pkgs.seafile-shared}/bin/seaf-cli init -d %h/seafile-client"
-      ];
-      ExecStart = "${pkgs.seafile-shared}/bin/seaf-cli start";
-      ExecStop = "${pkgs.seafile-shared}/bin/seaf-cli stop";
-      Restart = "on-failure";
-      RestartSec = 10;
-    };
-    Install = {
-      WantedBy = ["default.target"];
-    };
-  };
 
   programs.atuin = {
     enable = true;
