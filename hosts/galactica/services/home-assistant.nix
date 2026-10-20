@@ -68,6 +68,7 @@
         "hue" # Philips Hue bridge
         "androidtv_remote" # Android TV / Google TV
         "upnp" # UPnP/IGD router
+        "google_translate" # Google Translate TTS, set up in the UI
       ];
 
       # Custom components from nixpkgs, plus the ones packaged in ./packages
