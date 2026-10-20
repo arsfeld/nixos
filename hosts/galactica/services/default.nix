@@ -22,6 +22,7 @@
     ./home-assistant.nix
     ./home.nix
     ./immich-pixel-sync
+    ./immich-tv-frame.nix
     ./immich.nix
     ./infra.nix
     ./isponsorblock.nix
