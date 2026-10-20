@@ -200,6 +200,52 @@
             actions = [(heatTo 21)];
             mode = "single";
           }
+
+          # Thermostat on the IR hub's own temperature sensor, with 19-21°C
+          # hysteresis. numeric_state only fires on crossing the threshold.
+          {
+            alias = "Living Room Cold - Heat Pump On";
+            description = "Turn the living room heat pump on below 19°C, unless a Hilo challenge is live";
+            triggers = [
+              {
+                trigger = "numeric_state";
+                entity_id = "sensor.living_room_ir_temperature_2";
+                below = 19;
+              }
+            ];
+            conditions = [
+              {
+                condition = "not";
+                conditions = [
+                  {
+                    condition = "state";
+                    entity_id = "sensor.defi_hilo";
+                    state = "reduction";
+                  }
+                ];
+              }
+            ];
+            actions = [(heatTo 21)];
+            mode = "single";
+          }
+          {
+            alias = "Living Room Warm - Heat Pump Off";
+            description = "Turn the living room heat pump off above 21°C";
+            triggers = [
+              {
+                trigger = "numeric_state";
+                entity_id = "sensor.living_room_ir_temperature_2";
+                above = 21;
+              }
+            ];
+            actions = [
+              {
+                action = "climate.turn_off";
+                target.entity_id = "climate.living_room_heat_pump";
+              }
+            ];
+            mode = "single";
+          }
         ];
 
         # Allow UI-managed configuration files
