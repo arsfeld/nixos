@@ -7,7 +7,7 @@
 # - Writable configuration for UI-managed automations and HACS installations
 # - Built-in support for ESPHome, Met.no weather, TP-Link Kasa, and default integrations
 # - Custom components for Tuya Local, Alarmo, Hilo, Eufy Security (eufy-sdk)
-#   Tuya IR air conditioners, and Midea-protocol IR air conditioners
+#   Tuya IR air conditioners, Midea-protocol IR air conditioners, and TP-Link Deco
 # - Trusted proxy configuration for reverse proxy integration
 # - UI-managed automation, scene, and script files
 #
@@ -78,6 +78,7 @@
         pkgs.home-assistant-eufy-sdk # Eufy Security, via the eufy-sdk-bridge container
         pkgs.home-assistant-tuya-smart-ir-ac # IR air conditioners behind Tuya Smart IR hubs
         pkgs.home-assistant-midea-ir # Midea-protocol IR ACs, encoded locally
+        pkgs.home-assistant-tplink-deco # TP-Link Deco mesh nodes and clients
       ];
 
       # Dashboard cards. Setting this switches lovelace resources to YAML mode,
