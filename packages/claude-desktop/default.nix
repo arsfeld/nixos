@@ -17,11 +17,11 @@
 in
   stdenv.mkDerivation rec {
     pname = "claude-desktop";
-    version = "2.9939.4";
+    version = "3.1623.0";
 
     src = fetchurl {
       url = "https://downloads.claude.ai/claude-desktop/apt/stable/pool/main/c/claude-desktop/claude-desktop_${version}_amd64.deb";
-      sha256 = "3cfddb23bf2911e05e27b4ed3856b8e795df94643b2c35b59deb317cf995bca0";
+      sha256 = "sha256-054dmlcPHlF/FYR59aHZA7mnTR7z8nk2IALcrTdeM88=";
     };
 
     nativeBuildInputs = with pkgs; [
