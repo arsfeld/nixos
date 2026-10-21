@@ -10,6 +10,7 @@
 #   Tuya IR air conditioners, Midea-protocol IR air conditioners, and TP-Link Deco
 # - Trusted proxy configuration for reverse proxy integration
 # - UI-managed automation, scene, and script files
+# - Heating automations live in ./home-assistant-heating.nix
 #
 # Prefer packaging a component over installing it through HACS: pip is
 # disabled here, so a HACS-installed component whose Python requirements are
@@ -163,92 +164,6 @@
           living_room_ac_heat_18 = send "heat_18" // {alias = "Living room AC - Heat 18°C";};
           living_room_ac_off = send "off" // {alias = "Living room AC - Off";};
         };
-
-        # Hilo challenges. sensor.defi_hilo is "reduction" while the challenge
-        # is live; any later state (recovery, completed, off) ends it.
-        "automation manual" = let
-          heatTo = temperature: {
-            action = "climate.set_temperature";
-            target.entity_id = "climate.living_room_heat_pump";
-            data = {
-              hvac_mode = "heat";
-              inherit temperature;
-            };
-          };
-        in [
-          {
-            alias = "Hilo Challenge - Lower Heat Pump";
-            description = "Set the living room heat pump to 18°C during Hilo challenges";
-            triggers = [
-              {
-                trigger = "state";
-                entity_id = "sensor.defi_hilo";
-                to = "reduction";
-              }
-            ];
-            actions = [(heatTo 18)];
-            mode = "single";
-          }
-          {
-            alias = "Hilo Challenge End - Restore Heat Pump";
-            description = "Restore the living room heat pump to 21°C after a Hilo challenge";
-            triggers = [
-              {
-                trigger = "state";
-                entity_id = "sensor.defi_hilo";
-                from = "reduction";
-              }
-            ];
-            actions = [(heatTo 21)];
-            mode = "single";
-          }
-
-          # Thermostat on the IR hub's own temperature sensor, with 19-21°C
-          # hysteresis. numeric_state only fires on crossing the threshold.
-          {
-            alias = "Living Room Cold - Heat Pump On";
-            description = "Turn the living room heat pump on below 19°C, unless a Hilo challenge is live";
-            triggers = [
-              {
-                trigger = "numeric_state";
-                entity_id = "sensor.living_room_ir_temperature_2";
-                below = 19;
-              }
-            ];
-            conditions = [
-              {
-                condition = "not";
-                conditions = [
-                  {
-                    condition = "state";
-                    entity_id = "sensor.defi_hilo";
-                    state = "reduction";
-                  }
-                ];
-              }
-            ];
-            actions = [(heatTo 21)];
-            mode = "single";
-          }
-          {
-            alias = "Living Room Warm - Heat Pump Off";
-            description = "Turn the living room heat pump off above 21°C";
-            triggers = [
-              {
-                trigger = "numeric_state";
-                entity_id = "sensor.living_room_ir_temperature_2";
-                above = 21;
-              }
-            ];
-            actions = [
-              {
-                action = "climate.turn_off";
-                target.entity_id = "climate.living_room_heat_pump";
-              }
-            ];
-            mode = "single";
-          }
-        ];
 
         # Allow UI-managed configuration files
         # These files will be created and managed by the Home Assistant UI
