@@ -70,6 +70,7 @@
           })
           git
           jq
+          nix-update
           just
           # Provide ssh from the dev shell so the deploy driver resolves it here
           # instead of scanning the ambient PATH. NixOS puts a (usually empty)
