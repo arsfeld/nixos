@@ -1,4 +1,4 @@
-# House heating, owned by Home Assistant rather than the Hilo app.
+# House heating, scheduled from Home Assistant rather than the Hilo app.
 #
 # Two kinds of heat, three layers:
 #
@@ -9,9 +9,13 @@
 #              signal for the living/dining baseboards.
 #   policy     the targets below, keyed on the clock and sensor.defi_hilo.
 #   actuators  one automation for the heat pump, one for every baseboard.
-#              Both re-evaluate on a timer and on HA start, and only send a
-#              command when the device disagrees, so a missed edge or a
-#              restart never leaves the house in the wrong state.
+#              The heat pump is HA's alone: it re-evaluates on a timer and on
+#              HA start, so a missed edge or a restart corrects itself. The
+#              baseboards are only set at their scheduled switch times (and
+#              the living/dining ones when the backup flips); between those
+#              they are left to whoever turns the dial or uses the Hilo app.
+#              A switch missed while HA was down is skipped, not caught up,
+#              so a deploy never overwrites a manual change.
 #
 # The heat pump (Kanion, IR-only) heats the living and dining rooms: 19-21°C
 # from 05:00 (an hour of pre-heat) to 22:00, 17-18°C overnight. Its own
@@ -32,28 +36,73 @@
   backupFloor = "(16 if ${night} else 18)";
   backupTarget = "(${backupFloor} + 1 if is_state('binary_sensor.living_area_needs_backup', 'on') else 5)";
 
-  # Hilo thermostats only support heat; 5°C, their minimum, is off.
-  baseboards = {
-    master_bedroom = "19";
-    amanda_bedroom = "19";
-    beas_bedroom = "19";
-    bathroom = "19";
+  # Hilo thermostats only support heat; 5°C, their minimum, is off. `at` is
+  # the hours a room is reset to its target; fixed-target rooms still reset
+  # at the day/night switches, so a manual change lasts until the next one.
+  dayNight = [6 22];
+  backupRooms = ["living_room_1" "dining_room"];
+  baseboards =
+    {
+      master_bedroom = {
+        target = "19";
+        at = dayNight;
+      };
+      amanda_bedroom = {
+        target = "19";
+        at = dayNight;
+      };
+      beas_bedroom = {
+        target = "19";
+        at = dayNight;
+      };
+      bathroom = {
+        target = "19";
+        at = dayNight;
+      };
 
-    # Basement
-    office = "(17 if ${night} else 19)";
-    bathroom_downstairs = "(17 if ${night} else 19)";
+      # Basement
+      office = {
+        target = "(17 if ${night} else 19)";
+        at = dayNight;
+      };
+      bathroom_downstairs = {
+        target = "(17 if ${night} else 19)";
+        at = dayNight;
+      };
 
-    # Family room (still living_room_2 in HA): too far for the heat pump.
-    living_room_2 = "(19 if 17 <= now().hour < 22 else 16)";
+      # Family room (still living_room_2 in HA): too far for the heat pump.
+      living_room_2 = {
+        target = "(19 if 17 <= now().hour < 22 else 16)";
+        at = [17 22];
+      };
 
-    living_room_1 = backupTarget;
-    dining_room = backupTarget;
+      # Baseboards not ready yet.
+      workshop_1 = {
+        target = "5";
+        at = dayNight;
+      };
+      workshop_2 = {
+        target = "5";
+        at = dayNight;
+      };
+      garage = {
+        target = "5";
+        at = dayNight;
+      };
+    }
+    // lib.genAttrs backupRooms (_: {
+      target = backupTarget;
+      at = dayNight;
+    });
 
-    # Baseboards not ready yet.
-    workshop_1 = "5";
-    workshop_2 = "5";
-    garage = "5";
-  };
+  switchHours = lib.unique (lib.concatMap (b: b.at) (lib.attrValues baseboards));
+  climates = rooms: map (room: "climate.${room}") rooms;
+  roomsAt = hour: climates (lib.attrNames (lib.filterAttrs (_: b: lib.elem hour b.at) baseboards));
+
+  # The rooms each baseboard trigger (by id) is allowed to touch.
+  roomsByTrigger =
+    lib.listToAttrs (map (hour: lib.nameValuePair (toString hour) (roomsAt hour)) switchHours)
+    // {backup = climates backupRooms;};
 
   livingAreaSensors = [
     "sensor.living_room_ir_temperature_2"
@@ -61,21 +110,6 @@
     "sensor.dining_room_temperature"
   ];
   livingAreaReadings = "${builtins.toJSON livingAreaSensors} | map('states') | select('is_number') | map('float') | list";
-
-  reevaluate = minutes: [
-    {
-      trigger = "homeassistant";
-      event = "start";
-    }
-    {
-      trigger = "time_pattern";
-      minutes = "/${toString minutes}";
-    }
-    {
-      trigger = "state";
-      entity_id = "sensor.defi_hilo";
-    }
-  ];
 in {
   services.home-assistant.config = {
     template = [
@@ -110,14 +144,20 @@ in {
       {
         alias = "Heating - Heat pump";
         description = "Hold the living area at 19-21°C by day and 17-18°C at night with the heat pump";
-        triggers =
-          reevaluate 5
-          ++ [
-            {
-              trigger = "state";
-              entity_id = "sensor.living_area_temperature";
-            }
-          ];
+        triggers = [
+          {
+            trigger = "homeassistant";
+            event = "start";
+          }
+          {
+            trigger = "time_pattern";
+            minutes = "/5";
+          }
+          {
+            trigger = "state";
+            entity_id = ["sensor.defi_hilo" "sensor.living_area_temperature"];
+          }
+        ];
         variables = {
           temp = "{{ states('sensor.living_area_temperature') | float(none) }}";
           day = "{{ 5 <= now().hour < 22 }}";
@@ -176,13 +216,20 @@ in {
       }
       {
         alias = "Heating - Baseboards";
-        description = "Set every Hilo baseboard to its scheduled target, unless a Hilo challenge is running";
+        description = "Set Hilo baseboards to their targets at scheduled switch times, unless a Hilo challenge is running";
         triggers =
-          reevaluate 15
+          map (hour: {
+            trigger = "time";
+            at = "${lib.fixedWidthNumber 2 hour}:00:00";
+            id = toString hour;
+          })
+          switchHours
           ++ [
             {
               trigger = "state";
               entity_id = "binary_sensor.living_area_needs_backup";
+              to = ["on" "off"];
+              id = "backup";
             }
           ];
         conditions = [
@@ -191,11 +238,14 @@ in {
             value_template = "{{ not (${hiloActive}) }}";
           }
         ];
-        variables.targets = "{{ {${lib.concatStringsSep ", " (lib.mapAttrsToList (room: target: "'climate.${room}': ${target}") baseboards)}} }}";
+        variables = {
+          rooms = "{{ ${builtins.toJSON roomsByTrigger}[trigger.id] }}";
+          targets = "{{ {${lib.concatStringsSep ", " (lib.mapAttrsToList (room: b: "'climate.${room}': ${b.target}") baseboards)}} }}";
+        };
         actions = [
           {
             repeat = {
-              for_each = "{{ targets.keys() | list }}";
+              for_each = "{{ rooms }}";
               sequence = [
                 {
                   "if" = [
