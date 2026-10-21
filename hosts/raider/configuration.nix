@@ -108,7 +108,7 @@
   constellation = {
     desktop = {
       enable = true;
-      variant = "cosmic";
+      variant = "gnome";
     };
     gaming = {
       enable = true;
@@ -382,8 +382,8 @@
   };
 
   # Mask the sleep units entirely: any Suspend() DBus call (desktop session,
-  # greeter, systemctl) fails instead of sleeping. logind IdleAction=ignore
-  # doesn't cover explicit DBus suspends.
+  # GDM greeter, systemctl) fails instead of sleeping. logind IdleAction=ignore
+  # and the dconf policies below don't cover every caller.
   systemd.services = {
     systemd-suspend.enable = false;
     systemd-hibernate.enable = false;
@@ -402,6 +402,20 @@
     enable = true;
     powertop.enable = false; # Disabled - causes aggressive power management that freezes input
   };
+
+  # Prevent the GDM greeter's gnome-settings-daemon from issuing an idle
+  # Suspend() DBus call after 15 min (logind IdleAction=ignore doesn't block
+  # explicit DBus suspends — only the greeter's dconf policy does).
+  programs.dconf.profiles.gdm.databases = [
+    {
+      settings."org/gnome/settings-daemon/plugins/power" = {
+        sleep-inactive-ac-type = "nothing";
+        sleep-inactive-ac-timeout = lib.gvariant.mkInt32 0;
+        sleep-inactive-battery-type = "nothing";
+        sleep-inactive-battery-timeout = lib.gvariant.mkInt32 0;
+      };
+    }
+  ];
 
   # Environment variables for games
   environment.sessionVariables = {
