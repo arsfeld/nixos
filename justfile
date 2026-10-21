@@ -11,6 +11,74 @@ fmt:
 auto-update:
     systemctl start weekly-update.service || weekly-update
 
+# Bump packages/ to their latest upstream release with nix-update and build
+# each one; a package that fails to update or build is reverted. With no
+# arguments, runs over every package that can be bumped unattended. Not in the
+# default list: anycubic-slicer (its .deb URL embeds a build timestamp and the
+# CDN has no apt index), home-assistant-eufy-sdk (bumped together with the
+# bridge image in hosts/galactica/services/eufy.nix), and libfprint-goodix-521d
+# (pinned to a commit on our own fork).
+update-packages *PKGS:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    pkgs=({{ PKGS }})
+    [ ${#pkgs[@]} -gt 0 ] || pkgs=(
+      claude-desktop
+      codexify
+      home-assistant-hilo
+      home-assistant-tplink-deco
+      home-assistant-tuya-smart-ir-ac
+      librepods
+    )
+    # nix-update cannot handle buildHomeAssistantComponent: the derivation's
+    # `version` is defined inside nixpkgs, and nix-update's eval throws on any
+    # version position outside the flake. Those packages all fetch a GitHub
+    # release tag, so bump that by hand: latest release -> version, then let a
+    # build with a fake hash report the real one.
+    bump_github_tag() {
+      local p=$1 file=packages/$1/default.nix info old tag new oldhash fake got
+      info=$(nix eval --json ".#$p" --apply 'p: {v = p.version; tag = p.src.tag; home = p.src.meta.homepage; h = p.src.outputHash;}') || return 1
+      old=$(jq -r .v <<<"$info")
+      oldhash=$(jq -r .h <<<"$info")
+      tag=$(curl -fsSL "https://api.github.com/repos/$(jq -r .home <<<"$info" | sed 's|^https://github.com/||')/releases/latest" | jq -r .tag_name) || return 1
+      # Keep the file's tag prefix ("v" or none) out of the version.
+      new=${tag#"$(jq -r .tag <<<"$info" | sed "s|$old\$||")"}
+      [ "$new" != "$old" ] || return 0
+      fake=sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      sed -i "s|version = \"$old\"|version = \"$new\"|; s|$oldhash|$fake|" "$file"
+      got=$(nix build ".#$p.src" --no-link 2>&1 | sed -n 's/^ *got: *//p')
+      [ -n "$got" ] || return 1
+      sed -i "s|$fake|$got|" "$file"
+      nix build ".#$p" --no-link
+    }
+
+    updated=() current=() failed=()
+    for p in "${pkgs[@]}"; do
+      echo "==> $p"
+      cmd=(nix-update --flake --build "$p")
+      case "$p" in
+        home-assistant-*) cmd=(bump_github_tag "$p") ;;
+        # Not a forge nix-update can query: read the newest version from the
+        # apt index instead.
+        claude-desktop)
+          v=$(curl -fsSL https://downloads.claude.ai/claude-desktop/apt/stable/dists/stable/main/binary-amd64/Packages \
+            | sed -n 's/^Version: //p' | sort -V | tail -n1)
+          [ -n "$v" ] || { failed+=("$p"); continue; }
+          cmd+=(--version "$v") ;;
+      esac
+      if "${cmd[@]}"; then
+        if git diff --quiet -- "packages/$p"; then current+=("$p"); else updated+=("$p"); fi
+      else
+        git checkout -- "packages/$p"
+        failed+=("$p")
+      fi
+    done
+    echo
+    echo "updated: ${updated[*]:-none}"
+    echo "current: ${current[*]:-none}"
+    echo "failed:  ${failed[*]:-none}"
+    [ ${#failed[@]} -eq 0 ]
+
 
 # Private recipe to nudge systems back into the default target after activation
 _poke-targets *TARGETS:
