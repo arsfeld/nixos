@@ -304,6 +304,13 @@
   # so it goes to basestar. i686-linux is the stock x86_64 default. See #405.
   nix.settings.extra-platforms = lib.mkForce ["i686-linux"];
 
+  # The default cores = 0 gives every one of the 16 jobs all 16 CPUs (make
+  # -j16 each), so a nixpkgs bump that rebuilds cylon-link's cross toolchain
+  # and kernel alongside raider's own packages drove load past 110 and left
+  # the desktop unusable. Four per job still saturates the machine when
+  # several builds run, without the 16x oversubscription.
+  nix.settings.cores = 4;
+
   # Additional packages
   # Web apps via firefoxpwa (install PWAs from Firefox extension)
   programs.firefox.nativeMessagingHosts.packages = [pkgs.firefoxpwa];
