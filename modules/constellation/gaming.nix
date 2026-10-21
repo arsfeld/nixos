@@ -721,6 +721,13 @@ in {
     # the config level sidesteps that: the module system merges `services.scx`
     # or `services.scx-loader` in below with the plain `services = { ... };`
     # literal above without touching its syntax.
+    # The COSMIC module turns system76-scheduler back on by default. Besides the
+    # context-switch problems above, it reniced cosmic-session to 12 at exec
+    # (still under the greeter's system.slice cgroup), so every app the
+    # session launched inherited the same nice as background builds.
+    (lib.mkIf config.constellation.gaming.enable {
+      services.system76-scheduler.enable = lib.mkForce false;
+    })
     (lib.mkIf (config.constellation.gaming.enable && cfg.scheduler != "none") (
       if options.services ? scx-loader
       then {
