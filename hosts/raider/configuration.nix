@@ -311,6 +311,17 @@
   # several builds run, without the 16x oversubscription.
   nix.settings.cores = 4;
 
+  # Builds pushed the desktop into swap: during that rebuild user.slice held
+  # ~2 GiB in RAM against ~12 GiB swapped, and pages only come back on touch,
+  # so every click faulted from disk long after the builds had freed memory.
+  # Reserve some RAM for the session and make the daemon reclaim its own
+  # memory first. MemoryHigh throttles rather than kills.
+  systemd.slices.user = {
+    overrideStrategy = "asDropin";
+    sliceConfig.MemoryLow = "6G";
+  };
+  systemd.services.nix-daemon.serviceConfig.MemoryHigh = "20G";
+
   # Additional packages
   # Web apps via firefoxpwa (install PWAs from Firefox extension)
   programs.firefox.nativeMessagingHosts.packages = [pkgs.firefoxpwa];
