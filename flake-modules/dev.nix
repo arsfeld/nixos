@@ -40,7 +40,21 @@
       };
     };
     devShells.default = pkgs.mkShell {
-      inherit (config.checks.pre-commit-check) shellHook;
+      # cacert's setup hook points NIX_SSL_CERT_FILE (and from it SSL_CERT_FILE)
+      # at the plain pkgs.cacert bundle, which bypasses security.pki: nixpkgs
+      # distrusts roots there (the eMudhra roots, 2026-10) before cacert itself
+      # drops them. A mkShell attribute cannot fix this — the dev env is
+      # captured in the build sandbox, where /etc/ssl is unreadable, so the hook
+      # replaces it with its own bundle. Re-point it at shell entry instead, and
+      # only when the host has the file, so a CI runner without it is unchanged.
+      shellHook =
+        config.checks.pre-commit-check.shellHook
+        + ''
+          if [ -r /etc/ssl/certs/ca-certificates.crt ]; then
+            export NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+            export SSL_CERT_FILE=$NIX_SSL_CERT_FILE
+          fi
+        '';
       buildInputs = with pkgs;
         [
           # Nix tools
