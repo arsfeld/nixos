@@ -24,7 +24,6 @@ update-packages *PKGS:
     pkgs=({{ PKGS }})
     [ ${#pkgs[@]} -gt 0 ] || pkgs=(
       claude-desktop
-      codexify
       home-assistant-hilo
       home-assistant-tplink-deco
       home-assistant-tuya-smart-ir-ac

@@ -317,11 +317,6 @@
     android-tools
     anycubic-slicer
     claude-desktop
-    # Local MCP bridge that hands ChatGPT Codex-style tools over the projects
-    # on this machine. Run `codexify quickstart` once per user to write
-    # ~/.codexify; the store path itself is read-only, so its self-update path
-    # is inert and version bumps happen in packages/codexify.
-    codexify
     firefox
     firefoxpwa
   ];
