@@ -142,10 +142,6 @@
       category = "Files";
       icon = "di:filestash";
     };
-    nextcloud = {
-      category = "Files";
-      icon = "di:nextcloud";
-    };
     opencloud = {
       category = "Files";
       icon = "di:owncloud";
@@ -170,10 +166,6 @@
       name = "Home Assistant";
       category = "Home";
       icon = "di:home-assistant";
-    };
-    grocy = {
-      category = "Home";
-      icon = "di:grocy";
     };
     n8n = {
       category = "Home";
@@ -344,7 +336,6 @@
     plex.check-url = "https://plex.${vars.domain}/identity";
     jellyfin.check-url = "https://jellyfin.${vars.domain}/health";
     immich.check-url = "https://immich.${vars.domain}/api/server/ping";
-    nextcloud.check-url = "https://nextcloud.${vars.domain}/status.php";
     seafile = {
       check-url = "https://seafile.${vars.domain}/api2/server-info/";
       timeout = "10s";
@@ -369,7 +360,6 @@
     "seafile"
     "grafana"
     "forgejo"
-    "nextcloud"
   ];
 
   monitorSites = map (name: let

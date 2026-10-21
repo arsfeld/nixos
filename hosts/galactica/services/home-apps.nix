@@ -1,4 +1,4 @@
-# Home and utility apps: Audiobookshelf, Grocy, Stirling PDF, Actual Budget
+# Home and utility apps: Audiobookshelf, Stirling PDF, Actual Budget
 {
   config,
   lib,
@@ -25,15 +25,6 @@ in {
         ];
       };
       bypassAuth = true;
-      tailscaleExposed = true;
-    };
-
-    media.services.grocy = {
-      port = 80;
-      image = "lscr.io/linuxserver/grocy:latest";
-      container = {
-        exposePort = 9283;
-      };
       tailscaleExposed = true;
     };
 
