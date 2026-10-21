@@ -153,6 +153,22 @@ in {
         '';
       };
     })
+    # Chaotic-Nyx's CachyOS kernel ships no modules.cer, which nixpkgs'
+    # aggregateModules started copying in 6bd7526744 (2026-10-13), so the
+    # kernel-modules tree fails to build on nixos-unstable. Use nixos-26.05's
+    # aggregator (buildEnv plus depmod, nothing else) until nixpkgs#575192 or
+    # chaotic-cx/nyx#3343 is fixed; on 26.05 hosts this is the same file.
+    (lib.mkIf (cfg.enable && cfg.kernelOptimizations) {
+      nixpkgs.overlays = [
+        (final: prev: {
+          aggregateModules = modules:
+            prev.callPackage "${inputs.nixpkgs}/pkgs/os-specific/linux/kmod/aggregator.nix" {
+              inherit (prev.buildPackages) kmod;
+              inherit modules;
+            };
+        })
+      ];
+    })
     (lib.mkIf config.constellation.gaming.enable {
       # Gaming kernel optimizations
       boot = lib.mkIf config.constellation.gaming.kernelOptimizations {
