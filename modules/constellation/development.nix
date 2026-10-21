@@ -2,6 +2,7 @@
 # Provides Docker-based development with easy gaming mode toggle
 {
   config,
+  inputs,
   pkgs,
   lib,
   ...
@@ -150,7 +151,11 @@
         opentofu
         awscli2
         google-cloud-sdk
-        azure-cli
+        # From nixos-26.05 for now: on nixos-unstable azure-cli depends on
+        # python fabric, marked broken against invoke >= 3, which fails
+        # evaluation of raider. Back to `azure-cli` once nixpkgs #576742
+        # (pin invoke for azure-cli) or #576874 (fabric bump) lands.
+        inputs.nixpkgs.legacyPackages.${pkgs.stdenv.hostPlatform.system}.azure-cli
       ];
 
     # Shell aliases
