@@ -50,7 +50,6 @@
     "n8n"
     "netdata"
     "ntfy"
-    "nextcloud"
     "opencloud"
     "resilio"
     "romm"

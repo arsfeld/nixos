@@ -73,7 +73,7 @@ in {
     httpListenAddr = "0.0.0.0";
   };
 
-  users.users.rslsync.extraGroups = ["nextcloud" "media"];
+  users.users.rslsync.extraGroups = ["media"];
 
   sops.secrets."transmission-openvpn-pia" = {};
   sops.secrets."qbittorrent-pia" = {};
