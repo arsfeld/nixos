@@ -1,9 +1,12 @@
 """Climate entity that drives a Midea-protocol AC through a remote entity.
 
 IR is one-way: the state shown is the last one sent, restored across
-restarts, and goes stale if someone uses the physical remote.
+restarts, and goes stale if someone uses the physical remote. Each frame
+is sent twice, 30 seconds apart, so one missed frame does not leave the
+unit in the wrong state.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import voluptuous as vol
@@ -29,7 +32,10 @@ from homeassistant.const import (
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.event import (
+    async_call_later,
+    async_track_state_change_event,
+)
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from . import midea
@@ -62,6 +68,9 @@ FAN_TO_MIDEA = {
 }
 
 ATTR_LAST_MODE = "last_mode"
+
+# Seconds before each frame is sent a second time.
+REPEAT_DELAY = 30
 
 
 async def async_setup_platform(
@@ -99,6 +108,7 @@ class MideaIrClimate(ClimateEntity, RestoreEntity):
         self._attr_fan_mode = FAN_AUTO
         # The mode turn_on returns to; also what an "off" frame carries.
         self._last_mode = HVACMode.HEAT
+        self._cancel_repeat: Callable[[], None] | None = None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -138,7 +148,7 @@ class MideaIrClimate(ClimateEntity, RestoreEntity):
         except ValueError:
             self._attr_current_temperature = None
 
-    async def _send(self) -> None:
+    async def _transmit(self) -> None:
         power = self._attr_hvac_mode != HVACMode.OFF
         data = midea.frame(
             power,
@@ -152,7 +162,27 @@ class MideaIrClimate(ClimateEntity, RestoreEntity):
             {"entity_id": self._remote, "command": ["b64:" + midea.tuya_code(data)]},
             blocking=True,
         )
+
+    async def _send(self) -> None:
+        # Nothing confirms the unit heard a frame, and a missed one stays
+        # missed: the entity already shows the new state, so nothing sends
+        # again. Every frame carries the whole state, so repeating it is
+        # harmless (one more beep); a newer change replaces the pending repeat.
+        if self._cancel_repeat is not None:
+            self._cancel_repeat()
+            self._cancel_repeat = None
+        await self._transmit()
         self.async_write_ha_state()
+        self._cancel_repeat = async_call_later(self.hass, REPEAT_DELAY, self._repeat)
+
+    async def _repeat(self, _now) -> None:
+        self._cancel_repeat = None
+        await self._transmit()
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._cancel_repeat is not None:
+            self._cancel_repeat()
+            self._cancel_repeat = None
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         if hvac_mode != HVACMode.OFF:
