@@ -50,12 +50,6 @@ in {
       bypassAuth = true;
     };
 
-    media.services.overseerr = {
-      port = 5055;
-      container = {};
-      bypassAuth = true;
-    };
-
     # FlareSolverr — solves Cloudflare challenges for indexers. Internal only
     # (no gateway entry): an unauthenticated FlareSolverr is an abusable proxy
     # — /v1 fetches any URL through this host's IP — so it is not exposed

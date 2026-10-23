@@ -31,10 +31,6 @@
       category = "Media";
       icon = "di:komga";
     };
-    overseerr = {
-      category = "Media";
-      icon = "di:overseerr";
-    };
     tautulli = {
       category = "Media";
       icon = "di:tautulli";

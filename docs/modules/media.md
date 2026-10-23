@@ -174,7 +174,6 @@ Media and content management services:
 | Service | Port | Features | Description |
 |---------|------|----------|-------------|
 | nextcloud | 443 | insecureTls, custom volumes | File sync and sharing |
-| overseerr | 5055 | - | Media request management |
 | jackett | 9117 | - | Torrent indexer proxy |
 | bazarr | 6767 | mediaVolumes | Subtitle management |
 | radarr | 7878 | mediaVolumes | Movie automation |
