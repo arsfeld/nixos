@@ -150,6 +150,7 @@ in {
           {
             trigger = "homeassistant";
             event = "start";
+            id = "start";
           }
           {
             trigger = "time_pattern";
@@ -167,6 +168,10 @@ in {
           high = "{{ 19.5 if day else 18 }}";
           setpoint = "{{ 19 if day else 18 }}";
           current = "{{ states('climate.living_room_heat_pump') }}";
+          # IR is one-way, so the unit can disagree with the state HA
+          # restored; on start, send the wanted state even if HA thinks the
+          # unit is already there.
+          resend = "{{ trigger.id == 'start' }}";
           want = ''
             {% if ${hiloReduction} %}off
             {% elif temp is none %}{{ current }}
@@ -178,12 +183,22 @@ in {
         };
         actions = [
           {
+            # Give the IR hub time to connect after a restart.
+            "if" = [
+              {
+                condition = "template";
+                value_template = "{{ resend }}";
+              }
+            ];
+            "then" = [{delay.seconds = 60;}];
+          }
+          {
             choose = [
               {
                 conditions = [
                   {
                     condition = "template";
-                    value_template = "{{ want == 'heat' and (current != 'heat' or state_attr('climate.living_room_heat_pump', 'temperature') | float(0) != setpoint | float) }}";
+                    value_template = "{{ want == 'heat' and (resend or current != 'heat' or state_attr('climate.living_room_heat_pump', 'temperature') | float(0) != setpoint | float) }}";
                   }
                 ];
                 sequence = [
@@ -201,7 +216,7 @@ in {
                 conditions = [
                   {
                     condition = "template";
-                    value_template = "{{ want == 'off' and current != 'off' }}";
+                    value_template = "{{ want == 'off' and (resend or current != 'off') }}";
                   }
                 ];
                 sequence = [
