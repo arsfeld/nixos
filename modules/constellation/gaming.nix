@@ -146,7 +146,18 @@ in {
     # two nodes each (raider's own uses video0 and video1).
     (lib.mkIf config.constellation.gaming.enable {
       boot = {
-        extraModulePackages = [config.boot.kernelPackages.v4l2loopback];
+        # Kbuild's modules_install runs depmod on its own since Linux 7.3, so
+        # v4l2loopback ships modules.dep & co., which collide with the kernel's
+        # in aggregateModules' buildEnv. The aggregator regenerates them anyway.
+        extraModulePackages = [
+          (config.boot.kernelPackages.v4l2loopback.overrideAttrs (old: {
+            postInstall =
+              (old.postInstall or "")
+              + ''
+                rm -f $out/lib/modules/*/modules.*
+              '';
+          }))
+        ];
         kernelModules = ["v4l2loopback"];
         extraModprobeConfig = ''
           options v4l2loopback devices=1 video_nr=10 card_label="OBS Cam" exclusive_caps=1
