@@ -357,6 +357,11 @@ tf *ARGS:
     # Init on every invocation. It is cheap against a filesystem mirror, and it
     # removes the stale-lock failure that otherwise appears whenever nixpkgs
     # bumps a provider under a working directory that outlived it.
+    #
+    # The lock goes too: -upgrade only re-resolves versions, so a nixpkgs
+    # rebuild of the *same* provider version fails its recorded checksum.
+    # The plugin mirror is the pin here; the lock records nothing it doesn't.
+    rm -f .terraform.lock.hcl
     "$tofu" init -input=false -upgrade >/dev/null
 
     # Deliberately not `exec`: exec replaces the shell process image, so the
