@@ -11,7 +11,6 @@ in {
       port = 8080;
       image = "ghcr.io/lukegus/termix:latest";
       container = {};
-      bypassAuth = true;
     };
 
     media.services.transfer = {
@@ -30,7 +29,6 @@ in {
           MAX_UPLOAD_SIZE = "5368709120";
         };
       };
-      bypassAuth = true;
     };
 
     media.services.cloud = {

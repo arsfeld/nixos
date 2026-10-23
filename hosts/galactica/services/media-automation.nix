@@ -95,7 +95,6 @@ in {
           "${vars.storageDir}/media/Pinchflat:/downloads"
         ];
       };
-      bypassAuth = true;
     };
   };
 }

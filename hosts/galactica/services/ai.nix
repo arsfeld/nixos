@@ -9,7 +9,6 @@ in {
   # ollama-api is a gateway alias for the ollama container's published port.
   media.services.ollama-api = {
     port = 11434;
-    bypassAuth = true;
   };
 
   media.services.n8n = {
