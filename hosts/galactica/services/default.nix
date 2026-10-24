@@ -49,6 +49,7 @@
     ./seafile.nix
     ./stashfin.nix
     ./vault.nix
+    ./vault-grab
     ./vpn-exit-nodes.nix
     ./yarr.nix
   ];
