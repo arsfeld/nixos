@@ -96,7 +96,7 @@ def scene_keys(rule, title):
 
 def _rank(candidate):
     result = candidate[0]
-    return (result["indexer"] == QUOTA_INDEXER, -(result.get("seeders") or 0))
+    return (result.get("indexer") == QUOTA_INDEXER, -(result.get("seeders") or 0))
 
 
 def choose(candidates):
@@ -189,29 +189,35 @@ def run(rules, search, fetch, add, state, download_root, now, dry_run=False):
             continue
         candidates = []
         for result in results:
-            reason = skip_reason(rule, result, now)
-            keys = scene_keys(rule, result["title"]) if reason is None else set()
-            if reason is None and not keys:
-                reason = "no scene key"
+            try:
+                reason = skip_reason(rule, result, now)
+                keys = scene_keys(rule, result["title"]) if reason is None else set()
+                if reason is None and not keys:
+                    reason = "no scene key"
+            except Exception as e:  # noqa: BLE001 -- one malformed result must not end the run
+                log(f"[{rule.name}] skip (bad result: {e}): {result.get('title', '?')}")
+                continue
             if reason:
                 if dry_run:
-                    log(f"[{rule.name}] skip ({reason}): {result['title']}")
+                    log(f"[{rule.name}] skip ({reason}): {result.get('title', '?')}")
                 continue
             candidates.append((result, keys))
         scenes = choose(candidates)
         new = [(r, k) for r, k in scenes if not state.grabbed(rule.name, k)]
         log(f"[{rule.name}] {len(results)} results, {len(scenes)} scenes, {len(new)} new")
         for result, keys in new:
-            label = f"[{rule.name}] {result['title']} ({result['indexer']})"
+            label = f"[{rule.name}] {result.get('title', '?')} ({result.get('indexer', '?')})"
             if dry_run:
                 log(f"would grab {label}")
                 continue
             try:
                 name = add(fetch(result["downloadUrl"]), os.path.join(download_root, rule.name))
-            except Exception as e:  # noqa: BLE001 -- not recorded: retried next run
+                state.record(rule.name, keys, result["title"], now.isoformat())
+            except Exception as e:  # noqa: BLE001 -- a failure here must not end the run
+                # A failed record after a successful add leaves the copy in Transmission but
+                # unrecorded, so the next run may grab it again; the alternative is aborting.
                 log(f"grab failed {label}: {e}")
                 continue
-            state.record(rule.name, keys, result["title"], now.isoformat())
             log(f"grabbed {label} as {name!r}")
     return status
 

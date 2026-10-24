@@ -1,4 +1,5 @@
 import datetime
+import io
 import json
 import os
 import tempfile
@@ -227,7 +228,7 @@ class Run(unittest.TestCase):
 
     def fetch(self, url):
         if url in self.fail_urls:
-            raise main.urllib.error.HTTPError(url, 429, "daily limit", {}, None)
+            raise main.urllib.error.HTTPError(url, 429, "daily limit", {}, io.BytesIO())
         return "magnet:" + url
 
     def add(self, torrent, download_dir):
@@ -268,6 +269,33 @@ class Run(unittest.TestCase):
         def broken(query):
             raise OSError("connection refused")
         self.assertEqual(self.go([], search=broken), 1)
+
+    def test_malformed_result_is_skipped_and_run_continues(self):
+        bad = result("StudioA E1001 Some Couple Some Title XXX 1080p", url="bad")
+        del bad["publishDate"]
+        naive = result("StudioA E1003 Third Couple Third Title XXX 1080p", url="naive",
+                       published="2026-10-17T20:00:00")
+        status = self.go([bad, naive, result("StudioA E1002 Other Couple Other Title XXX 1080p", url="good")])
+        self.assertEqual(status, 0)
+        self.assertEqual(self.added, [("magnet:good", "/vault/Studio A")])
+
+    def test_failed_state_write_after_add_does_not_stop_the_run(self):
+        class FailingOnce(main.State):
+            calls = 0
+
+            def record(self, *args):
+                FailingOnce.calls += 1
+                if FailingOnce.calls == 1:
+                    raise OSError("disk full")
+                super().record(*args)
+
+        self.state = FailingOnce(os.path.join(tempfile.mkdtemp(), "state.json"))
+        status = self.go([result("StudioA E1001 Some Couple Some Title XXX 1080p", url="first"),
+                          result("StudioA E1002 Other Couple Other Title XXX 1080p", url="second")])
+        self.assertEqual(status, 0)
+        self.assertEqual(self.added, [("magnet:first", "/vault/Studio A"), ("magnet:second", "/vault/Studio A")])
+        self.assertFalse(self.state.grabbed("Studio A", {"ep:1001"}))
+        self.assertTrue(self.state.grabbed("Studio A", {"ep:1002"}))
 
     def test_dry_run_writes_nothing(self):
         self.go([result("StudioA E1001 Some Couple Some Title XXX 1080p")], dry_run=True)
