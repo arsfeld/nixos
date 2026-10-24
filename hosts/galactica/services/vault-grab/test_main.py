@@ -1,7 +1,10 @@
 import datetime
+import json
 import os
 import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import main
 
@@ -123,6 +126,153 @@ class Choose(unittest.TestCase):
     def test_distinct_scenes_stay_apart(self):
         scenes = main.choose([(result("a"), {"ep:1"}), (result("b"), {"ep:2"})])
         self.assertEqual(len(scenes), 2)
+
+
+class ApiKey(unittest.TestCase):
+    def test_reads_config_xml(self):
+        path = rules_file("<Config>\n  <Port>9696</Port>\n  <ApiKey>abc123</ApiKey>\n</Config>\n")
+        self.assertEqual(main.api_key(path), "abc123")
+        os.unlink(path)
+
+    def test_missing(self):
+        path = rules_file("<Config></Config>")
+        with self.assertRaisesRegex(ValueError, "no <ApiKey>"):
+            main.api_key(path)
+        os.unlink(path)
+
+
+class Download(BaseHTTPRequestHandler):
+    """Prowlarr's /download: a 301 to a magnet for one indexer, .torrent bytes for another."""
+    def do_GET(self):
+        if self.path == "/magnet":
+            self.send_response(301)
+            self.send_header("Location", "magnet:?xt=urn:btih:ABC&dn=x")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+        elif self.path == "/torrent":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-bittorrent")
+            self.send_header("Content-Length", "8")
+            self.end_headers()
+            self.wfile.write(b"d4:infoe")
+        elif self.path == "/html":
+            self.send_response(200)
+            self.send_header("Content-Length", "6")
+            self.end_headers()
+            self.wfile.write(b"<html>")
+        elif self.path.startswith("/api/v1/search"):
+            body = json.dumps([{"title": self.path, "key": self.headers.get("X-Api-Key")}]).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        else:
+            self.send_response(500)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+    def log_message(self, *args):
+        pass
+
+
+class Http(unittest.TestCase):
+    def setUp(self):
+        self.server = HTTPServer(("127.0.0.1", 0), Download)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.base = "http://127.0.0.1:%d" % self.server.server_port
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+    def test_magnet_redirect_is_not_followed(self):
+        self.assertEqual(main.fetch(self.base + "/magnet"), "magnet:?xt=urn:btih:ABC&dn=x")
+
+    def test_torrent_bytes(self):
+        self.assertEqual(main.fetch(self.base + "/torrent"), b"d4:infoe")
+
+    def test_not_a_torrent(self):
+        with self.assertRaisesRegex(ValueError, "not a .torrent"):
+            main.fetch(self.base + "/html")
+
+    def test_server_error(self):
+        with self.assertRaises(main.urllib.error.HTTPError):
+            main.fetch(self.base + "/boom")
+
+    def test_search_sends_key_and_query(self):
+        [item] = main.search(self.base, "k3y", "studio a")
+        self.assertEqual(item["key"], "k3y")
+        self.assertIn("query=studio+a", item["title"])
+        self.assertIn("type=search", item["title"])
+
+
+class StateFile(unittest.TestCase):
+    def test_record_persists_and_matches_any_key(self):
+        path = os.path.join(tempfile.mkdtemp(), "state.json")
+        s = main.State(path)
+        self.assertFalse(s.grabbed("Studio A", {"ep:1"}))
+        s.record("Studio A", {"ep:1", "name:abcdefgh"}, "t", "2026-10-24T00:00:00+00:00")
+        again = main.State(path)
+        self.assertTrue(again.grabbed("Studio A", {"name:abcdefgh"}))
+        self.assertFalse(again.grabbed("Studio B", {"ep:1"}))
+        self.assertFalse(os.path.exists(path + ".tmp"))
+
+
+class Run(unittest.TestCase):
+    def setUp(self):
+        self.state = main.State(os.path.join(tempfile.mkdtemp(), "state.json"))
+        self.added = []
+        self.fail_urls = set()
+
+    def fetch(self, url):
+        if url in self.fail_urls:
+            raise main.urllib.error.HTTPError(url, 429, "daily limit", {}, None)
+        return "magnet:" + url
+
+    def add(self, torrent, download_dir):
+        self.added.append((torrent, download_dir))
+        return "name"
+
+    def go(self, results, dry_run=False, search=None):
+        return main.run([A], search or (lambda q: results), self.fetch, self.add, self.state,
+                        "/vault", NOW, dry_run)
+
+    def test_grabs_one_copy_per_scene_into_studio_dir(self):
+        results = [
+            result("StudioA E2283 Iris And Jase How We Deepthroat XXX 480p MP4 XXX [XC]", url="u480"),
+            result("StudioA E2283 Iris And Jase How We Deepthroat XXX 1080p MP4 FETiSH [XC]", url="u1080"),
+            result("[StudioA.com] Iris & Jase - How We Deepthroat (E2283) [2026-10-15, 1080p, SiteRip]",
+                   indexer="PornoLab", seeders=90, url="ulab"),
+            result("Unrelated Release 1080p", url="other"),
+        ]
+        self.assertEqual(self.go(results), 0)
+        self.assertEqual(self.added, [("magnet:u1080", "/vault/Studio A")])
+        self.assertTrue(self.state.grabbed("Studio A", {"name:irisandjasehowwedeepthroat"}))
+
+    def test_already_grabbed_is_skipped(self):
+        self.state.record("Studio A", {"ep:2283"}, "t", "x")
+        self.go([result("StudioA E2283 Iris And Jase How We Deepthroat XXX 1080p MP4 [XC]")])
+        self.assertEqual(self.added, [])
+
+    def test_failed_grab_is_not_recorded_and_others_continue(self):
+        self.fail_urls = {"bad"}
+        status = self.go([result("StudioA E1001 Some Couple Some Title XXX 1080p", url="bad"),
+                          result("StudioA E1002 Other Couple Other Title XXX 1080p", url="good")])
+        self.assertEqual(status, 0)
+        self.assertEqual(self.added, [("magnet:good", "/vault/Studio A")])
+        self.assertFalse(self.state.grabbed("Studio A", {"ep:1001"}))
+        self.assertTrue(self.state.grabbed("Studio A", {"ep:1002"}))
+
+    def test_failed_search_exits_1(self):
+        def broken(query):
+            raise OSError("connection refused")
+        self.assertEqual(self.go([], search=broken), 1)
+
+    def test_dry_run_writes_nothing(self):
+        self.go([result("StudioA E1001 Some Couple Some Title XXX 1080p")], dry_run=True)
+        self.assertEqual(self.added, [])
+        self.assertFalse(os.path.exists(self.state.path))
 
 
 if __name__ == "__main__":
