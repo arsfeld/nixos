@@ -592,6 +592,34 @@ in {
           serviceConfig.ExecStart = "${pkgs.indicator-application-gtk3}/libexec/indicator-application/indicator-application-service";
         };
 
+        # The Monitor indicator only draws what the Monitor app sends it over
+        # D-Bus, and it is hidden by default. elementary OS starts the app at
+        # login through a portal-written autostart entry; here a user unit does.
+        systemd.user.services.elementary-monitor = {
+          description = "elementary Monitor, feeding the Wingpanel indicator";
+          wantedBy = ["graphical-session.target"];
+          partOf = ["graphical-session.target"];
+          after = ["graphical-session.target"];
+          serviceConfig.ExecStart = "${pkgs.pantheon.elementary-monitor}/bin/io.elementary.monitor --start-in-background";
+        };
+
+        # System defaults, so a value changed in Monitor's preferences wins.
+        programs.dconf.profiles.user.databases = [
+          {
+            settings."io/elementary/monitor/settings" = {
+              indicator-state = true;
+              background-state = true;
+              indicator-cpu-state = true;
+              indicator-cpu-temperature-state = true;
+              indicator-memory-state = true;
+              indicator-gpu-state = true;
+              indicator-gpu-temperature-state = true;
+              indicator-network-download-state = true;
+              indicator-network-upload-state = true;
+            };
+          }
+        ];
+
         environment.systemPackages = [pkgs.pantheon-tweaks];
 
         # Defining remotes replaces nix-flatpak's default, so flathub is
