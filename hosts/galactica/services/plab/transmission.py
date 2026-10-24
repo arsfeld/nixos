@@ -1,4 +1,4 @@
-"""Transmission RPC, just `torrent-add`, including its CSRF session-id handshake."""
+"""Transmission RPC, just `torrent-add` (bytes or magnet), including its CSRF session-id handshake."""
 import base64
 import json
 import urllib.error
@@ -10,10 +10,13 @@ class TransmissionError(Exception):
 
 
 def add(url, torrent, download_dir):
-    """Add a .torrent's bytes; return the torrent's name. A duplicate is not an error."""
+    """Add a torrent, as .torrent bytes or a magnet link (str); return its name. A duplicate
+    is not an error."""
+    source = ({"filename": torrent} if isinstance(torrent, str)
+              else {"metainfo": base64.b64encode(torrent).decode()})
     body = json.dumps({
         "method": "torrent-add",
-        "arguments": {"metainfo": base64.b64encode(torrent).decode(), "download-dir": download_dir},
+        "arguments": {**source, "download-dir": download_dir},
     }).encode()
     session = ""
     # The first request is answered 409 with the session id to send on the second.

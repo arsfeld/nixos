@@ -59,6 +59,15 @@ class Add(unittest.TestCase):
         Stub.reply = {"result": "success", "arguments": {"torrent-duplicate": {"name": "Old Release"}}}
         self.assertEqual(transmission.add(self.url, b"d4:infoe", "/x"), "Old Release")
 
+    def test_magnet_is_sent_as_filename(self):
+        Stub.reply = {"result": "success", "arguments": {"torrent-added": {"name": "Magnet Release"}}}
+        magnet = "magnet:?xt=urn:btih:836EDDB16DC9A43927DAA5A83F2726513069B41A&dn=x"
+        self.assertEqual(transmission.add(self.url, magnet, "/x"), "Magnet Release")
+        args = Stub.requests[1][1]["arguments"]
+        self.assertEqual(args["filename"], magnet)
+        self.assertNotIn("metainfo", args)
+        self.assertEqual(args["download-dir"], "/x")
+
     def test_failure_result_raises(self):
         Stub.reply = {"result": "invalid or corrupt torrent file", "arguments": {}}
         with self.assertRaisesRegex(transmission.TransmissionError, "invalid or corrupt"):
