@@ -44,8 +44,7 @@ PornoLab.
 hosts/galactica/services/vault-grab/
   default.nix     timer, service, sops secret, wrapper script
   main.py         rules, search, select, grab, state
-  test_main.py    unittest, run with `python3 -m unittest -v` in this directory
-  fixtures/       Prowlarr /api/v1/search JSON captured from galactica, titles intact
+  test_main.py    unittest: `PYTHONPATH=../plab python3 -m unittest -v` in this directory
 ```
 
 `default.nix` is added to `hosts/galactica/services/default.nix` imports.
@@ -174,7 +173,8 @@ galactica after deploying.
 `test_main.py`, stdlib `unittest`, no network:
 
 - Rules parsing: blocks, comments, missing keys, a bad regex.
-- Filtering against the captured fixtures. The 480p twin, a pack, an old-year re-upload
+- Filtering against synthetic results that copy each source's real naming shape with
+  placeholder studios (captured titles would put studio names in the repo). The 480p twin, a pack, an old-year re-upload
   and the compilation whose credits mention a studio are all rejected. The 1080p and
   1088p scenes are kept.
 - Keys: both naming schemes for the same scene yield a shared key. A short name is not
