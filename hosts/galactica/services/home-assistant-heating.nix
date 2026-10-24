@@ -18,11 +18,14 @@
 #              so a deploy never overwrites a manual change.
 #
 # The heat pump (Kanion, IR-only) heats the living and dining rooms, and its heat
-# reaches the bedrooms too, so it should run as much as possible: it turns on
+# reaches the bedrooms too (their baseboards only hold 18 underneath it), so it
+# should run as much as possible: it turns on
 # below 18.5°C from 05:00 (an hour of pre-heat) to 22:00 and below 18°C
 # overnight, and only shuts down above 21°C. Its own thermostat reads far colder
-# than the room, so it is driven on/off from the living area sensor, always at
-# setpoint 19: running long and gently beats short bursts at 21. On frosty
+# than the room, so it is driven on/off from the living area sensor. Its setpoint
+# is 19 in mild weather, where running long and gently beats short bursts; below
+# 5°C outside it is 21, because at 19 it only holds the room near 18.5 and its
+# heat never reaches the bedrooms. On frosty
 # mornings it shows "dF" and stops blowing for 5-10 minutes while it defrosts;
 # the room drops ~1°C and recovers, which is why the backup waits 30 minutes.
 #
@@ -46,15 +49,15 @@
   baseboards =
     {
       master_bedroom = {
-        target = "19";
+        target = "18";
         at = dayNight;
       };
       amanda_bedroom = {
-        target = "19";
+        target = "18";
         at = dayNight;
       };
       beas_bedroom = {
-        target = "19";
+        target = "18";
         at = dayNight;
       };
       bathroom = {
@@ -166,7 +169,7 @@ in {
           day = "{{ 5 <= now().hour < 22 }}";
           low = "{{ 18.5 if day else 18 }}";
           high = 21;
-          setpoint = 19;
+          setpoint = "{{ 21 if states('sensor.outdoor_weather_hilo') | float(99) < 5 else 19 }}";
           current = "{{ states('climate.living_room_heat_pump') }}";
           # IR is one-way, so the unit can disagree with the state HA
           # restored; on start, send the wanted state even if HA thinks the
