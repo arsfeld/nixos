@@ -17,12 +17,12 @@
 #              A switch missed while HA was down is skipped, not caught up,
 #              so a deploy never overwrites a manual change.
 #
-# The heat pump (Kanion, IR-only) heats the living and dining rooms: 18.5-19.5°C
-# from 05:00 (an hour of pre-heat) to 22:00, 17-18°C overnight. Its own
-# thermostat reads far colder than the room, so it is driven on/off from the
-# living area sensor. By day the band is narrow and the setpoint 19, not its
-# top: running often and gently beats short bursts at 21, which overshoot.
-# Overnight the setpoint is still the top of the band. On frosty
+# The heat pump (Kanion, IR-only) heats the living and dining rooms, and its heat
+# reaches the bedrooms too, so it should run as much as possible: it turns on
+# below 18.5°C from 05:00 (an hour of pre-heat) to 22:00 and below 18°C
+# overnight, and only shuts down above 21°C. Its own thermostat reads far colder
+# than the room, so it is driven on/off from the living area sensor, always at
+# setpoint 19: running long and gently beats short bursts at 21. On frosty
 # mornings it shows "dF" and stops blowing for 5-10 minutes while it defrosts;
 # the room drops ~1°C and recovers, which is why the backup waits 30 minutes.
 #
@@ -145,7 +145,7 @@ in {
     "automation heating" = [
       {
         alias = "Heating - Heat pump";
-        description = "Hold the living area at 18.5-19.5°C by day and 17-18°C at night with the heat pump";
+        description = "Run the heat pump below 18.5°C by day and 18°C at night, until the living area passes 21°C";
         triggers = [
           {
             trigger = "homeassistant";
@@ -164,9 +164,9 @@ in {
         variables = {
           temp = "{{ states('sensor.living_area_temperature') | float(none) }}";
           day = "{{ 5 <= now().hour < 22 }}";
-          low = "{{ 18.5 if day else 17 }}";
-          high = "{{ 19.5 if day else 18 }}";
-          setpoint = "{{ 19 if day else 18 }}";
+          low = "{{ 18.5 if day else 18 }}";
+          high = 21;
+          setpoint = 19;
           current = "{{ states('climate.living_room_heat_pump') }}";
           # IR is one-way, so the unit can disagree with the state HA
           # restored; on start, send the wanted state even if HA thinks the
