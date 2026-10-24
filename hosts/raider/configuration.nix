@@ -108,7 +108,9 @@
   constellation = {
     desktop = {
       enable = true;
-      variant = "gnome";
+      # Experimental. "gnome" is the way back: the GNOME settings below and in
+      # appearance.nix are inert under Pantheon and kept for that switch.
+      variant = "pantheon";
     };
     gaming = {
       enable = true;
