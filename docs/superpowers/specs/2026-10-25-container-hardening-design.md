@@ -100,8 +100,9 @@ or an opt-out.
    the set before the deploy.
 3. For every container, `podman inspect` shows `EffectiveCaps` equal to its
    configured `caps` and `no-new-privileges` in `SecurityOpt`.
-4. Every gateway entry on the host answers with something other than a 5xx
-   (an Authelia redirect counts as up).
+4. Every hardened container's published port on `127.0.0.1` answers with
+   something other than a 5xx or a connection failure. This tests the
+   container itself rather than the gateway in front of it.
 5. Any failure: give the container its `caps` or opt it out, redeploy, and
    re-check before the next host.
 

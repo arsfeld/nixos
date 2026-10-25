@@ -68,6 +68,61 @@
           if missing == []
           then pkgs.runCommand "media-lower-layers-guarded" {} "touch $out"
           else throw "media lower-layer guard did not fire for: ${lib.concatStringsSep ", " missing}";
+
+        # Every media container is hardened by default (see
+        # docs/superpowers/specs/2026-10-25-container-hardening-design.md).
+        # Probe galactica with one service per case and compare the
+        # generated capability and security flags exactly.
+        media-container-hardening = let
+          pkgs = inputs.nixpkgs.legacyPackages.${system};
+          inherit (pkgs) lib;
+          other = "docker.io/example/other:latest";
+          probed = self.nixosConfigurations.galactica.extendModules {
+            modules = [
+              {
+                media.services = {
+                  hprobe-lsio = {
+                    port = 1;
+                    container = {};
+                  };
+                  hprobe-other = {
+                    port = 2;
+                    image = other;
+                    container = {};
+                  };
+                  hprobe-caps = {
+                    port = 3;
+                    image = other;
+                    container.hardening.caps = ["NET_ADMIN"];
+                  };
+                  hprobe-optout = {
+                    port = 4;
+                    container.hardening.enable = false;
+                  };
+                  hprobe-priv = {
+                    port = 5;
+                    container.privileged = true;
+                  };
+                };
+              }
+            ];
+          };
+          flags = n:
+            lib.filter (o: lib.hasPrefix "--cap-" o || lib.hasPrefix "--security-opt" o)
+            probed.config.virtualisation.oci-containers.containers.${n}.extraOptions;
+          wrap = caps: ["--cap-drop=ALL"] ++ map (c: "--cap-add=${c}") caps ++ ["--security-opt=no-new-privileges"];
+          expect = {
+            hprobe-lsio = wrap ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID" "KILL"];
+            hprobe-other = wrap [];
+            hprobe-caps = wrap ["NET_ADMIN"];
+            hprobe-optout = [];
+            hprobe-priv = [];
+          };
+          wrong = lib.filter (n: flags n != expect.${n}) (lib.attrNames expect);
+        in
+          if wrong == []
+          then pkgs.runCommand "media-container-hardening" {} "touch $out"
+          else throw "hardening flags wrong for: ${lib.concatMapStringsSep "; " (n: "${n} = ${builtins.toJSON (flags n)}") wrong}";
       };
   };
 }
