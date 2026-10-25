@@ -24,6 +24,9 @@
     container = {
       exposePort = 18000; # host port the gateway/tsnsrv proxy to
       configDir = null; # skip the auto /var/data/chat mount; mount the real dirs below
+      # The entrypoint starts as root, chowns config/plugins/backups (CHOWN) and
+      # then su-execs to the node user (SETUID, SETGID: su-exec calls setgroups).
+      hardening.caps = ["CHOWN" "SETUID" "SETGID"];
       environment = {
         SILLYTAVERN_LISTEN = "true";
         SILLYTAVERN_WHITELISTMODE = "false"; # behind reverse proxy / tailnet
