@@ -82,13 +82,21 @@ All hosts are reached via Tailscale: `<hostname>.bat-boa.ts.net`.
 
 ### Weekly Automation
 
-- **raider `weekly-update`** (Sun 03:00 local time): Runs autonomously on raider via `systemd.timers.weekly-update` (with `Persistent = true` to run upon wake/boot if sleeping).
-  1. Operates inside an isolated checkout at `~/.local/share/nixos-weekly-update/nixos` (never touching `~/Code/nixos`).
-  2. Runs `nix flake update` and verifies tier-1 builds via `just dry-run @tier1`.
-  3. If build/eval breakage occurs (e.g. insecure packages, renamed options), invokes `agy` (Antigravity CLI) non-interactively to diagnose and fix configurations, guarded by an independent verification gate.
-  4. Pushes valid commits to `master` and executes `just deploy @tier1` (pushing closures to `niks3.arsfeld.dev` and switching `basestar`, `galactica`, and `raider`).
-  5. Dispatches run reports to both **ntfy** (`https://ntfy.arsfeld.one/backups`) and **email** (`admin@rosenfeld.one` -> `alex@rosenfeld.one`).
-- **Manual Trigger**: Run `just auto-update` or `sudo systemctl start weekly-update`.
+One Claude Code routine, **"Weekly update"** (`trig_01KqiDqysZT58PSTrTCoKRbP`, Sat 03:00
+America/Toronto), runs on raider and does the whole weekly cycle. Its prompt lives in the
+routine, not in this repo; edit it at claude.ai/code/routines or via the RemoteTrigger API.
+
+1. Works in the isolated clone `~/.local/share/nixos-weekly-update/nixos`, reset to
+   `origin/master`, never in `~/Code/nixos` — so a deploy can never pick up uncommitted work.
+2. `nix flake update`, then `just dry-run @tier1`; on breakage it diagnoses and fixes the
+   config itself and re-verifies. Committed as `chore(modules): update flake inputs`.
+3. `just update-packages`; bumps are committed per package, failures are fixed in
+   `packages/<name>/` or reverted.
+4. Pushes, `just deploy @tier1`, then checks `systemctl --failed` on each tier-1 host.
+5. Reports via push notification and ntfy (`https://ntfy.arsfeld.one/backups`).
+
+It replaced the `weekly-update` systemd timer, whose `agy` healing step failed three Sundays
+out of four. Run it on demand with "Run now" on the routine.
 
 The binary cache is two endpoints, and only one of them is a server:
 
@@ -311,7 +319,7 @@ during a restore.
 
 k3s is pinned to `pkgs.k3s_1_35`, and must stay pinned to *some* explicit attribute rather
 than the floating `pkgs.k3s`. Kubernetes does not support skipping minor versions on
-upgrade, and `weekly-update` runs `nix flake update` unattended every Sunday — unpinned,
+upgrade, and the weekly update routine runs `nix flake update` unattended every Saturday — unpinned,
 that job can carry the cluster a minor version, or two, with nobody reading the diff. A
 Kubernetes upgrade should be a deliberate one-line commit.
 
@@ -619,7 +627,7 @@ Host-local modules (see the rule above): galactica —
 `backup/rustic.nix`, and under `services/` `pia`, `opencloud`, `home-assistant`,
 `tablet-sync`, `vpn-exit-nodes`, `immich-pixel-sync/`, `stash-identify/`, `media-apps`, `media-automation`,
 `media-streaming`, `home-apps`, `network-tools`; basestar — `k3s.nix`, `sites/`;
-raider — `docker.nix`, `project-vms.nix`, `weekly-update.nix`; pegasus — `media-sync.nix`.
+raider — `docker.nix`, `project-vms.nix`; pegasus — `media-sync.nix`.
 
 ### Media Configuration Variables (`modules/media/config.nix`)
 

@@ -109,8 +109,8 @@ in {
       role = "server";
 
       # Pinned, never the floating `pkgs.k3s`. Kubernetes does not support
-      # skipping minor versions, and `Weekly Update` runs `nix flake update`
-      # unattended every Sunday — an unpinned attribute lets that job move the
+      # skipping minor versions, and the weekly update routine runs `nix flake
+      # update` unattended every Saturday — an unpinned attribute lets it move the
       # cluster a minor version, or two, with no review.
       package = pkgs.k3s_1_35;
 

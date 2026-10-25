@@ -606,6 +606,11 @@ in {
         # System defaults, so a value changed in Monitor's preferences wins.
         programs.dconf.profiles.user.databases = [
           {
+            # Pantheon's own default, Adwaita Mono, has no Nerd Font glyphs, so
+            # io.elementary.terminal drew the shell prompt's powerline symbols
+            # as boxes. Same face as ghostty; a per-user value still wins
+            # (raider sets SF Mono in fontconfig.nix).
+            settings."org/gnome/desktop/interface".monospace-font-name = "FiraCode Nerd Font 10";
             settings."io/elementary/monitor/settings" = {
               indicator-state = true;
               background-state = true;

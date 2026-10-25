@@ -7,10 +7,6 @@ mod eufy 'just/eufy.just'
 fmt:
     alejandra .
 
-# Run the autonomous weekly flake update, healing, and tier-1 deployment
-auto-update:
-    systemctl start weekly-update.service || weekly-update
-
 # Bump packages/ to their latest upstream release with nix-update and build
 # each one; a package that fails to update or build is reverted. With no
 # arguments, runs over every package that can be bumped unattended. Not in the
