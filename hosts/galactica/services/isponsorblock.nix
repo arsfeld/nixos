@@ -85,6 +85,7 @@ in {
       useACMEHost = "arsfeld.one";
       extraConfig = ''
         encode zstd gzip
+        import no_brotli_requests
 
         header {
           X-Frame-Options "SAMEORIGIN"

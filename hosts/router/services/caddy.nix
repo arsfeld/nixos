@@ -9,6 +9,10 @@
 
   # Shared routing configuration for both internal IP and Tailscale access
   routerRoutes = ''
+    # CVE-2026-111497 ("Broccoli2Shell"): reject Brotli-encoded request
+    # bodies before they reach a backend with a vulnerable Brotli decoder.
+    import no_brotli_requests
+
     # Router metrics API endpoints
     handle /api/* {
       reverse_proxy localhost:8085

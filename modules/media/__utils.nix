@@ -152,6 +152,7 @@ in
             proxyConfig = ''
               import errors
               import strip_nextjs_exploit
+              import no_brotli_requests
               reverse_proxy ${protocol}://${cfg.host}:${toString cfg.port} {
                 ${insecureTlsConfig}
                 # Only convert 500/503 to errors for fancy error pages

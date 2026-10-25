@@ -20,6 +20,7 @@
 
     # Common overlays used everywhere
     overlays = [
+      (import ../overlays/cve-2026-111497.nix)
       (import ../overlays/python-packages.nix)
       (import ../overlays/openldap.nix)
       (import ../overlays/glances.nix)
