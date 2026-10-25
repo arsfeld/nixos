@@ -74,7 +74,9 @@ in {
     sops.enable = true;
     desktop = {
       enable = true;
-      variant = "gnome";
+      # Experimental. "gnome" is the way back: the GNOME settings below are
+      # inert under Pantheon and kept for that switch.
+      variant = "pantheon";
       gnome.monitorControl.enable = true;
       gnome.gpuMonitor.enable = true;
       gnome.theme = {
