@@ -65,6 +65,8 @@ in {
       mediaVolumes = true;
       network = "host";
       devices = ["/dev/dri:/dev/dri"];
+      # s6 init starts as root, chowns /config, then drops to PUID/PGID.
+      hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID" "KILL"];
       environment.VERSION = "docker";
     };
   };
@@ -82,6 +84,9 @@ in {
     container = {
       exposePort = 9999;
       configDir = "/root/.stash";
+      # Runs as root over a config dir owned by PUID 5000 (mode 0600 files);
+      # the probe's empty tmpfs hid this.
+      hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
       mediaVolumes = true;
       network = "host";
       devices = ["/dev/dri:/dev/dri"];
@@ -100,6 +105,9 @@ in {
       mediaVolumes = true;
       network = "host";
       devices = ["/dev/dri:/dev/dri"];
+      # docker-entrypoint.sh runs as root: usermod, chown -R /config /data /app,
+      # then su-exec to the mydia user.
+      hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
       environment = {
         PHX_HOST = "mydia.arsfeld.xyz";
         PORT = "4000";
