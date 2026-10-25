@@ -95,8 +95,7 @@ routine, not in this repo; edit it at claude.ai/code/routines or via the RemoteT
 4. Pushes, `just deploy @tier1`, then checks `systemctl --failed` on each tier-1 host.
 5. Reports via push notification and ntfy (`https://ntfy.arsfeld.one/backups`).
 
-It replaced the `weekly-update` systemd timer, whose `agy` healing step failed three Sundays
-out of four. Run it on demand with "Run now" on the routine.
+Run it on demand with "Run now" on the routine.
 
 The binary cache is two endpoints, and only one of them is a server:
 
