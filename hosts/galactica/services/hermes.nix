@@ -25,6 +25,9 @@ in {
     cmd = ["gateway" "run"];
     watchImage = true;
     container = {
+      # Disabled 2026-10-25 for CVE-2026-111497 (Brotli OOB write): the image's
+      # brotlicffi 1.2.0.2 decodes pages the agent browses. Re-enable at >= 1.2.1.0.
+      enable = false;
       configDir = "/opt/data";
       environment = {
         HERMES_DASHBOARD = "1";
