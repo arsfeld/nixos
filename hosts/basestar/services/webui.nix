@@ -14,8 +14,8 @@
     container = {
       configDir = "/app/backend/data"; # -> /var/data/webui:/app/backend/data
       # Runs as root (ignores PUID/PGID) in a data dir owned by uid 5000: it needs
-      # DAC_OVERRIDE to write there and FOWNER for files that user created.
-      hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
+      # DAC_OVERRIDE to write there. FOWNER was tried and is not needed.
+      hardening.caps = ["DAC_OVERRIDE"];
       environmentFiles = [config.sops.secrets."open-webui-env".path];
       environment = {
         # OpenRouter as the OpenAI-compatible backend (key is in env file).
