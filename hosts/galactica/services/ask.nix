@@ -31,6 +31,9 @@
     tailscaleExposed = true; # ask.bat-boa.ts.net
     watchImage = true;
     container = {
+      # Disabled 2026-10-25 for CVE-2026-111497 (Brotli OOB write): Node 24.5.0
+      # decodes pages from search results. Re-enable on Node >= 24.22.1.
+      enable = false;
       # config.json, db.sqlite and uploads/ all live under this single dir
       # (src/lib/config/index.ts, src/lib/db/index.ts, src/lib/uploads/manager.ts),
       # so one mount covers all of Vane's state. -> /var/data/ask:/home/vane/data

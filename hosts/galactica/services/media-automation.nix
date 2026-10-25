@@ -10,6 +10,9 @@ in {
     media.services.radarr = {
       port = 7878;
       container = {
+        # Disabled 2026-10-25 for CVE-2026-111497 (Brotli OOB write): .NET bundles an
+        # unpatched Brotli. Re-enable once the image ships a fixed .NET runtime.
+        enable = false;
         mediaVolumes = true;
       };
     };
@@ -17,6 +20,8 @@ in {
     media.services.sonarr = {
       port = 8989;
       container = {
+        # Disabled 2026-10-25 for CVE-2026-111497 (Brotli OOB write): see radarr.
+        enable = false;
         mediaVolumes = true;
       };
     };
@@ -39,7 +44,10 @@ in {
 
     media.services.jackett = {
       port = 9117;
-      container = {};
+      container = {
+        # Disabled 2026-10-25 for CVE-2026-111497 (Brotli OOB write): see radarr.
+        enable = false;
+      };
       bypassAuth = true;
     };
 

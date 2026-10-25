@@ -69,7 +69,9 @@ with lib; let
     gatewayExtras = gatewayExtrasOf svc;
   in
     if svc.container != null
-    then optionalAttrs (gatewayExtras != {}) {${name} = gatewayExtras;}
+    # A disabled container gets no gateway entry, so it must not get extras
+    # either: they alone would create one, pointing at nothing.
+    then optionalAttrs (gatewayExtras != {} && svc.container.enable or true) {${name} = gatewayExtras;}
     else {
       ${name} =
         gatewayExtras
