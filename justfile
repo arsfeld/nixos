@@ -150,6 +150,20 @@ _apply ACTION +TARGETS:
     # Phase 2's --use-substitutes is what keeps that from biting in the other
     # direction — a target that still cannot substitute receives the closure
     # over SSH instead of failing.
+    # nix-eval-jobs never uses remote builders, so import-from-derivation
+    # for another platform fails in its workers with "platform mismatch".
+    # system.replaceDependencies is IFD (the CVE-2026-111497 graft uses it),
+    # so basestar cannot evaluate there. A plain `nix eval` does use the
+    # builders; realising each foreign host's IFD first leaves nix-eval-jobs
+    # nothing to build. Cheap when there is no IFD: it is one evaluation.
+    local=$(nix eval --raw --impure --expr builtins.currentSystem)
+    for h in $hosts; do
+      if [ "$(nix eval --raw ".#nixosConfigurations.$h.config.nixpkgs.buildPlatform.system")" != "$local" ]; then
+        echo "==> pre-evaluating $h (foreign-platform IFD)"
+        nix eval --raw ".#deployTargets.$h.drvPath" >/dev/null
+      fi
+    done
+
     nix-fast-build \
       --flake '.#deployTargets' \
       --select "t: { inherit (t) ${hosts}; }" \
