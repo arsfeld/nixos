@@ -515,7 +515,7 @@ in {
       post)
         for dev in /sys/bus/hid/drivers/asus/*0B05:1866*; do
           [ -L "$dev" ] || continue
-          id=$(basename "$dev")
+          id=''${dev##*/}
           echo "$id" > /sys/bus/hid/drivers/asus/unbind 2>/dev/null || true
           echo "$id" > /sys/bus/hid/drivers/asus/bind 2>/dev/null || true
         done
