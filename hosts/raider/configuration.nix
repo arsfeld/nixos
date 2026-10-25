@@ -17,12 +17,8 @@
     ./docker.nix
     ./project-vms.nix
     inputs.niks3.nixosModules.niks3-auto-upload
-    ./weekly-update.nix
     ./zellij-socket-watch.nix
   ];
-
-  # Autonomous weekly flake update and AI healing
-  services.weeklyUpdate.enable = true;
 
   # Enable sops-nix for secrets management
   constellation.sops.enable = true;
