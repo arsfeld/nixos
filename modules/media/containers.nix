@@ -48,6 +48,12 @@ with lib; let
     then config.virtualisation.docker.package
     else config.virtualisation.podman.package;
   backendBin = "${backendPkg}/bin/${backend}";
+  # linuxserver images start as root under s6 and drop to PUID/PGID, which
+  # needs these. Every other image starts with none and is given what it
+  # needs explicitly.
+  linuxserverCaps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID" "KILL"];
+  isLinuxserver = image:
+    hasPrefix "ghcr.io/linuxserver/" image || hasPrefix "lscr.io/linuxserver/" image;
 in {
   imports = [
     ./config.nix
@@ -202,6 +208,34 @@ in {
             Uses systemd time span format (e.g. "5min", "15min", "1h").
             Only used when watchImage is true.
           '';
+        };
+        hardening = {
+          enable = mkOption {
+            type = types.bool;
+            default = true;
+            description = ''
+              Run with --cap-drop=ALL, the capabilities in `caps`, and
+              no-new-privileges. Ignored for privileged containers. Opt out
+              only with a comment saying why; see
+              docs/superpowers/specs/2026-10-25-container-hardening-design.md.
+            '';
+          };
+          caps = mkOption {
+            type = types.listOf types.str;
+            default =
+              if isLinuxserver config.image
+              then linuxserverCaps
+              else [];
+            defaultText = literalExpression ''
+              if the image is ghcr.io/linuxserver/* or lscr.io/linuxserver/*
+              then ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID" "KILL"]
+              else []
+            '';
+            description = ''
+              Capabilities, without the CAP_ prefix, added back after
+              --cap-drop=ALL. Comment any explicit value with the reason.
+            '';
+          };
         };
       };
     }));
@@ -416,6 +450,11 @@ in {
               extraOptions = flatten [
                 (optional (container.network != null) "--network=${container.network}")
                 (optional container.privileged "--privileged")
+                (optionals (container.hardening.enable && !container.privileged) (
+                  ["--cap-drop=ALL"]
+                  ++ map (cap: "--cap-add=${cap}") container.hardening.caps
+                  ++ ["--security-opt=no-new-privileges"]
+                ))
                 (map (device: "--device=${device}") container.devices)
                 container.extraOptions
               ];
