@@ -233,6 +233,37 @@ test +TARGETS:
 dry-run +TARGETS:
     just _apply dry-activate {{ TARGETS }}
 
+# CVE-2026-111497: fail if a host closure still holds a vulnerable Brotli,
+# brotlicffi or Bun. Judges libraries, not package names: grafted paths keep
+# their old names. Delete with modules/security/brotli-cve-2026-111497.nix.
+cve-2026-111497-check +TARGETS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    older() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]; }
+    status=0
+    for h in $(just _hosts {{ TARGETS }}); do
+      top=$(nix build --no-link --print-out-paths ".#deployTargets.$h")
+      bad=()
+      while read -r p; do
+        n=${p#/nix/store/*-}
+        if [[ $n =~ ^brotli-([0-9.]+)(-lib)?$ ]]; then
+          [[ ${BASH_REMATCH[1]} =~ ^1\.0\.[3-9]$|^1\.1\.0$|^1\.2\.0$ ]] && bad+=("$p")
+        elif [[ $n =~ ^python3[0-9.]*-brotlicffi-([0-9.]+)$ ]]; then
+          older "${BASH_REMATCH[1]}" 1.2.1.0 && bad+=("$p")
+        elif [[ $n =~ ^bun-([0-9.]+)$ ]]; then
+          older "${BASH_REMATCH[1]}" 1.4.4 && bad+=("$p")
+        fi
+      done < <(nix path-info -r "$top")
+      if [ ${#bad[@]} -eq 0 ]; then
+        echo "ok   $h"
+      else
+        echo "FAIL $h"
+        printf '     %s\n' "${bad[@]}"
+        status=1
+      fi
+    done
+    exit $status
+
 # Deploy to every discovered host
 deploy-all:
     #!/usr/bin/env bash

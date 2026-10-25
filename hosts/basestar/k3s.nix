@@ -502,6 +502,7 @@ in {
         useACMEHost = d;
         extraConfig = ''
           encode zstd gzip
+          import no_brotli_requests
 
           reverse_proxy ${cfg.ingressAddress}:80 {
             header_up X-Real-IP {remote_host}

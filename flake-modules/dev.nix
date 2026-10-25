@@ -17,6 +17,7 @@
       # `packages` output and refuses it without this.
       config.allowUnfree = true;
       overlays = [
+        (import ../overlays/cve-2026-111497.nix)
         (import ../overlays/python-packages.nix)
       ];
     };

@@ -88,6 +88,7 @@ in {
       useACMEHost = "arsfeld.dev"; # Use wildcard certificate
       extraConfig = ''
         encode zstd gzip
+        import no_brotli_requests
 
         header {
           X-Frame-Options "SAMEORIGIN"
