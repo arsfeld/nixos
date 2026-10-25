@@ -5,6 +5,15 @@
   inputs,
   ...
 }: let
+  gsettingsOverrides = ''
+    [org.gnome.desktop.interface]
+    text-scaling-factor=1.25
+
+    [org.gnome.settings-daemon.plugins.power]
+    sleep-inactive-ac-type='nothing'
+    sleep-inactive-battery-type='nothing'
+  '';
+
   # Astra Monitor addresses GPUs by the PCI fields it parses out of `lspci -nnk`
   # and compares domain/bus/slot/vendorId/productId. For the dGPU at 01:00.0
   # [10de:2191] that is domain "0000:01", bus "00", slot "0" -- its field names
@@ -98,14 +107,13 @@ in {
   # gsd 50, not yet in nixpkgs). On NVIDIA-hybrid laptops the VT switch during
   # resume makes gsd-power store "sleep" as previous_idle_mode and re-suspend
   # ~15s after wake. Lid/power-button suspend still works via logind below.
-  services.desktopManager.gnome.extraGSettingsOverrides = ''
-    [org.gnome.desktop.interface]
-    text-scaling-factor=1.25
-
-    [org.gnome.settings-daemon.plugins.power]
-    sleep-inactive-ac-type='nothing'
-    sleep-inactive-battery-type='nothing'
-  '';
+  #
+  # Set for both desktops: Pantheon runs the same gsd-power but compiles its
+  # schema overrides from its own option, so the GNOME one alone is inert there
+  # -- which silently re-enabled the 15-minute idle suspend when blackbird
+  # moved to Pantheon.
+  services.desktopManager.gnome.extraGSettingsOverrides = gsettingsOverrides;
+  services.desktopManager.pantheon.extraGSettingsOverrides = gsettingsOverrides;
 
   # Basic system configuration
   networking.hostName = "blackbird";
@@ -458,19 +466,43 @@ in {
     HandlePowerKey = "suspend";
   };
 
-  # NVIDIA suspend/resume: nothing to wire. kernelSuspendNotifier defaults to
-  # `open && version >= 595`, both true here, so the driver saves and restores
-  # video memory through the kernel suspend notifier and nixpkgs deliberately
-  # does NOT install nvidia-suspend/-resume/-hibernate or the
-  # /lib/systemd/system-sleep/nvidia hook. `powerManagement.enable = true`
-  # (hardware-configuration.nix) is the entire supported config.
+  # NVIDIA suspend/resume. Which mechanism runs follows `hardware.nvidia.open`:
+  # kernelSuspendNotifier defaults to `open && version >= 595` and nixpkgs
+  # asserts it off for the closed modules. In notifier mode nixpkgs installs no
+  # nvidia-suspend/-resume units at all; with the closed CachyOS modules
+  # (open = false, hardware-configuration.nix) it installs the legacy ones,
+  # which run NVIDIA's nvidia-sleep.sh.
   #
-  # Do NOT hand-declare systemd.services.nvidia-suspend/-resume here: in
-  # notifier mode nixpkgs provides no ExecStart to merge with, so the unit ends
-  # up empty (LoadState=bad-setting) and, being requiredBy the suspend job,
-  # aborts every suspend with an immediate resume. That was the bug this
-  # replaced. Note this flips with `open`: under the closed modules nixpkgs
-  # ships those units itself, and declaring them would collide instead.
+  # That script records the foreground VT and parks the console on VT 63 for
+  # suspend, then on resume unconditionally `chvt`s back to the recorded VT.
+  # It races the session's own lock: on resume gala switches LightDM to the
+  # greeter on VT 1, and the resume write to /proc/driver/nvidia/suspend takes
+  # ~1.5s, so the restore lands *after* the greeter is up and yanks the console
+  # back to the still-locked session. That session shows only gala's black lock
+  # shield (the cursor, a hardware plane, still moves) and the greeter that
+  # would unlock it sits on a VT nobody can see. Measured 2026-10-25: LightDM
+  # activated VT 1 and logged the switch back to the session 0.35s later, the
+  # moment nvidia-resume finished. When nvidia-resume happens to win, it works,
+  # which is why it only failed sometimes.
+  #
+  # So restore the VT only if the console is still parked on 63, i.e. nothing
+  # else has claimed it since. Guarded on the legacy units existing: in notifier
+  # mode a bare ExecStart here would create a stray unit (and declaring
+  # nvidia-suspend/-resume there once produced an empty, requiredBy-suspend unit
+  # that aborted every suspend).
+  systemd.services.nvidia-resume = lib.mkIf (config.hardware.nvidia.powerManagement.enable && !config.hardware.nvidia.powerManagement.kernelSuspendNotifier) {
+    serviceConfig.ExecStart = lib.mkForce (pkgs.writeShellScript "nvidia-resume" ''
+      [ -f /proc/driver/nvidia/suspend ] || exit 0
+      echo resume > /proc/driver/nvidia/suspend
+      vt_file=/run/nvidia-sleep/Xorg.vt_number
+      [ -f "$vt_file" ] || exit 0
+      vt=$(<"$vt_file")
+      rm -f "$vt_file"
+      if [ "$(fgconsole)" = 63 ]; then
+        chvt "$vt"
+      fi
+    '');
+  };
 
   # On GA401IU, the keyboard backlight goes dark across suspend/hibernate
   # cycles -- writes to /sys/class/leds/asus::kbd_backlight/brightness keep
