@@ -68,9 +68,13 @@ in {
       };
       environmentFiles = [config.sops.secrets.transmission-openvpn-pia.path];
       volumes = ["${vars.storageDir}/media:${vars.storageDir}/media"];
-      # OpenVPN configures the tunnel and its kill-switch firewall itself
-      # (NET_ADMIN). The image starts as root, chowns /config and the download
-      # dir, and drops to PUID/PGID for transmission-daemon.
+      # NET_ADMIN: OpenVPN configures the tunnel and its kill-switch firewall.
+      # The image starts as root, chowns /config and the download dir, and drops
+      # to PUID/PGID for transmission-daemon:
+      # CHOWN: those chowns.
+      # DAC_OVERRIDE, FOWNER: precautionary (root over media-owned dirs).
+      # SETUID, SETGID: the drop to PUID/PGID.
+      # KILL: precautionary (s6 signals its supervised processes).
       hardening.caps = ["NET_ADMIN" "CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID" "KILL"];
       extraOptions = [
         "--device=/dev/net/tun"
