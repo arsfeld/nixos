@@ -34,11 +34,9 @@ in {
     };
 
     media.services.stirling = {
-      # Probe-verified: with only DAC_OVERRIDE FOWNER dropped caps made mkdir fail; full set passed.
-      # CHOWN: entrypoint chowns its dirs (chown EPERM seen).
-      # DAC_OVERRIDE: write /configs owned by media (mkdir EACCES seen).
-      # FOWNER: precautionary alongside DAC_OVERRIDE (not individually shown necessary).
-      # SETUID, SETGID: entrypoint drops to a service user (precautionary; not individually shown necessary).
+      # Verdict: FAIL with no caps (hardened run logged mkdir EACCES on /configs/cache, /configs/heap_dumps and /tmp/stirling-pdf), then PASS with the set below.
+      # DAC_OVERRIDE: the only cap with direct evidence (mkdir permission denied on /configs, which is owned by media).
+      # CHOWN, FOWNER, SETUID, SETGID: precautionary; they were added together with DAC_OVERRIDE and never tested individually (no chown or setuid error was observed).
       container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
       port = 8080;
       image = "frooodle/s-pdf:latest";

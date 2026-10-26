@@ -9,11 +9,12 @@ in {
   sops.secrets."cinephage-env" = {};
 
   media.services.cinephage = {
-    # Not probe-verified (the probe could not run it without secrets/DB); caps come from the image's entrypoint.
-    # CHOWN: observed in probe output: 'chown: changing ownership of /app/build/client/...: Operation not permitted' when dropped.
-    # DAC_OVERRIDE: its /config is owned by media; 'mkdir /config/cache: Permission denied' seen without it.
+    # Not fully probe-verified: the control run cannot start in isolation (it downloads Camoufox), so the verdict was INCONCLUSIVE.
+    # Evidence is from hardened-run log lines (raw lines are in task-5-report.md), not a control-vs-hardened comparison.
+    # DAC_OVERRIDE: the no-caps hardened run logged "mkdir: cannot create directory '/config/cache': Permission denied" (/config is owned by media).
+    # CHOWN: the hardened run with only DAC_OVERRIDE and FOWNER logged "chown: changing ownership of '/app/build/client/...': Operation not permitted".
     # FOWNER: precautionary alongside DAC_OVERRIDE.
-    # SETUID, SETGID: precautionary (entrypoint appears to drop to PUID; the drop was not observed).
+    # SETUID, SETGID: precautionary (the entrypoint appears to drop to PUID; the drop was not observed).
     container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
     port = 3000;
     image = "ghcr.io/moldytaint/cinephage:latest";
