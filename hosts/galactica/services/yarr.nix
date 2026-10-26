@@ -13,7 +13,9 @@
   sops.secrets."yarr-env" = {};
 
   media.services.yarr = {
-    # root process writes /data owned by media: DAC_OVERRIDE, FOWNER.
+    # Probe-verified: root process writes /data owned by media (5000) and failed with EACCES without caps.
+    # DAC_OVERRIDE: write dirs/files owned by another uid.
+    # FOWNER: precautionary alongside DAC_OVERRIDE (not individually shown necessary).
     container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
     port = 7070;
     image = "ghcr.io/nkanaev/yarr:latest";

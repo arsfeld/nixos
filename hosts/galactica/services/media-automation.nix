@@ -52,7 +52,9 @@ in {
     };
 
     media.services.autobrr = {
-      # root process writes /config owned by media: DAC_OVERRIDE (config.toml), FOWNER.
+      # Probe-verified: root process writes /config owned by media (5000) and failed with EACCES without caps.
+      # DAC_OVERRIDE: write dirs/files owned by another uid.
+      # FOWNER: precautionary alongside DAC_OVERRIDE (not individually shown necessary).
       container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
       port = 7474;
       image = "ghcr.io/autobrr/autobrr:latest";
@@ -92,7 +94,9 @@ in {
     };
 
     media.services.pinchflat = {
-      # root process writes /config owned by media: DAC_OVERRIDE, FOWNER.
+      # Probe-verified: root process writes /config owned by media (5000) and failed with EACCES without caps.
+      # DAC_OVERRIDE: write dirs/files owned by another uid.
+      # FOWNER: precautionary alongside DAC_OVERRIDE (not individually shown necessary).
       container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
       port = 8945;
       image = "ghcr.io/kieraneglin/pinchflat:latest";

@@ -25,7 +25,10 @@ in {
   media.services.resilio = {port = 9000;};
 
   media.services.fileflows = {
-    # entrypoint chowns, apt drops to its _apt user (setgroups/setuid) and files are owned by media: CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID.
+    # Probe-verified: apt/entrypoint failed with setgroups/setegid/seteuid EPERM without these.
+    # CHOWN, DAC_OVERRIDE: entrypoint chowns and writes files owned by media (precautionary; only the setuid errors were observed).
+    # FOWNER: precautionary alongside DAC_OVERRIDE (not individually shown necessary).
+    # SETUID, SETGID: apt drops to its _apt user and the entrypoint switches ids (setgroups/seteuid EPERM seen).
     container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
     port = 5000;
     image = "revenz/fileflows";

@@ -24,7 +24,10 @@ in {
   };
 
   media.services.romm = {
-    # s6 init runs valkey/nginx/gunicorn and chowns its dirs: CHOWN, DAC_OVERRIDE, FOWNER; workers drop privileges: SETUID, SETGID (probe could not run it past missing database credentials).
+    # Not probe-verified (the probe could not run it without secrets/DB); caps come from the image's entrypoint. The docker-entrypoint.sh only ends with 'exec "$@"' and /init is s6, whose commands were not read, so all caps are precautionary.
+    # CHOWN: precautionary (s6 init likely chowns its dirs).
+    # DAC_OVERRIDE, FOWNER: precautionary (/romm dirs are root-owned here; media-owned files elsewhere).
+    # SETUID, SETGID: precautionary (valkey/nginx/gunicorn workers drop privileges).
     container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
     port = 8080;
     image = "rommapp/romm:latest";
@@ -53,7 +56,8 @@ in {
   };
 
   media.services.speedtest = {
-    # extends the linuxserver default; nginx binds port 80 in-container: NET_BIND_SERVICE.
+    # Probe-verified: extends the linuxserver default set.
+    # NET_BIND_SERVICE: nginx binds port 80 in-container (bind() permission denied without it).
     container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID" "KILL" "NET_BIND_SERVICE"];
     port = 80;
     image = "lscr.io/linuxserver/speedtest-tracker:latest";

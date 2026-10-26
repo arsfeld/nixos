@@ -16,7 +16,9 @@
   };
 
   media.services.finance-tracker = {
-    # root process writes its data dir owned by media: DAC_OVERRIDE, FOWNER.
+    # Probe-verified: root process writes its data dir owned by media (5000) and failed with EACCES without caps.
+    # DAC_OVERRIDE: write dirs/files owned by another uid.
+    # FOWNER: precautionary alongside DAC_OVERRIDE (not individually shown necessary).
     container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
     port = 8080;
     image = "ghcr.io/arsfeld/finance-tracker:latest";

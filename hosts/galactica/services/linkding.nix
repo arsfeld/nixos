@@ -6,7 +6,11 @@
   sops.secrets."linkding-env" = {};
 
   media.services.linkding = {
-    # bootstrap chowns /etc/linkding/data: CHOWN; writes data/assets owned by media: DAC_OVERRIDE, FOWNER; drops to www-data: SETUID, SETGID.
+    # Probe-verified.
+    # CHOWN: bootstrap chowns /etc/linkding/data (chown EPERM seen).
+    # DAC_OVERRIDE: writes data/assets owned by media (mkdir permission denied seen).
+    # FOWNER: precautionary alongside DAC_OVERRIDE (not individually shown necessary).
+    # SETUID, SETGID: bootstrap drops to www-data (precautionary; the drop itself was not individually tested).
     container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
     port = 9090;
     image = "ghcr.io/sissbruecker/linkding:latest";

@@ -26,7 +26,9 @@ in {
   sops.secrets."bitmagnet-env" = {};
 
   media.services.bitmagnet = {
-    # root process reads/writes /root/.config/bitmagnet owned by media: DAC_OVERRIDE, FOWNER.
+    # Not probe-verified (the probe could not run it without secrets/DB); caps come from the image's entrypoint. The image has no entrypoint script; the binary runs as root.
+    # DAC_OVERRIDE: reads/writes /root/.config/bitmagnet, owned by media (reasoned, not observed).
+    # FOWNER: precautionary alongside DAC_OVERRIDE.
     container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
     port = httpPort;
     image = "ghcr.io/bitmagnet-io/bitmagnet:latest";

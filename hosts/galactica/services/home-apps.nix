@@ -8,7 +8,10 @@
 in {
   config = {
     media.services.audiobookshelf = {
-      # root process writes /config and /metadata owned by media: DAC_OVERRIDE, FOWNER; listens on port 80 in-container: NET_BIND_SERVICE.
+      # Probe-verified: root process failed with EACCES creating /metadata/streams and listening without caps.
+      # DAC_OVERRIDE: write /config and /metadata owned by media.
+      # FOWNER: precautionary alongside DAC_OVERRIDE (not individually shown necessary).
+      # NET_BIND_SERVICE: listens on port 80 in-container (listen EACCES without it).
       container.hardening.caps = ["DAC_OVERRIDE" "FOWNER" "NET_BIND_SERVICE"];
       port = 80;
       image = "ghcr.io/advplyr/audiobookshelf:latest";
@@ -31,7 +34,11 @@ in {
     };
 
     media.services.stirling = {
-      # entrypoint chowns its dirs: CHOWN; writes /configs owned by media: DAC_OVERRIDE, FOWNER; drops to a service user: SETUID, SETGID.
+      # Probe-verified: with only DAC_OVERRIDE FOWNER dropped caps made mkdir fail; full set passed.
+      # CHOWN: entrypoint chowns its dirs (chown EPERM seen).
+      # DAC_OVERRIDE: write /configs owned by media (mkdir EACCES seen).
+      # FOWNER: precautionary alongside DAC_OVERRIDE (not individually shown necessary).
+      # SETUID, SETGID: entrypoint drops to a service user (precautionary; not individually shown necessary).
       container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
       port = 8080;
       image = "frooodle/s-pdf:latest";
@@ -42,7 +49,9 @@ in {
     };
 
     media.services.actual = {
-      # root process writes /data owned by media: DAC_OVERRIDE (mkdir/write), FOWNER (chmod/utimes).
+      # Probe-verified: root process writes /data owned by media (5000) and failed with EACCES without caps.
+      # DAC_OVERRIDE: write dirs/files owned by another uid.
+      # FOWNER: precautionary alongside DAC_OVERRIDE (not individually shown necessary).
       container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
       port = 5006;
       image = "ghcr.io/actualbudget/actual-server:latest";

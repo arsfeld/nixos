@@ -8,7 +8,11 @@
 in {
   config = {
     media.services.termix = {
-      # entrypoint chowns /app/data: CHOWN; usermod and files owned by media: DAC_OVERRIDE, FOWNER; gosu to node: SETUID, SETGID.
+      # Probe-verified (hardened run failed, passes with these).
+      # CHOWN: /entrypoint.sh runs 'chown -R node:node /app/data ...'.
+      # DAC_OVERRIDE: write /app/data owned by media.
+      # FOWNER: precautionary alongside DAC_OVERRIDE (not individually shown necessary).
+      # SETUID, SETGID: /entrypoint.sh runs 'usermod -o -u $PUID node' then 'exec gosu node:node' (failed 'failed switching to node:node' without them).
       container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
       port = 8080;
       image = "ghcr.io/lukegus/termix:latest";
@@ -34,7 +38,9 @@ in {
     };
 
     media.services.cloud = {
-      # root process writes /cloudreve/data/conf.ini owned by media: DAC_OVERRIDE, FOWNER.
+      # Probe-verified: root process writes /cloudreve/data/conf.ini owned by media (5000) and failed with EACCES without caps.
+      # DAC_OVERRIDE: write dirs/files owned by another uid.
+      # FOWNER: precautionary alongside DAC_OVERRIDE (not individually shown necessary).
       container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
       port = 5212;
       image = "cloudreve/cloudreve:latest";

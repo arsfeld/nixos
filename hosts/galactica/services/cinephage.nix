@@ -9,7 +9,11 @@ in {
   sops.secrets."cinephage-env" = {};
 
   media.services.cinephage = {
-    # entrypoint chowns /app and /config: CHOWN; touches files owned by media: DAC_OVERRIDE, FOWNER; drops privileges: SETUID, SETGID (probe could not run it end to end).
+    # Not probe-verified (the probe could not run it without secrets/DB); caps come from the image's entrypoint.
+    # CHOWN: observed in probe output: 'chown: changing ownership of /app/build/client/...: Operation not permitted' when dropped.
+    # DAC_OVERRIDE: its /config is owned by media; 'mkdir /config/cache: Permission denied' seen without it.
+    # FOWNER: precautionary alongside DAC_OVERRIDE.
+    # SETUID, SETGID: precautionary (entrypoint appears to drop to PUID; the drop was not observed).
     container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
     port = 3000;
     image = "ghcr.io/moldytaint/cinephage:latest";
