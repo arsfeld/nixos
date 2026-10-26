@@ -39,6 +39,8 @@ in {
 
     {
       media.services.ohdio = {
+        # entrypoint runs useradd/usermod/groupmod, chowns /config and /app, then gosu ohdio: CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID.
+        container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
         port = 4000;
         image = "ghcr.io/arsfeld/ohdio:latest";
         container = {
@@ -61,6 +63,8 @@ in {
 
     {
       media.services.qui = {
+        # entrypoint adduser, chowns /config, then su-exec to PUID/PGID (setgroups failed without it): CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID.
+        container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
         port = 7476;
         image = "ghcr.io/autobrr/qui";
         container = {
@@ -86,6 +90,8 @@ in {
 
     {
       media.services.mydia = {
+        # entrypoint runs usermod/groupmod for PUID/PGID and chowns app dirs: CHOWN, DAC_OVERRIDE, FOWNER; su-exec to mydia: SETUID, SETGID (probe could not run it past missing secrets).
+        container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
         port = 4000;
         image = "ghcr.io/getmydia/mydia:master";
         watchImage = true;

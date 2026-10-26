@@ -13,6 +13,8 @@
   sops.secrets."yarr-env" = {};
 
   media.services.yarr = {
+    # root process writes /data owned by media: DAC_OVERRIDE, FOWNER.
+    container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
     port = 7070;
     image = "ghcr.io/nkanaev/yarr:latest";
     tailscaleExposed = true;

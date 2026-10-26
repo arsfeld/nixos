@@ -15,6 +15,8 @@ in {
   media.services.syncthing = {port = 8384;};
 
   media.services.filebrowser = {
+    # s6 init chowns /app and /config: CHOWN; files owned by media: DAC_OVERRIDE, FOWNER; s6-applyuidgid drops to PUID/PGID: SETUID, SETGID; the filebrowser binary carries file capabilities, so exec under no-new-privileges fails without NET_BIND_SERVICE.
+    container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID" "NET_BIND_SERVICE"];
     port = 8080;
     image = "filebrowser/filebrowser:s6";
     container = {

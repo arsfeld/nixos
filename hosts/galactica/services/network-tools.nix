@@ -8,6 +8,8 @@
 in {
   config = {
     media.services.termix = {
+      # entrypoint chowns /app/data: CHOWN; usermod and files owned by media: DAC_OVERRIDE, FOWNER; gosu to node: SETUID, SETGID.
+      container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
       port = 8080;
       image = "ghcr.io/lukegus/termix:latest";
       container = {};
@@ -32,6 +34,8 @@ in {
     };
 
     media.services.cloud = {
+      # root process writes /cloudreve/data/conf.ini owned by media: DAC_OVERRIDE, FOWNER.
+      container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
       port = 5212;
       image = "cloudreve/cloudreve:latest";
       container = {

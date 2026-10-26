@@ -18,6 +18,8 @@ in {
   };
 
   media.services.seafile = {
+    # init chowns /shared and drops privileges: CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID; nginx binds port 80 in-container: NET_BIND_SERVICE.
+    container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID" "NET_BIND_SERVICE"];
     port = 80;
     image = "seafileltd/seafile-mc:13.0-latest";
     bypassAuth = true;

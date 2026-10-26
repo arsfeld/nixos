@@ -27,6 +27,8 @@
   };
 
   media.services.marinara = {
+    # docker-entrypoint repairs data dir ownership: CHOWN, DAC_OVERRIDE, FOWNER; gosu drops to the app user: SETUID, SETGID.
+    container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
     port = 7860; # Marinara listens on 7860 inside the container
     image = "ghcr.io/pasta-devs/marinara-engine"; # :latest (full variant)
     bypassAuth = true; # auth enforced at Cloudflare's edge, not at the origin

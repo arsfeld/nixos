@@ -26,6 +26,8 @@ in {
   sops.secrets."bitmagnet-env" = {};
 
   media.services.bitmagnet = {
+    # root process reads/writes /root/.config/bitmagnet owned by media: DAC_OVERRIDE, FOWNER.
+    container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
     port = httpPort;
     image = "ghcr.io/bitmagnet-io/bitmagnet:latest";
     tailscaleExposed = true;

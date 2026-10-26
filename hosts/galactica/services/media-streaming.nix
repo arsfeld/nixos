@@ -34,6 +34,8 @@ in {
     };
 
     media.services.stash = {
+      # root process writes /root/.stash owned by media: DAC_OVERRIDE, FOWNER.
+      container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
       port = 9999;
       image = "stashapp/stash:latest";
       container = {

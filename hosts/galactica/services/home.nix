@@ -16,6 +16,8 @@
   };
 
   media.services.finance-tracker = {
+    # root process writes its data dir owned by media: DAC_OVERRIDE, FOWNER.
+    container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
     port = 8080;
     image = "ghcr.io/arsfeld/finance-tracker:latest";
     watchImage = true;
