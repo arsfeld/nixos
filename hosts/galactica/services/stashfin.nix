@@ -9,7 +9,11 @@ in {
   sops.secrets."stashfin-env" = {};
 
   media.services.stashfin = {
-    # entrypoint chowns /config: CHOWN, DAC_OVERRIDE, FOWNER; gosu to PUID/PGID: SETUID, SETGID.
+    # Probe-verified.
+    # CHOWN: entrypoint chowns /config (chown EPERM seen).
+    # DAC_OVERRIDE: writes /config owned by media.
+    # FOWNER: precautionary alongside DAC_OVERRIDE (not individually shown necessary).
+    # SETUID, SETGID: gosu to PUID/PGID (hardened run failed without them).
     container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
     port = proxyPort;
     image = "ghcr.io/arsfeld/stash-jellyfin-proxy:latest";

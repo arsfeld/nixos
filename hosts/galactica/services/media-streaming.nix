@@ -34,7 +34,9 @@ in {
     };
 
     media.services.stash = {
-      # root process writes /root/.stash owned by media: DAC_OVERRIDE, FOWNER.
+      # Probe-verified: root process writes /root/.stash owned by media (5000) and failed with EACCES without caps.
+      # DAC_OVERRIDE: write dirs/files owned by another uid.
+      # FOWNER: precautionary alongside DAC_OVERRIDE (not individually shown necessary).
       container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
       port = 9999;
       image = "stashapp/stash:latest";

@@ -22,7 +22,9 @@
   };
 
   media.services.eufy-sdk-bridge = {
-    # root process writes /config owned by media: DAC_OVERRIDE, FOWNER.
+    # Not probe-verified (the probe could not run it without secrets/DB); caps come from the image's entrypoint. Its docker-entrypoint.sh only does 'exec "$@"'; the app runs as root.
+    # DAC_OVERRIDE: writes /config owned by media (reasoned, not observed).
+    # FOWNER: precautionary alongside DAC_OVERRIDE.
     container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
     image = "ghcr.io/mega-yfue/ha-eufy-sdk-bridge:0.2.0";
     container = {

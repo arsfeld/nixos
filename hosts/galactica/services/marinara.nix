@@ -27,7 +27,11 @@
   };
 
   media.services.marinara = {
-    # docker-entrypoint repairs data dir ownership: CHOWN, DAC_OVERRIDE, FOWNER; gosu drops to the app user: SETUID, SETGID.
+    # Probe-verified.
+    # CHOWN: docker-entrypoint repairs data dir ownership (EPERM seen).
+    # DAC_OVERRIDE: mkdir /app/data/storage EACCES seen without it.
+    # FOWNER: precautionary alongside DAC_OVERRIDE (not individually shown necessary).
+    # SETUID, SETGID: entrypoint uses gosu to drop to the app user (precautionary; not individually tested).
     container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
     port = 7860; # Marinara listens on 7860 inside the container
     image = "ghcr.io/pasta-devs/marinara-engine"; # :latest (full variant)

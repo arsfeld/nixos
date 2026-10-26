@@ -50,7 +50,9 @@ in {
   # is modest (mostly prompt processing). To revert: switch image back to
   # ollama/ollama:latest and drop the env vars and device mappings below.
   media.services.ollama = {
-    # root process writes /root/.ollama owned by media (id_ed25519, models): DAC_OVERRIDE, FOWNER.
+    # Probe-verified: root process writes /root/.ollama (id_ed25519, models) owned by media (5000) and failed with EACCES without caps.
+    # DAC_OVERRIDE: write dirs/files owned by another uid.
+    # FOWNER: precautionary alongside DAC_OVERRIDE (not individually shown necessary).
     container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
     image = "ghcr.io/ava-agentone/ollama-intel:latest";
     container = {

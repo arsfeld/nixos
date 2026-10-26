@@ -18,7 +18,9 @@ in {
   };
 
   media.services.seafile = {
-    # init chowns /shared and drops privileges: CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID; nginx binds port 80 in-container: NET_BIND_SERVICE.
+    # Probe-verified.
+    # CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID: init creates/chowns /shared and drops privileges (mkdir /shared denied without caps; the individual caps were not isolated).
+    # NET_BIND_SERVICE: nginx binds port 80 in-container (bind() permission denied without it).
     container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID" "NET_BIND_SERVICE"];
     port = 80;
     image = "seafileltd/seafile-mc:13.0-latest";
