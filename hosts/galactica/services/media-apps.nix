@@ -102,7 +102,7 @@ in {
         # CHOWN: entrypoint chowns application directories.
         # DAC_OVERRIDE: usermod/groupmod edit /etc files and dirs owned by media.
         # FOWNER: precautionary alongside DAC_OVERRIDE.
-        # SETUID, SETGID: precautionary (the entrypoint changes the mydia user to PUID/PGID; the privilege drop itself was not read).
+        # SETUID, SETGID: precautionary (the entrypoint changes the mydia user to PUID/PGID, then ends with `exec su-exec mydia`).
         container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
         port = 4000;
         image = "ghcr.io/getmydia/mydia:master";

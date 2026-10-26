@@ -34,8 +34,8 @@ in {
     };
 
     media.services.stirling = {
-      # Verdict: FAIL with no caps (hardened run logged mkdir EACCES on /configs/cache, /configs/heap_dumps and /tmp/stirling-pdf), then PASS with the set below.
-      # DAC_OVERRIDE: the only cap with direct evidence (mkdir permission denied on /configs, which is owned by media).
+      # Verdict: FAIL with no caps (hardened run logged mkdir EACCES on /configs/cache and /configs/heap_dumps), then PASS with the set below.
+      # DAC_OVERRIDE: the only cap with direct evidence (mkdir permission denied on /configs/cache and /configs/heap_dumps, owned by media).
       # CHOWN, FOWNER, SETUID, SETGID: precautionary; they were added together with DAC_OVERRIDE and never tested individually (no chown or setuid error was observed).
       container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
       port = 8080;

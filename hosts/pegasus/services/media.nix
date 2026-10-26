@@ -66,6 +66,10 @@ in {
       network = "host";
       devices = ["/dev/dri:/dev/dri"];
       # s6 init starts as root, chowns /config, then drops to PUID/PGID.
+      # CHOWN: the /config chown.
+      # DAC_OVERRIDE, FOWNER: precautionary (root over a media-owned /config).
+      # SETUID, SETGID: the drop to PUID/PGID.
+      # KILL: precautionary (s6 signals its supervised processes).
       hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID" "KILL"];
       environment.VERSION = "docker";
     };
@@ -86,6 +90,8 @@ in {
       configDir = "/root/.stash";
       # Runs as root over a config dir owned by PUID 5000 (mode 0600 files);
       # the probe's empty tmpfs hid this.
+      # DAC_OVERRIDE: read and write those files.
+      # FOWNER: precautionary alongside DAC_OVERRIDE.
       hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
       mediaVolumes = true;
       network = "host";
@@ -105,8 +111,12 @@ in {
       mediaVolumes = true;
       network = "host";
       devices = ["/dev/dri:/dev/dri"];
-      # docker-entrypoint.sh runs as root: usermod, chown -R /config /data /app,
-      # then su-exec to the mydia user.
+      # docker-entrypoint.sh runs as root: usermod/groupmod to set PUID/PGID, then
+      # chown -R /config /data /app, and ends with `exec su-exec mydia`.
+      # CHOWN: the chown of application directories.
+      # DAC_OVERRIDE: usermod/groupmod edit /etc files, and the chown walks dirs owned by media.
+      # FOWNER: precautionary alongside DAC_OVERRIDE.
+      # SETUID, SETGID: precautionary (the su-exec privilege drop; not individually tested).
       hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
       environment = {
         PHX_HOST = "mydia.arsfeld.xyz";
