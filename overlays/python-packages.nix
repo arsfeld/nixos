@@ -3,7 +3,7 @@ final: prev: {
     prev.pythonPackagesExtensions
     ++ [
       (python-final: python-prev: {
-        # patool 4.0.5 archive/mime tests fail on current nixpkgs (bzip2/xz
+        # patool 4.0.4 archive/mime tests fail on current nixpkgs (bzip2/xz
         # helpers missing); the package itself works. Disables the check phase.
         patool = python-prev.patool.overridePythonAttrs (_: {
           doCheck = false;

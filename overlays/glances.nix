@@ -1,4 +1,4 @@
-# glances 4.5.4 (NixOS 26.05) has several sandbox-sensitive test failures, none a
+# glances 4.5.x (NixOS 26.05) has several sandbox-sensitive test failures, none a
 # real defect:
 #   - tests/test_plugin_load.py::test_phys_core_returns_int: phys_core() returns
 #     None in the build sandbox (notably aarch64), so the int assertion fails.
