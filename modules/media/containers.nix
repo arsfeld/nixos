@@ -51,7 +51,7 @@ with lib; let
   # linuxserver images start as root under s6 and drop to PUID/PGID, which
   # needs these. Every other image starts with none and is given what it
   # needs explicitly.
-  linuxserverCaps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID" "KILL"];
+  linuxserverCaps = vars.linuxserverCaps;
   isLinuxserver = image:
     hasPrefix "ghcr.io/linuxserver/" image || hasPrefix "lscr.io/linuxserver/" image;
 in {
