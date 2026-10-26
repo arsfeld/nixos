@@ -39,7 +39,7 @@ node_modules/
 *.vsix
 
 # Nix build outputs
-/result
+result
 result-*
 /out
 /.deploy-gc
