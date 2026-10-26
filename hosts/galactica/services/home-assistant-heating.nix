@@ -25,7 +25,10 @@
 # than the room, so it is driven on/off from the living area sensor. Its setpoint
 # is 19 in mild weather, where running long and gently beats short bursts; below
 # 5°C outside it is 21, because at 19 it only holds the room near 18.5 and its
-# heat never reaches the bedrooms. On frosty
+# heat never reaches the bedrooms. It is also 21 from 10:00 to 13:00 whatever
+# the weather, so the house is warmer over lunch (11-13) on the heat pump alone,
+# with the hour before as pre-heat; midday is also when it runs most
+# efficiently. On frosty
 # mornings it shows "dF" and stops blowing for 5-10 minutes while it defrosts;
 # the room drops ~1°C and recovers, which is why the backup waits 30 minutes.
 #
@@ -148,7 +151,7 @@ in {
     "automation heating" = [
       {
         alias = "Heating - Heat pump";
-        description = "Run the heat pump below 18.5°C by day and 18°C at night, until the living area passes 21°C";
+        description = "Run the heat pump below 18.5°C by day and 18°C at night, until the living area passes 21°C; setpoint 21 below 5°C outside and over lunch";
         triggers = [
           {
             trigger = "homeassistant";
@@ -169,7 +172,7 @@ in {
           day = "{{ 5 <= now().hour < 22 }}";
           low = "{{ 18.5 if day else 18 }}";
           high = 21;
-          setpoint = "{{ 21 if states('sensor.outdoor_weather_hilo') | float(99) < 5 else 19 }}";
+          setpoint = "{{ 21 if states('sensor.outdoor_weather_hilo') | float(99) < 5 or 10 <= now().hour < 13 else 19 }}";
           current = "{{ states('climate.living_room_heat_pump') }}";
           # IR is one-way, so the unit can disagree with the state HA
           # restored; on start, send the wanted state even if HA thinks the
