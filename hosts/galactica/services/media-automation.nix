@@ -52,6 +52,8 @@ in {
     };
 
     media.services.autobrr = {
+      # root process writes /config owned by media: DAC_OVERRIDE (config.toml), FOWNER.
+      container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
       port = 7474;
       image = "ghcr.io/autobrr/autobrr:latest";
       container = {};
@@ -90,6 +92,8 @@ in {
     };
 
     media.services.pinchflat = {
+      # root process writes /config owned by media: DAC_OVERRIDE, FOWNER.
+      container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
       port = 8945;
       image = "ghcr.io/kieraneglin/pinchflat:latest";
       container = {

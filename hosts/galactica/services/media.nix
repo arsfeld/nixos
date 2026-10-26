@@ -25,6 +25,8 @@ in {
   media.services.resilio = {port = 9000;};
 
   media.services.fileflows = {
+    # entrypoint chowns, apt drops to its _apt user (setgroups/setuid) and files are owned by media: CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID.
+    container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
     port = 5000;
     image = "revenz/fileflows";
     container = {

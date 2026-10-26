@@ -8,6 +8,8 @@
 in {
   config = {
     media.services.audiobookshelf = {
+      # root process writes /config and /metadata owned by media: DAC_OVERRIDE, FOWNER; listens on port 80 in-container: NET_BIND_SERVICE.
+      container.hardening.caps = ["DAC_OVERRIDE" "FOWNER" "NET_BIND_SERVICE"];
       port = 80;
       image = "ghcr.io/advplyr/audiobookshelf:latest";
       container = {
@@ -29,6 +31,8 @@ in {
     };
 
     media.services.stirling = {
+      # entrypoint chowns its dirs: CHOWN; writes /configs owned by media: DAC_OVERRIDE, FOWNER; drops to a service user: SETUID, SETGID.
+      container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
       port = 8080;
       image = "frooodle/s-pdf:latest";
       container = {
@@ -38,6 +42,8 @@ in {
     };
 
     media.services.actual = {
+      # root process writes /data owned by media: DAC_OVERRIDE (mkdir/write), FOWNER (chmod/utimes).
+      container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
       port = 5006;
       image = "ghcr.io/actualbudget/actual-server:latest";
       container = {

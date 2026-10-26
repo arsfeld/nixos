@@ -9,6 +9,8 @@ in {
   sops.secrets."stashfin-env" = {};
 
   media.services.stashfin = {
+    # entrypoint chowns /config: CHOWN, DAC_OVERRIDE, FOWNER; gosu to PUID/PGID: SETUID, SETGID.
+    container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
     port = proxyPort;
     image = "ghcr.io/arsfeld/stash-jellyfin-proxy:latest";
     # Jellyfin clients (Swiftfin/Infuse/Senplayer) can't follow Authelia's

@@ -22,6 +22,8 @@
   };
 
   media.services.eufy-sdk-bridge = {
+    # root process writes /config owned by media: DAC_OVERRIDE, FOWNER.
+    container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
     image = "ghcr.io/mega-yfue/ha-eufy-sdk-bridge:0.2.0";
     container = {
       configDir = "/app/data";

@@ -24,6 +24,8 @@ in {
   };
 
   media.services.romm = {
+    # s6 init runs valkey/nginx/gunicorn and chowns its dirs: CHOWN, DAC_OVERRIDE, FOWNER; workers drop privileges: SETUID, SETGID (probe could not run it past missing database credentials).
+    container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
     port = 8080;
     image = "rommapp/romm:latest";
     container = {
@@ -51,6 +53,8 @@ in {
   };
 
   media.services.speedtest = {
+    # extends the linuxserver default; nginx binds port 80 in-container: NET_BIND_SERVICE.
+    container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID" "KILL" "NET_BIND_SERVICE"];
     port = 80;
     image = "lscr.io/linuxserver/speedtest-tracker:latest";
     container = {
