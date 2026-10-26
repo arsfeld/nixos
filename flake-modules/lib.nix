@@ -26,6 +26,7 @@
       (import ../overlays/glances.nix)
       (import ../overlays/firefoxpwa.nix)
       (import ../overlays/libcap-ng-static.nix)
+      (import ../overlays/cloudflared.nix)
       # Load packages from ./packages directory using haumea
       (final: prev: loadPackages final)
     ];
