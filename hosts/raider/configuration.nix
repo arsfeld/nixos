@@ -321,8 +321,6 @@
   systemd.services.nix-daemon.serviceConfig.MemoryHigh = "20G";
 
   # Additional packages
-  # Web apps via firefoxpwa (install PWAs from Firefox extension)
-  programs.firefox.nativeMessagingHosts.packages = [pkgs.firefoxpwa];
 
   # Android debugging. programs.adb was removed from nixpkgs: systemd >= 258
   # applies the uaccess udev rules itself, so the device nodes are already
@@ -334,7 +332,6 @@
     anycubic-slicer
     claude-desktop
     firefox
-    firefoxpwa
   ];
 
   # Basic system configuration
