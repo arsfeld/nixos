@@ -398,19 +398,30 @@
     powertop.enable = false; # Disabled - causes aggressive power management that freezes input
   };
 
-  # Prevent the GDM greeter's gnome-settings-daemon from issuing an idle
-  # Suspend() DBus call after 15 min (logind IdleAction=ignore doesn't block
-  # explicit DBus suspends — only the greeter's dconf policy does).
-  programs.dconf.profiles.gdm.databases = [
-    {
+  # Stop gnome-settings-daemon from issuing an idle Suspend() DBus call after
+  # 15 min. The masked targets above already make it fail, but logind still
+  # broadcasts "The system will suspend now!" before refusing. Locked, so a
+  # per-user value can't bring it back. `user` covers the desktop session and
+  # the LightDM greeter (user `lightdm`), `gdm` the GNOME variant's greeter.
+  programs.dconf.profiles = let
+    noIdleSuspend = {
       settings."org/gnome/settings-daemon/plugins/power" = {
         sleep-inactive-ac-type = "nothing";
         sleep-inactive-ac-timeout = lib.gvariant.mkInt32 0;
         sleep-inactive-battery-type = "nothing";
         sleep-inactive-battery-timeout = lib.gvariant.mkInt32 0;
       };
-    }
-  ];
+      locks = [
+        "/org/gnome/settings-daemon/plugins/power/sleep-inactive-ac-type"
+        "/org/gnome/settings-daemon/plugins/power/sleep-inactive-ac-timeout"
+        "/org/gnome/settings-daemon/plugins/power/sleep-inactive-battery-type"
+        "/org/gnome/settings-daemon/plugins/power/sleep-inactive-battery-timeout"
+      ];
+    };
+  in {
+    user.databases = [noIdleSuspend];
+    gdm.databases = [noIdleSuspend];
+  };
 
   # Environment variables for games
   environment.sessionVariables = {
