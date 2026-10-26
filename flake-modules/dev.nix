@@ -16,10 +16,9 @@
       # packages/claude-desktop is unfree; `nix flake check` evaluates every
       # `packages` output and refuses it without this.
       config.allowUnfree = true;
-      overlays = [
-        (import ../overlays/cve-2026-111497.nix)
-        (import ../overlays/python-packages.nix)
-      ];
+      # The same overlays the hosts get, so `nix build .#<pkg>` produces the
+      # derivation a host would.
+      inherit (self.lib) overlays;
     };
     formatter = pkgs.alejandra;
     checks = {
