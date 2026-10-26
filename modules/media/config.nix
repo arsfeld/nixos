@@ -113,6 +113,17 @@ in {
       '';
     };
 
+    linuxserverCaps = mkOption {
+      type = types.listOf types.str;
+      default = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID" "KILL"];
+      readOnly = true;
+      description = ''
+        Capabilities a linuxserver image needs (s6 starts as root and drops to
+        PUID/PGID). It is the default for `container.hardening.caps` on those
+        images; reuse it to extend the set instead of restating it.
+      '';
+    };
+
     tsDomain = mkOption {
       type = types.str;
       default = "bat-boa.ts.net";

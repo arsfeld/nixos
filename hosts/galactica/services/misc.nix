@@ -58,7 +58,7 @@ in {
   media.services.speedtest = {
     # Probe-verified: extends the linuxserver default set.
     # NET_BIND_SERVICE: nginx binds port 80 in-container (bind() permission denied without it).
-    container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID" "KILL" "NET_BIND_SERVICE"];
+    container.hardening.caps = vars.linuxserverCaps ++ ["NET_BIND_SERVICE"];
     port = 80;
     image = "lscr.io/linuxserver/speedtest-tracker:latest";
     container = {
