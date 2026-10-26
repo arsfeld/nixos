@@ -667,7 +667,7 @@ All service declarations on galactica/basestar go through the `media.services.<n
       environmentFiles = [config.sops.secrets.foo.path];
       volumes = ["/host:/container"];
       extraOptions = ["--add-host=host.containers.internal:host-gateway"];
-      hardening.caps = ["NET_ADMIN"]; # added back after --cap-drop=ALL; default: s6 set for linuxserver images, none otherwise
+      hardening.caps = ["DAC_OVERRIDE"]; # added back after --cap-drop=ALL (here: root writing a media-owned config dir); default: s6 set for linuxserver images, none otherwise
       # hardening.enable = false;    # opt out, with a comment saying why
     };
     watchImage = true; # poll registry & restart on new image
@@ -678,7 +678,7 @@ All service declarations on galactica/basestar go through the `media.services.<n
 
 Set `database.postgres = true` (or `database.postgres = {name = "otherdb";}`) to auto-provision a local PostgreSQL database + role for the service, reachable from the container over the podman bridge with passwordless trust auth. It adds the db/role, the `pg_hba` trust line, systemd ordering after `postgresql.service`, and injects `DATABASE_URL`/`PG*` into the container env — no sops secret, `ALTER USER`, or manual `pg_hba` needed. MySQL/MariaDB auto-provisioning is not yet supported (services needing it keep their manual setup).
 
-Every container runs with `--cap-drop=ALL`, `--security-opt=no-new-privileges` and only the capabilities in `container.hardening.caps`: linuxserver images default to `CHOWN DAC_OVERRIDE FOWNER SETUID SETGID KILL` (s6 starts as root and drops to PUID/PGID), everything else to none. A new image that fails to start with `Operation not permitted` needs its caps listed. Privileged containers are skipped. Design: `docs/superpowers/specs/2026-10-25-container-hardening-design.md`.
+Every `media.services` container runs with `--cap-drop=ALL`, `--security-opt=no-new-privileges` and only the capabilities in `container.hardening.caps`: linuxserver images default to `CHOWN DAC_OVERRIDE FOWNER SETUID SETGID KILL` (s6 starts as root and drops to PUID/PGID; `media.config.linuxserverCaps` holds that list, so extend it with `++` rather than restating it), everything else to none. Privileged containers are skipped. The containers that write `virtualisation.oci-containers` directly are not hardened: basestar's `planka`, `siyuan` and `iroh-relay`, and galactica's `isponsorblock` and `vpn-exit-nodes` (both disabled). A new image that fails to start with `Operation not permitted` needs its caps listed. The commoner failure is quieter: a non-linuxserver image that runs as root over its media-owned (5000) config dir hits `Permission denied`/EACCES or "attempt to write a readonly database" and needs `DAC_OVERRIDE` (usually with `FOWNER`). It may stay up and only fail writes, so check `podman logs`, not just HTTP. A binary with file capabilities fails exec under `no-new-privileges` unless that cap is listed (filebrowser). Design: `docs/superpowers/specs/2026-10-25-container-hardening-design.md`.
 
 The `media.services` settings (`bypassAuth`, `cors`, `funnel`, `insecureTls`) are forwarded to `media.gateway.services.<name>.settings`. `tailscaleExposed` and `host` are caller-only and don't have container equivalents.
 
