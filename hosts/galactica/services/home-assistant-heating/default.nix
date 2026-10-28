@@ -74,13 +74,18 @@
   ];
   livingAreaReadings = "${builtins.toJSON livingAreaSensors} | map('states') | select('is_number') | map('float') | list";
 
-  # After an unassisted pre-heat reaches its target, fold the rate it
-  # achieved into the zone's helper (30% new), clamped to 0.2-3 °C/h. Runs
-  # under 15 minutes, helped by the shortfall baseboards, during a Hilo
+  # Fold the rate an unassisted pre-heat achieved into the zone's helper (30%
+  # new), clamped to 0.2-3 °C/h. A run is sampled when it reaches its target
+  # (`reached`), or, if it never did, when the window opens (`late`) - which
+  # is what lets a too-high rate come back down. The window opening clears
+  # the run's attributes, so the late path reads them from the old state.
+  # Runs under 15 minutes, helped by the shortfall baseboards, during a Hilo
   # challenge, or with a baseboard dial moved off the target are not learned
-  # from; a boost or presence change ends the pre-heat before it gets here.
+  # from; a boost or presence change takes the pre-heat to `boost`/`away`
+  # rather than `schedule`, so neither path sees it.
   learn = name: z: let
     sensor = tpl.targetEntity name;
+    run = attr: "{{ trigger.from_state.attributes.get('${attr}') if trigger.id == 'late' else state_attr('${sensor}', '${attr}') }}";
     sameSetpoint = lib.concatMapStrings (d: " and state_attr('${d}', 'temperature') | float(0) == states('${sensor}') | float(0)") z.devices;
   in {
     alias = "Heating - Learn ${pretty name} warm-up rate";
@@ -89,18 +94,36 @@
       {
         trigger = "template";
         value_template = "{{ state_attr('${sensor}', 'reason') == 'preheat' and state_attr('${sensor}', 'reached') == true }}";
+        id = "reached";
+      }
+      {
+        trigger = "state";
+        entity_id = sensor;
+        attribute = "reason";
+        from = "preheat";
+        to = "schedule";
+        id = "late";
       }
     ];
+    # The run being sampled; none depends on another.
+    variables = {
+      assisted = run "assisted";
+      from_temp = run "from_temp";
+      reached = run "reached";
+      since = run "since";
+      temp = "{{ states('${z.temperature}') }}";
+    };
     conditions = [
       {
         condition = "template";
         value_template = ''
-          {%- set since = state_attr('${sensor}', 'since') | float(none) %}
-          {%- set start = state_attr('${sensor}', 'from_temp') | float(none) %}
-          {%- set temp = states('${z.temperature}') | float(none) %}
+          {%- set since = since | float(none) %}
+          {%- set start = from_temp | float(none) %}
+          {%- set temp = temp | float(none) %}
           {{ since is not none and start is not none and temp is not none
+             and (trigger.id == 'reached' or not reached)
              and now().timestamp() - since >= 900 and temp > start
-             and not state_attr('${sensor}', 'assisted')
+             and not assisted
              and not (${tpl.hiloActive})${sameSetpoint} }}
         '';
       }
@@ -110,8 +133,8 @@
         action = "input_number.set_value";
         target.entity_id = tpl.rateEntity name;
         data.value = ''
-          {%- set hours = (now().timestamp() - state_attr('${sensor}', 'since') | float) / 3600 %}
-          {%- set observed = (states('${z.temperature}') | float - state_attr('${sensor}', 'from_temp') | float) / hours %}
+          {%- set hours = (now().timestamp() - since | float) / 3600 %}
+          {%- set observed = (temp | float - from_temp | float) / hours %}
           {{ ([[0.7 * ${tpl.rate z} + 0.3 * observed, 3] | min, 0.2] | max) | round(2) }}
         '';
       }
