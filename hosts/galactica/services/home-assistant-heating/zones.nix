@@ -68,7 +68,7 @@
     rate = {
       helper = "office";
       seed = 1.5;
-      maxLead = 120;
+      maxLead = 210;
     };
     devices = ["climate.office"];
   };
@@ -99,7 +99,7 @@
     rate = {
       helper = "family_room";
       seed = 1.0;
-      maxLead = 120;
+      maxLead = 240;
     };
     devices = ["climate.living_room_2"];
   };

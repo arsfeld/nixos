@@ -68,6 +68,12 @@ class OfficeTarget(unittest.TestCase):
             with self.subTest(hhmm):
                 self.assertEqual(office(at(MONDAY, hhmm), temp="21.0").value, want)
 
+    def test_cold_office_preheats_up_to_3_5_hours(self):
+        # (21 - 16) / 1.5 °C/h = 200 min, under the 210-minute cap
+        self.assertEqual(office(at(MONDAY, "05:00"), temp="16.0").attributes["start"], "05:10")
+        # (21 - 15) / 1.5 °C/h = 240 min, capped at 210 before 08:30
+        self.assertEqual(office(at(MONDAY, "04:00"), temp="15.0").attributes["start"], "05:00")
+
     def test_evening_preheat_back_to_21(self):
         # (21 - 19) / 1.5 °C/h = 80 min before 20:30
         self.assertEqual(office(at(MONDAY, "18:00"), temp="19.0").attributes["start"], "19:10")
@@ -146,6 +152,13 @@ class OtherZones(unittest.TestCase):
         self.assertEqual((r.value, r.attributes["reason"]), (20, "preheat"))
         self.assertEqual(target("family_room", at(MONDAY, "12:00"), {**states, "sensor.living_room_2_temperature": "20.0"}).value, 16)
         self.assertEqual(target("family_room", at(SATURDAY, "09:00"), states).value, 20)
+
+    def test_family_room_preheats_up_to_4_hours(self):
+        states = {"sensor.living_room_2_temperature": "16.0", "input_number.heating_rate_family_room": "0"}
+        # (20 - 16) / 1.0 °C/h = 240 min before 17:00, exactly the cap
+        self.assertEqual(target("family_room", at(MONDAY, "12:00"), states).attributes["start"], "13:00")
+        cold = {**states, "sensor.living_room_2_temperature": "15.0"}
+        self.assertEqual(target("family_room", at(MONDAY, "12:00"), cold).attributes["start"], "13:00")
 
     def test_unheated(self):
         self.assertEqual(target("unheated", at(MONDAY, "12:00")).value, 5)
