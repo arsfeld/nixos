@@ -34,8 +34,7 @@
 # Hilo challenges: Hilo lowers the baseboards itself, so the baseboard
 # automation stands down from pre_heat through recovery and re-asserts every
 # zone once the challenge ends, and the heat pump is turned off during the
-# reduction. Boosts (cleared at midnight) do not
-# override a challenge.
+# reduction. Boosts (cleared at midnight) do not override a challenge.
 {lib, ...}: let
   tpl = import ./templates.nix {inherit lib;};
   pretty = lib.replaceStrings ["_"] [" "];
@@ -273,8 +272,12 @@ in {
               minutes = "/5";
             }
             {
+              # not_to makes this fire on state changes only, not on every
+              # attribute tick of the living target (pre-heat minutes); the
+              # timer above covers anything else.
               trigger = "state";
               entity_id = ["sensor.defi_hilo" "sensor.living_area_temperature" living];
+              not_to = ["unknown" "unavailable"];
             }
           ];
           # HA renders these in order and Nix sorts attribute names, so each
