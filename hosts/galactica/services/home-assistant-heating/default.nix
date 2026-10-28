@@ -233,8 +233,11 @@ in {
           {
             # The heat pump will miss the comfort window: within 45 minutes
             # of it, temp + rate × time left is short of the target. Holds
-            # until the room gets there or the window ends; a boost always
-            # wants help.
+            # until the room gets there or the window ends. A boost brings the
+            # living/dining baseboards in at once, until the room reaches 21,
+            # because someone is cold now. "Comfort window" here means a living
+            # area target of 20 or more (the eco hours are 19), so zones.nix
+            # must keep eco/base targets for living_area below 20.
             name = "Living area shortfall";
             unique_id = "living_area_shortfall";
             state = ''
