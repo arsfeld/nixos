@@ -69,7 +69,7 @@ boost ignores presence. No one else is tracked.
 The heat pump is driven on/off from `sensor.living_area_temperature`, never from its own
 thermostat, which reads far colder than the room.
 
-- **On** below the zone's current target − 0.5.
+- **On** below the zone's current target − 0.5 (17.5 at night).
 - **Off** above 21, or 21.5 during a living-area boost. The wide band is deliberate: it
   runs long and gently.
 - **Setpoint 21** in any comfort window, during pre-heat, during a boost, and whenever
@@ -80,7 +80,8 @@ thermostat, which reads far colder than the room.
 ## Dynamic pre-heat
 
 Pre-heat applies to the zones that step up to comfort: the living area, office, downstairs
-bathroom (shares the office's rate and start) and family room.
+bathroom and family room. The downstairs bathroom computes its own start from its own
+temperature, using the office's learned rate; only the office learns it.
 
 - **Learned rate.** `input_number.heating_rate_<zone>` holds the warm-up rate in °C/h,
   clamped to 0.2–3. Seeds come from this week's data: living area 0.4, office 1.5, family
@@ -92,15 +93,18 @@ bathroom (shares the office's rate and start) and family room.
   - used the living-area shortfall baseboards,
   - lasted under 15 minutes.
 - **Lead.** `clamp((comfort target − current temp) / rate, 0, max)`, where max is 3 h for
-  the living area and 2 h for baseboard zones. `sensor.heating_<zone>_preheat_start` shows
-  the resulting time. Once now ≥ that time, the zone's target becomes the comfort target
+  the living area and 2 h for baseboard zones. The `start` attribute of
+  `sensor.heating_<zone>_target` shows the resulting time. Once now ≥ that time, the zone's target becomes the comfort target
   with reason `preheat`.
 - **Shortfall (living area only).** From pre-heat start until the window opens,
   `binary_sensor.living_area_shortfall` turns on when
   `temp + rate × hours to window < target` and 45 minutes or less remain. While it is on,
   the living/dining baseboards are set to the target. It turns off when the living area
-  reaches the target, or when the comfort window ends. The same rule applies to a
-  living-area boost, against 21.
+  reaches the target, or when the comfort window ends. "Comfort window" here means a
+  living-area target of 20 or more (the eco hours are 19), so `zones.nix` must keep the
+  living area's eco and base targets below 20. A living-area boost does not wait for the
+  projection or the 45-minute gate: the baseboards come in at once whenever the room is
+  below 21, and drop out when it reaches 21.
 - **Last-resort backup** (kept from today): the living/dining baseboards come on at
   floor + 1 when the living area stays below its floor for 30 minutes. The floor is 17 at
   night and 18 by day.
@@ -110,7 +114,9 @@ bathroom (shares the office's rate and start) and family room.
 `input_boolean.heating_boost_office`, `heating_boost_living_area` and
 `heating_boost_bedrooms` are one-click buttons on the HA dashboard. One automation turns
 all three off at 00:00, so a boost can never be forgotten on. A boost raises its zone's
-target to the boost value in the table above. It does not override a Hilo challenge.
+target to the boost value in the table above. For the living area, the boost also brings
+the living/dining baseboards in at once whenever the room is below 21; they drop out when
+it reaches 21. A boost does not override a Hilo challenge.
 
 ## Architecture
 
@@ -127,10 +133,12 @@ its three layers.
 
    Everything below is generated from it, so a schedule change is a one-line edit.
 2. **Sensors (HA templates).** `sensor.living_area_temperature` is unchanged. Per zone:
-   `sensor.heating_<zone>_preheat_start` and `sensor.heating_<zone>_target`. The target
-   sensor is the single answer to "what should this zone be now". It folds in, in order
-   of precedence, Hilo challenge → boost → presence → comfort/pre-heat → eco, and exposes
-   a `reason` attribute (`hilo`, `boost`, `away`, `preheat`, `comfort`, `eco`, `night`).
+   `sensor.heating_<zone>_target`. The target sensor is the single answer to "what should
+   this zone be now". It folds in, in order of precedence, boost → presence →
+   comfort/pre-heat → base, and exposes a `reason` attribute (`base`, `schedule`,
+   `preheat`, `boost`, `away`) and a `start` attribute holding the pre-heat start time.
+   Hilo is not folded into the target: the actuators stand down for a challenge exactly
+   as before.
    Living area adds `binary_sensor.living_area_shortfall` beside `living_area_needs_backup`.
 3. **Helpers.** Three `input_boolean` boosts and one `input_number` rate per pre-heated
    zone, declared in Nix and restored across restarts.
@@ -139,9 +147,10 @@ its three layers.
      and resend, and state triggers), with its thresholds and setpoint read from the
      living-area target.
    - **Baseboards:** each baseboard is set when its zone's target sensor *changes*, plus
-     the shortfall and backup flips for living/dining. Between changes the dial is left
-     alone, so a manual or Hilo-app change lasts until the next scheduled change, and a
-     restart overwrites nothing.
+     the shortfall and backup flips for living/dining. Every zone's baseboards are also
+     re-asserted at 06:00. Between those the dial is left alone, so a manual or Hilo-app
+     change lasts until the next target change or the next morning, and a `zones.nix`
+     change applies by then. A restart overwrites nothing.
    - **Hilo challenges:** baseboards still stand down from pre-heat through recovery,
      and the heat pump is off during reduction.
 
@@ -153,14 +162,14 @@ its three layers.
 | Living area unavailable entirely | The heat pump holds its current state; lead falls back to the zone max. |
 | Person `unknown` or `unavailable` | Treated as home. |
 | Learned rate drifts | It is clamped to 0.2–3°C/h, and learning skips interrupted or assisted runs. |
-| HA restart | The heat pump state is resent after 60 s; baseboards are not touched. |
+| HA restart | The heat pump state is resent after 60 s; baseboards are not touched. A running pre-heat does not keep its latch: it is re-planned from the current room temperature, as a fresh start would be. Its `since` and `from_temp` restart at that moment, so that run's learning sample is shorter. |
 
 ## Verification
 
 1. `nix build .#nixosConfigurations.galactica.config.system.build.toplevel`.
-2. A replay script mirrors the target and lead logic in Python and runs it over the
-   exported 10 days. It checks that start times and targets come out where this document
-   says.
+2. The `heating-policy-test` flake check renders the generated templates with a harness
+   (`hosts/galactica/services/home-assistant-heating/harness.py`) and checks that start
+   times and targets come out where this document says.
 3. After deploy, a week's per-room kWh and window-temperature table against the baseline
    above. Success means:
    - the living area is at 20 or above at 07:00 and 17:00 on weekdays,
