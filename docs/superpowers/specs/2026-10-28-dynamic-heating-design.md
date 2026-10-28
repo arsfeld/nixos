@@ -95,7 +95,8 @@ temperature, using the office's learned rate; only the office learns it.
   - used the living-area shortfall baseboards,
   - lasted under 15 minutes.
 - **Lead.** `clamp((comfort target − current temp) / rate, 0, max)`, where max is 3 h for
-  the living area and 2 h for baseboard zones. The `start` attribute of
+  the living area, 3.5 h for the office, 4 h for the family room and 2 h for the
+  downstairs bathroom. The `start` attribute of
   `sensor.heating_<zone>_target` shows the resulting time. Once now ≥ that time, the zone's target becomes the comfort target
   with reason `preheat`.
 - **Shortfall (living area only).** From pre-heat start until the window opens,
