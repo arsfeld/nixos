@@ -64,7 +64,9 @@
   night = "(now().hour >= 22 or now().hour < 6)";
 
   # Living/dining baseboards: off, unless the heat pump cannot hold the floor.
-  backupFloor = "(16 if ${night} else 18)";
+  # Last-resort floor for the living/dining baseboards: 17 at night, 18 by day.
+  backupFloor = "(17 if state_attr('${living}', 'reason') == 'base' else 18)";
+  livingBaseboards = tpl.targetEntity "living_baseboards";
   backupTarget = "(${backupFloor} + 1 if is_state('binary_sensor.living_area_needs_backup', 'on') else 5)";
 
   # Hilo thermostats only support heat; 5°C, their minimum, is off. `at` is
@@ -192,7 +194,24 @@ in {
             state = "${tpl.plan z}{{ p.target }}";
             attributes = lib.genAttrs targetAttributes (a: "${tpl.plan z}{{ p.${a} }}");
           })
-          zones;
+          zones
+          ++ [
+            {
+              # The living/dining baseboards: off, unless the heat pump is
+              # about to miss a comfort window (shortfall) or cannot hold the
+              # floor at all (backup).
+              name = "Heating living baseboards target";
+              unique_id = "heating_living_baseboards_target";
+              unit_of_measurement = "°C";
+              device_class = "temperature";
+              state = ''
+                {%- if is_state('binary_sensor.living_area_shortfall', 'on') %}{{ states('${living}') }}
+                {%- elif is_state('binary_sensor.living_area_needs_backup', 'on') %}{{ ${backupFloor} + 1 }}
+                {%- else %}5
+                {%- endif %}
+              '';
+            }
+          ];
         binary_sensor = [
           {
             name = "Living area needs backup";
@@ -210,6 +229,26 @@ in {
             unique_id = "alexandre_away";
             delay_on.minutes = 30;
             state = "{{ states('person.alexandre_rosenfeld') not in ['home', 'unknown', 'unavailable'] }}";
+          }
+          {
+            # The heat pump will miss the comfort window: within 45 minutes
+            # of it, temp + rate × time left is short of the target. Holds
+            # until the room gets there or the window ends; a boost always
+            # wants help.
+            name = "Living area shortfall";
+            unique_id = "living_area_shortfall";
+            state = ''
+              {%- set target = states('${living}') | float(none) %}
+              {%- set temp = states('sensor.living_area_temperature') | float(none) %}
+              {%- set reason = state_attr('${living}', 'reason') %}
+              {%- set minutes = state_attr('${living}', 'minutes') %}
+              {%- if target is none or temp is none or temp >= target %}{{ false }}
+              {%- elif reason == 'boost' %}{{ true }}
+              {%- elif this.state == 'on' and (reason == 'preheat' or (reason == 'schedule' and target >= 20)) %}{{ true }}
+              {%- elif reason == 'preheat' %}{{ minutes is not none and minutes <= 45 and temp + ${tpl.rate zones.living_area} * minutes / 60 < target }}
+              {%- else %}{{ false }}
+              {%- endif %}
+            '';
           }
         ];
       }

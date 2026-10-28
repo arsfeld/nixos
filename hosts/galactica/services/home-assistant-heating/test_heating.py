@@ -159,5 +159,61 @@ class Away(unittest.TestCase):
                 self.assertEqual(render_entity(hass, "binary_sensor", "alexandre_away").value, want)
 
 
+def living_binary(unique_id, temp, target, reason, minutes=None, this="off", extra=None):
+    hass = Hass(at(MONDAY, "06:30"), {
+        "sensor.living_area_temperature": temp,
+        LIVING: (target, {"reason": reason, "minutes": minutes}),
+        "input_number.heating_rate_living_area": "0",
+        **(extra or {}),
+    })
+    return render_entity(hass, "binary_sensor", unique_id, SimpleNamespace(state=this, attributes={})).value
+
+
+class Shortfall(unittest.TestCase):
+    def test_cases(self):
+        cases = [
+            # temp, target, reason, minutes, this, want
+            ("19.5", "20", "preheat", 30, "off", True),   # 19.5 + 0.4 * 0.5 = 19.7 < 20
+            ("19.5", "20", "preheat", 60, "off", False),  # more than 45 min to go
+            ("19.9", "20", "preheat", 30, "off", False),  # projected 20.1
+            ("19.8", "20", "schedule", None, "on", True),  # keeps going into the window
+            ("18.8", "19", "schedule", None, "on", False),  # not a comfort window
+            ("20.5", "21", "boost", None, "off", True),
+            ("20.0", "20", "preheat", 10, "on", False),  # reached
+        ]
+        for temp, tgt, reason, minutes, this, want in cases:
+            with self.subTest((temp, tgt, reason, minutes, this)):
+                self.assertEqual(living_binary("living_area_shortfall", temp, tgt, reason, minutes, this), want)
+
+
+class Backup(unittest.TestCase):
+    def test_cases(self):
+        cases = [
+            ("16.5", "base", "off", True),      # night floor 17
+            ("17.5", "schedule", "off", True),  # day floor 18
+            ("18.2", "schedule", "off", False),
+            ("18.5", "schedule", "on", True),   # holds until floor + 1
+        ]
+        for temp, reason, this, want in cases:
+            with self.subTest((temp, reason, this)):
+                self.assertEqual(living_binary("living_area_needs_backup", temp, "19", reason, None, this), want)
+
+
+class LivingBaseboardsTarget(unittest.TestCase):
+    def render(self, shortfall, backup, reason):
+        hass = Hass(at(MONDAY, "06:30"), {
+            LIVING: ("20", {"reason": reason}),
+            "binary_sensor.living_area_shortfall": shortfall,
+            "binary_sensor.living_area_needs_backup": backup,
+        })
+        return render_entity(hass, "sensor", "heating_living_baseboards_target").value
+
+    def test_cases(self):
+        self.assertEqual(self.render("on", "off", "preheat"), 20)
+        self.assertEqual(self.render("off", "on", "base"), 18)
+        self.assertEqual(self.render("off", "on", "schedule"), 19)
+        self.assertEqual(self.render("off", "off", "schedule"), 5)
+
+
 if __name__ == "__main__":
     unittest.main()
