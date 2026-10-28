@@ -147,8 +147,8 @@ its three layers.
    zone, declared in Nix and restored across restarts.
 4. **Actuators.**
    - **Heat pump:** keeps today's shape (5-minute timer, HA start with a 60 s IR delay
-     and resend, and state triggers), with its thresholds and setpoint read from the
-     living-area target.
+     and resend, and state triggers that fire on state changes only, not attribute ticks),
+     with its thresholds and setpoint read from the living-area target.
    - **Baseboards:** each baseboard is set when its zone's target sensor *changes*, plus
      the shortfall and backup flips for living/dining. Every zone's baseboards are also
      re-asserted at 06:00 and when a Hilo challenge ends. Between those the dial is left

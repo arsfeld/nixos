@@ -271,6 +271,12 @@ class HeatPump(unittest.TestCase):
     def test_resends_on_start(self):
         self.assertTrue(heat_pump("19.0", "20", trigger_id="start")["resend"])
 
+    def test_state_trigger_ignores_attribute_only_changes(self):
+        # Without a from/to filter HA fires on every attribute tick of the
+        # living target (pre-heat minutes); any not_to makes it state-only.
+        state = [t for t in automation("Heating - Heat pump")["triggers"] if t["trigger"] == "state"]
+        self.assertEqual([t.get("not_to") for t in state], [["unknown", "unavailable"]])
+
 
 ALL_BASEBOARDS = {
     "climate.master_bedroom", "climate.amanda_bedroom", "climate.beas_bedroom", "climate.bathroom",

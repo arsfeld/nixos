@@ -30,9 +30,10 @@ in rec {
   # warms cannot switch it back off. `since`, `from_temp`, `assisted` and
   # `reached` feed rate learning. Template sensors are not restored across a
   # Home Assistant restart, so `this.attributes` is then empty: a running
-  # pre-heat is re-planned from the current temperature (it still reaches the
-  # target by the window), and `since`/`from_temp` restart at that moment, so
-  # the learning sample covers only the rest of the run.
+  # pre-heat is re-planned from the current temperature, as a fresh start
+  # would be (with a lead capped at maxLead, it may then arrive late), and
+  # `since`/`from_temp` restart at that moment, so the learning sample covers
+  # only the rest of the run.
   preheat = zone: let
     maxLead = num zone.rate.maxLead;
     assist = lib.optionalString (zone.assist != null) " or is_state('${zone.assist}', 'on')";
