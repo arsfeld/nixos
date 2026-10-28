@@ -20,7 +20,7 @@
     ./hermes.nix
     ./home-apps.nix
     ./home-assistant.nix
-    ./home-assistant-heating.nix
+    ./home-assistant-heating
     ./home.nix
     ./immich-pixel-sync
     ./immich-tv-frame.nix

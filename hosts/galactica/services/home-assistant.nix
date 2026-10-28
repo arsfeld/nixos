@@ -10,7 +10,7 @@
 #   Tuya IR air conditioners, Midea-protocol IR air conditioners, and TP-Link Deco
 # - Trusted proxy configuration for reverse proxy integration
 # - UI-managed automation, scene, and script files
-# - Heating automations live in ./home-assistant-heating.nix
+# - Heating automations live in ./home-assistant-heating/
 #
 # Prefer packaging a component over installing it through HACS: pip is
 # disabled here, so a HACS-installed component whose Python requirements are
