@@ -259,5 +259,51 @@ class HeatPump(unittest.TestCase):
         self.assertTrue(heat_pump("19.0", "20", trigger_id="start")["resend"])
 
 
+ALL_BASEBOARDS = {
+    "climate.master_bedroom", "climate.amanda_bedroom", "climate.beas_bedroom", "climate.bathroom",
+    "climate.office", "climate.bathroom_downstairs", "climate.living_room_2", "climate.living_room_1",
+    "climate.dining_room", "climate.workshop_1", "climate.workshop_2", "climate.garage",
+}
+
+
+class Baseboards(unittest.TestCase):
+    ALIAS = "Heating - Baseboards"
+
+    def test_target_change_sets_only_that_zone(self):
+        hass = Hass(at(MONDAY, "06:30"), {OFFICE: "21"})
+        trigger = {"id": "change", "entity_id": OFFICE}
+        self.assertEqual(render_variables(hass, self.ALIAS, trigger)["pairs"], [["climate.office", "21"]])
+
+    def test_morning_sets_every_baseboard_once(self):
+        pairs = render_variables(Hass(at(MONDAY, "06:00")), self.ALIAS, {"id": "morning"})["pairs"]
+        devices = [d for d, _ in pairs]
+        self.assertEqual(len(devices), len(set(devices)))
+        self.assertEqual(set(devices), ALL_BASEBOARDS)
+
+    def test_ignores_attribute_only_changes(self):
+        condition = automation(self.ALIAS)["conditions"][1]["value_template"]
+        hass = Hass(at(MONDAY, "06:30"))
+        same = {"id": "change", "from_state": SimpleNamespace(state="21"), "to_state": SimpleNamespace(state="21")}
+        moved = {"id": "change", "from_state": SimpleNamespace(state="16"), "to_state": SimpleNamespace(state="21")}
+        self.assertFalse(hass.render(condition, trigger=same))
+        self.assertTrue(hass.render(condition, trigger=moved))
+        self.assertTrue(hass.render(condition, trigger={"id": "morning"}))
+
+    def test_stands_down_for_hilo(self):
+        condition = automation(self.ALIAS)["conditions"][0]["value_template"]
+        self.assertFalse(Hass(at(MONDAY, "06:30"), {"sensor.defi_hilo": "pre_heat"}).render(condition))
+        self.assertTrue(Hass(at(MONDAY, "06:30"), {"sensor.defi_hilo": "off"}).render(condition))
+
+
+class ClearBoosts(unittest.TestCase):
+    def test_midnight_clears_all_three(self):
+        a = automation("Heating - Clear boosts")
+        self.assertEqual(a["triggers"], [{"trigger": "time", "at": "00:00:00"}])
+        self.assertEqual(
+            set(a["actions"][0]["target"]["entity_id"]),
+            {f"input_boolean.heating_boost_{h}" for h in ("living_area", "bedrooms", "office")},
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
