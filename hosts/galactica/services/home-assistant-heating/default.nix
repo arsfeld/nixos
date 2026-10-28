@@ -1,41 +1,39 @@
 # House heating, scheduled from Home Assistant rather than the Hilo app.
+# Design: docs/superpowers/specs/2026-10-28-dynamic-heating-design.md
 #
-# Two kinds of heat, three layers:
-#
-#   sensors    sensor.living_area_temperature is the median of the IR hub and
-#              the two Hilo thermostats under the heat pump. The hub alone
-#              reads 1-1.5°C warm; the median ignores whichever one is off.
-#              binary_sensor.living_area_needs_backup is the last-resort
-#              signal for the living/dining baseboards.
-#   policy     the targets below, keyed on the clock and sensor.defi_hilo.
+#   policy     zones.nix: each zone's weekly windows, base, boost, presence
+#              gating and warm-up rate. Change a schedule there.
+#   sensors    sensor.heating_<zone>_target is what each zone wants now (see
+#              templates.nix `plan`); its `reason` attribute says why (base,
+#              schedule, preheat, boost, away) and `start` when the next
+#              pre-heat begins. sensor.living_area_temperature is the median
+#              of the IR hub and the two Hilo thermostats under the heat pump;
+#              the hub alone reads 1-1.5°C warm. binary_sensor.living_area_
+#              shortfall and _needs_backup bring in the living/dining
+#              baseboards through sensor.heating_living_baseboards_target.
 #   actuators  one automation for the heat pump, one for every baseboard.
 #              The heat pump is HA's alone: it re-evaluates on a timer and on
-#              HA start, so a missed edge or a restart corrects itself. The
-#              baseboards are only set at their scheduled switch times (and
-#              the living/dining ones when the backup flips); between those
-#              they are left to whoever turns the dial or uses the Hilo app.
-#              A switch missed while HA was down is skipped, not caught up,
-#              so a deploy never overwrites a manual change.
+#              HA start, so a missed edge or a restart corrects itself. A
+#              baseboard is set when its zone's target changes and every
+#              morning at 06:00; between those it is left to whoever turns
+#              the dial or uses the Hilo app, and a restart sets nothing.
 #
-# The heat pump (Kanion, IR-only) heats the living and dining rooms, and its heat
-# reaches the bedrooms too (their baseboards only hold 18 underneath it), so it
-# should run as much as possible: it turns on
-# below 18.5°C from 05:00 (an hour of pre-heat) to 22:00 and below 18°C
-# overnight, and only shuts down above 21°C. Its own thermostat reads far colder
-# than the room, so it is driven on/off from the living area sensor. Its setpoint
-# is 19 in mild weather, where running long and gently beats short bursts; below
-# 5°C outside it is 21, because at 19 it only holds the room near 18.5 and its
-# heat never reaches the bedrooms. It is also 21 whatever the weather from
-# 05:00 to 08:00, so the house is warm when everyone wakes around 7, and from
-# 10:00 to 13:00, so it is warmer over lunch (11-13) on the heat pump alone;
-# each window starts early as pre-heat and turns it on below 21°C rather than
-# 18.5, and midday is also when it runs most efficiently. On frosty
-# mornings it shows "dF" and stops blowing for 5-10 minutes while it defrosts;
-# the room drops ~1°C and recovers, which is why the backup waits 30 minutes.
+# Pre-heat starts (target - temp) / rate before a window; a zone that owns a
+# rate helper learns it from its own unassisted pre-heats. The heat pump
+# (Kanion, IR-only) heats the living and dining rooms and, through them, the
+# bedrooms, so it runs long: on below the target - 0.5, off only above 21.
+# Its own thermostat reads far colder than the room, so it is driven from
+# the living area sensor. Its setpoint is 21 whenever the target is 20 or
+# more or it is below 5°C outside: it never gets the room to 21, and 21 is
+# how it pushes heat through the house. Otherwise it is 19. On frosty
+# mornings it shows "dF" and stops blowing for 5-10 minutes while it
+# defrosts; the room drops ~1°C and recovers, which is why the backup waits
+# 30 minutes.
 #
 # Hilo challenges: Hilo lowers the baseboards itself, so the baseboard
 # automation stands down from pre_heat through recovery, and the heat pump is
-# turned off during the reduction.
+# turned off during the reduction. Boosts (cleared at midnight) do not
+# override a challenge.
 {lib, ...}: let
   tpl = import ./templates.nix {inherit lib;};
   pretty = lib.replaceStrings ["_"] [" "];
@@ -57,85 +55,17 @@
   boostHelpers = lib.unique (lib.concatMap (z: lib.optional (z.boost != null) z.boost.helper) (lib.attrValues zones));
 
   living = tpl.targetEntity "living_area";
+  livingBaseboards = tpl.targetEntity "living_baseboards";
   targetAttributes = ["reason" "window" "minutes" "start" "since" "from_temp" "assisted" "reached"];
 
-  hiloReduction = "states('sensor.defi_hilo') in ['reduction', 'on']";
-  hiloActive = "states('sensor.defi_hilo') in ['pre_heat', 'reduction', 'on', 'recovery']";
-  night = "(now().hour >= 22 or now().hour < 6)";
-
-  # Living/dining baseboards: off, unless the heat pump cannot hold the floor.
   # Last-resort floor for the living/dining baseboards: 17 at night, 18 by day.
   backupFloor = "(17 if state_attr('${living}', 'reason') == 'base' else 18)";
-  livingBaseboards = tpl.targetEntity "living_baseboards";
-  backupTarget = "(${backupFloor} + 1 if is_state('binary_sensor.living_area_needs_backup', 'on') else 5)";
 
-  # Hilo thermostats only support heat; 5°C, their minimum, is off. `at` is
-  # the hours a room is reset to its target; fixed-target rooms still reset
-  # at the day/night switches, so a manual change lasts until the next one.
-  dayNight = [6 22];
-  backupRooms = ["living_room_1" "dining_room"];
+  # Every target sensor that drives baseboards, and the baseboards it drives.
   baseboards =
-    {
-      master_bedroom = {
-        target = "18";
-        at = dayNight;
-      };
-      amanda_bedroom = {
-        target = "18";
-        at = dayNight;
-      };
-      beas_bedroom = {
-        target = "18";
-        at = dayNight;
-      };
-      bathroom = {
-        target = "19";
-        at = dayNight;
-      };
-
-      # Basement
-      office = {
-        target = "(17 if ${night} else 19)";
-        at = dayNight;
-      };
-      bathroom_downstairs = {
-        target = "(17 if ${night} else 19)";
-        at = dayNight;
-      };
-
-      # Family room (still living_room_2 in HA): too far for the heat pump.
-      living_room_2 = {
-        target = "(19 if 17 <= now().hour < 22 else 16)";
-        at = [17 22];
-      };
-
-      # Baseboards not ready yet.
-      workshop_1 = {
-        target = "5";
-        at = dayNight;
-      };
-      workshop_2 = {
-        target = "5";
-        at = dayNight;
-      };
-      garage = {
-        target = "5";
-        at = dayNight;
-      };
-    }
-    // lib.genAttrs backupRooms (_: {
-      target = backupTarget;
-      at = dayNight;
-    });
-
-  switchHours = lib.unique (lib.concatMap (b: b.at) (lib.attrValues baseboards));
-  climates = rooms: map (room: "climate.${room}") rooms;
-  roomsAt = hour: climates (lib.attrNames (lib.filterAttrs (_: b: lib.elem hour b.at) baseboards));
-
-  # The rooms each baseboard trigger (by id) is allowed to touch.
-  roomsByTrigger =
-    lib.listToAttrs (map (hour: lib.nameValuePair (toString hour) (roomsAt hour)) switchHours)
-    // {backup = climates backupRooms;};
+    lib.mapAttrs' (name: z: lib.nameValuePair (tpl.targetEntity name) z.devices)
+    (lib.filterAttrs (_: z: z.devices != []) zones)
+    // {${livingBaseboards} = ["climate.living_room_1" "climate.dining_room"];};
 
   livingAreaSensors = [
     "sensor.living_room_ir_temperature_2"
@@ -350,49 +280,61 @@ in {
       }
       {
         alias = "Heating - Baseboards";
-        description = "Set Hilo baseboards to their targets at scheduled switch times, unless a Hilo challenge is running";
-        triggers =
-          map (hour: {
+        description = "Set each zone's baseboards when its target changes, and all of them at 06:00, unless a Hilo challenge is running";
+        triggers = [
+          {
+            trigger = "state";
+            entity_id = lib.attrNames baseboards;
+            not_from = ["unknown" "unavailable"];
+            not_to = ["unknown" "unavailable"];
+            id = "change";
+          }
+          {
+            # Re-assert every zone daily, so a dial turned by hand lasts at
+            # most until morning and a changed zones.nix applies by then.
             trigger = "time";
-            at = "${lib.fixedWidthNumber 2 hour}:00:00";
-            id = toString hour;
-          })
-          switchHours
-          ++ [
-            {
-              trigger = "state";
-              entity_id = "binary_sensor.living_area_needs_backup";
-              to = ["on" "off"];
-              id = "backup";
-            }
-          ];
+            at = "06:00:00";
+            id = "morning";
+          }
+        ];
         conditions = [
           {
             condition = "template";
-            value_template = "{{ not (${hiloActive}) }}";
+            value_template = "{{ not (${tpl.hiloActive}) }}";
+          }
+          {
+            # A state trigger also fires on attribute changes (pre-heat
+            # minutes tick every minute); only a new target counts.
+            condition = "template";
+            value_template = "{{ trigger.id == 'morning' or trigger.from_state.state != trigger.to_state.state }}";
           }
         ];
-        variables = {
-          rooms = "{{ ${builtins.toJSON roomsByTrigger}[trigger.id] }}";
-          targets = "{{ {${lib.concatStringsSep ", " (lib.mapAttrsToList (room: b: "'climate.${room}': ${b.target}") baseboards)}} }}";
-        };
+        variables.pairs = ''
+          {%- set ns = namespace(pairs=[]) %}
+          {%- for sensor, climates in (${builtins.toJSON baseboards}).items() if trigger.id == 'morning' or sensor == trigger.entity_id %}
+            {%- for climate in climates %}
+              {%- set ns.pairs = ns.pairs + [[climate, states(sensor)]] %}
+            {%- endfor %}
+          {%- endfor %}
+          {{ ns.pairs }}
+        '';
         actions = [
           {
             repeat = {
-              for_each = "{{ rooms }}";
+              for_each = "{{ pairs }}";
               sequence = [
                 {
                   "if" = [
                     {
                       condition = "template";
-                      value_template = "{{ states(repeat.item) not in ['unavailable', 'unknown'] and state_attr(repeat.item, 'temperature') | float(0) != targets[repeat.item] | float }}";
+                      value_template = "{{ states(repeat.item[0]) not in ['unavailable', 'unknown'] and repeat.item[1] is is_number and state_attr(repeat.item[0], 'temperature') | float(0) != repeat.item[1] | float }}";
                     }
                   ];
                   "then" = [
                     {
                       action = "climate.set_temperature";
-                      target.entity_id = "{{ repeat.item }}";
-                      data.temperature = "{{ targets[repeat.item] }}";
+                      target.entity_id = "{{ repeat.item[0] }}";
+                      data.temperature = "{{ repeat.item[1] }}";
                     }
                   ];
                 }
@@ -400,8 +342,24 @@ in {
             };
           }
         ];
+        mode = "queued";
+      }
+      {
+        alias = "Heating - Clear boosts";
+        description = "Turn every heating boost off at midnight, so none is forgotten on";
+        triggers = [
+          {
+            trigger = "time";
+            at = "00:00:00";
+          }
+        ];
+        actions = [
+          {
+            action = "input_boolean.turn_off";
+            target.entity_id = map tpl.boostEntity boostHelpers;
+          }
+        ];
         mode = "single";
-        max_exceeded = "silent";
       }
     ];
   };
