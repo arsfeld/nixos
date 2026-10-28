@@ -20,6 +20,8 @@
   living_area = {
     temperature = "sensor.living_area_temperature";
     base = 18;
+    # Comfort windows are targets of 20 or more; the shortfall sensor relies on
+    # that, so eco/base targets here must stay below 20.
     weekday = [["07:00" "08:00" 20] ["08:00" "17:00" 19] ["17:00" "20:30" 20]];
     weekend = [["07:00" "20:30" 20]];
     boost = {
