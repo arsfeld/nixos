@@ -42,6 +42,27 @@
           pkgs = inputs.nixpkgs.legacyPackages.${system};
         };
 
+        # The heating policy's generated Home Assistant templates, rendered
+        # outside HA by a harness that mimics the extensions they use.
+        heating-policy-test = let
+          pkgs = inputs.nixpkgs.legacyPackages.${system};
+          hass = self.nixosConfigurations.galactica.config.services.home-assistant.config;
+          config = pkgs.writeText "heating.json" (builtins.toJSON {
+            template = hass.template;
+            input_boolean = hass.input_boolean or {};
+            input_number = hass.input_number or {};
+            automation = hass."automation heating";
+          });
+        in
+          pkgs.runCommand "heating-policy-test" {
+            nativeBuildInputs = [(pkgs.python3.withPackages (ps: [ps.jinja2]))];
+            HEATING_CONFIG = config;
+          } ''
+            cp ${../hosts/galactica/services/home-assistant-heating}/*.py .
+            python3 -m unittest discover -v -s . -p 'test_*.py'
+            touch $out
+          '';
+
         # The media lower layers (media.gateway.services, media.containers)
         # may only be written by modules/media/; services.nix asserts it.
         # Probe galactica with a stray write to each and require that the
