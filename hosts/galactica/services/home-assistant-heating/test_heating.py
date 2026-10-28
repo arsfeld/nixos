@@ -287,8 +287,19 @@ class Baseboards(unittest.TestCase):
         trigger = {"id": "change", "entity_id": OFFICE}
         self.assertEqual(render_variables(hass, self.ALIAS, trigger)["pairs"], [["climate.office", "21"]])
 
-    def test_morning_sets_every_baseboard_once(self):
-        pairs = render_variables(Hass(at(MONDAY, "06:00")), self.ALIAS, {"id": "morning"})["pairs"]
+    def test_morning_and_challenge_end_reassert_everything(self):
+        others = [t for t in automation(self.ALIAS)["triggers"] if t["id"] != "change"]
+        self.assertEqual({t["id"] for t in others}, {"all"})
+        self.assertEqual(
+            sorted((t["trigger"], t.get("at", ""), t.get("entity_id", ""), t.get("to", "")) for t in others),
+            [("state", "", "sensor.defi_hilo", "off"), ("time", "06:00:00", "", "")],
+        )
+
+    def test_all_sets_every_baseboard_once(self):
+        # Both the 06:00 trigger and a challenge ending (defi -> off) carry id "all".
+        hass = Hass(at(MONDAY, "06:00"), {"sensor.defi_hilo": "off"})
+        trigger = {"id": "all", "entity_id": "sensor.defi_hilo"}
+        pairs = render_variables(hass, self.ALIAS, trigger)["pairs"]
         devices = [d for d, _ in pairs]
         self.assertEqual(len(devices), len(set(devices)))
         self.assertEqual(set(devices), ALL_BASEBOARDS)
@@ -300,7 +311,7 @@ class Baseboards(unittest.TestCase):
         moved = {"id": "change", "from_state": SimpleNamespace(state="16"), "to_state": SimpleNamespace(state="21")}
         self.assertFalse(hass.render(condition, trigger=same))
         self.assertTrue(hass.render(condition, trigger=moved))
-        self.assertTrue(hass.render(condition, trigger={"id": "morning"}))
+        self.assertTrue(hass.render(condition, trigger={"id": "all"}))
 
     def test_stands_down_for_hilo(self):
         condition = automation(self.ALIAS)["conditions"][0]["value_template"]

@@ -14,9 +14,10 @@
 #   actuators  one automation for the heat pump, one for every baseboard.
 #              The heat pump is HA's alone: it re-evaluates on a timer and on
 #              HA start, so a missed edge or a restart corrects itself. A
-#              baseboard is set when its zone's target changes and every
-#              morning at 06:00; between those it is left to whoever turns
-#              the dial or uses the Hilo app, and a restart sets nothing.
+#              baseboard is set when its zone's target changes, every
+#              morning at 06:00 and when a Hilo challenge ends; between those
+#              it is left to whoever turns the dial or uses the Hilo app, and
+#              a restart sets nothing.
 #
 # Pre-heat starts (target - temp) / rate before a window; a zone that owns a
 # rate helper learns it from its own unassisted pre-heats. The heat pump
@@ -31,8 +32,9 @@
 # 30 minutes.
 #
 # Hilo challenges: Hilo lowers the baseboards itself, so the baseboard
-# automation stands down from pre_heat through recovery, and the heat pump is
-# turned off during the reduction. Boosts (cleared at midnight) do not
+# automation stands down from pre_heat through recovery and re-asserts every
+# zone once the challenge ends, and the heat pump is turned off during the
+# reduction. Boosts (cleared at midnight) do not
 # override a challenge.
 {lib, ...}: let
   tpl = import ./templates.nix {inherit lib;};
@@ -349,7 +351,7 @@ in {
         }
         {
           alias = "Heating - Baseboards";
-          description = "Set each zone's baseboards when its target changes, and all of them at 06:00, unless a Hilo challenge is running";
+          description = "Set each zone's baseboards when its target changes, and all of them at 06:00 and when a Hilo challenge ends, unless one is running";
           triggers = [
             {
               trigger = "state";
@@ -363,7 +365,17 @@ in {
               # most until morning and a changed zones.nix applies by then.
               trigger = "time";
               at = "06:00:00";
-              id = "morning";
+              id = "all";
+            }
+            {
+              # Target changes during a challenge are dropped, and Hilo then
+              # restores its pre-challenge setpoints, so re-assert every zone
+              # once it ends.
+              trigger = "state";
+              entity_id = "sensor.defi_hilo";
+              not_from = ["unknown" "unavailable"];
+              to = "off";
+              id = "all";
             }
           ];
           conditions = [
@@ -372,15 +384,16 @@ in {
               value_template = "{{ not (${tpl.hiloActive}) }}";
             }
             {
-              # A state trigger also fires on attribute changes (pre-heat
-              # minutes tick every minute); only a new target counts.
+              # With not_from/not_to set, HA already ignores attribute-only
+              # changes (pre-heat minutes tick every minute); this is a cheap
+              # guard that only a new target counts.
               condition = "template";
-              value_template = "{{ trigger.id == 'morning' or trigger.from_state.state != trigger.to_state.state }}";
+              value_template = "{{ trigger.id == 'all' or trigger.from_state.state != trigger.to_state.state }}";
             }
           ];
           variables.pairs = ''
             {%- set ns = namespace(pairs=[]) %}
-            {%- for sensor, climates in (${builtins.toJSON baseboards}).items() if trigger.id == 'morning' or sensor == trigger.entity_id %}
+            {%- for sensor, climates in (${builtins.toJSON baseboards}).items() if trigger.id == 'all' or sensor == trigger.entity_id %}
               {%- for climate in climates %}
                 {%- set ns.pairs = ns.pairs + [[climate, states(sensor)]] %}
               {%- endfor %}
