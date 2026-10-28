@@ -307,28 +307,50 @@ class ClearBoosts(unittest.TestCase):
 
 class Learning(unittest.TestCase):
     ALIAS = "Heating - Learn office warm-up rate"
-    REACHED = {
+    RUN = {
         "reason": "preheat",
         "since": at(MONDAY, "06:30").timestamp(),
         "from_temp": 18.0,
         "assisted": False,
         "reached": True,
     }
+    CLEARED = {"reason": "schedule", "since": None, "from_temp": None, "assisted": False, "reached": False}
 
-    def render(self, now, temp="20.0", attrs=None, setpoint=21.0, rate="0"):
-        hass = Hass(now, {
+    def trigger(self, trigger_id):
+        for t in automation(self.ALIAS)["triggers"]:
+            if t.get("id") == trigger_id:
+                return t
+        raise KeyError(trigger_id)
+
+    def hass(self, now, temp, attrs, setpoint, rate):
+        return Hass(now, {
             "sensor.office_temperature": temp,
-            OFFICE: ("21", {**self.REACHED, **(attrs or {})}),
+            OFFICE: ("21", attrs),
             "climate.office": ("heat", {"temperature": setpoint}),
             "input_number.heating_rate_office": rate,
             "sensor.defi_hilo": "off",
         })
+
+    def outcome(self, hass, trigger):
+        """(condition passes, value written) for a trigger, with HA's variables."""
         a = automation(self.ALIAS)
+        v = render_variables(hass, self.ALIAS, trigger)
         return (
-            hass.render(a["triggers"][0]["value_template"]),
-            hass.render(a["conditions"][0]["value_template"]),
-            hass.render(a["actions"][0]["data"]["value"]),
+            hass.render(a["conditions"][0]["value_template"], trigger=trigger, **v),
+            hass.render(a["actions"][0]["data"]["value"], trigger=trigger, **v),
         )
+
+    def render(self, now, temp="20.0", attrs=None, setpoint=21.0, rate="0"):
+        """The reached path: the pre-heat gets to its target before the window."""
+        hass = self.hass(now, temp, {**self.RUN, **(attrs or {})}, setpoint, rate)
+        fired = hass.render(self.trigger("reached")["value_template"])
+        return (fired, *self.outcome(hass, {"id": "reached"}))
+
+    def late(self, now, temp, run=None, setpoint=21.0, rate="0"):
+        """The late path: the window opens with the pre-heat short of its target."""
+        hass = self.hass(now, temp, self.CLEARED, setpoint, rate)
+        before = SimpleNamespace(state="21", attributes={**self.RUN, "reached": False, **(run or {})})
+        return self.outcome(hass, {"id": "late", "from_state": before})
 
     def test_learns_a_moving_average(self):
         # 2 °C in 1 h, against the 1.5 seed: 0.7 * 1.5 + 0.3 * 2 = 1.65
@@ -345,6 +367,33 @@ class Learning(unittest.TestCase):
 
     def test_clamps(self):
         self.assertEqual(self.render(at(MONDAY, "07:30"), temp="30.0", rate="3")[2], 3)
+
+    def test_late_trigger_is_the_window_opening(self):
+        t = self.trigger("late")
+        self.assertEqual(
+            (t["trigger"], t["entity_id"], t["attribute"], t["from"], t["to"]),
+            ("state", OFFICE, "reason", "preheat", "schedule"),
+        )
+
+    def test_learns_from_a_late_run(self):
+        # 17 -> 20 °C from 06:30 to 08:30 is 1.5 °C/h, against a learned 1.0:
+        # 0.7 * 1.0 + 0.3 * 1.5 = 1.15
+        r = self.late(at(MONDAY, "08:30"), "20.0", run={"from_temp": 17.0}, rate="1")
+        self.assertEqual(r, (True, 1.15))
+
+    def test_skips_an_assisted_late_run(self):
+        r = self.late(at(MONDAY, "08:30"), "20.0", run={"from_temp": 17.0, "assisted": True}, rate="1")
+        self.assertFalse(r[0])
+
+    def test_skips_a_late_run_that_was_already_learned(self):
+        r = self.late(at(MONDAY, "08:30"), "21.0", run={"reached": True}, rate="1")
+        self.assertFalse(r[0])
+
+    def test_skips_a_late_run_during_a_challenge(self):
+        hass = self.hass(at(MONDAY, "08:30"), "20.0", self.CLEARED, 21.0, "1")
+        hass.set("sensor.defi_hilo", "recovery")
+        before = SimpleNamespace(state="21", attributes={**self.RUN, "reached": False, "from_temp": 17.0})
+        self.assertFalse(self.outcome(hass, {"id": "late", "from_state": before})[0])
 
     def test_only_rate_owners_learn(self):
         from harness import CONFIG

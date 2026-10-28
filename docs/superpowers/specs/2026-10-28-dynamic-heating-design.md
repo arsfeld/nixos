@@ -87,8 +87,10 @@ temperature, using the office's learned rate; only the office learns it.
   clamped to 0.2–3. Seeds come from this week's data: living area 0.4, office 1.5, family
   room 1.0.
 - **Learning.** When a pre-heat reaches its target, an automation records
-  `(temp now − temp at start) / hours` and stores `0.7 × old + 0.3 × new`. Runs are not
-  learned from when they:
+  `(temp now − temp at start) / hours` and stores `0.7 × old + 0.3 × new`. A pre-heat
+  that has not reached its target when the window opens (reason `preheat` → `schedule`)
+  is sampled then, from the rate it actually achieved, so a rate that is too high comes
+  back down instead of only ever rising. Runs are not learned from when they:
   - were interrupted (boost, manual change, presence change or Hilo challenge),
   - used the living-area shortfall baseboards,
   - lasted under 15 minutes.
