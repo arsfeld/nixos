@@ -305,5 +305,56 @@ class ClearBoosts(unittest.TestCase):
         )
 
 
+class Learning(unittest.TestCase):
+    ALIAS = "Heating - Learn office warm-up rate"
+    REACHED = {
+        "reason": "preheat",
+        "since": at(MONDAY, "06:30").timestamp(),
+        "from_temp": 18.0,
+        "assisted": False,
+        "reached": True,
+    }
+
+    def render(self, now, temp="20.0", attrs=None, setpoint=21.0, rate="0"):
+        hass = Hass(now, {
+            "sensor.office_temperature": temp,
+            OFFICE: ("21", {**self.REACHED, **(attrs or {})}),
+            "climate.office": ("heat", {"temperature": setpoint}),
+            "input_number.heating_rate_office": rate,
+            "sensor.defi_hilo": "off",
+        })
+        a = automation(self.ALIAS)
+        return (
+            hass.render(a["triggers"][0]["value_template"]),
+            hass.render(a["conditions"][0]["value_template"]),
+            hass.render(a["actions"][0]["data"]["value"]),
+        )
+
+    def test_learns_a_moving_average(self):
+        # 2 °C in 1 h, against the 1.5 seed: 0.7 * 1.5 + 0.3 * 2 = 1.65
+        self.assertEqual(self.render(at(MONDAY, "07:30")), (True, True, 1.65))
+
+    def test_skips_short_runs(self):
+        self.assertFalse(self.render(at(MONDAY, "06:40"))[1])
+
+    def test_skips_assisted_runs(self):
+        self.assertFalse(self.render(at(MONDAY, "07:30"), attrs={"assisted": True})[1])
+
+    def test_skips_a_dial_turned_by_hand(self):
+        self.assertFalse(self.render(at(MONDAY, "07:30"), setpoint=19.0)[1])
+
+    def test_clamps(self):
+        self.assertEqual(self.render(at(MONDAY, "07:30"), temp="30.0", rate="3")[2], 3)
+
+    def test_only_rate_owners_learn(self):
+        from harness import CONFIG
+        learners = {a["alias"] for a in CONFIG["automation"] if a["alias"].startswith("Heating - Learn")}
+        self.assertEqual(learners, {
+            "Heating - Learn living area warm-up rate",
+            "Heating - Learn office warm-up rate",
+            "Heating - Learn family room warm-up rate",
+        })
+
+
 if __name__ == "__main__":
     unittest.main()
