@@ -151,11 +151,14 @@ its three layers.
      living-area target.
    - **Baseboards:** each baseboard is set when its zone's target sensor *changes*, plus
      the shortfall and backup flips for living/dining. Every zone's baseboards are also
-     re-asserted at 06:00. Between those the dial is left alone, so a manual or Hilo-app
-     change lasts until the next target change or the next morning, and a `zones.nix`
-     change applies by then. A restart overwrites nothing.
+     re-asserted at 06:00 and when a Hilo challenge ends. Between those the dial is left
+     alone, so a manual or Hilo-app change lasts until the next target change or the next
+     morning, and a `zones.nix` change applies by then. A restart overwrites nothing.
    - **Hilo challenges:** baseboards still stand down from pre-heat through recovery,
-     and the heat pump is off during reduction.
+     and the heat pump is off during reduction. A target change during a challenge is
+     dropped and Hilo restores its pre-challenge setpoints afterwards, so when
+     `sensor.defi_hilo` returns to `off` every zone's baseboards are re-asserted, as at
+     06:00.
 
 ## Failure handling
 
