@@ -37,6 +37,28 @@
 # automation stands down from pre_heat through recovery, and the heat pump is
 # turned off during the reduction.
 {lib, ...}: let
+  tpl = import ./templates.nix {inherit lib;};
+  pretty = lib.replaceStrings ["_"] [" "];
+
+  zoneDefaults = {
+    temperature = null;
+    weekday = [];
+    weekend = [];
+    boost = null;
+    presence = false;
+    rate = null;
+    devices = [];
+    assist = null;
+  };
+  zones = lib.mapAttrs (_: z: zoneDefaults // z) (import ./zones.nix);
+
+  # A zone learns the rate helper named after it; others only borrow one.
+  learning = lib.filterAttrs (name: z: z.rate != null && z.rate.helper == name) zones;
+  boostHelpers = lib.unique (lib.concatMap (z: lib.optional (z.boost != null) z.boost.helper) (lib.attrValues zones));
+
+  living = tpl.targetEntity "living_area";
+  targetAttributes = ["reason" "window" "minutes" "start" "since" "from_temp" "assisted" "reached"];
+
   hiloReduction = "states('sensor.defi_hilo') in ['reduction', 'on']";
   hiloActive = "states('sensor.defi_hilo') in ['pre_heat', 'reduction', 'on', 'recovery']";
   night = "(now().hour >= 22 or now().hour < 6)";
@@ -120,20 +142,57 @@
   ];
   livingAreaReadings = "${builtins.toJSON livingAreaSensors} | map('states') | select('is_number') | map('float') | list";
 in {
+  # Pre-heat never looks past midnight, so no window may need to start
+  # before it.
+  assertions = lib.concatLists (lib.mapAttrsToList (name: z:
+    lib.optionals (z.rate != null) (map (w: {
+      assertion = tpl.minutes (builtins.elemAt w 0) >= z.rate.maxLead;
+      message = "heating zone ${name}: the ${builtins.elemAt w 0} window would pre-heat before midnight";
+    }) (z.weekday ++ z.weekend)))
+  zones);
+
   services.home-assistant.config = {
+    input_boolean = lib.listToAttrs (map (h:
+      lib.nameValuePair "heating_boost_${h}" {
+        name = "Boost ${pretty h}";
+        icon = "mdi:fire";
+      })
+    boostHelpers);
+
+    input_number = lib.mapAttrs' (name: _:
+      lib.nameValuePair "heating_rate_${name}" {
+        name = "Heating rate ${pretty name}";
+        min = 0;
+        max = 3;
+        step = 0.01;
+        mode = "box";
+        unit_of_measurement = "°C/h";
+      })
+    learning;
+
     template = [
       {
-        sensor = [
-          {
-            name = "Living area temperature";
-            unique_id = "living_area_temperature";
+        sensor =
+          [
+            {
+              name = "Living area temperature";
+              unique_id = "living_area_temperature";
+              unit_of_measurement = "°C";
+              device_class = "temperature";
+              state_class = "measurement";
+              availability = "{{ (${livingAreaReadings}) | count > 0 }}";
+              state = "{{ (${livingAreaReadings}) | median | round(1) }}";
+            }
+          ]
+          ++ lib.mapAttrsToList (name: z: {
+            name = "Heating ${pretty name} target";
+            unique_id = "heating_${name}_target";
             unit_of_measurement = "°C";
             device_class = "temperature";
-            state_class = "measurement";
-            availability = "{{ (${livingAreaReadings}) | count > 0 }}";
-            state = "{{ (${livingAreaReadings}) | median | round(1) }}";
-          }
-        ];
+            state = "${tpl.plan z}{{ p.target }}";
+            attributes = lib.genAttrs targetAttributes (a: "${tpl.plan z}{{ p.${a} }}");
+          })
+          zones;
         binary_sensor = [
           {
             name = "Living area needs backup";
@@ -144,6 +203,13 @@ in {
               {% set floor = ${backupFloor} %}
               {{ t is not none and (t < floor or (this.state == 'on' and t < floor + 1)) }}
             '';
+          }
+          {
+            # Not home for 30 minutes; unknown counts as home, so heat fails warm.
+            name = "Alexandre away";
+            unique_id = "alexandre_away";
+            delay_on.minutes = 30;
+            state = "{{ states('person.alexandre_rosenfeld') not in ['home', 'unknown', 'unavailable'] }}";
           }
         ];
       }
