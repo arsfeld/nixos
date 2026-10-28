@@ -73,6 +73,51 @@
     "sensor.dining_room_temperature"
   ];
   livingAreaReadings = "${builtins.toJSON livingAreaSensors} | map('states') | select('is_number') | map('float') | list";
+
+  # After an unassisted pre-heat reaches its target, fold the rate it
+  # achieved into the zone's helper (30% new), clamped to 0.2-3 °C/h. Runs
+  # under 15 minutes, helped by the shortfall baseboards, during a Hilo
+  # challenge, or with a baseboard dial moved off the target are not learned
+  # from; a boost or presence change ends the pre-heat before it gets here.
+  learn = name: z: let
+    sensor = tpl.targetEntity name;
+    sameSetpoint = lib.concatMapStrings (d: " and state_attr('${d}', 'temperature') | float(0) == states('${sensor}') | float(0)") z.devices;
+  in {
+    alias = "Heating - Learn ${pretty name} warm-up rate";
+    description = "Learn how fast pre-heat warms the ${pretty name}";
+    triggers = [
+      {
+        trigger = "template";
+        value_template = "{{ state_attr('${sensor}', 'reason') == 'preheat' and state_attr('${sensor}', 'reached') == true }}";
+      }
+    ];
+    conditions = [
+      {
+        condition = "template";
+        value_template = ''
+          {%- set since = state_attr('${sensor}', 'since') | float(none) %}
+          {%- set start = state_attr('${sensor}', 'from_temp') | float(none) %}
+          {%- set temp = states('${z.temperature}') | float(none) %}
+          {{ since is not none and start is not none and temp is not none
+             and now().timestamp() - since >= 900 and temp > start
+             and not state_attr('${sensor}', 'assisted')
+             and not (${tpl.hiloActive})${sameSetpoint} }}
+        '';
+      }
+    ];
+    actions = [
+      {
+        action = "input_number.set_value";
+        target.entity_id = tpl.rateEntity name;
+        data.value = ''
+          {%- set hours = (now().timestamp() - state_attr('${sensor}', 'since') | float) / 3600 %}
+          {%- set observed = (states('${z.temperature}') | float - state_attr('${sensor}', 'from_temp') | float) / hours %}
+          {{ ([[0.7 * ${tpl.rate z} + 0.3 * observed, 3] | min, 0.2] | max) | round(2) }}
+        '';
+      }
+    ];
+    mode = "single";
+  };
 in {
   # Pre-heat never looks past midnight, so no window may need to start
   # before it.
@@ -187,180 +232,182 @@ in {
       }
     ];
 
-    "automation heating" = [
-      {
-        alias = "Heating - Heat pump";
-        description = "Run the heat pump below the living area's target - 0.5°C until it passes 21°C (21.5 when boosted); setpoint 21 whenever the target is 20 or more or it is below 5°C outside, else 19";
-        triggers = [
-          {
-            trigger = "homeassistant";
-            event = "start";
-            id = "start";
-          }
-          {
-            trigger = "time_pattern";
-            minutes = "/5";
-          }
-          {
-            trigger = "state";
-            entity_id = ["sensor.defi_hilo" "sensor.living_area_temperature" living];
-          }
-        ];
-        # HA renders these in order and Nix sorts attribute names, so each
-        # may only use variables that sort before it.
-        variables = {
-          current = "{{ states('climate.living_room_heat_pump') }}";
-          # IR is one-way, so the unit can disagree with the state HA
-          # restored; on start, send the wanted state even if HA thinks the
-          # unit is already there.
-          resend = "{{ trigger.id == 'start' }}";
-          setpoint = "{{ 21 if states('${living}') | float(0) >= 20 or states('sensor.outdoor_weather_hilo') | float(99) < 5 else 19 }}";
-          want = ''
-            {%- set temp = states('sensor.living_area_temperature') | float(none) %}
-            {%- set target = states('${living}') | float(none) %}
-            {%- set high = 21.5 if is_state('${tpl.boostEntity "living_area"}', 'on') else 21 %}
-            {%- if ${tpl.hiloReduction} %}off
-            {%- elif temp is none or target is none %}{{ current }}
-            {%- elif temp < target - 0.5 %}heat
-            {%- elif temp > high %}off
-            {%- else %}{{ current }}
-            {%- endif %}
-          '';
-        };
-        actions = [
-          {
-            # Give the IR hub time to connect after a restart.
-            "if" = [
-              {
-                condition = "template";
-                value_template = "{{ resend }}";
-              }
-            ];
-            "then" = [{delay.seconds = 60;}];
-          }
-          {
-            choose = [
-              {
-                conditions = [
-                  {
-                    condition = "template";
-                    value_template = "{{ want == 'heat' and (resend or current != 'heat' or state_attr('climate.living_room_heat_pump', 'temperature') | float(0) != setpoint | float) }}";
-                  }
-                ];
-                sequence = [
-                  {
-                    action = "climate.set_temperature";
-                    target.entity_id = "climate.living_room_heat_pump";
-                    data = {
-                      hvac_mode = "heat";
-                      temperature = "{{ setpoint }}";
-                    };
-                  }
-                ];
-              }
-              {
-                conditions = [
-                  {
-                    condition = "template";
-                    value_template = "{{ want == 'off' and (resend or current != 'off') }}";
-                  }
-                ];
-                sequence = [
-                  {
-                    action = "climate.turn_off";
-                    target.entity_id = "climate.living_room_heat_pump";
-                  }
-                ];
-              }
-            ];
-          }
-        ];
-        mode = "single";
-        max_exceeded = "silent";
-      }
-      {
-        alias = "Heating - Baseboards";
-        description = "Set each zone's baseboards when its target changes, and all of them at 06:00, unless a Hilo challenge is running";
-        triggers = [
-          {
-            trigger = "state";
-            entity_id = lib.attrNames baseboards;
-            not_from = ["unknown" "unavailable"];
-            not_to = ["unknown" "unavailable"];
-            id = "change";
-          }
-          {
-            # Re-assert every zone daily, so a dial turned by hand lasts at
-            # most until morning and a changed zones.nix applies by then.
-            trigger = "time";
-            at = "06:00:00";
-            id = "morning";
-          }
-        ];
-        conditions = [
-          {
-            condition = "template";
-            value_template = "{{ not (${tpl.hiloActive}) }}";
-          }
-          {
-            # A state trigger also fires on attribute changes (pre-heat
-            # minutes tick every minute); only a new target counts.
-            condition = "template";
-            value_template = "{{ trigger.id == 'morning' or trigger.from_state.state != trigger.to_state.state }}";
-          }
-        ];
-        variables.pairs = ''
-          {%- set ns = namespace(pairs=[]) %}
-          {%- for sensor, climates in (${builtins.toJSON baseboards}).items() if trigger.id == 'morning' or sensor == trigger.entity_id %}
-            {%- for climate in climates %}
-              {%- set ns.pairs = ns.pairs + [[climate, states(sensor)]] %}
-            {%- endfor %}
-          {%- endfor %}
-          {{ ns.pairs }}
-        '';
-        actions = [
-          {
-            repeat = {
-              for_each = "{{ pairs }}";
-              sequence = [
+    "automation heating" =
+      [
+        {
+          alias = "Heating - Heat pump";
+          description = "Run the heat pump below the living area's target - 0.5°C until it passes 21°C (21.5 when boosted); setpoint 21 whenever the target is 20 or more or it is below 5°C outside, else 19";
+          triggers = [
+            {
+              trigger = "homeassistant";
+              event = "start";
+              id = "start";
+            }
+            {
+              trigger = "time_pattern";
+              minutes = "/5";
+            }
+            {
+              trigger = "state";
+              entity_id = ["sensor.defi_hilo" "sensor.living_area_temperature" living];
+            }
+          ];
+          # HA renders these in order and Nix sorts attribute names, so each
+          # may only use variables that sort before it.
+          variables = {
+            current = "{{ states('climate.living_room_heat_pump') }}";
+            # IR is one-way, so the unit can disagree with the state HA
+            # restored; on start, send the wanted state even if HA thinks the
+            # unit is already there.
+            resend = "{{ trigger.id == 'start' }}";
+            setpoint = "{{ 21 if states('${living}') | float(0) >= 20 or states('sensor.outdoor_weather_hilo') | float(99) < 5 else 19 }}";
+            want = ''
+              {%- set temp = states('sensor.living_area_temperature') | float(none) %}
+              {%- set target = states('${living}') | float(none) %}
+              {%- set high = 21.5 if is_state('${tpl.boostEntity "living_area"}', 'on') else 21 %}
+              {%- if ${tpl.hiloReduction} %}off
+              {%- elif temp is none or target is none %}{{ current }}
+              {%- elif temp < target - 0.5 %}heat
+              {%- elif temp > high %}off
+              {%- else %}{{ current }}
+              {%- endif %}
+            '';
+          };
+          actions = [
+            {
+              # Give the IR hub time to connect after a restart.
+              "if" = [
                 {
-                  "if" = [
+                  condition = "template";
+                  value_template = "{{ resend }}";
+                }
+              ];
+              "then" = [{delay.seconds = 60;}];
+            }
+            {
+              choose = [
+                {
+                  conditions = [
                     {
                       condition = "template";
-                      value_template = "{{ states(repeat.item[0]) not in ['unavailable', 'unknown'] and repeat.item[1] is is_number and state_attr(repeat.item[0], 'temperature') | float(0) != repeat.item[1] | float }}";
+                      value_template = "{{ want == 'heat' and (resend or current != 'heat' or state_attr('climate.living_room_heat_pump', 'temperature') | float(0) != setpoint | float) }}";
                     }
                   ];
-                  "then" = [
+                  sequence = [
                     {
                       action = "climate.set_temperature";
-                      target.entity_id = "{{ repeat.item[0] }}";
-                      data.temperature = "{{ repeat.item[1] }}";
+                      target.entity_id = "climate.living_room_heat_pump";
+                      data = {
+                        hvac_mode = "heat";
+                        temperature = "{{ setpoint }}";
+                      };
+                    }
+                  ];
+                }
+                {
+                  conditions = [
+                    {
+                      condition = "template";
+                      value_template = "{{ want == 'off' and (resend or current != 'off') }}";
+                    }
+                  ];
+                  sequence = [
+                    {
+                      action = "climate.turn_off";
+                      target.entity_id = "climate.living_room_heat_pump";
                     }
                   ];
                 }
               ];
-            };
-          }
-        ];
-        mode = "queued";
-      }
-      {
-        alias = "Heating - Clear boosts";
-        description = "Turn every heating boost off at midnight, so none is forgotten on";
-        triggers = [
-          {
-            trigger = "time";
-            at = "00:00:00";
-          }
-        ];
-        actions = [
-          {
-            action = "input_boolean.turn_off";
-            target.entity_id = map tpl.boostEntity boostHelpers;
-          }
-        ];
-        mode = "single";
-      }
-    ];
+            }
+          ];
+          mode = "single";
+          max_exceeded = "silent";
+        }
+        {
+          alias = "Heating - Baseboards";
+          description = "Set each zone's baseboards when its target changes, and all of them at 06:00, unless a Hilo challenge is running";
+          triggers = [
+            {
+              trigger = "state";
+              entity_id = lib.attrNames baseboards;
+              not_from = ["unknown" "unavailable"];
+              not_to = ["unknown" "unavailable"];
+              id = "change";
+            }
+            {
+              # Re-assert every zone daily, so a dial turned by hand lasts at
+              # most until morning and a changed zones.nix applies by then.
+              trigger = "time";
+              at = "06:00:00";
+              id = "morning";
+            }
+          ];
+          conditions = [
+            {
+              condition = "template";
+              value_template = "{{ not (${tpl.hiloActive}) }}";
+            }
+            {
+              # A state trigger also fires on attribute changes (pre-heat
+              # minutes tick every minute); only a new target counts.
+              condition = "template";
+              value_template = "{{ trigger.id == 'morning' or trigger.from_state.state != trigger.to_state.state }}";
+            }
+          ];
+          variables.pairs = ''
+            {%- set ns = namespace(pairs=[]) %}
+            {%- for sensor, climates in (${builtins.toJSON baseboards}).items() if trigger.id == 'morning' or sensor == trigger.entity_id %}
+              {%- for climate in climates %}
+                {%- set ns.pairs = ns.pairs + [[climate, states(sensor)]] %}
+              {%- endfor %}
+            {%- endfor %}
+            {{ ns.pairs }}
+          '';
+          actions = [
+            {
+              repeat = {
+                for_each = "{{ pairs }}";
+                sequence = [
+                  {
+                    "if" = [
+                      {
+                        condition = "template";
+                        value_template = "{{ states(repeat.item[0]) not in ['unavailable', 'unknown'] and repeat.item[1] is is_number and state_attr(repeat.item[0], 'temperature') | float(0) != repeat.item[1] | float }}";
+                      }
+                    ];
+                    "then" = [
+                      {
+                        action = "climate.set_temperature";
+                        target.entity_id = "{{ repeat.item[0] }}";
+                        data.temperature = "{{ repeat.item[1] }}";
+                      }
+                    ];
+                  }
+                ];
+              };
+            }
+          ];
+          mode = "queued";
+        }
+        {
+          alias = "Heating - Clear boosts";
+          description = "Turn every heating boost off at midnight, so none is forgotten on";
+          triggers = [
+            {
+              trigger = "time";
+              at = "00:00:00";
+            }
+          ];
+          actions = [
+            {
+              action = "input_boolean.turn_off";
+              target.entity_id = map tpl.boostEntity boostHelpers;
+            }
+          ];
+          mode = "single";
+        }
+      ]
+      ++ lib.mapAttrsToList learn learning;
   };
 }
