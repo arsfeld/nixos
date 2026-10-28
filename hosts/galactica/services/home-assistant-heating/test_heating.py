@@ -215,5 +215,49 @@ class LivingBaseboardsTarget(unittest.TestCase):
         self.assertEqual(self.render("off", "off", "schedule"), 5)
 
 
+def heat_pump(temp, target, current="off", outdoor="8", boost="off", defi="off", trigger_id="1"):
+    hass = Hass(at(MONDAY, "06:30"), {
+        "sensor.living_area_temperature": temp,
+        LIVING: target,
+        "climate.living_room_heat_pump": current,
+        "sensor.outdoor_weather_hilo": outdoor,
+        "input_boolean.heating_boost_living_area": boost,
+        "sensor.defi_hilo": defi,
+    })
+    return render_variables(hass, "Heating - Heat pump", {"id": trigger_id})
+
+
+class HeatPump(unittest.TestCase):
+    def test_comfort_runs_at_21(self):
+        v = heat_pump("19.2", "20")
+        self.assertEqual((v["want"], v["setpoint"]), ("heat", 21))
+
+    def test_eco_mild_weather_setpoint_19(self):
+        v = heat_pump("18.8", "19")
+        self.assertEqual((v["want"], v["setpoint"]), ("off", 19))
+
+    def test_eco_cold_weather_setpoint_21(self):
+        self.assertEqual(heat_pump("18.8", "19", outdoor="2")["setpoint"], 21)
+
+    def test_turns_on_below_target_minus_half(self):
+        self.assertEqual(heat_pump("18.3", "19")["want"], "heat")
+
+    def test_runs_until_21(self):
+        self.assertEqual(heat_pump("20.8", "20", current="heat")["want"], "heat")
+        self.assertEqual(heat_pump("21.2", "20", current="heat")["want"], "off")
+
+    def test_boost_runs_until_21_5(self):
+        self.assertEqual(heat_pump("21.2", "21", current="heat", boost="on")["want"], "heat")
+
+    def test_off_during_hilo_reduction(self):
+        self.assertEqual(heat_pump("19.0", "20", defi="reduction")["want"], "off")
+
+    def test_holds_when_temperature_unknown(self):
+        self.assertEqual(heat_pump("unavailable", "20", current="heat")["want"], "heat")
+
+    def test_resends_on_start(self):
+        self.assertTrue(heat_pump("19.0", "20", trigger_id="start")["resend"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -260,7 +260,7 @@ in {
     "automation heating" = [
       {
         alias = "Heating - Heat pump";
-        description = "Run the heat pump below 18.5°C by day and 18°C at night (21°C during the 05-08 and 10-13 boosts), until the living area passes 21°C; setpoint 21 below 5°C outside and during boosts";
+        description = "Run the heat pump below the living area's target - 0.5°C until it passes 21°C (21.5 when boosted); setpoint 21 whenever the target is 20 or more or it is below 5°C outside, else 19";
         triggers = [
           {
             trigger = "homeassistant";
@@ -273,29 +273,28 @@ in {
           }
           {
             trigger = "state";
-            entity_id = ["sensor.defi_hilo" "sensor.living_area_temperature"];
+            entity_id = ["sensor.defi_hilo" "sensor.living_area_temperature" living];
           }
         ];
+        # HA renders these in order and Nix sorts attribute names, so each
+        # may only use variables that sort before it.
         variables = {
-          temp = "{{ states('sensor.living_area_temperature') | float(none) }}";
-          day = "{{ 5 <= now().hour < 22 }}";
-          # Wake-up and lunch boosts: run up to 21 even from a warm start.
-          boost = "{{ 5 <= now().hour < 8 or 10 <= now().hour < 13 }}";
-          low = "{{ 21 if boost else 18.5 if day else 18 }}";
-          high = 21;
-          setpoint = "{{ 21 if boost or states('sensor.outdoor_weather_hilo') | float(99) < 5 else 19 }}";
           current = "{{ states('climate.living_room_heat_pump') }}";
           # IR is one-way, so the unit can disagree with the state HA
           # restored; on start, send the wanted state even if HA thinks the
           # unit is already there.
           resend = "{{ trigger.id == 'start' }}";
+          setpoint = "{{ 21 if states('${living}') | float(0) >= 20 or states('sensor.outdoor_weather_hilo') | float(99) < 5 else 19 }}";
           want = ''
-            {% if ${hiloReduction} %}off
-            {% elif temp is none %}{{ current }}
-            {% elif temp < low %}heat
-            {% elif temp > high %}off
-            {% else %}{{ current }}
-            {% endif %}
+            {%- set temp = states('sensor.living_area_temperature') | float(none) %}
+            {%- set target = states('${living}') | float(none) %}
+            {%- set high = 21.5 if is_state('${tpl.boostEntity "living_area"}', 'on') else 21 %}
+            {%- if ${tpl.hiloReduction} %}off
+            {%- elif temp is none or target is none %}{{ current }}
+            {%- elif temp < target - 0.5 %}heat
+            {%- elif temp > high %}off
+            {%- else %}{{ current }}
+            {%- endif %}
           '';
         };
         actions = [
