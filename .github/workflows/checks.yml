@@ -18,12 +18,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      # The check closures are large — the FHS roots (steam-run, bottles,
-      # lutris), qemu, gtk and the kernels the VM tests boot — and the hosted
-      # image's preinstalled toolchains leave too little room for them. Without
-      # this the run dies part-way through `nix flake check` with "No space
-      # left on device" and no failed check to point at. Same step as
-      # build.yml, for the same reason.
+      # The check closures are large — qemu, the kernels the VM tests boot, and
+      # every path the Brotli graft rewrites — and the hosted image's
+      # preinstalled toolchains leave too little room for them. Without this the
+      # run dies part-way through with "No space left on device" and no failed
+      # check to point at. Same step as build.yml, for the same reason.
       - name: Free disk space
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
@@ -54,5 +53,29 @@ jobs:
 
       # x86_64-linux only: the other systems' checks are skipped as
       # incompatible, and cylon-link's checks are defined only here anyway.
-      - name: nix flake check
-        run: nix flake check --keep-going -L
+      #
+      # `nix flake check` builds every nixosConfiguration's toplevel as well as
+      # the checks, and one runner cannot hold nine of them: raider's store
+      # closure alone is ~46 GB, and the Brotli graft keeps both the original
+      # and the rewritten copy of every path it touches, so the job died at
+      # ~12 minutes with "No space left on device" from 2026-10-25 — the
+      # graft's first day. build.yml already builds all nine hosts, one job
+      # each, so this workflow evaluates them and builds only the checks.
+      #
+      # Not `nix flake check --no-build`: the graft evaluates a generated
+      # references.nix through import-from-derivation, which --no-build refuses
+      # to realise, so that flag fails on every host that carries the graft.
+      - name: Evaluate every host
+        run: |
+          hosts=$(nix eval --raw .#nixosConfigurations \
+            --apply 'cs: builtins.concatStringsSep " " (builtins.attrNames cs)')
+          for h in $hosts; do
+            echo "evaluating $h"
+            nix eval --raw ".#nixosConfigurations.$h.config.system.build.toplevel.drvPath" > /dev/null
+          done
+
+      - name: Run the checks
+        run: |
+          nix build --no-link --keep-going -L \
+            $(nix eval --raw .#checks.x86_64-linux \
+              --apply 'cs: builtins.concatStringsSep " " (map (n: ".#checks.x86_64-linux.${n}") (builtins.attrNames cs))')
