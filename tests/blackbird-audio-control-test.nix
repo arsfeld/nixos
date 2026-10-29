@@ -27,17 +27,26 @@
     (map
       (database: database.settings."org/gnome/shell/extensions/monitor-control" or null)
       blackbird.programs.dconf.profiles.user.databases);
+
+  # blackbird runs Pantheon, where the GNOME settings asserted below are inert
+  # but kept for the switch back (hosts/blackbird/configuration.nix). They hold
+  # only while that variant is actually selected, and all of them fall with it:
+  # the i2c module, ddcutil, the monitor-control extension and its dconf
+  # database are set inside the module's `variant == "gnome"` branch.
+  gnome = blackbird.constellation.desktop.variant == "gnome";
 in
-  assert blackbird.constellation.desktop.gnome.monitorControl.enable;
-  assert blackbird.hardware.i2c.enable;
-  assert packageNamed "ddcutil" blackbird.environment.systemPackages;
-  assert packageNamed "gnome-shell-extension-monitorcontrol-brightness-and-volume"
+  assert !gnome || blackbird.constellation.desktop.gnome.monitorControl.enable;
+  assert !gnome || blackbird.hardware.i2c.enable;
+  assert !gnome || packageNamed "ddcutil" blackbird.environment.systemPackages;
+  assert !gnome
+  || packageNamed "gnome-shell-extension-monitorcontrol-brightness-and-volume"
   blackbird.environment.systemPackages;
-  assert builtins.elem "monitor-control@ahmed-shaalan" (enabledExtensions blackbird);
-  assert monitorSettings != null;
-  assert monitorSettings.show-brightness;
-  assert monitorSettings.show-volume;
-  assert builtins.elem "monitor@astraext.github.io" (enabledExtensions blackbird);
+  assert !gnome || builtins.elem "monitor-control@ahmed-shaalan" (enabledExtensions blackbird);
+  assert !gnome || monitorSettings != null;
+  assert !gnome || monitorSettings.show-brightness;
+  assert !gnome || monitorSettings.show-volume;
+  assert !gnome || builtins.elem "monitor@astraext.github.io" (enabledExtensions blackbird);
+  # Vitals is rejected deliberately on GNOME; under Pantheon it is simply absent.
   assert !builtins.elem "Vitals@CoreCoding.com" (enabledExtensions blackbird);
   assert easyEffectsFiles ? "easyeffects/output/ASUS_G14_2020.json";
   assert easyEffectsFiles ? "easyeffects/output/No_Effects.json";
