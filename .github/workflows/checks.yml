@@ -18,6 +18,18 @@ jobs:
     permissions:
       contents: read
     steps:
+      # The check closures are large — the FHS roots (steam-run, bottles,
+      # lutris), qemu, gtk and the kernels the VM tests boot — and the hosted
+      # image's preinstalled toolchains leave too little room for them. Without
+      # this the run dies part-way through `nix flake check` with "No space
+      # left on device" and no failed check to point at. Same step as
+      # build.yml, for the same reason.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo apt-get clean
+          docker image prune --all --force
+
       - uses: actions/checkout@v6
 
       # router-test, harmonia-cache-test and blackbird-audio-control-test boot
