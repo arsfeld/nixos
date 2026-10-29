@@ -98,6 +98,11 @@
         "${self}/hosts/router/services.nix"
         "${self}/hosts/router/alerting.nix"
         inputs.sops-nix.nixosModules.sops
+        # Real hosts get this through the module tree that mkLinuxSystem loads;
+        # this node imports the router's own files only. Without it the
+        # `import no_brotli_requests` in hosts/router/services/caddy.nix has no
+        # snippet to resolve and caddy refuses to start.
+        "${self}/modules/constellation/caddy-security.nix"
       ];
 
       # alerting.nix and client-monitor read these secrets' paths. The test VM
