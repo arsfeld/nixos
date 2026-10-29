@@ -65,10 +65,17 @@ jobs:
       # Not `nix flake check --no-build`: the graft evaluates a generated
       # references.nix through import-from-derivation, which --no-build refuses
       # to realise, so that flag fails on every host that carries the graft.
+      #
+      # Foreign-platform hosts are skipped: instantiating one runs IFD builds
+      # for the *target* platform, which this runner cannot execute ("platform
+      # mismatch"). `nix flake check` skipped them for the same reason; build.yml
+      # evaluates each on its own runner.
       - name: Evaluate every host
         run: |
           hosts=$(nix eval --raw .#nixosConfigurations \
-            --apply 'cs: builtins.concatStringsSep " " (builtins.attrNames cs)')
+            --apply 'cs: builtins.concatStringsSep " " (builtins.filter
+              (n: (builtins.getAttr n cs).config.nixpkgs.hostPlatform.system == "x86_64-linux")
+              (builtins.attrNames cs))')
           for h in $hosts; do
             echo "evaluating $h"
             nix eval --raw ".#nixosConfigurations.$h.config.system.build.toplevel.drvPath" > /dev/null
