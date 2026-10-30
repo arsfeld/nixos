@@ -1,4 +1,5 @@
-"""plab's files under the state dir: cache.json, added.json, queued.json and img/<sha1 of url>.
+"""plab's files under the state dir: cache.json, added.json, queued.json, search.json and
+img/<sha1 of url>.
 
 `refresh` and `serve` are separate processes sharing this directory, so every write is a
 temp file + rename: a reader sees the old file or the new one, never half of either.
@@ -14,6 +15,10 @@ def key(url):
     return hashlib.sha1(url.encode()).hexdigest()
 
 
+# How long a live search's results stay addable and their images servable.
+SEARCH_TTL = 86400
+
+
 def _write(path, data):
     # Unique per writer: two server threads may cache the same image at once.
     tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
@@ -27,6 +32,8 @@ class Store:
         self.root = root
         self.img = os.path.join(root, "img")
         os.makedirs(self.img, exist_ok=True)
+        # search.json is read-modify-write from the server's threads.
+        self._search_lock = threading.Lock()
 
     def _read_json(self, name, default):
         try:
@@ -65,6 +72,29 @@ class Store:
         ids = self.queued()
         if topic_id in ids:
             self._save_queue([i for i in ids if i != topic_id])
+
+    def search_topics(self):
+        """Live search results by topic id (a string: JSON keys), each a tracker row plus
+        "images" (None until the topic page is fetched) and "at" (when last searched)."""
+        return self._read_json("search.json", {})
+
+    def _save_search(self, topics):
+        _write(os.path.join(self.root, "search.json"), json.dumps(topics).encode())
+
+    def save_search(self, rows, now):
+        with self._search_lock:
+            topics = self.search_topics()
+            for row in rows:
+                images = topics.get(str(row["id"]), {}).get("images")
+                topics[str(row["id"])] = {**row, "images": images, "at": now}
+            self._save_search({k: t for k, t in topics.items() if now - t["at"] <= SEARCH_TTL})
+
+    def set_search_images(self, topic_id, urls):
+        with self._search_lock:
+            topics = self.search_topics()
+            if str(topic_id) in topics:
+                topics[str(topic_id)]["images"] = list(urls)
+                self._save_search(topics)
 
     def image_path(self, url):
         return os.path.join(self.img, key(url))

@@ -2,7 +2,7 @@ import os
 import tempfile
 import unittest
 
-from store import Store, key
+from store import SEARCH_TTL, Store, key
 
 
 class StoreTest(unittest.TestCase):
@@ -64,6 +64,32 @@ class StoreTest(unittest.TestCase):
         self.store.prune_images(["https://x/keep.jpg"])
         self.assertTrue(os.path.exists(keep))
         self.assertFalse(os.path.exists(drop))
+
+    def test_search_empty_default(self):
+        self.assertEqual(self.store.search_topics(), {})
+
+    def test_save_search_records_rows_without_images(self):
+        self.store.save_search([{"id": 5, "title": "a"}], now=1000)
+        self.assertEqual(Store(self.dir.name).search_topics(),
+                         {"5": {"id": 5, "title": "a", "images": None, "at": 1000}})
+
+    def test_save_search_keeps_known_images_and_refreshes_at(self):
+        self.store.save_search([{"id": 5, "title": "a"}], now=1000)
+        self.store.set_search_images(5, ["https://x/1.jpg"])
+        self.store.save_search([{"id": 5, "title": "a2"}], now=2000)
+        self.assertEqual(self.store.search_topics()["5"],
+                         {"id": 5, "title": "a2", "images": ["https://x/1.jpg"], "at": 2000})
+
+    def test_save_search_drops_entries_older_than_a_day(self):
+        self.store.save_search([{"id": 5}], now=1000)
+        self.store.save_search([{"id": 6}], now=1000 + SEARCH_TTL)
+        self.assertEqual(set(self.store.search_topics()), {"5", "6"})  # exactly a day: kept
+        self.store.save_search([{"id": 7}], now=1001 + SEARCH_TTL)
+        self.assertEqual(set(self.store.search_topics()), {"6", "7"})
+
+    def test_set_search_images_unknown_topic_is_a_no_op(self):
+        self.store.set_search_images(9, ["https://x/1.jpg"])
+        self.assertEqual(self.store.search_topics(), {})
 
     def test_prune_keeps_in_flight_temp_files(self):
         keep = self.store.ensure_image("https://x/keep.jpg", lambda url: b"x")
