@@ -87,8 +87,8 @@ There are no new filter controls.
 
 - It exports `PLAB_OPENROUTER_KEY_FILE` as `${secrets.openrouter-api-key.path}`. The
   secret already exists and is owned by `media`; stash-identify declares it.
-- It exports `PLAB_JEV_MODEL` with the default `typesafe/jev-1.13`, so both services move
-  together when the model is bumped.
+- `PLAB_JEV_MODEL` is not exported. It defaults to `classify.MODEL`
+  (`typesafe/jev-1.13`), which is the only place the model is named.
 
 ## Testing
 
