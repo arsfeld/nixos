@@ -18,6 +18,7 @@
     ./project-vms.nix
     inputs.niks3.nixosModules.niks3-auto-upload
     ./zellij-socket-watch.nix
+    ./usb-reset.nix
   ];
 
   # Enable sops-nix for secrets management
