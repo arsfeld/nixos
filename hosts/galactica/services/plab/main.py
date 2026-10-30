@@ -3,13 +3,14 @@
   refresh     send adds queued by the daily download limit, then scrape the list and
               each new topic's images into the state dir (timer)
   serve       the page, its vendored /static assets, the image proxy, POST /add/<topic> (queues past the daily limit)
-              and POST /unqueue/<topic>
+              and POST /unqueue/<topic>; GET /search?q= searches the tracker live, all time
   set-cookie  seed the session cookie by hand when a login hits a captcha
   prune       take finished Vault torrents out of Transmission per prune.decide (timer);
               --dry-run only says what it would remove
 
 Design: docs/superpowers/specs/2026-10-09-plab-design.md
 Production ranking: docs/superpowers/specs/2026-10-30-plab-production-ranking-design.md
+Live search: docs/superpowers/specs/2026-10-30-plab-live-search-design.md
 Unit tests: `python3 -m unittest -v` in this directory.
 """
 import argparse
@@ -19,6 +20,7 @@ import re
 import sys
 import threading
 import time
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import page
@@ -369,7 +371,7 @@ def static_file(static_dir, name):
         return None
 
 
-def make_handler(lab, store, rpc_url, download_dir, static_dir=None, exclude_file=None):
+def make_handler(lab, store, rpc_url, download_dir, static_dir=None, exclude_file=None, filter_file=None):
     lock = threading.Lock()  # one add at a time: added.json is read-modify-write
 
     class Handler(BaseHTTPRequestHandler):
@@ -381,7 +383,48 @@ def make_handler(lab, store, rpc_url, download_dir, static_dir=None, exclude_fil
             self.end_headers()
             self.wfile.write(body)
 
+        def _redirect(self, location):
+            self.send_response(302)
+            self.send_header("Location", location)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def _search(self, query):
+            if not query:
+                return self._redirect("./")
+            try:
+                topics, error = run_search(lab, store, query, exclude_file, filter_file), None
+            except Exception as e:  # noqa: BLE001 -- the reason goes on the page, next to the box
+                topics, error = [], str(e)
+                log(f"search {query!r} failed: {e}")
+            cache = {**store.cache(), "topics": topics}
+            body = page.render(cache, store.added(), set(store.queued()), time.time(),
+                               search={"query": query, "error": error}).encode()
+            self._send(200, body, "text/html; charset=utf-8")
+
+        def _topic_images(self, kind, topic_id):
+            try:
+                images = topic_images(lab, store, topic_id)
+                if kind == "images":
+                    body = json.dumps({"images": [key(u) for u in images]}).encode()
+                    return self._send(200, body, "application/json")
+                if not images:
+                    return self._send(404, b"no images", "text/plain")
+                store.ensure_image(images[0], _image_fetcher(lab))
+            except ValueError as e:  # not listed or searched, or not an image
+                return self._send(404, str(e).encode(), "text/plain")
+            except Exception as e:  # noqa: BLE001 -- the card keeps its placeholder
+                log(f"{kind} {topic_id}: {e}")
+                return self._send(502, b"images unavailable", "text/plain")
+            self._redirect(f"../img/{key(images[0])}")
+
         def do_GET(self):
+            url = urllib.parse.urlsplit(self.path)
+            if url.path == "/search":
+                return self._search(urllib.parse.parse_qs(url.query).get("q", [""])[0].strip())
+            m = re.fullmatch(r"/(thumb|images)/(\d+)", self.path)
+            if m:
+                return self._topic_images(m.group(1), int(m.group(2)))
             if self.path == "/":
                 cache = store.cache()
                 patterns = load_excludes(exclude_file, state_dir=store.root)
@@ -429,8 +472,8 @@ def make_handler(lab, store, rpc_url, download_dir, static_dir=None, exclude_fil
     return Handler
 
 
-def serve(lab, store, bind, port, rpc_url, download_dir, static_dir=None, exclude_file=None):
-    handler = make_handler(lab, store, rpc_url, download_dir, static_dir, exclude_file)
+def serve(lab, store, bind, port, rpc_url, download_dir, static_dir=None, exclude_file=None, filter_file=None):
+    handler = make_handler(lab, store, rpc_url, download_dir, static_dir, exclude_file, filter_file)
     log(f"serving on {bind}:{port}")
     ThreadingHTTPServer((bind, port), handler).serve_forever()
 
@@ -475,7 +518,8 @@ def main(argv=None):
                     make_classifier())
     elif args.cmd == "serve":
         serve(lab, store, args.bind, args.port, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"],
-              os.environ.get("PLAB_STATIC_DIR"), os.environ.get("PLAB_EXCLUDE_FILE"))
+              os.environ.get("PLAB_STATIC_DIR"), os.environ.get("PLAB_EXCLUDE_FILE"),
+              os.environ.get("PLAB_FILTER_FILE"))
     else:
         lab.set_cookie(args.value)
         log("cookie saved")

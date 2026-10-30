@@ -1,13 +1,20 @@
+import json
 import os
 import tempfile
 import threading
 import unittest
+import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 
 import main
 from lab import LimitError, LoginError, TrackerError
 from store import Store, key
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 JPEG = b"\xff\xd8\xff\xe0jpeg"
@@ -486,6 +493,75 @@ class Search(unittest.TestCase):
         path = self.store.ensure_image("https://s/only.jpg", lambda url: JPEG)
         main.refresh(FakeLab([row(1)]), self.store, sleep=lambda s: None)
         self.assertTrue(os.path.exists(path))
+
+
+class SearchRoutes(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.store = Store(self.dir.name)
+        self.lab = FakeLab([])
+        self.lab.searched_rows = {"alpha": [row(5, "Alpha One")]}
+        handler = main.make_handler(self.lab, self.store, "http://rpc", "/vault")
+        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+        self.opener = urllib.request.build_opener(NoRedirect)
+
+    def tearDown(self):
+        self.httpd.shutdown()
+        self.httpd.server_close()
+        self.dir.cleanup()
+
+    def get(self, path):
+        """(status, headers, body) without following redirects."""
+        url = f"http://127.0.0.1:{self.httpd.server_address[1]}{path}"
+        try:
+            with self.opener.open(url) as resp:
+                return resp.status, resp.headers, resp.read()
+        except urllib.error.HTTPError as e:
+            return e.code, e.headers, e.read()
+
+    def test_blank_query_redirects_to_the_list(self):
+        status, headers, _ = self.get("/search?q=+")
+        self.assertEqual((status, headers["Location"]), (302, "./"))
+
+    def test_results_page(self):
+        status, _, body = self.get("/search?q=alpha")
+        self.assertEqual(status, 200)
+        self.assertIn(b"Alpha One", body)
+        self.assertIn(b'src="thumb/5"', body)
+        self.assertEqual(self.lab.searches, [("alpha", None, main.SEARCH_LIMIT)])
+
+    def test_search_failure_is_shown_on_the_page(self):
+        self.lab.search_error = LoginError("login needs captcha")
+        status, _, body = self.get("/search?q=alpha")
+        self.assertEqual(status, 200)
+        self.assertIn(b"login needs captcha", body)
+
+    def test_thumb_redirects_to_the_cached_image(self):
+        self.get("/search?q=alpha")
+        status, headers, _ = self.get("/thumb/5")
+        self.assertEqual((status, headers["Location"]), (302, f"../img/{key(COVER)}"))
+        self.assertTrue(os.path.exists(self.store.image_path(COVER)))
+
+    def test_thumb_unknown_topic_is_404(self):
+        self.assertEqual(self.get("/thumb/99")[0], 404)
+        self.assertEqual(self.lab.topics_fetched, [])
+
+    def test_thumb_topic_without_images_is_404(self):
+        self.get("/search?q=alpha")
+        self.store.set_search_images(5, [])
+        self.assertEqual(self.get("/thumb/5")[0], 404)
+
+    def test_thumb_fetch_failure_is_502(self):
+        self.get("/search?q=alpha")
+        self.lab.broken.add(5)
+        self.assertEqual(self.get("/thumb/5")[0], 502)
+
+    def test_images_lists_keys(self):
+        self.get("/search?q=alpha")
+        status, _, body = self.get("/images/5")
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["images"][0], key(COVER))
 
 
 class Static(unittest.TestCase):

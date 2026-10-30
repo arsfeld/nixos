@@ -3,6 +3,7 @@
 #
 # Design: docs/superpowers/specs/2026-10-09-plab-design.md
 # Production ranking: docs/superpowers/specs/2026-10-30-plab-production-ranking-design.md
+# Live search: docs/superpowers/specs/2026-10-30-plab-live-search-design.md
 # Unit tests: `python3 -m unittest -v` in this directory.
 #
 # If a login ever hits a captcha, refresh fails (the page keeps its last list) and the
