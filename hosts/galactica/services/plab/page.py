@@ -13,9 +13,9 @@ TOPIC_URL = "https://pornolab.net/forum/viewtopic.php?t=%d"
 # Seeders count for more or less by how the release was produced (classify.py), so
 # gonzo-factory releases sink below amateur and artistic ones. Unclassified counts as 1.0.
 WEIGHT = {"amateur": 1.5, "pro_artistic": 1.0, "industrial": 0.25}
-# Each class as the page shows it: its name (badge and Production filter), icon and daisyUI color.
-LABEL = {"amateur": ("amateur", "🏠", "badge-success"), "pro_artistic": ("artistic", "🎨", "badge-info"),
-         "industrial": ("industrial", "🏭", "badge-neutral")}
+# Each class as the page shows it: its name (badge and Production filter) and daisyUI color.
+LABEL = {"amateur": ("amateur", "badge-success"), "pro_artistic": ("artistic", "badge-info"),
+         "industrial": ("industrial", "badge-neutral")}
 
 
 def _production(t):
@@ -73,9 +73,9 @@ def _card(t, lab, added, queued, now):
               '@click="toggleAdd()">'
               f'<span x-text="btnLabel">{label}</span></button>'
               '<span class="err text-xs text-error" x-text="error"></span>')
-    name, icon, color = LABEL.get(_production(t), ("", "", ""))
-    production = (f'<span class="production badge {color} font-bold absolute bottom-2 right-2 z-[1]">{icon} {name}</span>'
-                  if name else "")
+    prod, color = LABEL.get(_production(t), ("", ""))
+    production = (f'<span class="production badge {color} font-bold absolute bottom-2 right-2 z-[1]">{prod}</span>'
+                  if prod else "")
     fresh = now - t["added"] < 86400
     if fresh:
         date = f'<span class="fresh text-warning font-bold">uploaded {age(t["added"], now)}</span>'
@@ -84,9 +84,18 @@ def _card(t, lab, added, queued, now):
         date = time.strftime("%Y-%m-%d", time.gmtime(t["added"]))
         badge = ""
     filters = t.get("filters") or []
-    reason = t.get("curated_reason")
-    curated_badge = (f'<span class="badge badge-secondary font-bold absolute bottom-2 left-2 z-[1]">{e(reason)}</span>'
-                     if filters and reason else "")
+    # The title in its parts: studio and quality above the release's own name, tags as pills
+    # that filter by that tag (the full title stays as the link's tooltip).
+    head = "".join((
+        f'<span class="studio font-semibold uppercase tracking-wide text-primary">{e(lab["studio"])}</span>'
+        if lab["studio"] else "",
+        f'<span class="quality badge badge-xs badge-outline">{e(lab["quality"])}</span>' if lab["quality"] else ""))
+    head = f'<div class="flex flex-wrap items-center gap-2 text-xs">{head}</div>' if head else ""
+    pills = "".join(
+        f'<button type="button" class="badge badge-sm badge-outline cursor-pointer" '
+        f':class="{{ \'badge-primary\': st.tags.includes({e(json.dumps(tag))}) }}" '
+        f'@click="toggleTag({e(json.dumps(tag))})">{e(tag)}</button>' for tag in lab["tags"])
+    pills = f'<div class="tags flex flex-wrap gap-1">{pills}</div>' if pills else ""
     data = {"tags": "|".join(lab["tags"]), "quality": lab["quality"] or "", "studio": lab["studio"] or "",
             "category": lab["category"], "production": lab["production"], "fresh": "1" if fresh else "", "state": state,
             "curated": "1" if filters else ""}
@@ -105,10 +114,10 @@ def _card(t, lab, added, queued, now):
     return (f'<div class="card bg-base-200 shadow-sm overflow-hidden"{attrs_data} '
             f'x-data="plabCard({e(cfg)})" x-show="isVisible($data)" '
             ':class="{ \'is-new ring-2 ring-(--color-accent)\': isNew }">'
-            f'<figure class="relative aspect-[16/10] bg-black"><span x-show="isNew" class="new badge badge-accent badge-lg font-bold absolute top-2 left-2 z-[1]">NEW</span>{badge}{curated_badge}{production}{thumb}</figure>'
+            f'<figure class="relative aspect-[16/10] bg-black"><span x-show="isNew" class="new badge badge-accent badge-lg font-bold absolute top-2 left-2 z-[1]">NEW</span>{badge}{production}{thumb}</figure>'
             '<div class="card-body p-3 gap-2">'
-            f'<a class="title link link-hover break-words" href="{TOPIC_URL % t["id"]}" target="_blank" '
-            f'rel="noreferrer">{e(t["title"])}</a>'
+            f'{head}<a class="title link link-hover font-semibold break-words" href="{TOPIC_URL % t["id"]}" '
+            f'target="_blank" rel="noreferrer" title="{e(t["title"])}">{e(lab["name"])}</a>{pills}'
             f'<div class="meta text-xs text-base-content/60">{size(t["size"])} · ▲ {t["seeders"]} ▼ {t["leechers"]} · {date}</div>'
             f'<div class="card-actions mt-auto items-center">{button}</div></div></div>')
 

@@ -126,9 +126,9 @@ class Render(unittest.TestCase):
         self.assertEqual(page.score({"seeders": 100, "production": {"class": "amateur"}}), 150)
 
     def test_production_label(self):
-        for cls, label, color in (("amateur", "🏠 amateur", "badge-success"),
-                                  ("pro_artistic", "🎨 artistic", "badge-info"),
-                                  ("industrial", "🏭 industrial", "badge-neutral")):
+        for cls, label, color in (("amateur", "amateur", "badge-success"),
+                                  ("pro_artistic", "artistic", "badge-info"),
+                                  ("industrial", "industrial", "badge-neutral")):
             out = self.render([{**TOPIC, "production": {"class": cls, "confidence": None}}])
             figure = out.split("<figure ")[1].split("</figure>")[0]
             self.assertIn(f'<span class="production badge {color} font-bold absolute bottom-2 right-2 z-[1]">'
@@ -368,25 +368,43 @@ class Shell(unittest.TestCase):
 
 
 class Card(unittest.TestCase):
-    LAB = {"tags": [], "quality": None, "studio": None, "category": "Clips", "production": "", "filters": []}
+    LAB = {"tags": [], "quality": None, "studio": None, "category": "Clips", "production": "", "filters": [],
+           "name": "Test Title"}
 
     def topic(self, i=1, **kw):
         return {"id": i, "title": "Test Title", "forum": 1875, "size": 100, "seeders": 1,
                 "leechers": 0, "completed": 0, "added": 0, "images": [], **kw}
 
-    def test_card_renders_filters_and_badge(self):
+    def test_title_in_parts(self):
+        lab = {**self.LAB, "studio": "OnlyFans.com", "quality": "1080p", "name": "Lola - Scene",
+               "tags": ["anal", "o'neil"]}
+        html = page._card(self.topic(title="[OnlyFans.com] Lola - Scene [2026, Anal, 1080p]"), lab, set(), set(), 1000)
+        body = html.split('class="card-body')[1]
+        self.assertIn('>OnlyFans.com</span>', body)
+        self.assertIn('>1080p</span>', body)
+        self.assertIn('title="[OnlyFans.com] Lola - Scene [2026, Anal, 1080p]">Lola - Scene</a>', body)
+        # each tag a pill that filters by it, quoted safely for the JS
+        self.assertIn('@click="toggleTag(&quot;anal&quot;)">anal</button>', body)
+        self.assertIn('@click="toggleTag(&quot;o&#x27;neil&quot;)">o&#x27;neil</button>', body)
+        self.assertLess(body.index("OnlyFans.com"), body.index("Lola - Scene</a>"))
+        self.assertLess(body.index("Lola - Scene</a>"), body.index("toggleTag"))
+
+    def test_card_without_studio_or_tags_has_no_empty_rows(self):
+        html = page._card(self.topic(), self.LAB, set(), set(), 1000)
+        self.assertNotIn('class="studio', html)
+        self.assertNotIn('class="tags', html)
+
+    def test_card_carries_filters_but_no_curated_badge(self):
         html = page._card(self.topic(filters=["Group A", "Group B"], curated_reason="Alpha"),
                           self.LAB, set(), set(), 1000)
         self.assertIn('data-curated="1"', html)
-        self.assertIn('>Alpha</span>', html)
-        self.assertIn('badge-secondary', html)
+        self.assertNotIn('Alpha', html)  # the Curated dropdown says it; the poster stays clean
         self.assertIn('&quot;filters&quot;: [&quot;Group A&quot;, &quot;Group B&quot;]', html)
         self.assertIn('x-show="isVisible($data)"', html)
 
     def test_card_not_curated(self):
         html = page._card(self.topic(), self.LAB, set(), set(), 1000)
         self.assertIn('data-curated=""', html)
-        self.assertNotIn('badge-secondary', html)
         self.assertIn('&quot;filters&quot;: []', html)
 
     def test_filter_bar_has_a_curated_select_in_file_order(self):

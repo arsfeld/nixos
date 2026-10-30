@@ -6,10 +6,27 @@ from labels import labels
 class Labels(unittest.TestCase):
     def test_onlyfans(self):
         r = labels("[OnlyFans.com] Lola Grant, Girthmasterr [2026, Anal, Big Cock, Rimming, Redhead, 1080p, SiteRip]", 1875)
-        self.assertEqual(r["tags"], ["anal", "big cock", "rimming", "redhead", "siterip"])
+        self.assertEqual(r["tags"], ["anal", "big cock", "rimming", "redhead"])  # siterip is the rip, not content
         self.assertEqual(r["quality"], "1080p")
         self.assertEqual(r["studio"], "OnlyFans.com")
         self.assertEqual(r["category"], "Clips and siterips")
+        self.assertEqual(r["name"], "Lola Grant, Girthmasterr")
+
+    def test_site_in_tag_list_is_the_studio(self):
+        r = labels("Заплатил жопой / I Pay with my wife's ass! [2026 г, OnlyFans.com, Teen, anal, 1080p, HD][Ayokeyst]", 1741)
+        self.assertEqual(r["studio"], "OnlyFans.com")
+        self.assertEqual(r["tags"], ["teen", "anal"])
+        self.assertEqual(r["name"], "Заплатил жопой / I Pay with my wife's ass! [Ayokeyst]")
+
+    def test_tag_list_is_the_group_with_a_date_or_quality(self):
+        r = labels("Заплатил / I Pay [2026 г, OnlyFans.com, Teen, anal, 1080p] [DmitryG, IrinaG aka GHomeStory]", 1741)
+        self.assertEqual(r["tags"], ["teen", "anal"])
+        self.assertEqual(r["name"], "Заплатил / I Pay [DmitryG, IrinaG aka GHomeStory]")
+
+    def test_bracket_studio_wins_over_site_in_tags(self):
+        r = labels("[Pornhub.com] A - B [2026, OnlyFans.com, Teen]", 1878)
+        self.assertEqual(r["studio"], "Pornhub.com")
+        self.assertEqual(r["tags"], ["teen"])
 
     def test_multi_studio_with_date(self):
         r = labels("[HerLimit.com / LetsDoeIt.com] Hazel Moore - She Wants Moore Anal [05.10.2026, Anal, Ass To Mouth, Brunette]", 1875)
@@ -30,10 +47,12 @@ class Labels(unittest.TestCase):
         self.assertEqual(r["quality"], "1080p")
         self.assertIsNone(r["studio"])
         self.assertEqual(r["category"], "Other")
+        self.assertEqual(r["name"], "Performer C - It's A Test [ABC-123]")
 
     def test_plain_title(self):
         r = labels("Just a title", 1670)
-        self.assertEqual(r, {"tags": [], "quality": None, "studio": None, "category": "Erotic & softcore"})
+        self.assertEqual(r, {"tags": [], "quality": None, "studio": None, "category": "Erotic & softcore",
+                             "name": "Just a title"})
 
     def test_date_shapes_dropped(self):
         r = labels("x [2026, 2025 г., 05.10.2026, 2026-10-02, 5.1.2026, 2026.10.02, Foo]", 1)
