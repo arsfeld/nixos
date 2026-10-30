@@ -66,6 +66,13 @@
     '';
   };
 
+  # Every Claude Code process on raider runs in this user slice: the claude-rc
+  # units via Slice=, interactive launches via the claude wrapper below. Login
+  # session scopes (zellij over SSH) sit beside user@1000.service at equal
+  # cpu.weight, and nice does not cross cgroups, so without this an agent's
+  # rustc/beam builds compete with the desktop and games as an equal.
+  agentsSlice = "agents.slice";
+
   llmAgentScripts = let
     pkgs' = inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system} or {};
     entries = builtins.attrValues (
@@ -82,10 +89,23 @@
     mkAgentScript = name: let
       pkg = pkgs'.${name};
       binName = pkg.meta.mainProgram or name;
+      run = ''nix run github:numtide/llm-agents.nix#${name} -- "$@"'';
     in
-      pkgs.writeShellScriptBin binName ''
-        exec nix run github:numtide/llm-agents.nix#${name} -- "$@"
-      '';
+      pkgs.writeShellScriptBin binName (
+        if binName == "claude" && hostname == "raider"
+        then ''
+          # Enter ${agentsSlice} unless already inside it (claude-rc units are),
+          # and only when the user manager is reachable.
+          if ! ${pkgs.gnugrep}/bin/grep -q '/${agentsSlice}/' /proc/self/cgroup &&
+            [ -S "''${XDG_RUNTIME_DIR:-/nonexistent}/bus" ]; then
+            exec ${pkgs.systemd}/bin/systemd-run --user --scope --slice=${agentsSlice} --collect --quiet -- ${run}
+          fi
+          exec ${run}
+        ''
+        else ''
+          exec ${run}
+        ''
+      );
   in
     map mkAgentScript entries;
 
@@ -115,6 +135,7 @@
             ExecStart = "${lib.getExe claude} remote-control --name raider-${project} --permission-mode auto ${extraArgs}";
             Restart = "on-failure";
             RestartSec = 30;
+            Slice = agentsSlice;
           };
           Install.WantedBy = ["default.target"];
         }) {
@@ -704,6 +725,21 @@ in {
   #
   # `seaf-cli init` creates it and is idempotent (re-running prints "already
   # exists" and exits 0), so it is safe as an unconditional ExecStartPre.
+  systemd.user.slices = lib.optionalAttrs (hostname == "raider") {
+    agents = {
+      Unit.Description = "Claude Code agents, yielding to the desktop";
+      # Weights are work-conserving: agents still get every idle core and only
+      # lose when the desktop wants CPU or I/O. MemoryHigh throttles and
+      # reclaims from the agents first instead of pushing the desktop into
+      # swap; with no MemoryMax nothing is OOM-killed by it.
+      Slice = {
+        CPUWeight = 20;
+        IOWeight = 20;
+        MemoryHigh = "12G";
+      };
+    };
+  };
+
   systemd.user.services =
     claudeRcServices
     // {
