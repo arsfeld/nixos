@@ -110,6 +110,13 @@ class LabTest(unittest.TestCase):
         self.assertIn("o=10", call_url)
         self.assertIn("s=2", call_url)
 
+    def test_search_all_time_sends_no_window(self):
+        lab, opener = self.lab(fixture("tracker.html"))
+        lab.search("Alpha", [1875], days=None, limit=1)
+        call_url = opener.calls[0].full_url
+        self.assertIn("nm=Alpha", call_url)
+        self.assertNotIn("tm=", call_url)
+
     def test_search_pagination(self):
         lab, opener = self.lab(fixture("tracker.html"), fixture("tracker.html"))
         rows = lab.search("Alpha", [1875], days=32, limit=3)
