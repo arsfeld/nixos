@@ -38,8 +38,9 @@ never disturb the weekly list.
 
 - Shape: `{"<topic id>": {...tracker row, "images": [...] | null, "at": <unix time>}}`.
   `images` is `null` until the topic page has been fetched.
-- `search_topics()`: the dict, empty when the file is missing or corrupt (same
-  `_read_json` fallback as the other files).
+- `search_topics()`: the dict without entries more than 24 h old (checked on read, not
+  written back), empty when the file is missing or corrupt (same `_read_json` fallback as
+  the other files).
 - `save_search(rows, now)`: merges the rows in, keeping the `images` of topics already
   known and setting `at` to `now` on every row in this search, then drops entries whose
   `at` is more than 24 h old. Atomic write, like every other file here.
@@ -54,8 +55,9 @@ is dropped prunes its files.
 
 ### `main.py`
 
-- `search_topics(lab, store, query, exclude_file)`: runs the tracker search with the
-  exclude predicate, calls `save_search`, and returns the rows in tracker order.
+- `run_search(lab, store, query, exclude_file=None, filter_file=None, now=None)`: runs the
+  tracker search with the exclude predicate, fetching one results page (`pages=1`, a single
+  tracker request), calls `save_search`, and returns the rows in tracker order.
 - `topic_images(lab, store, topic_id)`: the image URLs of a listed or searched topic.
   - A topic in `cache.json` returns its cached images.
   - A topic in `search.json` with images already known returns those.
@@ -72,7 +74,7 @@ Routes:
 
 | Route | Behaviour |
 |---|---|
-| `GET /search?q=…` | A blank `q` is a 302 to `./`. Otherwise `search_topics` and the results page. A `LoginError` or tracker failure renders the results page with the error text in place of the grid (200, not 502), so the search box stays usable. |
+| `GET /search?q=…` | A blank `q` is a 302 to `./`. Otherwise `run_search` and the results page. A `LoginError` or tracker failure renders the results page with the error text in place of the grid (200, not 502), so the search box stays usable. |
 | `GET /thumb/<id>` | `topic_images`, caches the first image with `store.ensure_image`, then a 302 to `img/<sha1>`. 404 when the topic has no images or is unknown; 502 on a fetch failure. |
 | `GET /images/<id>` | `topic_images` as `{"images": [<sha1>, …]}` for the gallery; same error codes. |
 
@@ -117,6 +119,9 @@ list, or `{"query": q, "error": message-or-None}` for a results page, with
 
 - Tracker search failure or login needing a captcha: the results page shows the
   message (for example "login needs captcha"); nothing is written.
+- A failed login is remembered for 5 minutes (`LOGIN_BACKOFF`): further logins re-raise it
+  without posting the form, so lazy thumbnails cannot trigger a captcha. A newer cookie
+  file (`plab set-cookie`) clears it. Concurrent logins are serialized.
 - Topic fetch failure behind `/thumb` or `/images`: that card keeps its placeholder and
   the gallery stays closed. The next request retries, since `images` stays `null`.
 - An add from a stale results page whose entry has aged out of `search.json` is refused
@@ -131,7 +136,7 @@ Unit tests, `python3 -m unittest -v` in the directory, as today:
 - `test_store.py`: `save_search` merges, keeps known images and drops entries older
   than 24 h; `set_search_images`; `prune_images` keeps search-referenced images (via the
   refresh's call).
-- `test_main.py`: `search_topics` applies excludes and records rows; `topic_images` for
+- `test_main.py`: `run_search` applies excludes and records rows; `topic_images` for
   cached, already-fetched, to-be-fetched and unknown ids (the last raises); `add_topic`
   and `image_for` accept search-only topics; the `/search` route redirects a blank `q`
   and renders the error page on `LoginError`; `/thumb` redirects to `img/<sha1>` and
