@@ -128,9 +128,10 @@ class Lab:
             start += 50
         return rows[:limit]
 
-    def search(self, query, forums, days=32, limit=20, predicate=None):
+    def search(self, query, forums, days=32, limit=20, predicate=None, pages=None):
         """Search releases matching `query` within `forums` uploaded in the last `days` days
-        (all time when `days` is None)."""
+        (all time when `days` is None), fetching at most `pages` results pages (None: as many
+        as `limit` needs)."""
         params = [("f[]", f) for f in forums] + [("nm", query), ("o", 10), ("s", 2)]
         if days is not None:
             params.append(("tm", days))
@@ -140,11 +141,13 @@ class Lab:
         if predicate:
             rows = [r for r in rows if predicate(r)]
         start = 50
-        while len(rows) < limit:
+        fetched = 1
+        while len(rows) < limit and (pages is None or fetched < pages):
             link = parse.page_link(page, start)
             if not link:
                 break
             page = self.page(link)
+            fetched += 1
             more = parse.rows(page)
             if predicate:
                 more = [r for r in more if predicate(r)]

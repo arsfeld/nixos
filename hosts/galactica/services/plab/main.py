@@ -322,7 +322,7 @@ def run_search(lab, store, query, exclude_file=None, filter_file=None, now=None)
     """A live tracker search over all time, recorded in search.json; the entries in tracker
     order, with their curated filters. Never touches cache.json."""
     pred = exclude_predicate(load_excludes(exclude_file, state_dir=store.root))
-    rows = lab.search(query, FORUMS, days=None, limit=SEARCH_LIMIT, predicate=pred)
+    rows = lab.search(query, FORUMS, days=None, limit=SEARCH_LIMIT, predicate=pred, pages=1)
     store.save_search(rows, time.time() if now is None else now)
     known = store.search_topics()
     filters = load_filters(filter_file, state_dir=store.root)

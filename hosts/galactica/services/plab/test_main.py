@@ -48,8 +48,8 @@ class FakeLab:
             rows = [r for r in rows if predicate(r)]
         return rows
 
-    def search(self, query, forums, days=32, limit=20, predicate=None):
-        self.searches.append((query, days, limit))
+    def search(self, query, forums, days=32, limit=20, predicate=None, pages=None):
+        self.searches.append((query, days, limit, pages))
         if self.search_error:
             raise self.search_error
         rows = getattr(self, "searched_rows", {}).get(query, [])
@@ -442,7 +442,7 @@ class Search(unittest.TestCase):
         exclude = self.write("ex.txt", "cherry\n")
         topics = main.run_search(self.lab, self.store, "alpha", exclude_file=exclude, now=1000)
         self.assertEqual([t["id"] for t in topics], [5])
-        self.assertEqual(self.lab.searches, [("alpha", None, main.SEARCH_LIMIT)])
+        self.assertEqual(self.lab.searches, [("alpha", None, main.SEARCH_LIMIT, 1)])
         self.assertIsNone(topics[0]["images"])
         self.assertEqual(set(self.store.search_topics()), {"5"})
         self.assertEqual(self.store.cache()["topics"][0]["id"], 1)  # the weekly list is untouched
@@ -530,7 +530,7 @@ class SearchRoutes(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b"Alpha One", body)
         self.assertIn(b'src="thumb/5"', body)
-        self.assertEqual(self.lab.searches, [("alpha", None, main.SEARCH_LIMIT)])
+        self.assertEqual(self.lab.searches, [("alpha", None, main.SEARCH_LIMIT, 1)])
 
     def test_search_failure_is_shown_on_the_page(self):
         self.lab.search_error = LoginError("login needs captcha")

@@ -124,6 +124,13 @@ class LabTest(unittest.TestCase):
         self.assertEqual(len(opener.calls), 2)
         self.assertEqual(opener.calls[1][0], BASE + "tracker.php?search_id=AbCdEf123&start=50")
 
+    def test_search_pages_caps_requests(self):
+        lab, opener = self.lab(fixture("tracker.html"), fixture("tracker.html"))
+        pred = lambda r: r["id"] != 3314001
+        rows = lab.search("Alpha", [1875], days=None, limit=5, predicate=pred, pages=1)
+        self.assertEqual([r["id"] for r in rows], [3313754])
+        self.assertEqual(len(opener.calls), 1)
+        self.assertFalse(any("tm=" in c.full_url for c in opener.calls))
 
     def test_torrent_logs_in_once(self):
         lab, opener = self.lab(LOGGED_OUT, LOGGED_IN, b"d8:announce1:xe")
