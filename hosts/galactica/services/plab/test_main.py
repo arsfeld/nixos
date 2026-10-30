@@ -583,6 +583,29 @@ class MakeClassifier(unittest.TestCase):
         self.assertEqual(fn.__self__.model, "other/model")
 
 
+class RunPrune(unittest.TestCase):
+    VAULT = "/v/Vault"
+    TORRENTS = [
+        {"id": 1, "name": "public", "downloadDir": "/v/Vault", "percentDone": 1.0, "uploadRatio": 0.0,
+         "doneDate": 100, "activityDate": 100, "trackers": [{"announce": "udp://open.example:1337"}]},
+        {"id": 2, "name": "lab", "downloadDir": "/v/Vault", "percentDone": 1.0, "uploadRatio": 0.1,
+         "doneDate": 100, "activityDate": 100, "trackers": [{"announce": "http://bt.plab.site/ann"}]},
+    ]
+
+    def test_removes_chosen_in_one_call(self):
+        calls = []
+        chosen = main.run_prune("rpc", self.VAULT, 200, list_=lambda url: self.TORRENTS,
+                                remove=lambda url, ids: calls.append((url, ids)))
+        self.assertEqual([i for i, _, _ in chosen], [1])
+        self.assertEqual(calls, [("rpc", [1])])
+
+    def test_dry_run_removes_nothing(self):
+        calls = []
+        main.run_prune("rpc", self.VAULT, 200, dry_run=True, list_=lambda url: self.TORRENTS,
+                       remove=lambda url, ids: calls.append(ids))
+        self.assertEqual(calls, [])
+
+
 if __name__ == "__main__":
     unittest.main()
 

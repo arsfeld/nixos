@@ -9,6 +9,10 @@
 # button says "login needs captcha": log in once in a browser and run
 # `sudo -u media plab set-cookie <bb_data cookie value>`. No restart needed: the running
 # server notices the newer cookies.txt and uses it before it would try to log in.
+#
+# plab-prune takes finished Vault torrents (plab's and vault-grab's) out of Transmission,
+# keeping the files: PornoLab ones once they stop earning ratio, the rest on completion.
+# See prune.py; `sudo -u media plab prune --dry-run` shows what a run would remove.
 {
   config,
   pkgs,
@@ -121,6 +125,27 @@ in {
         Type = "oneshot";
         ExecStart = "${plab}/bin/plab refresh";
       };
+  };
+
+  # Separate from plab-refresh: a tracker login failure must not stop pruning.
+  systemd.services.plab-prune = {
+    description = "Take finished Vault torrents out of Transmission";
+    after = ["network-online.target"];
+    wants = ["network-online.target"];
+    serviceConfig =
+      serviceConfig
+      // {
+        Type = "oneshot";
+        ExecStart = "${plab}/bin/plab prune";
+      };
+  };
+
+  systemd.timers.plab-prune = {
+    wantedBy = ["timers.target"];
+    timerConfig = {
+      OnCalendar = "hourly";
+      Persistent = true;
+    };
   };
 
   systemd.timers.plab-refresh = {

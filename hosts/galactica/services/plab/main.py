@@ -5,6 +5,8 @@
   serve       the page, its vendored /static assets, the image proxy, POST /add/<topic> (queues past the daily limit)
               and POST /unqueue/<topic>
   set-cookie  seed the session cookie by hand when a login hits a captcha
+  prune       take finished Vault torrents out of Transmission per prune.decide (timer);
+              --dry-run only says what it would remove
 
 Design: docs/superpowers/specs/2026-10-09-plab-design.md
 Production ranking: docs/superpowers/specs/2026-10-30-plab-production-ranking-design.md
@@ -21,6 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import page
 import parse
+import prune
 import transmission
 from classify import MODEL, Classifier
 from forums import FORUMS, category
@@ -374,6 +377,16 @@ def serve(lab, store, bind, port, rpc_url, download_dir, static_dir=None, exclud
     ThreadingHTTPServer((bind, port), handler).serve_forever()
 
 
+def run_prune(rpc_url, vault_dir, now, dry_run=False, list_=transmission.torrents, remove=transmission.remove):
+    """Remove the torrents prune.decide picks, in one call; return them."""
+    chosen = prune.decide(list_(rpc_url), now, vault_dir)
+    for _, name, reason in chosen:
+        log(f"{'would remove' if dry_run else 'removed'} {name}: {reason}")
+    if chosen and not dry_run:
+        remove(rpc_url, [i for i, _, _ in chosen])
+    return chosen
+
+
 def _secret(env):
     with open(os.environ[env]) as f:
         return f.read().strip()
@@ -388,7 +401,12 @@ def main(argv=None):
     s.add_argument("--port", type=int, default=8577)
     c = sub.add_parser("set-cookie")
     c.add_argument("value", help="the bb_data cookie from a logged-in browser")
+    sub.add_parser("prune").add_argument("--dry-run", action="store_true")
     args = ap.parse_args(argv)
+
+    if args.cmd == "prune":  # Transmission only: no tracker login, no state
+        run_prune(os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"], time.time(), args.dry_run)
+        return
 
     state = os.environ.get("PLAB_STATE_DIR", "/var/lib/plab")
     store = Store(state)
