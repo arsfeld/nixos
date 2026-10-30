@@ -10,6 +10,19 @@ from store import key
 
 TOPIC_URL = "https://pornolab.net/forum/viewtopic.php?t=%d"
 
+# Seeders count for more or less by how the release was produced (classify.py), so
+# gonzo-factory releases sink below amateur and artistic ones. Unclassified counts as 1.0.
+WEIGHT = {"amateur": 1.5, "pro_artistic": 1.0, "industrial": 0.25}
+LABEL = {"amateur": "amateur", "pro_artistic": "artistic", "industrial": "industrial"}
+
+
+def _production(t):
+    return (t.get("production") or {}).get("class")
+
+
+def score(t):
+    return t["seeders"] * WEIGHT.get(_production(t), 1.0)
+
 def size(n):
     for unit in ("B", "KB", "MB", "GB"):
         if n < 1024 or unit == "GB":
@@ -57,6 +70,8 @@ def _card(t, lab, added, queued, now):
               '@click="toggleAdd()">'
               f'<span x-text="btnLabel">{label}</span></button>'
               '<span class="err text-xs text-error" x-text="error"></span>')
+    cls = _production(t)
+    production = f' · <span class="production">{LABEL[cls]}</span>' if cls in LABEL else ""
     fresh = now - t["added"] < 86400
     if fresh:
         date = f'<span class="fresh text-warning font-bold">uploaded {age(t["added"], now)}</span>'
@@ -89,7 +104,7 @@ def _card(t, lab, added, queued, now):
             '<div class="card-body p-3 gap-2">'
             f'<a class="title link link-hover break-words" href="{TOPIC_URL % t["id"]}" target="_blank" '
             f'rel="noreferrer">{e(t["title"])}</a>'
-            f'<div class="meta text-xs text-base-content/60">{size(t["size"])} · ▲ {t["seeders"]} ▼ {t["leechers"]} · {date}</div>'
+            f'<div class="meta text-xs text-base-content/60">{size(t["size"])} · ▲ {t["seeders"]} ▼ {t["leechers"]} · {date}{production}</div>'
             f'<div class="card-actions mt-auto items-center">{button}</div></div></div>')
 
 
@@ -145,7 +160,8 @@ def _filter_bar(labs, filters):
 
 def render(cache, added, queued, now):
     pending = len(queued - added)
-    topics = cache["topics"]
+    # sorted() is stable with reverse=True too: equal scores keep the tracker's order.
+    topics = sorted(cache["topics"], key=score, reverse=True)
     labs = [labels(t["title"], t["forum"]) for t in topics]
     curated_n = sum(1 for t in topics if t.get("filters"))
     curated_sub = f" · {curated_n} curated" if curated_n else ""

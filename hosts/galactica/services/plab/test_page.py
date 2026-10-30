@@ -1,3 +1,4 @@
+import re
 import unittest
 
 import page
@@ -100,6 +101,37 @@ class Render(unittest.TestCase):
         self.assertEqual(page.age(100, 100 + 600), "10 min ago")
         self.assertEqual(page.age(100, 100 + 3 * 3600), "3 h ago")
         self.assertEqual(page.age(100, 100 - 600), "0 min ago")
+
+    def ranked(self, *specs):
+        topics = []
+        for i, (seeders, cls) in enumerate(specs, start=1):
+            t = {**TOPIC, "id": i, "title": f"t{i}", "seeders": seeders}
+            if cls:
+                t["production"] = {"class": cls, "confidence": None}
+            topics.append(t)
+        out = self.render(topics)
+        return [int(i) for i in re.findall(r'<button class="add[^"]*" data-id="(\d+)"', out)]
+
+    def test_ranked_by_weighted_seeders(self):
+        # industrial 279 -> 69.75, amateur 100 -> 150, unclassified 90, artistic 80
+        order = self.ranked((279, "industrial"), (100, "amateur"), (90, None), (80, "pro_artistic"))
+        self.assertEqual(order, [2, 3, 4, 1])
+
+    def test_ties_keep_cache_order(self):
+        self.assertEqual(self.ranked((50, None), (50, "pro_artistic"), (50, None)), [1, 2, 3])
+
+    def test_score(self):
+        self.assertEqual(page.score({"seeders": 100}), 100)
+        self.assertEqual(page.score({"seeders": 100, "production": {"class": "industrial"}}), 25)
+        self.assertEqual(page.score({"seeders": 100, "production": {"class": "amateur"}}), 150)
+
+    def test_production_label(self):
+        for cls, label in (("amateur", "amateur"), ("pro_artistic", "artistic"), ("industrial", "industrial")):
+            out = self.render([{**TOPIC, "production": {"class": cls, "confidence": None}}])
+            self.assertIn(f'<span class="production">{label}</span>', out)
+
+    def test_no_label_when_unclassified(self):
+        self.assertNotIn('class="production"', self.render([TOPIC]))
 
 
 def tp(i, title, forum=1875, added=1791117232 - 10 * 86400):
