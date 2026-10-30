@@ -11,13 +11,13 @@ import main
 from lab import LimitError, LoginError, TrackerError
 from store import Store, key
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+JPEG = b"\xff\xd8\xff\xe0jpeg"
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
         return None
-
-
-HERE = os.path.dirname(os.path.abspath(__file__))
-JPEG = b"\xff\xd8\xff\xe0jpeg"
 
 
 def fixture(name):
@@ -518,7 +518,8 @@ class SearchRoutes(unittest.TestCase):
             with self.opener.open(url) as resp:
                 return resp.status, resp.headers, resp.read()
         except urllib.error.HTTPError as e:
-            return e.code, e.headers, e.read()
+            with e:
+                return e.code, e.headers, e.read()
 
     def test_blank_query_redirects_to_the_list(self):
         status, headers, _ = self.get("/search?q=+")
