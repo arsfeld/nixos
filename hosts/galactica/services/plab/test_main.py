@@ -193,6 +193,20 @@ class Refresh(unittest.TestCase):
         self.assertEqual(topics[1]["production"]["class"], "industrial")
         self.assertEqual(topics[2]["production"]["class"], "amateur")
 
+    def test_repeated_classifier_failures_stop_the_refresh_classifying(self):
+        calls = []
+
+        def classify(title, category):
+            calls.append(title)
+            raise OSError("openrouter hung")
+
+        main.refresh(FakeLab([row(i) for i in range(1, 6)]), self.store, sleep=self.sleeps.append,
+                     classify=classify)
+        self.assertEqual(len(calls), main.CLASSIFY_FAILURE_LIMIT)
+        topics = self.store.cache()["topics"]
+        self.assertEqual([t["id"] for t in topics], [1, 2, 3, 4, 5])
+        self.assertFalse(any("production" in t for t in topics))
+
     def test_classifier_failure_leaves_topic_unclassified(self):
         def classify(title, category):
             raise OSError("openrouter down")

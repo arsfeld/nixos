@@ -31,6 +31,8 @@ from store import Store, key
 DAYS = 7
 LIMIT = 100
 DELAY = 1.0  # seconds between topic fetches; be gentle with the tracker
+# Consecutive classifier failures after which one refresh stops asking; the next refresh retries.
+CLASSIFY_FAILURE_LIMIT = 3
 
 def log(message):
     print(message, file=sys.stderr, flush=True)
@@ -158,6 +160,7 @@ def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep,
     previous = {t["id"]: t for t in store.cache()["topics"]}
     fetch = _image_fetcher(lab)
     topics = []
+    classify_failures = 0
     for row in combined:
         images = previous.get(row["id"], {}).get("images") or []
         if not images:
@@ -184,11 +187,16 @@ def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep,
                  "curated_reason": matched[names[0]] if names else None}
         # Judged once per release; an unclassified one ranks on seeders alone until retried.
         production = previous.get(row["id"], {}).get("production")
-        if production is None and classify:
+        if production is None and classify and classify_failures < CLASSIFY_FAILURE_LIMIT:
             try:
                 production = classify(row["title"], category(row["forum"]))
+                classify_failures = 0
             except Exception as e:  # noqa: BLE001 -- classification must never sink the refresh
-                log(f"classify {row['id']}: {e}")
+                classify_failures += 1
+                log(f"classify {row['id']}: {e!r}")
+                if classify_failures == CLASSIFY_FAILURE_LIMIT:
+                    log(f"classify: {CLASSIFY_FAILURE_LIMIT} failures in a row, "
+                        "skipping the rest of this refresh")
         if production:
             topic["production"] = production
         topics.append(topic)
