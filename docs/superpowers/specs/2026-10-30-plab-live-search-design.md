@@ -45,7 +45,7 @@ never disturb the weekly list.
   `at` is more than 24 h old. Atomic write, like every other file here.
 - `set_search_images(topic_id, urls)`: records a topic's images.
 - Writers are the server's threads only (`refresh` never writes it), and they serialize
-  on one lock in `main.py`, because each write is a read-modify-write.
+  on a lock the `Store` holds, because each write is a read-modify-write.
 
 `refresh`'s `store.prune_images(...)` keeps the URLs referenced by `search.json` as
 well as `cache.json`'s, so a refresh never deletes thumbnails an open results page
