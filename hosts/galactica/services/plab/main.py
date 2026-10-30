@@ -7,6 +7,7 @@
   set-cookie  seed the session cookie by hand when a login hits a captcha
 
 Design: docs/superpowers/specs/2026-10-09-plab-design.md
+Production ranking: docs/superpowers/specs/2026-10-30-plab-production-ranking-design.md
 Unit tests: `python3 -m unittest -v` in this directory.
 """
 import argparse
@@ -21,7 +22,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import page
 import parse
 import transmission
-from forums import FORUMS
+from classify import MODEL, Classifier
+from forums import FORUMS, category
 from lab import Lab, LimitError, LoginError, TrackerError
 from labels import match_term, term_label
 from store import Store, key
@@ -119,7 +121,7 @@ def exclude_predicate(patterns):
 
 
 def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep,
-            exclude_file=None, filter_file=None):
+            exclude_file=None, filter_file=None, classify=None):
     """Rebuild cache.json. Raises, leaving the old cache in place, if the list fails."""
     patterns = load_excludes(exclude_file, state_dir=store.root)
     pred = exclude_predicate(patterns)
@@ -178,11 +180,22 @@ def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep,
             if term:
                 matched[name] = term_label(term)
         names = [name for name, _ in filters if name in matched]
-        topics.append({**row, "images": images, "filters": names,
-                       "curated_reason": matched[names[0]] if names else None})
+        topic = {**row, "images": images, "filters": names,
+                 "curated_reason": matched[names[0]] if names else None}
+        # Judged once per release; an unclassified one ranks on seeders alone until retried.
+        production = previous.get(row["id"], {}).get("production")
+        if production is None and classify:
+            try:
+                production = classify(row["title"], category(row["forum"]))
+            except Exception as e:  # noqa: BLE001 -- classification must never sink the refresh
+                log(f"classify {row['id']}: {e}")
+        if production:
+            topic["production"] = production
+        topics.append(topic)
     store.save_cache(topics, [name for name, _ in filters])
     store.prune_images(u for t in topics for u in t["images"])
-    log(f"refreshed: {len(topics)} topics ({sum(1 for t in topics if t['filters'])} curated)")
+    log(f"refreshed: {len(topics)} topics ({sum(1 for t in topics if t['filters'])} curated, "
+        f"{sum(1 for t in topics if 'production' in t)} classified)")
 
 
 def add_topic(lab, store, topic_id, rpc_url, download_dir, add=transmission.add):
@@ -231,7 +244,7 @@ def drain_queue(lab, store, rpc_url, download_dir, add=transmission.add):
             log(f"queued {topic_id} kept: {e}")
 
 
-def run_refresh(lab, store, rpc_url, download_dir, exclude_file=None, filter_file=None):
+def run_refresh(lab, store, rpc_url, download_dir, exclude_file=None, filter_file=None, classify=None):
     """The `refresh` subcommand: drain the queue, then rebuild the list."""
     try:
         drain_queue(lab, store, rpc_url, download_dir)
@@ -239,7 +252,17 @@ def run_refresh(lab, store, rpc_url, download_dir, exclude_file=None, filter_fil
         raise  # the session is gone; the list refresh would only fail the same way
     except Exception as e:  # noqa: BLE001 -- the list refresh must still run
         log(f"queue drain failed: {e}")
-    refresh(lab, store, exclude_file=exclude_file, filter_file=filter_file)
+    refresh(lab, store, exclude_file=exclude_file, filter_file=filter_file, classify=classify)
+
+
+def make_classifier(key_file=None, model=None):
+    """The production classifier for `refresh`, or None without an OpenRouter key."""
+    key_file = key_file or os.environ.get("PLAB_OPENROUTER_KEY_FILE")
+    if not key_file or not os.path.isfile(key_file):
+        return None
+    with open(key_file) as f:
+        api_key = f.read().strip()
+    return Classifier(api_key, model or os.environ.get("PLAB_JEV_MODEL") or MODEL).classify
 
 
 def image_for(lab, store, image_key):
@@ -364,7 +387,8 @@ def main(argv=None):
     lab = Lab(_secret("PLAB_USERNAME_FILE"), _secret("PLAB_PASSWORD_FILE"), os.path.join(state, "cookies.txt"))
     if args.cmd == "refresh":
         run_refresh(lab, store, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"],
-                    os.environ.get("PLAB_EXCLUDE_FILE"), os.environ.get("PLAB_FILTER_FILE"))
+                    os.environ.get("PLAB_EXCLUDE_FILE"), os.environ.get("PLAB_FILTER_FILE"),
+                    make_classifier())
     elif args.cmd == "serve":
         serve(lab, store, args.bind, args.port, os.environ["PLAB_TRANSMISSION_URL"], os.environ["PLAB_DOWNLOAD_DIR"],
               os.environ.get("PLAB_STATIC_DIR"), os.environ.get("PLAB_EXCLUDE_FILE"))

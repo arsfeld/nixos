@@ -169,6 +169,43 @@ class Refresh(unittest.TestCase):
         with self.assertRaises(LoginError):
             main.refresh(lab, self.store, filter_file=self.write_filters("Alpha\n"), sleep=lambda _: None)
 
+    def test_classifies_new_topics(self):
+        calls = []
+
+        def classify(title, category):
+            calls.append((title, category))
+            return {"class": "amateur", "confidence": 0.8}
+
+        main.refresh(FakeLab([row(1, "[OnlyFans.com] A")]), self.store, sleep=self.sleeps.append,
+                     classify=classify)
+        self.assertEqual(calls, [("[OnlyFans.com] A", "Clips and siterips")])
+        self.assertEqual(self.store.cache()["topics"][0]["production"],
+                         {"class": "amateur", "confidence": 0.8})
+
+    def test_reuses_stored_production(self):
+        main.refresh(FakeLab([row(1)]), self.store, sleep=self.sleeps.append,
+                     classify=lambda t, c: {"class": "industrial", "confidence": None})
+        calls = []
+        main.refresh(FakeLab([row(1), row(2)]), self.store, sleep=self.sleeps.append,
+                     classify=lambda t, c: calls.append(t) or {"class": "amateur", "confidence": None})
+        self.assertEqual(calls, ["t2"])
+        topics = {t["id"]: t for t in self.store.cache()["topics"]}
+        self.assertEqual(topics[1]["production"]["class"], "industrial")
+        self.assertEqual(topics[2]["production"]["class"], "amateur")
+
+    def test_classifier_failure_leaves_topic_unclassified(self):
+        def classify(title, category):
+            raise OSError("openrouter down")
+
+        main.refresh(FakeLab([row(1)]), self.store, sleep=self.sleeps.append, classify=classify)
+        topics = self.store.cache()["topics"]
+        self.assertEqual([t["id"] for t in topics], [1])
+        self.assertNotIn("production", topics[0])
+
+    def test_without_classifier_no_production(self):
+        self.refresh(FakeLab([row(1)]))
+        self.assertNotIn("production", self.store.cache()["topics"][0])
+
 
 class Drain(unittest.TestCase):
     def setUp(self):
@@ -271,12 +308,24 @@ class RunRefresh(unittest.TestCase):
         calls = []
         saved = main.drain_queue, main.refresh
         main.drain_queue = lambda *args: None
-        main.refresh = lambda lab, store, exclude_file=None, filter_file=None: calls.append(filter_file)
+        main.refresh = lambda lab, store, exclude_file=None, filter_file=None, **kw: calls.append(filter_file)
         try:
             main.run_refresh(None, None, "http://rpc", "/vault", filter_file="/path/filter.txt")
         finally:
             main.drain_queue, main.refresh = saved
         self.assertEqual(calls, ["/path/filter.txt"])
+
+    def test_run_refresh_passes_classifier(self):
+        calls = []
+        saved = main.drain_queue, main.refresh
+        main.drain_queue = lambda *args: None
+        main.refresh = lambda lab, store, classify=None, **kw: calls.append(classify)
+        classify = object()
+        try:
+            main.run_refresh(None, None, "http://rpc", "/vault", classify=classify)
+        finally:
+            main.drain_queue, main.refresh = saved
+        self.assertEqual(calls, [classify])
 
 
 class Routes(unittest.TestCase):
@@ -499,6 +548,25 @@ class FiltersTest(unittest.TestCase):
                 os.environ.pop("PLAB_FILTER_FILE", None)
             else:
                 os.environ["PLAB_FILTER_FILE"] = old_env
+
+
+class MakeClassifier(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def test_no_key_file_means_none(self):
+        self.assertIsNone(main.make_classifier(os.path.join(self.dir.name, "missing")))
+
+    def test_key_file_builds_classifier(self):
+        path = os.path.join(self.dir.name, "key")
+        with open(path, "w") as f:
+            f.write("sk-key\n")
+        fn = main.make_classifier(path, "other/model")
+        self.assertEqual(fn.__self__.headers, {"Authorization": "Bearer sk-key"})
+        self.assertEqual(fn.__self__.model, "other/model")
 
 
 if __name__ == "__main__":
