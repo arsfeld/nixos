@@ -36,6 +36,11 @@ LIMIT = 100
 DELAY = 1.0  # seconds between topic fetches; be gentle with the tracker
 # Consecutive classifier failures after which one refresh stops asking; the next refresh retries.
 CLASSIFY_FAILURE_LIMIT = 3
+# One results page per live search: a single tracker request.
+SEARCH_LIMIT = 50
+# Topic pages fetched at once for search thumbnails; one results page must not burst the tracker.
+FETCH_SLOTS = threading.BoundedSemaphore(2)
+
 
 def log(message):
     print(message, file=sys.stderr, flush=True)
@@ -125,6 +130,20 @@ def exclude_predicate(patterns):
     return lambda row: not any(p.search(row.get("title", "")) for p in patterns)
 
 
+def match_filters(filters, title, found=None):
+    """The curated filters a release belongs to, in file order, and the badge of the first.
+
+    `found` holds {filter name: badge} for filters whose search returned it; any other
+    filter claims it when the title names one of its terms."""
+    matched = dict(found or {})
+    for name, terms in filters:
+        term = name not in matched and next((t for t in terms if match_term(t, title)), None)
+        if term:
+            matched[name] = term_label(term)
+    names = [name for name, _ in filters if name in matched]
+    return names, matched[names[0]] if names else None
+
+
 def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep,
             exclude_file=None, filter_file=None, classify=None):
     """Rebuild cache.json. Raises, leaving the old cache in place, if the list fails."""
@@ -180,14 +199,8 @@ def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep,
             except Exception as e:  # noqa: BLE001
                 log(f"image {images[0]}: {e}")
         # A top-list release whose title names a term belongs to that filter too.
-        matched = dict(found.get(row["id"], {}))
-        for name, terms in filters:
-            term = name not in matched and next((t for t in terms if match_term(t, row["title"])), None)
-            if term:
-                matched[name] = term_label(term)
-        names = [name for name, _ in filters if name in matched]
-        topic = {**row, "images": images, "filters": names,
-                 "curated_reason": matched[names[0]] if names else None}
+        names, reason = match_filters(filters, row["title"], found.get(row["id"]))
+        topic = {**row, "images": images, "filters": names, "curated_reason": reason}
         # Judged once per release; an unclassified one ranks on seeders alone until retried.
         production = previous.get(row["id"], {}).get("production")
         if production is None and classify and classify_failures < CLASSIFY_FAILURE_LIMIT:
@@ -204,9 +217,23 @@ def refresh(lab, store, forums=FORUMS, days=DAYS, limit=LIMIT, sleep=time.sleep,
             topic["production"] = production
         topics.append(topic)
     store.save_cache(topics, [name for name, _ in filters])
-    store.prune_images(u for t in topics for u in t["images"])
+    store.prune_images(_image_urls(store))  # after save_cache: the new list, plus searches
     log(f"refreshed: {len(topics)} topics ({sum(1 for t in topics if t['filters'])} curated, "
         f"{sum(1 for t in topics if 'production' in t)} classified)")
+
+
+def _listed(store, topic_id):
+    """A topic of the weekly list or of a recent live search, or None."""
+    for t in store.cache()["topics"]:
+        if t["id"] == topic_id:
+            return t
+    return store.search_topics().get(str(topic_id))
+
+
+def _image_urls(store):
+    """Every image URL plab may serve: the weekly list's and the recent searches'."""
+    topics = store.cache()["topics"] + list(store.search_topics().values())
+    return (u for t in topics for u in t.get("images") or [])
 
 
 def add_topic(lab, store, topic_id, rpc_url, download_dir, add=transmission.add):
@@ -216,7 +243,7 @@ def add_topic(lab, store, topic_id, rpc_url, download_dir, add=transmission.add)
     download limit is reached: the topic waits in the queue for `drain_queue`."""
     if topic_id in store.added():
         return {"name": "already added"}  # a stale page must not burn a daily-quota slot
-    if topic_id not in {t["id"] for t in store.cache()["topics"]}:
+    if _listed(store, topic_id) is None:
         raise ValueError(f"topic {topic_id} is not on the list")
     try:
         torrent = lab.torrent(topic_id)
@@ -279,14 +306,45 @@ def make_classifier(key_file=None, model=None):
 def image_for(lab, store, image_key):
     """(bytes, content type) for an image of a listed topic, fetching it on first use.
 
-    Only URLs present in the cache resolve, so this is not an open proxy."""
-    urls = {key(u): u for t in store.cache()["topics"] for u in t["images"]}
+    Only URLs of listed or searched topics resolve, so this is not an open proxy."""
+    urls = {key(u): u for u in _image_urls(store)}
     url = urls.get(image_key)
     if url is None:
         return None
     with open(store.ensure_image(url, _image_fetcher(lab)), "rb") as f:
         data = f.read()
     return data, sniff(data)
+
+
+def run_search(lab, store, query, exclude_file=None, filter_file=None, now=None):
+    """A live tracker search over all time, recorded in search.json; the entries in tracker
+    order, with their curated filters. Never touches cache.json."""
+    pred = exclude_predicate(load_excludes(exclude_file, state_dir=store.root))
+    rows = lab.search(query, FORUMS, days=None, limit=SEARCH_LIMIT, predicate=pred)
+    store.save_search(rows, time.time() if now is None else now)
+    known = store.search_topics()
+    filters = load_filters(filter_file, state_dir=store.root)
+    topics = []
+    for r in rows:
+        names, reason = match_filters(filters, r["title"])
+        topics.append({**known[str(r["id"])], "filters": names, "curated_reason": reason})
+    return topics
+
+
+def topic_images(lab, store, topic_id, slots=FETCH_SLOTS):
+    """The image URLs of a listed or searched topic, fetching a searched one's on first use."""
+    topic = _listed(store, topic_id)
+    if topic is None:
+        raise ValueError(f"topic {topic_id} is not on the list")
+    if topic.get("images") is not None:
+        return topic["images"]
+    with slots:
+        # Another request may have fetched them while this one waited.
+        images = (_listed(store, topic_id) or {}).get("images")
+        if images is None:
+            images = parse.images(lab.topic(topic_id))
+            store.set_search_images(topic_id, images)
+    return images
 
 
 # The vendored daisyUI and Tailwind files the page links (see default.nix). Exact names

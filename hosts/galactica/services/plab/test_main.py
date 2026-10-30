@@ -32,6 +32,8 @@ class FakeLab:
         self.topics_fetched = []
         self.fetched = []
         self.torrents = []
+        self.searches = []
+        self.search_error = None
 
     def top(self, forums, days, limit, predicate=None):
         rows = self.rows
@@ -40,6 +42,9 @@ class FakeLab:
         return rows
 
     def search(self, query, forums, days=32, limit=20, predicate=None):
+        self.searches.append((query, days, limit))
+        if self.search_error:
+            raise self.search_error
         rows = getattr(self, "searched_rows", {}).get(query, [])
         if predicate:
             rows = [r for r in rows if predicate(r)]
@@ -407,6 +412,80 @@ class Routes(unittest.TestCase):
         self.assertEqual(main.sniff(b"GIF89a"), "image/gif")
         self.assertEqual(main.sniff(b"RIFF\0\0\0\0WEBPVP8"), "image/webp")
         self.assertIsNone(main.sniff(b"<html>"))
+
+
+class Search(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.store = Store(self.dir.name)
+        self.store.save_cache([dict(row(1), images=[COVER])])
+        self.lab = FakeLab([])
+        self.lab.searched_rows = {"alpha": [row(5, "Alpha One"), row(6, "Ripe Cherry")]}
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def write(self, name, text):
+        path = os.path.join(self.dir.name, name)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        return path
+
+    def test_run_search_all_time_excludes_and_records(self):
+        exclude = self.write("ex.txt", "cherry\n")
+        topics = main.run_search(self.lab, self.store, "alpha", exclude_file=exclude, now=1000)
+        self.assertEqual([t["id"] for t in topics], [5])
+        self.assertEqual(self.lab.searches, [("alpha", None, main.SEARCH_LIMIT)])
+        self.assertIsNone(topics[0]["images"])
+        self.assertEqual(set(self.store.search_topics()), {"5"})
+        self.assertEqual(self.store.cache()["topics"][0]["id"], 1)  # the weekly list is untouched
+
+    def test_run_search_marks_curated_by_title(self):
+        filters = self.write("f.txt", "[Fav]\nalpha\n[Other]\nzulu\n")
+        topics = main.run_search(self.lab, self.store, "alpha", filter_file=filters, now=1000)
+        self.assertEqual(topics[0]["filters"], ["Fav"])
+        self.assertEqual(topics[0]["curated_reason"], "Alpha")
+        self.assertEqual(topics[1]["filters"], [])
+
+    def test_match_filters_prefers_found_badges(self):
+        filters = [("A", ["alpha"]), ("B", ["one"])]
+        self.assertEqual(main.match_filters(filters, "Alpha One", {"B": "Searched"}), (["A", "B"], "Alpha"))
+        self.assertEqual(main.match_filters(filters, "nothing"), ([], None))
+
+    def test_topic_images_fetches_a_searched_topic_once(self):
+        main.run_search(self.lab, self.store, "alpha", now=1000)
+        self.assertEqual(main.topic_images(self.lab, self.store, 5)[0], COVER)
+        self.assertEqual(main.topic_images(self.lab, self.store, 5)[0], COVER)
+        self.assertEqual(self.lab.topics_fetched, [5])
+        self.assertEqual(self.store.search_topics()["5"]["images"][0], COVER)
+
+    def test_topic_images_of_a_listed_topic_needs_no_fetch(self):
+        self.assertEqual(main.topic_images(self.lab, self.store, 1), [COVER])
+        self.assertEqual(self.lab.topics_fetched, [])
+
+    def test_topic_images_unknown_topic_rejected(self):
+        with self.assertRaises(ValueError):
+            main.topic_images(self.lab, self.store, 99)
+        self.assertEqual(self.lab.topics_fetched, [])
+
+    def test_add_accepts_a_searched_topic(self):
+        main.run_search(self.lab, self.store, "alpha", now=1000)
+        result = main.add_topic(self.lab, self.store, 5, "http://rpc", "/vault", add=lambda *a: "Release")
+        self.assertEqual(result, {"name": "Release"})
+        self.assertEqual(self.store.added(), {5})
+
+    def test_image_for_accepts_a_searched_topics_image(self):
+        main.run_search(self.lab, self.store, "alpha", now=1000)
+        self.store.set_search_images(5, ["https://s/only.jpg"])
+        data, ctype = main.image_for(self.lab, self.store, key("https://s/only.jpg"))
+        self.assertEqual((data, ctype), (JPEG, "image/jpeg"))
+
+    def test_refresh_keeps_images_of_searched_topics(self):
+        main.run_search(self.lab, self.store, "alpha", now=1000)
+        self.store.set_search_images(5, ["https://s/only.jpg"])
+        path = self.store.ensure_image("https://s/only.jpg", lambda url: JPEG)
+        main.refresh(FakeLab([row(1)]), self.store, sleep=lambda s: None)
+        self.assertTrue(os.path.exists(path))
 
 
 class Static(unittest.TestCase):
