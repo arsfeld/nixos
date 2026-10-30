@@ -12,21 +12,38 @@
 
   # Toggles gaming-boost.service. gamemoded runs as a *user* service, so its
   # custom start/end hooks cannot set properties on a system unit themselves;
-  # this plus the polkit rule below is the privilege bridge.
-  gamingBoost = pkgs.writeShellApplication {
-    name = "gaming-boost";
-    runtimeInputs = [config.systemd.package];
-    text = ''
-      case "''${1:-}" in
-        on) exec systemctl start --no-block gaming-boost.service ;;
-        off) exec systemctl stop --no-block gaming-boost.service ;;
-        *)
-          echo "usage: gaming-boost on|off" >&2
-          exit 2
-          ;;
-      esac
-    '';
-  };
+  # this plus the polkit rule below is the privilege bridge. User slices in
+  # backgroundUserSlices are the user's own units, so it pins those directly.
+  # Their failure is reported but never blocks the system-side boost.
+  gamingBoost = let
+    userSlices = lib.optionals (cfg.backgroundCpus != null) cfg.backgroundUserSlices;
+    setUserSlices = value:
+      lib.concatMapStrings (slice: ''
+        systemctl --user set-property --runtime ${lib.escapeShellArgs [slice value]} ||
+          echo "gaming-boost: could not set ${value} on ${slice}" >&2
+      '')
+      userSlices;
+  in
+    pkgs.writeShellApplication {
+      name = "gaming-boost";
+      runtimeInputs = [config.systemd.package];
+      text = ''
+        case "''${1:-}" in
+          on)
+            ${setUserSlices "AllowedCPUs=${toString cfg.backgroundCpus}"}
+            exec systemctl start --no-block gaming-boost.service
+            ;;
+          off)
+            ${setUserSlices "AllowedCPUs="}
+            exec systemctl stop --no-block gaming-boost.service
+            ;;
+          *)
+            echo "usage: gaming-boost on|off" >&2
+            exit 2
+            ;;
+        esac
+      '';
+    };
 in {
   # Chaotic-Nyx: source of the CachyOS BORE kernel below (and of
   # nvidia_cachyos-bore, which blackbird's hardware config uses). modules/ is
@@ -76,6 +93,18 @@ in {
 
         Set it to the efficiency cores on a hybrid CPU. On raider's i5-12500H,
         "8-15" is the eight E-cores; 0-7 are the four SMT P-cores.
+      '';
+    };
+
+    backgroundUserSlices = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [];
+      example = ["agents.slice"];
+      description = ''
+        User-manager slices confined to backgroundCpus while a game runs, the
+        user-side counterpart of the nix-daemon confinement. gaming-boost runs
+        as the user under gamemoded, so it sets these with systemctl --user and
+        needs no polkit rule. Has no effect while backgroundCpus is null.
       '';
     };
 
