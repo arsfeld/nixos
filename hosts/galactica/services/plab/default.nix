@@ -2,6 +2,7 @@
 # each post's images and an "Add to Vault" button that hands the torrent to Transmission.
 #
 # Design: docs/superpowers/specs/2026-10-09-plab-design.md
+# Production ranking: docs/superpowers/specs/2026-10-30-plab-production-ranking-design.md
 # Unit tests: `python3 -m unittest -v` in this directory.
 #
 # If a login ever hits a captcha, refresh fails (the page keeps its last list) and the
@@ -67,6 +68,8 @@
       export PLAB_EXCLUDE_FILE="''${PLAB_EXCLUDE_FILE:-${secrets.plab-exclude.path}}"
       # The curated filters' names and search terms: kept in sops, out of the repo.
       export PLAB_FILTER_FILE="''${PLAB_FILTER_FILE:-${secrets.plab-filter.path}}"
+      # Jev ranks releases by production style; without the key, plab ranks on seeders alone.
+      export PLAB_OPENROUTER_KEY_FILE="''${PLAB_OPENROUTER_KEY_FILE:-${secrets.openrouter-api-key.path}}"
       exec ${pkgs.python3}/bin/python3 ${./.}/main.py "$@"
     '';
   };
@@ -82,6 +85,8 @@ in {
   sops.secrets.plab-password.owner = vars.user;
   sops.secrets.plab-exclude.owner = vars.user;
   sops.secrets.plab-filter.owner = vars.user;
+  # stash-identify declares the same owner; equal values merge.
+  sops.secrets.openrouter-api-key.owner = vars.user;
 
   environment.systemPackages = [plab];
 
