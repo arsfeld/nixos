@@ -282,7 +282,7 @@ class FilterBar(unittest.TestCase):
     def test_filter_script_hooks(self):
         script = self.render().split("<script>")[1]
         for hook in ("Alpine.data('plabApp'", "Alpine.data('plabCard'", "plab.filters", "h24",
-                     "'new'", "'hide'", "pick(name)", "replaceState", "location.hash", "'tags'"):
+                     "'new'", "'hide'", "replaceState", "location.hash", "'tags'"):
             self.assertIn(hook, script)
         # the NEW pass must come before the filter pass
         self.assertLess(script.index("plab.seen"), script.index("plab.filters"))
@@ -304,8 +304,14 @@ class FilterBar(unittest.TestCase):
 
     def test_daisyui_controls(self):
         bar = self.bar(self.render())
-        self.assertIn('class="btn btn-sm" data-toggle="h24"', bar)
-        self.assertIn('<select class="select select-sm', bar)
+        self.assertIn('<div class="join"><button type="button" class="btn btn-sm join-item" data-toggle="h24"', bar)
+        # each dropdown carries its name, so a closed one still says what it filters
+        self.assertIn('<label class="select select-sm w-auto max-w-full"><span class="label">Category</span>'
+                      '<select data-key="cat"', bar)
+        # tags are tucked into a dropdown, not spread across the toolbar
+        menu = bar.split('<details class="dropdown">')[1].split("</details>")[0]
+        self.assertIn('id="chips"', menu)
+        self.assertIn('id="tagin"', menu)
         self.assertIn('class="btn btn-xs" data-tag="anal"', bar)
         self.assertIn('id="tagin" class="input input-sm', bar)
         self.assertIn('id="clear" class="btn btn-ghost btn-sm"', bar)
@@ -362,7 +368,7 @@ class Shell(unittest.TestCase):
 
 
 class Card(unittest.TestCase):
-    LAB = {"tags": [], "quality": None, "studio": None, "category": "Clips", "production": ""}
+    LAB = {"tags": [], "quality": None, "studio": None, "category": "Clips", "production": "", "filters": []}
 
     def topic(self, i=1, **kw):
         return {"id": i, "title": "Test Title", "forum": 1875, "size": 100, "seeders": 1,
@@ -383,19 +389,21 @@ class Card(unittest.TestCase):
         self.assertNotIn('badge-secondary', html)
         self.assertIn('&quot;filters&quot;: []', html)
 
-    def test_filter_bar_has_one_button_per_filter(self):
-        html = page._filter_bar([self.LAB], ["Group A", "B & C"])
-        self.assertIn('data-filter="Group A"', html)
-        self.assertIn('@click="pick(&quot;Group A&quot;)"', html)
-        self.assertIn('>B &amp; C</button>', html)
+    def test_filter_bar_has_a_curated_select_in_file_order(self):
+        labs = [{**self.LAB, "filters": ["B & C"]}, {**self.LAB, "filters": ["Group A", "B & C"]}]
+        html = page._filter_bar(labs, ["Group A", "B & C"])
+        curated = html.split('<span class="label">Curated</span>')[1].split("</select>")[0]
+        self.assertIn('data-key="f"', curated)
+        self.assertIn('x-model="st.f"', curated)
+        self.assertLess(curated.index('>Group A (1)</option>'), curated.index('>B &amp; C (2)</option>'))
         self.assertNotIn('data-toggle="curated"', html)
 
     def test_filter_bar_without_filters(self):
-        self.assertNotIn("data-filter=", page._filter_bar([self.LAB], []))
+        self.assertNotIn('data-key="f"', page._filter_bar([self.LAB], []))
 
     def test_render_takes_filters_from_cache(self):
         out = page.render({"updated": 1000, "topics": [self.topic()], "filters": ["Group A"]}, set(), set(), 2000)
-        self.assertIn('data-filter="Group A"', out)
+        self.assertIn('<option value="Group A">Group A (0)</option>', out)
 
     def test_header_curated_count(self):
         topics = [self.topic(1, filters=["Group A"]), self.topic(2, filters=[])]
@@ -409,7 +417,7 @@ class Card(unittest.TestCase):
     def test_filter_script_hooks(self):
         script = page.render({"updated": 0, "topics": [TOPIC]}, set(), set(), 1791117232).split("<script>")[1]
         self.assertIn("card.filters.includes(this.st.f)", script)
-        self.assertIn("button[data-filter]", script)  # a stale filter name is dropped
+        self.assertIn("f: 'filters'", script)  # a stale filter name is dropped like any select value
 
 
 if __name__ == "__main__":

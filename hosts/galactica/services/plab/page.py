@@ -121,54 +121,63 @@ def _options(counter):
         f'<option value="{e(v)}">{e(v)} ({n})</option>' for v, n in rows)
 
 
+def _select(key_, name, options):
+    """A daisyUI select carrying its name, so a closed dropdown still says what it filters."""
+    return (f'<label class="select select-sm w-auto max-w-full"><span class="label">{name}</span>'
+            f'<select data-key="{key_}" aria-label="{name}" x-model="st.{key_}">{options}</select></label>')
+
+
 def _filter_bar(labs, filters):
     e = html.escape
     tags = Counter(tag for lab in labs for tag in lab["tags"])
     top = sorted(tags.items(), key=lambda kv: (-kv[1], kv[0]))[:20]
-    selects = "".join(
-        f'<select class="select select-sm w-auto max-w-full" data-key="{key_}" aria-label="{name}" title="{name}" '
-        f'x-model="st.{key_}">'
-        f'{_options(Counter(lab[field] for lab in labs if lab[field]))}</select>'
-        for key_, field, name in (("cat", "category", "Category"), ("q", "quality", "Quality"),
-                                  ("studio", "studio", "Studio"), ("prod", "production", "Production")))
+    toggles = ('<div class="join">' + "".join(
+        f'<button type="button" class="btn btn-sm join-item" data-toggle="{k}" '
+        f':class="{{ \'btn-primary\': st.{k} }}" @click="toggle(\'{k}\')">{name}</button>'
+        for k, name in (("h24", "Last 24h"), ("new", "New"), ("hide", "Hide added"))) + '</div>')
+    selects = [_select(k, name, _options(Counter(lab[field] for lab in labs if lab[field])))
+               for k, field, name in (("prod", "production", "Production"), ("cat", "category", "Category"),
+                                      ("studio", "studio", "Studio"), ("q", "quality", "Quality"))]
+    # The curated filters, named in the filter file, in file order; at most one is active.
+    if filters:
+        counts = Counter(n for lab in labs for n in lab["filters"])
+        selects.insert(1, _select("f", "Curated", '<option value="">All</option>' + "".join(
+            f'<option value="{e(n)}">{e(n)} ({counts[n]})</option>' for n in filters)))
+    # Tags are the least used filter, so they live behind a dropdown.
     chips = "".join(f'<button type="button" class="btn btn-xs" data-tag="{e(t)}" '
                     f':class="{{ \'btn-primary\': st.tags.includes(\'{e(t)}\') }}" '
                     f'@click="toggleTag(\'{e(t)}\')">{e(t)}'
                     f'<span class="badge badge-xs">{n}</span></button>' for t, n in top)
     datalist = "".join(f'<option value="{e(t)}">' for t in sorted(tags))
-    toggles = "".join(f'<button type="button" class="btn btn-sm" data-toggle="{k}" '
-                      f':class="{{ \'btn-primary\': st.{k} }}" '
-                      f'@click="toggle(\'{k}\')">{name}</button>'
-                      for k, name in (("h24", "Last 24h"), ("new", "New only"), ("hide", "Hide added/queued")))
-    # One button per curated filter, named in the filter file; at most one is active.
-    toggles += "".join(f'<button type="button" class="btn btn-sm" data-filter="{e(n)}" '
-                       f':class="{{ \'btn-secondary\': st.f === {e(json.dumps(n))} }}" '
-                       f'@click="pick({e(json.dumps(n))})">{e(n)}</button>' for n in filters)
-    row = "flex flex-wrap items-center gap-2"
-    selected_tags = (
-        '<template x-for="t in st.tags" :key="t">'
-        '<button type="button" class="btn btn-xs btn-primary" @click="toggleTag(t)" x-text="t + \' ×\'"></button>'
-        '</template>'
-    )
+    tag_menu = ('<details class="dropdown">'
+                '<summary class="btn btn-sm">Tags<span class="badge badge-sm badge-primary" '
+                'x-show="st.tags.length" x-text="st.tags.length"></span></summary>'
+                '<div class="dropdown-content z-20 mt-1 w-80 max-w-[90vw] rounded-box bg-base-200 p-3 shadow-lg '
+                'flex flex-col gap-2">'
+                '<input id="tagin" class="input input-sm w-full" list="taglist" placeholder="type a tag" '
+                'autocomplete="off" @keydown.enter.prevent="addTyped($el)" @input="onTagInput($el)">'
+                f'<datalist id="taglist">{datalist}</datalist>'
+                f'<div id="chips" class="flex flex-wrap gap-1 max-h-48 overflow-y-auto">{chips}</div>'
+                '</div></details>')
+    selected_tags = ('<span id="seltags" class="flex flex-wrap gap-1">'
+                     '<template x-for="t in st.tags" :key="t">'
+                     '<button type="button" class="badge badge-primary cursor-pointer" @click="toggleTag(t)" '
+                     'x-text="t + \' ×\'"></button></template></span>')
     return ('<div id="filters" class="sm:sticky top-0 z-10 bg-base-100 py-2 mb-4 border-b border-base-300 '
-            'flex flex-col gap-2">'
-            f'<div class="{row}">{toggles}{selects}</div>'
-            f'<div id="chips" class="{row} max-h-[5.5em] overflow-y-auto">{chips}</div>'
-            f'<div class="{row}"><span id="seltags" class="{row}">{selected_tags}</span>'
-            '<input id="tagin" class="input input-sm w-40" list="taglist" placeholder="add tag" autocomplete="off" '
-            '@keydown.enter.prevent="addTyped($el)" @input="onTagInput($el)">'
-            f'<datalist id="taglist">{datalist}</datalist>'
+            'flex flex-wrap items-center gap-2">'
+            f'{toggles}{"".join(selects)}{tag_menu}{selected_tags}'
             '<button type="button" id="clear" class="btn btn-ghost btn-sm" @click="clearFilters()">Clear</button>'
-            f'<span id="count" class="ml-auto text-sm text-base-content/60" x-text="\'Showing \' + shownCount + \' of \' + cards.length">Showing {len(labs)} of {len(labs)}</span>'
-            '</div></div>')
+            f'<span id="count" class="ml-auto text-sm text-base-content/60" '
+            f'x-text="\'Showing \' + shownCount + \' of \' + cards.length">Showing {len(labs)} of {len(labs)}</span>'
+            '</div>')
 
 
 def render(cache, added, queued, now):
     pending = len(queued - added)
     # sorted() is stable with reverse=True too: equal scores keep the tracker's order.
     topics = sorted(cache["topics"], key=score, reverse=True)
-    labs = [{**labels(t["title"], t["forum"]), "production": LABEL.get(_production(t), ("",))[0]}
-            for t in topics]
+    labs = [{**labels(t["title"], t["forum"]), "production": LABEL.get(_production(t), ("",))[0],
+             "filters": t.get("filters") or []} for t in topics]
     curated_n = sum(1 for t in topics if t.get("filters"))
     curated_sub = f" · {curated_n} curated" if curated_n else ""
     cards = "".join(_card(t, lab, added, queued, now) for t, lab in zip(topics, labs))

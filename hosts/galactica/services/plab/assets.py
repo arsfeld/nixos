@@ -15,8 +15,9 @@ CSS = """
 JS = """
 (() => {
   const TOGGLES = ['h24', 'new', 'hide'];
-  const SELECTS = {cat: 'category', q: 'quality', studio: 'studio', prod: 'production'};
-  const STRINGS = [...Object.keys(SELECTS), 'f'];  // f: the active curated filter's name
+  // f: the active curated filter's name
+  const SELECTS = {cat: 'category', q: 'quality', studio: 'studio', prod: 'production', f: 'filters'};
+  const STRINGS = Object.keys(SELECTS);
   const empty = () => ({h24: false, new: false, hide: false, f: '', cat: '', q: '', studio: '', prod: '', tags: []});
 
   function fromHash(h) {
@@ -118,13 +119,11 @@ JS = """
         if (initial) {
           Object.assign(this.st, initial);
         }
+        // A value no longer offered (a renamed curated filter, a studio gone from the list) would hide every card.
         Object.keys(SELECTS).forEach(k => {
           const el = document.querySelector('select[data-key="' + k + '"]');
           if (this.st[k] && el && ![...el.options].some(o => o.value === this.st[k])) this.st[k] = '';
         });
-        // A filter since renamed or removed from the filter file would hide every card.
-        const names = [...document.querySelectorAll('button[data-filter]')].map(b => b.dataset.filter);
-        if (this.st.f && !names.includes(this.st.f)) this.st.f = '';
         if (location.hash.length > 1 || !isEmpty(this.st)) this.saveFilters();
       },
 
@@ -136,10 +135,6 @@ JS = """
 
       toggle(key) {
         this.st[key] = !this.st[key];
-      },
-
-      pick(name) {
-        this.st.f = this.st.f === name ? '' : name;
       },
 
       toggleTag(tag) {
