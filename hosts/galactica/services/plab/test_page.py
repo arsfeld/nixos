@@ -14,6 +14,48 @@ class Render(unittest.TestCase):
     def render(self, topics, added=frozenset(), queued=frozenset(), updated=1791117232, now=1791117232 + 7200):
         return page.render({"updated": updated, "topics": topics}, set(added), set(queued), now)
 
+    def search(self, topics, query="alpha", error=None):
+        return page.render({"updated": 0, "topics": topics}, set(), set(), 1791117232 + 7200,
+                           search={"query": query, "error": error})
+
+    def test_list_has_an_empty_search_form(self):
+        out = self.render([TOPIC])
+        self.assertIn('<form method="get" action="search"', out)
+        self.assertIn('name="q" value=""', out)
+        self.assertNotIn('data-search="1"', out)
+
+    def test_results_page(self):
+        out = self.search([dict(TOPIC, images=None)], query='a"b')
+        self.assertIn('name="q" value="a&quot;b"', out)
+        self.assertIn('data-search="1"', out)
+        self.assertIn("1 result for “a&quot;b” · all time", out)
+        self.assertIn('href="./"', out)  # back to the weekly list
+        self.assertIn('src="thumb/3313754"', out)
+        self.assertIn("openTopicGallery(3313754)", out)
+        self.assertIn('@error="thumbFailed = true"', out)
+        self.assertIn("Add to Vault", out)
+
+    def test_results_page_plural_and_known_images(self):
+        out = self.search([TOPIC, dict(TOPIC, id=1)])
+        self.assertIn("2 results for", out)
+        self.assertIn('src="img/%s"' % key("https://x/cover.jpg"), out)
+
+    def test_results_page_has_no_production_select_or_new_toggle(self):
+        out = self.search([TOPIC])
+        self.assertNotIn('data-key="prod"', out)
+        self.assertNotIn('data-toggle="new"', out)
+
+    def test_results_page_error(self):
+        out = self.search([], error="login needs captcha")
+        self.assertIn("login needs captcha", out)
+        self.assertNotIn("results for", out)
+
+    def test_search_script_hooks(self):
+        script = self.render([TOPIC]).split("<script>")[1]
+        self.assertIn("openTopicGallery", script)
+        self.assertIn("dataset.search", script)
+        self.assertIn("thumbFailed", script)
+
     def test_card(self):
         out = self.render([TOPIC], updated=TOPIC["added"] + 2 * 86400 - 7200, now=TOPIC["added"] + 2 * 86400)
         self.assertIn('src="img/%s"' % key("https://x/cover.jpg"), out)

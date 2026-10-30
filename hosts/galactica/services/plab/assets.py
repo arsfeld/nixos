@@ -74,6 +74,12 @@ JS = """
       },
 
       init() {
+        // A live search's results are not the weekly list: they must not move the "new
+        // since your last visit" mark or overwrite the list's saved filters.
+        if (document.body.dataset.search) {
+          this.newIds = null;
+          return;
+        }
         this.initSeen();
         this.initFilters();
         if (this.$watch) {
@@ -172,6 +178,15 @@ JS = """
         if (ov && ov.showModal) ov.showModal();
       },
 
+      async openTopicGallery(id) {
+        try {
+          const r = await fetch('images/' + id);
+          if (!r.ok) return;
+          const j = await r.json();
+          if (j.images && j.images.length) this.openGallery(j.images);
+        } catch (_) {}
+      },
+
       closeGallery() {
         const ov = (this.$refs && this.$refs.modal) || document.getElementById('ov');
         if (ov && ov.close) ov.close();
@@ -192,6 +207,7 @@ JS = """
       loading: false,
       hoverQueued: false,
       error: '',
+      thumbFailed: false,
       isNew: false,
 
       init() {

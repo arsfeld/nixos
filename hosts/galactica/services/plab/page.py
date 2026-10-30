@@ -52,7 +52,13 @@ QUEUED_BTN = "add queued btn btn-sm btn-warning"
 
 def _card(t, lab, added, queued, now):
     e = html.escape
-    if t["images"]:
+    if t["images"] is None:
+        # A live search result: plab fetches the topic page when the thumbnail scrolls into view.
+        thumb = (f'<img class="thumb w-full h-full object-cover cursor-zoom-in" loading="lazy" '
+                 f'src="thumb/{t["id"]}" x-show="!thumbFailed" @error="thumbFailed = true" '
+                 f'@click="openTopicGallery({t["id"]})" alt="">'
+                 '<div class="thumb none w-full h-full" x-show="thumbFailed" x-cloak></div>')
+    elif t["images"]:
         keys = [key(u) for u in t["images"]]
         keys_json = e(json.dumps(keys))
         thumb = (f'<img class="thumb w-full h-full object-cover cursor-zoom-in" loading="lazy" '
@@ -136,17 +142,30 @@ def _select(key_, name, options):
             f'<select data-key="{key_}" aria-label="{name}" x-model="st.{key_}">{options}</select></label>')
 
 
-def _filter_bar(labs, filters):
+def _search_form(query):
+    """The live search box; a results page shows its query in it."""
+    return ('<form method="get" action="search" class="join" role="search">'
+            '<input class="input input-sm join-item w-48" type="search" name="q" '
+            f'value="{html.escape(query)}" placeholder="Search the tracker" required>'
+            '<button class="btn btn-sm join-item">Search</button></form>')
+
+
+def _filter_bar(labs, filters, query="", search=False):
     e = html.escape
     tags = Counter(tag for lab in labs for tag in lab["tags"])
     top = sorted(tags.items(), key=lambda kv: (-kv[1], kv[0]))[:20]
-    toggles = ('<div class="join">' + "".join(
+    toggles = (("h24", "Last 24h"), ("hide", "Hide added")) if search else \
+        (("h24", "Last 24h"), ("new", "New"), ("hide", "Hide added"))
+    toggle_bar = ('<div class="join">' + "".join(
         f'<button type="button" class="btn btn-sm join-item" data-toggle="{k}" '
         f':class="{{ \'btn-primary\': st.{k} }}" @click="toggle(\'{k}\')">{name}</button>'
-        for k, name in (("h24", "Last 24h"), ("new", "New"), ("hide", "Hide added"))) + '</div>')
+        for k, name in toggles) + '</div>')
+    fields = (("prod", "production", "Production"), ("cat", "category", "Category"),
+              ("studio", "studio", "Studio"), ("q", "quality", "Quality"))
+    if search:  # search results are not classified by production
+        fields = fields[1:]
     selects = [_select(k, name, _options(Counter(lab[field] for lab in labs if lab[field])))
-               for k, field, name in (("prod", "production", "Production"), ("cat", "category", "Category"),
-                                      ("studio", "studio", "Studio"), ("q", "quality", "Quality"))]
+               for k, field, name in fields]
     # The curated filters, named in the filter file, in file order; at most one is active.
     if filters:
         counts = Counter(n for lab in labs for n in lab["filters"])
@@ -174,14 +193,14 @@ def _filter_bar(labs, filters):
                      'x-text="t + \' ×\'"></button></template></span>')
     return ('<div id="filters" class="sm:sticky top-0 z-10 bg-base-100 py-2 mb-4 border-b border-base-300 '
             'flex flex-wrap items-center gap-2">'
-            f'{toggles}{"".join(selects)}{tag_menu}{selected_tags}'
+            f'{_search_form(query)}{toggle_bar}{"".join(selects)}{tag_menu}{selected_tags}'
             '<button type="button" id="clear" class="btn btn-ghost btn-sm" @click="clearFilters()">Clear</button>'
             f'<span id="count" class="ml-auto text-sm text-base-content/60" '
             f'x-text="\'Showing \' + shownCount + \' of \' + cards.length">Showing {len(labs)} of {len(labs)}</span>'
             '</div>')
 
 
-def render(cache, added, queued, now):
+def render(cache, added, queued, now, search=None):
     pending = len(queued - added)
     # sorted() is stable with reverse=True too: equal scores keep the tracker's order.
     topics = sorted(cache["topics"], key=score, reverse=True)
@@ -189,6 +208,16 @@ def render(cache, added, queued, now):
              "filters": t.get("filters") or []} for t in topics]
     curated_n = sum(1 for t in topics if t.get("filters"))
     curated_sub = f" · {curated_n} curated" if curated_n else ""
+    if search:
+        n = len(topics)
+        status = (f'<span class="text-error">{html.escape(search["error"])}</span>' if search.get("error")
+                  else f'{n} result{"" if n == 1 else "s"} for “{html.escape(search["query"])}” · all time')
+        summary = f'<a class="link link-hover" href="./">← weekly list</a> · {status}'
+    else:
+        summary = (f"{len(topics)} releases · last 7 days · updated {age(cache['updated'], now)}"
+                   f"{curated_sub}{f' · {pending} queued' if pending else ''}"
+                   "<span id=\"newcount\" x-show=\"newCount > 0\" x-text=\"' · ' + newCount + ' new'\"></span>")
+    search_attr = ' data-search="1"' if search else ""
     cards = "".join(_card(t, lab, added, queued, now) for t, lab in zip(topics, labs))
     # The stylesheets and the Tailwind runtime are served by plab itself from
     # PLAB_STATIC_DIR (vendored at build time); without them the page still works, unstyled.
@@ -201,13 +230,12 @@ def render(cache, added, queued, now):
             "<script src=\"static/tailwind.js\"></script>"
             "<script defer src=\"static/alpine.js\"></script>"
             f"<style>{CSS}</style></head>"
-            "<body class=\"min-h-screen bg-base-100 text-base-content p-4 overflow-x-hidden\" x-data=\"plabApp\">"
+            "<body class=\"min-h-screen bg-base-100 text-base-content p-4 overflow-x-hidden\" x-data=\"plabApp\""
+            f"{search_attr}>"
             "<header class=\"navbar min-h-0 p-0 mb-2 flex-wrap items-baseline gap-x-4 gap-y-1\">"
             "<h1 class=\"text-xl font-bold\">plab</h1>"
-            f"<span class=\"text-sm text-base-content/60\">{len(topics)} releases · last 7 days · "
-            f"updated {age(cache['updated'], now)}{curated_sub}{f' · {pending} queued' if pending else ''}"
-            "<span id=\"newcount\" x-show=\"newCount > 0\" x-text=\"' · ' + newCount + ' new'\"></span></span></header>"
-            f"{_filter_bar(labs, cache.get('filters') or [])}"
+            f"<span class=\"text-sm text-base-content/60\">{summary}</span></header>"
+            f"{_filter_bar(labs, cache.get('filters') or [], search['query'] if search else '', bool(search))}"
             "<div id=\"grid\" class=\"grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(280px,100%),1fr))]\">"
             f"{cards}</div>"
             "<dialog id=\"ov\" x-ref=\"modal\" class=\"modal\" @click=\"closeGallery()\">"
