@@ -73,21 +73,23 @@ class Store:
         if topic_id in ids:
             self._save_queue([i for i in ids if i != topic_id])
 
-    def search_topics(self):
+    def search_topics(self, now=None):
         """Live search results by topic id (a string: JSON keys), each a tracker row plus
-        "images" (None until the topic page is fetched) and "at" (when last searched)."""
-        return self._read_json("search.json", {})
+        "images" (None until the topic page is fetched) and "at" (when last searched).
+        Entries older than SEARCH_TTL are left out; the file is only rewritten by a save."""
+        now = time.time() if now is None else now
+        return {k: t for k, t in self._read_json("search.json", {}).items() if now - t["at"] <= SEARCH_TTL}
 
     def _save_search(self, topics):
         _write(os.path.join(self.root, "search.json"), json.dumps(topics).encode())
 
     def save_search(self, rows, now):
         with self._search_lock:
-            topics = self.search_topics()
+            topics = self.search_topics(now)  # expired entries drop out here and are not rewritten
             for row in rows:
                 images = topics.get(str(row["id"]), {}).get("images")
                 topics[str(row["id"])] = {**row, "images": images, "at": now}
-            self._save_search({k: t for k, t in topics.items() if now - t["at"] <= SEARCH_TTL})
+            self._save_search(topics)
 
     def set_search_images(self, topic_id, urls):
         with self._search_lock:

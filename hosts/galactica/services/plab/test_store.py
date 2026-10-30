@@ -1,8 +1,11 @@
 import os
 import tempfile
+import time
 import unittest
 
 from store import SEARCH_TTL, Store, key
+
+T = time.time()  # entries are read against the real clock
 
 
 class StoreTest(unittest.TestCase):
@@ -69,23 +72,35 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(self.store.search_topics(), {})
 
     def test_save_search_records_rows_without_images(self):
-        self.store.save_search([{"id": 5, "title": "a"}], now=1000)
+        self.store.save_search([{"id": 5, "title": "a"}], now=T)
         self.assertEqual(Store(self.dir.name).search_topics(),
-                         {"5": {"id": 5, "title": "a", "images": None, "at": 1000}})
+                         {"5": {"id": 5, "title": "a", "images": None, "at": T}})
 
     def test_save_search_keeps_known_images_and_refreshes_at(self):
-        self.store.save_search([{"id": 5, "title": "a"}], now=1000)
+        self.store.save_search([{"id": 5, "title": "a"}], now=T)
         self.store.set_search_images(5, ["https://x/1.jpg"])
-        self.store.save_search([{"id": 5, "title": "a2"}], now=2000)
+        self.store.save_search([{"id": 5, "title": "a2"}], now=T + 1000)
         self.assertEqual(self.store.search_topics()["5"],
-                         {"id": 5, "title": "a2", "images": ["https://x/1.jpg"], "at": 2000})
+                         {"id": 5, "title": "a2", "images": ["https://x/1.jpg"], "at": T + 1000})
 
     def test_save_search_drops_entries_older_than_a_day(self):
-        self.store.save_search([{"id": 5}], now=1000)
-        self.store.save_search([{"id": 6}], now=1000 + SEARCH_TTL)
+        self.store.save_search([{"id": 5}], now=T)
+        self.store.save_search([{"id": 6}], now=T + SEARCH_TTL)
         self.assertEqual(set(self.store.search_topics()), {"5", "6"})  # exactly a day: kept
-        self.store.save_search([{"id": 7}], now=1001 + SEARCH_TTL)
+        self.store.save_search([{"id": 7}], now=T + 1 + SEARCH_TTL)
         self.assertEqual(set(self.store.search_topics()), {"6", "7"})
+
+    def test_search_topics_hides_expired_entries_without_writing(self):
+        self.store.save_search([{"id": 5}], now=T)
+        path = os.path.join(self.dir.name, "search.json")
+        with open(path, "rb") as f:
+            before = f.read()
+        self.assertEqual(set(self.store.search_topics(now=T + SEARCH_TTL)), {"5"})
+        self.assertEqual(self.store.search_topics(now=T + 1 + SEARCH_TTL), {})
+        self.assertEqual(set(self.store.search_topics()), {"5"})  # fresh by the real clock
+        self.assertEqual(self.store.search_topics(now=T + SEARCH_TTL + 5), {})
+        with open(path, "rb") as f:
+            self.assertEqual(f.read(), before)
 
     def test_set_search_images_unknown_topic_is_a_no_op(self):
         self.store.set_search_images(9, ["https://x/1.jpg"])
