@@ -73,6 +73,20 @@ class Add(unittest.TestCase):
         with self.assertRaisesRegex(transmission.TransmissionError, "invalid or corrupt"):
             transmission.add(self.url, b"junk", "/x")
 
+    def test_torrents_lists_with_fields(self):
+        Stub.reply = {"result": "success", "arguments": {"torrents": [{"id": 1, "name": "A"}]}}
+        self.assertEqual(transmission.torrents(self.url), [{"id": 1, "name": "A"}])
+        body = Stub.requests[1][1]
+        self.assertEqual(body["method"], "torrent-get")
+        self.assertIn("trackers", body["arguments"]["fields"])
+
+    def test_remove_keeps_data(self):
+        Stub.reply = {"result": "success", "arguments": {}}
+        transmission.remove(self.url, [3, 4])
+        body = Stub.requests[1][1]
+        self.assertEqual(body["method"], "torrent-remove")
+        self.assertEqual(body["arguments"], {"ids": [3, 4], "delete-local-data": False})
+
 
 if __name__ == "__main__":
     unittest.main()
