@@ -126,12 +126,33 @@ class Render(unittest.TestCase):
         self.assertEqual(page.score({"seeders": 100, "production": {"class": "amateur"}}), 150)
 
     def test_production_label(self):
-        for cls, label in (("amateur", "amateur"), ("pro_artistic", "artistic"), ("industrial", "industrial")):
+        for cls, label, color in (("amateur", "🏠 amateur", "badge-success"),
+                                  ("pro_artistic", "🎨 artistic", "badge-info"),
+                                  ("industrial", "🏭 industrial", "badge-neutral")):
             out = self.render([{**TOPIC, "production": {"class": cls, "confidence": None}}])
-            self.assertIn(f'<span class="production">{label}</span>', out)
+            figure = out.split("<figure ")[1].split("</figure>")[0]
+            self.assertIn(f'<span class="production badge {color} font-bold absolute bottom-2 right-2 z-[1]">'
+                          f'{label}</span>', figure)
 
     def test_no_label_when_unclassified(self):
-        self.assertNotIn('class="production"', self.render([TOPIC]))
+        self.assertNotIn('production badge', self.render([TOPIC]))
+
+    def test_production_select(self):
+        out = self.render([{**TOPIC, "id": i, "production": {"class": cls, "confidence": None}}
+                           for i, cls in enumerate(("amateur", "amateur", "industrial", None), start=1)
+                           if cls] + [{**TOPIC, "id": 9}])
+        prod = out.split('data-key="prod"')[1].split("</select>")[0]
+        self.assertIn('x-model="st.prod"', prod)
+        self.assertLess(prod.index("amateur (2)"), prod.index("industrial (1)"))
+        self.assertNotIn("artistic", prod)  # no empty classes, and unclassified is no option
+
+    def test_card_carries_production_for_filtering(self):
+        out = self.render([{**TOPIC, "production": {"class": "pro_artistic", "confidence": None}}])
+        self.assertIn('data-production="artistic"', out)
+        self.assertIn("&quot;prod&quot;: &quot;artistic&quot;", out)
+        script = out.split("<script>")[1]
+        self.assertIn("prod: 'production'", script)
+        self.assertIn("card.prod === this.st.prod", script)
 
 
 def tp(i, title, forum=1875, added=1791117232 - 10 * 86400):
@@ -341,7 +362,7 @@ class Shell(unittest.TestCase):
 
 
 class Card(unittest.TestCase):
-    LAB = {"tags": [], "quality": None, "studio": None, "category": "Clips"}
+    LAB = {"tags": [], "quality": None, "studio": None, "category": "Clips", "production": ""}
 
     def topic(self, i=1, **kw):
         return {"id": i, "title": "Test Title", "forum": 1875, "size": 100, "seeders": 1,

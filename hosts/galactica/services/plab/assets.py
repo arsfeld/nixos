@@ -15,9 +15,9 @@ CSS = """
 JS = """
 (() => {
   const TOGGLES = ['h24', 'new', 'hide'];
-  const SELECTS = {cat: 'category', q: 'quality', studio: 'studio'};
+  const SELECTS = {cat: 'category', q: 'quality', studio: 'studio', prod: 'production'};
   const STRINGS = [...Object.keys(SELECTS), 'f'];  // f: the active curated filter's name
-  const empty = () => ({h24: false, new: false, hide: false, f: '', cat: '', q: '', studio: '', tags: []});
+  const empty = () => ({h24: false, new: false, hide: false, f: '', cat: '', q: '', studio: '', prod: '', tags: []});
 
   function fromHash(h) {
     const o = empty();
@@ -64,6 +64,7 @@ JS = """
           && (!this.st.cat || card.cat === this.st.cat)
           && (!this.st.q || card.q === this.st.q)
           && (!this.st.studio || card.studio === this.st.studio)
+          && (!this.st.prod || card.prod === this.st.prod)
           && this.st.tags.every(t => card.tags.includes(t));
       },
 
@@ -190,6 +191,7 @@ JS = """
       cat: cfg.cat || '',
       q: cfg.q || '',
       studio: cfg.studio || '',
+      prod: cfg.prod || '',
       tags: cfg.tags || [],
       state: cfg.initialState || '',
       loading: false,

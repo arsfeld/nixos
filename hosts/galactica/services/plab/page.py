@@ -13,7 +13,9 @@ TOPIC_URL = "https://pornolab.net/forum/viewtopic.php?t=%d"
 # Seeders count for more or less by how the release was produced (classify.py), so
 # gonzo-factory releases sink below amateur and artistic ones. Unclassified counts as 1.0.
 WEIGHT = {"amateur": 1.5, "pro_artistic": 1.0, "industrial": 0.25}
-LABEL = {"amateur": "amateur", "pro_artistic": "artistic", "industrial": "industrial"}
+# Each class as the page shows it: its name (badge and Production filter), icon and daisyUI color.
+LABEL = {"amateur": ("amateur", "🏠", "badge-success"), "pro_artistic": ("artistic", "🎨", "badge-info"),
+         "industrial": ("industrial", "🏭", "badge-neutral")}
 
 
 def _production(t):
@@ -22,6 +24,7 @@ def _production(t):
 
 def score(t):
     return t["seeders"] * WEIGHT.get(_production(t), 1.0)
+
 
 def size(n):
     for unit in ("B", "KB", "MB", "GB"):
@@ -70,8 +73,9 @@ def _card(t, lab, added, queued, now):
               '@click="toggleAdd()">'
               f'<span x-text="btnLabel">{label}</span></button>'
               '<span class="err text-xs text-error" x-text="error"></span>')
-    cls = _production(t)
-    production = f' · <span class="production">{LABEL[cls]}</span>' if cls in LABEL else ""
+    name, icon, color = LABEL.get(_production(t), ("", "", ""))
+    production = (f'<span class="production badge {color} font-bold absolute bottom-2 right-2 z-[1]">{icon} {name}</span>'
+                  if name else "")
     fresh = now - t["added"] < 86400
     if fresh:
         date = f'<span class="fresh text-warning font-bold">uploaded {age(t["added"], now)}</span>'
@@ -84,7 +88,7 @@ def _card(t, lab, added, queued, now):
     curated_badge = (f'<span class="badge badge-secondary font-bold absolute bottom-2 left-2 z-[1]">{e(reason)}</span>'
                      if filters and reason else "")
     data = {"tags": "|".join(lab["tags"]), "quality": lab["quality"] or "", "studio": lab["studio"] or "",
-            "category": lab["category"], "fresh": "1" if fresh else "", "state": state,
+            "category": lab["category"], "production": lab["production"], "fresh": "1" if fresh else "", "state": state,
             "curated": "1" if filters else ""}
     attrs_data = "".join(f' data-{k}="{e(v)}"' for k, v in data.items())
     cfg = json.dumps({
@@ -94,17 +98,18 @@ def _card(t, lab, added, queued, now):
         "cat": lab["category"],
         "q": lab["quality"] or "",
         "studio": lab["studio"] or "",
+        "prod": lab["production"],
         "tags": lab["tags"],
         "initialState": state,
     })
     return (f'<div class="card bg-base-200 shadow-sm overflow-hidden"{attrs_data} '
             f'x-data="plabCard({e(cfg)})" x-show="isVisible($data)" '
             ':class="{ \'is-new ring-2 ring-(--color-accent)\': isNew }">'
-            f'<figure class="relative aspect-[16/10] bg-black"><span x-show="isNew" class="new badge badge-accent badge-lg font-bold absolute top-2 left-2 z-[1]">NEW</span>{badge}{curated_badge}{thumb}</figure>'
+            f'<figure class="relative aspect-[16/10] bg-black"><span x-show="isNew" class="new badge badge-accent badge-lg font-bold absolute top-2 left-2 z-[1]">NEW</span>{badge}{curated_badge}{production}{thumb}</figure>'
             '<div class="card-body p-3 gap-2">'
             f'<a class="title link link-hover break-words" href="{TOPIC_URL % t["id"]}" target="_blank" '
             f'rel="noreferrer">{e(t["title"])}</a>'
-            f'<div class="meta text-xs text-base-content/60">{size(t["size"])} · ▲ {t["seeders"]} ▼ {t["leechers"]} · {date}{production}</div>'
+            f'<div class="meta text-xs text-base-content/60">{size(t["size"])} · ▲ {t["seeders"]} ▼ {t["leechers"]} · {date}</div>'
             f'<div class="card-actions mt-auto items-center">{button}</div></div></div>')
 
 
@@ -125,7 +130,7 @@ def _filter_bar(labs, filters):
         f'x-model="st.{key_}">'
         f'{_options(Counter(lab[field] for lab in labs if lab[field]))}</select>'
         for key_, field, name in (("cat", "category", "Category"), ("q", "quality", "Quality"),
-                                  ("studio", "studio", "Studio")))
+                                  ("studio", "studio", "Studio"), ("prod", "production", "Production")))
     chips = "".join(f'<button type="button" class="btn btn-xs" data-tag="{e(t)}" '
                     f':class="{{ \'btn-primary\': st.tags.includes(\'{e(t)}\') }}" '
                     f'@click="toggleTag(\'{e(t)}\')">{e(t)}'
@@ -162,7 +167,8 @@ def render(cache, added, queued, now):
     pending = len(queued - added)
     # sorted() is stable with reverse=True too: equal scores keep the tracker's order.
     topics = sorted(cache["topics"], key=score, reverse=True)
-    labs = [labels(t["title"], t["forum"]) for t in topics]
+    labs = [{**labels(t["title"], t["forum"]), "production": LABEL.get(_production(t), ("",))[0]}
+            for t in topics]
     curated_n = sum(1 for t in topics if t.get("filters"))
     curated_sub = f" · {curated_n} curated" if curated_n else ""
     cards = "".join(_card(t, lab, added, queued, now) for t, lab in zip(topics, labs))
