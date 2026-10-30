@@ -174,7 +174,7 @@ def render(cache, added, queued, now):
     cards = "".join(_card(t, lab, added, queued, now) for t, lab in zip(topics, labs))
     # The stylesheets and the Tailwind runtime are served by plab itself from
     # PLAB_STATIC_DIR (vendored at build time); without them the page still works, unstyled.
-    return ("<!doctype html><html data-theme=\"dim\"><head><meta charset=\"utf-8\">"
+    return ("<!doctype html><html data-theme=\"luxury\"><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
             "<meta name=\"referrer\" content=\"no-referrer\">"
             "<title>plab</title>"

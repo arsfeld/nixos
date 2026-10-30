@@ -33,7 +33,7 @@
       };
     }
     {
-      # daisyui.css carries only the light and dark themes; the page uses "dim".
+      # daisyui.css carries only the light and dark themes; the page uses "luxury".
       name = "themes.css";
       path = pkgs.fetchurl {
         url = "https://cdn.jsdelivr.net/npm/daisyui@5.7.46/themes.css";

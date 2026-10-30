@@ -328,7 +328,7 @@ class Shell(unittest.TestCase):
 
     def test_theme_and_static_assets(self):
         head = self.out.split("</head>")[0]
-        self.assertIn('<html data-theme="dim">', self.out)
+        self.assertIn('<html data-theme="luxury">', self.out)
         self.assertIn('<link rel="stylesheet" href="static/daisyui.css">', head)
         self.assertIn('<link rel="stylesheet" href="static/themes.css">', head)
         self.assertIn('<script src="static/tailwind.js"></script>', head)
