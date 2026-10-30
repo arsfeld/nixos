@@ -3,7 +3,7 @@ import os
 import tempfile
 import unittest
 
-from lab import BASE, Lab, LimitError, LoginError, TrackerError
+from lab import BASE, LOGIN_BACKOFF, Lab, LimitError, LoginError, TrackerError
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LOGGED_OUT = '<html><form action="/forum/login.php"></form></html>'.encode("cp1251")
@@ -68,6 +68,44 @@ class LabTest(unittest.TestCase):
         lab, opener = self.lab(LOGGED_OUT, b"<html>wrong password</html>")
         with self.assertRaisesRegex(LoginError, "^login failed$"):
             lab.page("tracker.php")
+        self.assertEqual(len(opener.calls), 2)
+
+    def test_failed_login_backs_off_without_posting_again(self):
+        lab, opener = self.lab(LOGGED_OUT, CAPTCHA, LOGGED_OUT)
+        with self.assertRaisesRegex(LoginError, "captcha"):
+            lab.page("tracker.php")
+        with self.assertRaisesRegex(LoginError, "captcha"):
+            lab.page("tracker.php")
+        with self.assertRaisesRegex(LoginError, "captcha"):
+            lab.login()
+        posts = [url for url, data in opener.calls if data is not None]
+        self.assertEqual(posts, [BASE + "login.php"])
+
+    def test_login_is_tried_again_after_the_backoff(self):
+        lab, opener = self.lab(LOGGED_OUT, CAPTCHA, LOGGED_IN)
+        with self.assertRaises(LoginError):
+            lab.page("tracker.php")
+        lab._failure = (lab._failure[0], lab._failure[1] - LOGIN_BACKOFF - 1)
+        lab.login()
+        self.assertEqual(len(opener.calls), 3)
+
+    def test_new_cookie_file_clears_the_login_backoff(self):
+        lab, opener = self.lab(LOGGED_OUT, CAPTCHA, LOGGED_OUT, LOGGED_OUT, LOGGED_IN, fixture("tracker.html"))
+        with self.assertRaises(LoginError):
+            lab.page("tracker.php")
+        Lab("user", "pдssword", self.jar, opener=FakeOpener([])).set_cookie("fresh")
+        later = os.stat(self.jar).st_mtime + 10
+        os.utime(self.jar, (later, later))
+        self.assertIn("tor-tbl", lab.page("tracker.php"))  # reloads, still out, logs in again
+        self.assertEqual([url for url, _ in opener.calls].count(BASE + "login.php"), 2)
+
+    def test_login_skipped_when_another_thread_logged_in_since(self):
+        lab, opener = self.lab(LOGGED_IN)
+        seen = lab._logins
+        lab.login(seen)
+        lab.login(seen)  # a waiter that saw the old count: the jar is already fresh
+        self.assertEqual(len(opener.calls), 1)
+        lab.login(lab._logins)  # one that saw the new count still logs in
         self.assertEqual(len(opener.calls), 2)
 
     def test_still_logged_out_after_login_raises(self):

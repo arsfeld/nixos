@@ -3,7 +3,9 @@
 Logging in is the risky part: repeated logins make the form demand a captcha, which
 plab cannot solve. So the jar is reused across runs and a login happens only when a
 page comes back logged out, at most once per request. On a captcha it gives up and says
-so; `plab set-cookie` is the way back in (see the design doc).
+so; `plab set-cookie` is the way back in (see the design doc). Logins are serialized across
+threads: one that waited for another's login reuses it, and after a failure no thread
+posts the form again for LOGIN_BACKOFF seconds (or until a newer cookie file arrives).
 """
 import http.cookiejar
 import os
@@ -17,6 +19,7 @@ import parse
 
 BASE = "https://pornolab.net/forum/"
 UA = "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0"
+LOGIN_BACKOFF = 300  # seconds a failed login blocks further ones
 
 
 class LoginError(Exception):
@@ -37,6 +40,9 @@ class Lab:
         self.password = password
         self.jar = http.cookiejar.MozillaCookieJar(jar_path)
         self._mtime = 0
+        self._login_lock = threading.Lock()
+        self._logins = 0  # successful logins so far
+        self._failure = None  # (LoginError, monotonic time) of the last failed login
         self._load()
         self.opener = opener or urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar))
         self.opener.addheaders = [("User-Agent", UA)]
@@ -64,6 +70,7 @@ class Lab:
         """Pick up a cookie another process wrote (`plab set-cookie`); True if reloaded."""
         if self._file_mtime() > self._mtime:
             self._load()
+            self._failure = None  # set-cookie is the way back in after a failed login
             return True
         return False
 
@@ -79,7 +86,24 @@ class Lab:
         if self._file_mtime() <= self._mtime:
             self._save()
 
-    def login(self):
+    def login(self, seen=None):
+        """Log in; `seen` is the login count from before the request that came back logged out."""
+        if seen is None:
+            seen = self._logins
+        with self._login_lock:
+            if self._logins != seen:
+                return  # another thread logged in while this one waited; retry with its jar
+            if self._failure and time.monotonic() - self._failure[1] < LOGIN_BACKOFF:
+                raise self._failure[0]
+            try:
+                self._login()
+            except LoginError as e:
+                self._failure = (e, time.monotonic())
+                raise
+            self._failure = None
+            self._logins += 1
+
+    def _login(self):
         body = urllib.parse.urlencode({
             "login_username": self.username,
             "login_password": self.password,
@@ -95,6 +119,7 @@ class Lab:
     def page(self, path):
         reloaded = logged_in = False
         while True:
+            seen = self._logins
             page = self._open(BASE + path).decode("cp1251", "replace")
             if parse.logged_in(page):
                 self._save_session()
@@ -103,7 +128,7 @@ class Lab:
             if not reloaded and self._reload_if_newer():
                 reloaded = True
             elif not logged_in:
-                self.login()
+                self.login(seen)
                 logged_in = True
             else:
                 raise LoginError(f"still logged out after login: {path}")
@@ -161,6 +186,7 @@ class Lab:
     def torrent(self, topic_id):
         reloaded = logged_in = False
         while True:
+            seen = self._logins
             data = self._open(f"{BASE}dl.php?t={topic_id}")
             if re.match(rb"d\d+:", data):  # bencoded dictionary, not a login page
                 self._save_session()
@@ -176,7 +202,7 @@ class Lab:
             if not reloaded and self._reload_if_newer():
                 reloaded = True
             elif not logged_in:
-                self.login()
+                self.login(seen)
                 logged_in = True
             else:
                 raise LoginError(f"still logged out after login: topic {topic_id}")
