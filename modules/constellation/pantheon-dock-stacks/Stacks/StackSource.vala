@@ -92,6 +92,22 @@ public class Dock.StackSource : Object {
         }
     }
 
+    /* The icon for the stack as a whole. */
+    public Icon folder_icon () {
+        if (config.is_applications) {
+            return new ThemedIcon ("applications-other");
+        }
+        if (config.source == Environment.get_user_special_dir (DOWNLOAD)) {
+            return new ThemedIcon ("folder-download");
+        }
+        try {
+            var info = File.new_for_path (config.source).query_info (FileAttribute.STANDARD_ICON, NONE);
+            return info.get_icon () ?? new ThemedIcon ("folder");
+        } catch (Error e) {
+            return new ThemedIcon ("folder");
+        }
+    }
+
     private void on_monitor_changed (File file, File? other, FileMonitorEvent event) {
         queue_reload ();
     }

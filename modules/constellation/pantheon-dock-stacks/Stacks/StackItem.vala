@@ -32,10 +32,13 @@ public class Dock.StackItem : BaseIconGroup {
     }
 
     construct {
+        StackStyle.ensure ();
+        add_css_class ("stack");
+
         // BaseIconGroup has already set child to its icon grid.
         preview = child;
 
-        folder_image = new Gtk.Image.from_gicon (folder_icon ());
+        folder_image = new Gtk.Image.from_gicon (source.folder_icon ());
         bind_property ("icon-size", folder_image, "pixel-size", SYNC_CREATE);
 
         tooltip_text = config.is_applications ? _("Applications") : Path.get_basename (config.source);
@@ -60,10 +63,32 @@ public class Dock.StackItem : BaseIconGroup {
         // its one-idle cache, but only for the same model object, and StackStore
         // splices fresh StackConfig objects on every change, so that cannot happen here.
         notify["parent"].connect (on_parent_changed);
+
+        maybe_open_for_test ();
     }
 
     ~StackItem () {
         debug ("StackItem finalized for %s", config.source);
+    }
+
+    // Test hook for screenshot checks: with DOCK_STACKS_OPEN=<index into `stacks`>,
+    // that stack pops its popover up once, 1.5 s after the dock starts.
+    private void maybe_open_for_test () {
+        var wanted = Environment.get_variable ("DOCK_STACKS_OPEN");
+        if (wanted == null) {
+            return;
+        }
+        var configs = StackConfig.parse_all (new Settings ("io.elementary.dock").get_value ("stacks"));
+        var index = int.parse (wanted);
+        if (index >= 0 && index < configs.length && configs[index].source == config.source) {
+            Timeout.add_once (1500, open_for_test);
+        }
+    }
+
+    private void open_for_test () {
+        if (!torn_down) {
+            popover_menu.popup ();
+        }
     }
 
     private void on_released () {
@@ -112,20 +137,5 @@ public class Dock.StackItem : BaseIconGroup {
             child = wanted;
         }
         folder_image.opacity = source.missing ? 0.5 : 1.0;
-    }
-
-    private Icon folder_icon () {
-        if (config.is_applications) {
-            return new ThemedIcon ("applications-other");
-        }
-        if (config.source == Environment.get_user_special_dir (DOWNLOAD)) {
-            return new ThemedIcon ("folder-download");
-        }
-        try {
-            var info = File.new_for_path (config.source).query_info (FileAttribute.STANDARD_ICON, NONE);
-            return info.get_icon () ?? new ThemedIcon ("folder");
-        } catch (Error e) {
-            return new ThemedIcon ("folder");
-        }
     }
 }

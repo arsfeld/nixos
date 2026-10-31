@@ -1,19 +1,26 @@
 /*
  * SPDX-License-Identifier: GPL-3.0
  *
- * A stack opened as a fan: the newest MAX_ITEMS entries on an arc, newest
- * nearest the dock, with "Open in Files" and "N more…" above.
+ * A stack opened as a fan: the newest MAX_ITEMS entries in a column curving
+ * up from the dock, newest at the bottom, topped by "Open in Files" (or
+ * "N more in Files" when the folder holds more).
  */
 
 public class Dock.FanPopover : Gtk.Popover {
     public const int MAX_ITEMS = 10;
-    private const int ICON_SIZE = 48;
+    private const int HEADER_ICON_SIZE = 32;
 
     public StackSource source { get; construct; }
 
     private FanLayout fan;
-    private Gtk.Button more_button;
-    private Gtk.Label message;
+    private Gtk.Button header;
+    private Gtk.Label header_label;
+    private Gtk.Widget message;
+    private Gtk.Label message_label;
+    // Rows are rebuilt only when the popover is shown: rebuilding while it is
+    // closed would be wasted work, and rebuilding while it is open destroys the
+    // button that owns an in-flight drag.
+    private bool dirty = true;
 
     public FanPopover (StackSource source) {
         Object (source: source, position: Gtk.PositionType.TOP, has_arrow: false);
@@ -23,57 +30,53 @@ public class Dock.FanPopover : Gtk.Popover {
         StackStyle.ensure ();
         add_css_class ("stack-fan");
 
-        var open_button = create_pill_button (_("Open in Files"));
-        open_button.clicked.connect (open_location);
-
-        more_button = create_pill_button ("");
-        more_button.clicked.connect (open_location);
-
-        message = new Gtk.Label (null) {
-            halign = END
+        header_label = new Gtk.Label (null);
+        header = new Gtk.Button () {
+            child = create_row_box (header_label, new Gtk.Image.from_gicon (source.folder_icon ()) {
+                pixel_size = HEADER_ICON_SIZE
+            })
         };
-        message.add_css_class ("stack-fan-label");
+        header.add_css_class ("stack-fan-item");
+        header.clicked.connect (open_location);
 
-        fan = new FanLayout () {
-            margin_start = 24,
-            margin_top = 12
-        };
+        // A row with no icon: the empty image keeps its label in line with the others.
+        message_label = new Gtk.Label (null);
+        message = create_row_box (message_label, new Gtk.Image ());
 
-        var box = new Gtk.Box (VERTICAL, 6) {
-            halign = END
-        };
-        box.append (open_button);
-        box.append (more_button);
-        box.append (message);
-        box.append (fan);
-        child = box;
+        fan = new FanLayout ();
+        child = fan;
 
         // We need to set offset because dock window's height is 1px larger than its visible area
         set_offset (0, -1);
 
         // Methods, not capturing lambdas: a closure would keep this popover alive
         // for as long as the source is.
-        source.entries.items_changed.connect (rebuild);
-        source.notify["missing"].connect (rebuild);
-        rebuild ();
+        source.entries.items_changed.connect (mark_dirty);
+        source.notify["missing"].connect (mark_dirty);
+        notify["visible"].connect (on_visible_changed);
     }
 
     ~FanPopover () {
         debug ("FanPopover finalized for %s", source.config.source);
-        source.entries.items_changed.disconnect (rebuild);
-        source.notify["missing"].disconnect (rebuild);
+        source.entries.items_changed.disconnect (mark_dirty);
+        source.notify["missing"].disconnect (mark_dirty);
     }
 
-    private static Gtk.Button create_pill_button (string label) {
-        var pill = new Gtk.Label (label);
-        pill.add_css_class ("stack-fan-label");
+    // Label pill on the left, icon on the right, in an icon-wide slot so every
+    // row's icon lands in the same column.
+    private static Gtk.Box create_row_box (Gtk.Label label, Gtk.Image image) {
+        label.add_css_class ("stack-fan-label");
+        label.valign = CENTER;
 
-        var button = new Gtk.Button () {
-            child = pill,
-            halign = END
-        };
-        button.add_css_class ("stack-fan-item");
-        return button;
+        image.add_css_class ("stack-icon");
+        image.width_request = FanLayout.ICON_SIZE;
+        image.halign = CENTER;
+        image.valign = CENTER;
+
+        var box = new Gtk.Box (HORIZONTAL, 8);
+        box.append (label);
+        box.append (image);
+        return box;
     }
 
     private void open_location () {
@@ -81,7 +84,18 @@ public class Dock.FanPopover : Gtk.Popover {
         source.open_location ();
     }
 
+    private void mark_dirty () {
+        dirty = true;
+    }
+
+    private void on_visible_changed () {
+        if (visible && dirty) {
+            rebuild ();
+        }
+    }
+
     private void rebuild () {
+        dirty = false;
         fan.clear ();
 
         var total = source.entries.get_n_items ();
@@ -90,12 +104,14 @@ public class Dock.FanPopover : Gtk.Popover {
             fan.append_row (create_row ((StackEntry) source.entries.get_item (i)));
         }
 
-        var extra = total - shown;
-        more_button.visible = extra > 0;
-        ((Gtk.Label) more_button.child).label = _("%u more…").printf (extra);
+        if (source.missing || total == 0) {
+            message_label.label = source.missing ? _("Folder not found") : _("No items");
+            fan.append_row (message);
+        }
 
-        message.visible = source.missing || total == 0;
-        message.label = source.missing ? _("Folder not found") : _("No items");
+        var extra = total - shown;
+        header_label.label = extra > 0 ? _("%u more in Files").printf (extra) : _("Open in Files");
+        fan.append_row (header);
     }
 
     // Static so its lambdas cannot capture `this`: the popover owns the button
@@ -106,14 +122,9 @@ public class Dock.FanPopover : Gtk.Popover {
             ellipsize = MIDDLE,
             max_width_chars = 28
         };
-        label.add_css_class ("stack-fan-label");
-
-        var box = new Gtk.Box (HORIZONTAL, 8);
-        box.append (label);
-        box.append (new Gtk.Image.from_gicon (entry.icon) { pixel_size = ICON_SIZE });
 
         var button = new Gtk.Button () {
-            child = box,
+            child = create_row_box (label, new Gtk.Image.from_gicon (entry.icon) { pixel_size = FanLayout.ICON_SIZE }),
             tooltip_text = entry.name
         };
         button.add_css_class ("stack-fan-item");
