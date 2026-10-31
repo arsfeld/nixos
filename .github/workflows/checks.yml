@@ -70,6 +70,11 @@ jobs:
       # for the *target* platform, which this runner cannot execute ("platform
       # mismatch"). `nix flake check` skipped them for the same reason; build.yml
       # evaluates each on its own runner.
+      #
+      # That IFD realises each host's whole closure, and nothing roots it, so
+      # without a GC between hosts they pile up: blackbird + galactica +
+      # pegasus + raider stopped fitting with the 2026-10-31 flake update and
+      # the step died at raider with "No space left on device".
       - name: Evaluate every host
         run: |
           hosts=$(nix eval --raw .#nixosConfigurations \
@@ -79,6 +84,7 @@ jobs:
           for h in $hosts; do
             echo "evaluating $h"
             nix eval --raw ".#nixosConfigurations.$h.config.system.build.toplevel.drvPath" > /dev/null
+            nix store gc --quiet
           done
 
       - name: Run the checks
