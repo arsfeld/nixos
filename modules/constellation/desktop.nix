@@ -124,32 +124,6 @@ in {
       system = pkgs.stdenv.hostPlatform.system;
       config.allowUnfree = true;
     };
-
-    # Ghostty's systemd unit is Type=notify-reload, and systemd 262 refuses a
-    # service whose main process has no SIGUSR2 handler when it reports READY=1.
-    # Ghostty 1.3.1 sets up the style manager before its signal handlers, and
-    # under a dark desktop that soft-reloads the config, which sends READY=1
-    # early: about one launch in three then fails with result 'protocol' and no
-    # window. Upstream swapped the two calls (ghostty-org/ghostty#14398); drop
-    # this once pkgs-unstable ships a release with that change -- the
-    # --replace-fail stops the build when the lines no longer match.
-    ghostty = pkgs-unstable.ghostty.overrideAttrs (old: {
-      postPatch =
-        (old.postPatch or "")
-        + ''
-          substituteInPlace src/apprt/gtk/class/application.zig --replace-fail \
-            '        // Setup our style manager (light/dark mode)
-                  self.startupStyleManager();
-
-                  // Setup some signal handlers
-                  self.startupSignals();' \
-            '        // Setup some signal handlers
-                  self.startupSignals();
-
-                  // Setup our style manager (light/dark mode)
-                  self.startupStyleManager();'
-        '';
-    });
   in
     lib.mkMerge [
       # ======== SHARED BASE (every variant) ========
@@ -166,7 +140,6 @@ in {
           enable = true;
           theme = "bgrt";
         };
-        boot.initrd.verbose = false;
         boot.consoleLogLevel = 0;
 
         services.xserver.xkb = {
@@ -202,9 +175,9 @@ in {
         environment.systemPackages = with pkgs;
           [
             pkgs-unstable.zed-editor
-            # Outranks the unpatched copy common.nix installs for its terminfo,
+            # Outranks the stable copy common.nix installs for its terminfo,
             # so the systemd unit and D-Bus service come from this one.
-            (lib.hiPrio ghostty)
+            (lib.hiPrio pkgs-unstable.ghostty)
             localsend
             mission-center
             variety

@@ -83,18 +83,6 @@
     enable = true;
     serverUrl = "https://niks3.arsfeld.dev";
     authTokenFile = config.sops.secrets."niks3-api-token".path;
-    # The hook's SQLite queue drops paths with SQLITE_BUSY once dozens of
-    # post-build hooks enqueue while the worker drains (~760 lost during the
-    # 2026-10-11 weekly-update). Upstream's DSN-pragma fix for #409 is in the
-    # pinned version and is not enough; capping the pool at one connection is.
-    # Design: docs/superpowers/specs/2026-10-12-niks3-hook-sqlite-busy-design.md
-    # Delete this once the pinned niks3 has an equivalent fix; check
-    # hook/queue.go on every niks3 bump. The patch only fails to apply if
-    # upstream changes the lines around OpenQueue's sql.Open, so a clean
-    # build is not proof upstream is still unfixed.
-    package =
-      (pkgs.callPackage "${inputs.niks3}/nix/packages/niks3-hook.nix" {}).overrideAttrs
-      (old: {patches = (old.patches or []) ++ [./niks3-hook-single-conn.patch];});
   };
 
   # Allow insecure packages
