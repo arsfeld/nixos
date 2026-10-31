@@ -37,6 +37,13 @@ Then read the PNG and repeat. The screen is 3440×1440 and the dock sits bottom-
   `DOCK_STACKS_CLICK=<row>[@<progress>]`, set alongside it, plays that fan row's launch
   animation and the tile bounce 0.7 s after the fan opens, without opening anything; with
   a progress (0–1) the fan holds at that frame, which is the only way to screenshot it.
+  `DOCK_STACKS_FOLDER=<folder name>`, with `DOCK_STACKS_OPEN` on the Applications grid, opens
+  that folder (`Games`, `System`, `Utilities`, `Terminal Tools`).
+  `DOCK_STACKS_FAKE_JOB=<desktop-id>:<state>:<progress>` injects one AppCenter job at start
+  (state 1 installing, 2 updating, 3 removing); an id with no desktop file is a new install.
+  Fake jobs survive AppCenter leaving the bus, because `clear ()` keeps `fake.` ids.
+  Download progress needs no hook: append to `~/Downloads/<name>.part` slowly, and for a real
+  fraction also have a `.crdownload` and `gdbus emit` a `com.canonical.Unity.LauncherEntry.Update`.
   For the zoom it is `DOCK_ZOOM_AT=<slots>`, which zooms the
   dock 1 s after start as if the pointer rested that many launcher widths from its left edge
   (`ItemManager.vala` in `zoom/hooks.patch`). It fires before `DOCK_STACKS_OPEN`, so the two
@@ -72,6 +79,20 @@ profile carries no default for it. That emptied the stacks right after the first
 
 So the order is: deploy, then re-login (or restart the deployed dock with the login shell's
 `DCONF_PROFILE` and `NIX_GSETTINGS_OVERRIDES_DIR`), then reset.
+
+## Where stack progress comes from
+
+- **Downloads** come from the folder itself: partial files (`.part`, `.crdownload`,
+  `.download`) are entries, refreshed once a second. Only Chromium browsers also send a
+  fraction, as Unity LauncherEntry (`LauncherProgress.vala`); Zen and Firefox send nothing,
+  so their downloads pulse.
+- **Applications** progress comes from AppCenter, through a local patch
+  (`appcenter/progress.patch`) that adds `JobChanged` and `GetJobs` to its D-Bus object
+  (`AppCenterJobs.vala` reads them). Bazaar, nix-flatpak and the `flatpak` CLI publish
+  nothing. An AppCenter without the patch (a session started before the deploy) just
+  shows no progress.
+- The AppCenter daemon (`io.elementary.appcenter --silent`) keeps running the old binary
+  until the next login, like the dock's schema.
 
 ## Vala pitfalls that bit here
 
