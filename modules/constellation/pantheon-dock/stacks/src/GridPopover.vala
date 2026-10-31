@@ -128,6 +128,7 @@ public class Dock.GridPopover : Gtk.Popover {
     private void on_activate (uint position) {
         var entry = (StackEntry) source.entries.get_item (position);
         popdown ();
+        source.launched ();
         entry.launch ();
     }
 

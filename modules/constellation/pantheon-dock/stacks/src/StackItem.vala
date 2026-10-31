@@ -14,6 +14,11 @@ public class Dock.StackItem : BaseIconGroup {
     private StackPile pile;
     private bool torn_down = false;
 
+    // The launch bounce. Launcher.animate_launch plays the same one, but its
+    // animations are private to Launcher, so this is a copy rather than a share.
+    private Adw.TimedAnimation? bounce_up;
+    private Adw.TimedAnimation? bounce_down;
+
     public StackItem (StackConfig config) {
         var source = new StackSource (config);
         Object (
@@ -53,6 +58,16 @@ public class Dock.StackItem : BaseIconGroup {
         // Methods, not lambdas: a lambda that uses `this` holds a strong ref to it,
         // and gesture_click and our own parent signal are owned by this item.
         gesture_click.released.connect (on_released);
+
+        var bounce_target = new Adw.CallbackAnimationTarget (bounce_frame);
+        bounce_down = new Adw.TimedAnimation (this, 0, 0, 600, bounce_target) {
+            easing = EASE_OUT_BOUNCE
+        };
+        bounce_up = new Adw.TimedAnimation (this, 0, 0, 200, bounce_target) {
+            easing = EASE_IN_OUT_QUAD
+        };
+        bounce_up.done.connect (on_bounce_up_done);
+        source.launched.connect (animate_launch);
 
         source.notify["missing"].connect (update_child);
         source.entries.items_changed.connect (update_child);
@@ -120,6 +135,30 @@ public class Dock.StackItem : BaseIconGroup {
         popover_menu.popup ();
     }
 
+    private void bounce_frame (double value) {
+        overlay.allocate (
+            overlay.get_width (), overlay.get_height (), -1,
+            new Gsk.Transform ().translate ({ 0, (int) value })
+        );
+    }
+
+    // A method, not a connection to bounce_down.play: teardown () may drop
+    // bounce_down while bounce_up is still playing.
+    private void on_bounce_up_done () {
+        if (bounce_down != null) {
+            bounce_down.play ();
+        }
+    }
+
+    private void animate_launch () {
+        if (bounce_up == null || bounce_up.state == PLAYING || bounce_down.state == PLAYING) {
+            return;
+        }
+        bounce_up.value_to = -0.5 * overlay.get_height ();
+        bounce_down.value_from = bounce_up.value_to;
+        bounce_up.play ();
+    }
+
     private void on_parent_changed () {
         if (parent == null) {
             teardown ();
@@ -141,6 +180,11 @@ public class Dock.StackItem : BaseIconGroup {
         source.notify["missing"].disconnect (update_child);
         source.entries.items_changed.disconnect (update_child);
         pile.stop ();
+        source.launched.disconnect (animate_launch);
+        // The bounce target's callback holds this item; Launcher drops its
+        // animations in cleanup () for the same reason.
+        bounce_up = null;
+        bounce_down = null;
         source.stop ();
 
         popover_menu.unparent ();
