@@ -664,10 +664,12 @@ in {
               indicator-cpu-state = true;
               indicator-cpu-temperature-state = true;
               indicator-memory-state = true;
-              indicator-gpu-state = true;
-              indicator-gpu-temperature-state = true;
-              indicator-network-download-state = true;
-              indicator-network-upload-state = true;
+              # Off: with CPU temp on, a second thermometer and two network
+              # arrows read as duplicates in the panel. The Monitor app shows them.
+              indicator-gpu-state = false;
+              indicator-gpu-temperature-state = false;
+              indicator-network-download-state = false;
+              indicator-network-upload-state = false;
             };
           }
         ];
