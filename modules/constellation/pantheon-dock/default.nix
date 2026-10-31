@@ -4,11 +4,19 @@
 # patches would fight over the same lines. How to test a change visually:
 # ./CLAUDE.md.
 #
+# Each feature keeps its new Vala sources in ./<feature>/src, copied into the
+# dock's src/<Dir>, and its edits to upstream files in ./<feature>/hooks.patch.
+# They apply in the order of `features`, and each hooks.patch is generated on
+# top of the ones before it.
+#
 # stacks/: macOS-style folder stacks (Downloads fanned out newest-first,
-# Applications as a grid). elementary-dock has no applet API; the Vala sources
-# in ./stacks/src are copied into the dock's src/Stacks, and hooks.patch only
+# Applications as a grid). elementary-dock has no applet API; hooks.patch only
 # adds the gsettings key, the meson hook and the stack group in ItemManager.
 # Design: docs/superpowers/specs/2026-10-31-dock-stacks-design.md
+#
+# zoom/: macOS-style magnification under the pointer. Its hooks.patch is larger
+# than stacks', because zoom changes how ItemGroup positions every item.
+# Design: docs/superpowers/specs/2026-10-31-dock-zoom-design.md
 #
 # A nixpkgs bump of elementary-dock that breaks a patch fails the build, and
 # the patch is rebased on the new source.
@@ -21,7 +29,16 @@
   ...
 }: let
   cfg = config.constellation.desktop.pantheon;
-  stacksDir = ./stacks;
+  features = [
+    {
+      dir = ./stacks;
+      dest = "Stacks";
+    }
+    {
+      dir = ./zoom;
+      dest = "Zoom";
+    }
+  ];
   inherit (lib.gvariant) mkArray mkTuple;
 in {
   options.constellation.desktop.pantheon.dockStacks = lib.mkOption {
@@ -54,13 +71,14 @@ in {
       (final: prev: {
         pantheon = prev.pantheon.overrideScope (pfinal: pprev: {
           elementary-dock = pprev.elementary-dock.overrideAttrs (old: {
-            patches = (old.patches or []) ++ ["${stacksDir}/hooks.patch"];
+            patches = (old.patches or []) ++ map (f: "${f.dir}/hooks.patch") features;
             postPatch =
               (old.postPatch or "")
-              + ''
-                cp -r ${stacksDir}/src src/Stacks
-                chmod -R u+w src/Stacks
-              '';
+              + lib.concatMapStrings (f: ''
+                cp -r ${f.dir}/src src/${f.dest}
+                chmod -R u+w src/${f.dest}
+              '')
+              features;
             doCheck = true;
           });
         });

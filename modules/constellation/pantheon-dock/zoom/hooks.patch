@@ -1,0 +1,18 @@
+diff --git a/src/meson.build b/src/meson.build
+index 1b2b91f8..7abcf199 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -1,4 +1,5 @@
+ subdir('Stacks')
++subdir('Zoom')
+ sources = [
+     'Application.vala',
+     'BaseIconGroup.vala',
+@@ -35,6 +36,7 @@ sources = [
+ ]
+ 
+ sources += stacks_sources
++sources += zoom_sources
+ 
+ executable(
+     meson.project_name(),
