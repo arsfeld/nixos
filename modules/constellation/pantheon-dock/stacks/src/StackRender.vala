@@ -15,7 +15,8 @@ namespace Dock.StackRender {
 
     /*
      * Paints widget, of the given size, under transform. The caller must not
-     * also snapshot_child () it.
+     * also snapshot_child () it. The widget's own CSS box, outline, opacity and
+     * clip are skipped, so pass widgets with no visible box of their own.
      */
     public void append_supersampled (Gtk.Snapshot snapshot, Gtk.Widget widget, Gsk.Transform transform, float width, float height) {
         var native = widget.get_native ();
@@ -29,7 +30,8 @@ namespace Dock.StackRender {
         inner.translate ({ PAD, PAD });
         // Not Gtk.WidgetPaintable: asked from inside a snapshot, it paints nothing
         // here (an empty node, so the row vanished). The widget's own snapshot
-        // vfunc draws it upright, with the CSS box the parent would have added.
+        // vfunc draws its content and children upright, but not its own CSS box
+        // (background, border, box-shadow, outline), opacity or clip.
         widget.snapshot (inner);
         var node = inner.to_node ();
         if (node == null) {

@@ -14,6 +14,7 @@ stacks_sources = stacks_core_sources + files(
     'FanPopover.vala',
     'GridPopover.vala',
     'StackItem.vala',
+    'StackPile.vala',
     'StackRender.vala',
     'StackStore.vala',
     'StackStyle.vala',

@@ -1,8 +1,8 @@
 /*
  * SPDX-License-Identifier: GPL-3.0
  *
- * A folder stack on the dock: a live 2×2 preview of the newest entries (or a
- * plain folder icon), opening as a fan or a grid.
+ * A folder stack on the dock: a pile of the newest entries, a 2×2 preview, or a
+ * plain folder icon, opening as a fan or a grid.
  */
 
 public class Dock.StackItem : BaseIconGroup {
@@ -11,6 +11,7 @@ public class Dock.StackItem : BaseIconGroup {
 
     private Gtk.Widget preview;
     private Gtk.Image folder_image;
+    private StackPile pile;
     private bool torn_down = false;
 
     public StackItem (StackConfig config) {
@@ -40,6 +41,9 @@ public class Dock.StackItem : BaseIconGroup {
 
         folder_image = new Gtk.Image.from_gicon (source.folder_icon ());
         bind_property ("icon-size", folder_image, "pixel-size", SYNC_CREATE);
+
+        pile = new StackPile (source);
+        bind_property ("icon-size", pile, "icon-size", SYNC_CREATE);
 
         tooltip_text = config.is_applications ? _("Applications") : Path.get_basename (config.source);
 
@@ -119,6 +123,7 @@ public class Dock.StackItem : BaseIconGroup {
 
         source.notify["missing"].disconnect (update_child);
         source.entries.items_changed.disconnect (update_child);
+        pile.stop ();
         source.stop ();
 
         popover_menu.unparent ();
@@ -139,8 +144,10 @@ public class Dock.StackItem : BaseIconGroup {
         Gtk.Widget wanted;
         if (empty || config.display == FOLDER) {
             wanted = folder_image;
-        } else {
+        } else if (config.display == GRID) {
             wanted = preview;
+        } else {
+            wanted = pile;
         }
         if (child != wanted) {
             child = wanted;
