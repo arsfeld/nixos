@@ -13,6 +13,10 @@ public class Dock.StackEntry : Object {
     public AppInfo? app { get; construct; }
     /* Sort key for date-added: creation time, or modification time where the filesystem has none. */
     public int64 added_usec { get; construct; }
+    /* A folder of the Applications grid: its apps, A–Z. Null for anything else. */
+    public ListStore? children { get; construct; }
+
+    public bool is_folder { get { return children != null; } }
 
     public StackEntry (string name, Icon icon, File? file, AppInfo? app, int64 added_usec) {
         Object (name: name, icon: icon, file: file, app: app, added_usec: added_usec);
@@ -47,7 +51,21 @@ public class Dock.StackEntry : Object {
         );
     }
 
+    public static StackEntry for_folder (string name, ListStore children) {
+        return (StackEntry) Object.new (
+            typeof (StackEntry),
+            name: name,
+            icon: new ThemedIcon ("folder"),
+            children: children,
+            added_usec: 0
+        );
+    }
+
     public void launch () {
+        if (is_folder) {
+            // A folder opens inside the popover; GridPopover handles it.
+            return;
+        }
         var context = Gdk.Display.get_default ().get_app_launch_context ();
         try {
             if (app != null) {

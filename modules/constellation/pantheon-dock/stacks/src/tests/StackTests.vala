@@ -77,6 +77,24 @@ string[] entry_names (StackSource source) {
     return names;
 }
 
+string[] model_names (ListModel model) {
+    string[] names = {};
+    for (uint i = 0; i < model.get_n_items (); i++) {
+        names += ((StackEntry) model.get_item (i)).name;
+    }
+    return names;
+}
+
+StackEntry? find_entry (ListModel model, string name) {
+    for (uint i = 0; i < model.get_n_items (); i++) {
+        var entry = (StackEntry) model.get_item (i);
+        if (entry.name == name) {
+            return entry;
+        }
+    }
+    return null;
+}
+
 void wait_for_load (StackSource source) {
     var loop = new MainLoop ();
     var handler = source.loaded.connect (() => loop.quit ());
@@ -159,20 +177,49 @@ void test_folder_source_finalized () {
 void test_applications () {
     var source = new StackSource (new StackConfig (StackConfig.APPLICATIONS, GRID, NAME, STACK));
     wait_for_load (source);
-    // Case-insensitive A–Z; the NoDisplay entry is left out.
-    assert_true (strv_equal (entry_names (source), { "alpha", "Beta" }));
+    // Everyday apps A–Z, then the non-empty folders in fixed order; NoDisplay left out.
+    assert_true (strv_equal (entry_names (source), {
+        "alpha", "Beta", "Notes", "Web", "Games", "System", "Utilities", "Terminal Tools"
+    }));
+    assert_true (strv_equal (model_names (source.previews), { "alpha", "Beta", "Notes", "Web" }));
+
+    var utilities = find_entry (source.entries, "Utilities");
+    assert_true (utilities.is_folder);
+    assert_true (strv_equal (model_names (utilities.children), { "Calc" }));
+    assert_true (strv_equal (model_names (find_entry (source.entries, "System").children), { "Settings" }));
+    assert_true (strv_equal (model_names (find_entry (source.entries, "Terminal Tools").children), { "Htop" }));
+    assert_true (strv_equal (model_names (find_entry (source.entries, "Games").children), { "Gamma" }));
+}
+
+void test_applications_fan_flat () {
+    var source = new StackSource (new StackConfig (StackConfig.APPLICATIONS, FAN, NAME, STACK));
+    wait_for_load (source);
+    assert_true (strv_equal (entry_names (source), {
+        "alpha", "Beta", "Calc", "Gamma", "Htop", "Notes", "Settings", "Web"
+    }));
+    assert_true (strv_equal (model_names (source.previews), entry_names (source)));
+}
+
+void write_desktop_file (string apps, string id, string body) {
+    try {
+        FileUtils.set_contents (Path.build_filename (apps, id), "[Desktop Entry]\nType=Application\nExec=true\n" + body);
+    } catch (Error e) {
+        error ("fixture: %s", e.message);
+    }
 }
 
 void write_desktop_files (string data_dir) {
     var apps = Path.build_filename (data_dir, "applications");
     DirUtils.create_with_parents (apps, 0755);
-    try {
-        FileUtils.set_contents (Path.build_filename (apps, "b.desktop"), "[Desktop Entry]\nType=Application\nName=Beta\nExec=true\n");
-        FileUtils.set_contents (Path.build_filename (apps, "a.desktop"), "[Desktop Entry]\nType=Application\nName=alpha\nExec=true\n");
-        FileUtils.set_contents (Path.build_filename (apps, "hidden.desktop"), "[Desktop Entry]\nType=Application\nName=Hidden\nExec=true\nNoDisplay=true\n");
-    } catch (Error e) {
-        error ("fixture: %s", e.message);
-    }
+    write_desktop_file (apps, "b.desktop", "Name=Beta\n");
+    write_desktop_file (apps, "a.desktop", "Name=alpha\n");
+    write_desktop_file (apps, "hidden.desktop", "Name=Hidden\nNoDisplay=true\n");
+    write_desktop_file (apps, "web.desktop", "Name=Web\nCategories=Network;WebBrowser;\nMimeType=text/html;x-scheme-handler/https;\n");
+    write_desktop_file (apps, "game.desktop", "Name=Gamma\nCategories=Game;\n");
+    write_desktop_file (apps, "settings.desktop", "Name=Settings\nCategories=Settings;\n");
+    write_desktop_file (apps, "calc.desktop", "Name=Calc\nCategories=Utility;\n");
+    write_desktop_file (apps, "notes.desktop", "Name=Notes\nCategories=Utility;Office;\n");
+    write_desktop_file (apps, "htop.desktop", "Name=Htop\nTerminal=true\nCategories=System;Monitor;\n");
 }
 
 void assert_near (double actual, double expected) {
@@ -256,6 +303,7 @@ int main (string[] args) {
     Test.add_func ("/stack-source/folder-missing", test_folder_missing);
     Test.add_func ("/stack-source/folder-finalized", test_folder_source_finalized);
     Test.add_func ("/stack-source/applications", test_applications);
+    Test.add_func ("/stack-source/applications-fan-flat", test_applications_fan_flat);
     Test.add_func ("/fan-math/open", test_fan_pose_open);
     Test.add_func ("/fan-math/collapsed", test_fan_pose_collapsed);
     Test.add_func ("/app-folders/classify", test_classify);

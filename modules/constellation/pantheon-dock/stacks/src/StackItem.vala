@@ -24,7 +24,7 @@ public class Dock.StackItem : BaseIconGroup {
         Object (
             config: config,
             source: source,
-            icons: new Gtk.MapListModel (source.entries, entry_icon),
+            icons: new Gtk.MapListModel (source.previews, entry_icon),
             group: Group.NONE
         );
     }

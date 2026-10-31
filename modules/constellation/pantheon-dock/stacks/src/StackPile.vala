@@ -38,14 +38,14 @@ public class Dock.StackPile : Gtk.Widget {
         // Methods, not lambdas: a closure over `this` held by the source would
         // keep the pile alive for as long as the source is.
         notify["icon-size"].connect (update_sizes);
-        source.entries.items_changed.connect (update_icons);
+        source.previews.items_changed.connect (update_icons);
         update_sizes ();
         update_icons ();
     }
 
     /* Called by StackItem.teardown (): stop following the source. */
     public void stop () {
-        source.entries.items_changed.disconnect (update_icons);
+        source.previews.items_changed.disconnect (update_icons);
     }
 
     public override void dispose () {
@@ -68,10 +68,10 @@ public class Dock.StackPile : Gtk.Widget {
     }
 
     private void update_icons () {
-        var n = source.entries.get_n_items ();
+        var n = source.previews.get_n_items ();
         for (int k = 0; k < images.length; k++) {
             if (k < n) {
-                images[k].gicon = ((StackEntry) source.entries.get_item (k)).icon;
+                images[k].gicon = ((StackEntry) source.previews.get_item (k)).icon;
                 images[k].visible = true;
             } else {
                 images[k].visible = false;

@@ -22,9 +22,14 @@ public class Dock.StackSource : Object {
 
     public StackConfig config { get; construct; }
     public ListModel entries { get { return store; } }
+    /* The top-level entries that are not folders, for the tile's preview. */
+    public ListModel previews { get { return preview_store; } }
+    /* Applications shown as a grid are grouped into AppFolders. */
+    public bool groups_folders { get { return config.is_applications && config.view == GRID; } }
     public bool missing { get; private set; default = false; }
 
     private ListStore store;
+    private ListStore preview_store;
     private FileMonitor? monitor;
     private AppInfoMonitor? app_monitor;
     private Cancellable? cancellable;
@@ -36,6 +41,7 @@ public class Dock.StackSource : Object {
 
     construct {
         store = new ListStore (typeof (StackEntry));
+        preview_store = new ListStore (typeof (StackEntry));
 
         if (config.is_applications) {
             app_monitor = AppInfoMonitor.get ();
@@ -80,6 +86,7 @@ public class Dock.StackSource : Object {
         }
         // Frees the entries (and their icons) even if the owner is leaked.
         store.remove_all ();
+        preview_store.remove_all ();
     }
 
     public static bool is_shown_name (string name) {
@@ -150,9 +157,33 @@ public class Dock.StackSource : Object {
         loaded_entries.sort (config.sort == NAME ? (CompareFunc<StackEntry>) compare_name : (CompareFunc<StackEntry>) compare_newest_first);
 
         Object[] items = {};
-        foreach (var entry in loaded_entries) {
-            items += entry;
+        Object[] previews = {};
+        if (groups_folders) {
+            var folders = new GenericArray<ListStore> ();
+            for (int f = 0; f <= AppFolders.Folder.TERMINAL; f++) {
+                folders.add (new ListStore (typeof (StackEntry)));
+            }
+            foreach (var entry in loaded_entries) {
+                var folder = AppFolders.classify_app (entry.app);
+                if (folder == NONE) {
+                    items += entry;
+                    previews += entry;
+                } else {
+                    folders[folder].append (entry);
+                }
+            }
+            for (int f = AppFolders.Folder.GAMES; f <= AppFolders.Folder.TERMINAL; f++) {
+                if (folders[f].get_n_items () > 0) {
+                    items += StackEntry.for_folder (((AppFolders.Folder) f).title (), folders[f]);
+                }
+            }
+        } else {
+            foreach (var entry in loaded_entries) {
+                items += entry;
+                previews += entry;
+            }
         }
+        preview_store.splice (0, preview_store.get_n_items (), previews);
         store.splice (0, store.get_n_items (), items);
 
         loaded ();
