@@ -138,6 +138,15 @@ void test_folder_missing () {
     assert_cmpuint (source.entries.get_n_items (), EQ, 0);
 }
 
+void test_folder_source_finalized () {
+    bool finalized = false;
+    StackSource? source = new StackSource (new StackConfig (make_folder (), FAN, DATE_ADDED, STACK));
+    source.weak_ref (() => { finalized = true; });
+    wait_for_load (source);
+    source = null;
+    assert_true (finalized);
+}
+
 void test_applications () {
     var source = new StackSource (new StackConfig (StackConfig.APPLICATIONS, GRID, NAME, STACK));
     wait_for_load (source);
@@ -178,6 +187,7 @@ int main (string[] args) {
     Test.add_func ("/stack-source/folder-name", test_folder_name);
     Test.add_func ("/stack-source/folder-live-update", test_folder_live_update);
     Test.add_func ("/stack-source/folder-missing", test_folder_missing);
+    Test.add_func ("/stack-source/folder-finalized", test_folder_source_finalized);
     Test.add_func ("/stack-source/applications", test_applications);
     return Test.run ();
 }
