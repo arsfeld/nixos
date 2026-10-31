@@ -33,7 +33,10 @@ Then read the PNG and repeat. The screen is 3440×1440 and the dock sits bottom-
   acceleration, so it misses. It also moves the pointer of the person working at the machine.
   Open what you need to see through a test hook instead. For the stacks that hook is
   `DOCK_STACKS_OPEN=<index into stacks>`, which pops that stack's popover about 1.5 s after each matching StackItem is built, and again
-  whenever `stacks` changes (`stacks/src/StackItem.vala`). Give new UI the same kind of hook.
+  whenever `stacks` changes (`stacks/src/StackItem.vala`). For the zoom it is `DOCK_ZOOM_AT=<slots>`, which zooms the
+  dock 1 s after start as if the pointer rested that many launcher widths from its left edge
+  (`ItemManager.vala` in `zoom/hooks.patch`). It fires before `DOCK_STACKS_OPEN`, so the two
+  combine. Give new UI the same kind of hook.
 - **Swapping the dock is a race.** The session respawns the stock dock the instant one dies,
   and a second dock exits silently. `dock-run` kills and starts in one breath, then checks
   that exactly one dock runs and that it is this build.
@@ -54,7 +57,7 @@ Then read the PNG and repeat. The screen is 3440×1440 and the dock sits bottom-
 `DCONF_PROFILE` and `NIX_GSETTINGS_OVERRIDES_DIR` are store paths the session copies at
 login, so new schema keys and dconf defaults reach the session only after the user logs out
 and back in. A dock restarted in the old session runs the new binary against the old schema.
-`StackStore.read_stacks` makes that harmless for `stacks` (one warning, no stacks, dock stays
+`StackStore.read_stacks` and `ZoomController`'s construct make that harmless for `stacks` and the zoom keys (one warning, no stacks, dock stays
 up), but any other new key needs the same `settings_schema.has_key` guard, because GLib aborts
 on an unknown key.
 

@@ -36,31 +36,32 @@ io.elementary.dock zoom-enabled : b   default true
 io.elementary.dock zoom-size    : i   default 84
 ```
 
-`zoom-size` is the logical pixel size of the icon directly under the pointer. It is clamped to
-`icon-size … icon-size + 64` (the headroom); a value outside that range logs one `warning ()`
-and uses the clamped value. Both keys are watched for live changes.
+`zoom-size` is the logical pixel size of the icon directly under the pointer. The icon's 6 px
+top padding scales with it, so it is clamped to `icon-size … icon-size + floor(64 × icon-size /
+(icon-size + 6))`, which is 48…104 at the default 48 px icons. A value outside that range logs
+one `warning ()` and uses the clamped value. Both keys are watched for live changes.
 
 ### Nix side
 
-In the Pantheon branch of `modules/constellation/desktop.nix`:
+In `modules/constellation/pantheon-dock/`, the one overlay of `pantheon.elementary-dock`
+(see its `CLAUDE.md`):
 
-- The patch lives at `modules/constellation/desktop/elementary-dock-zoom.patch` and is appended
-  to `patches` in the same `pantheon.overrideScope` overlay the stacks spec defines, **after**
-  `elementary-dock-stacks.patch`. Whichever feature is implemented first creates the overlay;
-  the second appends to it.
-- Both patches touch `ItemManager.vala`. The zoom patch is generated against a tree that
-  already has the stacks patch applied. If zoom lands first, the stacks patch is generated on
-  top of it instead.
+- The zoom code lives in `zoom/`, laid out like `stacks/`: the new Vala files in `zoom/src/`
+  are copied to the dock's `src/Zoom/`, and `zoom/hooks.patch` holds the edits to upstream
+  files. `default.nix` applies the features in order, stacks then zoom, and `zoom/hooks.patch`
+  is generated on top of the stacks one. (The first draft put it in
+  `modules/constellation/desktop/`, which cannot exist: haumea fails with `directory 'desktop'
+  conflicts with file 'desktop.nix'`.)
 - A new option, `constellation.desktop.pantheon.dockZoom = {enable, size}`, with defaults
-  `enable = true` and `size = 84`. It is written as system dconf defaults for
-  `io/elementary/dock/zoom-enabled` and `zoom-size` in the Pantheon dconf profile, next to
-  `dockStacks`. `gsettings set` still overrides it per user.
+  `enable = true` and `size = 84`, sits next to `dockStacks`. It is written as system dconf
+  defaults for `io/elementary/dock/zoom-enabled` and `zoom-size`. `gsettings set` still
+  overrides it per user.
 
 ## Components
 
-All zoom logic is in one new file. Existing files get narrow hooks only, to keep rebases small.
+All zoom logic is in two new files, `src/Zoom/ZoomMath.vala` (pure arithmetic) and `src/Zoom/ZoomController.vala`. Existing files get narrow hooks only, to keep rebases small.
 
-### `ZoomController` (new, `src/ZoomController.vala`)
+### `ZoomController` (new, `src/Zoom/ZoomController.vala`)
 
 A singleton that owns all zoom state.
 
@@ -83,14 +84,22 @@ A singleton that owns all zoom state.
 ### `BaseItem` (patched)
 
 - New `zoom` property (double, default 1.0).
-- Width becomes `launcher_size × zoom`.
-- The icon bin is drawn with a `Gsk.Transform` scale anchored at its bottom centre, so it grows
-  upward into the headroom. Badges, progress bars and the running indicator scale with it.
+- Its position animation calls `ItemGroup.place_item ()` instead of `Gtk.Fixed.move ()`.
+- New `get_open_popover ()`: the visible popover parented to the item, excluding its tooltip.
+- New `get_icon_bottom ()`: the bottom of the icon itself, above the running-indicator strip.
+  Items scale about it, so they grow upward only.
+- New `index_changed ()` virtual, which `ItemGroup` calls whenever its items change.
+  `Launcher` overrides it to refresh its tooltip.
 
 ### `ItemGroup` (patched)
 
-- `relayout ()` and `add_item ()` place items at the running sum of their zoomed widths instead
-  of `launcher_size × i`.
+- `ItemGroup` is no longer a `Gtk.Fixed`: it is a plain `Gtk.Widget` with its own `measure` and
+  `size_allocate`. It places each item by a transform: translated to its resting position plus
+  the extra width of every magnified item before it, and scaled about `get_icon_bottom ()`, so
+  it grows up into the headroom. Badges, progress bars and the running indicator scale with it
+  because they are inside the item. (A `Gtk.Fixed` was tried first. `GtkFixedLayout` measured
+  its children through their transforms, so a zoomed item made the whole dock taller.) The
+  vertical size stays the resting height.
 - Width is `animated resting width + zoom extra`. The existing add and remove animation drives
   the first term and the zoom drives the second, so an app opening while the dock is zoomed
   still slides in.
@@ -105,12 +114,15 @@ stacks group. Stacks need no zoom-specific code.
 - Adds a `Gtk.EventControllerMotion` that feeds `ZoomController`.
 - Applies factors from a frame-clock tick callback (`add_tick_callback`), so there is one
   relayout per frame, not one per motion event.
-- The workspace separator scales its height with its neighbours.
+- The dynamic "new workspace" item is wrapped in a one-item `ItemGroup`, so it zooms like the
+  rest. The workspace separator does not scale.
+- Test hook: `DOCK_ZOOM_AT=<slots>` zooms the dock 1 s after start as if the pointer rested
+  that many launcher widths from its left edge, for screenshots without input injection.
 
 ### `MainWindow` (patched)
 
 The input region starts at `TOP_MARGIN`, so today the headroom ignores the pointer. While the
-zoom amount is above 0, the region's top is raised by `zoom-size − icon-size`, so the part of a
+zoom amount is above 0, the region's top is raised by how far the largest icon rises (`ZoomMath.rise`), so the part of a
 magnified icon above the dock bar is clickable and keeps the zoom alive. At rest it returns to
 the current region. GTK picking follows the scale transform, so a click goes to the item drawn
 under it.
@@ -118,8 +130,9 @@ under it.
 ### `Launcher.update_tooltip` (patched)
 
 It currently derives the launcher's index, and so its `<Super>N` shortcut, from
-`current_pos / launcher_size`, which is wrong while zoomed. It uses
-`ItemGroup.get_index_for_item ()` instead.
+`current_pos / launcher_size`, which is wrong while zoomed. It uses `get_index ()` instead, and
+`Launcher` refreshes its tooltip from `BaseItem.index_changed ()` whenever the group's items
+change.
 
 ## Zoom states
 
@@ -146,12 +159,15 @@ Tooltips do not freeze the zoom, because they already follow their item.
    `rest_x` round-trips through the pointer mapping.
 2. **Build:** `nix build .#nixosConfigurations.raider.config.system.build.toplevel`. Both
    patches apply and the dock compiles.
-3. **VM check:** extend the Pantheon VM check from the stacks spec (`flake-modules/checks.nix`).
-   With `dockZoom` enabled, assert that `io.elementary.dock` is running and its journal has no
-   zoom warnings. With `size = 500`, assert that the clamp warning is logged and the dock is
-   still running.
-4. **Manual on raider** after `just deploy raider`:
-   - record a GIF of the pointer sweeping across the dock;
+3. **VM check:** `tests/pantheon-dock-test.nix` (the stacks VM test, renamed), registered in
+   `flake-modules/checks.nix`. `DOCK_ZOOM_AT` pins the zoom; it asserts that the hook fired,
+   that the defaults log no zoom warnings, and that `zoom-size = 500` logs the clamp to 104
+   with the dock still running. Screenshots of both are kept.
+4. **Visual, on raider's live session** while developing: `just pantheon::dock-run` with
+   `DOCK_ZOOM_AT` (and `DOCK_STACKS_OPEN` for popovers), then `just pantheon::shot`, per
+   `modules/constellation/pantheon-dock/CLAUDE.md`.
+5. **Manual on raider** after `just deploy raider`, for what needs a real pointer:
+   - sweep the pointer across the dock;
    - click the top of a magnified icon;
    - open a stack fan while zoomed;
    - drag a launcher to reorder it;
