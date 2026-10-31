@@ -194,27 +194,46 @@ _apply ACTION +TARGETS:
     # `can_run = action in (SWITCH, BOOT, TEST)` (__init__.py:371) — DRY_ACTIVATE
     # is not in that tuple, so `just dry-run` never reaches this code path.
     #
+    # Remote hosts activate first, in parallel; the deploying machine itself
+    # activates last, alone. A remote switch-to-configuration streams its
+    # output back over this machine's SSH session (systemd-run --pipe), and
+    # when that pipe breaks it panics (exit 101) at its next line of output —
+    # after its stop phase, before its start phase — leaving dozens of units
+    # stopped and nothing marked failed. Activating raider alongside the others
+    # broke those pipes from this end: on 2026-10-31 raider's switch stopped
+    # NetworkManager and logged its desktop session out, and galactica sat with
+    # Caddy, Authelia and ~60 more services down for three hours.
+    #
+    # A failed remote activation is retried once. The closure is already on
+    # the target, so a retry costs one activation, and switch-to-configuration
+    # converges: it starts whatever the broken run left stopped. A genuine
+    # failure (a unit that will not start) just fails twice.
+    #
     # Each host runs inside a subshell that re-raises PIPESTATUS[0]. Without
     # that, `cmd | sed &` makes $! the PID of *sed*, and `wait` would report
     # sed's exit status — masking every failed activation as a success.
-    pids=()
+    remote() {
+      nixos-rebuild {{ ACTION }} --no-reexec --store-path "${paths[$1]}" \
+        --target-host "root@$1.bat-boa.ts.net" --use-substitutes 2>&1 \
+        | sed "s/^/[$1] /"
+      return "${PIPESTATUS[0]}"
+    }
+    self=""
+    declare -A pids
     for h in ${hosts}; do
-      p="${paths[$h]}"
-      if [ "$h" = "$(hostname)" ]; then
-        # Tailscale SSH cannot authenticate a host connecting to itself, so a
-        # machine can never deploy itself over --target-host. This branch is
-        # what `colmena apply-local` used to be.
-        ( sudo nixos-rebuild {{ ACTION }} --no-reexec --store-path "$p" 2>&1 \
-            | sed "s/^/[$h] /"; exit "${PIPESTATUS[0]}" ) &
-      else
-        ( nixos-rebuild {{ ACTION }} --no-reexec --store-path "$p" \
-            --target-host "root@$h.bat-boa.ts.net" --use-substitutes 2>&1 \
-            | sed "s/^/[$h] /"; exit "${PIPESTATUS[0]}" ) &
-      fi
-      pids+=($!)
+      # Tailscale SSH cannot authenticate a host connecting to itself, so a
+      # machine can never deploy itself over --target-host.
+      if [ "$h" = "$(hostname)" ]; then self=$h; continue; fi
+      ( remote "$h" || { echo "[$h] activation failed; retrying once"; remote "$h"; } ) &
+      pids[$h]=$!
     done
     rc=0
-    for pid in "${pids[@]}"; do wait "$pid" || rc=1; done
+    for h in "${!pids[@]}"; do wait "${pids[$h]}" || { echo "[$h] activation FAILED" >&2; rc=1; }; done
+
+    if [ -n "$self" ]; then
+      ( sudo nixos-rebuild {{ ACTION }} --no-reexec --store-path "${paths[$self]}" 2>&1 \
+          | sed "s/^/[$self] /"; exit "${PIPESTATUS[0]}" ) || rc=1
+    fi
     exit $rc
 
 #   just deploy galactica raider
