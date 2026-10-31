@@ -86,6 +86,14 @@ in {
       # Experimental. "gnome" is the way back: the GNOME settings below are
       # inert under Pantheon and kept for that switch.
       variant = "pantheon";
+      pantheon.dockStacks = [
+        {
+          source = "~/Downloads";
+          view = "fan";
+          sort = "date-added";
+        }
+        {source = "applications";}
+      ];
       gnome.monitorControl.enable = true;
       gnome.gpuMonitor.enable = true;
       gnome.theme = {

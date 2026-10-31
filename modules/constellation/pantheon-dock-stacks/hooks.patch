@@ -1,0 +1,34 @@
+diff --git a/data/dock.gschema.xml b/data/dock.gschema.xml
+index d81d4b8..8318361 100644
+--- a/data/dock.gschema.xml
++++ b/data/dock.gschema.xml
+@@ -26,6 +26,11 @@
+       <summary>An ordered array of app id's to show as launchers</summary>
+       <description>An ordered array of app id's to show as launchers</description>
+     </key>
++    <key type="a(ssss)" name="stacks">
++      <default>[]</default>
++      <summary>Folder stacks shown after the launchers</summary>
++      <description>Each entry is (source, view, sort, display): source is an absolute path, a path starting with ~/, or 'applications'; view is 'fan' or 'grid'; sort is 'date-added' or 'name'; display is 'stack' or 'folder'.</description>
++    </key>
+   </schema>
+   <schema path="/io/elementary/dock/keybindings/" id="io.elementary.dock.keybindings">
+     <key type="as" name="launch-dock-1">
+diff --git a/src/meson.build b/src/meson.build
+index 4e860de..1b2b91f 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -1,3 +1,4 @@
++subdir('Stacks')
+ sources = [
+     'Application.vala',
+     'BaseIconGroup.vala',
+@@ -33,6 +34,8 @@ sources = [
+     'WorkspaceSystem' / 'WorkspaceSystem.vala'
+ ]
+ 
++sources += stacks_sources
++
+ executable(
+     meson.project_name(),
+     gresource,
