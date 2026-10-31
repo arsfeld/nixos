@@ -67,6 +67,7 @@ public class Dock.GridPopover : Gtk.Popover {
         message.add_css_class (Granite.STYLE_CLASS_DIM_LABEL);
 
         content = new Gtk.Stack () {
+            vhomogeneous = false,
             transition_type = SLIDE_LEFT_RIGHT
         };
         content.add_named (create_scrolled (grid), "grid");
@@ -187,6 +188,7 @@ public class Dock.GridPopover : Gtk.Popover {
     // Reopening always starts at the top level, without a slide.
     private void on_closed () {
         content.transition_type = NONE;
+        close_folder ();
         update_message ();
         content.transition_type = SLIDE_LEFT_RIGHT;
     }
