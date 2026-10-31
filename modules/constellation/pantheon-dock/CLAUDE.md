@@ -32,20 +32,34 @@ Then read the PNG and repeat. The screen is 3440×1440 and the dock sits bottom-
 - **Never inject input.** ydotool's `--absolute` is a series of relative moves bent by pointer
   acceleration, so it misses. It also moves the pointer of the person working at the machine.
   Open what you need to see through a test hook instead. For the stacks that hook is
-  `DOCK_STACKS_OPEN=<index into stacks>`, which pops that stack's popover once after it loads
-  (`stacks/src/StackItem.vala`). Give new UI the same kind of hook.
+  `DOCK_STACKS_OPEN=<index into stacks>`, which pops that stack's popover about 1.5 s after each matching StackItem is built, and again
+  whenever `stacks` changes (`stacks/src/StackItem.vala`). Give new UI the same kind of hook.
 - **Swapping the dock is a race.** The session respawns the stock dock the instant one dies,
   and a second dock exits silently. `dock-run` kills and starts in one breath, then checks
   that exactly one dock runs and that it is this build.
   - `pgrep -x io.elementary.dock` never matches, because the name is over 15 characters.
     Match with `pgrep -f '(^|/)io\.elementary\.dock$'`.
   - The gsettings schemas for a dock build are under
-    `$DOCK/share/gsettings-schemas/elementary-dock-8.3.3/glib-2.0/schemas`, not under the
-    store basename.
+    `$DOCK/share/gsettings-schemas/<name>-<version>/glib-2.0/schemas`, not under the
+    store basename. `dock-run` globs that directory and fails unless exactly one matches.
+  - `dock-run` takes `VAR=value` arguments as separate positional arguments, so a value with
+    spaces survives when the argument is quoted.
   - A key the stock schema lacks (`stacks`) can be set only with that directory in
     `GSETTINGS_SCHEMA_DIR`.
   - Values set by hand land in the user dconf database and shadow the Nix default, so reset
     them before deploying.
+
+## After deploying a dock change
+
+`DCONF_PROFILE` and `NIX_GSETTINGS_OVERRIDES_DIR` are store paths the session copies at
+login, so new schema keys and dconf defaults reach the session only after the user logs out
+and back in. A dock restarted in the old session runs the new binary against the old schema.
+`StackStore.read_stacks` makes that harmless for `stacks` (one warning, no stacks, dock stays
+up), but any other new key needs the same `settings_schema.has_key` guard, because GLib aborts
+on an unknown key.
+
+Also reset hand-set values with `dconf reset /io/elementary/dock/<key>`, from a login shell so
+the Pantheon `DCONF_PROFILE` applies.
 
 ## Vala pitfalls that bit here
 
