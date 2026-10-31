@@ -43,7 +43,9 @@ public class GameModeIndicator.Client : Object {
                 return;
             }
             // gamemoded emits PropertiesChanged for ClientCount (EMITS_CHANGE).
-            p.g_properties_changed.connect (() => read_count (p));
+            // Use the signal's sender, not `p`: capturing `p` would make the proxy own a
+            // closure that owns the proxy, so dropping `proxy` could never free it.
+            p.g_properties_changed.connect ((sender, changed, invalidated) => read_count (sender));
             proxy = p;
             read_count (p);
         } catch (Error e) {

@@ -100,6 +100,8 @@ in {
         machine.wait_until_succeeds("${log} | grep -q 'GameMode off'", timeout=60)
 
     with subtest("The indicator logged no warning and the panel never restarted"):
+        # Positive control: the domain filter does match the indicator's messages.
+        machine.succeed("journalctl -b -q GLIB_DOMAIN=io.elementary.wingpanel.gamemode | grep -q 'GameMode on'")
         machine.fail("journalctl -b -q GLIB_DOMAIN=io.elementary.wingpanel.gamemode -p warning | grep .")
         assert machine.succeed("${panel}").strip() == panel_pid, "wingpanel restarted"
   '';
