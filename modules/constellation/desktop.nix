@@ -552,8 +552,8 @@ in {
         # a .txt, .ofx or thumbnail-less PDF shows no icon in Files or on the
         # dock. This ships corrected copies of just those files (aliases
         # included, since an alias symlink would resolve back to the broken
-        # original; likewise the @2x/@3x directory links) and wins over the originals in the system profile by
-        # priority, so nothing else rebuilds. Drop it once the theme or GTK
+        # original; likewise the @2x/@3x directory links) and wins over the
+        # originals in the system profile by priority, so nothing else rebuilds. Drop it once the theme or GTK
         # handles the prefix.
         elementaryIconFix =
           pkgs.runCommand "elementary-icon-theme-xlink-fix" {

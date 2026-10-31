@@ -18,18 +18,30 @@ shot out *area:
 # Replace the session's dock with raider's build from this checkout, passing
 # any VAR=value environment through (e.g. DOCK_STACKS_OPEN=0,
 # G_MESSAGES_DEBUG=all). Logs go to LOG.
+[positional-arguments]
 dock-run log="/tmp/io.elementary.dock.log" *env:
     #!/usr/bin/env bash
     set -euo pipefail
     dock=$(nix build --no-link --print-out-paths '{{ justfile_directory() }}#nixosConfigurations.raider.pkgs.pantheon.elementary-dock')
-    schemas="$dock/share/gsettings-schemas/elementary-dock-8.3.3/glib-2.0/schemas"
+    # The directory is named after the package version; glob it, and insist on one match.
+    shopt -s nullglob
+    matches=("$dock"/share/gsettings-schemas/*/glib-2.0/schemas)
+    if [ "${#matches[@]}" -ne 1 ]; then
+        echo "expected exactly one schemas directory under $dock/share/gsettings-schemas, found ${#matches[@]}" >&2
+        exit 1
+    fi
+    schemas="${matches[0]}"
+    # Positional arguments keep each VAR=value whole, so a value with spaces survives.
+    log="$1"
+    shift
+    extra=("$@")
     # `pgrep -x` cannot match: the process name is longer than 15 characters.
     pattern='(^|/)io\.elementary\.dock$'
     # The session respawns the stock dock the moment one dies, and a second
     # dock exits silently, so kill and start in the same breath, then make sure
     # ours is the one left.
     pkill -f "$pattern" || true
-    env GSETTINGS_SCHEMA_DIR="$schemas" {{ env }} setsid "$dock/bin/io.elementary.dock" > '{{ log }}' 2>&1 < /dev/null &
+    env GSETTINGS_SCHEMA_DIR="$schemas" "${extra[@]}" setsid "$dock/bin/io.elementary.dock" > "$log" 2>&1 < /dev/null &
     for _ in $(seq 20); do
         sleep 0.5
         running=$(pgrep -fa "$pattern" || true)

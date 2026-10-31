@@ -76,7 +76,8 @@ Exposes a sorted `ListModel` of entries (`GFileInfo` for folders, `GAppInfo` for
 applications) and a `missing` property.
 
 - **Folder backend**: enumerates the directory, keeps it current with a
-  `GFileMonitor`, and sorts with a `GtkSortListModel`. It skips hidden files and
+  `GFileMonitor`. It sorts plain arrays of entries (`GenericArray.sort`) and rebuilds the model
+  from them, not with a `GtkSortListModel`. It skips hidden files and
   in-progress downloads (`*.part`, `*.crdownload`, `*.download`).
 - **Applications backend**: `AppInfo.get_all ()` filtered by `should_show ()`, sorted
   case-insensitively by display name, refreshed on `AppInfoMonitor.changed`.
@@ -102,17 +103,18 @@ A transparent `Gtk.Popover` (`position = TOP`, offset `(0, -1)`, as `BackgroundI
 does) holding a custom widget.
 
 - It shows the newest 10 entries as icon and label pairs, laid out on an arc rising from the
-  dock icon. Each one is rotated a few degrees more than the last in `snapshot ()`. Entry 0,
-  the newest, is at the bottom, nearest the dock.
-- Above the arc: **Open in Files** and, when there are more than 10 entries,
-  **N more…**. Both open the folder with its default handler.
+  dock icon. A custom layout (`FanLayout`) rotates each row a few degrees more than the last
+  with a `Gsk.Transform` in `size_allocate`, not in `snapshot ()`, so hit-testing and
+  dragging follow the rotated row. Entry 0, the newest, is at the bottom, nearest the dock.
+- Above the arc, a single header pill reads **Open in Files**, or **N more in Files** when
+  there are more than 10 entries. Either way it opens the folder with its default handler.
 - Fallback if Gala or the theme draws a frame or shadow around a transparent popover: keep
   the default framed popover with the same arc inside it.
 
 ### `GridPopover`
 
-A framed popover holding a `Gtk.GridView` in a `Gtk.ScrolledWindow`, sized to about 6
-columns × 5 rows of visible cells and scrolled with the wheel. No search field: elementary's
+A framed popover holding a `Gtk.GridView` in a `Gtk.ScrolledWindow`, showing 6
+columns and 4 visible rows of cells and scrolled with the wheel. No search field: elementary's
 Applications menu already handles search. It works for any source, so a folder with
 `view = grid` also works.
 
@@ -126,9 +128,28 @@ Applications menu already handles search. It works for any source, so a folder w
 - **Out of scope:** dropping files onto a stack, right-click menus, dragging stacks to
   reorder them, and editing stacks from the dock. Stacks are configured in Nix only.
 
+## Theme fix: `elementaryIconFix`
+
+GTK 4.22 draws 399 of elementary-icon-theme's SVGs fully transparent, among them
+`text-x-generic` and `application-pdf`, which a stack shows for most files. Those files spell
+the xlink namespace `nsN:`, and GTK's own SVG renderer matches only a literal `xlink:href`.
+`elementaryIconFix` in `modules/constellation/desktop.nix` ships corrected copies that win in
+the system profile by priority. It is not part of the dock patch, but without it stack icons
+look broken.
+
+## Test hook: `DOCK_STACKS_OPEN`
+
+For screenshot checks the dock reads `DOCK_STACKS_OPEN=<index into stacks>`. About 1.5 s after
+each matching `StackItem` is built, and again whenever `stacks` changes, that stack pops its
+popover up. It exists because injecting input is not an option on the live session. See
+`modules/constellation/pantheon-dock/CLAUDE.md` for the loop.
+
 ## Error handling
 
 - Missing folder: a dimmed `folder` icon, and the popover shows "Folder not found".
+- A schema without the `stacks` key (a session that still points at an older schema
+  directory, until the user logs back in after a deploy): log one `warning ()` and show no
+  stacks. The dock keeps running; GLib would otherwise abort on the unknown key.
 - Unknown `source`/`view`/`sort`/`display` value: log with `warning ()` and skip that stack.
   The rest of the dock is unaffected.
 - A launch failure is logged with `critical ()`, as `BackgroundItem` already does.

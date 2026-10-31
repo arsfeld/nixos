@@ -8,7 +8,8 @@ grim cannot help: Gala has no wlr-screencopy. Run it through
 `just pantheon::shot`, which supplies a Python with PyGObject.
 
 usage: pantheon-shot.py OUT.png [x y w h]
-Coordinates are physical pixels. The pointer is drawn into the capture.
+Coordinates are physical pixels. The pointer is drawn only into full-screen captures;
+area captures never include it, and do not flash the screen.
 """
 import subprocess
 import sys
@@ -66,7 +67,8 @@ if reply.unpack()[0] not in (1, 4):  # PRIMARY_OWNER or ALREADY_OWNER
     sys.exit("io.elementary.screenshot is owned by another process (close the Screenshot app)")
 
 if area:
-    method, args = "ScreenshotArea", GLib.Variant("(iiiibs)", (*area, True, out))
+    # (x, y, w, h, flash, filename): no flash, so the user's screen does not blink.
+    method, args = "ScreenshotArea", GLib.Variant("(iiiibs)", (*area, False, out))
 else:
     method, args = "Screenshot", GLib.Variant("(bbs)", (True, False, out))
 
