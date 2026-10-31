@@ -599,6 +599,23 @@ in {
             assert n > 0, "nothing to fix: drop elementaryIconFix"
             PY
           '';
+
+        # elementary-session-settings' default-apps list still names Photos'
+        # viewer `io.elementary.photos-viewer`, but Photos 8 installs it as
+        # `io.elementary.photos.viewer`, and Evince has given way to Papers. GIO
+        # skips a default whose desktop file does not exist and falls back to the
+        # first registered handler, which is a browser from the flatpak exports,
+        # so every image opened in Zen. GLib reads `pantheon-mimeapps.list` from
+        # XDG_CONFIG_DIRS before XDG_DATA_DIRS, so a corrected copy in /etc/xdg
+        # shadows the package's without rebuilding it. Drop it once upstream
+        # renames the entries (the build fails when there is nothing to rename).
+        pantheonMimeapps = pkgs.runCommand "pantheon-mimeapps.list" {} ''
+          src=${pkgs.pantheon.elementary-session-settings}/share/applications/pantheon-mimeapps.list
+          grep -q 'io\.elementary\.photos-viewer\.desktop' $src
+          grep -q 'org\.gnome\.Evince\.desktop' $src
+          sed -e 's/io\.elementary\.photos-viewer\.desktop/io.elementary.photos.viewer.desktop/g' \
+              -e 's/org\.gnome\.Evince\.desktop/org.gnome.Papers.desktop/g' $src > $out
+        '';
       in {
         services.xserver.enable = true;
         # Pantheon locks the screen through LightDM; under any other display
@@ -656,6 +673,7 @@ in {
         ];
 
         environment.systemPackages = [pkgs.pantheon-tweaks (lib.hiPrio elementaryIconFix)];
+        environment.etc."xdg/pantheon-mimeapps.list".source = pantheonMimeapps;
 
         # Defining remotes replaces nix-flatpak's default, so flathub is
         # listed again. appcenter is elementary's curated Granite app repo.
