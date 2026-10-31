@@ -9,7 +9,7 @@ index d81d4b8..8318361 100644
 +    <key type="a(ssss)" name="stacks">
 +      <default>[]</default>
 +      <summary>Folder stacks shown after the launchers</summary>
-+      <description>Each entry is (source, view, sort, display): source is an absolute path, a path starting with ~/, or 'applications'; view is 'fan' or 'grid'; sort is 'date-added' or 'name'; display is 'stack' or 'folder'.</description>
++      <description>Each entry is (source, view, sort, display): source is an absolute path, a path starting with ~/, or 'applications'; view is 'fan' or 'grid'; sort is 'date-added' or 'name'; display is 'stack', 'grid' or 'folder'.</description>
 +    </key>
    </schema>
    <schema path="/io/elementary/dock/keybindings/" id="io.elementary.dock.keybindings">

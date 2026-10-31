@@ -33,7 +33,11 @@ Then read the PNG and repeat. The screen is 3440×1440 and the dock sits bottom-
   acceleration, so it misses. It also moves the pointer of the person working at the machine.
   Open what you need to see through a test hook instead. For the stacks that hook is
   `DOCK_STACKS_OPEN=<index into stacks>`, which pops that stack's popover about 1.5 s after each matching StackItem is built, and again
-  whenever `stacks` changes (`stacks/src/StackItem.vala`). For the zoom it is `DOCK_ZOOM_AT=<slots>`, which zooms the
+  whenever `stacks` changes (`stacks/src/StackItem.vala`).
+  `DOCK_STACKS_CLICK=<row>[@<progress>]`, set alongside it, plays that fan row's launch
+  animation and the tile bounce 0.7 s after the fan opens, without opening anything; with
+  a progress (0–1) the fan holds at that frame, which is the only way to screenshot it.
+  For the zoom it is `DOCK_ZOOM_AT=<slots>`, which zooms the
   dock 1 s after start as if the pointer rested that many launcher widths from its left edge
   (`ItemManager.vala` in `zoom/hooks.patch`). It fires before `DOCK_STACKS_OPEN`, so the two
   combine. Give new UI the same kind of hook.

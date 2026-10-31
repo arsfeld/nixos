@@ -4,7 +4,7 @@ index 83183615..83f23767 100644
 +++ b/data/dock.gschema.xml
 @@ -31,6 +31,16 @@
        <summary>Folder stacks shown after the launchers</summary>
-       <description>Each entry is (source, view, sort, display): source is an absolute path, a path starting with ~/, or 'applications'; view is 'fan' or 'grid'; sort is 'date-added' or 'name'; display is 'stack' or 'folder'.</description>
+       <description>Each entry is (source, view, sort, display): source is an absolute path, a path starting with ~/, or 'applications'; view is 'fan' or 'grid'; sort is 'date-added' or 'name'; display is 'stack', 'grid' or 'folder'.</description>
      </key>
 +    <key type="b" name="zoom-enabled">
 +      <default>true</default>

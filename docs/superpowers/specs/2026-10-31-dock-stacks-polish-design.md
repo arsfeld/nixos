@@ -50,14 +50,14 @@ On a fan row click:
    waits on the animation.
 2. `FanPopover` plays one `Adw.TimedAnimation` of 250 ms (ease-out) and blocks further
    clicks while it runs:
-   - the clicked row's icon scales from 1 to about 1.6 about its centre and fades to 0,
-     and its label fades to 0;
+   - the clicked row fades to 0 while a ghost copy of its icon, drawn on top, scales from 1 to 1.6 about its centre
+     and fades with it;
    - `FanLayout` gains a `collapse` property (0–1). It interpolates every other row's
      transform toward the origin (the bottom of the centre column, over the tile) and
      its opacity toward 0, so the fan runs back down into the tile.
    - On `done`: `popdown ()`, then `collapse` is reset to 0 and the clicked row restored,
      so the next open starts clean (the existing `dirty` rebuild still applies).
-3. `FanPopover` emits `launched`. `StackItem` connects to it with a method and plays a
+3. `FanPopover` emits `StackSource.launched` (on the source, so `StackItem` can disconnect it in `teardown ()` like its other source handlers). `StackItem` connects to it with a method and plays a
    single bounce: up for 200 ms (ease-in-out-quad) to half the overlay height, then down
    for 600 ms (ease-out-bounce), by allocating `overlay` with a translate, as
    `Launcher.animate_launch` does. That code is private to `Launcher`, so `StackItem`
