@@ -29,25 +29,36 @@ notification on activation. The indicator is read-only.
 
 ### Components and placement
 
-A native Wingpanel indicator plugin, source in
-`modules/constellation/pantheon-gamemode/`:
+A native Wingpanel indicator plugin, `libgamemode-indicator.so`, source and
+derivation in `packages/wingpanel-indicator-gamemode/`:
 
 - `src/Indicator.vala` — the `Wingpanel.Indicator` subclass: panel icon,
-  popover, visibility.
-- `src/GameList.vala` — gamemoded client and game-name resolution.
+  popover, visibility, and the `get_indicator` entry point.
+- `src/Client.vala` — gamemoded client: `count`, and the registered games.
+- `src/Names.vala` — game-name resolution, pure functions over strings and
+  paths.
+- `tests/TestNames.vala` — unit tests for `Names.vala`.
 - `meson.build`, `default.nix` — builds against `pantheon.wingpanel` (8.0.4),
-  GTK3, granite and gio, and installs into `lib/wingpanel/`.
+  GTK3, gio and libgee, installs into `lib/wingpanel/`, and runs the unit
+  tests in `checkPhase`.
 - `CLAUDE.md` — the visual loop for this indicator; points at
   `modules/constellation/pantheon-dock/CLAUDE.md` for screenshot and
   lock-screen details instead of repeating them.
 
-It lives beside `pantheon-dock/` rather than in `packages/` because nothing
-outside Pantheon uses it.
+It lives in `packages/`, not beside `pantheon-dock/`, because haumea loads
+every `.nix` file under `modules/` as a NixOS module, so a derivation there
+would be imported as one; `packages/` also makes it
+`.#nixosConfigurations.raider.pkgs.wingpanel-indicator-gamemode` for the
+visual loop.
 
-Wiring is one block in `modules/constellation/gaming.nix`:
-`lib.mkIf (cfg.enable && config.services.desktopManager.pantheon.enable)`
-adds the package to `services.desktopManager.pantheon.extraWingpanelIndicators`.
-That covers raider and blackbird today. `desktop.nix` is unchanged.
+Wiring is its own module, `modules/constellation/pantheon-gamemode.nix`,
+gated on `programs.gamemode.enable && services.desktopManager.pantheon.enable`
+(raider and blackbird today, via `constellation.gaming` and the Pantheon
+variant). It adds the package to
+`services.desktopManager.pantheon.extraWingpanelIndicators` with
+`pkgs.callPackage`, so the VM test can import the module alone without the
+flake's overlay, as `pantheon-dock-test` does. `gaming.nix` and `desktop.nix`
+are unchanged.
 
 The code name is `gamemode`. Wingpanel's `IndicatorSorter` gives unknown code
 names order 1: right of the AppIndicator tray, left of the system indicators
@@ -68,8 +79,10 @@ the line "On", then one row per running game.
   (`SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE` in 1.8.2). On vanish, the count is 0.
 - `visible = ClientCount > 0`. Wingpanel drops a hidden indicator's entry, so
   nothing is reserved in the panel while GameMode is off.
-- Each transition logs one `info` line: `GameMode on: <n> game(s)` or
-  `GameMode off`. The VM test reads these.
+- Each change logs one `message` line (not `info`, which GLib hides by
+  default): `GameMode on: <n> game(s)` or `GameMode off`. Each popover
+  refresh logs `Game Mode games: <names, comma-separated>`. The VM test reads
+  these from the journal.
 
 ### The game list
 
@@ -102,12 +115,13 @@ open, for at most a handful of games.
   lookup returns a nullable result and nothing indexes blindly into `/proc`
   output or file contents.
 
-### Test hook
+### Opening the popover without input
 
-`GAMEMODE_INDICATOR_OPEN=1` pops the popover about 1.5 s after the icon
-becomes visible, following the dock's `DOCK_STACKS_OPEN` convention, so the
-popover can be built in the VM test and screenshotted on raider without input
-injection.
+No test hook is needed: Wingpanel itself exports an `open-indicator` action
+(`org.gtk.Actions` on `org.elementary.wingpanel`,
+`/org/elementary/wingpanel`) taking a code name, and `close-indicator`
+likewise. The VM test and the visual loop both open the popover with it,
+which also exercises the real `opened()` path.
 
 ## Testing
 
@@ -116,21 +130,29 @@ injection.
    library → manifest found there; missing manifest → `Steam game <id>`;
    non-reaper executable → basename.
 2. **VM test** `tests/pantheon-gamemode-test.nix`, exposed as
-   `checks.x86_64-linux.pantheon-gamemode`, modelled on
+   `checks.x86_64-linux.pantheon-gamemode-test`, modelled on
    `pantheon-dock-test` (LightDM autologin, `pantheon-wayland`), with
-   gamemode enabled, the indicator added and `GAMEMODE_INDICATOR_OPEN=1` in
-   the session environment. Asserts from the journal:
-   - wingpanel runs and loads the plugin, with no crash and no `critical`;
-   - `gamemoderun sleep 30` as alice → `GameMode on: 1 game(s)`;
-   - the popover (opened by the hook) builds a row for `sleep`;
-   - after the process exits → `GameMode off` within gamemoded's 5 s reaper
-     interval (with margin).
+   gamemode enabled and the module imported. Two fake games, both small C
+   binaries run under `gamemoderun`: `fake-game`, and one named `reaper` run
+   as `reaper SteamLaunch AppId=4242 -- …` with a matching
+   `appmanifest_4242.acf` naming it "Fake Quest". (A C binary, because
+   nixpkgs' coreutils is multicall, so `sleep` would register as
+   `coreutils`.) Asserts from the journal:
+   - wingpanel loads the plugin (its `list-indicators` state names
+     `gamemode`), and nothing says GameMode is on;
+   - `fake-game` → `GameMode on: 1 game(s)`; `open-indicator` → a
+     `Game Mode games:` line naming `fake-game`;
+   - the reaper → `GameMode on: 2 game(s)`; reopening names `Fake Quest`;
+   - both killed → `GameMode off` (gamemoded's reaper runs every 5 s);
+   - no warning or critical from the indicator's log domain, and wingpanel
+     kept its PID throughout.
 3. **Visual loop on raider:** a new `just pantheon::panel-run` builds this
    checkout's indicator, links the session's `$WINGPANEL_INDICATORS_PATH`
    contents plus the new plugin into a temp directory, and restarts wingpanel
    with `WINGPANEL_INDICATORS_PATH` pointed at it, in one breath, then checks
-   exactly one panel runs (the session respawns it, as with the dock). Then
-   `gamemoderun sleep 120` and `just pantheon::shot` on the panel's top right.
+   exactly one panel runs (gala respawns it, as with the dock). Then
+   `gamemoderun sleep 120`, the `open-indicator` action, and
+   `just pantheon::shot` on the panel's top right.
 4. **Acceptance after deploy:** launch a Steam game; the icon appears within
    about 2 s (the watcher's poll), the popover shows the game's Steam name,
    and the icon disappears within about 5 s of quitting.
