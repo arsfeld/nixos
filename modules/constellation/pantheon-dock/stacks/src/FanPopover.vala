@@ -37,16 +37,14 @@ public class Dock.FanPopover : Gtk.Popover {
 
         header_label = new Gtk.Label (null);
         header = new Gtk.Button () {
-            child = create_row_box (header_label, new Gtk.Image.from_gicon (source.folder_icon ()) {
-                pixel_size = HEADER_ICON_SIZE
-            })
+            child = create_row_box (header_label, new_row_image (source.folder_icon (), HEADER_ICON_SIZE))
         };
         header.add_css_class ("stack-fan-item");
         header.clicked.connect (open_location);
 
         // A row with no icon: the empty image keeps its label in line with the others.
         message_label = new Gtk.Label (null);
-        message = create_row_box (message_label, new Gtk.Image ());
+        message = create_row_box (message_label, new_row_image (null, FanLayout.ICON_SIZE));
 
         fan = new FanLayout ();
         child = fan;
@@ -74,20 +72,26 @@ public class Dock.FanPopover : Gtk.Popover {
     }
 
     // Label pill on the left, icon on the right, in an icon-wide slot so every
-    // row's icon lands in the same column.
-    private static Gtk.Box create_row_box (Gtk.Label label, Gtk.Image image) {
-        label.add_css_class ("stack-fan-label");
-        label.valign = CENTER;
+    // row's icon lands in the same column. The icon is the row's last child:
+    // row_icon () relies on it.
+    private static Gtk.Box create_row_box (Gtk.Widget pill, Gtk.Widget icon) {
+        pill.add_css_class ("stack-fan-label");
+        pill.valign = CENTER;
 
-        image.add_css_class ("stack-icon");
-        image.width_request = FanLayout.ICON_SIZE;
-        image.halign = CENTER;
-        image.valign = CENTER;
+        icon.width_request = FanLayout.ICON_SIZE;
+        icon.halign = CENTER;
+        icon.valign = CENTER;
 
         var box = new Gtk.Box (HORIZONTAL, 8);
-        box.append (label);
-        box.append (image);
+        box.append (pill);
+        box.append (icon);
         return box;
+    }
+
+    private static Gtk.Image new_row_image (Icon? icon, int size) {
+        var image = new Gtk.Image () { pixel_size = size, gicon = icon };
+        image.add_css_class ("stack-icon");
+        return image;
     }
 
     private void open_location () {
@@ -187,9 +191,23 @@ public class Dock.FanPopover : Gtk.Popover {
             ellipsize = MIDDLE,
             max_width_chars = 28
         };
+        var status = new Gtk.Label (null);
+        status.add_css_class ("stack-status");
+        var pill = new Gtk.Box (HORIZONTAL, 8);
+        pill.append (label);
+        pill.append (status);
+
+        var image = new_row_image (entry.icon, FanLayout.ICON_SIZE);
+        StackProgressBar bar;
+        var bar_revealer = StackBusy.new_bar_revealer (out bar);
+        var icon = new Gtk.Overlay () { child = image };
+        icon.add_overlay (bar_revealer);
+
+        // The bindings die with the row; nothing needs to unbind them.
+        StackBusy.bind (entry, image, status, bar_revealer, bar, new GenericArray<Binding> ());
 
         var button = new Gtk.Button () {
-            child = create_row_box (label, new Gtk.Image.from_gicon (entry.icon) { pixel_size = FanLayout.ICON_SIZE }),
+            child = create_row_box (pill, icon),
             tooltip_text = entry.name
         };
         button.add_css_class ("stack-fan-item");
