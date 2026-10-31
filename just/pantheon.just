@@ -53,3 +53,46 @@ dock-run log="/tmp/io.elementary.dock.log" *env:
     echo "the session's dock won the race; run again" >&2
     pgrep -fa "$pattern" >&2 || true
     exit 1
+
+# Replace the session's panel with one that loads this checkout's GameMode
+# indicator in place of the deployed one, passing any VAR=value environment
+# through (e.g. G_MESSAGES_DEBUG=all). Logs go to LOG.
+[positional-arguments]
+panel-run log="/tmp/io.elementary.wingpanel.log" *env:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    indicator=$(nix build --no-link --print-out-paths '{{ justfile_directory() }}#nixosConfigurations.raider.pkgs.wingpanel-indicator-gamemode')
+    log="$1"
+    shift
+    extra=("$@")
+    # `pgrep -x` cannot match: the process name is longer than 15 characters.
+    pattern='(^|/)io\.elementary\.wingpanel$'
+    pid=$(pgrep -f "$pattern" | head -n1) || { echo "no wingpanel is running" >&2; exit 1; }
+    exe=$(readlink "/proc/$pid/exe")
+    # The running panel's environment, as its nix wrapper and gala set it; ours
+    # differs only in WINGPANEL_INDICATORS_PATH, later on the env line, so it wins.
+    mapfile -d '' session_env < "/proc/$pid/environ"
+    current=$(printf '%s\n' "${session_env[@]}" | sed -n 's/^WINGPANEL_INDICATORS_PATH=//p')
+    dir=$(mktemp -d /tmp/wingpanel-indicators.XXXXXX)
+    for so in "$current"/*.so; do
+        [ "$(basename "$so")" = libgamemode-indicator.so ] || ln -s "$so" "$dir/"
+    done
+    ln -s "$indicator/lib/wingpanel/libgamemode-indicator.so" "$dir/"
+    # gala respawns the panel the moment one dies, and a second panel hands its
+    # command line to the first and exits, so kill and start in the same
+    # breath, then make sure ours is the one left. `exec -a` keeps the name
+    # the pattern above matches.
+    pkill -f "$pattern" || true
+    env -i "${session_env[@]}" WINGPANEL_INDICATORS_PATH="$dir" "${extra[@]}" \
+        setsid "$BASH" -c 'exec -a io.elementary.wingpanel "$0"' "$exe" > "$log" 2>&1 < /dev/null &
+    for _ in $(seq 20); do
+        sleep 0.5
+        pids=$(pgrep -f "$pattern" || true)
+        if [ "$(wc -w <<< "$pids")" -eq 1 ] && tr '\0' '\n' < "/proc/$pids/environ" | grep -qxF "WINGPANEL_INDICATORS_PATH=$dir"; then
+            echo "running with $indicator"
+            exit 0
+        fi
+    done
+    echo "the session's panel won the race; run again" >&2
+    pgrep -fa "$pattern" >&2 || true
+    exit 1
