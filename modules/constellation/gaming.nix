@@ -105,6 +105,7 @@ in {
         user-side counterpart of the nix-daemon confinement. gaming-boost runs
         as the user under gamemoded, so it sets these with systemctl --user and
         needs no polkit rule. Has no effect while backgroundCpus is null.
+        Delegates cpuset to user@.service, which applies on the next login.
       '';
     };
 
@@ -681,6 +682,13 @@ in {
           ExecStop = setProperty cleared;
         };
       };
+
+      # AllowedCPUs on a user slice is silently a no-op unless the user manager
+      # is delegated the cpuset controller; systemd's default omits it. Takes
+      # effect only once user@<uid>.service restarts (log out and back in).
+      systemd.services."user@".serviceConfig.Delegate =
+        lib.mkIf (cfg.gamingMode && cfg.backgroundCpus != null && cfg.backgroundUserSlices != [])
+        "cpu cpuset io memory pids";
 
       # gamemoded runs as a user service and so cannot manage a system unit on its
       # own. Scope the grant to this one unit; wheel rather than the gamemode group
