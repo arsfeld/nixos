@@ -552,7 +552,7 @@ in {
         # a .txt, .ofx or thumbnail-less PDF shows no icon in Files or on the
         # dock. This ships corrected copies of just those files (aliases
         # included, since an alias symlink would resolve back to the broken
-        # original) and wins over the originals in the system profile by
+        # original; likewise the @2x/@3x directory links) and wins over the originals in the system profile by
         # priority, so nothing else rebuilds. Drop it once the theme or GTK
         # handles the prefix.
         elementaryIconFix =
@@ -587,6 +587,15 @@ in {
                         f.write(text)
                     n += 1
             print(f"fixed {n} icons")
+            # The theme's scaled directories (mimes@2x, apps@3x, ...) are relative
+            # symlinks to the unscaled ones, and os.walk does not follow them.
+            # Recreate each one next to a directory we fixed: buildEnv then merges
+            # it like the original's, so at scale 2 or 3 the high-priority entries
+            # resolve into this package's fixed files rather than the originals.
+            for name in os.listdir(src):
+                link = os.path.join(src, name)
+                if os.path.islink(link) and os.path.isdir(os.path.join(out, os.readlink(link))):
+                    os.symlink(os.readlink(link), os.path.join(out, name))
             assert n > 0, "nothing to fix: drop elementaryIconFix"
             PY
           '';
