@@ -543,6 +543,53 @@ in {
           sed 's/^user-db:user$/user-db:pantheon/' \
             ${config.environment.etc.dconf.source}/profile/user > $out
         '';
+
+        # 399 of elementary-icon-theme's SVGs (text-x-generic, application-pdf
+        # and most other mimetypes) spell the xlink namespace `ns3:` (or another
+        # nsN), as an XML round-trip wrote them. GTK 4.22 parses icons with its
+        # own SVG renderer, which matches the literal `xlink:href`, so their
+        # gradients resolve to nothing and the icon draws fully transparent:
+        # a .txt, .ofx or thumbnail-less PDF shows no icon in Files or on the
+        # dock. This ships corrected copies of just those files (aliases
+        # included, since an alias symlink would resolve back to the broken
+        # original) and wins over the originals in the system profile by
+        # priority, so nothing else rebuilds. Drop it once the theme or GTK
+        # handles the prefix.
+        elementaryIconFix =
+          pkgs.runCommand "elementary-icon-theme-xlink-fix" {
+            nativeBuildInputs = [pkgs.python3];
+            theme = "${pkgs.pantheon.elementary-icon-theme}/share/icons/elementary";
+          } ''
+            python3 - <<'PY'
+            import os, re
+            src, out = os.environ["theme"], os.environ["out"] + "/share/icons/elementary"
+            decl = re.compile(r'xmlns:(ns[0-9]+)="http://www\.w3\.org/1999/xlink"')
+            n = 0
+            for root, dirs, files in os.walk(src):
+                for name in files:
+                    if not name.endswith(".svg"):
+                        continue
+                    path = os.path.join(root, name)
+                    with open(path, encoding="utf-8") as f:
+                        text = f.read()
+                    m = decl.search(text)
+                    if not m:
+                        continue
+                    prefix = m.group(1)
+                    if 'xmlns:xlink=' in text:
+                        text = text.replace(m.group(0), "")
+                    else:
+                        text = text.replace(m.group(0), 'xmlns:xlink="http://www.w3.org/1999/xlink"')
+                    text = re.sub(r'\b' + prefix + r':', "xlink:", text)
+                    dest = os.path.join(out, os.path.relpath(path, src))
+                    os.makedirs(os.path.dirname(dest), exist_ok=True)
+                    with open(dest, "w", encoding="utf-8") as f:
+                        f.write(text)
+                    n += 1
+            print(f"fixed {n} icons")
+            assert n > 0, "nothing to fix: drop elementaryIconFix"
+            PY
+          '';
       in {
         services.xserver.enable = true;
         # Pantheon locks the screen through LightDM; under any other display
@@ -599,7 +646,7 @@ in {
           }
         ];
 
-        environment.systemPackages = [pkgs.pantheon-tweaks];
+        environment.systemPackages = [pkgs.pantheon-tweaks (lib.hiPrio elementaryIconFix)];
 
         # Defining remotes replaces nix-flatpak's default, so flathub is
         # listed again. appcenter is elementary's curated Granite app repo.
