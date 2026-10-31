@@ -1,22 +1,27 @@
-# Folder stacks for Pantheon's dock (elementary-dock), modelled on macOS dock
-# stacks: Downloads fanned out newest-first, Applications as a grid.
+# Local patches to Pantheon's dock (elementary-dock), each in its own
+# subdirectory. This is the only overlay of the package: a new feature adds its
+# patch here instead of overriding elementary-dock a second time, or the two
+# patches would fight over the same lines. How to test a change visually:
+# ./CLAUDE.md.
 #
-# elementary-dock has no applet API, so this carries a local patch. The Vala
-# sources live in ./pantheon-dock-stacks/Stacks and are copied into the dock's
-# src/Stacks; hooks.patch only adds the gsettings key, the meson hook and the
-# stack group in ItemManager. A nixpkgs bump of elementary-dock that breaks
-# hooks.patch fails the build, and the patch is rebased on the new source.
+# stacks/: macOS-style folder stacks (Downloads fanned out newest-first,
+# Applications as a grid). elementary-dock has no applet API; the Vala sources
+# in ./stacks/src are copied into the dock's src/Stacks, and hooks.patch only
+# adds the gsettings key, the meson hook and the stack group in ItemManager.
+# Design: docs/superpowers/specs/2026-10-31-dock-stacks-design.md
+#
+# A nixpkgs bump of elementary-dock that breaks a patch fails the build, and
+# the patch is rebased on the new source.
 #
 # Gated on services.desktopManager.pantheon.enable rather than
 # constellation.desktop.variant, so a VM test can import this module alone.
-# Design: docs/superpowers/specs/2026-10-31-dock-stacks-design.md
 {
   config,
   lib,
   ...
 }: let
   cfg = config.constellation.desktop.pantheon;
-  stacksDir = ./pantheon-dock-stacks;
+  stacksDir = ./stacks;
   inherit (lib.gvariant) mkArray mkTuple;
 in {
   options.constellation.desktop.pantheon.dockStacks = lib.mkOption {
@@ -53,7 +58,7 @@ in {
             postPatch =
               (old.postPatch or "")
               + ''
-                cp -r ${stacksDir}/Stacks src/Stacks
+                cp -r ${stacksDir}/src src/Stacks
                 chmod -R u+w src/Stacks
               '';
             doCheck = true;
