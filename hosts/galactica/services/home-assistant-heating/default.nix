@@ -357,9 +357,11 @@ in {
           description = "Set each zone's baseboards when its target changes, and all of them at 06:00 and when a Hilo challenge ends, unless one is running";
           triggers = [
             {
+              # No not_from: after a restart every target comes up from
+              # unknown, and that first value must reach the baseboards, or
+              # they hold whatever they had until the 06:00 re-assert.
               trigger = "state";
               entity_id = lib.attrNames baseboards;
-              not_from = ["unknown" "unavailable"];
               not_to = ["unknown" "unavailable"];
               id = "change";
             }
