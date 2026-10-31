@@ -611,6 +611,14 @@ carry values keep their `constellation.*` names even when the module is host-loc
 read a host-local option: it would fail to evaluate on every other host. When a module
 gains its second user, move it to `modules/constellation/` and give it an `enable` flag.
 
+### Packages from nixpkgs-unstable
+
+Take them from `pkgs.unstable` — an overlay in `flake-modules/lib.nix` that
+instantiates nixpkgs-unstable once per package set, inheriting the host's
+nixpkgs config. Never `import inputs.nixpkgs*` inside a module, host file or
+Home Manager config: each such import is another full nixpkgs evaluation per
+host, carries its own idea of `allowUnfree`, and never sees our overlays.
+
 ### Constellation Modules (`modules/constellation/`)
 
 Opt-in feature modules that hosts compose. Key modules:

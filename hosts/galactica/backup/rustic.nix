@@ -41,15 +41,10 @@
   config,
   lib,
   pkgs,
-  inputs,
   ...
 }:
 with lib; let
   cfg = config.constellation.rustic;
-
-  pkgs-unstable = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-  };
 
   tomlFormat = pkgs.formats.toml {};
 
@@ -258,9 +253,9 @@ in {
   options.constellation.rustic = {
     package = mkOption {
       type = types.package;
-      default = pkgs-unstable.rustic;
+      default = pkgs.unstable.rustic;
       description = ''
-        rustic package. Defaults to pkgs-unstable: stable is 0.11.2, and the
+        rustic package. Defaults to pkgs.unstable: stable is 0.11.2, and the
         cold-storage design was verified against 0.11.3.
       '';
     };

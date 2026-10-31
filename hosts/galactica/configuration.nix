@@ -3,15 +3,9 @@
   lib,
   pkgs,
   self,
-  inputs,
   ...
 }:
-with lib; let
-  pkgs-unstable = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
-in {
+with lib; {
   imports = [
     ./disko-config.nix
     ./hardware-configuration.nix

@@ -26,6 +26,16 @@
       (import ../overlays/glances.nix)
       (import ../overlays/libcap-ng-static.nix)
       (import ../overlays/cloudflared.nix)
+      # nixpkgs-unstable as `pkgs.unstable`, one instance per package set.
+      # It inherits the host's nixpkgs config (allowUnfree, …) and no overlays:
+      # what we take from it is plain upstream packages, and our overlays
+      # target stable. Never `import inputs.nixpkgs*` inside a module instead.
+      (final: prev: {
+        unstable = import inputs.nixpkgs-unstable {
+          inherit (final.stdenv.hostPlatform) system;
+          inherit (final) config;
+        };
+      })
       # Load packages from ./packages directory using haumea
       (final: prev: loadPackages final)
     ];

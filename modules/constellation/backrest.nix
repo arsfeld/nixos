@@ -23,10 +23,9 @@
 #     daemon directly (that ACL is the out-of-repo trust boundary).
 #   - BACKREST_RESTIC_COMMAND is hardcoded to nixpkgs restic so Backrest
 #     never downloads its own binary into /var/lib.
-#   - Uses pkgs-unstable.backrest to track upstream releases faster.
+#   - Uses pkgs.unstable.backrest to track upstream releases faster.
 {
   self,
-  inputs,
   config,
   lib,
   pkgs,
@@ -34,10 +33,6 @@
 }:
 with lib; let
   cfg = config.constellation.backrest;
-
-  pkgs-unstable = import inputs.nixpkgs-unstable {
-    system = pkgs.stdenv.hostPlatform.system;
-  };
 
   clockEnumMap = {
     "local" = "CLOCK_LOCAL";
@@ -432,8 +427,8 @@ in {
 
     package = mkOption {
       type = types.package;
-      default = pkgs-unstable.backrest;
-      description = "Backrest package (defaults to pkgs-unstable for faster upstream tracking).";
+      default = pkgs.unstable.backrest;
+      description = "Backrest package (defaults to pkgs.unstable for faster upstream tracking).";
     };
 
     instance = mkOption {

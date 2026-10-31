@@ -2,15 +2,9 @@
   lib,
   config,
   pkgs,
-  inputs,
   ...
 }: let
   vars = config.media.config;
-  # Use unstable for Immich 2.0
-  pkgs-unstable = import inputs.nixpkgs-unstable {
-    system = pkgs.stdenv.hostPlatform.system;
-    config.allowUnfree = true;
-  };
 in {
   media.services.immich = {
     port = 15777;
@@ -25,7 +19,7 @@ in {
 
   services.immich = {
     enable = true;
-    package = pkgs-unstable.immich; # Use Immich 2.0.1 from unstable
+    package = pkgs.unstable.immich; # Use Immich 2.0.1 from unstable
     mediaLocation = "${vars.dataDir}/files/Immich";
     host = "0.0.0.0";
     port = 15777;

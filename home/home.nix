@@ -109,11 +109,6 @@
   in
     map mkAgentScript entries;
 
-  pkgs-unstable = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
-
   # Claude Code remote-control servers, one per project, so sessions can be
   # opened from claude.ai/code or the mobile app. A server is bound to the
   # directory it starts in, hence one unit per project. It runs headless fine,
@@ -678,7 +673,7 @@ in {
   programs.zoxide = {
     enable = true;
     enableBashIntegration = false;
-    package = pkgs-unstable.zoxide;
+    package = pkgs.unstable.zoxide;
   };
 
   programs.oh-my-posh = {

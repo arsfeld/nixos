@@ -8,7 +8,6 @@
   config,
   pkgs,
   lib,
-  inputs,
   ...
 }: let
   cfg = config.constellation.desktop;
@@ -119,734 +118,728 @@ in {
     };
   };
 
-  config = lib.mkIf cfg.enable (let
-    pkgs-unstable = import inputs.nixpkgs-unstable {
-      system = pkgs.stdenv.hostPlatform.system;
-      config.allowUnfree = true;
-    };
-  in
-    lib.mkMerge [
-      # ======== SHARED BASE (every variant) ========
-      {
-        hardware.graphics = {
+  config = lib.mkIf cfg.enable (lib.mkMerge [
+    # ======== SHARED BASE (every variant) ========
+    {
+      hardware.graphics = {
+        enable = true;
+        enable32Bit = true;
+      };
+
+      systemd.services.NetworkManager-wait-online.enable = false;
+
+      # Quiet graphical boot: firmware logo (bgrt) through to the greeter.
+      boot.plymouth = {
+        enable = true;
+        theme = "bgrt";
+      };
+      boot.consoleLogLevel = 0;
+
+      services.xserver.xkb = {
+        layout = "us";
+        variant = "alt-intl";
+      };
+
+      # Filesystems a desktop may meet on removable or network media. NixOS
+      # derives only what fileSystems declares (btrfs, vfat, xfs on raider and blackbird), so
+      # these are additions, not a restriction. Nothing in this fleet
+      # contributes zfs; the "remove zfs" mkForce this replaces was stale.
+      # A plain definition, so hosts can append (raider adds nfs).
+      boot.supportedFilesystems = ["btrfs" "cifs" "f2fs" "jfs" "ntfs" "reiserfs" "vfat" "xfs"];
+
+      services.flatpak = {
+        enable = true;
+        packages = cfg.flatpakPackages;
+      };
+
+      services.printing = {
+        enable = true;
+        drivers = with pkgs; [hplipWithPlugin];
+      };
+
+      services.avahi = {
+        enable = true;
+        nssmdns4 = true;
+        openFirewall = true;
+      };
+
+      programs.virt-manager.enable = lib.mkIf cfg.virtualization true;
+
+      environment.systemPackages = with pkgs;
+        [
+          pkgs.unstable.zed-editor
+          # Outranks the stable copy common.nix installs for its terminfo,
+          # so the systemd unit and D-Bus service come from this one.
+          (lib.hiPrio pkgs.unstable.ghostty)
+          localsend
+          mission-center
+          variety
+          vim
+          wget
+          # Flatpak lifecycle/rollback/data manager (complements Flatseal,
+          # which only handles permissions). Flatpak is enabled below.
+          warehouse
+        ]
+        ++ lib.optionals cfg.multimedia [
+          celluloid
+          plex-mpv-shim
+          pkgs.unstable.multiviewer-for-f1
+          gst_all_1.gstreamer
+          gst_all_1.gst-plugins-base
+          gst_all_1.gst-plugins-good
+          gst_all_1.gst-plugins-bad
+          gst_all_1.gst-plugins-ugly
+          gst_all_1.gst-libav
+        ]
+        ++ lib.optionals cfg.virtualization [
+          quickemu
+        ]
+        ++ lib.optionals cfg.wallpapers [
+          nixos-artwork.wallpapers.catppuccin-mocha
+          nixos-artwork.wallpapers.catppuccin-macchiato
+          nixos-artwork.wallpapers.catppuccin-frappe
+          nixos-artwork.wallpapers.catppuccin-latte
+          nixos-artwork.wallpapers.gear
+          nixos-artwork.wallpapers.moonscape
+          nixos-artwork.wallpapers.recursive
+          nixos-artwork.wallpapers.waterfall
+          nixos-artwork.wallpapers.watersplash
+          nixos-artwork.wallpapers.dracula
+          nixos-artwork.wallpapers.nineish
+          nixos-artwork.wallpapers.nineish-dark-gray
+          nixos-artwork.wallpapers.mosaic-blue
+          fedora-backgrounds.f38
+          fedora-backgrounds.f37
+          fedora-backgrounds.f36
+          fedora-backgrounds.f32
+          budgie-backgrounds
+          pantheon.elementary-wallpapers
+        ];
+
+      fonts = {
+        fontconfig = {
           enable = true;
-          enable32Bit = true;
-        };
-
-        systemd.services.NetworkManager-wait-online.enable = false;
-
-        # Quiet graphical boot: firmware logo (bgrt) through to the greeter.
-        boot.plymouth = {
-          enable = true;
-          theme = "bgrt";
-        };
-        boot.consoleLogLevel = 0;
-
-        services.xserver.xkb = {
-          layout = "us";
-          variant = "alt-intl";
-        };
-
-        # Filesystems a desktop may meet on removable or network media. NixOS
-        # derives only what fileSystems declares (btrfs, vfat, xfs on raider and blackbird), so
-        # these are additions, not a restriction. Nothing in this fleet
-        # contributes zfs; the "remove zfs" mkForce this replaces was stale.
-        # A plain definition, so hosts can append (raider adds nfs).
-        boot.supportedFilesystems = ["btrfs" "cifs" "f2fs" "jfs" "ntfs" "reiserfs" "vfat" "xfs"];
-
-        services.flatpak = {
-          enable = true;
-          packages = cfg.flatpakPackages;
-        };
-
-        services.printing = {
-          enable = true;
-          drivers = with pkgs; [hplipWithPlugin];
-        };
-
-        services.avahi = {
-          enable = true;
-          nssmdns4 = true;
-          openFirewall = true;
-        };
-
-        programs.virt-manager.enable = lib.mkIf cfg.virtualization true;
-
-        environment.systemPackages = with pkgs;
-          [
-            pkgs-unstable.zed-editor
-            # Outranks the stable copy common.nix installs for its terminfo,
-            # so the systemd unit and D-Bus service come from this one.
-            (lib.hiPrio pkgs-unstable.ghostty)
-            localsend
-            mission-center
-            variety
-            vim
-            wget
-            # Flatpak lifecycle/rollback/data manager (complements Flatseal,
-            # which only handles permissions). Flatpak is enabled below.
-            warehouse
-          ]
-          ++ lib.optionals cfg.multimedia [
-            celluloid
-            plex-mpv-shim
-            pkgs-unstable.multiviewer-for-f1
-            gst_all_1.gstreamer
-            gst_all_1.gst-plugins-base
-            gst_all_1.gst-plugins-good
-            gst_all_1.gst-plugins-bad
-            gst_all_1.gst-plugins-ugly
-            gst_all_1.gst-libav
-          ]
-          ++ lib.optionals cfg.virtualization [
-            quickemu
-          ]
-          ++ lib.optionals cfg.wallpapers [
-            nixos-artwork.wallpapers.catppuccin-mocha
-            nixos-artwork.wallpapers.catppuccin-macchiato
-            nixos-artwork.wallpapers.catppuccin-frappe
-            nixos-artwork.wallpapers.catppuccin-latte
-            nixos-artwork.wallpapers.gear
-            nixos-artwork.wallpapers.moonscape
-            nixos-artwork.wallpapers.recursive
-            nixos-artwork.wallpapers.waterfall
-            nixos-artwork.wallpapers.watersplash
-            nixos-artwork.wallpapers.dracula
-            nixos-artwork.wallpapers.nineish
-            nixos-artwork.wallpapers.nineish-dark-gray
-            nixos-artwork.wallpapers.mosaic-blue
-            fedora-backgrounds.f38
-            fedora-backgrounds.f37
-            fedora-backgrounds.f36
-            fedora-backgrounds.f32
-            budgie-backgrounds
-            pantheon.elementary-wallpapers
-          ];
-
-        fonts = {
-          fontconfig = {
+          antialias = true;
+          cache32Bit = true;
+          hinting = {
             enable = true;
-            antialias = true;
-            cache32Bit = true;
-            hinting = {
-              enable = true;
-              autohint = false;
-              style = "slight";
-            };
-            subpixel = {
-              rgba = "none";
-              lcdfilter = "none";
-            };
-            defaultFonts = {
-              serif = ["Noto Serif" "Liberation Serif" "DejaVu Serif"];
-              sansSerif = ["Inter" "Noto Sans" "DejaVu Sans"];
-              monospace = ["JetBrains Mono" "Cascadia Code" "Fira Code"];
-              emoji = ["Noto Color Emoji"];
-            };
+            autohint = false;
+            style = "slight";
           };
-
-          packages = with pkgs; [
-            inter
-            jetbrains-mono
-            roboto
-            ubuntu-classic
-            cantarell-fonts
-            nerd-fonts.fira-code
-            nerd-fonts.jetbrains-mono
-            nerd-fonts.meslo-lg
-            noto-fonts
-            noto-fonts-cjk-sans
-            noto-fonts-color-emoji
-            liberation_ttf
-            dejavu_fonts
-            freefont_ttf
-            source-han-sans
-            source-han-serif
-            corefonts
-            vista-fonts
-            cascadia-code
-            iosevka
-            fira-code
-          ];
-        };
-      }
-
-      # ======== GNOME VARIANT ========
-      (lib.mkIf (cfg.variant == "gnome") {
-        services.xserver.enable = true;
-        services.displayManager.gdm.enable = true;
-        services.desktopManager.gnome.enable = true;
-        services.gnome.gnome-software.enable = false;
-
-        hardware.i2c.enable = cfg.gnome.monitorControl.enable;
-
-        # GNOME Settings saves a wallpaper as its /nix/store path, which dies the
-        # next time nix-gc (Persistent, so it catches up at boot) collects the
-        # backgrounds package an update replaced: the desktop comes up blank.
-        # Rewrite such URIs to the same file under /run/current-system/sw at login.
-        systemd.user.services.wallpaper-stable-path = {
-          description = "Repoint GNOME wallpapers from /nix/store to /run/current-system";
-          wantedBy = ["graphical-session.target"];
-          partOf = ["graphical-session.target"];
-          after = ["graphical-session.target"];
-          serviceConfig.Type = "oneshot";
-          path = [pkgs.glib];
-          script = ''
-            for key in "org.gnome.desktop.background picture-uri" \
-                       "org.gnome.desktop.background picture-uri-dark" \
-                       "org.gnome.desktop.screensaver picture-uri"; do
-              uri=$(gsettings get $key)
-              uri=''${uri//\'/}
-              case "$uri" in
-                file:///nix/store/*/share/backgrounds/*) ;;
-                *) continue ;;
-              esac
-              stable=/run/current-system/sw/share/backgrounds/''${uri#file:///nix/store/*/share/backgrounds/}
-              if [ -e "$stable" ]; then
-                gsettings set $key "file://$stable"
-              fi
-            done
-          '';
-        };
-
-        programs.dconf.enable = true;
-        programs.dconf.profiles.user.databases = [
-          {
-            settings =
-              {
-                "org/gnome/desktop/interface" = {
-                  gtk-theme = cfg.gnome.theme.gtk;
-                  icon-theme = cfg.gnome.theme.icon;
-                  color-scheme = "prefer-dark";
-                  enable-hot-corners = false;
-                };
-
-                "org/gnome/mutter" = {
-                  experimental-features = ["variable-refresh-rate" "scale-monitor-framebuffer"];
-                  center-new-windows = true;
-                };
-
-                "org/gnome/desktop/wm/keybindings" = {
-                  switch-applications = ["<Super>Tab"];
-                  switch-applications-backward = ["<Shift><Super>Tab"];
-                  switch-windows = ["<Alt>Tab"];
-                  switch-windows-backward = ["<Shift><Alt>Tab"];
-                };
-
-                "org/gnome/desktop/wm/preferences" = {
-                  button-layout = "appmenu:minimize,maximize,close";
-                };
-
-                "org/gnome/nautilus/preferences" = {
-                  default-folder-viewer = "list-view";
-                  show-create-link = true;
-                };
-                "org/gnome/nautilus/gtk" = {
-                  application-prefer-dark-theme = true;
-                };
-
-                "org/gtk/Settings/FileChooser" = {
-                  sort-directories-first = true;
-                };
-                "org/gtk/gtk4/Settings/FileChooser" = {
-                  sort-directories-first = true;
-                };
-
-                "org/gnome/settings-daemon/plugins/media-keys" = {
-                  custom-keybindings = [
-                    "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/"
-                    "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1/"
-                  ];
-                };
-                "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0" = {
-                  name = "Terminal";
-                  command = "ghostty";
-                  binding = "<Control><Alt>t";
-                };
-                "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1" = {
-                  name = "Mission Center";
-                  command = "missioncenter";
-                  binding = "<Control><Shift>Escape";
-                };
-
-                "org/gnome/shell" = {
-                  enabled-extensions =
-                    [
-                      "logomenu@aryan_k"
-                      "hotedge@jonathan.jdoda.ca"
-                      "caffeine@patapon.info"
-                      "compiz-alike-magic-lamp-effect@hermes83.github.com"
-                      "paperwm@paperwm.github.com"
-                      "appindicatorsupport@rgcjonas.gmail.com"
-                      "blur-my-shell@aunetx"
-                      "dash-to-dock@micxgx.gmail.com"
-                      "azwallpaper@azwallpaper.gitlab.com"
-                      "gsconnect@andyholmes.github.io"
-                      "xwayland-indicator@swsnr.de"
-                      "user-theme@gnome-shell-extensions.gcampax.github.com"
-                      "monitor@astraext.github.io"
-                      # Bazzite-GNOME parity extensions
-                      "burn-my-windows@schneegans.github.com"
-                      "desktop-cube@schneegans.github.com"
-                      "compiz-windows-effect@hermes83.github.com"
-                      "add-to-steam@pupper.space"
-                      "restartto@tiagoporsch.github.io"
-                    ]
-                    ++ lib.optional cfg.gnome.monitorControl.enable "monitor-control@ahmed-shaalan"
-                    ++ lib.optionals cfg.gnome.gpuMonitor.enable [
-                      "executor@raujonas.github.io"
-                    ];
-                };
-
-                # Schema id is `logo-menu` but the dconf PATH is `Logo-menu`
-                # (capital L). Writing to lowercase silently no-ops.
-                "org/gnome/shell/extensions/Logo-menu" = {
-                  # Match Bazzite: colored distro logo, ~20px, with shadow.
-                  symbolic-icon = false;
-                  menu-button-icon-image = lib.gvariant.mkInt32 18; # NixOS color logo in ColouredDistroIcons
-                  menu-button-icon-size = lib.gvariant.mkInt32 20;
-                  hide-icon-shadow = false;
-                  # App targets — we keep ghostty instead of Bazzite's ptyxis.
-                  menu-button-terminal = "ghostty";
-                  menu-button-system-monitor = "missioncenter";
-                  menu-button-extensions-app = "com.mattjakeman.ExtensionManager.desktop";
-                  menu-button-software-center = "bazaar";
-                  # Bazzite hides Force Quit and the power/lock entries, keeps Activities.
-                  show-activities-button = true;
-                  hide-forcequit = true;
-                  show-lockscreen = false;
-                  show-power-options = false;
-                };
-
-                "app/devsuite/Ptyxis" = {
-                  prefer-dark-theme = true;
-                };
-
-                "app/zen-browser/zen" = {
-                  prefer-dark-theme = true;
-                };
-              }
-              // lib.optionalAttrs cfg.gnome.monitorControl.enable {
-                "org/gnome/shell/extensions/monitor-control" = {
-                  show-brightness = true;
-                  show-volume = true;
-                  unify-volume = true;
-                };
-              };
-          }
-        ];
-
-        environment.gnome.excludePackages = with pkgs; [
-          gnome-music
-          gnome-tour
-          gnome-console
-          gnome-terminal
-          gnome-system-monitor
-          gnome-software
-          geary
-          evince
-          totem
-          tali
-          hitori
-          atomix
-          iagno
-        ];
-
-        environment.systemPackages = with pkgs;
-          [
-            (writeTextDir "share/applications/org.gnome.Extensions.desktop" ''
-              [Desktop Entry]
-              Type=Application
-              Name=Extensions
-              NoDisplay=true
-            '')
-            gnome-tweaks
-            # Refine: GTK4 tweak tool exposing experimental GNOME/mutter keys
-            # (VRR toggle, etc.) that gnome-tweaks doesn't. Sits alongside it.
-            refine
-          ]
-          ++ lib.optionals cfg.gnome.extensions [
-            gnomeExtensions.appindicator
-            gnomeExtensions.blur-my-shell
-            gnomeExtensions.dash-to-dock
-            gnomeExtensions.wallpaper-slideshow
-            gnomeExtensions.gsconnect
-            gnomeExtensions.xwayland-indicator
-            gnomeExtensions.astra-monitor
-            gnomeExtensions.user-themes
-            gnomeExtensions.logo-menu
-            gnomeExtensions.hot-edge
-            gnomeExtensions.caffeine
-            gnomeExtensions.compiz-alike-magic-lamp-effect
-            gnomeExtensions.paperwm
-
-            # Bazzite-GNOME parity extensions
-            gnomeExtensions.burn-my-windows
-            gnomeExtensions.desktop-cube
-            gnomeExtensions.compiz-windows-effect
-            gnomeExtensions.add-to-steam
-            gnomeExtensions.restart-to
-
-            colloid-icon-theme
-            colloid-gtk-theme
-            pantheon.elementary-sound-theme
-            pantheon.elementary-gtk-theme
-            pantheon.elementary-icon-theme
-          ]
-          ++ lib.optionals cfg.gnome.monitorControl.enable [
-            pkgs.ddcutil
-            pkgs-unstable.gnomeExtensions.monitorcontrol-brightness-and-volume
-          ]
-          ++ lib.optionals cfg.gnome.gpuMonitor.enable [
-            gnomeExtensions.executor
-          ];
-      })
-
-      # ======== COSMIC VARIANT ========
-      (lib.mkIf (cfg.variant == "cosmic") {
-        services.desktopManager.cosmic.enable = true;
-        services.displayManager.cosmic-greeter.enable = true;
-
-        # Community applets (CPU/memory, weather) plus Tweaks. Applets are
-        # added to the panel by hand in COSMIC Settings.
-        environment.systemPackages = with pkgs; [
-          cosmic-ext-applet-minimon
-          cosmic-ext-applet-sysinfo
-          cosmic-ext-applet-weather
-          cosmic-ext-tweaks
-        ];
-
-        environment.sessionVariables = {
-          NIXOS_OZONE_WL = "1";
-          MOZ_ENABLE_WAYLAND = "1";
-          # GTK 4 delegates input to the compositor's text-input protocol, and
-          # with no IME running under COSMIC the alt-intl dead keys (' " ` ~ ^)
-          # are swallowed — Ghostty can't type quotes. GTK's built-in "simple"
-          # context does dead keys and compose sequences itself.
-          GTK_IM_MODULE = "simple";
-        };
-      })
-
-      # ======== PANTHEON VARIANT ========
-      # elementary OS's desktop. Cannot coexist with GNOME in one system
-      # (nixpkgs#64611), so it is a variant rather than a second session.
-      (lib.mkIf (cfg.variant == "pantheon") (let
-        # NixOS writes `user-db:user` into every generated profile, so the
-        # database cannot be renamed through programs.dconf.profiles. Copy the
-        # generated profile with its own user database instead: Pantheon's
-        # theme, font and keybinding writes then land in ~/.config/dconf/pantheon
-        # and GNOME's ~/.config/dconf/user is left alone for the switch back.
-        # home-manager's activation runs in a login shell, which sources
-        # DCONF_PROFILE from /etc/profile, so its dconf.settings land in the
-        # Pantheon database too: gate GNOME-only values on the variant.
-        pantheonProfile = pkgs.runCommand "dconf-profile-pantheon" {} ''
-          sed 's/^user-db:user$/user-db:pantheon/' \
-            ${config.environment.etc.dconf.source}/profile/user > $out
-        '';
-
-        # 399 of elementary-icon-theme's SVGs (text-x-generic, application-pdf
-        # and most other mimetypes) spell the xlink namespace `ns3:` (or another
-        # nsN), as an XML round-trip wrote them. GTK 4.22 parses icons with its
-        # own SVG renderer, which matches the literal `xlink:href`, so their
-        # gradients resolve to nothing and the icon draws fully transparent:
-        # a .txt, .ofx or thumbnail-less PDF shows no icon in Files or on the
-        # dock. This ships corrected copies of just those files (aliases
-        # included, since an alias symlink would resolve back to the broken
-        # original; likewise the @2x/@3x directory links) and wins over the
-        # originals in the system profile by priority, so nothing else rebuilds. Drop it once the theme or GTK
-        # handles the prefix.
-        elementaryIconFix =
-          pkgs.runCommand "elementary-icon-theme-xlink-fix" {
-            nativeBuildInputs = [pkgs.python3];
-            theme = "${pkgs.pantheon.elementary-icon-theme}/share/icons/elementary";
-          } ''
-            python3 - <<'PY'
-            import os, re
-            src, out = os.environ["theme"], os.environ["out"] + "/share/icons/elementary"
-            decl = re.compile(r'xmlns:(ns[0-9]+)="http://www\.w3\.org/1999/xlink"')
-            n = 0
-            for root, dirs, files in os.walk(src):
-                for name in files:
-                    if not name.endswith(".svg"):
-                        continue
-                    path = os.path.join(root, name)
-                    with open(path, encoding="utf-8") as f:
-                        text = f.read()
-                    m = decl.search(text)
-                    if not m:
-                        continue
-                    prefix = m.group(1)
-                    if 'xmlns:xlink=' in text:
-                        text = text.replace(m.group(0), "")
-                    else:
-                        text = text.replace(m.group(0), 'xmlns:xlink="http://www.w3.org/1999/xlink"')
-                    text = re.sub(r'\b' + prefix + r':', "xlink:", text)
-                    dest = os.path.join(out, os.path.relpath(path, src))
-                    os.makedirs(os.path.dirname(dest), exist_ok=True)
-                    with open(dest, "w", encoding="utf-8") as f:
-                        f.write(text)
-                    n += 1
-            print(f"fixed {n} icons")
-            # The theme's scaled directories (mimes@2x, apps@3x, ...) are relative
-            # symlinks to the unscaled ones, and os.walk does not follow them.
-            # Recreate each one next to a directory we fixed: buildEnv then merges
-            # it like the original's, so at scale 2 or 3 the high-priority entries
-            # resolve into this package's fixed files rather than the originals.
-            for name in os.listdir(src):
-                link = os.path.join(src, name)
-                if os.path.islink(link) and os.path.isdir(os.path.join(out, os.readlink(link))):
-                    os.symlink(os.readlink(link), os.path.join(out, name))
-            assert n > 0, "nothing to fix: drop elementaryIconFix"
-            PY
-          '';
-
-        # elementary-session-settings' default-apps list still names Photos'
-        # viewer `io.elementary.photos-viewer`, but Photos 8 installs it as
-        # `io.elementary.photos.viewer`, and Evince has given way to Papers. GIO
-        # skips a default whose desktop file does not exist and falls back to the
-        # first registered handler, which is a browser from the flatpak exports,
-        # so every image opened in Zen. GLib reads `pantheon-mimeapps.list` from
-        # XDG_CONFIG_DIRS before XDG_DATA_DIRS, so a corrected copy in /etc/xdg
-        # shadows the package's without rebuilding it. Drop it once upstream
-        # renames the entries (the build fails when there is nothing to rename).
-        pantheonMimeapps = pkgs.runCommand "pantheon-mimeapps.list" {} ''
-          src=${pkgs.pantheon.elementary-session-settings}/share/applications/pantheon-mimeapps.list
-          grep -q 'io\.elementary\.photos-viewer\.desktop' $src
-          grep -q 'org\.gnome\.Evince\.desktop' $src
-          sed -e 's/io\.elementary\.photos-viewer\.desktop/io.elementary.photos.viewer.desktop/g' \
-              -e 's/org\.gnome\.Evince\.desktop/org.gnome.Papers.desktop/g' $src > $out
-        '';
-      in {
-        services.xserver.enable = true;
-        # Pantheon locks the screen through LightDM; under any other display
-        # manager locking from the UI does nothing.
-        services.xserver.displayManager.lightdm.enable = true;
-        services.desktopManager.pantheon = {
-          enable = true;
-          extraWingpanelIndicators = with pkgs; [
-            # Built with -Dindicator-wingpanel: CPU, RAM, swap, temperature,
-            # GPU and network readouts in the top bar.
-            pantheon.elementary-monitor
-            # Tray icons (Steam, Discord, ...), fed by the service below.
-            wingpanel-indicator-namarupa
-          ];
-        };
-
-        systemd.user.services.indicator-application = {
-          description = "Application indicator service for Wingpanel";
-          wantedBy = ["graphical-session.target"];
-          partOf = ["graphical-session.target"];
-          serviceConfig.ExecStart = "${pkgs.indicator-application-gtk3}/libexec/indicator-application/indicator-application-service";
-        };
-
-        # The Monitor indicator only draws what the Monitor app sends it over
-        # D-Bus, and it is hidden by default. elementary OS starts the app at
-        # login through a portal-written autostart entry; here a user unit does.
-        systemd.user.services.elementary-monitor = {
-          description = "elementary Monitor, feeding the Wingpanel indicator";
-          wantedBy = ["graphical-session.target"];
-          partOf = ["graphical-session.target"];
-          after = ["graphical-session.target"];
-          serviceConfig.ExecStart = "${pkgs.pantheon.elementary-monitor}/bin/io.elementary.monitor --start-in-background";
-        };
-
-        # System defaults, so a value changed in Monitor's preferences wins.
-        programs.dconf.profiles.user.databases = [
-          {
-            # Pantheon's own default, Adwaita Mono, has no Nerd Font glyphs, so
-            # io.elementary.terminal drew the shell prompt's powerline symbols
-            # as boxes. Same face as ghostty; a per-user value still wins
-            # (raider sets SF Mono in fontconfig.nix).
-            settings."org/gnome/desktop/interface".monospace-font-name = "FiraCode Nerd Font 10";
-            settings."io/elementary/monitor/settings" = {
-              indicator-state = true;
-              background-state = true;
-              indicator-cpu-state = true;
-              indicator-cpu-temperature-state = true;
-              indicator-memory-state = true;
-              # Off: with CPU temp on, a second thermometer and two network
-              # arrows read as duplicates in the panel. The Monitor app shows them.
-              indicator-gpu-state = false;
-              indicator-gpu-temperature-state = false;
-              indicator-network-download-state = false;
-              indicator-network-upload-state = false;
-            };
-          }
-        ];
-
-        environment.systemPackages = [pkgs.pantheon-tweaks (lib.hiPrio elementaryIconFix)];
-        environment.etc."xdg/pantheon-mimeapps.list".source = pantheonMimeapps;
-
-        # Defining remotes replaces nix-flatpak's default, so flathub is
-        # listed again. appcenter is elementary's curated Granite app repo.
-        services.flatpak.remotes = [
-          {
-            name = "flathub";
-            location = "https://dl.flathub.org/repo/flathub.flatpakrepo";
-          }
-          {
-            name = "appcenter";
-            location = "https://flatpak.elementary.io/repo.flatpakrepo";
-          }
-        ];
-
-        environment.sessionVariables.DCONF_PROFILE = "${pantheonProfile}";
-      }))
-
-      # ======== NIRI VARIANT ========
-      (lib.mkIf (cfg.variant == "niri") {
-        programs.niri.enable = true;
-        niri-flake.cache.enable = true;
-
-        services.xserver.enable = true;
-
-        services.displayManager.gdm = lib.mkIf cfg.niri.useGdm {
-          enable = true;
-          wayland = true;
-        };
-
-        services.greetd = lib.mkIf (!cfg.niri.useGdm) {
-          enable = true;
-          settings = {
-            default_session = {
-              command = "${pkgs.greetd.tuigreet}/bin/tuigreet --time --remember --remember-session --cmd niri-session";
-              user = "greeter";
-            };
+          subpixel = {
+            rgba = "none";
+            lcdfilter = "none";
+          };
+          defaultFonts = {
+            serif = ["Noto Serif" "Liberation Serif" "DejaVu Serif"];
+            sansSerif = ["Inter" "Noto Sans" "DejaVu Sans"];
+            monospace = ["JetBrains Mono" "Cascadia Code" "Fira Code"];
+            emoji = ["Noto Color Emoji"];
           };
         };
 
-        security.polkit.enable = true;
-        security.rtkit.enable = true;
-        security.pam.services.swaylock = {};
-        services.gnome.gnome-keyring.enable = true;
+        packages = with pkgs; [
+          inter
+          jetbrains-mono
+          roboto
+          ubuntu-classic
+          cantarell-fonts
+          nerd-fonts.fira-code
+          nerd-fonts.jetbrains-mono
+          nerd-fonts.meslo-lg
+          noto-fonts
+          noto-fonts-cjk-sans
+          noto-fonts-color-emoji
+          liberation_ttf
+          dejavu_fonts
+          freefont_ttf
+          source-han-sans
+          source-han-serif
+          corefonts
+          vista-fonts
+          cascadia-code
+          iosevka
+          fira-code
+        ];
+      };
+    }
 
-        programs.dconf.enable = true;
-        programs.dconf.profiles.user.databases = [
-          {
-            settings = {
+    # ======== GNOME VARIANT ========
+    (lib.mkIf (cfg.variant == "gnome") {
+      services.xserver.enable = true;
+      services.displayManager.gdm.enable = true;
+      services.desktopManager.gnome.enable = true;
+      services.gnome.gnome-software.enable = false;
+
+      hardware.i2c.enable = cfg.gnome.monitorControl.enable;
+
+      # GNOME Settings saves a wallpaper as its /nix/store path, which dies the
+      # next time nix-gc (Persistent, so it catches up at boot) collects the
+      # backgrounds package an update replaced: the desktop comes up blank.
+      # Rewrite such URIs to the same file under /run/current-system/sw at login.
+      systemd.user.services.wallpaper-stable-path = {
+        description = "Repoint GNOME wallpapers from /nix/store to /run/current-system";
+        wantedBy = ["graphical-session.target"];
+        partOf = ["graphical-session.target"];
+        after = ["graphical-session.target"];
+        serviceConfig.Type = "oneshot";
+        path = [pkgs.glib];
+        script = ''
+          for key in "org.gnome.desktop.background picture-uri" \
+                     "org.gnome.desktop.background picture-uri-dark" \
+                     "org.gnome.desktop.screensaver picture-uri"; do
+            uri=$(gsettings get $key)
+            uri=''${uri//\'/}
+            case "$uri" in
+              file:///nix/store/*/share/backgrounds/*) ;;
+              *) continue ;;
+            esac
+            stable=/run/current-system/sw/share/backgrounds/''${uri#file:///nix/store/*/share/backgrounds/}
+            if [ -e "$stable" ]; then
+              gsettings set $key "file://$stable"
+            fi
+          done
+        '';
+      };
+
+      programs.dconf.enable = true;
+      programs.dconf.profiles.user.databases = [
+        {
+          settings =
+            {
               "org/gnome/desktop/interface" = {
+                gtk-theme = cfg.gnome.theme.gtk;
+                icon-theme = cfg.gnome.theme.icon;
                 color-scheme = "prefer-dark";
-                gtk-theme = "WhiteSur-Dark";
-                icon-theme = "WhiteSur-dark";
-                cursor-theme = "WhiteSur-cursors";
-                cursor-size = lib.gvariant.mkInt32 24;
+                enable-hot-corners = false;
               };
+
+              "org/gnome/mutter" = {
+                experimental-features = ["variable-refresh-rate" "scale-monitor-framebuffer"];
+                center-new-windows = true;
+              };
+
+              "org/gnome/desktop/wm/keybindings" = {
+                switch-applications = ["<Super>Tab"];
+                switch-applications-backward = ["<Shift><Super>Tab"];
+                switch-windows = ["<Alt>Tab"];
+                switch-windows-backward = ["<Shift><Alt>Tab"];
+              };
+
               "org/gnome/desktop/wm/preferences" = {
-                button-layout = "close,minimize,maximize:";
+                button-layout = "appmenu:minimize,maximize,close";
+              };
+
+              "org/gnome/nautilus/preferences" = {
+                default-folder-viewer = "list-view";
+                show-create-link = true;
+              };
+              "org/gnome/nautilus/gtk" = {
+                application-prefer-dark-theme = true;
+              };
+
+              "org/gtk/Settings/FileChooser" = {
+                sort-directories-first = true;
+              };
+              "org/gtk/gtk4/Settings/FileChooser" = {
+                sort-directories-first = true;
+              };
+
+              "org/gnome/settings-daemon/plugins/media-keys" = {
+                custom-keybindings = [
+                  "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/"
+                  "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1/"
+                ];
+              };
+              "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0" = {
+                name = "Terminal";
+                command = "ghostty";
+                binding = "<Control><Alt>t";
+              };
+              "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1" = {
+                name = "Mission Center";
+                command = "missioncenter";
+                binding = "<Control><Shift>Escape";
+              };
+
+              "org/gnome/shell" = {
+                enabled-extensions =
+                  [
+                    "logomenu@aryan_k"
+                    "hotedge@jonathan.jdoda.ca"
+                    "caffeine@patapon.info"
+                    "compiz-alike-magic-lamp-effect@hermes83.github.com"
+                    "paperwm@paperwm.github.com"
+                    "appindicatorsupport@rgcjonas.gmail.com"
+                    "blur-my-shell@aunetx"
+                    "dash-to-dock@micxgx.gmail.com"
+                    "azwallpaper@azwallpaper.gitlab.com"
+                    "gsconnect@andyholmes.github.io"
+                    "xwayland-indicator@swsnr.de"
+                    "user-theme@gnome-shell-extensions.gcampax.github.com"
+                    "monitor@astraext.github.io"
+                    # Bazzite-GNOME parity extensions
+                    "burn-my-windows@schneegans.github.com"
+                    "desktop-cube@schneegans.github.com"
+                    "compiz-windows-effect@hermes83.github.com"
+                    "add-to-steam@pupper.space"
+                    "restartto@tiagoporsch.github.io"
+                  ]
+                  ++ lib.optional cfg.gnome.monitorControl.enable "monitor-control@ahmed-shaalan"
+                  ++ lib.optionals cfg.gnome.gpuMonitor.enable [
+                    "executor@raujonas.github.io"
+                  ];
+              };
+
+              # Schema id is `logo-menu` but the dconf PATH is `Logo-menu`
+              # (capital L). Writing to lowercase silently no-ops.
+              "org/gnome/shell/extensions/Logo-menu" = {
+                # Match Bazzite: colored distro logo, ~20px, with shadow.
+                symbolic-icon = false;
+                menu-button-icon-image = lib.gvariant.mkInt32 18; # NixOS color logo in ColouredDistroIcons
+                menu-button-icon-size = lib.gvariant.mkInt32 20;
+                hide-icon-shadow = false;
+                # App targets — we keep ghostty instead of Bazzite's ptyxis.
+                menu-button-terminal = "ghostty";
+                menu-button-system-monitor = "missioncenter";
+                menu-button-extensions-app = "com.mattjakeman.ExtensionManager.desktop";
+                menu-button-software-center = "bazaar";
+                # Bazzite hides Force Quit and the power/lock entries, keeps Activities.
+                show-activities-button = true;
+                hide-forcequit = true;
+                show-lockscreen = false;
+                show-power-options = false;
+              };
+
+              "app/devsuite/Ptyxis" = {
+                prefer-dark-theme = true;
+              };
+
+              "app/zen-browser/zen" = {
+                prefer-dark-theme = true;
+              };
+            }
+            // lib.optionalAttrs cfg.gnome.monitorControl.enable {
+              "org/gnome/shell/extensions/monitor-control" = {
+                show-brightness = true;
+                show-volume = true;
+                unify-volume = true;
               };
             };
-          }
-        ];
+        }
+      ];
 
-        xdg.portal = {
-          enable = true;
-          extraPortals = with pkgs; [
-            xdg-desktop-portal-gtk
-            xdg-desktop-portal-gnome
-          ];
-          config.niri = {
-            default = ["gtk"];
-            "org.freedesktop.impl.portal.FileChooser" = ["gtk"];
-            "org.freedesktop.impl.portal.Secret" = ["gnome-keyring"];
+      environment.gnome.excludePackages = with pkgs; [
+        gnome-music
+        gnome-tour
+        gnome-console
+        gnome-terminal
+        gnome-system-monitor
+        gnome-software
+        geary
+        evince
+        totem
+        tali
+        hitori
+        atomix
+        iagno
+      ];
+
+      environment.systemPackages = with pkgs;
+        [
+          (writeTextDir "share/applications/org.gnome.Extensions.desktop" ''
+            [Desktop Entry]
+            Type=Application
+            Name=Extensions
+            NoDisplay=true
+          '')
+          gnome-tweaks
+          # Refine: GTK4 tweak tool exposing experimental GNOME/mutter keys
+          # (VRR toggle, etc.) that gnome-tweaks doesn't. Sits alongside it.
+          refine
+        ]
+        ++ lib.optionals cfg.gnome.extensions [
+          gnomeExtensions.appindicator
+          gnomeExtensions.blur-my-shell
+          gnomeExtensions.dash-to-dock
+          gnomeExtensions.wallpaper-slideshow
+          gnomeExtensions.gsconnect
+          gnomeExtensions.xwayland-indicator
+          gnomeExtensions.astra-monitor
+          gnomeExtensions.user-themes
+          gnomeExtensions.logo-menu
+          gnomeExtensions.hot-edge
+          gnomeExtensions.caffeine
+          gnomeExtensions.compiz-alike-magic-lamp-effect
+          gnomeExtensions.paperwm
+
+          # Bazzite-GNOME parity extensions
+          gnomeExtensions.burn-my-windows
+          gnomeExtensions.desktop-cube
+          gnomeExtensions.compiz-windows-effect
+          gnomeExtensions.add-to-steam
+          gnomeExtensions.restart-to
+
+          colloid-icon-theme
+          colloid-gtk-theme
+          pantheon.elementary-sound-theme
+          pantheon.elementary-gtk-theme
+          pantheon.elementary-icon-theme
+        ]
+        ++ lib.optionals cfg.gnome.monitorControl.enable [
+          pkgs.ddcutil
+          pkgs.unstable.gnomeExtensions.monitorcontrol-brightness-and-volume
+        ]
+        ++ lib.optionals cfg.gnome.gpuMonitor.enable [
+          gnomeExtensions.executor
+        ];
+    })
+
+    # ======== COSMIC VARIANT ========
+    (lib.mkIf (cfg.variant == "cosmic") {
+      services.desktopManager.cosmic.enable = true;
+      services.displayManager.cosmic-greeter.enable = true;
+
+      # Community applets (CPU/memory, weather) plus Tweaks. Applets are
+      # added to the panel by hand in COSMIC Settings.
+      environment.systemPackages = with pkgs; [
+        cosmic-ext-applet-minimon
+        cosmic-ext-applet-sysinfo
+        cosmic-ext-applet-weather
+        cosmic-ext-tweaks
+      ];
+
+      environment.sessionVariables = {
+        NIXOS_OZONE_WL = "1";
+        MOZ_ENABLE_WAYLAND = "1";
+        # GTK 4 delegates input to the compositor's text-input protocol, and
+        # with no IME running under COSMIC the alt-intl dead keys (' " ` ~ ^)
+        # are swallowed — Ghostty can't type quotes. GTK's built-in "simple"
+        # context does dead keys and compose sequences itself.
+        GTK_IM_MODULE = "simple";
+      };
+    })
+
+    # ======== PANTHEON VARIANT ========
+    # elementary OS's desktop. Cannot coexist with GNOME in one system
+    # (nixpkgs#64611), so it is a variant rather than a second session.
+    (lib.mkIf (cfg.variant == "pantheon") (let
+      # NixOS writes `user-db:user` into every generated profile, so the
+      # database cannot be renamed through programs.dconf.profiles. Copy the
+      # generated profile with its own user database instead: Pantheon's
+      # theme, font and keybinding writes then land in ~/.config/dconf/pantheon
+      # and GNOME's ~/.config/dconf/user is left alone for the switch back.
+      # home-manager's activation runs in a login shell, which sources
+      # DCONF_PROFILE from /etc/profile, so its dconf.settings land in the
+      # Pantheon database too: gate GNOME-only values on the variant.
+      pantheonProfile = pkgs.runCommand "dconf-profile-pantheon" {} ''
+        sed 's/^user-db:user$/user-db:pantheon/' \
+          ${config.environment.etc.dconf.source}/profile/user > $out
+      '';
+
+      # 399 of elementary-icon-theme's SVGs (text-x-generic, application-pdf
+      # and most other mimetypes) spell the xlink namespace `ns3:` (or another
+      # nsN), as an XML round-trip wrote them. GTK 4.22 parses icons with its
+      # own SVG renderer, which matches the literal `xlink:href`, so their
+      # gradients resolve to nothing and the icon draws fully transparent:
+      # a .txt, .ofx or thumbnail-less PDF shows no icon in Files or on the
+      # dock. This ships corrected copies of just those files (aliases
+      # included, since an alias symlink would resolve back to the broken
+      # original; likewise the @2x/@3x directory links) and wins over the
+      # originals in the system profile by priority, so nothing else rebuilds. Drop it once the theme or GTK
+      # handles the prefix.
+      elementaryIconFix =
+        pkgs.runCommand "elementary-icon-theme-xlink-fix" {
+          nativeBuildInputs = [pkgs.python3];
+          theme = "${pkgs.pantheon.elementary-icon-theme}/share/icons/elementary";
+        } ''
+          python3 - <<'PY'
+          import os, re
+          src, out = os.environ["theme"], os.environ["out"] + "/share/icons/elementary"
+          decl = re.compile(r'xmlns:(ns[0-9]+)="http://www\.w3\.org/1999/xlink"')
+          n = 0
+          for root, dirs, files in os.walk(src):
+              for name in files:
+                  if not name.endswith(".svg"):
+                      continue
+                  path = os.path.join(root, name)
+                  with open(path, encoding="utf-8") as f:
+                      text = f.read()
+                  m = decl.search(text)
+                  if not m:
+                      continue
+                  prefix = m.group(1)
+                  if 'xmlns:xlink=' in text:
+                      text = text.replace(m.group(0), "")
+                  else:
+                      text = text.replace(m.group(0), 'xmlns:xlink="http://www.w3.org/1999/xlink"')
+                  text = re.sub(r'\b' + prefix + r':', "xlink:", text)
+                  dest = os.path.join(out, os.path.relpath(path, src))
+                  os.makedirs(os.path.dirname(dest), exist_ok=True)
+                  with open(dest, "w", encoding="utf-8") as f:
+                      f.write(text)
+                  n += 1
+          print(f"fixed {n} icons")
+          # The theme's scaled directories (mimes@2x, apps@3x, ...) are relative
+          # symlinks to the unscaled ones, and os.walk does not follow them.
+          # Recreate each one next to a directory we fixed: buildEnv then merges
+          # it like the original's, so at scale 2 or 3 the high-priority entries
+          # resolve into this package's fixed files rather than the originals.
+          for name in os.listdir(src):
+              link = os.path.join(src, name)
+              if os.path.islink(link) and os.path.isdir(os.path.join(out, os.readlink(link))):
+                  os.symlink(os.readlink(link), os.path.join(out, name))
+          assert n > 0, "nothing to fix: drop elementaryIconFix"
+          PY
+        '';
+
+      # elementary-session-settings' default-apps list still names Photos'
+      # viewer `io.elementary.photos-viewer`, but Photos 8 installs it as
+      # `io.elementary.photos.viewer`, and Evince has given way to Papers. GIO
+      # skips a default whose desktop file does not exist and falls back to the
+      # first registered handler, which is a browser from the flatpak exports,
+      # so every image opened in Zen. GLib reads `pantheon-mimeapps.list` from
+      # XDG_CONFIG_DIRS before XDG_DATA_DIRS, so a corrected copy in /etc/xdg
+      # shadows the package's without rebuilding it. Drop it once upstream
+      # renames the entries (the build fails when there is nothing to rename).
+      pantheonMimeapps = pkgs.runCommand "pantheon-mimeapps.list" {} ''
+        src=${pkgs.pantheon.elementary-session-settings}/share/applications/pantheon-mimeapps.list
+        grep -q 'io\.elementary\.photos-viewer\.desktop' $src
+        grep -q 'org\.gnome\.Evince\.desktop' $src
+        sed -e 's/io\.elementary\.photos-viewer\.desktop/io.elementary.photos.viewer.desktop/g' \
+            -e 's/org\.gnome\.Evince\.desktop/org.gnome.Papers.desktop/g' $src > $out
+      '';
+    in {
+      services.xserver.enable = true;
+      # Pantheon locks the screen through LightDM; under any other display
+      # manager locking from the UI does nothing.
+      services.xserver.displayManager.lightdm.enable = true;
+      services.desktopManager.pantheon = {
+        enable = true;
+        extraWingpanelIndicators = with pkgs; [
+          # Built with -Dindicator-wingpanel: CPU, RAM, swap, temperature,
+          # GPU and network readouts in the top bar.
+          pantheon.elementary-monitor
+          # Tray icons (Steam, Discord, ...), fed by the service below.
+          wingpanel-indicator-namarupa
+        ];
+      };
+
+      systemd.user.services.indicator-application = {
+        description = "Application indicator service for Wingpanel";
+        wantedBy = ["graphical-session.target"];
+        partOf = ["graphical-session.target"];
+        serviceConfig.ExecStart = "${pkgs.indicator-application-gtk3}/libexec/indicator-application/indicator-application-service";
+      };
+
+      # The Monitor indicator only draws what the Monitor app sends it over
+      # D-Bus, and it is hidden by default. elementary OS starts the app at
+      # login through a portal-written autostart entry; here a user unit does.
+      systemd.user.services.elementary-monitor = {
+        description = "elementary Monitor, feeding the Wingpanel indicator";
+        wantedBy = ["graphical-session.target"];
+        partOf = ["graphical-session.target"];
+        after = ["graphical-session.target"];
+        serviceConfig.ExecStart = "${pkgs.pantheon.elementary-monitor}/bin/io.elementary.monitor --start-in-background";
+      };
+
+      # System defaults, so a value changed in Monitor's preferences wins.
+      programs.dconf.profiles.user.databases = [
+        {
+          # Pantheon's own default, Adwaita Mono, has no Nerd Font glyphs, so
+          # io.elementary.terminal drew the shell prompt's powerline symbols
+          # as boxes. Same face as ghostty; a per-user value still wins
+          # (raider sets SF Mono in fontconfig.nix).
+          settings."org/gnome/desktop/interface".monospace-font-name = "FiraCode Nerd Font 10";
+          settings."io/elementary/monitor/settings" = {
+            indicator-state = true;
+            background-state = true;
+            indicator-cpu-state = true;
+            indicator-cpu-temperature-state = true;
+            indicator-memory-state = true;
+            # Off: with CPU temp on, a second thermometer and two network
+            # arrows read as duplicates in the panel. The Monitor app shows them.
+            indicator-gpu-state = false;
+            indicator-gpu-temperature-state = false;
+            indicator-network-download-state = false;
+            indicator-network-upload-state = false;
+          };
+        }
+      ];
+
+      environment.systemPackages = [pkgs.pantheon-tweaks (lib.hiPrio elementaryIconFix)];
+      environment.etc."xdg/pantheon-mimeapps.list".source = pantheonMimeapps;
+
+      # Defining remotes replaces nix-flatpak's default, so flathub is
+      # listed again. appcenter is elementary's curated Granite app repo.
+      services.flatpak.remotes = [
+        {
+          name = "flathub";
+          location = "https://dl.flathub.org/repo/flathub.flatpakrepo";
+        }
+        {
+          name = "appcenter";
+          location = "https://flatpak.elementary.io/repo.flatpakrepo";
+        }
+      ];
+
+      environment.sessionVariables.DCONF_PROFILE = "${pantheonProfile}";
+    }))
+
+    # ======== NIRI VARIANT ========
+    (lib.mkIf (cfg.variant == "niri") {
+      programs.niri.enable = true;
+      niri-flake.cache.enable = true;
+
+      services.xserver.enable = true;
+
+      services.displayManager.gdm = lib.mkIf cfg.niri.useGdm {
+        enable = true;
+        wayland = true;
+      };
+
+      services.greetd = lib.mkIf (!cfg.niri.useGdm) {
+        enable = true;
+        settings = {
+          default_session = {
+            command = "${pkgs.greetd.tuigreet}/bin/tuigreet --time --remember --remember-session --cmd niri-session";
+            user = "greeter";
           };
         };
+      };
 
-        environment.sessionVariables = {
-          NIXOS_OZONE_WL = "1";
-          MOZ_ENABLE_WAYLAND = "1";
-          QT_QPA_PLATFORM = "wayland;xcb";
-          SDL_VIDEODRIVER = "wayland";
-          _JAVA_AWT_WM_NONREPARENTING = "1";
+      security.polkit.enable = true;
+      security.rtkit.enable = true;
+      security.pam.services.swaylock = {};
+      services.gnome.gnome-keyring.enable = true;
+
+      programs.dconf.enable = true;
+      programs.dconf.profiles.user.databases = [
+        {
+          settings = {
+            "org/gnome/desktop/interface" = {
+              color-scheme = "prefer-dark";
+              gtk-theme = "WhiteSur-Dark";
+              icon-theme = "WhiteSur-dark";
+              cursor-theme = "WhiteSur-cursors";
+              cursor-size = lib.gvariant.mkInt32 24;
+            };
+            "org/gnome/desktop/wm/preferences" = {
+              button-layout = "close,minimize,maximize:";
+            };
+          };
+        }
+      ];
+
+      xdg.portal = {
+        enable = true;
+        extraPortals = with pkgs; [
+          xdg-desktop-portal-gtk
+          xdg-desktop-portal-gnome
+        ];
+        config.niri = {
+          default = ["gtk"];
+          "org.freedesktop.impl.portal.FileChooser" = ["gtk"];
+          "org.freedesktop.impl.portal.Secret" = ["gnome-keyring"];
         };
+      };
 
-        services.pipewire = {
-          enable = true;
-          alsa.enable = true;
-          alsa.support32Bit = true;
-          pulse.enable = true;
-          jack.enable = true;
-        };
+      environment.sessionVariables = {
+        NIXOS_OZONE_WL = "1";
+        MOZ_ENABLE_WAYLAND = "1";
+        QT_QPA_PLATFORM = "wayland;xcb";
+        SDL_VIDEODRIVER = "wayland";
+        _JAVA_AWT_WM_NONREPARENTING = "1";
+      };
 
-        hardware.bluetooth = {
-          enable = true;
-          powerOnBoot = true;
-        };
-        services.blueman.enable = true;
+      services.pipewire = {
+        enable = true;
+        alsa.enable = true;
+        alsa.support32Bit = true;
+        pulse.enable = true;
+        jack.enable = true;
+      };
 
-        networking.networkmanager.enable = true;
+      hardware.bluetooth = {
+        enable = true;
+        powerOnBoot = true;
+      };
+      services.blueman.enable = true;
 
-        services.gvfs.enable = true;
-        services.udisks2.enable = true;
-        services.tumbler.enable = true;
+      networking.networkmanager.enable = true;
 
-        hardware.steam-hardware.enable = lib.mkIf cfg.niri.gaming true;
+      services.gvfs.enable = true;
+      services.udisks2.enable = true;
+      services.tumbler.enable = true;
 
-        environment.systemPackages = with pkgs;
-          [
-            xwayland-satellite
-            wl-clipboard
-            cliphist
+      hardware.steam-hardware.enable = lib.mkIf cfg.niri.gaming true;
 
-            waybar
-            alacritty
-            fuzzel
+      environment.systemPackages = with pkgs;
+        [
+          xwayland-satellite
+          wl-clipboard
+          cliphist
 
-            mako
-            libnotify
+          waybar
+          alacritty
+          fuzzel
 
-            swaylock
-            swayidle
-            swaybg
-            waypaper
+          mako
+          libnotify
 
-            grim
-            slurp
-            swappy
-            wl-screenrec
+          swaylock
+          swayidle
+          swaybg
+          waypaper
 
-            pavucontrol
-            playerctl
-            brightnessctl
-            wlsunset
+          grim
+          slurp
+          swappy
+          wl-screenrec
 
-            mate.mate-polkit
-            networkmanagerapplet
-            blueman
+          pavucontrol
+          playerctl
+          brightnessctl
+          wlsunset
 
-            whitesur-gtk-theme
-            whitesur-icon-theme
-            whitesur-cursors
-            adwaita-icon-theme
-            gnome-themes-extra
-            hicolor-icon-theme
-          ]
-          ++ lib.optionals cfg.niri.includeGnomeApps [
-            nautilus
-            gnome-calculator
-            gnome-calendar
-            gnome-characters
-            gnome-clocks
-            gnome-contacts
-            gnome-disk-utility
-            gnome-font-viewer
-            gnome-system-monitor
-            gnome-weather
-            gnome-control-center
-            loupe
-            evince
-            file-roller
-            baobab
-            gnome-text-editor
-            seahorse
-            gnome-settings-daemon
-          ]
-          ++ lib.optionals cfg.niri.gaming [
-            wineWow64Packages.stable
-            gamescope
-            goverlay
-            vkbasalt
-            protonplus
-          ];
-      })
-    ]);
+          mate.mate-polkit
+          networkmanagerapplet
+          blueman
+
+          whitesur-gtk-theme
+          whitesur-icon-theme
+          whitesur-cursors
+          adwaita-icon-theme
+          gnome-themes-extra
+          hicolor-icon-theme
+        ]
+        ++ lib.optionals cfg.niri.includeGnomeApps [
+          nautilus
+          gnome-calculator
+          gnome-calendar
+          gnome-characters
+          gnome-clocks
+          gnome-contacts
+          gnome-disk-utility
+          gnome-font-viewer
+          gnome-system-monitor
+          gnome-weather
+          gnome-control-center
+          loupe
+          evince
+          file-roller
+          baobab
+          gnome-text-editor
+          seahorse
+          gnome-settings-daemon
+        ]
+        ++ lib.optionals cfg.niri.gaming [
+          wineWow64Packages.stable
+          gamescope
+          goverlay
+          vkbasalt
+          protonplus
+        ];
+    })
+  ]);
 }
