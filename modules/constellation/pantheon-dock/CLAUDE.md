@@ -46,8 +46,8 @@ Then read the PNG and repeat. The screen is 3440×1440 and the dock sits bottom-
     spaces survives when the argument is quoted.
   - A key the stock schema lacks (`stacks`) can be set only with that directory in
     `GSETTINGS_SCHEMA_DIR`.
-  - Values set by hand land in the user dconf database and shadow the Nix default, so reset
-    them before deploying.
+  - Values set by hand land in the user dconf database and shadow the Nix default. Reset
+    them after the deploy, in the order below.
 
 ## After deploying a dock change
 
@@ -58,8 +58,13 @@ and back in. A dock restarted in the old session runs the new binary against the
 up), but any other new key needs the same `settings_schema.has_key` guard, because GLib aborts
 on an unknown key.
 
-Also reset hand-set values with `dconf reset /io/elementary/dock/<key>`, from a login shell so
-the Pantheon `DCONF_PROFILE` applies.
+Reset hand-set values with `dconf reset /io/elementary/dock/<key>` (run it from a login shell,
+so the Pantheon `DCONF_PROFILE` applies), but only once the dock reads the new profile.
+Resetting while the session still holds the old profile leaves nothing behind the key: the old
+profile carries no default for it. That emptied the stacks right after the first deploy.
+
+So the order is: deploy, then re-login (or restart the deployed dock with the login shell's
+`DCONF_PROFILE` and `NIX_GSETTINGS_OVERRIDES_DIR`), then reset.
 
 ## Vala pitfalls that bit here
 
