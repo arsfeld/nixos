@@ -3,12 +3,16 @@
  *
  * A stack opened as a fan: the newest MAX_ITEMS entries in a column curving
  * up from the dock, newest at the bottom, topped by "Open in Files" (or
- * "N more in Files" when the folder holds more).
+ * "N more in Files" when the folder holds more). A click zooms the row's icon
+ * away and folds the rest back into the tile (FanLayout.collapse) before the
+ * fan closes.
  */
 
 public class Dock.FanPopover : Gtk.Popover {
     public const int MAX_ITEMS = FanMath.MAX_ITEMS;
     private const int HEADER_ICON_SIZE = 32;
+    // How long a clicked row takes to zoom away while the rest fold into the tile.
+    private const uint LAUNCH_MS = 250;
 
     public StackSource source { get; construct; }
 
@@ -16,6 +20,7 @@ public class Dock.FanPopover : Gtk.Popover {
     private Gtk.Button header;
     private Gtk.Label header_label;
     private Gtk.Widget message;
+    private Adw.TimedAnimation launch_animation;
     private Gtk.Label message_label;
     // Rows are rebuilt only when the popover is shown: rebuilding while it is
     // closed would be wasted work, and rebuilding while it is open destroys the
@@ -45,6 +50,13 @@ public class Dock.FanPopover : Gtk.Popover {
 
         fan = new FanLayout ();
         child = fan;
+
+        // The target holds the fan, not this popover, so the animation forms no cycle.
+        launch_animation = new Adw.TimedAnimation (fan, 0, 1, LAUNCH_MS, new Adw.PropertyAnimationTarget (fan, "collapse")) {
+            easing = EASE_OUT_CUBIC
+        };
+        launch_animation.done.connect (popdown);
+        closed.connect (on_closed);
 
         // We need to set offset because dock window's height is 1px larger than its visible area
         set_offset (0, -1);
@@ -79,8 +91,51 @@ public class Dock.FanPopover : Gtk.Popover {
     }
 
     private void open_location () {
-        popdown ();
+        launch_row (header);
         source.open_location ();
+    }
+
+    /*
+     * Zooms row's icon away and folds the rest of the fan into the tile, then
+     * closes. The caller opens the file itself, right away: nothing waits on this.
+     */
+    private void launch_row (Gtk.Widget row) {
+        if (launch_animation.state == PLAYING) {
+            return;
+        }
+        fan.start_launch (row, row_icon (row));
+        launch_animation.play ();
+        source.launched ();
+    }
+
+    // Every row is a button around create_row_box (), whose last child is the icon.
+    private static Gtk.Widget row_icon (Gtk.Widget row) {
+        return ((Gtk.Button) row).child.get_last_child ();
+    }
+
+    private void on_closed () {
+        launch_animation.reset ();
+        fan.reset_launch ();
+    }
+
+    /*
+     * Test hook for DOCK_STACKS_CLICK (see StackItem): plays row's launch
+     * without opening anything, or, with progress in 0–1, holds the fan at that
+     * point of it so a screenshot can catch it.
+     */
+    public void launch_for_test (uint row, double progress) {
+        var widget = fan.row_at (row);
+        if (widget == null) {
+            warning ("DOCK_STACKS_CLICK: no row %u", row);
+            return;
+        }
+        if (progress < 0) {
+            launch_row (widget);
+            return;
+        }
+        fan.start_launch (widget, row_icon (widget));
+        fan.collapse = progress;
+        source.launched ();
     }
 
     private void mark_dirty () {
@@ -135,9 +190,9 @@ public class Dock.FanPopover : Gtk.Popover {
         };
         button.add_css_class ("stack-fan-item");
         button.clicked.connect ((b) => {
-            var popover = (Gtk.Popover?) b.get_ancestor (typeof (Gtk.Popover));
+            var popover = (FanPopover?) b.get_ancestor (typeof (FanPopover));
             if (popover != null) {
-                popover.popdown ();
+                popover.launch_row (b);
             }
             entry.launch ();
         });

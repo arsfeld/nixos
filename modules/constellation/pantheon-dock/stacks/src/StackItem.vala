@@ -94,9 +94,26 @@ public class Dock.StackItem : BaseIconGroup {
     }
 
     private void open_for_test () {
-        if (!torn_down) {
-            popover_menu.popup ();
+        if (torn_down) {
+            return;
         }
+        popover_menu.popup ();
+        if (Environment.get_variable ("DOCK_STACKS_CLICK") != null) {
+            Timeout.add_once (700, click_for_test);
+        }
+    }
+
+    // Test hook: DOCK_STACKS_CLICK=<row>[@<progress>], with DOCK_STACKS_OPEN, plays
+    // that fan row's launch (row 0 is the newest entry, the last row "Open in
+    // Files") and the tile's bounce, without opening anything. With a progress
+    // (0–1) the fan holds at that point instead, for a screenshot.
+    private void click_for_test () {
+        if (torn_down || !(popover_menu is FanPopover)) {
+            return;
+        }
+        var parts = Environment.get_variable ("DOCK_STACKS_CLICK").split ("@", 2);
+        var progress = parts.length > 1 ? double.parse (parts[1]) : -1;
+        ((FanPopover) popover_menu).launch_for_test ((uint) int.parse (parts[0]), progress);
     }
 
     private void on_released () {

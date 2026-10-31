@@ -14,6 +14,12 @@ public class Dock.StackSource : Object {
 
     public signal void loaded ();
 
+    /*
+     * Emitted when an entry, or the folder itself, is opened from one of this
+     * source's popovers, so the dock tile can bounce.
+     */
+    public signal void launched ();
+
     public StackConfig config { get; construct; }
     public ListModel entries { get { return store; } }
     public bool missing { get; private set; default = false; }

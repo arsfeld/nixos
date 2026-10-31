@@ -199,6 +199,25 @@ void test_fan_pose_open () {
     }
 }
 
+void test_fan_pose_collapsed () {
+    for (uint i = 0; i <= FanMath.MAX_ITEMS; i++) {
+        // Every other row has folded into row 0's slot, upright and gone.
+        var pose = FanMath.pose (i, 1, false);
+        assert_near (pose.x, 0);
+        assert_near (pose.y, -FanMath.ROW_HEIGHT * 0.5);
+        assert_near (pose.degrees, 0);
+        assert_near (pose.alpha, 0);
+
+        // The clicked row stays where it was and fades.
+        var clicked = FanMath.pose (i, 1, true);
+        assert_near (clicked.x, FanMath.drift (i));
+        assert_near (clicked.y, -FanMath.ROW_HEIGHT * (i + 0.5));
+        assert_near (clicked.alpha, 0);
+    }
+    assert_near (FanMath.ghost_scale (0), 1);
+    assert_near (FanMath.ghost_scale (1), 1.6);
+}
+
 int main (string[] args) {
     // AppInfo reads these once, on first use: point it at fixture apps only.
     try {
@@ -224,5 +243,6 @@ int main (string[] args) {
     Test.add_func ("/stack-source/folder-finalized", test_folder_source_finalized);
     Test.add_func ("/stack-source/applications", test_applications);
     Test.add_func ("/fan-math/open", test_fan_pose_open);
+    Test.add_func ("/fan-math/collapsed", test_fan_pose_collapsed);
     return Test.run ();
 }

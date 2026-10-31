@@ -29,6 +29,11 @@ public class Dock.FanLayout : Gtk.Widget {
     private GenericArray<Gsk.Transform> transforms = new GenericArray<Gsk.Transform> ();
     private double[] tilts = {};
     private double[] alphas = {};
+    // The row being launched, and its icon, which is drawn again on top as a
+    // "ghost" that grows and fades (FanMath.ghost_scale).
+    private int clicked = -1;
+    private Gtk.Widget? clicked_icon = null;
+    private Graphene.Point[] pivots = {};
 
     construct {
         overflow = VISIBLE;
@@ -46,7 +51,30 @@ public class Dock.FanLayout : Gtk.Widget {
             row.unparent ();
         }
         rows.length = 0;
+        clicked = -1;
+        clicked_icon = null;
         queue_resize ();
+    }
+
+    public Gtk.Widget? row_at (uint i) {
+        return i < rows.length ? rows[i] : null;
+    }
+
+    /* Starts a launch from row, whose icon widget is icon; collapse then drives it. */
+    public void start_launch (Gtk.Widget row, Gtk.Widget icon) {
+        uint index;
+        clicked = rows.find (row, out index) ? (int) index : -1;
+        clicked_icon = icon;
+        // No second click while the fan folds away.
+        can_target = false;
+        queue_allocate ();
+    }
+
+    public void reset_launch () {
+        clicked = -1;
+        clicked_icon = null;
+        can_target = true;
+        collapse = 0;
     }
 
     public override void dispose () {
@@ -81,15 +109,18 @@ public class Dock.FanLayout : Gtk.Widget {
         transforms = new GenericArray<Gsk.Transform> ();
         tilts = new double[rows.length];
         alphas = new double[rows.length];
+        pivots = new Graphene.Point[rows.length];
 
         for (uint i = 0; i < rows.length; i++) {
             var row = rows[i];
             var row_w = row_width (row);
-            var pose = FanMath.pose (i, collapse, false);
+            var pose = FanMath.pose (i, collapse, i == clicked);
+            Graphene.Point pivot = { origin_x + (float) pose.x, origin_y + (float) pose.y };
+            pivots[i] = pivot;
 
             // Pivot on the icon's centre, so the icons stay in one column.
             var transform = new Gsk.Transform ()
-                .translate ({ origin_x + (float) pose.x, origin_y + (float) pose.y })
+                .translate (pivot)
                 .rotate ((float) pose.degrees)
                 .translate ({ -(row_w - ICON_SIZE / 2.0f), -FanMath.ROW_HEIGHT / 2.0f });
             transforms.add (transform);
@@ -111,6 +142,21 @@ public class Dock.FanLayout : Gtk.Widget {
             } else {
                 StackRender.append_supersampled (snapshot, row, transforms[i], row.get_width (), row.get_height ());
             }
+            snapshot.pop ();
+        }
+
+        if (clicked >= 0 && clicked_icon != null && collapse < 1) {
+            // The icon sits centred on the row's pivot, so zoom about the pivot.
+            var width = clicked_icon.get_width ();
+            var height = clicked_icon.get_height ();
+            var scale = (float) FanMath.ghost_scale (collapse);
+            var transform = new Gsk.Transform ()
+                .translate (pivots[clicked])
+                .rotate ((float) tilts[clicked])
+                .scale (scale, scale)
+                .translate ({ -width / 2.0f, -height / 2.0f });
+            snapshot.push_opacity (1 - collapse);
+            StackRender.append_supersampled (snapshot, clicked_icon, transform, width, height);
             snapshot.pop ();
         }
     }
