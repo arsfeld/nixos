@@ -118,20 +118,35 @@
   # opened from claude.ai/code or the mobile app. A server is bound to the
   # directory it starts in, hence one unit per project. It runs headless fine,
   # but the folder must already be trusted (run `claude` there once by hand).
-  # nixos never uses worktrees; mydia only ever does, so it also skips the
-  # session pre-created in the main checkout.
+  # nixos never uses worktrees; mydia only ever does.
+  #
+  # Keep the session pre-created in the directory (no
+  # --no-create-session-in-dir): it is what writes bridge-pointer.json, and
+  # that pointer is how a restart reattaches to the same environment. Without
+  # it every restart registers a new environment and the app's saved one
+  # answers "not found".
   claudeRcServices = let
     claude = lib.findFirst (p: p.name == "claude") null llmAgentScripts;
+    # After=network-online.target is a system target the user manager cannot
+    # see, so at boot the first start fails with ENOTFOUND. Wait for DNS
+    # instead, bounded so a real outage still falls through to Restart=.
+    waitForApi = pkgs.writeShellScript "claude-rc-wait-for-api" ''
+      for ((i = 0; i < 60; i++)); do
+        ${lib.getExe' pkgs.getent "getent"} hosts api.anthropic.com >/dev/null && exit 0
+        ${pkgs.coreutils}/bin/sleep 1
+      done
+      exit 0
+    '';
   in
     lib.optionalAttrs (hostname == "raider" && claude != null) (
       lib.mapAttrs' (project: extraArgs:
         lib.nameValuePair "claude-rc-${project}" {
           Unit = {
             Description = "Claude Code remote-control for ~/Code/${project}";
-            After = ["network-online.target"];
           };
           Service = {
             WorkingDirectory = "%h/Code/${project}";
+            ExecStartPre = "${waitForApi}";
             ExecStart = "${lib.getExe claude} remote-control --name raider-${project} --permission-mode auto ${extraArgs}";
             Restart = "on-failure";
             RestartSec = 30;
@@ -140,7 +155,7 @@
           Install.WantedBy = ["default.target"];
         }) {
         nixos = "--spawn same-dir";
-        mydia = "--spawn worktree --no-create-session-in-dir";
+        mydia = "--spawn worktree";
         job-hunting = "--spawn same-dir --chrome";
       }
     );
