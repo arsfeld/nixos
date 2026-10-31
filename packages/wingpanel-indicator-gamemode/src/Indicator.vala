@@ -41,7 +41,9 @@ public class GameModeIndicator.Indicator : Wingpanel.Indicator {
         if (popover == null) {
             var title = new Gtk.Label ("Game Mode") {
                 halign = Gtk.Align.START,
-                margin_start = 12,
+                // h4 adds its own horizontal padding; zero the margin so the header
+                // lines up with the rows below.
+                margin_start = 0,
                 margin_end = 12
             };
             title.get_style_context ().add_class ("h4");
@@ -84,7 +86,7 @@ public class GameModeIndicator.Indicator : Wingpanel.Indicator {
     /*
      * Built on open, never from a signal, so a game churning registrations
      * never wakes the panel. Names are resolved before the rows are swapped,
-     * so overlapping refreshes just leave the last one's rows.
+     * so with overlapping refreshes the rows of whichever finishes last stay.
      */
     private async void refresh () {
         var games = yield client.list_games ();

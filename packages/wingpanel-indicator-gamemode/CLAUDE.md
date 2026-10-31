@@ -14,6 +14,7 @@ are both on.
 ## Looking at it on raider
 
     just pantheon::panel-run                       # this checkout's indicator, live
+    # (the popover will read "coreutils" for the fake game below)
     gamemoderun sleep 120 &
     until grep -q 'GameMode on' /tmp/io.elementary.wingpanel.log; do sleep 0.5; done; sleep 1
     gdbus call --session --dest org.elementary.wingpanel --object-path /org/elementary/wingpanel \
