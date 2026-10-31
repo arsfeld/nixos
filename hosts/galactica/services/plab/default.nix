@@ -129,10 +129,13 @@ in {
   };
 
   # Separate from plab-refresh: a tracker login failure must not stop pruning.
+  # Requires transmission so a run starts it if it is down (it was, for hours,
+  # after the 2026-10-31 activation panic) rather than failing on a refused RPC.
   systemd.services.plab-prune = {
     description = "Take finished Vault torrents out of Transmission";
-    after = ["network-online.target"];
+    after = ["network-online.target" "transmission.service"];
     wants = ["network-online.target"];
+    requires = ["transmission.service"];
     serviceConfig =
       serviceConfig
       // {
