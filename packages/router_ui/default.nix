@@ -2,7 +2,11 @@
   inherit (pkgs) python3 writeTextFile writeShellScriptBin iproute2 nftables wireguard-tools;
   pythonEnv = python3.withPackages (ps:
     with ps; [
-      streamlit
+      # streamlit 1.58 pins pillow<13; nixpkgs ships pillow 13. Drop once
+      # nixpkgs carries a streamlit that accepts it.
+      (streamlit.overridePythonAttrs (old: {
+        pythonRelaxDeps = (old.pythonRelaxDeps or []) ++ ["pillow"];
+      }))
       pandas
     ]);
 
