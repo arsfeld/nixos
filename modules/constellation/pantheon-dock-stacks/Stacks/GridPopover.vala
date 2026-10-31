@@ -6,10 +6,14 @@
 
 public class Dock.GridPopover : Gtk.Popover {
     private const int COLUMNS = 6;
-    private const int VISIBLE_ROWS = 5;
-    private const int CELL_WIDTH = 96;
-    private const int CELL_HEIGHT = 100;
+    private const int VISIBLE_ROWS = 4;
     private const int ICON_SIZE = 48;
+    private const int SPACING = 6;
+    // A cell's content box. StackStyle adds the cell's padding (9px top, 6px
+    // elsewhere) and its 3px margin around it; keep these sums in step with it.
+    private const int CELL_WIDTH = 100;
+    private const int CELL_EXTRA_WIDTH = 2 * (6 + 3);
+    private const int CELL_EXTRA_HEIGHT = 9 + 6 + 2 * 3;
 
     public StackSource source { get; construct; }
 
@@ -21,20 +25,34 @@ public class Dock.GridPopover : Gtk.Popover {
     }
 
     construct {
+        StackStyle.ensure ();
+        add_css_class ("stack-grid");
+
         var factory = new Gtk.SignalListItemFactory ();
         factory.setup.connect ((obj) => {
             var list_item = (Gtk.ListItem) obj;
 
-            var box = new Gtk.Box (VERTICAL, 6) {
+            var box = new Gtk.Box (VERTICAL, SPACING) {
                 width_request = CELL_WIDTH,
-                margin_top = 6,
-                margin_bottom = 6
+                valign = START
             };
-            box.append (new Gtk.Image () { pixel_size = ICON_SIZE });
+            var image = new Gtk.Image () { pixel_size = ICON_SIZE };
+            image.add_css_class ("stack-icon");
+            box.append (image);
+            // Wraps to two lines before ellipsizing; width_chars keeps every
+            // cell's label the same width, so the columns stay aligned.
             box.append (new Gtk.Label (null) {
+                wrap = true,
+                wrap_mode = Pango.WrapMode.WORD_CHAR,
+                lines = 2,
                 ellipsize = END,
+                width_chars = 12,
                 max_width_chars = 12,
-                justify = CENTER
+                justify = CENTER,
+                valign = START,
+                yalign = 0,
+                // Two lines tall even for a one-line name, so all rows are the same height.
+                height_request = two_line_height ()
             });
 
             // unowned: a strong capture would form list_item -> box -> drag source -> list_item.
@@ -60,8 +78,9 @@ public class Dock.GridPopover : Gtk.Popover {
         var scrolled = new Gtk.ScrolledWindow () {
             child = grid,
             hscrollbar_policy = NEVER,
-            width_request = CELL_WIDTH * COLUMNS,
-            max_content_height = CELL_HEIGHT * VISIBLE_ROWS,
+            width_request = (CELL_WIDTH + CELL_EXTRA_WIDTH) * COLUMNS,
+            // Whole rows only: a row cut through its labels looks broken, not scrollable.
+            max_content_height = (ICON_SIZE + SPACING + two_line_height () + CELL_EXTRA_HEIGHT) * VISIBLE_ROWS,
             propagate_natural_height = true
         };
 
@@ -91,6 +110,19 @@ public class Dock.GridPopover : Gtk.Popover {
     ~GridPopover () {
         source.notify["missing"].disconnect (update_message);
         source.entries.items_changed.disconnect (update_message);
+    }
+
+    private static int label_height = 0;
+
+    /* The height of a two-line label in the current font. */
+    private static int two_line_height () {
+        if (label_height == 0) {
+            var probe = new Gtk.Label ("X\nX");
+            int min, nat, min_b, nat_b;
+            probe.measure (VERTICAL, -1, out min, out nat, out min_b, out nat_b);
+            label_height = nat;
+        }
+        return label_height;
     }
 
     private void on_activate (uint position) {
