@@ -72,13 +72,17 @@ public class Dock.StackItem : BaseIconGroup {
     }
 
     // Test hook for screenshot checks: with DOCK_STACKS_OPEN=<index into `stacks`>,
-    // that stack pops its popover up once, 1.5 s after the dock starts.
+    // that stack pops its popover up 1.5 s after each matching StackItem is built (so again whenever `stacks` changes).
     private void maybe_open_for_test () {
         var wanted = Environment.get_variable ("DOCK_STACKS_OPEN");
         if (wanted == null) {
             return;
         }
-        var configs = StackConfig.parse_all (new Settings ("io.elementary.dock").get_value ("stacks"));
+        var value = StackStore.read_stacks (new Settings ("io.elementary.dock"));
+        if (value == null) {
+            return;
+        }
+        var configs = StackConfig.parse_all (value);
         var index = int.parse (wanted);
         if (index >= 0 && index < configs.length && configs[index].source == config.source) {
             Timeout.add_once (1500, open_for_test);
