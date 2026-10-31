@@ -166,7 +166,7 @@ sleep 4
 gamemoded -s "$fake"
 ```
 
-Expected: still `active and [<fake pid>] registered`; the new watcher logs one `could not register … i -1` line, not a deregistration.
+Expected: still `active and [<fake pid>] registered`; the new watcher logs one `gamemoded did not register … i -1` line, not a deregistration.
 
 Expiry: end the fake game and wait out gamemoded's reaper:
 

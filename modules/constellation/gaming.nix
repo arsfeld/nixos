@@ -44,6 +44,54 @@
         esac
       '';
     };
+
+  # Registers every Steam game with gamemoded, so GameMode needs no
+  # `gamemoderun %command%` per game. Steam runs each game, native or Proton,
+  # under a `reaper SteamLaunch AppId=<id>` process that lives exactly as long
+  # as the game, so registering the reaper scopes GameMode to the game's
+  # lifetime. gamemoded expires dead PIDs itself, which fires custom.end; this
+  # never unregisters.
+  #
+  # RegisterGameByPID over D-Bus, not `gamemoded -r <pid>`: -r is a toggle, so
+  # a watcher restarted mid-game would switch GameMode off for that game.
+  # RegisterGameByPID on a known PID returns -1 and changes nothing.
+  #
+  # Per-process effects (renice, ioprio) land on the reaper rather than the
+  # game; the system-wide ones (gaming-boost, governor, GPU level) are why
+  # this exists.
+  gamemodeSteamWatch = pkgs.writeShellApplication {
+    name = "gamemode-steam-watch";
+    runtimeInputs = [config.systemd.package pkgs.procps];
+    text = ''
+      declare -A seen=()
+      while true; do
+        unset live
+        declare -A live=()
+        while read -r pid; do
+          live[$pid]=1
+          [[ -n ''${seen[$pid]:-} ]] && continue
+          # Retry only when gamemoded was unreachable. A reply other than
+          # `i 0` (already registered, rejected) would be the same next time.
+          if ! reply=$(busctl --user call com.feralinteractive.GameMode \
+            /com/feralinteractive/GameMode com.feralinteractive.GameMode \
+            RegisterGameByPID ii "$$" "$pid" 2>&1); then
+            echo "could not reach gamemoded for Steam game reaper $pid: $reply" >&2
+            continue
+          fi
+          seen[$pid]=1
+          if [[ $reply == "i 0" ]]; then
+            echo "registered Steam game reaper $pid"
+          else
+            echo "gamemoded did not register Steam game reaper $pid: $reply" >&2
+          fi
+        done < <(pgrep -f '^reaper SteamLaunch AppId=' || true)
+        for pid in "''${!seen[@]}"; do
+          [[ -n ''${live[$pid]:-} ]] || unset "seen[$pid]"
+        done
+        sleep 2
+      done
+    '';
+  };
 in {
   # Chaotic-Nyx: source of the CachyOS BORE kernel below (and of
   # nvidia_cachyos-bore, which blackbird's hardware config uses). modules/ is
@@ -431,10 +479,9 @@ in {
               }
               // lib.optionalAttrs cfg.gamingMode {
                 # Ride gamemode's own lifecycle rather than a manual toggle. These
-                # fire for anything launched via gamemoderun — Lutris/Heroic/Bottles
-                # do that by default, bare Steam needs `gamemoderun %command%` in
-                # the launch options. That is the same gate which already governs
-                # gpu.amd_performance_level above, so it is not a new limitation.
+                # fire for every registered game: Steam games via
+                # gamemode-steam-watch, Lutris via gamemoderun by default, Heroic
+                # when its GameMode setting is on.
                 custom = {
                   start = "${gamingBoost}/bin/gaming-boost on";
                   end = "${gamingBoost}/bin/gaming-boost off";
@@ -704,6 +751,19 @@ in {
           }
         });
       '';
+
+      # Not gated on gamingMode: GameMode itself is on wherever gaming is, and
+      # the governor/GPU effects apply without gaming-boost.
+      systemd.user.services.gamemode-steam-watch = {
+        description = "Register Steam games with GameMode";
+        wantedBy = ["graphical-session.target"];
+        partOf = ["graphical-session.target"];
+        after = ["graphical-session.target"];
+        serviceConfig = {
+          ExecStart = lib.getExe gamemodeSteamWatch;
+          Restart = "on-failure";
+        };
+      };
 
       # Security settings that don't impact gaming
       security = {
