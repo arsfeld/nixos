@@ -14,10 +14,9 @@
 #   actuators  one automation for the heat pump, one for every baseboard.
 #              The heat pump is HA's alone: it re-evaluates on a timer and on
 #              HA start, so a missed edge or a restart corrects itself. A
-#              baseboard is set when its zone's target changes, every
-#              morning at 06:00 and when a Hilo challenge ends; between those
-#              it is left to whoever turns the dial or uses the Hilo app, and
-#              a restart sets nothing.
+#              baseboard is set when its zone's target changes, on HA start,
+#              every morning at 06:00 and when a Hilo challenge ends; between
+#              those it is left to whoever turns the dial or uses the Hilo app.
 #
 # Pre-heat starts (target - temp) / rate before a window; a zone that owns a
 # rate helper learns it from its own unassisted pre-heats. The heat pump
@@ -357,9 +356,16 @@ in {
           description = "Set each zone's baseboards when its target changes, and all of them at 06:00 and when a Hilo challenge ends, unless one is running";
           triggers = [
             {
-              # No not_from: after a restart every target comes up from
-              # unknown, and that first value must reach the baseboards, or
-              # they hold whatever they had until the 06:00 re-assert.
+              # HA arms triggers only once it has started, after most targets
+              # have already rendered, so re-assert every zone then; otherwise
+              # a restart (or an outage) leaves each baseboard on whatever it
+              # had until the 06:00 re-assert.
+              trigger = "homeassistant";
+              event = "start";
+              id = "all";
+            }
+            {
+              # No not_from, for a target that only renders after the start.
               trigger = "state";
               entity_id = lib.attrNames baseboards;
               not_to = ["unknown" "unavailable"];
