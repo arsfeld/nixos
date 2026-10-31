@@ -8,6 +8,9 @@ stacks_core_sources = files(
 )
 
 stacks_sources = stacks_core_sources + files(
+    'GridPopover.vala',
+    'StackItem.vala',
+    'StackStore.vala',
 )
 
 stacks_test = executable(
