@@ -2,6 +2,7 @@
 # dock comes up with them and survives an invalid stacks value.
 # Modelled on nixpkgs' nixos/tests/pantheon.nix, but with LightDM autologin
 # instead of typing into the greeter.
+# It runs on inputs.nixpkgs (stable), whereas raider's dock is built from unstable.
 {pkgs, ...}: {
   name = "pantheon-dock-stacks";
 
@@ -48,12 +49,19 @@
         machine.wait_until_succeeds("${dock}")
         machine.succeed("su - alice -c '${bus} gsettings get io.elementary.dock stacks' | grep -q applications")
         machine.sleep(10)
+        # Only subtest 2's positive match proves this negative check isn't vacuous:
+        # it shows the same journal line is greppable when the dock does emit it.
         machine.fail("journalctl -b -t io.elementary.dock | grep 'Ignoring stack'")
         machine.screenshot("dock_stacks")
+        dock_pid = machine.succeed("${dock}").strip()
 
     with subtest("An invalid stack is logged and skipped, and the dock stays up"):
         machine.succeed("su - alice -c \"${bus} gsettings set io.elementary.dock stacks \\\"[('~/Downloads', 'spiral', 'name', 'stack')]\\\"\"")
         machine.wait_until_succeeds("journalctl -b -t io.elementary.dock | grep \"Ignoring stack ~/Downloads: unknown view 'spiral'\"")
-        machine.succeed("${dock}")
+        # Same PID: a crash that the session respawned from would still pass a mere liveness check.
+        assert machine.succeed("${dock}").strip() == dock_pid, "the dock restarted"
+
+    with subtest("The dock logged no crash"):
+        machine.fail("journalctl -b -t io.elementary.dock | grep -E 'CRITICAL|g_error|Trace/breakpoint'")
   '';
 }
