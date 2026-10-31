@@ -19,6 +19,7 @@
   '';
 in {
   name = "pantheon-gamemode";
+  enableOCR = true;
 
   nodes.machine = {...}: {
     imports = [
@@ -77,6 +78,9 @@ in {
         machine.wait_until_succeeds("${log} | grep -q 'GameMode on: 1 game(s)'")
         as_alice("wingpanel-action open")
         machine.wait_until_succeeds("${log} | grep -q 'Game Mode games: fake-game$'")
+        # The log line only proves opened() ran; OCR proves the popover is on screen.
+        machine.wait_for_text("Game Mode")
+        machine.wait_for_text("fake-game")
         machine.screenshot("gamemode_popover")
         as_alice("wingpanel-action close")
 
@@ -86,6 +90,7 @@ in {
         machine.wait_until_succeeds("${log} | grep -q 'GameMode on: 2 game(s)'")
         as_alice("wingpanel-action open")
         machine.wait_until_succeeds("${log} | grep 'Game Mode games:' | grep -q 'Fake Quest'")
+        machine.wait_for_text("Fake Ques")
         machine.screenshot("gamemode_popover_steam")
         as_alice("wingpanel-action close")
 
