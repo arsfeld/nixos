@@ -300,12 +300,12 @@ class Baseboards(unittest.TestCase):
         restart = {"id": "change", "from_state": SimpleNamespace(state="unknown"), "to_state": SimpleNamespace(state="21")}
         self.assertTrue(Hass(at(SATURDAY, "08:44")).render(condition, trigger=restart))
 
-    def test_morning_and_challenge_end_reassert_everything(self):
+    def test_start_morning_and_challenge_end_reassert_everything(self):
         others = [t for t in automation(self.ALIAS)["triggers"] if t["id"] != "change"]
         self.assertEqual({t["id"] for t in others}, {"all"})
         self.assertEqual(
-            sorted((t["trigger"], t.get("at", ""), t.get("entity_id", ""), t.get("to", "")) for t in others),
-            [("state", "", "sensor.defi_hilo", "off"), ("time", "06:00:00", "", "")],
+            sorted((t["trigger"], t.get("at", t.get("event", "")), t.get("entity_id", ""), t.get("to", "")) for t in others),
+            [("homeassistant", "start", "", ""), ("state", "", "sensor.defi_hilo", "off"), ("time", "06:00:00", "", "")],
         )
 
     def test_all_sets_every_baseboard_once(self):
