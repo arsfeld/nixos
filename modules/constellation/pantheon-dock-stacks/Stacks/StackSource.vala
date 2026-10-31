@@ -37,7 +37,7 @@ public class Dock.StackSource : Object {
         } else {
             try {
                 monitor = File.new_for_path (config.source).monitor_directory (WATCH_MOVES, null);
-                monitor.changed.connect ((file, other, event) => queue_reload ());
+                monitor.changed.connect (on_monitor_changed);
             } catch (Error e) {
                 debug ("Not watching %s: %s", config.source, e.message);
             }
@@ -45,6 +45,27 @@ public class Dock.StackSource : Object {
 
         // Deferred so callers can connect to `loaded` before the first load.
         queue_reload ();
+    }
+
+    public override void dispose () {
+        if (monitor != null) {
+            monitor.cancel ();
+            monitor = null;
+        }
+        if (app_monitor != null) {
+            // AppInfoMonitor is a shared singleton that outlives this source.
+            app_monitor.changed.disconnect (queue_reload);
+            app_monitor = null;
+        }
+        if (reload_id != 0) {
+            Source.remove (reload_id);
+            reload_id = 0;
+        }
+        if (cancellable != null) {
+            cancellable.cancel ();
+            cancellable = null;
+        }
+        base.dispose ();
     }
 
     public static bool is_shown_name (string name) {
@@ -61,6 +82,10 @@ public class Dock.StackSource : Object {
         } catch (Error e) {
             critical ("Failed to open %s: %s", config.source, e.message);
         }
+    }
+
+    private void on_monitor_changed (File file, File? other, FileMonitorEvent event) {
+        queue_reload ();
     }
 
     private void queue_reload () {
