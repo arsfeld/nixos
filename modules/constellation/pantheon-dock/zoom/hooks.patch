@@ -20,11 +20,17 @@ index 83183615..83f23767 100644
    <schema path="/io/elementary/dock/keybindings/" id="io.elementary.dock.keybindings">
      <key type="as" name="launch-dock-1">
 diff --git a/src/AppSystem/Launcher.vala b/src/AppSystem/Launcher.vala
-index 9b2d05df..29a760fb 100644
+index 9b2d05df..9d453500 100644
 --- a/src/AppSystem/Launcher.vala
 +++ b/src/AppSystem/Launcher.vala
-@@ -379,9 +379,10 @@ public class Dock.Launcher : BaseItem {
+@@ -377,11 +377,16 @@ public class Dock.Launcher : BaseItem {
+         });
+     }
  
++    public override void index_changed () {
++        update_tooltip ();
++    }
++
      private void update_tooltip () {
          string[] accels = {};
 -        var index = (int) current_pos / ItemManager.get_launcher_size ();
@@ -37,7 +43,7 @@ index 9b2d05df..29a760fb 100644
  
          tooltip_text = Granite.markup_accel_tooltip (
 diff --git a/src/BaseItem.vala b/src/BaseItem.vala
-index 0522be34..fe2b98e1 100644
+index 0522be34..54e84daf 100644
 --- a/src/BaseItem.vala
 +++ b/src/BaseItem.vala
 @@ -32,6 +32,9 @@ public class Dock.BaseItem : Gtk.Box {
@@ -61,7 +67,18 @@ index 0522be34..fe2b98e1 100644
          });
  
          timed_animation = new Adw.TimedAnimation (
-@@ -199,6 +203,40 @@ public class Dock.BaseItem : Gtk.Box {
+@@ -194,11 +198,51 @@ public class Dock.BaseItem : Gtk.Box {
+         popover_tooltip.dispose ();
+     }
+ 
++    /**
++     * Called after the item's index in its group may have changed, because items
++     * were added, removed or reordered.
++     */
++    public virtual void index_changed () {}
++
+     public uint get_index () {
+         var item_group = get_ancestor (typeof (ItemGroup)) as ItemGroup;
          return item_group?.get_index_for_item (this) ?? Gtk.INVALID_LIST_POSITION;
      }
  
@@ -103,7 +120,7 @@ index 0522be34..fe2b98e1 100644
          fade.skip ();
          reveal.skip ();
 diff --git a/src/ItemGroup.vala b/src/ItemGroup.vala
-index cc51fe5f..ad9aa175 100644
+index cc51fe5f..3a5738ee 100644
 --- a/src/ItemGroup.vala
 +++ b/src/ItemGroup.vala
 @@ -5,7 +5,7 @@
@@ -128,7 +145,7 @@ index cc51fe5f..ad9aa175 100644
      private HashTable<Object, BaseItem> cached_items;
      private uint clear_cache_id = 0;
  
-@@ -36,13 +42,16 @@
+@@ -36,13 +42,17 @@
  
      construct {
          item_store = new Sequence<BaseItem> ();
@@ -137,6 +154,7 @@ index cc51fe5f..ad9aa175 100644
  
          current_children = new ListStore (typeof (BaseItem));
          current_children.items_changed.connect (queue_relayout);
++        current_children.items_changed.connect (notify_index_changed);
  
          settings.changed["icon-size"].connect (queue_relayout);
  
@@ -146,7 +164,7 @@ index cc51fe5f..ad9aa175 100644
  
          resize_animation = new Adw.TimedAnimation (this, 0, 0, Granite.TRANSITION_DURATION_OPEN, animation_target);
          resize_animation.done.connect (on_resized);
-@@ -51,8 +60,58 @@
+@@ -51,8 +61,58 @@
          on_items_changed (0, 0, items.get_n_items ());
  
          overflow = VISIBLE;
@@ -206,7 +224,7 @@ index cc51fe5f..ad9aa175 100644
      }
  
      private void queue_relayout () {
-@@ -65,7 +124,7 @@
+@@ -65,7 +125,7 @@
      }
  
      private void relayout () {
@@ -215,7 +233,7 @@ index cc51fe5f..ad9aa175 100644
          resize_animation.value_to = get_launcher_size () * current_children.get_n_items ();
          resize_animation.duration = resize_animation.value_from < resize_animation.value_to ?
              Granite.TRANSITION_DURATION_OPEN : Granite.TRANSITION_DURATION_CLOSE;
-@@ -83,6 +142,67 @@
+@@ -83,6 +143,67 @@
          return settings.get_int ("icon-size") + Launcher.PADDING * 2;
      }
  
@@ -283,7 +301,7 @@ index cc51fe5f..ad9aa175 100644
      private void on_resized () {
          // When we finished resizing we know we now have enough space for all new items
          // so reveal them
-@@ -147,8 +267,9 @@
+@@ -147,8 +268,9 @@
          item.visible = false;
  
          var item_pos = get_launcher_size () * pos;
@@ -294,13 +312,26 @@ index cc51fe5f..ad9aa175 100644
  
          current_children.insert (pos, item);
      }
-@@ -163,7 +284,7 @@
+@@ -163,7 +285,7 @@
      private void finish_remove (BaseItem item) {
          item.revealed_done.disconnect (finish_remove);
  
 -        remove (item);
 +        item.unparent ();
  
+         uint index;
+         if (current_children.find (item, out index)) {
+@@ -171,6 +293,12 @@
+         }
+     }
+ 
++    private void notify_index_changed () {
++        for (uint i = 0; i < current_children.get_n_items (); i++) {
++            ((BaseItem) current_children.get_item (i)).index_changed ();
++        }
++    }
++
+     public uint get_index_for_item (BaseItem item) {
          uint index;
          if (current_children.find (item, out index)) {
 diff --git a/src/ItemManager.vala b/src/ItemManager.vala
