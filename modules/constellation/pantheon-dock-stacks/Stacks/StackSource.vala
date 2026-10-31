@@ -48,6 +48,13 @@ public class Dock.StackSource : Object {
     }
 
     public override void dispose () {
+        stop ();
+        base.dispose ();
+    }
+
+    /* Stops watching and reloading. Idempotent. */
+    public void stop () {
+        debug ("StackSource stop for %s", config.source);
         if (monitor != null) {
             monitor.cancel ();
             monitor = null;
@@ -65,7 +72,8 @@ public class Dock.StackSource : Object {
             cancellable.cancel ();
             cancellable = null;
         }
-        base.dispose ();
+        // Frees the entries (and their icons) even if the owner is leaked.
+        store.remove_all ();
     }
 
     public static bool is_shown_name (string name) {

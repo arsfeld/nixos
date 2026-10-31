@@ -37,7 +37,9 @@ public class Dock.GridPopover : Gtk.Popover {
                 justify = CENTER
             });
 
-            StackEntry.attach_drag_source (box, () => (StackEntry?) list_item.item);
+            // unowned: a strong capture would form list_item -> box -> drag source -> list_item.
+            unowned var cell = list_item;
+            StackEntry.attach_drag_source (box, () => (StackEntry?) cell.item);
             list_item.child = box;
         });
         factory.bind.connect ((obj) => {
@@ -53,11 +55,7 @@ public class Dock.GridPopover : Gtk.Popover {
             max_columns = COLUMNS,
             single_click_activate = true
         };
-        grid.activate.connect ((position) => {
-            var entry = (StackEntry) source.entries.get_item (position);
-            popdown ();
-            entry.launch ();
-        });
+        grid.activate.connect (on_activate);
 
         var scrolled = new Gtk.ScrolledWindow () {
             child = grid,
@@ -93,6 +91,12 @@ public class Dock.GridPopover : Gtk.Popover {
     ~GridPopover () {
         source.notify["missing"].disconnect (update_message);
         source.entries.items_changed.disconnect (update_message);
+    }
+
+    private void on_activate (uint position) {
+        var entry = (StackEntry) source.entries.get_item (position);
+        popdown ();
+        entry.launch ();
     }
 
     private void update_message () {
