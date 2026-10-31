@@ -40,10 +40,13 @@ Then read the PNG and repeat. The screen is 3440×1440 and the dock sits bottom-
   `DOCK_STACKS_FOLDER=<folder name>`, with `DOCK_STACKS_OPEN` on the Applications grid, opens
   that folder (`Games`, `System`, `Utilities`, `Terminal Tools`).
   `DOCK_STACKS_FAKE_JOB=<desktop-id>:<state>:<progress>` injects one AppCenter job at start
-  (state 1 installing, 2 updating, 3 removing); an id with no desktop file is a new install.
+  (state 1 installing, 2 updating, 3 removing); with state 1, an id with no desktop file is a new
+  install.
   Fake jobs survive AppCenter leaving the bus, because `clear ()` keeps `fake.` ids.
   Download progress needs no hook: append to `~/Downloads/<name>.part` slowly, and for a real
-  fraction also have a `.crdownload` and `gdbus emit` a `com.canonical.Unity.LauncherEntry.Update`.
+  fraction also have a `.crdownload` and `gdbus emit` a `com.canonical.Unity.LauncherEntry.Update`. That works only if the
+  `application://` id is an installed desktop file whose `MimeType` lists
+  `x-scheme-handler/https`.
   For the zoom it is `DOCK_ZOOM_AT=<slots>`, which zooms the
   dock 1 s after start as if the pointer rested that many launcher widths from its left edge
   (`ItemManager.vala` in `zoom/hooks.patch`). It fires before `DOCK_STACKS_OPEN`, so the two

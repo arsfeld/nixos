@@ -147,11 +147,13 @@ and how AppCenter's combined runtime or "update all" job reports. A job with an 
 
 ### Dock side (`AppCenterJobs.vala`)
 
-- It declares its own proxy interface for `io.elementary.appcenter` and leaves upstream's
-  `AppCenterDBus` untouched, which keeps the patch additive.
+- It uses plain GDBus: `signal_subscribe` on the owner's unique name plus a `GetJobs` call. That
+  leaves upstream's `AppCenterDBus` untouched, which keeps the patch additive, and a malformed
+  message is rejected with a warning.
 - It watches the name without `AUTO_START`.
 - On appear, it calls `GetJobs` and then follows `JobChanged`. On vanish, it clears every job, so
-  an AppCenter crash never leaves a bar stuck.
+  an AppCenter crash never leaves a bar stuck. `clear ()` keeps `fake.` jobs (the
+  `DOCK_STACKS_FAKE_JOB` hook).
 
 ### What the Applications stack shows
 
@@ -192,8 +194,9 @@ For a fraction, also create a `.crdownload` and run
   on completion) is left to the next debounced reload. Its `NOT_FOUND` is not an error.
 - **Schema:** there are no new gsettings keys, so no new `has_key` guard is needed.
 - **Teardown:** `LauncherProgress` and `AppCenterJobs` are long-lived singletons. Stack items
-  connect to them with methods, never capturing lambdas, and disconnect in `StackItem`'s
-  existing teardown. Verify with `G_MESSAGES_DEBUG=all`.
+  connect to them with methods, never capturing lambdas, and disconnect:
+  `StackSource.stop ()` disconnects from the singletons, and `StackItem.teardown ()` disconnects
+  its own handlers. Verify with `G_MESSAGES_DEBUG=all`.
 
 ## Testing
 
