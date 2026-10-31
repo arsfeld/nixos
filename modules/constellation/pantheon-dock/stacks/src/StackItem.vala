@@ -92,6 +92,7 @@ public class Dock.StackItem : BaseIconGroup {
 
     // Test hook for screenshot checks: with DOCK_STACKS_OPEN=<index into `stacks`>,
     // that stack pops its popover up 1.5 s after each matching StackItem is built (so again whenever `stacks` changes).
+    // With DOCK_STACKS_FOLDER=<folder name> too, an Applications grid opens that folder.
     private void maybe_open_for_test () {
         var wanted = Environment.get_variable ("DOCK_STACKS_OPEN");
         if (wanted == null) {
@@ -113,6 +114,10 @@ public class Dock.StackItem : BaseIconGroup {
             return;
         }
         popover_menu.popup ();
+        var folder = Environment.get_variable ("DOCK_STACKS_FOLDER");
+        if (folder != null && popover_menu is GridPopover) {
+            ((GridPopover) popover_menu).open_folder_for_test (folder);
+        }
         if (Environment.get_variable ("DOCK_STACKS_CLICK") != null) {
             Timeout.add_once (700, click_for_test);
         }

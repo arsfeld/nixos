@@ -69,6 +69,46 @@ namespace Dock.StackStyle {
         popover.stack-grid gridview > child:focus-visible {
             background: alpha(@accent_color, 0.15);
         }
+
+        /* Upstream Launcher's progress bar (data/Application.css), for stack
+         * tiles, fan rows and grid cells. */
+        progressbar.stack-progress {
+            margin: 0 6px 4px 6px;
+        }
+
+        progressbar.stack-progress trough {
+            background: #333;
+            border: none;
+            border-radius: 99px;
+            box-shadow: none;
+            min-height: 3px;
+            padding: 1px;
+        }
+
+        progressbar.stack-progress progress {
+            background: white;
+            border: none;
+            border-radius: 99px;
+            box-shadow: none;
+            margin: 0;
+            min-height: 3px;
+            min-width: 0;
+        }
+
+        icongroup.stack progressbar.stack-progress {
+            margin-bottom: 6px;
+        }
+
+        .stack-status {
+            font-size: smaller;
+            opacity: 0.7;
+        }
+
+        .stack-folder-icon {
+            background: alpha(currentColor, 0.08);
+            border-radius: 12px;
+            padding: 2px;
+        }
     """;
 
     private bool loaded = false;

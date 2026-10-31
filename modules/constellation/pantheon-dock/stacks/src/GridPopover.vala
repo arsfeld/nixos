@@ -19,6 +19,8 @@ public class Dock.GridPopover : Gtk.Popover {
 
     private Gtk.Stack content;
     private Gtk.Label message;
+    private Gtk.GridView folder_grid;
+    private Gtk.Label folder_title;
 
     public GridPopover (StackSource source) {
         Object (source: source, position: Gtk.PositionType.TOP);
@@ -28,61 +30,33 @@ public class Dock.GridPopover : Gtk.Popover {
         StackStyle.ensure ();
         add_css_class ("stack-grid");
 
-        var factory = new Gtk.SignalListItemFactory ();
-        factory.setup.connect ((obj) => {
-            var list_item = (Gtk.ListItem) obj;
-
-            var box = new Gtk.Box (VERTICAL, SPACING) {
-                width_request = CELL_WIDTH,
-                valign = START
-            };
-            var image = new Gtk.Image () { pixel_size = ICON_SIZE };
-            image.add_css_class ("stack-icon");
-            box.append (image);
-            // Wraps to two lines before ellipsizing; width_chars keeps every
-            // cell's label the same width, so the columns stay aligned.
-            box.append (new Gtk.Label (null) {
-                wrap = true,
-                wrap_mode = Pango.WrapMode.WORD_CHAR,
-                lines = 2,
-                ellipsize = END,
-                width_chars = 12,
-                max_width_chars = 12,
-                justify = CENTER,
-                valign = START,
-                yalign = 0,
-                // Two lines tall even for a one-line name, so all rows are the same height.
-                height_request = two_line_height ()
-            });
-
-            // unowned: a strong capture would form list_item -> box -> drag source -> list_item.
-            unowned var cell = list_item;
-            StackEntry.attach_drag_source (box, () => (StackEntry?) cell.item);
-            list_item.child = box;
-        });
-        factory.bind.connect ((obj) => {
-            var list_item = (Gtk.ListItem) obj;
-            var entry = (StackEntry) list_item.item;
-            var box = (Gtk.Box) list_item.child;
-            ((Gtk.Image) box.get_first_child ()).gicon = entry.icon;
-            ((Gtk.Label) box.get_last_child ()).label = entry.name;
-        });
-
-        var grid = new Gtk.GridView (new Gtk.NoSelection (source.entries), factory) {
-            min_columns = COLUMNS,
-            max_columns = COLUMNS,
-            single_click_activate = true
-        };
+        var grid = create_grid (source.entries);
         grid.activate.connect (on_activate);
 
-        var scrolled = new Gtk.ScrolledWindow () {
-            child = grid,
-            hscrollbar_policy = NEVER,
-            width_request = (CELL_WIDTH + CELL_EXTRA_WIDTH) * COLUMNS,
-            // Whole rows only: a row cut through its labels looks broken, not scrollable.
-            max_content_height = (ICON_SIZE + SPACING + two_line_height () + CELL_EXTRA_HEIGHT) * VISIBLE_ROWS,
-            propagate_natural_height = true
+        folder_grid = create_grid (null);
+        folder_grid.activate.connect (on_folder_activate);
+
+        var back = new Gtk.Button.with_label (_("Applications")) {
+            halign = START
         };
+        back.add_css_class ("back-button");
+        back.clicked.connect (close_folder);
+
+        folder_title = new Gtk.Label (null) {
+            hexpand = true,
+            xalign = 0
+        };
+        folder_title.add_css_class ("title-4");
+
+        var header = new Gtk.Box (HORIZONTAL, 12) {
+            margin_bottom = 6
+        };
+        header.append (back);
+        header.append (folder_title);
+
+        var folder_page = new Gtk.Box (VERTICAL, 0);
+        folder_page.append (header);
+        folder_page.append (create_scrolled (folder_grid));
 
         message = new Gtk.Label (null) {
             margin_top = 24,
@@ -92,10 +66,22 @@ public class Dock.GridPopover : Gtk.Popover {
         };
         message.add_css_class (Granite.STYLE_CLASS_DIM_LABEL);
 
-        content = new Gtk.Stack ();
-        content.add_named (scrolled, "grid");
+        content = new Gtk.Stack () {
+            transition_type = SLIDE_LEFT_RIGHT
+        };
+        content.add_named (create_scrolled (grid), "grid");
+        content.add_named (folder_page, "folder");
         content.add_named (message, "message");
         child = content;
+
+        // Escape inside a folder goes back to the top level instead of closing.
+        // Capture phase: the popover's own Escape shortcut would win otherwise.
+        var keys = new Gtk.EventControllerKey () {
+            propagation_phase = CAPTURE
+        };
+        keys.key_pressed.connect (on_key_pressed);
+        ((Gtk.Widget) this).add_controller (keys);
+        closed.connect (on_closed);
 
         // We need to set offset because dock window's height is 1px larger than its visible area
         set_offset (0, -1);
@@ -112,6 +98,43 @@ public class Dock.GridPopover : Gtk.Popover {
         source.entries.items_changed.disconnect (update_message);
     }
 
+    private static Gtk.GridView create_grid (ListModel? model) {
+        var factory = new Gtk.SignalListItemFactory ();
+        factory.setup.connect (setup_cell);
+        factory.bind.connect (bind_cell);
+        factory.unbind.connect (unbind_cell);
+
+        return new Gtk.GridView (model == null ? null : new Gtk.NoSelection (model), factory) {
+            min_columns = COLUMNS,
+            max_columns = COLUMNS,
+            single_click_activate = true
+        };
+    }
+
+    private static Gtk.ScrolledWindow create_scrolled (Gtk.GridView grid) {
+        return new Gtk.ScrolledWindow () {
+            child = grid,
+            hscrollbar_policy = NEVER,
+            width_request = (CELL_WIDTH + CELL_EXTRA_WIDTH) * COLUMNS,
+            // Whole rows only: a row cut through its labels looks broken, not scrollable.
+            max_content_height = (ICON_SIZE + SPACING + two_line_height () + CELL_EXTRA_HEIGHT) * VISIBLE_ROWS,
+            propagate_natural_height = true
+        };
+    }
+
+    private static void setup_cell (Object obj) {
+        ((Gtk.ListItem) obj).child = new GridCell (CELL_WIDTH, two_line_height ());
+    }
+
+    private static void bind_cell (Object obj) {
+        var list_item = (Gtk.ListItem) obj;
+        ((GridCell) list_item.child).entry = (StackEntry) list_item.item;
+    }
+
+    private static void unbind_cell (Object obj) {
+        ((GridCell) ((Gtk.ListItem) obj).child).entry = null;
+    }
+
     private static int label_height = 0;
 
     /* The height of a two-line label in the current font. */
@@ -126,10 +149,66 @@ public class Dock.GridPopover : Gtk.Popover {
     }
 
     private void on_activate (uint position) {
-        var entry = (StackEntry) source.entries.get_item (position);
+        activate_entry ((StackEntry) source.entries.get_item (position));
+    }
+
+    private void on_folder_activate (uint position) {
+        activate_entry ((StackEntry) folder_grid.model.get_item (position));
+    }
+
+    private void activate_entry (StackEntry entry) {
+        if (entry.is_folder) {
+            open_folder (entry);
+            return;
+        }
         popdown ();
         source.launched ();
         entry.launch ();
+    }
+
+    private void open_folder (StackEntry folder) {
+        folder_grid.model = new Gtk.NoSelection (folder.children);
+        folder_title.label = folder.name;
+        content.visible_child_name = "folder";
+    }
+
+    private void close_folder () {
+        content.visible_child_name = "grid";
+    }
+
+    private bool on_key_pressed (uint keyval, uint keycode, Gdk.ModifierType state) {
+        if (keyval == Gdk.Key.Escape && content.visible_child_name == "folder") {
+            close_folder ();
+            return true;
+        }
+        return false;
+    }
+
+    // Reopening always starts at the top level, without a slide.
+    private void on_closed () {
+        content.transition_type = NONE;
+        update_message ();
+        content.transition_type = SLIDE_LEFT_RIGHT;
+    }
+
+    /* Test hook for DOCK_STACKS_FOLDER (see StackItem). */
+    public void open_folder_for_test (string name) {
+        var folder = find_folder (name);
+        if (folder == null) {
+            warning ("DOCK_STACKS_FOLDER: no folder '%s'", name);
+            return;
+        }
+        open_folder (folder);
+    }
+
+    private StackEntry? find_folder (string name) {
+        for (uint i = 0; i < source.entries.get_n_items (); i++) {
+            var entry = (StackEntry) source.entries.get_item (i);
+            if (entry.is_folder && entry.name == name) {
+                return entry;
+            }
+        }
+        return null;
     }
 
     private void update_message () {
@@ -139,6 +218,15 @@ public class Dock.GridPopover : Gtk.Popover {
         } else if (source.entries.get_n_items () == 0) {
             message.label = _("No items");
             content.visible_child_name = "message";
+        } else if (content.visible_child_name == "folder" && get_mapped ()) {
+            // A reload replaced the folder entries: follow the open folder to its
+            // new object, or go back if it emptied.
+            var folder = find_folder (folder_title.label);
+            if (folder != null) {
+                open_folder (folder);
+            } else {
+                content.visible_child_name = "grid";
+            }
         } else {
             content.visible_child_name = "grid";
         }

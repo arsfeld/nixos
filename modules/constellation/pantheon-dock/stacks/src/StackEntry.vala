@@ -18,6 +18,15 @@ public class Dock.StackEntry : Object {
 
     public bool is_folder { get { return children != null; } }
 
+    /*
+     * Busy state, shared by downloads and AppCenter jobs. A non-null
+     * status_text ("Downloading · 34 MB", "Installing") marks the entry busy:
+     * its icon is dimmed and the text shown. progress < 0 pulses.
+     */
+    public string? status_text { get; set; default = null; }
+    public double progress { get; set; default = -1; }
+    public bool show_progress { get; set; default = false; }
+
     public StackEntry (string name, Icon icon, File? file, AppInfo? app, int64 added_usec) {
         Object (name: name, icon: icon, file: file, app: app, added_usec: added_usec);
     }
