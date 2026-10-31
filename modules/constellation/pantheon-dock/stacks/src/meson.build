@@ -1,7 +1,9 @@
 # Copied into the dock's src/Stacks/ by modules/constellation/pantheon-dock/default.nix.
 # Core files must not touch widgets that need a display: the unit test links
-# only them and runs inside the Nix build sandbox.
+# only them and runs inside the Nix build sandbox. FanMath is core too: pure
+# geometry, no widgets.
 stacks_core_sources = files(
+    'FanMath.vala',
     'StackConfig.vala',
     'StackEntry.vala',
     'StackSource.vala',
@@ -12,6 +14,7 @@ stacks_sources = stacks_core_sources + files(
     'FanPopover.vala',
     'GridPopover.vala',
     'StackItem.vala',
+    'StackRender.vala',
     'StackStore.vala',
     'StackStyle.vala',
 )

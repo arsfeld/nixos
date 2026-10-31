@@ -7,7 +7,7 @@
  */
 
 public class Dock.FanPopover : Gtk.Popover {
-    public const int MAX_ITEMS = 10;
+    public const int MAX_ITEMS = FanMath.MAX_ITEMS;
     private const int HEADER_ICON_SIZE = 32;
 
     public StackSource source { get; construct; }

@@ -175,6 +175,30 @@ void write_desktop_files (string data_dir) {
     }
 }
 
+void assert_near (double actual, double expected) {
+    if ((actual - expected).abs () > 1e-9) {
+        error ("%g != %g", actual, expected);
+    }
+}
+
+void test_fan_pose_open () {
+    // The ends of the curve are the ones the fan was tuned to on screen.
+    assert_near (FanMath.drift (0), 0);
+    assert_near (FanMath.degrees (0), 0);
+    assert_near (FanMath.drift (FanMath.MAX_ITEMS), 44);
+    assert_near (FanMath.degrees (FanMath.MAX_ITEMS), 5);
+
+    for (uint i = 0; i <= FanMath.MAX_ITEMS; i++) {
+        foreach (var clicked in new bool[] { false, true }) {
+            var pose = FanMath.pose (i, 0, clicked);
+            assert_near (pose.x, FanMath.drift (i));
+            assert_near (pose.y, -FanMath.ROW_HEIGHT * (i + 0.5));
+            assert_near (pose.degrees, FanMath.degrees (i));
+            assert_near (pose.alpha, 1);
+        }
+    }
+}
+
 int main (string[] args) {
     // AppInfo reads these once, on first use: point it at fixture apps only.
     try {
@@ -199,5 +223,6 @@ int main (string[] args) {
     Test.add_func ("/stack-source/folder-missing", test_folder_missing);
     Test.add_func ("/stack-source/folder-finalized", test_folder_source_finalized);
     Test.add_func ("/stack-source/applications", test_applications);
+    Test.add_func ("/fan-math/open", test_fan_pose_open);
     return Test.run ();
 }
