@@ -19,6 +19,23 @@ index 83183615..83f23767 100644
    </schema>
    <schema path="/io/elementary/dock/keybindings/" id="io.elementary.dock.keybindings">
      <key type="as" name="launch-dock-1">
+diff --git a/src/AppSystem/Launcher.vala b/src/AppSystem/Launcher.vala
+index 9b2d05df..29a760fb 100644
+--- a/src/AppSystem/Launcher.vala
++++ b/src/AppSystem/Launcher.vala
+@@ -379,9 +379,10 @@ public class Dock.Launcher : BaseItem {
+ 
+     private void update_tooltip () {
+         string[] accels = {};
+-        var index = (int) current_pos / ItemManager.get_launcher_size ();
++        // current_pos / launcher size is wrong while the dock is zoomed
++        var index = get_index ();
+         if (index < 9) {
+-            accels = keybinding_settings.get_strv ("launch-dock-%i".printf (index + 1));
++            accels = keybinding_settings.get_strv ("launch-dock-%u".printf (index + 1));
+         }
+ 
+         tooltip_text = Granite.markup_accel_tooltip (
 diff --git a/src/BaseItem.vala b/src/BaseItem.vala
 index 0522be34..fe2b98e1 100644
 --- a/src/BaseItem.vala
@@ -287,7 +304,7 @@ index cc51fe5f..ad9aa175 100644
          uint index;
          if (current_children.find (item, out index)) {
 diff --git a/src/ItemManager.vala b/src/ItemManager.vala
-index 8078d565..757c0057 100644
+index 8078d565..3d09e1ce 100644
 --- a/src/ItemManager.vala
 +++ b/src/ItemManager.vala
 @@ -13,6 +13,13 @@
@@ -343,7 +360,7 @@ index 8078d565..757c0057 100644
          var drop_target_file = new Gtk.DropTarget (typeof (File), COPY) {
              preload = true
          };
-@@ -178,6 +205,118 @@
+@@ -178,6 +205,120 @@
          app.launch (context);
      }
  
@@ -457,13 +474,15 @@ index 8078d565..757c0057 100644
 +
 +            offset += get_child_rest_width (child);
 +        }
++
++        (get_root () as MainWindow)?.update_input_region ();
 +    }
 +
      public static int get_launcher_size () {
          return settings.get_int ("icon-size") + Launcher.PADDING * 2;
      }
 diff --git a/src/MainWindow.vala b/src/MainWindow.vala
-index 2d05ae08..45c3acad 100644
+index 2d05ae08..0a6c8496 100644
 --- a/src/MainWindow.vala
 +++ b/src/MainWindow.vala
 @@ -15,7 +15,7 @@ public class Dock.MainWindow : Gtk.ApplicationWindow {
@@ -475,6 +494,71 @@ index 2d05ae08..45c3acad 100644
  
      private Settings transparency_settings;
      private static Settings settings = new Settings ("io.elementary.dock");
+@@ -26,6 +26,9 @@ public class Dock.MainWindow : Gtk.ApplicationWindow {
+     private WindowDragManager window_drag_manager;
+     private bool initialized_blur = false;
+     private int border_radius = 0;
++    private int surface_width = 0;
++    private int surface_height = 0;
++    private int applied_rise = -1;
+ 
+     class construct {
+         set_css_name ("dock-window");
+@@ -119,17 +122,10 @@ public class Dock.MainWindow : Gtk.ApplicationWindow {
+         });
+ 
+         surface.layout.connect ((surface, width, height) => {
+-            // manually set input region since container's shadow are is the content of the window
+-            // and it still gets window events
+-            var item_manager_width = ItemManager.get_default ().get_width ();
+-            var shadow_size = (width - item_manager_width) / 2;
+-            var top_margin = TOP_MARGIN + shadow_size;
+-            surface.set_input_region (new Cairo.Region.rectangle ({
+-                shadow_size,
+-                top_margin,
+-                item_manager_width,
+-                height - top_margin
+-            }));
++            surface_width = width;
++            surface_height = height;
++            applied_rise = -1;
++            update_input_region ();
+ 
+             if (initialized_blur) {
+                 return;
+@@ -171,6 +167,32 @@ public class Dock.MainWindow : Gtk.ApplicationWindow {
+         }
+     }
+ 
++    /**
++     * Manually sets the input region, since the container's shadow area is the
++     * content of the window and it still gets window events. While zoomed,
++     * magnified icons rise into the headroom above the dock, and the region
++     * rises with them so they stay clickable.
++     */
++    public void update_input_region () {
++        unowned var surface = get_surface ();
++        var rise = ItemManager.get_default ().zoom.input_rise;
++        if (surface == null || surface_width == 0 || rise == applied_rise) {
++            return;
++        }
++
++        applied_rise = rise;
++
++        var item_manager_width = ItemManager.get_default ().get_width ();
++        var shadow_size = (surface_width - item_manager_width) / 2;
++        var top_margin = TOP_MARGIN + shadow_size - rise;
++        surface.set_input_region (new Cairo.Region.rectangle ({
++            shadow_size,
++            top_margin,
++            item_manager_width,
++            surface_height - top_margin
++        }));
++    }
++
+     private void update_panel_x11 () {
+         var display = Gdk.Display.get_default ();
+         if (display is Gdk.X11.Display) {
 diff --git a/src/meson.build b/src/meson.build
 index 1b2b91f8..7abcf199 100644
 --- a/src/meson.build
