@@ -35,6 +35,15 @@ parallel evaluation via nix-eval-jobs, parallel build, and an inline push to nik
 target pulls its own closure from `cache.arsfeld.dev` instead of receiving NARs over
 Tailscale.
 
+Phase 2 activates the remote hosts in parallel, retries any that fail once, and only then
+activates the machine running the deploy. That ordering is load-bearing. A remote
+`switch-to-configuration` streams its output back over the deployer's SSH session and
+panics (exit 101) when that pipe breaks, after its stop phase and before its start phase,
+leaving its services stopped with none marked failed. When raider activated alongside the
+others, its own switch (NetworkManager stopping, the desktop session logging out) broke
+exactly those pipes; that is what the "activation panics after a nixpkgs update" were.
+The recovery for a host left like that is to re-run its activation.
+
 `--niks3-server` folds upload results into nix-fast-build's exit code, so a niks3 outage
 aborts the deploy before anything activates. That is the intended trade — the closures are
 already built locally, so a re-run once the server is back costs nothing, whereas a
