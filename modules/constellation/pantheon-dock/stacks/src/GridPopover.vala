@@ -189,6 +189,7 @@ public class Dock.GridPopover : Gtk.Popover {
     private void on_closed () {
         content.transition_type = NONE;
         close_folder ();
+        folder_grid.model = null;
         update_message ();
         content.transition_type = SLIDE_LEFT_RIGHT;
     }

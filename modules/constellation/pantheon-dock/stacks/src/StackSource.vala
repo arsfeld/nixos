@@ -371,7 +371,8 @@ public class Dock.StackSource : Object {
         if (tile_busy != busy) {
             tile_busy = busy;
         }
-        if (tile_progress != progress) {
+        // An idle tile keeps its last value, so the bar does not start pulsing while it fades out.
+        if (busy && tile_progress != progress) {
             tile_progress = progress;
         }
     }

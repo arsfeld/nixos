@@ -57,7 +57,7 @@ index 0000000..a8b9ddb
 +    }
 +}
 diff --git a/src/Core/Package.vala b/src/Core/Package.vala
-index 7271b13..2108dbc 100644
+index 7271b13..e1ed4cc 100644
 --- a/src/Core/Package.vala
 +++ b/src/Core/Package.vala
 @@ -495,6 +495,7 @@ public class AppCenterCore.Package : Object {
@@ -68,14 +68,14 @@ index 7271b13..2108dbc 100644
  
          backend.notify_package_changed (this);
  
-@@ -508,6 +509,7 @@ public class AppCenterCore.Package : Object {
+@@ -506,6 +507,7 @@ public class AppCenterCore.Package : Object {
+             backend.operation_finished (this, performing, e);
+             throw e;
          } finally {
++            JobTracker.get_default ().end (this);
              change_information.complete ();
              update_state ();
-+            JobTracker.get_default ().end (this);
          }
-     }
- 
 diff --git a/src/Services/DBusServer.vala b/src/Services/DBusServer.vala
 index 6c638cd..6ca78c7 100644
 --- a/src/Services/DBusServer.vala

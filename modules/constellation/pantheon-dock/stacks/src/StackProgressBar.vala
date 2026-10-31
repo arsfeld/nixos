@@ -37,19 +37,34 @@ public class Dock.StackProgressBar : Gtk.Widget {
         base.dispose ();
     }
 
-    // Pulse only while on screen: the tick callback holds this widget, and is
-    // dropped in unmap, which GTK always runs before the widget goes away.
+    // Tick only while on screen and indeterminate: the tick callback holds this
+    // widget, and is dropped in unmap, which GTK always runs before the widget
+    // goes away.
     public override void map () {
         base.map ();
-        tick_id = add_tick_callback (on_tick);
+        update_tick ();
     }
 
     public override void unmap () {
+        remove_tick ();
+        base.unmap ();
+    }
+
+    private void update_tick () {
+        if (get_mapped () && fraction < 0) {
+            if (tick_id == 0) {
+                tick_id = add_tick_callback (on_tick);
+            }
+        } else {
+            remove_tick ();
+        }
+    }
+
+    private void remove_tick () {
         if (tick_id != 0) {
             remove_tick_callback (tick_id);
             tick_id = 0;
         }
-        base.unmap ();
     }
 
     private bool on_tick (Gtk.Widget widget, Gdk.FrameClock clock) {
@@ -67,6 +82,7 @@ public class Dock.StackProgressBar : Gtk.Widget {
         if (fraction >= 0) {
             bar.fraction = fraction.clamp (0, 1);
         }
+        update_tick ();
     }
 }
 
