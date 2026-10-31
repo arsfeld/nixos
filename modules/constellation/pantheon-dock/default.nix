@@ -18,6 +18,10 @@
 # than stacks', because zoom changes how ItemGroup positions every item.
 # Design: docs/superpowers/specs/2026-10-31-dock-zoom-design.md
 #
+# appcenter/progress.patch is the one patch here that is not the dock's: it makes
+# AppCenter publish its jobs, which the Applications stack shows as progress.
+# A nixpkgs bump of appcenter that breaks it is rebased the same way.
+#
 # A nixpkgs bump of elementary-dock that breaks a patch fails the build, and
 # the patch is rebased on the new source.
 #
@@ -100,6 +104,12 @@ in {
               '')
               features;
             doCheck = true;
+          });
+          # appcenter/: publishes AppCenter's install/update/remove jobs on its D-Bus
+          # object (JobChanged, GetJobs), for the Applications stack's progress.
+          # Design: docs/superpowers/specs/2026-10-31-dock-stacks-progress-design.md
+          appcenter = pprev.appcenter.overrideAttrs (old: {
+            patches = (old.patches or []) ++ [./appcenter/progress.patch];
           });
         });
       })

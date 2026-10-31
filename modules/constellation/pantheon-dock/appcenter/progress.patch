@@ -1,0 +1,171 @@
+diff --git a/src/Core/JobTracker.vala b/src/Core/JobTracker.vala
+new file mode 100644
+index 0000000..a8b9ddb
+--- /dev/null
++++ b/src/Core/JobTracker.vala
+@@ -0,0 +1,52 @@
++/*
++ * Every install, update and removal in progress, for the dock: DBusServer
++ * publishes them as JobChanged and GetJobs. A local patch from the NixOS
++ * config (modules/constellation/pantheon-dock/appcenter), not upstream.
++ */
++public class AppCenterCore.JobTracker : Object {
++    // 4 Hz: enough for a progress bar, little enough for the session bus.
++    private const int64 MIN_INTERVAL_USEC = 250000;
++
++    private static GLib.Once<JobTracker> instance;
++    public static unowned JobTracker get_default () {
++        return instance.once (() => { return new JobTracker (); });
++    }
++
++    public signal void changed (Package package);
++
++    private Gee.HashMap<Package, ulong> handlers = new Gee.HashMap<Package, ulong> ();
++    private Gee.HashMap<Package, int64?> last_emit = new Gee.HashMap<Package, int64?> ();
++
++    public Gee.Collection<Package> running { owned get { return handlers.keys.read_only_view; } }
++
++    public bool is_running (Package package) {
++        return handlers.has_key (package);
++    }
++
++    public void begin (Package package) {
++        if (handlers.has_key (package)) {
++            return;
++        }
++        handlers[package] = package.change_information.notify["progress"].connect (() => on_progress (package));
++        last_emit[package] = 0;
++        changed (package);
++    }
++
++    public void end (Package package) {
++        ulong id;
++        if (handlers.unset (package, out id)) {
++            package.change_information.disconnect (id);
++        }
++        last_emit.unset (package);
++        changed (package);
++    }
++
++    private void on_progress (Package package) {
++        var now = get_monotonic_time ();
++        if (now - last_emit[package] < MIN_INTERVAL_USEC) {
++            return;
++        }
++        last_emit[package] = now;
++        changed (package);
++    }
++}
+diff --git a/src/Core/Package.vala b/src/Core/Package.vala
+index 7271b13..2108dbc 100644
+--- a/src/Core/Package.vala
++++ b/src/Core/Package.vala
+@@ -495,6 +495,7 @@ public class AppCenterCore.Package : Object {
+     private async void perform_operation (State performing) throws GLib.Error {
+         change_information.start ();
+         state = performing;
++        JobTracker.get_default ().begin (this);
+ 
+         backend.notify_package_changed (this);
+ 
+@@ -508,6 +509,7 @@ public class AppCenterCore.Package : Object {
+         } finally {
+             change_information.complete ();
+             update_state ();
++            JobTracker.get_default ().end (this);
+         }
+     }
+ 
+diff --git a/src/Services/DBusServer.vala b/src/Services/DBusServer.vala
+index 6c638cd..6ca78c7 100644
+--- a/src/Services/DBusServer.vala
++++ b/src/Services/DBusServer.vala
+@@ -18,6 +18,16 @@
+  * Authored by: Adam Bieńkowski <donadigos159@gmail.com>
+  */
+ 
++/* One running job, as GetJobs returns it: (ssssud). */
++public struct AppCenterJobInfo {
++    public string component_id;
++    public string desktop_id;
++    public string name;
++    public string icon;
++    public uint state;
++    public double progress;
++}
++
+ [DBus (name="io.elementary.appcenter")]
+ public class DBusServer : Object {
+     private static GLib.Once<DBusServer> instance;
+@@ -25,6 +35,59 @@ public class DBusServer : Object {
+         return instance.once (() => { return new DBusServer (); });
+     }
+ 
++    /**
++     * An install, update or removal started, progressed or ended (state 0).
++     * state: 0 idle/finished, 1 installing, 2 updating, 3 removing.
++     */
++    public signal void job_changed (string component_id, string desktop_id, string name, string icon, uint state, double progress);
++
++    construct {
++        AppCenterCore.JobTracker.get_default ().changed.connect (on_job_changed);
++    }
++
++    /**
++     * Every job running now, for a client that started mid-job.
++     */
++    public AppCenterJobInfo[] get_jobs () throws Error {
++        AppCenterJobInfo[] jobs = {};
++        foreach (var package in AppCenterCore.JobTracker.get_default ().running) {
++            jobs += job_info (package);
++        }
++        return jobs;
++    }
++
++    private void on_job_changed (AppCenterCore.Package package) {
++        var job = job_info (package);
++        job_changed (job.component_id, job.desktop_id, job.name, job.icon, job.state, job.progress);
++    }
++
++    private static AppCenterJobInfo job_info (AppCenterCore.Package package) {
++        uint state = 0;
++        if (AppCenterCore.JobTracker.get_default ().is_running (package)) {
++            switch (package.state) {
++                case INSTALLING: state = 1; break;
++                case UPDATING: state = 2; break;
++                case REMOVING: state = 3; break;
++                default: break;
++            }
++        }
++
++        var desktop_id = "";
++        var launchable = package.component.get_launchable (AppStream.LaunchableKind.DESKTOP_ID);
++        if (launchable != null && launchable.get_entries ().length > 0) {
++            desktop_id = launchable.get_entries ()[0];
++        }
++
++        return AppCenterJobInfo () {
++            component_id = package.component.get_id (),
++            desktop_id = desktop_id,
++            name = package.name,
++            icon = package.get_icon (64, 1).to_string () ?? "",
++            state = state,
++            progress = package.change_information.progress
++        };
++    }
++
+     /**
+      * Installs a package that's id is component_id and also
+      * sends a notification when installation finishes or shows
+diff --git a/src/meson.build b/src/meson.build
+index 47118b8..7eda538 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -11,6 +11,7 @@ appcenter_files = files(
+     'Core/FlatpakBackend.vala',
+     'Core/HttpClient.vala',
+     'Core/Job.vala',
++    'Core/JobTracker.vala',
+     'Core/Houston.vala',
+     'Core/ODRSProvider.vala',
+     'Core/Package.vala',
