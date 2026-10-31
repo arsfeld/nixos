@@ -3,6 +3,7 @@
 # only them and runs inside the Nix build sandbox. FanMath is core too: pure
 # geometry, no widgets.
 stacks_core_sources = files(
+    'AppCenterJobs.vala',
     'AppFolders.vala',
     'FanMath.vala',
     'LauncherProgress.vala',

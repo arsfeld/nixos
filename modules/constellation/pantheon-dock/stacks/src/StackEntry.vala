@@ -34,6 +34,8 @@ public class Dock.StackEntry : Object {
     public bool downloading { get; construct; default = false; }
     public uint64 bytes { get; set; }
     public bool stalled { get; set; }
+    /* The AppCenter component of the job running on this entry, while one runs. */
+    public string? job_component_id { get; set; default = null; }
 
     public void update_download (uint64 bytes, int64 modified_usec, int64 now_usec) {
         this.bytes = bytes;
@@ -103,9 +105,31 @@ public class Dock.StackEntry : Object {
         );
     }
 
+    /* A cell for an app AppCenter is installing, before it has a desktop file. */
+    public static StackEntry provisional (AppCenterJobs.Job job) {
+        Icon? icon = null;
+        if (job.icon != "") {
+            try {
+                icon = Icon.new_for_string (job.icon);
+            } catch (Error e) {
+                debug ("Bad icon from AppCenter for %s: %s", job.name, e.message);
+            }
+        }
+        return new StackEntry (job.name, icon ?? new ThemedIcon ("application-default-icon"), null, null, 0);
+    }
+
     public void launch () {
         if (is_folder) {
             // A folder opens inside the popover; GridPopover handles it.
+            return;
+        }
+        if (job_component_id != null) {
+            // Being installed, updated or removed: show it in AppCenter.
+            open_uri ("appcenter://" + job_component_id);
+            return;
+        }
+        if (app == null && file == null) {
+            // A provisional cell whose install just ended; the pending reload replaces it.
             return;
         }
         if (downloading) {

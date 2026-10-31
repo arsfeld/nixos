@@ -13,6 +13,7 @@ public class Dock.StackStore : Object {
     construct {
         // The feeds the stacks' progress comes from; started here, never in unit tests.
         LauncherProgress.get_default ().start ();
+        AppCenterJobs.get_default ().start ();
         store = new ListStore (typeof (StackConfig));
         settings = new Settings ("io.elementary.dock");
         if (settings.settings_schema.has_key ("stacks")) {

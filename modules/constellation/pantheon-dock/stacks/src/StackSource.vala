@@ -41,6 +41,8 @@ public class Dock.StackSource : Object {
     private Cancellable? cancellable;
     private uint reload_id = 0;
     private uint refresh_id = 0;
+    // Every app entry (and provisional one) by desktop id, for job updates.
+    private HashTable<string, StackEntry> by_desktop_id = new HashTable<string, StackEntry> (str_hash, str_equal);
 
     public StackSource (StackConfig config) {
         Object (config: config);
@@ -53,6 +55,7 @@ public class Dock.StackSource : Object {
         if (config.is_applications) {
             app_monitor = AppInfoMonitor.get ();
             app_monitor.changed.connect (queue_reload);
+            AppCenterJobs.get_default ().changed.connect (on_job_changed);
         } else {
             try {
                 monitor = File.new_for_path (config.source).monitor_directory (WATCH_MOVES, null);
@@ -76,6 +79,7 @@ public class Dock.StackSource : Object {
     public void stop () {
         debug ("StackSource stop for %s", config.source);
         LauncherProgress.get_default ().changed.disconnect (update_tile);
+        AppCenterJobs.get_default ().changed.disconnect (on_job_changed);
         if (monitor != null) {
             monitor.cancel ();
             monitor = null;
@@ -182,8 +186,26 @@ public class Dock.StackSource : Object {
 
         loaded_entries.sort (config.sort == NAME ? (CompareFunc<StackEntry>) compare_name : (CompareFunc<StackEntry>) compare_newest_first);
 
-        Object[] items = {};
-        Object[] previews = {};
+        by_desktop_id.remove_all ();
+        Object[] provisional = {};
+        if (config.is_applications) {
+            foreach (var entry in loaded_entries) {
+                by_desktop_id[entry.app.get_id ()] = entry;
+            }
+            foreach (var job in AppCenterJobs.get_default ().get_all ()) {
+                if (job.state == INSTALLING && job.desktop_id != "" && !(job.desktop_id in by_desktop_id)) {
+                    var entry = StackEntry.provisional (job);
+                    by_desktop_id[job.desktop_id] = entry;
+                    provisional += entry;
+                }
+            }
+            by_desktop_id.foreach ((desktop_id, entry) => {
+                apply_job (entry, AppCenterJobs.get_default ().for_desktop_id (desktop_id));
+            });
+        }
+
+        Object[] items = provisional;
+        Object[] previews = provisional;
         if (groups_folders) {
             var folders = new GenericArray<ListStore> ();
             for (int f = 0; f <= AppFolders.Folder.TERMINAL; f++) {
@@ -211,6 +233,7 @@ public class Dock.StackSource : Object {
         }
         preview_store.splice (0, preview_store.get_n_items (), previews);
         store.splice (0, store.get_n_items (), items);
+        update_folder_progress ();
 
         update_tile ();
         update_refresh ();
@@ -274,6 +297,12 @@ public class Dock.StackSource : Object {
     }
 
     private void update_tile () {
+        if (config.is_applications) {
+            var jobs = AppCenterJobs.get_default ();
+            set_tile (jobs.count > 0, jobs.mean_progress ());
+            return;
+        }
+
         bool busy = false;
         bool chromium = false;
         for (uint i = 0; i < store.get_n_items (); i++) {
@@ -284,6 +313,57 @@ public class Dock.StackSource : Object {
             }
         }
         set_tile (busy, chromium ? LauncherProgress.get_default ().download_fraction () : -1);
+    }
+
+    private static void apply_job (StackEntry entry, AppCenterJobs.Job? job) {
+        if (job == null || job.state == IDLE) {
+            entry.job_component_id = null;
+            entry.status_text = null;
+            entry.show_progress = false;
+            return;
+        }
+        entry.job_component_id = job.component_id;
+        entry.status_text = job.status_text ();
+        entry.progress = job.progress;
+        entry.show_progress = true;
+    }
+
+    /* A folder shows a bar while any of its apps is busy: their mean progress. */
+    private void update_folder_progress () {
+        for (uint i = 0; i < store.get_n_items (); i++) {
+            var folder = (StackEntry) store.get_item (i);
+            if (!folder.is_folder) {
+                continue;
+            }
+            double sum = 0;
+            uint busy = 0;
+            for (uint j = 0; j < folder.children.get_n_items (); j++) {
+                var child = (StackEntry) folder.children.get_item (j);
+                if (child.show_progress) {
+                    sum += child.progress;
+                    busy++;
+                }
+            }
+            folder.show_progress = busy > 0;
+            folder.progress = busy > 0 ? sum / busy : -1;
+        }
+    }
+
+    private void on_job_changed (AppCenterJobs.Job job) {
+        var entry = job.desktop_id != "" ? by_desktop_id[job.desktop_id] : null;
+        var is_provisional = entry != null && entry.app == null;
+        if (entry == null && job.state == INSTALLING && job.desktop_id != "") {
+            // A new install: the reload adds its provisional cell.
+            queue_reload ();
+        } else if (is_provisional && job.state == IDLE) {
+            // Done: the reload drops the provisional cell. AppInfoMonitor also
+            // reloads once the real desktop file appears.
+            queue_reload ();
+        } else if (entry != null) {
+            apply_job (entry, job);
+            update_folder_progress ();
+        }
+        update_tile ();
     }
 
     // Only on change: the tile bar is re-laid-out on every notify.

@@ -377,6 +377,71 @@ void test_classify () {
     assert_cmpstr (AppFolders.Folder.TERMINAL.title (), EQ, "Terminal Tools");
 }
 
+AppCenterJobs.Job make_job (string desktop_id, AppCenterJobs.State state, double progress) {
+    return new AppCenterJobs.Job ("comp." + desktop_id, desktop_id, "Newapp", "", state, progress);
+}
+
+void test_job_parsing () {
+    var job = AppCenterJobs.Job.from_variant (new Variant.parsed ("('org.x', 'org.x.desktop', 'X', '', uint32 1, 0.5)"));
+    assert_nonnull (job);
+    assert_cmpstr (job.desktop_id, EQ, "org.x.desktop");
+    assert_true (job.state == AppCenterJobs.State.INSTALLING);
+    assert_cmpstr (job.status_text (), EQ, "Installing");
+
+    Test.expect_message (null, LogLevelFlags.LEVEL_WARNING, "*Ignoring malformed AppCenter job*");
+    assert_null (AppCenterJobs.Job.from_variant (new Variant.parsed ("('org.x',)")));
+    Test.assert_expected_messages ();
+}
+
+void test_jobs_store () {
+    var jobs = new AppCenterJobs ();
+    jobs.apply (make_job ("a.desktop", UPDATING, 0.2));
+    jobs.apply (make_job ("b.desktop", INSTALLING, 0.6));
+    assert_cmpuint (jobs.count, EQ, 2);
+    assert_near (jobs.mean_progress (), 0.4);
+    jobs.apply (make_job ("a.desktop", IDLE, 1));
+    assert_cmpuint (jobs.count, EQ, 1);
+    assert_null (jobs.for_desktop_id ("a.desktop"));
+    jobs.clear ();
+    assert_cmpuint (jobs.count, EQ, 0);
+}
+
+void test_applications_jobs () {
+    var jobs = AppCenterJobs.get_default ();
+    var source = new StackSource (new StackConfig (StackConfig.APPLICATIONS, GRID, NAME, STACK));
+    wait_for_load (source);
+
+    // A new install: a provisional cell first at the top level.
+    jobs.apply (make_job ("new.desktop", INSTALLING, 0.3));
+    wait_for_load (source);
+    var first = (StackEntry) source.entries.get_item (0);
+    assert_cmpstr (first.name, EQ, "Newapp");
+    assert_cmpstr (first.status_text, EQ, "Installing");
+    assert_near (first.progress, 0.3);
+    assert_cmpstr (first.job_component_id, EQ, "comp.new.desktop");
+    assert_true (source.tile_busy);
+    assert_near (source.tile_progress, 0.3);
+
+    // An update of an app inside a folder: the cell and the folder both show it.
+    jobs.apply (make_job ("calc.desktop", UPDATING, 0.5));
+    var utilities = find_entry (source.entries, "Utilities");
+    var calc = find_entry (utilities.children, "Calc");
+    assert_cmpstr (calc.status_text, EQ, "Updating");
+    assert_true (utilities.show_progress);
+    assert_near (utilities.progress, 0.5);
+    assert_near (source.tile_progress, 0.4);
+
+    jobs.apply (make_job ("calc.desktop", IDLE, 1));
+    assert_null (calc.status_text);
+    assert_null (calc.job_component_id);
+    assert_false (utilities.show_progress);
+
+    jobs.apply (make_job ("new.desktop", IDLE, 1));
+    wait_for_load (source);
+    assert_null (find_entry (source.entries, "Newapp"));
+    assert_false (source.tile_busy);
+}
+
 int main (string[] args) {
     // AppInfo reads these once, on first use: point it at fixture apps only.
     try {
@@ -406,6 +471,9 @@ int main (string[] args) {
     Test.add_func ("/stack-source/applications-fan-flat", test_applications_fan_flat);
     Test.add_func ("/launcher-progress/feed", test_launcher_progress);
     Test.add_func ("/stack-source/downloads-tile", test_downloads_tile);
+    Test.add_func ("/appcenter-jobs/parse", test_job_parsing);
+    Test.add_func ("/appcenter-jobs/store", test_jobs_store);
+    Test.add_func ("/stack-source/applications-jobs", test_applications_jobs);
     Test.add_func ("/fan-math/open", test_fan_pose_open);
     Test.add_func ("/fan-math/collapsed", test_fan_pose_collapsed);
     Test.add_func ("/app-folders/classify", test_classify);
