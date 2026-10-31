@@ -187,6 +187,9 @@ public class Dock.StackItem : BaseIconGroup {
         bounce_down = null;
         source.stop ();
 
+        // popdown () first: unparent () alone never emits closed, and the zoom's
+        // ItemManager.frozen_popover holds an open popover until it does.
+        popover_menu.popdown ();
         popover_menu.unparent ();
 
         // Upstream's own hook for dropping the animation callbacks that capture this item.

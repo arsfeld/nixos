@@ -91,21 +91,25 @@ public class Dock.FanPopover : Gtk.Popover {
     }
 
     private void open_location () {
-        launch_row (header);
-        source.open_location ();
+        if (launch_row (header)) {
+            source.open_location ();
+        }
     }
 
     /*
      * Zooms row's icon away and folds the rest of the fan into the tile, then
      * closes. The caller opens the file itself, right away: nothing waits on this.
+     * Returns false, and the caller opens nothing, when a launch is already
+     * playing: can_target stops a second click, but not Enter on the focused row.
      */
-    private void launch_row (Gtk.Widget row) {
+    private bool launch_row (Gtk.Widget row) {
         if (launch_animation.state == PLAYING) {
-            return;
+            return false;
         }
         fan.start_launch (row, row_icon (row));
         launch_animation.play ();
         source.launched ();
+        return true;
     }
 
     // Every row is a button around create_row_box (), whose last child is the icon.
@@ -191,8 +195,8 @@ public class Dock.FanPopover : Gtk.Popover {
         button.add_css_class ("stack-fan-item");
         button.clicked.connect ((b) => {
             var popover = (FanPopover?) b.get_ancestor (typeof (FanPopover));
-            if (popover != null) {
-                popover.launch_row (b);
+            if (popover != null && !popover.launch_row (b)) {
+                return;
             }
             entry.launch ();
         });
