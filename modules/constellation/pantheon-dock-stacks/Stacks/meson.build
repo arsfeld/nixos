@@ -8,9 +8,12 @@ stacks_core_sources = files(
 )
 
 stacks_sources = stacks_core_sources + files(
+    'FanLayout.vala',
+    'FanPopover.vala',
     'GridPopover.vala',
     'StackItem.vala',
     'StackStore.vala',
+    'StackStyle.vala',
 )
 
 stacks_test = executable(

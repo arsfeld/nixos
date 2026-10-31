@@ -98,9 +98,11 @@ public class Dock.StackItem : BaseIconGroup {
         cleanup ();
     }
 
-    // Task 4 replaces this with a switch on config.view.
     private Gtk.Popover create_popover () {
-        return new GridPopover (source);
+        switch (config.view) {
+            case FAN: return new FanPopover (source);
+            default: return new GridPopover (source);
+        }
     }
 
     private void update_child () {
