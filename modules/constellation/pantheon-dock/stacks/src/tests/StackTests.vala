@@ -106,17 +106,25 @@ void wait_for_load (StackSource source) {
     source.disconnect (handler);
 }
 
+void make_file (string dir, string name, string contents = "x") {
+    try {
+        FileUtils.set_contents (Path.build_filename (dir, name), contents);
+    } catch (Error e) {
+        error ("fixture: %s", e.message);
+    }
+    Thread.usleep (20000);
+}
+
 string make_folder () {
     try {
         var dir = DirUtils.make_tmp ("stacks-XXXXXX");
         // alpha.pdf is created first, so it is older but sorts first by name.
-        FileUtils.set_contents (Path.build_filename (dir, "alpha.pdf"), "x");
-        Thread.usleep (50000);
-        FileUtils.set_contents (Path.build_filename (dir, "zeta.zip"), "x");
-        FileUtils.set_contents (Path.build_filename (dir, ".hidden"), "x");
-        FileUtils.set_contents (Path.build_filename (dir, "big.iso.part"), "x");
-        FileUtils.set_contents (Path.build_filename (dir, "video.mp4.crdownload"), "x");
-        FileUtils.set_contents (Path.build_filename (dir, "safari.download"), "x");
+        make_file (dir, "alpha.pdf");
+        make_file (dir, "zeta.zip");
+        make_file (dir, ".hidden");
+        make_file (dir, "big.iso.part");
+        make_file (dir, "video.mp4.crdownload");
+        make_file (dir, "safari.download");
         return dir;
     } catch (Error e) {
         error ("fixture: %s", e.message);
@@ -125,23 +133,30 @@ string make_folder () {
 
 void test_shown_names () {
     assert_true (StackSource.is_shown_name ("report.pdf"));
+    assert_true (StackSource.is_shown_name ("a.part"));
     assert_false (StackSource.is_shown_name (".hidden"));
-    assert_false (StackSource.is_shown_name ("a.part"));
-    assert_false (StackSource.is_shown_name ("a.crdownload"));
-    assert_false (StackSource.is_shown_name ("a.download"));
+    assert_cmpstr (StackSource.download_suffix ("a.part"), EQ, ".part");
+    assert_cmpstr (StackSource.download_suffix ("a.crdownload"), EQ, ".crdownload");
+    assert_cmpstr (StackSource.download_suffix ("a.download"), EQ, ".download");
+    assert_null (StackSource.download_suffix ("a.pdf"));
 }
 
 void test_folder_date_added () {
     var source = new StackSource (new StackConfig (make_folder (), FAN, DATE_ADDED, STACK));
     wait_for_load (source);
     assert_false (source.missing);
-    assert_true (strv_equal (entry_names (source), { "zeta.zip", "alpha.pdf" }));
+    assert_true (strv_equal (entry_names (source), { "safari", "video.mp4", "big.iso", "zeta.zip", "alpha.pdf" }));
+    var video = (StackEntry) source.entries.get_item (1);
+    assert_true (video.downloading);
+    assert_true (video.status_text.has_prefix ("Downloading · "));
+    assert_true (video.show_progress);
+    assert_false (((StackEntry) source.entries.get_item (3)).downloading);
 }
 
 void test_folder_name () {
     var source = new StackSource (new StackConfig (make_folder (), GRID, NAME, STACK));
     wait_for_load (source);
-    assert_true (strv_equal (entry_names (source), { "alpha.pdf", "zeta.zip" }));
+    assert_true (strv_equal (entry_names (source), { "alpha.pdf", "big.iso", "safari", "video.mp4", "zeta.zip" }));
 }
 
 void test_folder_live_update () {
@@ -155,7 +170,38 @@ void test_folder_live_update () {
         error ("fixture: %s", e.message);
     }
     wait_for_load (source);
-    assert_true (strv_equal (entry_names (source), { "newest.txt", "zeta.zip", "alpha.pdf" }));
+    assert_true (strv_equal (entry_names (source), { "newest.txt", "safari", "video.mp4", "big.iso", "zeta.zip", "alpha.pdf" }));
+}
+
+void test_firefox_placeholder_hidden () {
+    try {
+        var dir = DirUtils.make_tmp ("stacks-XXXXXX");
+        make_file (dir, "empty.txt", "");          // a 0-byte file on its own stays
+        make_file (dir, "movie.mkv", "");          // Firefox's placeholder…
+        make_file (dir, "movie.mkv.part", "abc");  // …for this download
+        var source = new StackSource (new StackConfig (dir, FAN, NAME, STACK));
+        wait_for_load (source);
+        assert_true (strv_equal (entry_names (source), { "empty.txt", "movie.mkv" }));
+        var movie = (StackEntry) source.entries.get_item (1);
+        assert_true (movie.downloading);
+        assert_cmpuint ((uint) movie.bytes, EQ, 3);
+    } catch (Error e) {
+        error ("fixture: %s", e.message);
+    }
+}
+
+void test_download_stall () {
+    var entry = new StackEntry ("x.iso", new ThemedIcon ("text-x-generic"), null, null, 0);
+    var now = get_real_time ();
+    entry.update_download (1024, now - StackEntry.STALL_USEC - 1000000, now);
+    assert_true (entry.stalled);
+    assert_false (entry.show_progress);
+    assert_cmpstr (entry.status_text, EQ, "Stalled · " + format_size (1024));
+
+    entry.update_download (2048, now, now);
+    assert_false (entry.stalled);
+    assert_true (entry.show_progress);
+    assert_cmpstr (entry.status_text, EQ, "Downloading · " + format_size (2048));
 }
 
 void test_folder_missing () {
@@ -300,8 +346,10 @@ int main (string[] args) {
     Test.add_func ("/stack-source/folder-date-added", test_folder_date_added);
     Test.add_func ("/stack-source/folder-name", test_folder_name);
     Test.add_func ("/stack-source/folder-live-update", test_folder_live_update);
+    Test.add_func ("/stack-source/firefox-placeholder", test_firefox_placeholder_hidden);
     Test.add_func ("/stack-source/folder-missing", test_folder_missing);
     Test.add_func ("/stack-source/folder-finalized", test_folder_source_finalized);
+    Test.add_func ("/stack-entry/download-stall", test_download_stall);
     Test.add_func ("/stack-source/applications", test_applications);
     Test.add_func ("/stack-source/applications-fan-flat", test_applications_fan_flat);
     Test.add_func ("/fan-math/open", test_fan_pose_open);

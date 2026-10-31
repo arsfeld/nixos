@@ -27,6 +27,23 @@ public class Dock.StackEntry : Object {
     public double progress { get; set; default = -1; }
     public bool show_progress { get; set; default = false; }
 
+    /* A file that has not grown for this long is a leftover, not a download. */
+    public const int64 STALL_USEC = 60 * 1000000;
+
+    /* An in-progress download (.part, .crdownload, .download); `file` is the partial file. */
+    public bool downloading { get; construct; default = false; }
+    public uint64 bytes { get; set; }
+    public bool stalled { get; set; }
+
+    public void update_download (uint64 bytes, int64 modified_usec, int64 now_usec) {
+        this.bytes = bytes;
+        stalled = now_usec - modified_usec > STALL_USEC;
+        var size = format_size (bytes);
+        status_text = stalled ? _("Stalled · %s").printf (size) : _("Downloading · %s").printf (size);
+        show_progress = !stalled;
+        progress = -1;
+    }
+
     public StackEntry (string name, Icon icon, File? file, AppInfo? app, int64 added_usec) {
         Object (name: name, icon: icon, file: file, app: app, added_usec: added_usec);
     }
@@ -38,16 +55,32 @@ public class Dock.StackEntry : Object {
             icon = new FileIcon (File.new_for_path (thumbnail));
         }
 
+        var modified = (int64) info.get_attribute_uint64 (FileAttribute.TIME_MODIFIED) * 1000000
+            + info.get_attribute_uint32 (FileAttribute.TIME_MODIFIED_USEC);
         int64 added;
         if (info.has_attribute (FileAttribute.TIME_CREATED)) {
             added = (int64) info.get_attribute_uint64 (FileAttribute.TIME_CREATED) * 1000000
                 + info.get_attribute_uint32 (FileAttribute.TIME_CREATED_USEC);
         } else {
-            added = (int64) info.get_attribute_uint64 (FileAttribute.TIME_MODIFIED) * 1000000
-                + info.get_attribute_uint32 (FileAttribute.TIME_MODIFIED_USEC);
+            added = modified;
         }
 
-        return new StackEntry (info.get_display_name (), icon, file, null, added);
+        var name = info.get_display_name ();
+        var suffix = StackSource.download_suffix (info.get_name ());
+        if (suffix == null) {
+            return new StackEntry (name, icon, file, null, added);
+        }
+
+        var entry = (StackEntry) Object.new (
+            typeof (StackEntry),
+            name: name.has_suffix (suffix) ? name.substring (0, name.length - suffix.length) : name,
+            icon: icon,
+            file: file,
+            added_usec: added,
+            downloading: true
+        );
+        entry.update_download (info.get_size (), modified, get_real_time ());
+        return entry;
     }
 
     public static StackEntry from_app (AppInfo app) {
@@ -75,6 +108,11 @@ public class Dock.StackEntry : Object {
             // A folder opens inside the popover; GridPopover handles it.
             return;
         }
+        if (downloading) {
+            // Not done yet: show it in its folder instead of opening half a file.
+            open_uri (file.get_parent ().get_uri ());
+            return;
+        }
         var context = Gdk.Display.get_default ().get_app_launch_context ();
         try {
             if (app != null) {
@@ -84,6 +122,14 @@ public class Dock.StackEntry : Object {
             }
         } catch (Error e) {
             critical ("Failed to open %s: %s", name, e.message);
+        }
+    }
+
+    private static void open_uri (string uri) {
+        try {
+            AppInfo.launch_default_for_uri (uri, Gdk.Display.get_default ().get_app_launch_context ());
+        } catch (Error e) {
+            critical ("Failed to open %s: %s", uri, e.message);
         }
     }
 
@@ -98,7 +144,7 @@ public class Dock.StackEntry : Object {
         };
         drag_source.prepare.connect ((x, y) => {
             var entry = get_entry ();
-            if (entry == null || entry.file == null) {
+            if (entry == null || entry.file == null || entry.downloading) {
                 return null;
             }
 

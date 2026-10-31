@@ -7,10 +7,12 @@
 
 public class Dock.StackSource : Object {
     private const string FILE_ATTRIBUTES = "standard::name,standard::display-name,standard::icon," +
-        "standard::is-hidden,standard::is-backup,time::created,time::created-usec," +
+        "standard::is-hidden,standard::is-backup,standard::size,time::created,time::created-usec," +
         "time::modified,time::modified-usec,thumbnail::path";
     // Downloads arrive as bursts of events (create, write, rename); reload once per burst.
     private const uint RELOAD_DELAY_MS = 200;
+    private const string[] DOWNLOAD_SUFFIXES = { ".part", ".crdownload", ".download" };
+    private const string REFRESH_ATTRIBUTES = "standard::size,time::modified,time::modified-usec";
 
     public signal void loaded ();
 
@@ -34,6 +36,7 @@ public class Dock.StackSource : Object {
     private AppInfoMonitor? app_monitor;
     private Cancellable? cancellable;
     private uint reload_id = 0;
+    private uint refresh_id = 0;
 
     public StackSource (StackConfig config) {
         Object (config: config);
@@ -80,6 +83,10 @@ public class Dock.StackSource : Object {
             Source.remove (reload_id);
             reload_id = 0;
         }
+        if (refresh_id != 0) {
+            Source.remove (refresh_id);
+            refresh_id = 0;
+        }
         if (cancellable != null) {
             cancellable.cancel ();
             cancellable = null;
@@ -90,10 +97,17 @@ public class Dock.StackSource : Object {
     }
 
     public static bool is_shown_name (string name) {
-        return !name.has_prefix (".")
-            && !name.has_suffix (".part")
-            && !name.has_suffix (".crdownload")
-            && !name.has_suffix (".download");
+        return !name.has_prefix (".");
+    }
+
+    /* The in-progress download suffix of name, or null for a finished file. */
+    public static string? download_suffix (string name) {
+        foreach (unowned var suffix in DOWNLOAD_SUFFIXES) {
+            if (name.has_suffix (suffix)) {
+                return suffix;
+            }
+        }
+        return null;
     }
 
     public void open_location () {
@@ -122,6 +136,12 @@ public class Dock.StackSource : Object {
     }
 
     private void on_monitor_changed (File file, File? other, FileMonitorEvent event) {
+        // A download writes its partial file many times a second; refresh_downloads
+        // follows its size, so only its creation, rename and deletion reload.
+        var content_only = event == CHANGED || event == CHANGES_DONE_HINT || event == ATTRIBUTE_CHANGED;
+        if (content_only && download_suffix (file.get_basename ()) != null) {
+            return;
+        }
         queue_reload ();
     }
 
@@ -186,7 +206,63 @@ public class Dock.StackSource : Object {
         preview_store.splice (0, preview_store.get_n_items (), previews);
         store.splice (0, store.get_n_items (), items);
 
+        update_refresh ();
         loaded ();
+    }
+
+    private bool has_downloads () {
+        for (uint i = 0; i < store.get_n_items (); i++) {
+            if (((StackEntry) store.get_item (i)).downloading) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /* Runs refresh_downloads once a second while there is anything to refresh. */
+    private void update_refresh () {
+        if (has_downloads () && refresh_id == 0) {
+            refresh_id = arm_refresh (this);
+        } else if (!has_downloads () && refresh_id != 0) {
+            Source.remove (refresh_id);
+            refresh_id = 0;
+        }
+    }
+
+    /*
+     * Static on purpose: a lambda in an instance method captures `this` strongly,
+     * and a repeating timer would then keep an unreferenced source alive. The
+     * timer holds the source only weakly.
+     */
+    private static uint arm_refresh (StackSource source) {
+        var weak_self = WeakRef (source);
+        return Timeout.add_seconds (1, () => {
+            var current = weak_self.get () as StackSource;
+            return current != null ? current.on_refresh_tick () : Source.REMOVE;
+        });
+    }
+
+    private bool on_refresh_tick () {
+        refresh_downloads.begin ();
+        return Source.CONTINUE;
+    }
+
+    private async void refresh_downloads () {
+        var now = get_real_time ();
+        for (uint i = 0; i < store.get_n_items (); i++) {
+            var entry = (StackEntry) store.get_item (i);
+            if (!entry.downloading) {
+                continue;
+            }
+            try {
+                var info = yield entry.file.query_info_async (REFRESH_ATTRIBUTES, NONE, Priority.DEFAULT, cancellable);
+                var modified = (int64) info.get_attribute_uint64 (FileAttribute.TIME_MODIFIED) * 1000000
+                    + info.get_attribute_uint32 (FileAttribute.TIME_MODIFIED_USEC);
+                entry.update_download (info.get_size (), modified, now);
+            } catch (Error e) {
+                // Renamed on completion or cancelled: the next reload handles it.
+            }
+        }
     }
 
     private async GenericArray<StackEntry> load_folder (Cancellable cancellable) {
@@ -197,14 +273,26 @@ public class Dock.StackSource : Object {
             var enumerator = yield dir.enumerate_children_async (FILE_ATTRIBUTES, NONE, Priority.DEFAULT, cancellable);
             missing = false;
 
-            List<FileInfo> infos;
-            while ((infos = yield enumerator.next_files_async (64, Priority.DEFAULT, cancellable)) != null) {
-                foreach (var info in infos) {
-                    if (info.get_is_hidden () || info.get_is_backup () || !is_shown_name (info.get_name ())) {
-                        continue;
-                    }
-                    result.add (StackEntry.from_file_info (dir.get_child (info.get_name ()), info));
+            var infos = new GenericArray<FileInfo> ();
+            var names = new GenericSet<string> (str_hash, str_equal);
+            List<FileInfo> batch;
+            while ((batch = yield enumerator.next_files_async (64, Priority.DEFAULT, cancellable)) != null) {
+                foreach (var info in batch) {
+                    infos.add (info);
+                    names.add (info.get_name ());
                 }
+            }
+
+            foreach (var info in infos) {
+                var name = info.get_name ();
+                if (info.get_is_hidden () || info.get_is_backup () || !is_shown_name (name)) {
+                    continue;
+                }
+                // Firefox creates the final name empty next to name.part while it downloads.
+                if (info.get_size () == 0 && names.contains (name + ".part")) {
+                    continue;
+                }
+                result.add (StackEntry.from_file_info (dir.get_child (name), info));
             }
         } catch (IOError.CANCELLED e) {
             // A newer reload took over.
