@@ -6,13 +6,13 @@
 pkgs.buildHomeAssistantComponent rec {
   owner = "amosyuen";
   domain = "tplink_deco";
-  version = "3.11.0";
+  version = "3.12.2";
 
   src = pkgs.fetchFromGitHub {
     owner = "amosyuen";
     repo = "ha-tplink-deco";
     tag = "v${version}";
-    hash = "sha256-n2eKji2lDE9rYm0bxiH3kgsfpiXV2HCVhl/aNqrCJKU=";
+    hash = "sha256-7Rp5Zv1P+yn0wD9zyEiDowXvi8zoeJBW0qdUyZZHehw=";
   };
 
   dependencies = [pkgs.home-assistant.python3Packages.pycryptodome];
