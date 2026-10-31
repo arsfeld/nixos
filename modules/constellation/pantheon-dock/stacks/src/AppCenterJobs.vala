@@ -106,9 +106,17 @@ public class Dock.AppCenterJobs : Object {
         changed (job);
     }
 
-    /* Ends every job: AppCenter went away mid-job, and nothing else will. */
+    /*
+     * Ends every real job: AppCenter went away mid-job, and nothing else will.
+     * Not "clear all": jobs injected by DOCK_STACKS_FAKE_JOB (component id prefix
+     * "fake.") survive, because with no AppCenter on the bus GDBus reports the
+     * name vanished at once, which would wipe the fake job right after start ().
+     */
     public void clear () {
         foreach (var job in get_all ()) {
+            if (job.component_id.has_prefix ("fake.")) {
+                continue;
+            }
             apply (new Job (job.component_id, job.desktop_id, job.name, job.icon, IDLE, 1));
         }
     }

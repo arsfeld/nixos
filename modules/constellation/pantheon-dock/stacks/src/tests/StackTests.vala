@@ -406,6 +406,16 @@ void test_jobs_store () {
     assert_cmpuint (jobs.count, EQ, 0);
 }
 
+void test_jobs_clear_keeps_fake () {
+    var jobs = new AppCenterJobs ();
+    jobs.apply (new AppCenterJobs.Job ("fake.x.desktop", "x.desktop", "X", "", INSTALLING, 0.5));
+    jobs.apply (make_job ("real.desktop", UPDATING, 0.2));
+    jobs.clear ();
+    assert_cmpuint (jobs.count, EQ, 1);
+    assert_nonnull (jobs.for_desktop_id ("x.desktop"));
+    assert_null (jobs.for_desktop_id ("real.desktop"));
+}
+
 void test_applications_jobs () {
     var jobs = AppCenterJobs.get_default ();
     var source = new StackSource (new StackConfig (StackConfig.APPLICATIONS, GRID, NAME, STACK));
@@ -473,6 +483,7 @@ int main (string[] args) {
     Test.add_func ("/stack-source/downloads-tile", test_downloads_tile);
     Test.add_func ("/appcenter-jobs/parse", test_job_parsing);
     Test.add_func ("/appcenter-jobs/store", test_jobs_store);
+    Test.add_func ("/appcenter-jobs/clear-keeps-fake", test_jobs_clear_keeps_fake);
     Test.add_func ("/stack-source/applications-jobs", test_applications_jobs);
     Test.add_func ("/fan-math/open", test_fan_pose_open);
     Test.add_func ("/fan-math/collapsed", test_fan_pose_collapsed);
