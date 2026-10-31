@@ -39,31 +39,50 @@
       dest = "Zoom";
     }
   ];
-  inherit (lib.gvariant) mkArray mkTuple;
+  inherit (lib.gvariant) mkArray mkInt32 mkTuple;
 in {
-  options.constellation.desktop.pantheon.dockStacks = lib.mkOption {
-    type = lib.types.listOf (lib.types.submodule {
-      options = {
-        source = lib.mkOption {
-          type = lib.types.str;
-          description = "Absolute path, a path starting with ~/, or \"applications\".";
+  options.constellation.desktop.pantheon = {
+    dockStacks = lib.mkOption {
+      type = lib.types.listOf (lib.types.submodule {
+        options = {
+          source = lib.mkOption {
+            type = lib.types.str;
+            description = "Absolute path, a path starting with ~/, or \"applications\".";
+          };
+          view = lib.mkOption {
+            type = lib.types.enum ["fan" "grid"];
+            default = "grid";
+          };
+          sort = lib.mkOption {
+            type = lib.types.enum ["date-added" "name"];
+            default = "name";
+          };
+          display = lib.mkOption {
+            type = lib.types.enum ["stack" "folder"];
+            default = "stack";
+          };
         };
-        view = lib.mkOption {
-          type = lib.types.enum ["fan" "grid"];
-          default = "grid";
-        };
-        sort = lib.mkOption {
-          type = lib.types.enum ["date-added" "name"];
-          default = "name";
-        };
-        display = lib.mkOption {
-          type = lib.types.enum ["stack" "folder"];
-          default = "stack";
-        };
+      });
+      default = [];
+      description = "Folder stacks shown on the elementary dock, after the launchers.";
+    };
+
+    dockZoom = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "macOS-style magnification on the elementary dock.";
       };
-    });
-    default = [];
-    description = "Folder stacks shown on the elementary dock, after the launchers.";
+
+      size = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = 84;
+        description = ''
+          Logical size in pixels of the icon under the pointer. The dock clamps it
+          to what fits in the space above its icons: 104 with the default 48 px icons.
+        '';
+      };
+    };
   };
 
   config = lib.mkIf config.services.desktopManager.pantheon.enable {
@@ -85,9 +104,16 @@ in {
       })
     ];
 
-    programs.dconf.profiles.user.databases = lib.mkIf (cfg.dockStacks != []) [
+    programs.dconf.profiles.user.databases = [
       {
-        settings."io/elementary/dock".stacks = mkArray (map (s: mkTuple [s.source s.view s.sort s.display]) cfg.dockStacks);
+        settings."io/elementary/dock" =
+          {
+            zoom-enabled = cfg.dockZoom.enable;
+            zoom-size = mkInt32 cfg.dockZoom.size;
+          }
+          // lib.optionalAttrs (cfg.dockStacks != []) {
+            stacks = mkArray (map (s: mkTuple [s.source s.view s.sort s.display]) cfg.dockStacks);
+          };
       }
     ];
   };
