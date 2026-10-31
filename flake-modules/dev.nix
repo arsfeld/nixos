@@ -137,13 +137,7 @@
       ];
     };
 
-    # Expose packages loaded via haumea
-    packages = inputs.haumea.lib.load {
-      src = ../packages;
-      loader = inputs.haumea.lib.loaders.callPackage;
-      inputs = {inherit pkgs;};
-      transformer = inputs.haumea.lib.transformers.liftDefault;
-    };
+    packages = self.lib.loadPackages pkgs;
 
     legacyPackages.homeConfigurations.arosenfeld = inputs.home-manager.lib.homeManagerConfiguration {
       inherit pkgs;

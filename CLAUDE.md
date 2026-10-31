@@ -590,7 +590,7 @@ the old one in the admin console.
 ### Flake Structure
 
 The flake uses **flake-parts** to organize outputs into modules under `flake-modules/`:
-- **`lib.nix`** - Core utilities: `mkLinuxSystem`, overlays, `baseModules`, `homeManagerModules`. Uses **haumea** to recursively auto-load all files from `modules/` and `packages/` directories.
+- **`lib.nix`** - Core utilities: `mkLinuxSystem`, overlays, `baseModules`, `homeManagerModules`. Uses **haumea** to auto-load every file under `modules/`, and `lib.packagesFromDirectoryRecursive` to load `packages/<name>/package.nix` (the nixpkgs by-name layout; other files in a package directory are ignored).
 - **`hosts.nix`** - Auto-discovers hosts by scanning `hosts/` for directories with `configuration.nix`. Automatically includes `disko-config.nix` if present.
 - **`deploy.nix`** - `deployTargets`: each host's system closure, the attribute `just deploy` builds
 - **`dev.nix`** - Development shell, formatter, git hooks, custom packages
@@ -723,7 +723,7 @@ Caddy reverse proxy consuming service definitions. Generates TLS configs, error 
 - `modules/` - Shared NixOS modules (auto-loaded into every host by haumea); host-only modules live under `hosts/<host>/`
   - `constellation/` - Opt-in feature modules
   - `media/` - Media stack (config, gateway, components)
-- `packages/` - Custom Nix derivations (auto-loaded by haumea)
+- `packages/` - Custom Nix derivations, one `<name>/package.nix` each (auto-loaded)
 - `home/` - Home Manager config (`home.nix` for user `arosenfeld`)
 - `secrets/` - Encrypted secrets (`sops/*.yaml` managed by sops-nix)
 - `flake-modules/` - Flake-parts modules

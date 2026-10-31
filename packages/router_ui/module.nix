@@ -6,7 +6,7 @@
 }: let
   cfg = config.services.vpn-manager;
 
-  vpn-manager = pkgs.callPackage ./default.nix {};
+  vpn-manager = pkgs.callPackage ./package.nix {};
 in {
   options.services.vpn-manager = {
     enable = lib.mkEnableOption "Streamlit VPN Manager";

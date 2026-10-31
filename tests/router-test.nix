@@ -117,7 +117,7 @@
         (import "${self}/overlays/python-packages.nix")
         # Add network-metrics-exporter package
         (final: prev: {
-          network-metrics-exporter = final.callPackage "${self}/packages/network-metrics-exporter" {};
+          network-metrics-exporter = final.callPackage "${self}/packages/network-metrics-exporter/package.nix" {};
         })
       ];
 

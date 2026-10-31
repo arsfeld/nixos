@@ -7,7 +7,7 @@
 with lib; let
   cfg = config.services.natpmp-server;
 
-  natpmp-server = pkgs.callPackage ./default.nix {};
+  natpmp-server = pkgs.callPackage ./package.nix {};
 
   configFlags =
     [

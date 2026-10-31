@@ -4,19 +4,15 @@
   ...
 }: {
   flake.lib = let
-    # Define packages loading function once
-    loadPackages = pkgs: let
-      loaded = inputs.haumea.lib.load {
-        src = ../packages;
-        loader = inputs.haumea.lib.loaders.callPackage;
-        inputs = {inherit pkgs;};
+    # packages/<name>/package.nix, the nixpkgs by-name layout. Other files in a
+    # package directory (module.nix, sources) are ignored by the loader.
+    # The lib comes from the flake input, not pkgs: the overlay calls this with
+    # `final`, and reading final.lib while building the overlay recurses forever.
+    loadPackages = pkgs:
+      inputs.nixpkgs.lib.packagesFromDirectoryRecursive {
+        inherit (pkgs) callPackage;
+        directory = ../packages;
       };
-    in
-      builtins.mapAttrs (name: value:
-        if value ? default
-        then value.default
-        else value)
-      loaded;
 
     # Common overlays used everywhere
     overlays = [
@@ -36,7 +32,7 @@
           inherit (final) config;
         };
       })
-      # Load packages from ./packages directory using haumea
+      # Load packages from ./packages
       (final: prev: loadPackages final)
     ];
 

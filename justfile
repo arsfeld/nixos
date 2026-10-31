@@ -32,7 +32,7 @@ update-packages *PKGS:
     # release tag, so bump that by hand: latest release -> version, then let a
     # build with a fake hash report the real one.
     bump_github_tag() {
-      local p=$1 file=packages/$1/default.nix info old tag new oldhash fake got
+      local p=$1 file=packages/$1/package.nix info old tag new oldhash fake got
       info=$(nix eval --json ".#$p" --apply 'p: {v = p.version; tag = p.src.tag; home = p.src.meta.homepage; h = p.src.outputHash;}') || return 1
       old=$(jq -r .v <<<"$info")
       oldhash=$(jq -r .h <<<"$info")
