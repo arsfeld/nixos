@@ -97,6 +97,14 @@
       # Experimental. "gnome" is the way back: the GNOME settings below and in
       # appearance.nix are inert under Pantheon and kept for that switch.
       variant = "pantheon";
+      pantheon.dockStacks = [
+        {
+          source = "~/Downloads";
+          view = "fan";
+          sort = "date-added";
+        }
+        {source = "applications";}
+      ];
     };
     gaming = {
       enable = true;
