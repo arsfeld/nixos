@@ -33,8 +33,8 @@
           '';
       }
       // inputs.nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
-        pantheon-dock-stacks-test = inputs.nixpkgs.legacyPackages.${system}.testers.nixosTest (
-          import ../tests/pantheon-dock-stacks-test.nix
+        pantheon-dock-test = inputs.nixpkgs.legacyPackages.${system}.testers.nixosTest (
+          import ../tests/pantheon-dock-test.nix
         );
         # cylon-link is cross-compiled from x86_64; its checks are too.
         cylon-link-boot = import ../hosts/cylon-link/boot/test.nix {
