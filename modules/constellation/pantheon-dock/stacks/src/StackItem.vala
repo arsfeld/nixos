@@ -136,7 +136,12 @@ public class Dock.StackItem : BaseIconGroup {
 
     private void update_child () {
         var empty = source.missing || source.entries.get_n_items () == 0;
-        Gtk.Widget wanted = (config.display == FOLDER || empty) ? folder_image : preview;
+        Gtk.Widget wanted;
+        if (empty || config.display == FOLDER) {
+            wanted = folder_image;
+        } else {
+            wanted = preview;
+        }
         if (child != wanted) {
             child = wanted;
         }

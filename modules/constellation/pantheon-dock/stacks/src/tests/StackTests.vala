@@ -32,6 +32,15 @@ void test_parse_applications () {
     }
 }
 
+void test_parse_display_grid () {
+    try {
+        var config = StackConfig.parse ("applications", "grid", "name", "grid");
+        assert_true (config.display == StackConfig.Display.GRID);
+    } catch (StackConfigError e) {
+        error ("unexpected error: %s", e.message);
+    }
+}
+
 void assert_rejected (string source, string view, string sort, string display) {
     try {
         StackConfig.parse (source, view, sort, display);
@@ -180,6 +189,7 @@ int main (string[] args) {
     Test.init (ref args);
     Test.add_func ("/stack-config/expands-home", test_parse_expands_home);
     Test.add_func ("/stack-config/applications", test_parse_applications);
+    Test.add_func ("/stack-config/display-grid", test_parse_display_grid);
     Test.add_func ("/stack-config/rejects-invalid", test_parse_rejects_invalid);
     Test.add_func ("/stack-config/parse-all-skips-invalid", test_parse_all_skips_invalid);
     Test.add_func ("/stack-source/shown-names", test_shown_names);

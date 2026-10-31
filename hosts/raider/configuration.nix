@@ -103,7 +103,10 @@
           view = "fan";
           sort = "date-added";
         }
-        {source = "applications";}
+        {
+          source = "applications";
+          display = "grid";
+        }
       ];
     };
     gaming = {

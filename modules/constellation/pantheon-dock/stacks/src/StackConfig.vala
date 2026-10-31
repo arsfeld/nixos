@@ -13,7 +13,7 @@ namespace Dock {
 public class Dock.StackConfig : Object {
     public enum View { FAN, GRID }
     public enum Sort { DATE_ADDED, NAME }
-    public enum Display { STACK, FOLDER }
+    public enum Display { STACK, GRID, FOLDER }
 
     public const string APPLICATIONS = "applications";
 
@@ -56,6 +56,7 @@ public class Dock.StackConfig : Object {
         Display parsed_display;
         switch (display) {
             case "stack": parsed_display = STACK; break;
+            case "grid": parsed_display = GRID; break;
             case "folder": parsed_display = FOLDER; break;
             default: throw new StackConfigError.INVALID ("unknown display '%s'", display);
         }

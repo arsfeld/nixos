@@ -33,7 +33,10 @@
         view = "fan";
         sort = "date-added";
       }
-      {source = "applications";}
+      {
+        source = "applications";
+        display = "grid";
+      }
     ];
 
     systemd.tmpfiles.rules = ["d /home/alice/Downloads 0755 alice users -"];

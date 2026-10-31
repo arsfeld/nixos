@@ -92,7 +92,10 @@ in {
           view = "fan";
           sort = "date-added";
         }
-        {source = "applications";}
+        {
+          source = "applications";
+          display = "grid";
+        }
       ];
       gnome.monitorControl.enable = true;
       gnome.gpuMonitor.enable = true;

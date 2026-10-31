@@ -58,8 +58,9 @@ in {
             default = "name";
           };
           display = lib.mkOption {
-            type = lib.types.enum ["stack" "folder"];
+            type = lib.types.enum ["stack" "grid" "folder"];
             default = "stack";
+            description = "stack: a pile of the newest entries; grid: a 2×2 preview; folder: a static icon.";
           };
         };
       });
