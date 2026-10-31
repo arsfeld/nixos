@@ -95,7 +95,7 @@
     temperature = "sensor.living_room_2_temperature";
     base = 16;
     weekday = [["17:00" "20:30" 20]];
-    weekend = [["08:00" "20:30" 20]];
+    weekend = [["08:00" "20:30" 21]];
     rate = {
       helper = "family_room";
       seed = 1.0;

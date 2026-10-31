@@ -151,7 +151,7 @@ class OtherZones(unittest.TestCase):
         r = target("family_room", at(MONDAY, "16:30"), states)
         self.assertEqual((r.value, r.attributes["reason"]), (20, "preheat"))
         self.assertEqual(target("family_room", at(MONDAY, "12:00"), {**states, "sensor.living_room_2_temperature": "20.0"}).value, 16)
-        self.assertEqual(target("family_room", at(SATURDAY, "09:00"), states).value, 20)
+        self.assertEqual(target("family_room", at(SATURDAY, "09:00"), states).value, 21)
 
     def test_family_room_preheats_up_to_4_hours(self):
         states = {"sensor.living_room_2_temperature": "16.0", "input_number.heating_rate_family_room": "0"}
