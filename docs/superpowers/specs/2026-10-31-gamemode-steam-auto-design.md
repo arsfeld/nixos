@@ -42,9 +42,10 @@ as runtime inputs. Every 2 seconds:
 1. `pgrep -f '^reaper SteamLaunch AppId='` lists current reapers.
 2. For each PID not in its in-memory seen-set, call
    `busctl --user call com.feralinteractive.GameMode /com/feralinteractive/GameMode com.feralinteractive.GameMode RegisterGameByPID ii $$ <pid>`.
-   On reply `0`, add the PID to the seen-set and log the registration.
-   On any other reply or a failed call, log it and leave the PID out of the set
-   so the next pass retries.
+   If the call fails (gamemoded unreachable), log it and leave the PID out of
+   the set so the next pass retries. Any reply adds the PID to the seen-set: a
+   reply other than `0` (already registered, rejected) would be the same next
+   time, and retrying it logs an error in gamemoded every 2 seconds.
 3. Drop PIDs from the seen-set that are no longer running.
 
 The watcher never unregisters. gamemoded's own reaper thread checks every
