@@ -293,6 +293,13 @@ class Baseboards(unittest.TestCase):
         trigger = {"id": "change", "entity_id": OFFICE}
         self.assertEqual(render_variables(hass, self.ALIAS, trigger)["pairs"], [["climate.office", "21"]])
 
+    def test_first_target_after_restart_counts_as_a_change(self):
+        change = [t for t in automation(self.ALIAS)["triggers"] if t["id"] == "change"]
+        self.assertEqual([t.get("not_from") for t in change], [None])
+        condition = automation(self.ALIAS)["conditions"][1]["value_template"]
+        restart = {"id": "change", "from_state": SimpleNamespace(state="unknown"), "to_state": SimpleNamespace(state="21")}
+        self.assertTrue(Hass(at(SATURDAY, "08:44")).render(condition, trigger=restart))
+
     def test_morning_and_challenge_end_reassert_everything(self):
         others = [t for t in automation(self.ALIAS)["triggers"] if t["id"] != "change"]
         self.assertEqual({t["id"] for t in others}, {"all"})
