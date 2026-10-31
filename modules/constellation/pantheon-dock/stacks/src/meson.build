@@ -5,6 +5,7 @@
 stacks_core_sources = files(
     'AppFolders.vala',
     'FanMath.vala',
+    'LauncherProgress.vala',
     'StackConfig.vala',
     'StackEntry.vala',
     'StackSource.vala',

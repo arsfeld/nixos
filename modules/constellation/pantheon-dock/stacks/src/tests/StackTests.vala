@@ -95,6 +95,64 @@ StackEntry? find_entry (ListModel model, string name) {
     return null;
 }
 
+void assert_near (double actual, double expected) {
+    if ((actual - expected).abs () > 1e-9) {
+        error ("%g != %g", actual, expected);
+    }
+}
+
+void test_launcher_progress () {
+    var progress = new LauncherProgress ();
+    assert_true (LauncherProgress.is_browser ("web.desktop"));
+    assert_false (LauncherProgress.is_browser ("a.desktop"));
+    assert_false (LauncherProgress.is_browser ("missing.desktop"));
+
+    assert_true (progress.download_fraction () < 0);
+    progress.handle_update (new Variant.parsed ("('application://web.desktop', {'progress': <0.25>, 'progress-visible': <true>})"));
+    assert_near (progress.download_fraction (), 0.25);
+    // Not a browser: ignored.
+    progress.update ("a.desktop", 0.9, true);
+    assert_near (progress.download_fraction (), 0.25);
+    // A partial update keeps the other key.
+    progress.update ("web.desktop", 0.5, null);
+    assert_near (progress.download_fraction (), 0.5);
+    progress.update ("web.desktop", null, false);
+    assert_true (progress.download_fraction () < 0);
+    // Malformed: ignored without a crash.
+    progress.handle_update (new Variant.parsed ("('nope',)"));
+}
+
+void test_downloads_tile () {
+    try {
+        var dir = DirUtils.make_tmp ("stacks-XXXXXX");
+        make_file (dir, "done.zip");
+        var source = new StackSource (new StackConfig (dir, FAN, DATE_ADDED, STACK));
+        wait_for_load (source);
+        assert_false (source.tile_busy);
+
+        make_file (dir, "video.mp4.crdownload");
+        wait_for_load (source);
+        assert_true (source.tile_busy);
+        assert_true (source.tile_progress < 0);
+
+        // Chromium's LauncherEntry fraction, only because a .crdownload is present.
+        LauncherProgress.get_default ().update ("web.desktop", 0.5, true);
+        assert_near (source.tile_progress, 0.5);
+        LauncherProgress.get_default ().update ("web.desktop", null, false);
+        assert_true (source.tile_progress < 0);
+
+        // A stalled download is not busy.
+        var old = get_real_time () / 1000000 - 120;
+        File.new_for_path (Path.build_filename (dir, "stale.iso.part")).replace_contents ("x".data, null, false, NONE, null);
+        File.new_for_path (Path.build_filename (dir, "stale.iso.part")).set_attribute_uint64 (FileAttribute.TIME_MODIFIED, old, NONE);
+        FileUtils.remove (Path.build_filename (dir, "video.mp4.crdownload"));
+        wait_for_load (source);
+        assert_false (source.tile_busy);
+    } catch (Error e) {
+        error ("fixture: %s", e.message);
+    }
+}
+
 void wait_for_load (StackSource source) {
     var loop = new MainLoop ();
     var handler = source.loaded.connect (() => loop.quit ());
@@ -268,12 +326,6 @@ void write_desktop_files (string data_dir) {
     write_desktop_file (apps, "htop.desktop", "Name=Htop\nTerminal=true\nCategories=System;Monitor;\n");
 }
 
-void assert_near (double actual, double expected) {
-    if ((actual - expected).abs () > 1e-9) {
-        error ("%g != %g", actual, expected);
-    }
-}
-
 void test_fan_pose_open () {
     // The ends of the curve are the ones the fan was tuned to on screen.
     assert_near (FanMath.drift (0), 0);
@@ -352,6 +404,8 @@ int main (string[] args) {
     Test.add_func ("/stack-entry/download-stall", test_download_stall);
     Test.add_func ("/stack-source/applications", test_applications);
     Test.add_func ("/stack-source/applications-fan-flat", test_applications_fan_flat);
+    Test.add_func ("/launcher-progress/feed", test_launcher_progress);
+    Test.add_func ("/stack-source/downloads-tile", test_downloads_tile);
     Test.add_func ("/fan-math/open", test_fan_pose_open);
     Test.add_func ("/fan-math/collapsed", test_fan_pose_collapsed);
     Test.add_func ("/app-folders/classify", test_classify);

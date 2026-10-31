@@ -13,6 +13,7 @@ public class Dock.StackItem : BaseIconGroup {
     private Gtk.Image folder_image;
     private StackPile pile;
     private bool torn_down = false;
+    private Gtk.Revealer progress_revealer;
 
     // The launch bounce. Launcher.animate_launch plays the same one, but its
     // animations are private to Launcher, so this is a copy rather than a share.
@@ -67,6 +68,16 @@ public class Dock.StackItem : BaseIconGroup {
             easing = EASE_IN_OUT_QUAD
         };
         bounce_up.done.connect (on_bounce_up_done);
+
+        progress_revealer = new Gtk.Revealer () {
+            can_target = false,
+            transition_type = CROSSFADE,
+            valign = END
+        };
+        overlay.add_overlay (progress_revealer);
+        progress_revealer.notify["child-revealed"].connect (on_progress_child_revealed);
+        source.notify["tile-busy"].connect (update_progress);
+        update_progress ();
         source.launched.connect (animate_launch);
 
         source.notify["missing"].connect (update_child);
@@ -170,6 +181,23 @@ public class Dock.StackItem : BaseIconGroup {
         }
     }
 
+    // As upstream Launcher does: build the bar when it is shown and drop it once
+    // hidden, so an idle tile has no bar asking for layout (elementary/dock#279).
+    private void update_progress () {
+        progress_revealer.reveal_child = source.tile_busy;
+        if (source.tile_busy && progress_revealer.child == null) {
+            var bar = new StackProgressBar ();
+            source.bind_property ("tile-progress", bar, "fraction", SYNC_CREATE);
+            progress_revealer.child = bar;
+        }
+    }
+
+    private void on_progress_child_revealed () {
+        if (!progress_revealer.child_revealed) {
+            progress_revealer.child = null;
+        }
+    }
+
     private void teardown () {
         if (torn_down) {
             return;
@@ -183,6 +211,7 @@ public class Dock.StackItem : BaseIconGroup {
         ((Gtk.FlowBox) preview).bind_model (null, null);
 
         source.notify["missing"].disconnect (update_child);
+        source.notify["tile-busy"].disconnect (update_progress);
         source.entries.items_changed.disconnect (update_child);
         pile.stop ();
         source.launched.disconnect (animate_launch);

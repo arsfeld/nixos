@@ -29,6 +29,10 @@ public class Dock.StackSource : Object {
     /* Applications shown as a grid are grouped into AppFolders. */
     public bool groups_folders { get { return config.is_applications && config.view == GRID; } }
     public bool missing { get; private set; default = false; }
+    /* The tile shows a progress bar while this is true. */
+    public bool tile_busy { get; private set; default = false; }
+    /* 0–1, or below 0 to pulse. */
+    public double tile_progress { get; private set; default = -1; }
 
     private ListStore store;
     private ListStore preview_store;
@@ -56,6 +60,7 @@ public class Dock.StackSource : Object {
             } catch (Error e) {
                 debug ("Not watching %s: %s", config.source, e.message);
             }
+            LauncherProgress.get_default ().changed.connect (update_tile);
         }
 
         // Deferred so callers can connect to `loaded` before the first load.
@@ -70,6 +75,7 @@ public class Dock.StackSource : Object {
     /* Stops watching and reloading. Idempotent. */
     public void stop () {
         debug ("StackSource stop for %s", config.source);
+        LauncherProgress.get_default ().changed.disconnect (update_tile);
         if (monitor != null) {
             monitor.cancel ();
             monitor = null;
@@ -206,6 +212,7 @@ public class Dock.StackSource : Object {
         preview_store.splice (0, preview_store.get_n_items (), previews);
         store.splice (0, store.get_n_items (), items);
 
+        update_tile ();
         update_refresh ();
         loaded ();
     }
@@ -262,6 +269,30 @@ public class Dock.StackSource : Object {
             } catch (Error e) {
                 // Renamed on completion or cancelled: the next reload handles it.
             }
+        }
+        update_tile ();
+    }
+
+    private void update_tile () {
+        bool busy = false;
+        bool chromium = false;
+        for (uint i = 0; i < store.get_n_items (); i++) {
+            var entry = (StackEntry) store.get_item (i);
+            if (entry.downloading && !entry.stalled) {
+                busy = true;
+                chromium = chromium || entry.file.get_basename ().has_suffix (".crdownload");
+            }
+        }
+        set_tile (busy, chromium ? LauncherProgress.get_default ().download_fraction () : -1);
+    }
+
+    // Only on change: the tile bar is re-laid-out on every notify.
+    private void set_tile (bool busy, double progress) {
+        if (tile_busy != busy) {
+            tile_busy = busy;
+        }
+        if (tile_progress != progress) {
+            tile_progress = progress;
         }
     }
 
