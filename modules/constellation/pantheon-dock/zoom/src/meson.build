@@ -5,7 +5,9 @@ zoom_core_sources = files(
     'ZoomMath.vala',
 )
 
-zoom_sources = zoom_core_sources
+zoom_sources = zoom_core_sources + files(
+    'ZoomController.vala',
+)
 
 zoom_test = executable(
     'zoom-math-test',

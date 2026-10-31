@@ -1,3 +1,37 @@
+diff --git a/data/dock.gschema.xml b/data/dock.gschema.xml
+index 83183615..83f23767 100644
+--- a/data/dock.gschema.xml
++++ b/data/dock.gschema.xml
+@@ -31,6 +31,16 @@
+       <summary>Folder stacks shown after the launchers</summary>
+       <description>Each entry is (source, view, sort, display): source is an absolute path, a path starting with ~/, or 'applications'; view is 'fan' or 'grid'; sort is 'date-added' or 'name'; display is 'stack' or 'folder'.</description>
+     </key>
++    <key type="b" name="zoom-enabled">
++      <default>true</default>
++      <summary>Magnify icons under the pointer</summary>
++      <description>Grow the icons near the pointer and spread their neighbours apart, like the macOS dock</description>
++    </key>
++    <key type="i" name="zoom-size">
++      <default>84</default>
++      <summary>Logical pixel size of the icon under the pointer</summary>
++      <description>Clamped to what fits in the space above the dock: 104 with the default 48 px icons</description>
++    </key>
+   </schema>
+   <schema path="/io/elementary/dock/keybindings/" id="io.elementary.dock.keybindings">
+     <key type="as" name="launch-dock-1">
+diff --git a/src/MainWindow.vala b/src/MainWindow.vala
+index 2d05ae08..45c3acad 100644
+--- a/src/MainWindow.vala
++++ b/src/MainWindow.vala
+@@ -15,7 +15,7 @@ public class Dock.MainWindow : Gtk.ApplicationWindow {
+     }
+ 
+     // Matches top margin in Launcher.css
+-    private const int TOP_MARGIN = 64;
++    public const int TOP_MARGIN = 64;
+ 
+     private Settings transparency_settings;
+     private static Settings settings = new Settings ("io.elementary.dock");
 diff --git a/src/meson.build b/src/meson.build
 index 1b2b91f8..7abcf199 100644
 --- a/src/meson.build
