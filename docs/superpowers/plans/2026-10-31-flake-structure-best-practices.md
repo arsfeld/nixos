@@ -4,7 +4,7 @@
 
 **Goal:** Replace six private `import inputs.nixpkgs-unstable` instances with one `pkgs.unstable` overlay, and load `packages/` with `lib.packagesFromDirectoryRecursive` instead of haumea — without changing any host's system closure.
 
-**Architecture:** Both changes live in `flake-modules/lib.nix` (the shared overlay list and `loadPackages`), with call sites updated to match. Correctness is proven by recording every host's toplevel `drvPath` before any edit and asserting it is byte-identical after each task.
+**Architecture:** Both changes live in `flake-modules/lib.nix` (the shared overlay list and `loadPackages`), with call sites updated to match. Correctness is proven by recording the affected hosts' toplevel `drvPath` before any edit and asserting it is byte-identical after each task.
 
 **Tech Stack:** Nix flakes, flake-parts, nixpkgs `lib.filesystem.packagesFromDirectoryRecursive`, haumea (kept for `modules/` only).
 
@@ -12,7 +12,8 @@ Spec: `docs/superpowers/specs/2026-10-31-flake-structure-best-practices-design.m
 
 ## Global Constraints
 
-- Every host's `config.system.build.toplevel.drvPath` must be identical before and after each task. A difference is investigated and explained before committing.
+- The toplevel `drvPath` of the five affected hosts — basestar, blackbird, galactica, raider, router — must be identical before and after each task. A difference is investigated and explained before committing.
+- **Never evaluate hosts in parallel.** Concurrent full NixOS evaluations exhausted raider's RAM and took the machine down. `/tmp/flake-structure/drvs.sh` evaluates one host at a time under `nice`; run it in the background and wait, never alongside another evaluation.
 - No `import inputs.nixpkgs*` may remain under `hosts/`, `modules/` or `home/`.
 - `pkgs.unstable` gets no overlays; it inherits the host's `config`.
 - haumea stays as a flake input; it still loads `modules/`.
@@ -27,7 +28,7 @@ Spec: `docs/superpowers/specs/2026-10-31-flake-structure-best-practices-design.m
 **Files:** none modified. Writes `/tmp/flake-structure/before/<host>` (outside the repo).
 
 **Interfaces:**
-- Produces: `/tmp/flake-structure/before/<host>` — one file per host containing its toplevel drvPath; and the script `/tmp/flake-structure/drvs.sh <dir>` used by Tasks 2 and 3.
+- Produces: `/tmp/flake-structure/before/<host>` — one file per affected host containing its toplevel drvPath; and the script `/tmp/flake-structure/drvs.sh <dir>` used by Tasks 2 and 3.
 
 - [ ] **Step 1: Write the snapshot script**
 
@@ -51,7 +52,9 @@ chmod +x /tmp/flake-structure/drvs.sh
 - [ ] **Step 2: Run it on a clean master**
 
 Run: `git -C /home/arosenfeld/Code/nixos status --short && /tmp/flake-structure/drvs.sh /tmp/flake-structure/before`
-Expected: empty `git status`, then ten lines `<host> /nix/store/…-nixos-system-<host>-….drv` (basestar, blackbird, cylon-link, galactica, octopi, pegasus, r2s, raider, raspi3, router). Evaluation takes several minutes. If any host fails to evaluate, stop — the baseline must be complete.
+Expected: empty `git status`, then five lines `<host> /nix/store/…-nixos-system-<host>-….drv` (basestar, blackbird, galactica, raider, router). Takes several minutes per host. If any host fails to evaluate, stop — the baseline must be complete.
+
+(Executed by the controller on 2026-10-31 at efe799c6; the script below was replaced by the sequential version described in Global Constraints.)
 
 ---
 
@@ -435,10 +438,18 @@ diff -r /tmp/flake-structure/before /tmp/flake-structure/task3 && echo IDENTICAL
 
 Expected: `IDENTICAL`. If a host differs, run `nix-diff` as in Task 2 Step 12. A likely cause is a package whose `default.nix` took an argument haumea supplied but `callPackage` resolves differently (e.g. one named `pkgs`); fix the package, don't paper over it.
 
-- [ ] **Step 9: Run the flake checks**
+- [ ] **Step 9: Verify the two checks that reference package paths are unchanged**
 
-Run: `nix flake check`
-Expected: passes (includes the router VM test that exercises `tests/router-test.nix`).
+Do NOT run `nix flake check` (it evaluates every host and builds every VM test — too heavy for raider). Instead compare the check derivations against the baseline the controller recorded in `/tmp/flake-structure/before/checks`:
+
+```bash
+for c in router-test pantheon-gamemode-test; do
+  echo "$c $(nice -n 19 nix eval --raw .#checks.x86_64-linux.$c.drvPath)"
+done > /tmp/flake-structure/task3-checks
+diff /tmp/flake-structure/before/checks /tmp/flake-structure/task3-checks && echo IDENTICAL
+```
+
+Expected: `IDENTICAL` — the tests evaluate to the same derivations, so they would pass exactly as before.
 
 - [ ] **Step 10: Commit**
 
