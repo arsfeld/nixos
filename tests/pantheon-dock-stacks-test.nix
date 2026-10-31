@@ -8,7 +8,7 @@
   nodes.machine = {...}: {
     imports = [
       "${pkgs.path}/nixos/tests/common/user-account.nix"
-      ../modules/constellation/pantheon-dock.nix
+      ../modules/constellation/pantheon-dock
     ];
 
     # Workaround ".gala-wrapped invoked oom-killer" (as upstream's test).

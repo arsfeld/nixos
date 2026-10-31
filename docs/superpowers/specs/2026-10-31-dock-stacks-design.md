@@ -48,12 +48,13 @@ to `time::modified`. GIO exposes no true "date added".
 
 ### Nix side
 
-In the Pantheon branch of `modules/constellation/desktop.nix`:
+In `modules/constellation/pantheon-dock/default.nix`, the one module for every local dock
+patch (as built; the design first placed this in `desktop.nix`):
 
 - An overlay replaces `pantheon.elementary-dock` through `pantheon.overrideScope`, adding
-  the patch to `patches`. The patch file lives at
-  `modules/constellation/desktop/elementary-dock-stacks.patch`. haumea loads only `.nix`
-  files, as `modules/constellation/certs/*.pem` already shows.
+  `pantheon-dock/stacks/hooks.patch` to `patches` and copying `pantheon-dock/stacks/src/`
+  into the dock's `src/Stacks/`. haumea loads only `.nix` files, so the Vala sources and
+  the patch sit beside the module unharmed.
 - A new option, `constellation.desktop.pantheon.dockStacks`, is a list of submodules
   `{source, view, sort, display}` with the defaults `view = "grid"`, `sort = "name"`,
   `display = "stack"`. It is written as a system dconf default for `io/elementary/dock/stacks`

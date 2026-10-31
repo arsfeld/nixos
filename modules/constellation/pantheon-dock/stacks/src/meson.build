@@ -1,4 +1,4 @@
-# Copied into the dock's src/Stacks/ by modules/constellation/pantheon-dock.nix.
+# Copied into the dock's src/Stacks/ by modules/constellation/pantheon-dock/default.nix.
 # Core files must not touch widgets that need a display: the unit test links
 # only them and runs inside the Nix build sandbox.
 stacks_core_sources = files(
