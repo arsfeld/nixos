@@ -43,7 +43,7 @@ index 9b2d05df..9d453500 100644
  
          tooltip_text = Granite.markup_accel_tooltip (
 diff --git a/src/BaseItem.vala b/src/BaseItem.vala
-index 0522be34..54e84daf 100644
+index 0522be34..8b41602f 100644
 --- a/src/BaseItem.vala
 +++ b/src/BaseItem.vala
 @@ -32,6 +32,9 @@ public class Dock.BaseItem : Gtk.Box {
@@ -119,8 +119,36 @@ index 0522be34..54e84daf 100644
      public void set_revealed (bool revealed) {
          fade.skip ();
          reveal.skip ();
+@@ -233,8 +277,8 @@ public class Dock.BaseItem : Gtk.Box {
+ 
+     /**
+      * Makes the launcher animate a move to the given position. Make sure to
+-     * always use this instead of manually calling Gtk.Fixed.move on the manager
+-     * when moving a launcher so that its current_pos is always up to date.
++     * always use this instead of setting the position directly, so that
++     * current_pos is always up to date and the group lays the item out.
+      */
+     public void animate_move (double new_position) {
+         if (timed_animation.value_to == new_position) {
+@@ -324,14 +368,14 @@ public class Dock.BaseItem : Gtk.Box {
+     }
+ 
+     private void wait_and_show_tooltip (uint delay_ms) {
+-        if (!popover_menu.visible && tooltip_text != null) {
++        if ((popover_menu == null || !popover_menu.visible) && tooltip_text != null) {
+             // Add timeout to avoid "Error 71 (Protocol error) dispatching to Wayland display".
+             // This error is probably caused by a bug in GTK caused by the Nvidia driver at least up to v580.
+             // See https://github.com/elementary/dock/issues/559
+ 
+             open_tooltip_timeout_id = GLib.Timeout.add_once (delay_ms, () => {
+                 open_tooltip_timeout_id = 0;
+-                if (!popover_menu.visible) {
++                if (popover_menu == null || !popover_menu.visible) {
+                     popover_tooltip.popup ();
+                 }
+             });
 diff --git a/src/ItemGroup.vala b/src/ItemGroup.vala
-index cc51fe5f..3a5738ee 100644
+index cc51fe5f..c634ff14 100644
 --- a/src/ItemGroup.vala
 +++ b/src/ItemGroup.vala
 @@ -5,7 +5,7 @@
@@ -132,10 +160,13 @@ index cc51fe5f..3a5738ee 100644
      private const string OBJECT_DATA_KEY = "item-group-obj";
  
      [CCode (has_target = false)]
-@@ -23,6 +23,12 @@
+@@ -23,6 +23,15 @@
  
      private bool relayout_queued = false;
  
++    /** Emitted when items are added to or removed from the group, so the zoom can be redone. */
++    public signal void children_changed ();
++
 +    /** Width with every item at zoom 1, animated as items are added and removed. */
 +    public double rest_width { get; set; default = 0.0; }
 +
@@ -145,7 +176,7 @@ index cc51fe5f..3a5738ee 100644
      private HashTable<Object, BaseItem> cached_items;
      private uint clear_cache_id = 0;
  
-@@ -36,13 +42,17 @@
+@@ -36,13 +45,18 @@
  
      construct {
          item_store = new Sequence<BaseItem> ();
@@ -155,6 +186,7 @@ index cc51fe5f..3a5738ee 100644
          current_children = new ListStore (typeof (BaseItem));
          current_children.items_changed.connect (queue_relayout);
 +        current_children.items_changed.connect (notify_index_changed);
++        current_children.items_changed.connect (emit_children_changed);
  
          settings.changed["icon-size"].connect (queue_relayout);
  
@@ -164,7 +196,7 @@ index cc51fe5f..3a5738ee 100644
  
          resize_animation = new Adw.TimedAnimation (this, 0, 0, Granite.TRANSITION_DURATION_OPEN, animation_target);
          resize_animation.done.connect (on_resized);
-@@ -51,8 +61,58 @@
+@@ -51,8 +65,58 @@
          on_items_changed (0, 0, items.get_n_items ());
  
          overflow = VISIBLE;
@@ -224,7 +256,7 @@ index cc51fe5f..3a5738ee 100644
      }
  
      private void queue_relayout () {
-@@ -65,7 +125,7 @@
+@@ -65,7 +129,7 @@
      }
  
      private void relayout () {
@@ -233,7 +265,7 @@ index cc51fe5f..3a5738ee 100644
          resize_animation.value_to = get_launcher_size () * current_children.get_n_items ();
          resize_animation.duration = resize_animation.value_from < resize_animation.value_to ?
              Granite.TRANSITION_DURATION_OPEN : Granite.TRANSITION_DURATION_CLOSE;
-@@ -83,6 +143,67 @@
+@@ -83,6 +147,68 @@
          return settings.get_int ("icon-size") + Launcher.PADDING * 2;
      }
  
@@ -257,12 +289,13 @@ index cc51fe5f..3a5738ee 100644
 +
 +        update_width ();
 +
-+        for (uint i = 0; i < current_children.get_n_items (); i++) {
-+            place_item ((BaseItem) current_children.get_item (i));
-+        }
++        queue_allocate ();
 +    }
 +
-+    /** Lays item out again after its current_pos or zoom changed. */
++    /**
++     * Lays the group out again after an item's current_pos changed. The group
++     * positions every item at once, so item is not used.
++     */
 +    public void place_item (BaseItem item) {
 +        queue_allocate ();
 +    }
@@ -301,7 +334,7 @@ index cc51fe5f..3a5738ee 100644
      private void on_resized () {
          // When we finished resizing we know we now have enough space for all new items
          // so reveal them
-@@ -147,8 +268,9 @@
+@@ -147,8 +273,9 @@
          item.visible = false;
  
          var item_pos = get_launcher_size () * pos;
@@ -312,7 +345,7 @@ index cc51fe5f..3a5738ee 100644
  
          current_children.insert (pos, item);
      }
-@@ -163,7 +285,7 @@
+@@ -163,7 +290,7 @@
      private void finish_remove (BaseItem item) {
          item.revealed_done.disconnect (finish_remove);
  
@@ -321,10 +354,14 @@ index cc51fe5f..3a5738ee 100644
  
          uint index;
          if (current_children.find (item, out index)) {
-@@ -171,6 +293,12 @@
+@@ -171,6 +298,16 @@
          }
      }
  
++    private void emit_children_changed () {
++        children_changed ();
++    }
++
 +    private void notify_index_changed () {
 +        for (uint i = 0; i < current_children.get_n_items (); i++) {
 +            ((BaseItem) current_children.get_item (i)).index_changed ();
@@ -335,7 +372,7 @@ index cc51fe5f..3a5738ee 100644
          uint index;
          if (current_children.find (item, out index)) {
 diff --git a/src/ItemManager.vala b/src/ItemManager.vala
-index 8078d565..3d09e1ce 100644
+index 8078d565..92c28c86 100644
 --- a/src/ItemManager.vala
 +++ b/src/ItemManager.vala
 @@ -13,6 +13,13 @@
@@ -362,7 +399,7 @@ index 8078d565..3d09e1ce 100644
          var app_group = new ItemGroup (AppSystem.get_default ().apps, (obj) => new Launcher ((App) obj));
  
          var background_item = new BackgroundItem ();
-@@ -48,10 +58,27 @@
+@@ -48,10 +58,36 @@
  #if WORKSPACE_SWITCHER
          append (separator);
          append (new ItemGroup (WorkspaceSystem.get_default ().workspaces, (obj) => new WorkspaceIconGroup ((Workspace) obj)));
@@ -374,6 +411,15 @@ index 8078d565..3d09e1ce 100644
  #endif
          overflow = VISIBLE;
  
++        // Items arriving or leaving, and the widths animating with them, move the
++        // magnified spot under a pointer that has not.
++        for (var child = get_first_child (); child != null; child = child.get_next_sibling ()) {
++            if (child is ItemGroup) {
++                child.notify["rest-width"].connect (queue_zoom);
++                ((ItemGroup) child).children_changed.connect (queue_zoom);
++            }
++        }
++
 +        motion = new Gtk.EventControllerMotion ();
 +        motion.enter.connect ((x, y) => update_pointer (x));
 +        motion.motion.connect ((x, y) => update_pointer (x));
@@ -391,7 +437,7 @@ index 8078d565..3d09e1ce 100644
          var drop_target_file = new Gtk.DropTarget (typeof (File), COPY) {
              preload = true
          };
-@@ -178,6 +205,120 @@
+@@ -178,6 +214,124 @@
          app.launch (context);
      }
  
@@ -430,6 +476,10 @@ index 8078d565..3d09e1ce 100644
 +
 +        // Hold the zoom while the popover is open, so its anchor does not slide away from it.
 +        if (popover != frozen_popover) {
++            if (frozen_popover != null) {
++                frozen_popover.closed.disconnect (on_frozen_popover_closed);
++            }
++
 +            frozen_popover = popover;
 +            popover.closed.connect (on_frozen_popover_closed);
 +        }
