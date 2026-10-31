@@ -59,23 +59,30 @@ In `modules/constellation/pantheon-dock/`, the one overlay of `pantheon.elementa
 
 ## Components
 
-All zoom logic is in two new files, `src/Zoom/ZoomMath.vala` (pure arithmetic) and `src/Zoom/ZoomController.vala`. Existing files get narrow hooks only, to keep rebases small.
+The zoom arithmetic is in two new files, `src/Zoom/ZoomMath.vala` (pure functions) and
+`src/Zoom/ZoomController.vala` (state). The rest is hooks in existing files, and `ItemGroup`'s
+layout is rewritten (see below).
 
 ### `ZoomController` (new, `src/Zoom/ZoomController.vala`)
 
-A singleton that owns all zoom state.
+Owned by `ItemManager` (one per dock); it holds the zoom amount and the settings.
 
-- Inputs: the pointer x in `ItemManager` coordinates, or "pointer left"; the resting widths of
-  all items in order.
-- Output: a zoom factor per item, from 1.0 to `zoom-size / icon-size`, and a `changed` signal.
+- Inputs: the pointer's resting x (`pointer_moved (rest_x)`), or "pointer left". `ItemManager`
+  does the mapping from window coordinates and knows the item widths; the controller sees
+  neither.
+- Output: `factor_at (rest_center)`, a zoom factor from 1.0 to `zoom-size / icon-size` for an
+  item with that resting centre, and a `changed` signal.
 - Falloff: a cosine bell spanning 3 resting slots on each side of the pointer. Beyond that,
   factors are exactly 1.0.
 - Pointer mapping: the window is centred, so when the dock widens by `extra`, its origin moves
   left by `extra / 2`. The controller maps the pointer back to resting coordinates with
   `rest_x = pointer_x − (zoomed_width − rest_width) / 2`, and computes every factor from
-  `rest_x`. Factors never depend on the controller's own output, so the layout cannot feed back
-  on itself and jitter. Near the dock's ends, icons drift slightly under the pointer, as they
-  do on macOS.
+  `rest_x`. This is a feedback loop: the zoomed width is the current allocation, which the
+  previous factors produced. It stays consistent from frame to frame because the pointer and
+  the width come from the same allocation, so the mapping does not oscillate. When items are
+  added or removed, or the resting width animates, `ItemManager` redoes the zoom each frame so
+  the magnified icon stays under a still pointer. Near the dock's ends, icons drift slightly
+  under the pointer, as they do on macOS.
 - An `Adw` animation eases a global zoom amount between 0 and 1 on enter and leave. With
   animations disabled (`gtk-enable-animations`), the amount jumps straight to its target and
   zoom still follows the pointer.
@@ -142,7 +149,7 @@ change.
 | Pointer leaves, including autohide sliding the dock away | eases back to rest |
 | An item's popover is open (stack fan or grid, right-click menu, background apps) | frozen at its current value, so the popover's anchor does not slide; when the popover closes it eases to rest unless the pointer is back over the dock |
 | Drag-and-drop reorder, or a file dragged in | rest for the whole drag; reordering keeps its fixed slot sizes and its code is unchanged |
-| `zoom-enabled = false` | the controller is idle and the layout is identical to unpatched 8.3.3 |
+| `zoom-enabled = false` | the controller is idle and every factor is 1.0, so the layout is equivalent to unpatched 8.3.3. Not identical: the + item sits in its own one-item `ItemGroup` (it plays the group's reveal at startup, and its `get_index ()` is 0), and pointer motion still runs a cheap `apply_zoom` pass |
 
 Tooltips do not freeze the zoom, because they already follow their item.
 
@@ -178,5 +185,7 @@ Tooltips do not freeze the zoom, because they already follow their item.
 The patch must be rebased whenever nixpkgs bumps `elementary-dock`. The weekly update routine
 sees that as a build failure in `just dry-run @tier1` and fixes or reverts it, as it does for
 the stacks patch. Unlike the stacks patch, this one cannot be purely additive, because zoom
-changes how `ItemGroup` positions items. That is why all logic is in `ZoomController.vala`
-and the edits to existing files are limited to the hooks listed above.
+changes how `ItemGroup` positions items: its layout is rewritten (`measure` and
+`size_allocate` replace `Gtk.Fixed`), so a conflict there is a real merge. The controller and
+the arithmetic are in `src/Zoom/`; the other edits to existing files are the hooks listed
+above.

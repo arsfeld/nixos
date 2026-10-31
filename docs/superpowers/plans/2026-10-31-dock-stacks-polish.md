@@ -50,7 +50,7 @@ modules/constellation/pantheon-dock/
     tests/StackTests.vala           grid parsing, FanMath poses
 hosts/raider/configuration.nix      Applications: display = "grid"
 hosts/blackbird/configuration.nix   Applications: display = "grid"
-tests/pantheon-dock-stacks-test.nix Applications: display = "grid"
+tests/pantheon-dock-test.nix Applications: display = "grid"
 docs/superpowers/specs/2026-10-31-dock-stacks-polish-design.md   two wording fixes (Task 7)
 ```
 
@@ -131,7 +131,7 @@ into the pile. Applications switches to `grid` now so nothing changes on screen 
 - Modify: `modules/constellation/pantheon-dock/stacks/src/tests/StackTests.vala`
 - Modify: `modules/constellation/pantheon-dock/default.nix` (the `display` option)
 - Modify: `hosts/raider/configuration.nix:106`, `hosts/blackbird/configuration.nix:95`
-- Modify: `tests/pantheon-dock-stacks-test.nix` (the `applications` stack)
+- Modify: `tests/pantheon-dock-test.nix` (the `applications` stack)
 
 **Interfaces:**
 - Produces: `StackConfig.Display { STACK, GRID, FOLDER }`; `StackConfig.parse (…, "grid")` returns `display == GRID`.
@@ -218,7 +218,7 @@ entry `{source = "applications";}` becomes
         }
 ```
 
-`tests/pantheon-dock-stacks-test.nix`: the same change to its `{source = "applications";}`.
+`tests/pantheon-dock-test.nix`: the same change to its `{source = "applications";}`.
 
 - [ ] **Step 4: Run the tests and make sure they pass**
 
@@ -238,7 +238,7 @@ git add modules/constellation/pantheon-dock/stacks/src/StackConfig.vala \
   modules/constellation/pantheon-dock/stacks/src/tests/StackTests.vala \
   modules/constellation/pantheon-dock/default.nix \
   hosts/raider/configuration.nix hosts/blackbird/configuration.nix \
-  tests/pantheon-dock-stacks-test.nix
+  tests/pantheon-dock-test.nix
 git commit -m "feat(modules): add a grid display value for dock stacks"
 ```
 
@@ -1301,7 +1301,7 @@ and fades with it;". If Task 3 took the fallback, add a line under section 3 say
 
 ```bash
 cd /home/arosenfeld/Code/nixos
-nix build -L .#checks.x86_64-linux.pantheon-dock-stacks-test 2>&1 | tail -n 30
+nix build -L .#checks.x86_64-linux.pantheon-dock-test 2>&1 | tail -n 30
 ```
 
 Expected: success (dock starts with both stacks, survives the invalid value, logs no crash).
