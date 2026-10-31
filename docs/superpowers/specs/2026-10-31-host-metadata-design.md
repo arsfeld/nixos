@@ -91,9 +91,15 @@ This is a pure refactor, so it is proven by comparing before and after:
 1. `nix eval --json` of `.#tiers`, `.#unstableHosts`, `.#ciExcludedHosts`,
    `.#ciMatrix` and `.#lightHosts` (against the old `.#lib.lightHosts`)
    produces identical output.
-2. `drvPath` of `nixosConfigurations.<host>.config.system.build.toplevel` is
-   identical for all ten hosts. That shows every system closure is unchanged,
-   so no deploy is needed.
+2. A per-host fingerprint is identical for all ten hosts:
+   `config.system.nixos.version`, which carries the nixpkgs date and revision
+   and so tells stable from unstable, and `options ? home-manager`. Those are
+   the only two things the moved settings feed into `nixosSystem`.
+
+   Comparing toplevel `drvPath`s does **not** work in this repo. The flake's own
+   source path reaches every closure (the nix registry and the `${self}` sops
+   paths), so any commit changes every drvPath. Measured on 2026-10-31: raspi3's
+   drvPath differed across a commit that only added a markdown file.
 3. Adding a stray key to one `host.nix` makes evaluation fail with that file's
    path in the message. Revert afterwards.
 4. `just fmt` is clean.
@@ -104,4 +110,5 @@ not see them.
 ## Rollout
 
 One commit, `refactor(modules): move per-host settings into hosts/<name>/host.nix`.
-Nothing to deploy: identical drvPaths mean identical systems.
+Nothing needs deploying for this change; the next routine deploy picks up the
+changed source path.
