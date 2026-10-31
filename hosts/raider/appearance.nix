@@ -10,6 +10,10 @@
 # settings.ini, which GNOME tools rewrite as plain files, and the resulting
 # backup collision aborts the whole home-manager activation. GNOME on Wayland
 # reads these settings from dconf anyway.
+#
+# Gated on the gnome variant: home-manager's dconf writes follow DCONF_PROFILE,
+# so under Pantheon they would land in its database and replace the elementary
+# theme, icons and cursor with Yaru.
 {
   config,
   lib,
@@ -25,7 +29,7 @@ in {
 
   environment.systemPackages = [pkgs.yaru-theme];
 
-  home-manager.users.arosenfeld.dconf.settings = {
+  home-manager.users.arosenfeld.dconf.settings = lib.mkIf (config.constellation.desktop.variant == "gnome") {
     "org/gnome/desktop/interface" = {
       gtk-theme = theme.gtk;
       icon-theme = theme.icon;

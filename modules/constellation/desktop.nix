@@ -563,8 +563,9 @@ in {
         # generated profile with its own user database instead: Pantheon's
         # theme, font and keybinding writes then land in ~/.config/dconf/pantheon
         # and GNOME's ~/.config/dconf/user is left alone for the switch back.
-        # home-manager's dconf activation runs outside the session, without
-        # DCONF_PROFILE, so it keeps writing GNOME's database.
+        # home-manager's activation runs in a login shell, which sources
+        # DCONF_PROFILE from /etc/profile, so its dconf.settings land in the
+        # Pantheon database too: gate GNOME-only values on the variant.
         pantheonProfile = pkgs.runCommand "dconf-profile-pantheon" {} ''
           sed 's/^user-db:user$/user-db:pantheon/' \
             ${config.environment.etc.dconf.source}/profile/user > $out
