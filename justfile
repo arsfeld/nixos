@@ -4,6 +4,7 @@ mod secrets 'just/secrets.just'
 mod docs 'just/docs.just'
 mod k8s 'just/k8s.just'
 mod eufy 'just/eufy.just'
+mod pantheon 'just/pantheon.just'
 fmt:
     alejandra .
 
