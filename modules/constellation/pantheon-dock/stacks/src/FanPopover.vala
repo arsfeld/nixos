@@ -53,7 +53,6 @@ public class Dock.FanPopover : Gtk.Popover {
         // for as long as the source is.
         source.entries.items_changed.connect (mark_dirty);
         source.notify["missing"].connect (mark_dirty);
-        notify["visible"].connect (on_visible_changed);
     }
 
     ~FanPopover () {
@@ -88,10 +87,17 @@ public class Dock.FanPopover : Gtk.Popover {
         dirty = true;
     }
 
-    private void on_visible_changed () {
-        if (visible && dirty) {
+    // Rebuild before chaining up, not on notify::visible: GtkPopover's show
+    // handler moves focus into the popover's children, and notify::visible only
+    // fires after it. Rebuilding there left the fan empty at that moment, so the
+    // focus move failed and GTK called gtk_widget_is_ancestor (NULL, ...) on the
+    // dock window's NULL focus: a critical on first open. A click pops up
+    // through this same show path.
+    public override void show () {
+        if (dirty) {
             rebuild ();
         }
+        base.show ();
     }
 
     private void rebuild () {
