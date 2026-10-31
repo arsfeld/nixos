@@ -3,6 +3,8 @@
 # only them and runs inside the Nix build sandbox.
 stacks_core_sources = files(
     'StackConfig.vala',
+    'StackEntry.vala',
+    'StackSource.vala',
 )
 
 stacks_sources = stacks_core_sources + files(
