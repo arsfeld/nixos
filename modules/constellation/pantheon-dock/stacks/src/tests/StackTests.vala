@@ -218,6 +218,20 @@ void test_fan_pose_collapsed () {
     assert_near (FanMath.ghost_scale (1), 1.6);
 }
 
+void test_classify () {
+    assert_true (AppFolders.classify ("Game;ActionGame;", false) == AppFolders.Folder.GAMES);
+    assert_true (AppFolders.classify ("System;Monitor;", false) == AppFolders.Folder.SYSTEM);
+    assert_true (AppFolders.classify ("Settings;", false) == AppFolders.Folder.SYSTEM);
+    assert_true (AppFolders.classify ("Utility;", false) == AppFolders.Folder.UTILITIES);
+    // A utility that is also an everyday app stays at the top level.
+    assert_true (AppFolders.classify ("Utility;Office;", false) == AppFolders.Folder.NONE);
+    assert_true (AppFolders.classify ("Network;WebBrowser;", false) == AppFolders.Folder.NONE);
+    assert_true (AppFolders.classify (null, false) == AppFolders.Folder.NONE);
+    // Terminal wins over everything else.
+    assert_true (AppFolders.classify ("Game;", true) == AppFolders.Folder.TERMINAL);
+    assert_cmpstr (AppFolders.Folder.TERMINAL.title (), EQ, "Terminal Tools");
+}
+
 int main (string[] args) {
     // AppInfo reads these once, on first use: point it at fixture apps only.
     try {
@@ -244,5 +258,6 @@ int main (string[] args) {
     Test.add_func ("/stack-source/applications", test_applications);
     Test.add_func ("/fan-math/open", test_fan_pose_open);
     Test.add_func ("/fan-math/collapsed", test_fan_pose_collapsed);
+    Test.add_func ("/app-folders/classify", test_classify);
     return Test.run ();
 }
