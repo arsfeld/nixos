@@ -4,7 +4,6 @@
   ...
 }: {
   imports = [
-    ./services/development.nix
     ./services/iroh-relay.nix
     ./services/rustdesk.nix
   ];
