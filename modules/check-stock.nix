@@ -25,8 +25,7 @@
   lib,
   pkgs,
   ...
-}:
-with lib; let
+}: let
   cfg = config.services.check-stock;
 
   urlOpts = {
@@ -35,23 +34,23 @@ with lib; let
     ...
   }: {
     options = {
-      name = mkOption {
-        type = types.str;
+      name = lib.mkOption {
+        type = lib.types.str;
         default = name;
         description = "Name of the stock check service";
       };
-      url = mkOption {
-        type = types.str;
+      url = lib.mkOption {
+        type = lib.types.str;
         description = "URL to monitor for stock availability";
       };
-      timerConfig = mkOption {
-        type = types.attrs;
+      timerConfig = lib.mkOption {
+        type = lib.types.attrs;
         default = {OnCalendar = "hourly";};
         description = ''
           Systemd timer configuration for scheduling stock checks.
           See {manpage}`systemd.timer(5)` for available options.
         '';
-        example = literalExpression ''
+        example = lib.literalExpression ''
           {
             OnCalendar = "daily";
             Persistent = true;
@@ -91,16 +90,16 @@ with lib; let
   };
 in {
   options.services.check-stock = {
-    enable = mkEnableOption "stock availability monitoring service";
+    enable = lib.mkEnableOption "stock availability monitoring service";
 
-    urls = mkOption {
-      type = types.attrsOf (types.submodule urlOpts);
+    urls = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.submodule urlOpts);
       default = {};
       description = ''
         URLs to monitor for stock availability. Each URL will have its own
         systemd service and timer generated automatically.
       '';
-      example = literalExpression ''
+      example = lib.literalExpression ''
         {
           framework-battery = {
             url = "https://frame.work/products/battery";
@@ -115,18 +114,18 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     environment.systemPackages = [
       pkgs.check-stock
       (pkgs.writeShellApplication {
         name = "check-all-stock";
         text = ''
-          ${pkgs.check-stock}/bin/check-stock ${lib.concatMapStringsSep " " (item: item.url) (attrValues cfg.urls)}
+          ${pkgs.check-stock}/bin/check-stock ${lib.concatMapStringsSep " " (item: item.url) (lib.attrValues cfg.urls)}
         '';
       })
     ];
 
-    systemd.services = lib.mkMerge (map mkStockService (attrValues cfg.urls));
-    systemd.timers = lib.mkMerge (map mkStockTimer (attrValues cfg.urls));
+    systemd.services = lib.mkMerge (map mkStockService (lib.attrValues cfg.urls));
+    systemd.timers = lib.mkMerge (map mkStockTimer (lib.attrValues cfg.urls));
   };
 }

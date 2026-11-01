@@ -5,8 +5,7 @@
   self,
   inputs,
   ...
-}:
-with lib; {
+}: {
   imports = [
     ./hardware-configuration.nix
     ./disko-config.nix

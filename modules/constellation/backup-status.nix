@@ -15,29 +15,28 @@
   lib,
   pkgs,
   ...
-}:
-with lib; let
+}: let
   cfg = config.constellation.backupStatus;
 
-  sourceType = types.submodule {
+  sourceType = lib.types.submodule {
     options = {
-      name = mkOption {
-        type = types.str;
+      name = lib.mkOption {
+        type = lib.types.str;
         description = "Repo or profile name, unique within the host.";
       };
-      kind = mkOption {
-        type = types.enum ["rustic" "restic"];
+      kind = lib.mkOption {
+        type = lib.types.enum ["rustic" "restic"];
         description = ''
           Which snapshot JSON shape `command` produces. rustic emits an array of
           {group_key, snapshots}; restic emits a flat array of snapshots.
         '';
       };
-      command = mkOption {
-        type = types.str;
+      command = lib.mkOption {
+        type = lib.types.str;
         description = "Shell command printing snapshot JSON on stdout.";
       };
-      maxAgeHours = mkOption {
-        type = types.int;
+      maxAgeHours = lib.mkOption {
+        type = lib.types.int;
         default = 48;
         description = ''
           Age above which this source reports ok:false. Must exceed the backup's
@@ -58,7 +57,7 @@ with lib; let
   # conversion goes through `date -d`.
   statusScript = pkgs.writeShellScriptBin "backup-status" ''
     set -uo pipefail
-    export PATH=${makeBinPath [pkgs.jq pkgs.coreutils pkgs.gawk]}:$PATH
+    export PATH=${lib.makeBinPath [pkgs.jq pkgs.coreutils pkgs.gawk]}:$PATH
 
     now=$(date +%s)
     euid=$EUID
@@ -110,16 +109,16 @@ with lib; let
   '';
 in {
   options.constellation.backupStatus = {
-    enable = mkEnableOption "aggregated backup freshness reporting";
+    enable = lib.mkEnableOption "aggregated backup freshness reporting";
 
-    sources = mkOption {
-      type = types.listOf sourceType;
+    sources = lib.mkOption {
+      type = lib.types.listOf sourceType;
       default = [];
       description = "Backup sources to query. Appended to by rustic.nix and backrest.nix.";
     };
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     environment.systemPackages = [statusScript];
   };
 }

@@ -14,11 +14,10 @@
   pkgs,
   lib,
   ...
-}:
-with lib; {
+}: {
   options.constellation.virtualization = {
-    enable = mkOption {
-      type = types.bool;
+    enable = lib.mkOption {
+      type = lib.types.bool;
       description = ''
         Enable virtualization support including libvirt and QEMU.
         This adds significant disk usage and is not needed on all systems.

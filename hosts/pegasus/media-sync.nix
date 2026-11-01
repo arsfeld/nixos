@@ -17,8 +17,7 @@
   lib,
   pkgs,
   ...
-}:
-with lib; let
+}: let
   cfg = config.constellation.mediaSync;
 
   # Python script for media sync
@@ -203,8 +202,8 @@ with lib; let
   '';
 in {
   options.constellation.mediaSync = {
-    enable = mkOption {
-      type = types.bool;
+    enable = lib.mkOption {
+      type = lib.types.bool;
       default = false;
       description = ''
         Enable media sync service for syncing marked media from a remote host
@@ -212,40 +211,40 @@ in {
       '';
     };
 
-    sourceHost = mkOption {
-      type = types.str;
+    sourceHost = lib.mkOption {
+      type = lib.types.str;
       default = "galactica.bat-boa.ts.net";
       description = ''
         Remote host to sync from (Tailscale hostname or IP).
       '';
     };
 
-    sourceDirectories = mkOption {
-      type = types.listOf types.path;
+    sourceDirectories = lib.mkOption {
+      type = lib.types.listOf lib.types.path;
       default = ["/mnt/storage/media/Series" "/mnt/storage/media/Movies"];
       description = ''
         List of directories on the remote host to scan for .sync marker files.
       '';
     };
 
-    destDirectory = mkOption {
-      type = types.path;
+    destDirectory = lib.mkOption {
+      type = lib.types.path;
       default = "/mnt/storage/media";
       description = ''
         Local destination directory for synced media.
       '';
     };
 
-    interval = mkOption {
-      type = types.str;
+    interval = lib.mkOption {
+      type = lib.types.str;
       default = "daily";
       description = ''
         How often to run the sync (systemd calendar format).
       '';
     };
 
-    user = mkOption {
-      type = types.str;
+    user = lib.mkOption {
+      type = lib.types.str;
       default = "root";
       description = ''
         User to run the sync service as. Needs SSH access to the remote host.
@@ -253,7 +252,7 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     # Make the script available system-wide
     environment.systemPackages = [mediaSyncScript];
 

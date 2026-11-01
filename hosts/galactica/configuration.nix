@@ -4,8 +4,7 @@
   pkgs,
   self,
   ...
-}:
-with lib; {
+}: {
   imports = [
     ./disko-config.nix
     ./hardware-configuration.nix

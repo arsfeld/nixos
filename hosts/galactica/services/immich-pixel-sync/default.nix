@@ -19,8 +19,7 @@
   lib,
   pkgs,
   ...
-}:
-with lib; let
+}: let
   cfg = config.constellation.immichPixelSync;
 
   # Sibling of the staging directory, so reflink copies and the final rename stay
@@ -32,27 +31,27 @@ with lib; let
     name = "immich-pixel-sync";
     runtimeInputs = [pkgs.coreutils pkgs.exiftool cfg.database.package];
     text = ''
-      export IPS_STAGING_DIR=${escapeShellArg cfg.stagingDirectory}
-      export IPS_TMP_DIR=${escapeShellArg tmpDirectory}
-      export IPS_LOCK_FILE=${escapeShellArg "${stateDirectory}/lock"}
-      export IPS_OWNER_ID=${escapeShellArg cfg.ownerId}
+      export IPS_STAGING_DIR=${lib.escapeShellArg cfg.stagingDirectory}
+      export IPS_TMP_DIR=${lib.escapeShellArg tmpDirectory}
+      export IPS_LOCK_FILE=${lib.escapeShellArg "${stateDirectory}/lock"}
+      export IPS_OWNER_ID=${lib.escapeShellArg cfg.ownerId}
       export IPS_WINDOW_DAYS=${toString cfg.windowDays}
       export IPS_SHRINK_GUARD_PERCENT=${toString cfg.shrinkGuardPercent}
-      export IPS_NOT_BEFORE=${escapeShellArg (
+      export IPS_NOT_BEFORE=${lib.escapeShellArg (
         if cfg.notBefore == null
         then "1970-01-01"
         else cfg.notBefore
       )}
-      export IPS_DB_NAME=${escapeShellArg cfg.database.name}
-      export IPS_DB_USER=${escapeShellArg cfg.database.user}
-      export IPS_DB_SOCKET=${escapeShellArg cfg.database.socketDirectory}
+      export IPS_DB_NAME=${lib.escapeShellArg cfg.database.name}
+      export IPS_DB_USER=${lib.escapeShellArg cfg.database.user}
+      export IPS_DB_SOCKET=${lib.escapeShellArg cfg.database.socketDirectory}
       exec ${pkgs.python3}/bin/python3 ${./sync.py} "$@"
     '';
   };
 in {
   options.constellation.immichPixelSync = {
-    ownerId = mkOption {
-      type = types.str;
+    ownerId = lib.mkOption {
+      type = lib.types.str;
       example = "c85fe467-a36a-457a-a260-a67dfe2199da";
       description = ''
         Immich `asset."ownerId"` UUID whose assets are staged. Only this user's
@@ -64,8 +63,8 @@ in {
       '';
     };
 
-    stagingDirectory = mkOption {
-      type = types.path;
+    stagingDirectory = lib.mkOption {
+      type = lib.types.path;
       default = "/mnt/storage/files/PixelPhotoStage";
       description = ''
         Flat directory holding the staged assets. Must be on the same filesystem
@@ -74,8 +73,8 @@ in {
       '';
     };
 
-    windowDays = mkOption {
-      type = types.ints.positive;
+    windowDays = lib.mkOption {
+      type = lib.types.ints.positive;
       default = 30;
       description = ''
         Rolling window, in days, over `fileCreatedAt`. Assets that fall out of it
@@ -84,8 +83,8 @@ in {
       '';
     };
 
-    shrinkGuardPercent = mkOption {
-      type = types.ints.between 0 100;
+    shrinkGuardPercent = lib.mkOption {
+      type = lib.types.ints.between 0 100;
       default = 50;
       description = ''
         Abort the run if it would shrink the staged set by more than this
@@ -95,8 +94,8 @@ in {
       '';
     };
 
-    notBefore = mkOption {
-      type = types.nullOr types.str;
+    notBefore = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
       default = null;
       example = "2026-07-26T23:00:00-04:00";
       description = ''
@@ -114,14 +113,14 @@ in {
       '';
     };
 
-    interval = mkOption {
-      type = types.str;
+    interval = lib.mkOption {
+      type = lib.types.str;
       default = "hourly";
       description = "systemd `OnCalendar` expression for the staging timer.";
     };
 
-    user = mkOption {
-      type = types.str;
+    user = lib.mkOption {
+      type = lib.types.str;
       default = "media";
       description = ''
         User to run as. Must be able to read Immich's library files, and must map
@@ -133,35 +132,35 @@ in {
       '';
     };
 
-    group = mkOption {
-      type = types.str;
+    group = lib.mkOption {
+      type = lib.types.str;
       default = "media";
       description = "Group to run as.";
     };
 
     database = {
-      name = mkOption {
-        type = types.str;
+      name = lib.mkOption {
+        type = lib.types.str;
         default = "immich";
         description = "Immich database name.";
       };
 
-      user = mkOption {
-        type = types.str;
+      user = lib.mkOption {
+        type = lib.types.str;
         default = "immich";
         description = "PostgreSQL role to connect as, via peer auth over the socket.";
       };
 
-      socketDirectory = mkOption {
-        type = types.path;
+      socketDirectory = lib.mkOption {
+        type = lib.types.path;
         default = "/run/postgresql";
         description = "PostgreSQL unix socket directory.";
       };
 
-      package = mkOption {
-        type = types.package;
+      package = lib.mkOption {
+        type = lib.types.package;
         default = pkgs.postgresql;
-        defaultText = literalExpression "pkgs.postgresql";
+        defaultText = lib.literalExpression "pkgs.postgresql";
         description = "Package providing the `psql` client.";
       };
     };

@@ -25,8 +25,7 @@
   lib,
   pkgs,
   ...
-}:
-with lib; let
+}: let
   cfg = config.constellation.pia;
   ns = cfg.namespace;
 
@@ -41,7 +40,7 @@ with lib; let
   hookScript = pkgs.writeShellScript "pia-pf-hook" ''
     set -euo pipefail
     PORT="''${1:?usage: pia-pf-hook <port>}"
-    ${concatStringsSep "\n" (mapAttrsToList (name: c: ''
+    ${lib.concatStringsSep "\n" (lib.mapAttrsToList (name: c: ''
         echo "pia: notifying consumer '${name}' of forwarded port $PORT" >&2
         (
           export PIA_FORWARDED_PORT="$PORT"
@@ -390,25 +389,25 @@ with lib; let
 
   # Web-UI port mappings derived from declared consumers.
   consumerPortMappings =
-    mapAttrsToList (_: c: {
+    lib.mapAttrsToList (_: c: {
       from = c.port;
       to = c.port;
       protocol = "tcp";
     })
-    (filterAttrs (_: c: c.port != null) cfg.consumers);
+    (lib.filterAttrs (_: c: c.port != null) cfg.consumers);
 in {
   options.constellation.pia = {
-    credentialsFile = mkOption {
-      type = types.path;
+    credentialsFile = lib.mkOption {
+      type = lib.types.path;
       default = config.sops.secrets."pia-credentials".path;
-      defaultText = literalExpression ''config.sops.secrets."pia-credentials".path'';
+      defaultText = lib.literalExpression ''config.sops.secrets."pia-credentials".path'';
       description = ''
         Path to an env file exporting PIA_USER and PIA_PASS for the PIA account.
       '';
     };
 
-    region = mkOption {
-      type = types.str;
+    region = lib.mkOption {
+      type = lib.types.str;
       default = "auto";
       example = "ca_toronto";
       description = ''
@@ -417,14 +416,14 @@ in {
       '';
     };
 
-    namespace = mkOption {
-      type = types.str;
+    namespace = lib.mkOption {
+      type = lib.types.str;
       default = "pia";
       description = "Name of the VPN-Confinement network namespace.";
     };
 
-    namespaceAddress = mkOption {
-      type = types.str;
+    namespaceAddress = lib.mkOption {
+      type = lib.types.str;
       default = "192.168.16.1";
       description = ''
         Service-side namespace address (where the gateway proxies). Must not
@@ -432,26 +431,26 @@ in {
       '';
     };
 
-    bridgeAddress = mkOption {
-      type = types.str;
+    bridgeAddress = lib.mkOption {
+      type = lib.types.str;
       default = "192.168.16.5";
       description = "Host-side bridge address for the namespace veth pair.";
     };
 
-    portFile = mkOption {
-      type = types.path;
+    portFile = lib.mkOption {
+      type = lib.types.path;
       default = portFilePath;
       readOnly = true;
       description = "World-readable file holding the current forwarded port as a bare integer.";
     };
 
-    consumers = mkOption {
+    consumers = lib.mkOption {
       default = {};
       description = ''
         Apps attached to the PIA namespace. Each consumer's onPortChange runs
         with the forwarded port in $PIA_FORWARDED_PORT whenever it changes.
       '';
-      example = literalExpression ''
+      example = lib.literalExpression ''
         {
           transmission = {
             port = 9091;
@@ -459,19 +458,19 @@ in {
           };
         }
       '';
-      type = types.attrsOf (types.submodule ({name, ...}: {
+      type = lib.types.attrsOf (lib.types.submodule ({name, ...}: {
         options = {
-          onPortChange = mkOption {
-            type = types.lines;
+          onPortChange = lib.mkOption {
+            type = lib.types.lines;
             description = "Shell run (with $PIA_FORWARDED_PORT set) when the port changes.";
           };
-          port = mkOption {
-            type = types.nullOr types.port;
+          port = lib.mkOption {
+            type = lib.types.nullOr lib.types.port;
             default = null;
             description = "Web-UI port to map from host into the namespace (null = none).";
           };
-          host = mkOption {
-            type = types.str;
+          host = lib.mkOption {
+            type = lib.types.str;
             default = cfg.namespaceAddress;
             description = "Namespace IP the gateway should proxy this consumer's web UI to.";
           };
@@ -481,7 +480,7 @@ in {
   };
 
   config = {
-    sops.secrets."pia-credentials" = mkDefault {mode = "0400";};
+    sops.secrets."pia-credentials" = lib.mkDefault {mode = "0400";};
 
     # PIA WireGuard namespace, alongside the AirVPN "wg" namespace.
     vpnNamespaces.${ns} = {

@@ -17,8 +17,7 @@
   lib,
   pkgs,
   ...
-}:
-with lib; let
+}: let
   cfg = config.constellation.tabletSync;
 
   # Python script for tablet sync
@@ -241,24 +240,24 @@ with lib; let
   '';
 in {
   options.constellation.tabletSync = {
-    mediaDirectories = mkOption {
-      type = types.listOf types.path;
+    mediaDirectories = lib.mkOption {
+      type = lib.types.listOf lib.types.path;
       default = ["/mnt/storage/media/Series" "/mnt/storage/media/Movies"];
       description = ''
         List of media directories to scan for .sync marker files.
       '';
     };
 
-    syncDirectory = mkOption {
-      type = types.path;
+    syncDirectory = lib.mkOption {
+      type = lib.types.path;
       default = "/mnt/storage/media/Sync";
       description = ''
         Output directory for transcoded files. This should be watched by Syncthing.
       '';
     };
 
-    quality = mkOption {
-      type = types.int;
+    quality = lib.mkOption {
+      type = lib.types.int;
       default = 23;
       description = ''
         Video quality (CRF for software, QP for hardware encoding).
@@ -266,32 +265,32 @@ in {
       '';
     };
 
-    preset = mkOption {
-      type = types.str;
+    preset = lib.mkOption {
+      type = lib.types.str;
       default = "medium";
       description = ''
         Encoding preset for software encoding (ultrafast, fast, medium, slow).
       '';
     };
 
-    interval = mkOption {
-      type = types.str;
+    interval = lib.mkOption {
+      type = lib.types.str;
       default = "hourly";
       description = ''
         How often to run the sync (systemd calendar format).
       '';
     };
 
-    user = mkOption {
-      type = types.str;
+    user = lib.mkOption {
+      type = lib.types.str;
       default = "media";
       description = ''
         User to run the sync service as.
       '';
     };
 
-    group = mkOption {
-      type = types.str;
+    group = lib.mkOption {
+      type = lib.types.str;
       default = "media";
       description = ''
         Group to run the sync service as.

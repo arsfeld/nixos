@@ -17,8 +17,7 @@
   options,
   lib,
   ...
-}:
-with lib; let
+}: let
   cfg = config.media.services;
   backend = config.virtualisation.oci-containers.backend;
   # Podman bridge subnet — containers reach host postgres from here.
@@ -29,13 +28,13 @@ with lib; let
   # mkIf (or, with none, the file declaring the option's default) as a store
   # path; relPath strips the store prefix for matching and for the message.
   guardLowerLayer = path: opt: let
-    relPath = f: last (splitString "-source/" f);
-    strays = unique (filter (f: !hasPrefix "modules/media/" (relPath f)) opt.files);
+    relPath = f: lib.last (lib.splitString "-source/" f);
+    strays = lib.unique (lib.filter (f: !lib.hasPrefix "modules/media/" (relPath f)) opt.files);
   in {
     assertion = strays == [];
     message = ''
       ${path} is written only by media.services; declare media.services.<name> instead.
-      Defined directly in: ${concatMapStringsSep ", " relPath strays}
+      Defined directly in: ${lib.concatMapStringsSep ", " relPath strays}
     '';
   };
 
@@ -45,20 +44,20 @@ with lib; let
   # Extras only the caller can know about — auto-created gateway entries from
   # media.containers don't set host or exposeViaTailscale.
   gatewayExtrasOf = svc:
-    optionalAttrs svc.tailscaleExposed {exposeViaTailscale = true;}
-    // optionalAttrs (svc.host != null) {host = mkForce svc.host;};
+    lib.optionalAttrs svc.tailscaleExposed {exposeViaTailscale = true;}
+    // lib.optionalAttrs (svc.host != null) {host = lib.mkForce svc.host;};
 
   # Lower a container service into its media.containers.<name> body. Mirrors the
   # container branch of the former __mkService.nix.
   containerOf = name: svc:
-    optionalAttrs (svc.container != null) {
+    lib.optionalAttrs (svc.container != null) {
       ${name} =
         {
           listenPort = svc.port;
           inherit (svc) image watchImage;
           settings = serviceSettings svc;
         }
-        // optionalAttrs (svc.cmd != null) {cmd = svc.cmd;}
+        // lib.optionalAttrs (svc.cmd != null) {cmd = svc.cmd;}
         // svc.container;
     };
 
@@ -71,12 +70,12 @@ with lib; let
     if svc.container != null
     # A disabled container gets no gateway entry, so it must not get extras
     # either: they alone would create one, pointing at nothing.
-    then optionalAttrs (gatewayExtras != {} && svc.container.enable or true) {${name} = gatewayExtras;}
+    then lib.optionalAttrs (gatewayExtras != {} && svc.container.enable or true) {${name} = gatewayExtras;}
     else {
       ${name} =
         gatewayExtras
-        // optionalAttrs (svc.port != null) {port = svc.port;}
-        // {settings = mkDefault (serviceSettings svc);};
+        // lib.optionalAttrs (svc.port != null) {port = svc.port;}
+        // {settings = lib.mkDefault (serviceSettings svc);};
     };
 
   # --- database.postgres lowering ---
@@ -85,12 +84,12 @@ with lib; let
 
   # PostgreSQL server provisioning: db + role + trust pg_hba for the podman bridge.
   pgServerOf = name: svc:
-    mkIf svc.database.postgres.enable (let
+    lib.mkIf svc.database.postgres.enable (let
       db = svc.database.postgres.name;
     in {
       enable = true;
       enableTCPIP = true;
-      settings.listen_addresses = mkDefault "*";
+      settings.listen_addresses = lib.mkDefault "*";
       ensureDatabases = [db];
       ensureUsers = [
         {
@@ -99,12 +98,12 @@ with lib; let
         }
       ];
       # TCP analogue of peer auth: passwordless from the podman bridge only.
-      authentication = mkAfter "host ${db} ${db} ${podmanSubnet} trust\n";
+      authentication = lib.mkAfter "host ${db} ${db} ${podmanSubnet} trust\n";
     });
 
   # Order the container unit after its database.
   pgUnitOf = name: svc:
-    mkIf (svc.database.postgres.enable && svc.container != null) {
+    lib.mkIf (svc.database.postgres.enable && svc.container != null) {
       "${backend}-${name}" = {
         after = ["postgresql.service"];
         wants = ["postgresql.service"];
@@ -115,7 +114,7 @@ with lib; let
   # the host postgres via host.containers.internal (podman). Merges with the
   # container's own environment (types.attrs).
   pgEnvOf = name: svc:
-    mkIf (svc.database.postgres.enable && svc.container != null) (let
+    lib.mkIf (svc.database.postgres.enable && svc.container != null) (let
       db = svc.database.postgres.name;
     in {
       ${name}.environment = {
@@ -129,77 +128,77 @@ with lib; let
 in {
   imports = [./containers.nix];
 
-  options.media.services = mkOption {
+  options.media.services = lib.mkOption {
     default = {};
     description = ''
       Unified declarative service definitions. The single supported way to
       declare a service; lowers into media.containers / media.gateway.services.
     '';
-    type = types.attrsOf (types.submodule ({name, ...}: {
+    type = lib.types.attrsOf (lib.types.submodule ({name, ...}: {
       options = {
-        port = mkOption {
-          type = types.nullOr types.int;
+        port = lib.mkOption {
+          type = lib.types.nullOr lib.types.int;
           default = null;
           description = "Service port. Required for container services; null = auto-assigned for gateway-only.";
         };
-        image = mkOption {
-          type = types.str;
+        image = lib.mkOption {
+          type = lib.types.str;
           default = "ghcr.io/linuxserver/${name}";
           description = "Container image. Defaults to the LinuxServer.io image for the service name.";
         };
-        container = mkOption {
+        container = lib.mkOption {
           # The body is validated downstream by the media.containers submodule;
           # keep it permissive here to avoid duplicating that option set.
-          type = types.nullOr (types.attrsOf types.anything);
+          type = lib.types.nullOr (lib.types.attrsOf lib.types.anything);
           default = null;
           description = "Container body (forwarded into media.containers.<name>). null = gateway-only.";
         };
-        cmd = mkOption {
-          type = types.nullOr (types.listOf types.str);
+        cmd = lib.mkOption {
+          type = lib.types.nullOr (lib.types.listOf lib.types.str);
           default = null;
           description = "Container command.";
         };
-        host = mkOption {
-          type = types.nullOr types.str;
+        host = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
           default = null;
           description = "Gateway host override (e.g. VPN namespace IP). Lowered with mkForce.";
         };
-        bypassAuth = mkOption {
-          type = types.bool;
+        bypassAuth = lib.mkOption {
+          type = lib.types.bool;
           default = false;
           description = "Skip Authelia for this service.";
         };
-        cors = mkOption {
-          type = types.bool;
+        cors = lib.mkOption {
+          type = lib.types.bool;
           default = false;
           description = "Enable CORS headers for this service.";
         };
-        funnel = mkOption {
-          type = types.bool;
+        funnel = lib.mkOption {
+          type = lib.types.bool;
           default = false;
           description = "Expose publicly via Tailscale Funnel.";
         };
-        insecureTls = mkOption {
-          type = types.bool;
+        insecureTls = lib.mkOption {
+          type = lib.types.bool;
           default = false;
           description = "Backend serves a self-signed cert; skip TLS verification.";
         };
-        tailscaleExposed = mkOption {
-          type = types.bool;
+        tailscaleExposed = lib.mkOption {
+          type = lib.types.bool;
           default = false;
           description = "Create a dedicated <name>.bat-boa.ts.net node via tsnsrv.";
         };
-        watchImage = mkOption {
-          type = types.bool;
+        watchImage = lib.mkOption {
+          type = lib.types.bool;
           default = false;
           description = "Poll the registry and restart the container on a new image.";
         };
-        database = mkOption {
+        database = lib.mkOption {
           default = {};
           description = "Declarative database dependencies for this service.";
-          type = types.submodule {
+          type = lib.types.submodule {
             options = {
-              postgres = mkOption {
+              postgres = lib.mkOption {
                 default = false;
                 description = ''
                   Provision a local PostgreSQL database + role for this service,
@@ -212,15 +211,15 @@ in {
                 '';
                 # `true` -> { enable = true; }; an attrset enables via the inner
                 # `enable` default (true), so `{name = "x";}` provisions too.
-                type = types.coercedTo types.bool (b: {enable = b;}) (types.submodule {
+                type = lib.types.coercedTo lib.types.bool (b: {enable = b;}) (lib.types.submodule {
                   options = {
-                    enable = mkOption {
-                      type = types.bool;
+                    enable = lib.mkOption {
+                      type = lib.types.bool;
                       default = true;
                       description = "Whether to provision postgres. Defaults to true when database.postgres is set to an attrset; the option as a whole defaults to disabled.";
                     };
-                    name = mkOption {
-                      type = types.str;
+                    name = lib.mkOption {
+                      type = lib.types.str;
                       default = name;
                       description = "Database and role name. Defaults to the service name.";
                     };
@@ -240,13 +239,13 @@ in {
   # config.media.services — a self-reference that triggers infinite recursion in
   # the module system. Only the *values* below depend on cfg.
   config = {
-    media.containers = mkMerge (
-      (mapAttrsToList containerOf cfg)
-      ++ (mapAttrsToList pgEnvOf cfg)
+    media.containers = lib.mkMerge (
+      (lib.mapAttrsToList containerOf cfg)
+      ++ (lib.mapAttrsToList pgEnvOf cfg)
     );
-    media.gateway.services = mkMerge (mapAttrsToList gatewayOf cfg);
-    services.postgresql = mkMerge (mapAttrsToList pgServerOf cfg);
-    systemd.services = mkMerge (mapAttrsToList pgUnitOf cfg);
+    media.gateway.services = lib.mkMerge (lib.mapAttrsToList gatewayOf cfg);
+    services.postgresql = lib.mkMerge (lib.mapAttrsToList pgServerOf cfg);
+    systemd.services = lib.mkMerge (lib.mapAttrsToList pgUnitOf cfg);
     assertions = [
       (guardLowerLayer "media.gateway.services" options.media.gateway.services)
       (guardLowerLayer "media.containers" options.media.containers)

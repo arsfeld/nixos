@@ -42,8 +42,7 @@
   lib,
   pkgs,
   ...
-}:
-with lib; let
+}: let
   cfg = config.constellation.rustic;
 
   tomlFormat = pkgs.formats.toml {};
@@ -64,7 +63,7 @@ with lib; let
 
   profileToml = name: profile:
     tomlFormat.generate "rustic-${name}.toml" (
-      recursiveUpdate
+      lib.recursiveUpdate
       {global.log-file = "${cfg.logDir}/${name}.log";}
       (removeAttrs profile moduleKeys)
     );
@@ -73,10 +72,10 @@ with lib; let
     {
       RUSTIC_CACHE_DIR = cfg.cacheDir;
     }
-    // optionalAttrs profile.substituteEnv {
+    // lib.optionalAttrs profile.substituteEnv {
       RUSTIC_PROFILE_SUBSTITUTE_ENV = "true";
     }
-    // optionalAttrs (profile.environment != null) profile.environment;
+    // lib.optionalAttrs (profile.environment != null) profile.environment;
 
   # Nice + idle I/O so a multi-hour upload never competes with the media
   # services this host exists to run.
@@ -85,8 +84,8 @@ with lib; let
     IOSchedulingClass = "idle";
   };
 
-  backupServices = mapAttrs' (name: profile:
-    nameValuePair "rustic-${name}" {
+  backupServices = lib.mapAttrs' (name: profile:
+    lib.nameValuePair "rustic-${name}" {
       description = "rustic backup (profile ${name})";
       after = ["network-online.target"];
       wants = ["network-online.target"];
@@ -102,13 +101,13 @@ with lib; let
           # and every backup after that would report success into the void.
           # Initialisation is a one-time deliberate act: `sudo rustic-<name> init`.
           ExecStart = "${cfg.package}/bin/rustic -P ${name} backup";
-          EnvironmentFile = mkIf (profile.environmentFile != null) profile.environmentFile;
+          EnvironmentFile = lib.mkIf (profile.environmentFile != null) profile.environmentFile;
         };
     })
   cfg.profiles;
 
-  pruneServices = mapAttrs' (name: profile:
-    nameValuePair "rustic-${name}-prune" {
+  pruneServices = lib.mapAttrs' (name: profile:
+    lib.nameValuePair "rustic-${name}-prune" {
       description = "rustic forget + prune (profile ${name})";
       after = ["network-online.target"];
       wants = ["network-online.target"];
@@ -122,10 +121,10 @@ with lib; let
           # section and [forget] carries no keep-pack key, so --keep-pack
           # cannot move into the profile. Losing it silently means paying
           # OVH's early-deletion penalty (180-day minimum) on every prune.
-          ExecStart = concatStringsSep " " (
+          ExecStart = lib.concatStringsSep " " (
             ["${cfg.package}/bin/rustic" "-P" name "forget"] ++ profile.pruneArgs
           );
-          EnvironmentFile = mkIf (profile.environmentFile != null) profile.environmentFile;
+          EnvironmentFile = lib.mkIf (profile.environmentFile != null) profile.environmentFile;
         };
     })
   cfg.profiles;
@@ -141,8 +140,8 @@ with lib; let
   # Archive every pack would go through restore-object with warm-up-batch = 1
   # and a poll that waits up to 48h PER PACK, plus retrieval billing and 7-day
   # restore copies. There is no schedule on which that is acceptable.
-  checkServices = mapAttrs' (name: profile:
-    nameValuePair "rustic-${name}-check" {
+  checkServices = lib.mapAttrs' (name: profile:
+    lib.nameValuePair "rustic-${name}-check" {
       description = "rustic check (profile ${name})";
       after = ["network-online.target"];
       wants = ["network-online.target"];
@@ -153,31 +152,31 @@ with lib; let
         // {
           Type = "oneshot";
           ExecStart = "${cfg.package}/bin/rustic -P ${name} check";
-          EnvironmentFile = mkIf (profile.environmentFile != null) profile.environmentFile;
+          EnvironmentFile = lib.mkIf (profile.environmentFile != null) profile.environmentFile;
         };
     })
   cfg.profiles;
 
   mkTimer = suffix: field:
-    mapAttrs' (name: profile:
-      nameValuePair "rustic-${name}${suffix}" {
+    lib.mapAttrs' (name: profile:
+      lib.nameValuePair "rustic-${name}${suffix}" {
         description = "Timer for rustic-${name}${suffix}";
         wantedBy = ["timers.target"];
         timerConfig = profile.${field};
       })
-    (filterAttrs (_: p: p.${field} != null) cfg.profiles);
+    (lib.filterAttrs (_: p: p.${field} != null) cfg.profiles);
 
   mkProfileScript = name: profile:
     pkgs.writeShellScriptBin "rustic-${name}" ''
       set -euo pipefail
       export RUSTIC_CACHE_DIR=${cfg.cacheDir}
-      ${optionalString profile.substituteEnv "export RUSTIC_PROFILE_SUBSTITUTE_ENV=true"}
-      ${optionalString (profile.environmentFile != null) ''
+      ${lib.optionalString profile.substituteEnv "export RUSTIC_PROFILE_SUBSTITUTE_ENV=true"}
+      ${lib.optionalString (profile.environmentFile != null) ''
         set -a
         . ${profile.environmentFile}
         set +a
       ''}
-      ${concatStrings (mapAttrsToList (k: v: "export ${k}=${escapeShellArg v}\n")
+      ${lib.concatStrings (lib.mapAttrsToList (k: v: "export ${k}=${lib.escapeShellArg v}\n")
         (
           if profile.environment == null
           then {}
@@ -186,51 +185,51 @@ with lib; let
       exec ${cfg.package}/bin/rustic -P ${name} "$@"
     '';
 
-  profileScripts = mapAttrsToList mkProfileScript cfg.profiles;
+  profileScripts = lib.mapAttrsToList mkProfileScript cfg.profiles;
 
-  profileType = types.submodule {
-    freeformType = types.attrs;
+  profileType = lib.types.submodule {
+    freeformType = lib.types.attrs;
     options = {
-      timerConfig = mkOption {
-        type = types.nullOr types.attrs;
+      timerConfig = lib.mkOption {
+        type = lib.types.nullOr lib.types.attrs;
         default = null;
         description = "systemd timer for the backup unit. null means manual-only.";
-        example = literalExpression ''{OnCalendar = "Sun *-*-* 04:30:00";}'';
+        example = lib.literalExpression ''{OnCalendar = "Sun *-*-* 04:30:00";}'';
       };
-      pruneTimerConfig = mkOption {
-        type = types.nullOr types.attrs;
+      pruneTimerConfig = lib.mkOption {
+        type = lib.types.nullOr lib.types.attrs;
         default = null;
         description = "systemd timer for the forget+prune unit. null means manual-only.";
-        example = literalExpression ''{OnCalendar = "*-*-01 03:00:00";}'';
+        example = lib.literalExpression ''{OnCalendar = "*-*-01 03:00:00";}'';
       };
-      checkTimerConfig = mkOption {
-        type = types.nullOr types.attrs;
+      checkTimerConfig = lib.mkOption {
+        type = lib.types.nullOr lib.types.attrs;
         default = null;
         description = "systemd timer for the check unit. null means manual-only.";
-        example = literalExpression ''{OnCalendar = "*-*-06 09:00:00";}'';
+        example = lib.literalExpression ''{OnCalendar = "*-*-06 09:00:00";}'';
       };
-      pruneArgs = mkOption {
-        type = types.listOf types.str;
+      pruneArgs = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
         default = ["--prune"];
         description = ''
           Arguments appended to `rustic -P <name> forget`. Retention comes from
           the profile's [forget] table; only CLI-only prune options belong here.
         '';
-        example = literalExpression ''["--prune" "--keep-pack" "180d"]'';
+        example = lib.literalExpression ''["--prune" "--keep-pack" "180d"]'';
       };
-      environment = mkOption {
-        type = types.nullOr (types.attrsOf types.str);
+      environment = lib.mkOption {
+        type = lib.types.nullOr (lib.types.attrsOf lib.types.str);
         default = null;
         description = "Extra environment for this profile's units. Never secrets.";
       };
-      environmentFile = mkOption {
-        type = types.nullOr types.str;
+      environmentFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
         default = null;
         description = "EnvironmentFile for this profile's units (S3 credentials etc.).";
         example = "/run/secrets/ovh-s3-env";
       };
-      substituteEnv = mkOption {
-        type = types.bool;
+      substituteEnv = lib.mkOption {
+        type = lib.types.bool;
         default = false;
         description = ''
           Pass RUSTIC_PROFILE_SUBSTITUTE_ENV=true, making rustic expand $VAR and
@@ -239,8 +238,8 @@ with lib; let
           value (a glob, a path) would be substituted too.
         '';
       };
-      maxAgeHours = mkOption {
-        type = types.int;
+      maxAgeHours = lib.mkOption {
+        type = lib.types.int;
         default = 48;
         description = ''
           Snapshot age above which backup-status reports this profile stale.
@@ -251,8 +250,8 @@ with lib; let
   };
 in {
   options.constellation.rustic = {
-    package = mkOption {
-      type = types.package;
+    package = lib.mkOption {
+      type = lib.types.package;
       default = pkgs.unstable.rustic;
       description = ''
         rustic package. Defaults to pkgs.unstable: stable is 0.11.2, and the
@@ -260,20 +259,20 @@ in {
       '';
     };
 
-    logDir = mkOption {
-      type = types.str;
+    logDir = lib.mkOption {
+      type = lib.types.str;
       default = "/var/log/rustic";
       description = "Directory for per-profile rustic log files.";
     };
 
-    cacheDir = mkOption {
-      type = types.str;
+    cacheDir = lib.mkOption {
+      type = lib.types.str;
       default = "/var/cache/rustic";
       description = "Shared rustic cache directory.";
     };
 
-    profiles = mkOption {
-      type = types.attrsOf profileType;
+    profiles = lib.mkOption {
+      type = lib.types.attrsOf profileType;
       default = {};
       description = ''
         Attribute set of rustic profiles. Every attribute other than
@@ -285,10 +284,10 @@ in {
   };
 
   config = {
-    constellation.backupNotify.enable = mkDefault true;
-    constellation.backupStatus.enable = mkDefault true;
+    constellation.backupNotify.enable = lib.mkDefault true;
+    constellation.backupStatus.enable = lib.mkDefault true;
     constellation.backupStatus.sources =
-      mapAttrsToList (name: profile: {
+      lib.mapAttrsToList (name: profile: {
         inherit name;
         kind = "rustic";
         # rustic prints its [INFO] banner to stderr, so stdout is clean JSON.
@@ -299,8 +298,8 @@ in {
 
     environment.systemPackages = [cfg.package] ++ profileScripts;
 
-    environment.etc = mapAttrs' (name: profile:
-      nameValuePair "rustic/${name}.toml" {source = profileToml name profile;})
+    environment.etc = lib.mapAttrs' (name: profile:
+      lib.nameValuePair "rustic/${name}.toml" {source = profileToml name profile;})
     cfg.profiles;
 
     systemd.services = backupServices // pruneServices // checkServices;

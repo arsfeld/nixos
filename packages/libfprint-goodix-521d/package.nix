@@ -52,10 +52,10 @@ in
       "-Dudev_hwdb_dir=${placeholder "out"}/lib/udev/hwdb.d"
     ];
 
-    meta = with lib; {
+    meta = {
       description = "libfprint fork with the goodixtls driver for Goodix 27c6:521d";
       homepage = "https://github.com/arsfeld/libfprint-goodixtls";
-      license = licenses.lgpl21Plus;
-      platforms = platforms.linux;
+      license = lib.licenses.lgpl21Plus;
+      platforms = lib.platforms.linux;
     };
   }

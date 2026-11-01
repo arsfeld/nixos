@@ -3,8 +3,7 @@
   lib,
   pkgs,
   ...
-}:
-with lib; {
+}: {
   imports = [
     ../../../packages/natpmp-server/module.nix
   ];

@@ -4,82 +4,82 @@
   lib,
   ...
 }: let
-  urlPartsSubmodule.options = with lib; {
-    protocol = mkOption {
+  urlPartsSubmodule.options = {
+    protocol = lib.mkOption {
       description = "URL Scheme or protocol to use for reaching the upstream service.";
-      type = types.str;
+      type = lib.types.str;
       default = "http";
     };
 
-    host = mkOption {
+    host = lib.mkOption {
       description = "Host where the upstream service can be reached.";
-      type = types.str;
+      type = lib.types.str;
     };
 
-    port = mkOption {
+    port = lib.mkOption {
       description = "Port where the upstream service can be reached.";
-      type = types.int;
+      type = lib.types.int;
     };
   };
 
-  urlPartsSubmoduleWithDefaults.options = with lib; let
+  urlPartsSubmoduleWithDefaults.options = let
     inherit (config.services.tsnsrv) defaults;
   in {
-    protocol = mkOption {
+    protocol = lib.mkOption {
       description = "URL Scheme or protocol to use for reaching the upstream service.";
-      type = types.str;
+      type = lib.types.str;
       default = defaults.urlParts.protocol;
       defaultText = lib.literalExpression "config.services.tsnsrv.defaults.urlParts.protocol";
     };
 
-    host = mkOption {
+    host = lib.mkOption {
       description = "Host where the upstream service can be reached.";
-      type = types.str;
+      type = lib.types.str;
       default = defaults.urlParts.host;
       defaultText = lib.literalExpression "config.services.tsnsrv.defaults.urlParts.host";
     };
 
-    port = mkOption {
+    port = lib.mkOption {
       description = "Port where the upstream service can be reached.";
-      type = types.port;
+      type = lib.types.port;
       default = defaults.urlParts.port;
       defaultText = lib.literalExpression "config.services.tsnsrv.defaults.urlParts.port";
     };
   };
 
-  serviceSubmodule = with lib; let
+  serviceSubmodule = let
     inherit (config.services.tsnsrv) defaults;
   in ({config, ...}: {
     options = {
-      authKeyPath = mkOption {
+      authKeyPath = lib.mkOption {
         description = "Path to a file containing a tailscale auth key. Make this a secret";
-        type = types.path;
+        type = lib.types.path;
         default = defaults.authKeyPath;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.authKeyPath";
       };
 
-      ephemeral = mkOption {
+      ephemeral = lib.mkOption {
         description = "Delete the tailnet participant shortly after it goes offline";
-        type = types.bool;
+        type = lib.types.bool;
         default = defaults.ephemeral;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.ephemeral";
       };
 
-      funnel = mkOption {
+      funnel = lib.mkOption {
         description = "Serve HTTP as a funnel, meaning that it is available on the public internet.";
-        type = types.bool;
+        type = lib.types.bool;
         default = false;
       };
 
-      insecureHTTPS = mkOption {
+      insecureHTTPS = lib.mkOption {
         description = "Disable TLS certificate validation for requests from upstream. Insecure.";
-        type = types.bool;
+        type = lib.types.bool;
         default = false;
       };
 
-      listenAddr = mkOption {
+      listenAddr = lib.mkOption {
         description = "Address to listen on";
-        type = types.str;
+        type = lib.types.str;
         default = defaults.listenAddr;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.listenAddr";
       };
@@ -88,184 +88,184 @@
         description = "Login server URL to use. If unset, defaults to the official tailscale service.";
         default = defaults.loginServerUrl;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.loginServerUrl";
-        type = with types; nullOr str;
+        type = with lib.types; nullOr str;
       };
 
-      package = mkOption {
+      package = lib.mkOption {
         description = "Package to use for this tsnsrv service.";
         default = defaults.package;
-        type = types.package;
+        type = lib.types.package;
       };
 
-      plaintext = mkOption {
+      plaintext = lib.mkOption {
         description = "Whether to serve non-TLS-encrypted plaintext HTTP";
-        type = types.bool;
+        type = lib.types.bool;
         default = false;
       };
 
-      certificateFile = mkOption {
+      certificateFile = lib.mkOption {
         description = "Custom certificate file to use for TLS listening instead of Tailscale's builtin way";
-        type = with types; nullOr path;
+        type = with lib.types; nullOr path;
         default = defaults.certificateFile;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.certificateFile";
       };
 
-      certificateKey = mkOption {
+      certificateKey = lib.mkOption {
         description = "Custom key file to use for TLS listening instead of Tailscale's builtin way.";
-        type = with types; nullOr path;
+        type = with lib.types; nullOr path;
         default = defaults.certificateKey;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.certificateKey";
       };
 
-      acmeHost = mkOption {
+      acmeHost = lib.mkOption {
         description = "Populate certificateFile and certificateKey option from this certificate name from security.acme module.";
-        type = with types; nullOr str;
+        type = with lib.types; nullOr str;
         default = defaults.acmeHost;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.acmeHost";
       };
 
-      upstreamUnixAddr = mkOption {
+      upstreamUnixAddr = lib.mkOption {
         description = "Connect only to the given UNIX Domain Socket";
-        type = types.nullOr types.path;
+        type = lib.types.nullOr lib.types.path;
         default = null;
       };
 
-      prefixes = mkOption {
+      prefixes = lib.mkOption {
         description = "URL path prefixes to allow in forwarding. Acts as an allowlist but if no prefixes are set, all prefixes are allowed.";
-        type = types.listOf (types.strMatching "^(/|tailnet:/|funnel:/).*");
+        type = lib.types.listOf (lib.types.strMatching "^(/|tailnet:/|funnel:/).*");
         default = [];
         example = ["tailnet:/" "funnel:/.well-known/"];
       };
 
-      stripPrefix = mkOption {
+      stripPrefix = lib.mkOption {
         description = "Strip matched prefix from request to upstream. Probably should be true when allowlisting multiple prefixes.";
-        type = types.bool;
+        type = lib.types.bool;
         default = true;
       };
 
-      whoisTimeout = mkOption {
+      whoisTimeout = lib.mkOption {
         description = "Maximum amount of time that a requestor lookup may take.";
-        type = types.nullOr types.str;
+        type = lib.types.nullOr lib.types.str;
         default = null;
       };
 
-      suppressWhois = mkOption {
+      suppressWhois = lib.mkOption {
         description = "Disable passing requestor information to upstream service";
-        type = types.bool;
+        type = lib.types.bool;
         default = false;
       };
 
-      upstreamHeaders = mkOption {
+      upstreamHeaders = lib.mkOption {
         description = "Headers to set on requests to upstream.";
-        type = types.attrsOf types.str;
+        type = lib.types.attrsOf lib.types.str;
         default = {};
       };
 
-      suppressTailnetDialer = mkOption {
+      suppressTailnetDialer = lib.mkOption {
         description = "Disable using the tsnet-provided dialer, which can sometimes cause issues hitting addresses outside the tailnet";
-        type = types.bool;
+        type = lib.types.bool;
         default = false;
       };
 
-      readHeaderTimeout = mkOption {
+      readHeaderTimeout = lib.mkOption {
         description = "";
-        type = types.nullOr types.str;
+        type = lib.types.nullOr lib.types.str;
         default = null;
       };
 
-      urlParts = mkOption {
+      urlParts = lib.mkOption {
         description = "URL parts that make up an alternative to the toURL option.";
-        type = types.nullOr (types.submodule urlPartsSubmoduleWithDefaults);
+        type = lib.types.nullOr (lib.types.submodule urlPartsSubmoduleWithDefaults);
         default = null;
       };
 
-      toURL = mkOption {
+      toURL = lib.mkOption {
         description = "URL to forward HTTP requests to. Either this or the urlParts option must be set.";
-        type = types.str;
+        type = lib.types.str;
         default = "${config.urlParts.protocol}://${config.urlParts.host}:${toString config.urlParts.port}";
         defaultText = lib.literalExpression "\${config.services.tsnsrv.<name>.urlParts.protocol}://\${config.services.tsnsrv.<name>.urlParts.host}:\${toString config.services.tsnsrv.<name>.urlParts.port}";
       };
 
-      supplementalGroups = mkOption {
+      supplementalGroups = lib.mkOption {
         description = "List of groups to run the service under (in addition to the 'tsnsrv' group)";
-        type = types.listOf types.str;
+        type = lib.types.listOf lib.types.str;
         default = defaults.supplementalGroups;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.supplementalGroups";
       };
 
-      tags = mkOption {
+      tags = lib.mkOption {
         description = "Tags for minting an auth key from an OAuth2 client. Must be prefixed with `tag:`";
-        type = types.listOf (types.strMatching "^tag:.*");
+        type = lib.types.listOf (lib.types.strMatching "^tag:.*");
         default = defaults.tags;
         example = ["tag:foo" "tag:bar"];
       };
 
-      timeout = mkOption {
+      timeout = lib.mkOption {
         description = "Maximum amount of time that authenticating to the tailscale API may take";
-        type = with types; nullOr str;
+        type = with lib.types; nullOr str;
         default = defaults.timeout;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.timeout";
       };
 
-      tsnetVerbose = mkOption {
+      tsnetVerbose = lib.mkOption {
         description = "Whether to log verbosely from tsnet. Can be useful for seeing first-time authentication URLs.";
-        type = types.bool;
+        type = lib.types.bool;
         default = defaults.tsnetVerbose;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.tsnetVerbose";
       };
 
-      upstreamAllowInsecureCiphers = mkOption {
+      upstreamAllowInsecureCiphers = lib.mkOption {
         description = "Whether to allow the upstream to have only ciphersuites that don't offer Perfect Forward Secrecy. If a connection attempt to an upstream returns the error `remote error: tls: handshake failure`, try setting this to true.";
-        type = types.bool;
+        type = lib.types.bool;
         default = defaults.upstreamAllowInsecureCiphers;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.upstreamAllowInsecureCiphers";
       };
 
-      authURL = mkOption {
+      authURL = lib.mkOption {
         description = "Authorization service URL for forward auth (e.g., http://authelia:9091). If set, all requests will be validated against this service before being proxied.";
-        type = with types; nullOr str;
+        type = with lib.types; nullOr str;
         default = defaults.authURL;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.authURL";
       };
 
-      authPath = mkOption {
+      authPath = lib.mkOption {
         description = "Authorization service endpoint path";
-        type = types.str;
+        type = lib.types.str;
         default = defaults.authPath;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.authPath";
       };
 
-      authTimeout = mkOption {
+      authTimeout = lib.mkOption {
         description = "Timeout for authorization requests";
-        type = with types; nullOr str;
+        type = with lib.types; nullOr str;
         default = defaults.authTimeout;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.authTimeout";
       };
 
-      authCopyHeaders = mkOption {
+      authCopyHeaders = lib.mkOption {
         description = "Headers to copy from auth response to upstream request";
-        type = types.attrsOf types.str;
+        type = lib.types.attrsOf lib.types.str;
         default = defaults.authCopyHeaders;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.authCopyHeaders";
       };
 
-      authInsecureHTTPS = mkOption {
+      authInsecureHTTPS = lib.mkOption {
         description = "Disable TLS certificate validation for auth service";
-        type = types.bool;
+        type = lib.types.bool;
         default = defaults.authInsecureHTTPS;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.authInsecureHTTPS";
       };
 
-      authBypassForTailnet = mkOption {
+      authBypassForTailnet = lib.mkOption {
         description = "Bypass forward auth for requests from Tailscale network (authenticated users)";
-        type = types.bool;
+        type = lib.types.bool;
         default = defaults.authBypassForTailnet;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.authBypassForTailnet";
       };
 
-      extraArgs = mkOption {
+      extraArgs = lib.mkOption {
         description = "Extra arguments to pass to this tsnsrv process.";
-        type = types.listOf types.str;
+        type = lib.types.listOf lib.types.str;
         default = [];
       };
     };
@@ -437,113 +437,113 @@
       )
     );
 in {
-  options = with lib; {
-    services.tsnsrv.enable = mkOption {
+  options = {
+    services.tsnsrv.enable = lib.mkOption {
       description = "Enable tsnsrv";
-      type = types.bool;
+      type = lib.types.bool;
       default = false;
     };
 
     services.tsnsrv.defaults = {
-      package = mkOption {
+      package = lib.mkOption {
         description = "Package to run tsnsrv out of";
         default = pkgs.tsnsrv;
-        type = types.package;
+        type = lib.types.package;
       };
 
       authKeyPath = lib.mkOption {
         description = "Path to a file containing a tailscale auth key. Make this a secret";
-        type = types.path;
+        type = lib.types.path;
       };
 
-      acmeHost = mkOption {
+      acmeHost = lib.mkOption {
         description = "Populate certificateFile and certificateKey option from this certifcate name from security.acme module.";
-        type = with types; nullOr str;
+        type = with lib.types; nullOr str;
         default = null;
       };
 
-      certificateFile = mkOption {
+      certificateFile = lib.mkOption {
         description = "Custom certificate file to use for TLS listening instead of Tailscale's builtin way";
-        type = with types; nullOr path;
+        type = with lib.types; nullOr path;
         default = null;
       };
 
-      certificateKey = mkOption {
+      certificateKey = lib.mkOption {
         description = "Custom key file to use for TLS listening instead of Tailscale's builtin way.";
-        type = with types; nullOr path;
+        type = with lib.types; nullOr path;
         default = null;
       };
 
-      ephemeral = mkOption {
+      ephemeral = lib.mkOption {
         description = "Delete the tailnet participant shortly after it goes offline";
-        type = types.bool;
+        type = lib.types.bool;
         default = false;
       };
 
-      listenAddr = mkOption {
+      listenAddr = lib.mkOption {
         description = "Address to listen on";
-        type = types.str;
+        type = lib.types.str;
         default = ":443";
       };
 
       loginServerUrl = lib.mkOption {
         description = "Login server URL to use. If unset, defaults to the official tailscale service.";
         default = null;
-        type = with types; nullOr str;
+        type = with lib.types; nullOr str;
       };
 
-      supplementalGroups = mkOption {
+      supplementalGroups = lib.mkOption {
         description = "List of groups to run the service under (in addition to the 'tsnsrv' group)";
-        type = types.listOf types.str;
+        type = lib.types.listOf lib.types.str;
         default = [];
       };
 
-      tags = mkOption {
+      tags = lib.mkOption {
         description = "Tags for minting an auth key from an OAuth2 client. Must be prefixed with `tag:`";
-        type = types.listOf (types.strMatching "^tag:.*");
+        type = lib.types.listOf (lib.types.strMatching "^tag:.*");
         default = [];
         example = ["tag:foo" "tag:bar"];
       };
 
-      timeout = mkOption {
+      timeout = lib.mkOption {
         description = "Maximum amount of time that authenticating to the tailscale API may take";
-        type = with types; nullOr str;
+        type = with lib.types; nullOr str;
         default = null;
       };
 
-      tsnetVerbose = mkOption {
+      tsnetVerbose = lib.mkOption {
         description = "Whether to log verbosely from tsnet. Can be useful for seeing first-time authentication URLs.";
-        type = types.bool;
+        type = lib.types.bool;
         default = false;
       };
 
-      upstreamAllowInsecureCiphers = mkOption {
+      upstreamAllowInsecureCiphers = lib.mkOption {
         description = "Whether to require the upstream to support Perfect Forward Secrecy cipher suites. If a connection attempt to an upstream returns the error `remote error: tls: handshake failure`, try setting this to true.";
-        type = types.bool;
+        type = lib.types.bool;
         default = false;
       };
 
-      authURL = mkOption {
+      authURL = lib.mkOption {
         description = "Default authorization service URL for forward auth (e.g., http://authelia:9091). If set, all requests will be validated against this service before being proxied.";
-        type = with types; nullOr str;
+        type = with lib.types; nullOr str;
         default = null;
       };
 
-      authPath = mkOption {
+      authPath = lib.mkOption {
         description = "Default authorization service endpoint path";
-        type = types.str;
+        type = lib.types.str;
         default = "/api/authz/forward-auth";
       };
 
-      authTimeout = mkOption {
+      authTimeout = lib.mkOption {
         description = "Default timeout for authorization requests";
-        type = with types; nullOr str;
+        type = with lib.types; nullOr str;
         default = "5s";
       };
 
-      authCopyHeaders = mkOption {
+      authCopyHeaders = lib.mkOption {
         description = "Default headers to copy from auth response to upstream request";
-        type = types.attrsOf types.str;
+        type = lib.types.attrsOf lib.types.str;
         default = {};
         example = {
           "Remote-User" = "";
@@ -553,31 +553,31 @@ in {
         };
       };
 
-      authInsecureHTTPS = mkOption {
+      authInsecureHTTPS = lib.mkOption {
         description = "Default setting for disabling TLS certificate validation for auth service";
-        type = types.bool;
+        type = lib.types.bool;
         default = false;
       };
 
-      authBypassForTailnet = mkOption {
+      authBypassForTailnet = lib.mkOption {
         description = "Default setting for bypassing forward auth for requests from Tailscale network (authenticated users)";
-        type = types.bool;
+        type = lib.types.bool;
         default = false;
       };
 
-      urlParts = mkOption {
+      urlParts = lib.mkOption {
         description = "Default URL parts for tsnsrv services. Each service will have the parts here interpolated onto its .toURL option by default.";
-        type = types.submodule urlPartsSubmodule;
+        type = lib.types.submodule urlPartsSubmodule;
       };
     };
 
-    services.tsnsrv.prometheusAddr = mkOption {
+    services.tsnsrv.prometheusAddr = lib.mkOption {
       description = "Address to expose Prometheus metrics and pprof endpoints on for the entire tsnsrv process. Set to null to disable.";
-      type = with types; nullOr str;
+      type = with lib.types; nullOr str;
       default = ":9099";
     };
 
-    services.tsnsrv.separateProcesses = mkOption {
+    services.tsnsrv.separateProcesses = lib.mkOption {
       description = ''
         Run each service in a separate systemd unit (tsnsrv-{name}) instead of running all services in a single process (tsnsrv-all).
 
@@ -585,45 +585,45 @@ in {
 
         When false: All services run in one process via the tsnsrv-all systemd unit. This is more resource-efficient and reduces CPU overhead.
       '';
-      type = types.bool;
+      type = lib.types.bool;
       default = true;
     };
 
-    services.tsnsrv.services = mkOption {
+    services.tsnsrv.services = lib.mkOption {
       description = "tsnsrv services";
       default = {};
-      type = types.attrsOf (types.submodule serviceSubmodule);
+      type = lib.types.attrsOf (lib.types.submodule serviceSubmodule);
       example = false;
     };
 
     virtualisation.oci-sidecars.tsnsrv = {
-      enable = mkEnableOption "tsnsrv oci sidecar containers";
+      enable = lib.mkEnableOption "tsnsrv oci sidecar containers";
 
-      authKeyPath = mkOption {
+      authKeyPath = lib.mkOption {
         description = "Path to a file containing a tailscale auth key. Make this a secret";
-        type = types.path;
+        type = lib.types.path;
         default = config.services.tsnsrv.defaults.authKeyPath;
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.authKeyPath";
       };
 
-      containers = mkOption {
+      containers = lib.mkOption {
         description = "Attrset mapping sidecar container names to their respective tsnsrv service definition. Each sidecar container will be attached to the container it belongs to, sharing its network.";
-        type = types.attrsOf (types.submodule {
+        type = lib.types.attrsOf (lib.types.submodule {
           options = {
-            name = mkOption {
+            name = lib.mkOption {
               description = "Name to use for the tsnet service. This defaults to the container name.";
-              type = types.nullOr types.str;
+              type = lib.types.nullOr lib.types.str;
               default = null;
             };
 
-            forContainer = mkOption {
+            forContainer = lib.mkOption {
               description = "The container to which to attach the sidecar.";
-              type = types.str;
+              type = lib.types.str;
             };
 
-            service = mkOption {
+            service = lib.mkOption {
               description = "tsnsrv service definition for the sidecar.";
-              type = types.submodule serviceSubmodule;
+              type = lib.types.submodule serviceSubmodule;
             };
           };
         });

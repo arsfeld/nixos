@@ -21,11 +21,11 @@
 }: let
   cfg = config.media.config;
 in {
-  options.media.config = with lib; {
-    enable = mkEnableOption "media service configuration";
+  options.media.config = {
+    enable = lib.mkEnableOption "media service configuration";
 
-    configDir = mkOption {
-      type = types.str;
+    configDir = lib.mkOption {
+      type = lib.types.str;
       default = "/var/data";
       description = ''
         Base directory for media service configuration files.
@@ -33,8 +33,8 @@ in {
       '';
     };
 
-    dataDir = mkOption {
-      type = types.str;
+    dataDir = lib.mkOption {
+      type = lib.types.str;
       default = "/mnt/storage";
       description = ''
         Primary data directory for media files.
@@ -42,8 +42,8 @@ in {
       '';
     };
 
-    storageDir = mkOption {
-      type = types.str;
+    storageDir = lib.mkOption {
+      type = lib.types.str;
       default = "/mnt/storage";
       description = ''
         Storage directory for large media files and backups.
@@ -51,8 +51,8 @@ in {
       '';
     };
 
-    puid = mkOption {
-      type = types.int;
+    puid = lib.mkOption {
+      type = lib.types.int;
       default = 5000;
       description = ''
         User ID for the media service user.
@@ -60,8 +60,8 @@ in {
       '';
     };
 
-    pgid = mkOption {
-      type = types.int;
+    pgid = lib.mkOption {
+      type = lib.types.int;
       default = 5000;
       description = ''
         Group ID for the media service group.
@@ -69,8 +69,8 @@ in {
       '';
     };
 
-    user = mkOption {
-      type = types.str;
+    user = lib.mkOption {
+      type = lib.types.str;
       default = "media";
       description = ''
         Username for the media service account.
@@ -78,16 +78,16 @@ in {
       '';
     };
 
-    group = mkOption {
-      type = types.str;
+    group = lib.mkOption {
+      type = lib.types.str;
       default = "media";
       description = ''
         Group name for the media service account.
       '';
     };
 
-    tz = mkOption {
-      type = types.str;
+    tz = lib.mkOption {
+      type = lib.types.str;
       default = "America/Toronto";
       description = ''
         Timezone for media services.
@@ -95,8 +95,8 @@ in {
       '';
     };
 
-    email = mkOption {
-      type = types.str;
+    email = lib.mkOption {
+      type = lib.types.str;
       default = "arsfeld@gmail.com";
       description = ''
         Email address for ACME certificate notifications
@@ -104,8 +104,8 @@ in {
       '';
     };
 
-    domain = mkOption {
-      type = types.str;
+    domain = lib.mkOption {
+      type = lib.types.str;
       default = "arsfeld.one";
       description = ''
         Primary domain for public-facing media services.
@@ -113,8 +113,8 @@ in {
       '';
     };
 
-    linuxserverCaps = mkOption {
-      type = types.listOf types.str;
+    linuxserverCaps = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
       default = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID" "KILL"];
       readOnly = true;
       description = ''
@@ -124,8 +124,8 @@ in {
       '';
     };
 
-    tsDomain = mkOption {
-      type = types.str;
+    tsDomain = lib.mkOption {
+      type = lib.types.str;
       default = "bat-boa.ts.net";
       description = ''
         Tailscale domain for internal access to media services.

@@ -32,8 +32,7 @@
   config,
   self,
   ...
-}:
-with lib; let
+}: let
   cfg = config.constellation.sops;
   hostname =
     if cfg.hostname != null
@@ -41,8 +40,8 @@ with lib; let
     else config.networking.hostName;
 in {
   options.constellation.sops = {
-    enable = mkOption {
-      type = types.bool;
+    enable = lib.mkOption {
+      type = lib.types.bool;
       description = ''
         Enable sops-nix infrastructure setup.
         This configures age-based encryption using the host's SSH key
@@ -53,8 +52,8 @@ in {
       default = false;
     };
 
-    hostname = mkOption {
-      type = types.nullOr types.str;
+    hostname = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
       description = ''
         Hostname to use for determining the default secrets file path.
         Defaults to config.networking.hostName if not set.
@@ -62,8 +61,8 @@ in {
       default = null;
     };
 
-    commonSopsFile = mkOption {
-      type = types.path;
+    commonSopsFile = lib.mkOption {
+      type = lib.types.path;
       description = ''
         Path to the common secrets file shared across all hosts.
         Use this in sops.secrets.<name>.sopsFile for cross-host secrets.
@@ -73,7 +72,7 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     # Configure sops-nix infrastructure
     sops = {
       # Set default secrets file to host-specific file

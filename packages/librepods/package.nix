@@ -29,11 +29,11 @@ in
       libpulseaudio
     ];
 
-    meta = with lib; {
+    meta = {
       description = "Open-source AirPods client for Linux";
       homepage = "https://github.com/kavishdevar/librepods";
-      license = licenses.gpl3Only;
-      platforms = platforms.linux;
+      license = lib.licenses.gpl3Only;
+      platforms = lib.platforms.linux;
       mainProgram = "librepods";
     };
   }

@@ -3,8 +3,7 @@
   pkgs,
   lib,
   ...
-}:
-with lib; {
+}: {
   users.users.camille = {
     uid = 1001;
     isNormalUser = true;

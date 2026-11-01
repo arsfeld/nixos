@@ -30,8 +30,7 @@
   lib,
   pkgs,
   ...
-}:
-with lib; let
+}: let
   cfg = config.constellation.backrest;
 
   clockEnumMap = {
@@ -56,7 +55,7 @@ with lib; let
   # Retention submodule → Backrest's RetentionPolicy.
   # Non-null sub-fields go into policyTimeBucketed; all-null means keep-all.
   renderRetention = r: let
-    bucketed = filterAttrs (_: v: v != null) r;
+    bucketed = lib.filterAttrs (_: v: v != null) r;
   in
     if bucketed == {}
     then {policyKeepAll = true;}
@@ -68,15 +67,15 @@ with lib; let
   # unpruned and unchecked from the start. Both therefore default to a monthly
   # schedule, so a repo added later is covered without anyone remembering to
   # opt in; set the option to null to disable deliberately.
-  prunePolicyType = types.submodule {
+  prunePolicyType = lib.types.submodule {
     options = {
-      schedule = mkOption {
+      schedule = lib.mkOption {
         type = scheduleType;
         default = {maxFrequencyDays = 30;};
         description = "When to prune. Same Schedule shape as plan schedules.";
       };
-      maxUnusedPercent = mkOption {
-        type = types.number;
+      maxUnusedPercent = lib.mkOption {
+        type = lib.types.number;
         default = 10;
         description = ''
           Unused space restic may leave behind, as a percentage. NEVER set this
@@ -86,23 +85,23 @@ with lib; let
           this module emits one.
         '';
       };
-      maxUnusedBytes = mkOption {
-        type = types.nullOr types.int;
+      maxUnusedBytes = lib.mkOption {
+        type = lib.types.nullOr lib.types.int;
         default = null;
         description = "Absolute byte budget. Takes precedence over maxUnusedPercent when set.";
       };
     };
   };
 
-  checkPolicyType = types.submodule {
+  checkPolicyType = lib.types.submodule {
     options = {
-      schedule = mkOption {
+      schedule = lib.mkOption {
         type = scheduleType;
         default = {maxFrequencyDays = 30;};
         description = "When to check. Same Schedule shape as plan schedules.";
       };
-      readDataSubsetPercent = mkOption {
-        type = types.nullOr types.number;
+      readDataSubsetPercent = lib.mkOption {
+        type = lib.types.nullOr lib.types.number;
         default = null;
         description = ''
           Percentage of pack data to re-read. null means structure-only, which
@@ -183,8 +182,8 @@ with lib; let
       # yet (new repos). Once a guid is present autoInitialize must be absent —
       # Backrest rejects configs that set both.
     }
-    // optionalAttrs (repo.prune != null) {prunePolicy = renderPrunePolicy repo.prune;}
-    // optionalAttrs (repo.check != null) {checkPolicy = renderCheckPolicy repo.check;};
+    // lib.optionalAttrs (repo.prune != null) {prunePolicy = renderPrunePolicy repo.prune;}
+    // lib.optionalAttrs (repo.check != null) {checkPolicy = renderCheckPolicy repo.check;};
 
   # A standalone restic invocation per repo, carrying the same credentials the
   # daemon gives restic. rclone-backed repos need rclone on PATH; without it
@@ -197,15 +196,15 @@ with lib; let
   resticQuery = name: repo:
     pkgs.writeShellScript "backup-status-restic-${name}" ''
       set -euo pipefail
-      export PATH=${makeBinPath [pkgs.rclone pkgs.openssh]}:$PATH
+      export PATH=${lib.makeBinPath [pkgs.rclone pkgs.openssh]}:$PATH
       export RESTIC_PASSWORD_FILE=${toString repo.passwordFile}
-      ${optionalString (repo.envFile != null) ''
+      ${lib.optionalString (repo.envFile != null) ''
         set -a
         . ${toString repo.envFile}
         set +a
       ''}
-      ${concatMapStrings (e: "export ${e}\n") repo.env}
-      exec ${pkgs.coreutils}/bin/timeout 120 ${pkgs.restic}/bin/restic -r ${escapeShellArg repo.uri} snapshots --json
+      ${lib.concatMapStrings (e: "export ${e}\n") repo.env}
+      exec ${pkgs.coreutils}/bin/timeout 120 ${pkgs.restic}/bin/restic -r ${lib.escapeShellArg repo.uri} snapshots --json
     '';
 
   renderPlan = name: plan: {
@@ -240,8 +239,8 @@ with lib; let
     version = 4;
     instance = cfg.instance;
     auth = {disabled = true;};
-    repos = mapAttrsToList renderRepo cfg.repos;
-    plans = mapAttrsToList renderPlan cfg.plans;
+    repos = lib.mapAttrsToList renderRepo cfg.repos;
+    plans = lib.mapAttrsToList renderPlan cfg.plans;
   };
 
   configTemplate = pkgs.writeText "backrest-config.json" (builtins.toJSON configAttrs);
@@ -274,104 +273,104 @@ with lib; let
   # Per-repo envFiles (rclone creds etc.) flow through to restic via
   # Backrest's env inheritance (the daemon's env is passed to restic).
   repoEnvFiles =
-    filter (v: v != null)
-    (mapAttrsToList (_: repo: repo.envFile) cfg.repos);
+    lib.filter (v: v != null)
+    (lib.mapAttrsToList (_: repo: repo.envFile) cfg.repos);
 
-  scheduleType = types.submodule {
+  scheduleType = lib.types.submodule {
     options = {
-      cron = mkOption {
-        type = types.nullOr types.str;
+      cron = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
         default = null;
         description = "Cron expression (5 fields).";
       };
-      maxFrequencyHours = mkOption {
-        type = types.nullOr types.int;
+      maxFrequencyHours = lib.mkOption {
+        type = lib.types.nullOr lib.types.int;
         default = null;
         description = "Minimum hours between runs. Use with clock=last-run for laptops.";
       };
-      maxFrequencyDays = mkOption {
-        type = types.nullOr types.int;
+      maxFrequencyDays = lib.mkOption {
+        type = lib.types.nullOr lib.types.int;
         default = null;
         description = "Minimum days between runs.";
       };
-      clock = mkOption {
-        type = types.enum ["local" "utc" "last-run"];
+      clock = lib.mkOption {
+        type = lib.types.enum ["local" "utc" "last-run"];
         default = "local";
         description = "Scheduler clock source. last-run is interval-from-last-success (laptop-friendly).";
       };
     };
   };
 
-  retentionType = types.submodule {
+  retentionType = lib.types.submodule {
     options = {
-      hourly = mkOption {
-        type = types.nullOr types.int;
+      hourly = lib.mkOption {
+        type = lib.types.nullOr lib.types.int;
         default = null;
       };
-      daily = mkOption {
-        type = types.nullOr types.int;
+      daily = lib.mkOption {
+        type = lib.types.nullOr lib.types.int;
         default = null;
       };
-      weekly = mkOption {
-        type = types.nullOr types.int;
+      weekly = lib.mkOption {
+        type = lib.types.nullOr lib.types.int;
         default = null;
       };
-      monthly = mkOption {
-        type = types.nullOr types.int;
+      monthly = lib.mkOption {
+        type = lib.types.nullOr lib.types.int;
         default = null;
       };
-      yearly = mkOption {
-        type = types.nullOr types.int;
+      yearly = lib.mkOption {
+        type = lib.types.nullOr lib.types.int;
         default = null;
       };
     };
   };
 
-  repoType = types.submodule {
+  repoType = lib.types.submodule {
     options = {
-      uri = mkOption {
-        type = types.str;
+      uri = lib.mkOption {
+        type = lib.types.str;
         description = "Restic repo URI (rest:, rclone:, sftp:, local path).";
       };
-      passwordFile = mkOption {
-        type = types.path;
+      passwordFile = lib.mkOption {
+        type = lib.types.path;
         description = "Path to the restic repo password (contents only, no KEY=).";
       };
-      env = mkOption {
-        type = types.listOf types.str;
+      env = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
         default = [];
         description = "Extra env vars as KEY=value strings passed to restic for this repo.";
       };
-      envFile = mkOption {
-        type = types.nullOr types.path;
+      envFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
         default = null;
         description = "Optional EnvironmentFile sourced for this repo (e.g. hetzner-webdav-env).";
       };
-      flags = mkOption {
-        type = types.listOf types.str;
+      flags = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
         default = [];
       };
-      autoUnlock = mkOption {
-        type = types.bool;
+      autoUnlock = lib.mkOption {
+        type = lib.types.bool;
         default = false;
       };
-      prune = mkOption {
-        type = types.nullOr prunePolicyType;
+      prune = lib.mkOption {
+        type = lib.types.nullOr prunePolicyType;
         default = {};
         description = "Prune policy for this repo. null disables pruning entirely.";
       };
-      check = mkOption {
-        type = types.nullOr checkPolicyType;
+      check = lib.mkOption {
+        type = lib.types.nullOr checkPolicyType;
         default = {};
         description = "Integrity check policy for this repo. null disables checks entirely.";
       };
-      hooks = mkOption {
-        type = types.nullOr (types.listOf types.attrs);
+      hooks = lib.mkOption {
+        type = lib.types.nullOr (lib.types.listOf lib.types.attrs);
         default = null;
         description = "Repo hooks. null = module default failure hook. [] = no hooks.";
       };
-      maxAgeHours = mkOption {
-        type = types.int;
+      maxAgeHours = lib.mkOption {
+        type = lib.types.int;
         default = 48;
         description = ''
           Snapshot age above which backup-status reports this repo stale.
@@ -381,41 +380,41 @@ with lib; let
     };
   };
 
-  planType = types.submodule {
+  planType = lib.types.submodule {
     options = {
-      repo = mkOption {
-        type = types.str;
+      repo = lib.mkOption {
+        type = lib.types.str;
         description = "Name of a repo defined in constellation.backrest.repos.";
       };
-      paths = mkOption {
-        type = types.listOf types.str;
+      paths = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
       };
-      excludes = mkOption {
-        type = types.listOf types.str;
+      excludes = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
         default = [];
       };
-      iexcludes = mkOption {
-        type = types.listOf types.str;
+      iexcludes = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
         default = [];
       };
-      excludeIfPresent = mkOption {
-        type = types.listOf types.str;
+      excludeIfPresent = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
         default = [];
         description = "Filenames whose presence excludes the containing directory (renders to --exclude-if-present=).";
       };
-      schedule = mkOption {
+      schedule = lib.mkOption {
         type = scheduleType;
       };
-      retention = mkOption {
+      retention = lib.mkOption {
         type = retentionType;
         default = {};
       };
-      extraBackupFlags = mkOption {
-        type = types.listOf types.str;
+      extraBackupFlags = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
         default = [];
       };
-      hooks = mkOption {
-        type = types.nullOr (types.listOf types.attrs);
+      hooks = lib.mkOption {
+        type = lib.types.nullOr (lib.types.listOf lib.types.attrs);
         default = null;
         description = "Per-plan hooks. null = none (the default failure hook is repo-level). [] = no hooks.";
       };
@@ -423,68 +422,68 @@ with lib; let
   };
 in {
   options.constellation.backrest = {
-    enable = mkEnableOption "Backrest per-host backup orchestrator";
+    enable = lib.mkEnableOption "Backrest per-host backup orchestrator";
 
-    package = mkOption {
-      type = types.package;
+    package = lib.mkOption {
+      type = lib.types.package;
       default = pkgs.unstable.backrest;
       description = "Backrest package (defaults to pkgs.unstable for faster upstream tracking).";
     };
 
-    instance = mkOption {
-      type = types.str;
+    instance = lib.mkOption {
+      type = lib.types.str;
       default = config.networking.hostName;
       description = "Instance identifier used as restic --host tag and UI header.";
     };
 
-    bindAddress = mkOption {
-      type = types.str;
+    bindAddress = lib.mkOption {
+      type = lib.types.str;
       default = "0.0.0.0:9898";
       description = "host:port to bind. Firewall (tailscale0 only) is the primary gate.";
     };
 
-    openFirewall = mkOption {
-      type = types.bool;
+    openFirewall = lib.mkOption {
+      type = lib.types.bool;
       default = true;
       description = "Open 9898 on tailscale0 so galactica's Caddy can proxy the UI.";
     };
 
-    dataDir = mkOption {
-      type = types.str;
+    dataDir = lib.mkOption {
+      type = lib.types.str;
       default = "/var/lib/backrest";
       description = "Directory where Backrest stores its config and state.";
     };
 
-    cacheDir = mkOption {
-      type = types.str;
+    cacheDir = lib.mkOption {
+      type = lib.types.str;
       default = "/var/cache/backrest";
       description = "Directory used by restic for its cache.";
     };
 
-    ntfyUrl = mkOption {
-      type = types.str;
+    ntfyUrl = lib.mkOption {
+      type = lib.types.str;
       default = "https://ntfy.arsfeld.one/backups";
       description = "ntfy topic URL for backup failure notifications.";
     };
 
-    ntfyPublisherEnvFile = mkOption {
-      type = types.nullOr types.path;
+    ntfyPublisherEnvFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
       default = null;
       description = "EnvironmentFile providing NTFY_BASIC_AUTH_B64 for the failure hook. Defaults to the sops ntfy-publisher-env secret.";
     };
 
-    repos = mkOption {
-      type = types.attrsOf repoType;
+    repos = lib.mkOption {
+      type = lib.types.attrsOf repoType;
       default = {};
     };
 
-    plans = mkOption {
-      type = types.attrsOf planType;
+    plans = lib.mkOption {
+      type = lib.types.attrsOf planType;
       default = {};
     };
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     # `restic-password` is a shared secret (common.yaml). Hosts with
     # repo-specific passwords can declare additional sops.secrets entries
     # and reference them via repos.<name>.passwordFile.
@@ -492,10 +491,10 @@ in {
       sopsFile = config.constellation.sops.commonSopsFile;
     };
 
-    constellation.backupNotify.enable = mkDefault true;
-    constellation.backupStatus.enable = mkDefault true;
+    constellation.backupNotify.enable = lib.mkDefault true;
+    constellation.backupStatus.enable = lib.mkDefault true;
     constellation.backupStatus.sources =
-      mapAttrsToList (name: repo: {
+      lib.mapAttrsToList (name: repo: {
         inherit name;
         kind = "restic";
         command = toString (resticQuery name repo);
@@ -506,7 +505,7 @@ in {
     environment.systemPackages = [cfg.package pkgs.restic];
 
     networking.firewall.interfaces.tailscale0.allowedTCPPorts =
-      mkIf cfg.openFirewall [9898];
+      lib.mkIf cfg.openFirewall [9898];
 
     systemd.services.backrest = {
       description = "Backrest backup orchestrator";

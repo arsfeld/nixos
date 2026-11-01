@@ -24,8 +24,7 @@
   lib,
   pkgs,
   ...
-}:
-with lib; let
+}: let
   sendmail = pkgs.writeScript "sendmail" ''
     #!/bin/sh
 
@@ -82,8 +81,8 @@ with lib; let
   '';
 in {
   options = {
-    systemd.services = mkOption {
-      type = with types;
+    systemd.services = lib.mkOption {
+      type = with lib.types;
         attrsOf (
           submodule {
             config.onFailure = ["email@%n.service"];
@@ -91,8 +90,8 @@ in {
         );
     };
 
-    systemdEmailNotify.toEmail = mkOption {
-      type = types.str;
+    systemdEmailNotify.toEmail = lib.mkOption {
+      type = lib.types.str;
       default = config.constellation.email.toEmail;
       description = ''
         Email address to send service failure notifications to.
@@ -100,8 +99,8 @@ in {
       '';
     };
 
-    systemdEmailNotify.fromEmail = mkOption {
-      type = types.str;
+    systemdEmailNotify.fromEmail = lib.mkOption {
+      type = lib.types.str;
       default = config.constellation.email.fromEmail;
       description = ''
         Email address to use as the sender for service failure notifications.
@@ -113,7 +112,7 @@ in {
   config = {
     systemd.services."email@" = {
       description = "Sends a status mail via sendEmailEvent on service failures.";
-      onFailure = mkForce [];
+      onFailure = lib.mkForce [];
       path = with pkgs; [
         nettools # provides hostname command
         coreutils

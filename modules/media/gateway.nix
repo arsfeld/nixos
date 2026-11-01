@@ -20,8 +20,7 @@
   config,
   pkgs,
   ...
-}:
-with lib; let
+}: let
   utils = import "${self}/modules/media/__utils.nix" {inherit config lib pkgs;};
   nameToPort = import "${self}/common/nameToPort.nix";
   cfg = config.media.gateway;
@@ -33,9 +32,9 @@ with lib; let
   };
 in {
   options.media.gateway = {
-    enable = mkEnableOption "media gateway for service routing and authentication";
+    enable = lib.mkEnableOption "media gateway for service routing and authentication";
 
-    services = mkOption {
+    services = lib.mkOption {
       default = {};
       description = ''
         Services to expose through the gateway. Each service gets a subdomain
@@ -47,18 +46,18 @@ in {
           port = 8096;
         };
       };
-      type = types.attrsOf (types.submodule ({config, ...}: {
+      type = lib.types.attrsOf (lib.types.submodule ({config, ...}: {
         options = {
-          enable = mkOption {
-            type = types.bool;
+          enable = lib.mkOption {
+            type = lib.types.bool;
             default = true;
             description = ''
               Whether to enable this service in the gateway.
               Disabled services won't be accessible through the gateway.
             '';
           };
-          exposeViaTailscale = mkOption {
-            type = types.bool;
+          exposeViaTailscale = lib.mkOption {
+            type = lib.types.bool;
             default = false;
             description = ''
               Whether to create a dedicated Tailscale node for this service.
@@ -67,8 +66,8 @@ in {
               Default is false to reduce Tailscale node overhead and CPU usage.
             '';
           };
-          name = mkOption {
-            type = types.str;
+          name = lib.mkOption {
+            type = lib.types.str;
             default = config._module.args.name;
             description = ''
               Name of the service. Used for subdomain generation and identification.
@@ -76,8 +75,8 @@ in {
             '';
             example = "jellyfin";
           };
-          host = mkOption {
-            type = types.str;
+          host = lib.mkOption {
+            type = lib.types.str;
             default = _config.networking.hostName;
             description = ''
               Hostname where this service is running.
@@ -85,15 +84,15 @@ in {
             '';
             example = "galactica";
           };
-          port = mkOption {
-            type = types.int;
+          port = lib.mkOption {
+            type = lib.types.int;
             default = nameToPort config.name;
             description = ''
               Port where the service is listening.
               Defaults to an automatically assigned port based on the service name.
             '';
           };
-          settings = mkOption {
+          settings = lib.mkOption {
             type = utils.gatewayConfig;
             default = {};
             description = ''
@@ -105,8 +104,8 @@ in {
       }));
     };
 
-    authHost = mkOption {
-      type = types.str;
+    authHost = lib.mkOption {
+      type = lib.types.str;
       default = "127.0.0.1";
       description = ''
         Hostname of the authentication service (Authelia).
@@ -115,8 +114,8 @@ in {
       example = "media.example.com";
     };
 
-    authPort = mkOption {
-      type = types.int;
+    authPort = lib.mkOption {
+      type = lib.types.int;
       default = 443;
       description = ''
         Port where the authentication service is listening.
@@ -125,8 +124,8 @@ in {
       example = 443;
     };
 
-    domain = mkOption {
-      type = types.str;
+    domain = lib.mkOption {
+      type = lib.types.str;
       default = _config.media.config.domain;
       description = ''
         Base domain for all media services.
@@ -136,8 +135,8 @@ in {
       example = "media.example.com";
     };
 
-    email = mkOption {
-      type = types.str;
+    email = lib.mkOption {
+      type = lib.types.str;
       default = _config.media.config.email;
       description = ''
         Email address for ACME certificate notifications.
@@ -148,8 +147,8 @@ in {
 
     # Note: this is a tsnsrv setting, not part of the (disabled) caddy-tailscale
     # `tailscale.*` block below.
-    tailscaleNodeSuffix = mkOption {
-      type = types.str;
+    tailscaleNodeSuffix = lib.mkOption {
+      type = lib.types.str;
       default = "";
       description = ''
         Appended to the tsnsrv node name — and only that — for every service on
@@ -181,8 +180,8 @@ in {
     };
 
     tailscale = {
-      enable = mkOption {
-        type = types.bool;
+      enable = lib.mkOption {
+        type = lib.types.bool;
         default = false;
         description = ''
           Enable Caddy Tailscale plugin integration.
@@ -192,8 +191,8 @@ in {
         '';
       };
 
-      enableOAuth = mkOption {
-        type = types.bool;
+      enableOAuth = lib.mkOption {
+        type = lib.types.bool;
         default = true;
         description = ''
           Use OAuth client credentials (TS_API_CLIENT_ID + TS_API_CLIENT_SECRET)
@@ -202,8 +201,8 @@ in {
         '';
       };
 
-      ephemeral = mkOption {
-        type = types.bool;
+      ephemeral = lib.mkOption {
+        type = lib.types.bool;
         default = true;
         description = ''
           Enable ephemeral node registration with Tailscale.
@@ -212,8 +211,8 @@ in {
         '';
       };
 
-      stateDir = mkOption {
-        type = types.str;
+      stateDir = lib.mkOption {
+        type = lib.types.str;
         default = "/var/lib/caddy/tailscale";
         description = ''
           Directory where Caddy will store Tailscale state.

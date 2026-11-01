@@ -30,38 +30,37 @@
   lib,
   self,
   ...
-}:
-with lib; let
+}: let
   cfg = config.constellation.opencloud;
   vars = config.media.config;
 in {
   options.constellation.opencloud = {
-    port = mkOption {
-      type = types.port;
+    port = lib.mkOption {
+      type = lib.types.port;
       default = 9200;
       description = "Port for the OpenCloud web interface and API.";
     };
 
-    dataDir = mkOption {
-      type = types.str;
+    dataDir = lib.mkOption {
+      type = lib.types.str;
       default = "${vars.storageDir}/files/OpenCloud";
       description = "Directory for OpenCloud data storage.";
     };
 
-    url = mkOption {
-      type = types.str;
+    url = lib.mkOption {
+      type = lib.types.str;
       default = "https://opencloud.${vars.domain}";
       description = "Public URL for OpenCloud.";
     };
 
-    configDir = mkOption {
-      type = types.str;
+    configDir = lib.mkOption {
+      type = lib.types.str;
       default = "/var/lib/opencloud";
       description = "Directory for OpenCloud configuration and state.";
     };
 
-    environmentFile = mkOption {
-      type = types.nullOr types.path;
+    environmentFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
       default = null;
       description = ''
         Path to environment file containing secrets.
@@ -88,7 +87,7 @@ in {
 
     # OpenCloud secrets via sops-nix
     # The secret should be in env file format: KEY=value
-    sops.secrets.opencloud-env = mkIf (config.constellation.sops.enable && cfg.environmentFile == null) {
+    sops.secrets.opencloud-env = lib.mkIf (config.constellation.sops.enable && cfg.environmentFile == null) {
       mode = "0400";
       owner = "opencloud";
     };

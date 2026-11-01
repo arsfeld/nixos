@@ -100,7 +100,7 @@ in
             chmod +x $out/bin/anycubic-slicer
     '';
 
-    meta = with lib; {
+    meta = {
       description = "Anycubic Slicer Next - 3D printing slicer based on OrcaSlicer";
       homepage = "https://www.anycubic.com";
       platforms = ["x86_64-linux"];

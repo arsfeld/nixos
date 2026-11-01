@@ -21,8 +21,7 @@
   pkgs,
   self,
   ...
-}:
-with lib; let
+}: let
   cfg = config.services.blog;
 
   # Build the Zola site at build time
@@ -49,8 +48,8 @@ with lib; let
   };
 in {
   options.services.blog = {
-    enable = mkOption {
-      type = types.bool;
+    enable = lib.mkOption {
+      type = lib.types.bool;
       description = ''
         Enable the Zola static blog generator and Caddy web server.
         This will build your blog at configuration time and serve it
@@ -59,8 +58,8 @@ in {
       default = false;
     };
 
-    domain = mkOption {
-      type = types.str;
+    domain = lib.mkOption {
+      type = lib.types.str;
       default = "blog.arsfeld.dev";
       description = ''
         The domain name where the blog will be served.
@@ -70,7 +69,7 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     # Ensure caddy is enabled
     services.caddy.enable = true;
 

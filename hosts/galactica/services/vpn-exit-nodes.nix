@@ -32,8 +32,7 @@
   lib,
   pkgs,
   ...
-}:
-with lib; let
+}: let
   cfg = config.constellation.vpnExitNodes;
 
   # Type for a single exit node configuration
@@ -43,52 +42,52 @@ with lib; let
     ...
   }: {
     options = {
-      enable = mkOption {
-        type = types.bool;
+      enable = lib.mkOption {
+        type = lib.types.bool;
         default = true;
         description = "Whether to enable this exit node.";
       };
 
       # Server selection options (gluetun supports these)
-      country = mkOption {
-        type = types.nullOr types.str;
+      country = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
         default = null;
         example = "Brazil";
         description = "Country to connect to (e.g., 'Brazil', 'United States').";
       };
 
-      city = mkOption {
-        type = types.nullOr types.str;
+      city = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
         default = null;
         example = "Sao Paulo";
         description = "City to connect to (e.g., 'Sao Paulo', 'Amsterdam').";
       };
 
-      region = mkOption {
-        type = types.nullOr types.str;
+      region = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
         default = null;
         example = "South America";
         description = "Region to connect to (e.g., 'South America', 'Europe').";
       };
 
-      serverHostname = mkOption {
-        type = types.nullOr types.str;
+      serverHostname = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
         default = null;
         example = "br.vpn.airdns.org";
         description = "Specific server hostname to connect to.";
       };
 
       # Tailscale configuration
-      tailscaleHostname = mkOption {
-        type = types.str;
+      tailscaleHostname = lib.mkOption {
+        type = lib.types.str;
         default = "${name}-exit";
         example = "brazil-exit";
         description = "Hostname for this exit node in Tailscale network.";
       };
 
       # Secret configuration - use either credentialsFile OR wireguardConfigFile
-      credentialsFile = mkOption {
-        type = types.nullOr types.path;
+      credentialsFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
         default = null;
         description = ''
           Path to the credentials file containing AirVPN WireGuard configuration.
@@ -100,11 +99,11 @@ with lib; let
           Use this for AirVPN with server selection (country/city/region).
           Mutually exclusive with wireguardConfigFile.
         '';
-        example = literalExpression "config.sops.secrets.\"airvpn-brazil-env\".path";
+        example = lib.literalExpression "config.sops.secrets.\"airvpn-brazil-env\".path";
       };
 
-      wireguardConfigFile = mkOption {
-        type = types.nullOr types.path;
+      wireguardConfigFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
         default = null;
         description = ''
           Path to a full WireGuard configuration file (.conf format).
@@ -112,30 +111,30 @@ with lib; let
           Server selection options (country/city/region) are ignored when using this.
           Mutually exclusive with credentialsFile.
         '';
-        example = literalExpression "config.age.secrets.airvpn-wireguard.path";
+        example = lib.literalExpression "config.age.secrets.airvpn-wireguard.path";
       };
 
       # Advanced options
-      gluetunImage = mkOption {
-        type = types.str;
+      gluetunImage = lib.mkOption {
+        type = lib.types.str;
         default = "qmcgaw/gluetun:v3.40.0";
         description = "Docker image for the gluetun VPN container.";
       };
 
-      tailscaleImage = mkOption {
-        type = types.str;
+      tailscaleImage = lib.mkOption {
+        type = lib.types.str;
         default = "tailscale/tailscale:latest";
         description = "Docker image for the Tailscale container.";
       };
 
-      extraGluetunEnv = mkOption {
-        type = types.attrsOf types.str;
+      extraGluetunEnv = lib.mkOption {
+        type = lib.types.attrsOf lib.types.str;
         default = {};
         description = "Additional environment variables for gluetun container.";
       };
 
-      extraTailscaleArgs = mkOption {
-        type = types.listOf types.str;
+      extraTailscaleArgs = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
         default = [];
         example = ["--accept-routes"];
         description = "Additional arguments for Tailscale.";
@@ -154,10 +153,10 @@ with lib; let
     # Build server selection environment variables (only used with credentialsFile)
     serverEnv =
       {}
-      // (optionalAttrs (nodeCfg.country != null) {SERVER_COUNTRIES = nodeCfg.country;})
-      // (optionalAttrs (nodeCfg.city != null) {SERVER_CITIES = nodeCfg.city;})
-      // (optionalAttrs (nodeCfg.region != null) {SERVER_REGIONS = nodeCfg.region;})
-      // (optionalAttrs (nodeCfg.serverHostname != null) {SERVER_HOSTNAMES = nodeCfg.serverHostname;});
+      // (lib.optionalAttrs (nodeCfg.country != null) {SERVER_COUNTRIES = nodeCfg.country;})
+      // (lib.optionalAttrs (nodeCfg.city != null) {SERVER_CITIES = nodeCfg.city;})
+      // (lib.optionalAttrs (nodeCfg.region != null) {SERVER_REGIONS = nodeCfg.region;})
+      // (lib.optionalAttrs (nodeCfg.serverHostname != null) {SERVER_HOSTNAMES = nodeCfg.serverHostname;});
 
     # Base environment for gluetun
     baseEnv = {
@@ -199,9 +198,9 @@ with lib; let
         )
         // nodeCfg.extraGluetunEnv;
 
-      environmentFiles = optional (nodeCfg.credentialsFile != null) nodeCfg.credentialsFile;
+      environmentFiles = lib.optional (nodeCfg.credentialsFile != null) nodeCfg.credentialsFile;
 
-      volumes = optional useCustomConfig "${nodeCfg.wireguardConfigFile}:/gluetun/wireguard/wg0.conf:ro";
+      volumes = lib.optional useCustomConfig "${nodeCfg.wireguardConfigFile}:/gluetun/wireguard/wg0.conf:ro";
 
       extraOptions = [
         "--cap-add=NET_ADMIN"
@@ -233,7 +232,7 @@ with lib; let
         TS_AUTHKEY = "file:/run/secrets/ts-authkey";
         # Extra args passed via TS_EXTRA_ARGS
         # Note: --advertise-tags must match the tags in the auth key
-        TS_EXTRA_ARGS = concatStringsSep " " ([
+        TS_EXTRA_ARGS = lib.concatStringsSep " " ([
             "--advertise-exit-node"
             "--advertise-tags=tag:exit"
             "--accept-dns=false"
@@ -257,17 +256,17 @@ with lib; let
   };
 
   # Filter only enabled nodes, then merge all exit node containers
-  enabledNodes = filterAttrs (_: nodeCfg: nodeCfg.enable) cfg.nodes;
-  allContainers = foldAttrs recursiveUpdate {} (mapAttrsToList mkExitNodeContainers enabledNodes);
+  enabledNodes = lib.filterAttrs (_: nodeCfg: nodeCfg.enable) cfg.nodes;
+  allContainers = lib.foldAttrs lib.recursiveUpdate {} (lib.mapAttrsToList mkExitNodeContainers enabledNodes);
 in {
   options.constellation.vpnExitNodes = {
-    enable = mkEnableOption "Tailscale VPN exit nodes via AirVPN";
+    enable = lib.mkEnableOption "Tailscale VPN exit nodes via AirVPN";
 
-    nodes = mkOption {
-      type = types.attrsOf (types.submodule exitNodeOpts);
+    nodes = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.submodule exitNodeOpts);
       default = {};
       description = "VPN exit node definitions.";
-      example = literalExpression ''
+      example = lib.literalExpression ''
         {
           brazil = {
             country = "Brazil";
@@ -284,21 +283,21 @@ in {
       '';
     };
 
-    tailscaleAuthKeyFile = mkOption {
-      type = types.path;
+    tailscaleAuthKeyFile = lib.mkOption {
+      type = lib.types.path;
       description = ''
         Path to a file containing the Tailscale auth key.
         This key should be reusable and ideally have exit node capability pre-approved.
         Generate one at: https://login.tailscale.com/admin/settings/keys
       '';
-      example = literalExpression "config.sops.secrets.tailscale-exit-key.path";
+      example = lib.literalExpression "config.sops.secrets.tailscale-exit-key.path";
     };
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     # Validate that each node has exactly one credential source
     assertions =
-      mapAttrsToList (name: nodeCfg: {
+      lib.mapAttrsToList (name: nodeCfg: {
         assertion = (nodeCfg.credentialsFile != null) != (nodeCfg.wireguardConfigFile != null);
         message = "VPN exit node '${name}' must specify exactly one of 'credentialsFile' or 'wireguardConfigFile', not both or neither.";
       })
@@ -313,18 +312,18 @@ in {
     # Add systemd dependencies to ensure secrets are available
     # Only add sops-nix dependency if sops is being used on this host
     systemd.services =
-      (mapAttrs'
+      (lib.mapAttrs'
         (name: _:
-          nameValuePair "podman-gluetun-exit-${name}" {
+          lib.nameValuePair "podman-gluetun-exit-${name}" {
             # Secrets should be available before containers start
             # Secrets (via sops-nix) should be available before containers start
             after = ["network-online.target"];
             wants = ["network-online.target"];
           })
         enabledNodes)
-      // (mapAttrs'
+      // (lib.mapAttrs'
         (name: _:
-          nameValuePair "podman-tailscale-exit-${name}" {
+          lib.nameValuePair "podman-tailscale-exit-${name}" {
             # After Tailscale starts, fix the routing rules so that traffic TO
             # Tailscale IPs (100.64.0.0/10) uses Tailscale's routing table (52)
             # instead of gluetun's VPN table (51820).

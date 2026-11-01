@@ -23,11 +23,10 @@
   pkgs,
   lib,
   ...
-}:
-with lib; {
+}: {
   options.constellation.common = {
-    enable = mkOption {
-      type = types.bool;
+    enable = lib.mkOption {
+      type = lib.types.bool;
       description = ''
         Enable common baseline configuration for Constellation hosts.
         This includes essential packages, services, and system settings.
@@ -35,8 +34,8 @@ with lib; {
       default = true;
     };
 
-    minimal = mkOption {
-      type = types.bool;
+    minimal = lib.mkOption {
+      type = lib.types.bool;
       default = false;
       description = ''
         Keep the baseline small, for hosts with little RAM or no binary cache

@@ -9,14 +9,13 @@
   lib,
   pkgs,
   ...
-}:
-with lib; let
+}: let
   cfg = config.constellation.k3s;
   tsDomain = "bat-boa.ts.net";
 in {
   options.constellation.k3s = {
-    ingressAddress = mkOption {
-      type = types.str;
+    ingressAddress = lib.mkOption {
+      type = lib.types.str;
       default = "10.43.0.80";
       description = ''
         Address Caddy proxies wildcard traffic to — traefik's pinned ClusterIP.
@@ -43,8 +42,8 @@ in {
       '';
     };
 
-    domains = mkOption {
-      type = types.listOf types.str;
+    domains = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
       default = [];
       example = ["arsfeld.dev"];
       description = ''
@@ -56,7 +55,7 @@ in {
       '';
     };
 
-    secrets = mkOption {
+    secrets = lib.mkOption {
       default = {};
       description = ''
         Kubernetes Secrets built at activation from files on disk, normally
@@ -81,20 +80,20 @@ in {
         its consumer is gone. Delete it by hand with `kubectl delete secret`
         if it matters.
       '';
-      example = literalExpression ''
+      example = lib.literalExpression ''
         {
           myapp-db.keys.password = config.sops.secrets.myapp-db-password.path;
         }
       '';
-      type = types.attrsOf (types.submodule {
+      type = lib.types.attrsOf (lib.types.submodule {
         options = {
-          namespace = mkOption {
-            type = types.str;
+          namespace = lib.mkOption {
+            type = lib.types.str;
             default = "default";
             description = "Namespace to create the Secret in.";
           };
-          keys = mkOption {
-            type = types.attrsOf types.path;
+          keys = lib.mkOption {
+            type = lib.types.attrsOf lib.types.path;
             default = {};
             description = "Map of Secret key to the file on disk holding its value.";
           };
@@ -313,8 +312,8 @@ in {
     # The script is idempotent and costs one `kubectl apply`, so re-running it
     # unconditionally is the cheap half of this trade.
     systemd.services =
-      mapAttrs' (name: s:
-        nameValuePair "k3s-secret-${name}" {
+      lib.mapAttrs' (name: s:
+        lib.nameValuePair "k3s-secret-${name}" {
           description = "Create the ${name} Kubernetes secret from disk";
           after = ["k3s.service"];
           requires = ["k3s.service"];
@@ -329,13 +328,13 @@ in {
               sleep 2
             done
 
-            k3s kubectl create namespace ${escapeShellArg s.namespace} \
+            k3s kubectl create namespace ${lib.escapeShellArg s.namespace} \
               --dry-run=client -o yaml | k3s kubectl apply -f -
 
-            k3s kubectl create secret generic ${escapeShellArg name} \
-              --namespace ${escapeShellArg s.namespace} \
-              ${concatStringsSep " \\\n              "
-              (mapAttrsToList (k: p: "--from-file=${escapeShellArg k}=${escapeShellArg p}") s.keys)} \
+            k3s kubectl create secret generic ${lib.escapeShellArg name} \
+              --namespace ${lib.escapeShellArg s.namespace} \
+              ${lib.concatStringsSep " \\\n              "
+              (lib.mapAttrsToList (k: p: "--from-file=${lib.escapeShellArg k}=${lib.escapeShellArg p}") s.keys)} \
               --dry-run=client -o yaml | k3s kubectl apply -f -
           '';
         })
@@ -361,12 +360,12 @@ in {
             # terminator's column depends on the rest of the script. writeText
             # sidesteps all of it.
             declared = pkgs.writeText "k3s-declared-manifests" (
-              concatMapStrings (t: t + "\n")
+              lib.concatMapStrings (t: t + "\n")
               # Operand order mirrors nixpkgs' own enabledManifests
               # (services/cluster/rancher/default.nix:844), which is the source of
               # truth for the tmpfiles rules this list has to shadow exactly.
-              (mapAttrsToList (_: m: m.target)
-                (filterAttrs (_: m: m.enable)
+              (lib.mapAttrsToList (_: m: m.target)
+                (lib.filterAttrs (_: m: m.enable)
                   (config.services.k3s.autoDeployCharts // config.services.k3s.manifests)))
             );
           in ''
@@ -495,10 +494,10 @@ in {
     #   nix eval --json .#nixosConfigurations.basestar.config \
     #     .security.acme.certs.\"arsfeld.dev\".extraDomainNames
     security.acme.certs =
-      listToAttrs (map (d: nameValuePair d {extraDomainNames = ["*.${d}"];}) cfg.domains);
+      lib.listToAttrs (map (d: lib.nameValuePair d {extraDomainNames = ["*.${d}"];}) cfg.domains);
 
-    services.caddy.virtualHosts = listToAttrs (map (d:
-      nameValuePair "*.${d}" {
+    services.caddy.virtualHosts = lib.listToAttrs (map (d:
+      lib.nameValuePair "*.${d}" {
         useACMEHost = d;
         extraConfig = ''
           encode zstd gzip

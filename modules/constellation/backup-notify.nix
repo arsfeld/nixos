@@ -14,8 +14,7 @@
   lib,
   pkgs,
   ...
-}:
-with lib; let
+}: let
   cfg = config.constellation.backupNotify;
 
   # set -u is deliberate: an unset NTFY_BASIC_AUTH_B64 means the caller
@@ -34,22 +33,22 @@ with lib; let
   '';
 in {
   options.constellation.backupNotify = {
-    enable = mkEnableOption "shared ntfy notifier for backup orchestrators";
+    enable = lib.mkEnableOption "shared ntfy notifier for backup orchestrators";
 
-    ntfyUrl = mkOption {
-      type = types.str;
+    ntfyUrl = lib.mkOption {
+      type = lib.types.str;
       default = "https://ntfy.arsfeld.one/backups";
       description = "ntfy topic URL for backup failure notifications.";
     };
 
-    envFile = mkOption {
-      type = types.path;
+    envFile = lib.mkOption {
+      type = lib.types.path;
       default = config.sops.secrets."ntfy-publisher-env".path;
       description = "EnvironmentFile providing NTFY_BASIC_AUTH_B64.";
     };
 
-    script = mkOption {
-      type = types.path;
+    script = lib.mkOption {
+      type = lib.types.path;
       default = notifyScript;
       readOnly = true;
       description = ''
@@ -59,7 +58,7 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     # %i is the failed unit's name without the .service suffix; callers
     # instantiate this as backup-notify@<unit>.service from OnFailure=.
     systemd.services."backup-notify@" = {

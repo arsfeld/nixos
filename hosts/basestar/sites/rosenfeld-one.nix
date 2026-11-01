@@ -3,8 +3,7 @@
   config,
   self,
   ...
-}:
-with lib; let
+}: let
   cfg = config.constellation.sites.rosenfeld-one;
   domain = "rosenfeld.one";
   nameToPort = import "${self}/common/nameToPort.nix";

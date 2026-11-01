@@ -34,8 +34,7 @@
   lib,
   pkgs,
   ...
-}:
-with lib; let
+}: let
   cfg = config.constellation.projectVms;
 
   # Debian cloud image URL and filename
@@ -49,32 +48,32 @@ with lib; let
     ...
   }: {
     options = {
-      enable = mkOption {
-        type = types.bool;
+      enable = lib.mkOption {
+        type = lib.types.bool;
         default = true;
         description = "Whether to enable this project VM.";
       };
 
-      memory = mkOption {
-        type = types.int;
+      memory = lib.mkOption {
+        type = lib.types.int;
         default = cfg.defaultMemory;
         description = "Memory in MB for this VM.";
       };
 
-      cpus = mkOption {
-        type = types.int;
+      cpus = lib.mkOption {
+        type = lib.types.int;
         default = cfg.defaultCpus;
         description = "Number of CPUs for this VM.";
       };
 
-      diskSize = mkOption {
-        type = types.str;
+      diskSize = lib.mkOption {
+        type = lib.types.str;
         default = cfg.defaultDiskSize;
         description = "Size of the project disk (e.g., '50G').";
       };
 
-      tailscaleHostname = mkOption {
-        type = types.str;
+      tailscaleHostname = lib.mkOption {
+        type = lib.types.str;
         default = "project-${name}";
         description = "Hostname for this VM in Tailscale network.";
       };
@@ -104,7 +103,7 @@ with lib; let
       DEFAULT_CPUS="${toString cfg.defaultCpus}"
       DEFAULT_DISK="${cfg.defaultDiskSize}"
       SSH_PUBLIC_KEY="${cfg.sshPublicKey}"
-      TAILSCALE_AUTH_KEY_FILE="${optionalString (cfg.tailscaleAuthKeyFile != null) cfg.tailscaleAuthKeyFile}"
+      TAILSCALE_AUTH_KEY_FILE="${lib.optionalString (cfg.tailscaleAuthKeyFile != null) cfg.tailscaleAuthKeyFile}"
 
       usage() {
         echo "Usage: project-vm <command> [args]"
@@ -544,32 +543,32 @@ with lib; let
   };
 in {
   options.constellation.projectVms = {
-    storageDir = mkOption {
-      type = types.path;
+    storageDir = lib.mkOption {
+      type = lib.types.path;
       default = "/var/lib/project-vms";
       description = "Directory for storing VM images and data.";
     };
 
-    defaultMemory = mkOption {
-      type = types.int;
+    defaultMemory = lib.mkOption {
+      type = lib.types.int;
       default = 8192;
       description = "Default memory in MB for new VMs.";
     };
 
-    defaultCpus = mkOption {
-      type = types.int;
+    defaultCpus = lib.mkOption {
+      type = lib.types.int;
       default = 4;
       description = "Default number of CPUs for new VMs.";
     };
 
-    defaultDiskSize = mkOption {
-      type = types.str;
+    defaultDiskSize = lib.mkOption {
+      type = lib.types.str;
       default = "50G";
       description = "Default project disk size for new VMs.";
     };
 
-    tailscaleAuthKeyFile = mkOption {
-      type = types.nullOr types.path;
+    tailscaleAuthKeyFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
       default = null;
       description = ''
         Path to a file containing the Tailscale auth key.
@@ -577,26 +576,26 @@ in {
         This key should be reusable and pre-authorized with appropriate tags.
         Generate one at: https://login.tailscale.com/admin/settings/keys
       '';
-      example = literalExpression "config.sops.secrets.tailscale-project-vm-key.path";
+      example = lib.literalExpression "config.sops.secrets.tailscale-project-vm-key.path";
     };
 
-    sshPublicKey = mkOption {
-      type = types.str;
+    sshPublicKey = lib.mkOption {
+      type = lib.types.str;
       description = "SSH public key to authorize for the 'dev' user in VMs.";
       example = "ssh-ed25519 AAAA... user@host";
     };
 
-    user = mkOption {
-      type = types.str;
+    user = lib.mkOption {
+      type = lib.types.str;
       default = "arosenfeld";
       description = "User to grant project-vm management permissions (added to libvirtd group).";
     };
 
-    projects = mkOption {
-      type = types.attrsOf (types.submodule projectOpts);
+    projects = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.submodule projectOpts);
       default = {};
       description = "Declaratively defined project VMs (optional, CLI can also create VMs).";
-      example = literalExpression ''
+      example = lib.literalExpression ''
         {
           myapp = {
             memory = 16384;

@@ -9,39 +9,38 @@
   lib,
   pkgs,
   ...
-}:
-with lib; let
+}: let
   cfg = config.constellation.backupSummary;
 in {
   options.constellation.backupSummary = {
-    enable = mkEnableOption "weekly fleet backup summary email digest";
+    enable = lib.mkEnableOption "weekly fleet backup summary email digest";
 
-    schedule = mkOption {
-      type = types.str;
+    schedule = lib.mkOption {
+      type = lib.types.str;
       default = "Sun *-*-* 20:00:00 UTC";
       description = "systemd OnCalendar schedule for the weekly summary email.";
     };
 
-    toEmail = mkOption {
-      type = types.str;
+    toEmail = lib.mkOption {
+      type = lib.types.str;
       default = config.constellation.email.toEmail;
       description = "Recipient email address.";
     };
 
-    fromEmail = mkOption {
-      type = types.str;
+    fromEmail = lib.mkOption {
+      type = lib.types.str;
       default = config.constellation.email.fromEmail;
       description = "Sender email address.";
     };
 
-    backrestPortalUrl = mkOption {
-      type = types.str;
+    backrestPortalUrl = lib.mkOption {
+      type = lib.types.str;
       default = "https://backrest.arsfeld.one/";
       description = "URL for the central Backrest web portal.";
     };
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     environment.systemPackages = [pkgs.backup-summary];
 
     # Deduplicate: Suppress the generic "is still alive" heartbeat timer on
@@ -67,7 +66,7 @@ in {
           "BACKREST_PORTAL_URL=${cfg.backrestPortalUrl}"
           "RUSTIC_PROFILE_SUBSTITUTE_ENV=true"
         ];
-        EnvironmentFile = mkIf (builtins.hasAttr "ovh-s3-env" config.sops.secrets) [
+        EnvironmentFile = lib.mkIf (builtins.hasAttr "ovh-s3-env" config.sops.secrets) [
           config.sops.secrets."ovh-s3-env".path
         ];
         ExecStart = "${pkgs.backup-summary}/bin/backup-summary --send";

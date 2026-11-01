@@ -20,23 +20,22 @@
   lib,
   pkgs,
   ...
-}:
-with lib; let
+}: let
   _config = config;
   vars = config.media.config;
   utils = import "${self}/modules/media/__utils.nix" {inherit config lib pkgs;};
   nameToPort = import "${self}/common/nameToPort.nix";
   cfg = config.media.containers;
   exposedContainers =
-    filterAttrs
+    lib.filterAttrs
     (name: container: container.enable && container.listenPort != null)
     cfg;
   deployedContainers =
-    filterAttrs
+    lib.filterAttrs
     (name: container: container.enable)
     cfg;
   watchedContainers =
-    filterAttrs
+    lib.filterAttrs
     (name: container: container.enable && container.watchImage)
     cfg;
   # Container runtime backend (docker on basestar, podman elsewhere). The
@@ -53,17 +52,17 @@ with lib; let
   # needs explicitly.
   linuxserverCaps = vars.linuxserverCaps;
   isLinuxserver = image:
-    hasPrefix "ghcr.io/linuxserver/" image || hasPrefix "lscr.io/linuxserver/" image;
+    lib.hasPrefix "ghcr.io/linuxserver/" image || lib.hasPrefix "lscr.io/linuxserver/" image;
 in {
   imports = [
     ./config.nix
     ./gateway.nix
   ];
 
-  options.media.containers = mkOption {
-    type = types.attrsOf (types.submodule ({config, ...}: {
+  options.media.containers = lib.mkOption {
+    type = lib.types.attrsOf (lib.types.submodule ({config, ...}: {
       options = {
-        enable = mkOption {
+        enable = lib.mkOption {
           type = lib.types.bool;
           default = true;
           description = ''
@@ -71,104 +70,104 @@ in {
             Disabled containers are completely removed from the system.
           '';
         };
-        name = mkOption {
-          type = types.str;
+        name = lib.mkOption {
+          type = lib.types.str;
           default = config._module.args.name;
           description = ''
             Name of the container. Used for service naming, DNS entries,
             and container identification. Defaults to the attribute name.
           '';
         };
-        listenPort = mkOption {
-          type = types.nullOr types.int;
+        listenPort = lib.mkOption {
+          type = lib.types.nullOr lib.types.int;
           default = null;
           description = ''
             Port the container's service listens on internally.
             If null, the container won't be exposed through the gateway.
           '';
         };
-        exposePort = mkOption {
-          type = types.nullOr types.int;
+        exposePort = lib.mkOption {
+          type = lib.types.nullOr lib.types.int;
           default = null;
           description = ''
             Port to expose on the host system.
             If null, defaults to listenPort. Use a different value to avoid conflicts.
           '';
         };
-        image = mkOption {
-          type = types.str;
+        image = lib.mkOption {
+          type = lib.types.str;
           default = "ghcr.io/linuxserver/${config.name}";
           description = ''
             Docker image to use for this container.
             Defaults to the LinuxServer.io image for the service name.
           '';
         };
-        volumes = mkOption {
-          type = types.listOf types.str;
+        volumes = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
           default = [];
           description = ''
             Additional volumes to mount in the container.
             Format: "host_path:container_path:options"
           '';
         };
-        environment = mkOption {
-          type = types.attrs;
+        environment = lib.mkOption {
+          type = lib.types.attrs;
           default = {};
           description = ''
             Additional environment variables to pass to the container.
             These are merged with the default media service environment.
           '';
         };
-        environmentFiles = mkOption {
-          type = types.listOf types.str;
+        environmentFiles = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
           default = [];
           description = ''
             List of files containing environment variables to load.
             Useful for passing secrets without exposing them in the configuration.
           '';
         };
-        extraOptions = mkOption {
-          type = types.listOf types.str;
+        extraOptions = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
           default = [];
           description = ''
             Additional options to pass to the container runtime.
             For example: ["--gpus=all"] for GPU support.
           '';
         };
-        cmd = mkOption {
-          type = types.listOf types.str;
+        cmd = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
           default = [];
           description = ''
             Command to run in the container. Forwarded to
             virtualisation.oci-containers.containers.<name>.cmd.
           '';
         };
-        configDir = mkOption {
-          type = types.nullOr types.str;
+        configDir = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
           default = "/config";
           description = ''
             Path inside the container where configuration files are stored.
             This directory will be mapped to a host volume for persistence.
           '';
         };
-        mediaVolumes = mkOption {
-          type = types.bool;
+        mediaVolumes = lib.mkOption {
+          type = lib.types.bool;
           default = false;
           description = ''
             Whether to mount standard media directories (downloads, movies, tv, etc.)
             into the container. Useful for media servers and download clients.
           '';
         };
-        network = mkOption {
-          type = types.nullOr types.str;
+        network = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
           default = null;
           description = ''
             Docker network to attach the container to.
             If null, uses the default bridge network.
           '';
         };
-        privileged = mkOption {
-          type = types.bool;
+        privileged = lib.mkOption {
+          type = lib.types.bool;
           default = false;
           description = ''
             Run the container with extended privileges.
@@ -176,8 +175,8 @@ in {
             WARNING: Use with caution as it reduces container isolation.
           '';
         };
-        devices = mkOption {
-          type = types.listOf types.str;
+        devices = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
           default = [];
           description = ''
             List of host devices to pass through to the container.
@@ -186,13 +185,13 @@ in {
           '';
         };
         # host option removed - containers are always deployed on the host that enables them
-        settings = mkOption {
+        settings = lib.mkOption {
           type = utils.gatewayConfig;
           default = {};
           description = "Extra settings for the media gateway";
         };
-        watchImage = mkOption {
-          type = types.bool;
+        watchImage = lib.mkOption {
+          type = lib.types.bool;
           default = false;
           description = ''
             Whether to watch for new container images and auto-restart.
@@ -200,8 +199,8 @@ in {
             interval and restarts the container when a new image is detected.
           '';
         };
-        watchImageInterval = mkOption {
-          type = types.str;
+        watchImageInterval = lib.mkOption {
+          type = lib.types.str;
           default = "5min";
           description = ''
             How often to check for new container images.
@@ -210,8 +209,8 @@ in {
           '';
         };
         hardening = {
-          enable = mkOption {
-            type = types.bool;
+          enable = lib.mkOption {
+            type = lib.types.bool;
             default = true;
             description = ''
               Run with --cap-drop=ALL, the capabilities in `caps`, and
@@ -220,13 +219,13 @@ in {
               docs/superpowers/specs/2026-10-25-container-hardening-design.md.
             '';
           };
-          caps = mkOption {
-            type = types.listOf types.str;
+          caps = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
             default =
               if isLinuxserver config.image
               then linuxserverCaps
               else [];
-            defaultText = literalExpression ''
+            defaultText = lib.literalExpression ''
               if the image is ghcr.io/linuxserver/* or lscr.io/linuxserver/*
               then ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID" "KILL"]
               else []
@@ -243,15 +242,15 @@ in {
     description = "Media container definitions";
   };
 
-  config = mkIf (cfg != {}) {
+  config = lib.mkIf (cfg != {}) {
     # Gateway configuration (shared between backends)
     media.gateway = {
-      enable = mkDefault (length (attrValues exposedContainers) > 0);
+      enable = lib.mkDefault (lib.length (lib.attrValues exposedContainers) > 0);
 
       services =
-        mapAttrs (name: container: {
-          port = mkIf (container.exposePort != null) container.exposePort;
-          settings = mkDefault container.settings;
+        lib.mapAttrs (name: container: {
+          port = lib.mkIf (container.exposePort != null) container.exposePort;
+          settings = lib.mkDefault container.settings;
         })
         exposedContainers;
     };
@@ -271,20 +270,20 @@ in {
         then builtins.dirOf source
         else source;
     in
-      flatten (
-        mapAttrsToList (
+      lib.flatten (
+        lib.mapAttrsToList (
           name: container:
-            (optional (container.configDir != null) (createDir "${vars.configDir}/${name}"))
+            (lib.optional (container.configDir != null) (createDir "${vars.configDir}/${name}"))
             ++ (map (path: createDir path) (lib.filter (path: path != null) (map getManagedVolumePath container.volumes)))
         )
         deployedContainers
       );
 
     # Systemd dependencies for containers with media volumes
-    systemd.services = mkMerge (
-      (mapAttrsToList (
+    systemd.services = lib.mkMerge (
+      (lib.mapAttrsToList (
           name: container:
-            mkIf (container.enable && container.mediaVolumes) {
+            lib.mkIf (container.enable && container.mediaVolumes) {
               "${backend}-${name}" = {
                 after = ["mnt-storage.mount"];
                 requires = ["mnt-storage.mount"];
@@ -292,7 +291,7 @@ in {
             }
         )
         deployedContainers)
-      ++ (mapAttrsToList (
+      ++ (lib.mapAttrsToList (
           name: container: {
             "image-watch-${name}" = {
               description = "Watch for container image updates: ${name}";
@@ -383,8 +382,8 @@ in {
     );
 
     # Systemd timers for image-watched containers
-    systemd.timers = mkMerge (
-      mapAttrsToList (
+    systemd.timers = lib.mkMerge (
+      lib.mapAttrsToList (
         name: container: {
           "image-watch-${name}" = {
             wantedBy = ["timers.target"];
@@ -401,7 +400,7 @@ in {
     # Create services.json with debug information
     environment.etc."services.json".source = let
       debugInfo =
-        mapAttrs (name: container: {
+        lib.mapAttrs (name: container: {
           listenPort = container.listenPort;
           exposePort =
             if container.exposePort != null
@@ -418,10 +417,10 @@ in {
       pkgs.writeText "services.json" (builtins.toJSON debugInfo);
 
     # OCI container definitions
-    virtualisation.oci-containers.containers = mkMerge (
-      mapAttrsToList (
+    virtualisation.oci-containers.containers = lib.mkMerge (
+      lib.mapAttrsToList (
         name: container:
-          mkIf container.enable {
+          lib.mkIf container.enable {
             ${name} = {
               image = container.image;
               cmd = container.cmd;
@@ -437,20 +436,20 @@ in {
                 exposePort = config.media.gateway.services.${name}.port;
                 portMapping = "${toString exposePort}:${toString container.listenPort}";
               in
-                optional (container.listenPort != null) portMapping;
+                lib.optional (container.listenPort != null) portMapping;
               volumes =
                 container.volumes
-                ++ (optional (container.configDir != null) "${vars.configDir}/${name}:${container.configDir}")
-                ++ (optionals container.mediaVolumes [
+                ++ (lib.optional (container.configDir != null) "${vars.configDir}/${name}:${container.configDir}")
+                ++ (lib.optionals container.mediaVolumes [
                   "${vars.dataDir}/files:/files"
                   "${vars.dataDir}/files:${vars.dataDir}/files"
                   "${vars.storageDir}/media:/media"
                   "${vars.storageDir}/media:${vars.storageDir}/media"
                 ]);
-              extraOptions = flatten [
-                (optional (container.network != null) "--network=${container.network}")
-                (optional container.privileged "--privileged")
-                (optionals (container.hardening.enable && !container.privileged) (
+              extraOptions = lib.flatten [
+                (lib.optional (container.network != null) "--network=${container.network}")
+                (lib.optional container.privileged "--privileged")
+                (lib.optionals (container.hardening.enable && !container.privileged) (
                   ["--cap-drop=ALL"]
                   ++ map (cap: "--cap-add=${cap}") container.hardening.caps
                   ++ ["--security-opt=no-new-privileges"]

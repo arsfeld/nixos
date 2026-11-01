@@ -20,13 +20,12 @@
   config,
   self,
   ...
-}:
-with lib; let
+}: let
   sendEmailEvent = "${pkgs.send-email-event}/bin/send-email-event --email-from ${config.constellation.email.fromEmail} --email-to ${config.constellation.email.toEmail}";
 in {
-  options.constellation.email = with lib; {
-    enable = mkOption {
-      type = types.bool;
+  options.constellation.email = {
+    enable = lib.mkOption {
+      type = lib.types.bool;
       default = true;
       description = ''
         Enable email notifications for system events.
@@ -35,8 +34,8 @@ in {
       '';
     };
 
-    fromEmail = mkOption {
-      type = types.str;
+    fromEmail = lib.mkOption {
+      type = lib.types.str;
       default = "admin@rosenfeld.one";
       description = ''
         The email address to send notifications from.
@@ -45,8 +44,8 @@ in {
       example = "noreply@example.com";
     };
 
-    toEmail = mkOption {
-      type = types.str;
+    toEmail = lib.mkOption {
+      type = lib.types.str;
       default = "alex@rosenfeld.one";
       description = ''
         The email address to send notifications to.

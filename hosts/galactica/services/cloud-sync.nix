@@ -2,8 +2,7 @@
   lib,
   pkgs,
   ...
-}:
-with lib; let
+}: let
   homeDir = "/mnt/data/homes/arosenfeld/Cloud";
   configFile = "${homeDir}/rclone.conf";
   rcloneOptions = "--fast-list --stats-one-line --verbose --config ${configFile}";
@@ -31,7 +30,7 @@ with lib; let
     timerConfig.RandomizedDelaySec = "120m";
   };
 in {
-  systemd.timers = mapAttrs' (provider: _: nameValuePair "sync-${provider}" (mkTimer provider)) providers;
-  systemd.services = mapAttrs' (provider: folder: nameValuePair "sync-${provider}" (mkService provider folder)) providers;
-  environment.systemPackages = mapAttrsToList mkSyncWrapper providers;
+  systemd.timers = lib.mapAttrs' (provider: _: lib.nameValuePair "sync-${provider}" (mkTimer provider)) providers;
+  systemd.services = lib.mapAttrs' (provider: folder: lib.nameValuePair "sync-${provider}" (mkService provider folder)) providers;
+  environment.systemPackages = lib.mapAttrsToList mkSyncWrapper providers;
 }
