@@ -1,0 +1,284 @@
+# Media gateway module
+#
+# This module provides a unified gateway for all media services, handling
+# authentication, SSL termination, and routing through Caddy and tsnsrv.
+#
+# Key features:
+# - Centralized authentication via Authelia
+# - Automatic SSL certificate management
+# - Service discovery and routing
+# - Tailscale integration with optional public exposure
+# - CORS and security header management
+# - Error page handling
+#
+# The gateway acts as a reverse proxy, routing requests to services
+# based on subdomain (service.domain.com) and providing consistent
+# authentication and security policies across all services.
+{self, ...}: {
+  flake.modules.nixos.media = {
+    key = "modules/media/gateway";
+    imports = [
+      ({
+        lib,
+        config,
+        pkgs,
+        ...
+      }: let
+        utils = import ./__utils.nix {inherit config lib pkgs;};
+        nameToPort = import "${self}/common/nameToPort.nix";
+        cfg = config.media.gateway;
+        _config = config;
+        domain = cfg.domain;
+        hosts = utils.generateHosts {
+          services = cfg.services;
+          domain = domain;
+        };
+      in {
+        options.media.gateway = {
+          enable = lib.mkEnableOption "media gateway for service routing and authentication";
+
+          services = lib.mkOption {
+            default = {};
+            description = ''
+              Services to expose through the gateway. Each service gets a subdomain
+              and is accessible at <service-name>.<domain> with authentication.
+            '';
+            example = {
+              jellyfin = {
+                host = "galactica";
+                port = 8096;
+              };
+            };
+            type = lib.types.attrsOf (lib.types.submodule ({config, ...}: {
+              options = {
+                enable = lib.mkOption {
+                  type = lib.types.bool;
+                  default = true;
+                  description = ''
+                    Whether to enable this service in the gateway.
+                    Disabled services won't be accessible through the gateway.
+                  '';
+                };
+                exposeViaTailscale = lib.mkOption {
+                  type = lib.types.bool;
+                  default = false;
+                  description = ''
+                    Whether to create a dedicated Tailscale node for this service.
+                    When enabled, the service gets its own <service>.bat-boa.ts.net hostname.
+                    When disabled, the service is only accessible via <service>.arsfeld.one through the cloud gateway.
+                    Default is false to reduce Tailscale node overhead and CPU usage.
+                  '';
+                };
+                name = lib.mkOption {
+                  type = lib.types.str;
+                  default = config._module.args.name;
+                  description = ''
+                    Name of the service. Used for subdomain generation and identification.
+                    Defaults to the attribute name in the services attrset.
+                  '';
+                  example = "jellyfin";
+                };
+                host = lib.mkOption {
+                  type = lib.types.str;
+                  default = _config.networking.hostName;
+                  description = ''
+                    Hostname where this service is running.
+                    The gateway will proxy requests to this host.
+                  '';
+                  example = "galactica";
+                };
+                port = lib.mkOption {
+                  type = lib.types.int;
+                  default = nameToPort config.name;
+                  description = ''
+                    Port where the service is listening.
+                    Defaults to an automatically assigned port based on the service name.
+                  '';
+                };
+                settings = lib.mkOption {
+                  type = utils.gatewayConfig;
+                  default = {};
+                  description = ''
+                    Additional gateway configuration for this service.
+                    Includes options for CORS, authentication bypass, TLS settings, and Tailscale Funnel.
+                  '';
+                };
+              };
+            }));
+          };
+
+          authHost = lib.mkOption {
+            type = lib.types.str;
+            default = "127.0.0.1";
+            description = ''
+              Hostname of the authentication service (Authelia).
+              All requests are validated against this service before being proxied.
+            '';
+            example = "media.example.com";
+          };
+
+          authPort = lib.mkOption {
+            type = lib.types.int;
+            default = 443;
+            description = ''
+              Port where the authentication service is listening.
+              Usually 443 for HTTPS or 9091 for direct Authelia access.
+            '';
+            example = 443;
+          };
+
+          domain = lib.mkOption {
+            type = lib.types.str;
+            default = _config.media.config.domain;
+            description = ''
+              Base domain for all media services.
+              Services will be accessible at <service>.<domain>.
+              SSL certificates will be obtained for this domain and all subdomains.
+            '';
+            example = "media.example.com";
+          };
+
+          email = lib.mkOption {
+            type = lib.types.str;
+            default = _config.media.config.email;
+            description = ''
+              Email address for ACME certificate notifications.
+              Used by Let's Encrypt for important certificate-related communications.
+            '';
+            example = "media@example.com";
+          };
+
+          # Note: this is a tsnsrv setting, not part of the (disabled) caddy-tailscale
+          # `tailscale.*` block below.
+          tailscaleNodeSuffix = lib.mkOption {
+            type = lib.types.str;
+            default = "";
+            description = ''
+              Appended to the tsnsrv node name — and only that — for every service on
+              this host with exposeViaTailscale. Set it on a secondary host that shares
+              a tailnet with a primary owning the plain names, so Tailscale never has to
+              auto-dedupe a duplicate to <name>-1 (which host wins is then a race on
+              which one registered first, e.g. after an outage).
+
+              Holds the literal string including any separator. Does not affect the
+              Caddy vhost, the domain, the container, or the config directory.
+
+              Reclaiming a name a host already lost: Tailscale pins the assigned name
+              to the node key, so freeing <name> does not rename a node already sitting
+              on <name>-1 — restarting the unit is not enough. Delete the node in the
+              admin console, then wipe the state so tsnsrv re-registers off the authkey:
+
+                systemctl stop tsnsrv-<name>
+                rm -rf /var/lib/private/tsnsrv-<name>
+                systemctl start tsnsrv-<name>
+
+              Note the /var/lib/private path. These units use systemd StateDirectory,
+              so /var/lib/tsnsrv-<name> is only a symlink; removing that deletes the
+              symlink and systemd recreates it over the still-intact state, and the node
+              comes back under its old name. A correct wipe logs "state is NeedsLogin"
+              and a new Tailscale IP; the failed one logs "Ignoring authkey" and the
+              old IP.
+            '';
+            example = "-pg";
+          };
+
+          tailscale = {
+            enable = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = ''
+                Enable Caddy Tailscale plugin integration.
+                When disabled, Caddy will not create Tailscale nodes.
+                Services with exposeViaTailscale will use tsnsrv instead.
+                DISABLED by default due to high CPU usage (task-48, task-49).
+              '';
+            };
+
+            enableOAuth = lib.mkOption {
+              type = lib.types.bool;
+              default = true;
+              description = ''
+                Use OAuth client credentials (TS_API_CLIENT_ID + TS_API_CLIENT_SECRET)
+                instead of auth key (TS_AUTHKEY) for Tailscale node registration.
+                OAuth provides better security, scoping, and ephemeral node support.
+              '';
+            };
+
+            ephemeral = lib.mkOption {
+              type = lib.types.bool;
+              default = true;
+              description = ''
+                Enable ephemeral node registration with Tailscale.
+                Ephemeral nodes are automatically cleaned up when they disconnect.
+                Requires OAuth to be enabled.
+              '';
+            };
+
+            stateDir = lib.mkOption {
+              type = lib.types.str;
+              default = "/var/lib/caddy/tailscale";
+              description = ''
+                Directory where Caddy will store Tailscale state.
+                This directory must be persistent and writable by the caddy user.
+              '';
+            };
+          };
+        };
+
+        config = lib.mkIf cfg.enable {
+          security.acme.certs."${domain}" = {
+            extraDomainNames = ["*.${domain}"];
+          };
+
+          # Configure tsnsrv services for Tailscale access
+          services.tsnsrv.services = utils.generateTsnsrvConfigs {
+            services = cfg.services;
+          };
+
+          services.caddy.email = cfg.email;
+
+          # Caddy Tailscale configuration DISABLED (task-48, task-49)
+          # Using tsnsrv instead due to high CPU usage from caddy-tailscale plugin
+          # tsnsrv provides the same Tailscale node functionality with lower overhead
+          # See: services.tsnsrv.services configuration above
+          services.caddy.globalConfig = ''
+            ${utils.generateCaddyGlobalConfig}
+          '';
+
+          services.caddy.extraConfig = utils.generateCaddyExtraConfig domain;
+
+          services.caddy.virtualHosts = hosts;
+
+          # Bound the access logs. nixpkgs' per-vhost logFormat default emits a bare
+          # `output file .../access-<host>.log`, so Caddy falls back to its built-in
+          # roller at roll_size 100MiB / roll_keep 10 — up to ~1GB *per vhost*. That
+          # default can't be overridden centrally without reading
+          # services.caddy.virtualHosts to define it (infinite recursion), so cap the
+          # directory instead. 32M rotates well before Caddy's own roller fires.
+          # copytruncate because Caddy holds the files open and has no reopen signal.
+          services.logrotate.settings.caddy = {
+            files = "${config.services.caddy.logDir}/*.log";
+            frequency = "daily";
+            rotate = 7;
+            size = "32M";
+            compress = true;
+            delaycompress = true;
+            missingok = true;
+            notifempty = true;
+            copytruncate = true;
+            su = "caddy caddy";
+          };
+
+          # Configure Caddy systemd service
+          # Tailscale OAuth credentials removed (task-48, task-49) - using tsnsrv instead
+          systemd.services.caddy.serviceConfig = {
+            # Ensure state directory exists for Caddy (no Tailscale subdirectories needed)
+            StateDirectory = lib.mkForce ["caddy"];
+            # Ensure Caddy can bind to privileged ports (443, 80)
+            AmbientCapabilities = lib.mkForce "CAP_NET_BIND_SERVICE";
+          };
+        };
+      })
+    ];
+  };
+}
