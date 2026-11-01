@@ -31,6 +31,7 @@ public class TailscaleIndicator.Indicator : Wingpanel.Indicator {
     private Gtk.Box? health_box = null;
     // Set while widgets are moved to match tailscaled, so their handlers write nothing.
     private bool syncing = false;
+    private bool retrying = false;
 
     public Indicator () {
         Object (code_name: "tailscale");
@@ -141,7 +142,34 @@ public class TailscaleIndicator.Indicator : Wingpanel.Indicator {
         }
     }
 
+    /*
+     * Right after tailscaled reaches Running its netmap can still be empty, so
+     * /status lists no peers and the exit node would be named by its raw id
+     * until the popover next opens (seen on raider, 1.104.1). While the exit
+     * node is missing from the candidates, refetch after 1, 2 and 4 s.
+     */
     private async void refresh () {
+        yield fetch_status ();
+        if (retrying) {
+            return;
+        }
+        retrying = true;
+        for (uint wait = 1; wait <= 4 && exit_node_unknown (); wait *= 2) {
+            Timeout.add_seconds (wait, refresh.callback);
+            yield;
+            if (exit_node_unknown ()) {
+                yield fetch_status ();
+            }
+        }
+        retrying = false;
+    }
+
+    private bool exit_node_unknown () {
+        return state.backend == Backend.RUNNING && state.exit_node_id != ""
+            && !Model.has_exit_node (state.exit_node_id, status.exit_nodes);
+    }
+
+    private async void fetch_status () {
         var fetched = yield api.status ();
         if (fetched == null) {
             message ("Tailscale status: unavailable");
