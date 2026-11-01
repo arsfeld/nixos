@@ -4,7 +4,7 @@
   ipRange ? "192.168.2.0/24",
   dnsServers ? ["8.8.8.8" "8.8.4.4"],
 }:
-with import ./helpers.nix;
+with import ./_helpers.nix;
   if !testIpRange ipRange
   then throw ''ipRange '${ipRange}' is invalid. Here is a valid example: 192.168.2.0/24''
   else let
