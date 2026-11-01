@@ -10,7 +10,7 @@ This guide walks through installing NixOS with the router configuration on a new
    - Sufficient RAM for running services (4GB+ recommended)
 
 2. **Pre-Installation Setup**
-   - Ensure `hosts/router/interfaces.nix` exists (use the template as a starting point)
+   - Ensure `modules/hosts/router/interfaces.nix` exists (use the template as a starting point)
    - The file maps physical interface names to logical roles (wan, lan1, lan2, lan3)
 
 3. **NixOS Installer**
@@ -50,7 +50,7 @@ After the system reboots:
 just hardware-config router router.local
 
 # Review and commit the generated file
-git add hosts/router/hardware-configuration.nix
+git add modules/hosts/router/hardware-configuration.nix
 git commit -m "router: Add hardware configuration"
 ```
 
@@ -72,11 +72,11 @@ This outputs ready-to-use Nix configuration:
 ```
 
 To use this configuration:
-1. Copy the output to `hosts/router/interfaces.nix` (replacing the example content)
+1. Copy the output to `modules/hosts/router/interfaces.nix` (replacing the example content)
 2. Adjust the interface assignments based on your network topology
 3. Commit and deploy:
    ```bash
-   git add hosts/router/interfaces.nix
+   git add modules/hosts/router/interfaces.nix
    git commit -m "router: Configure network interfaces"
    just deploy router
    ```
@@ -102,7 +102,7 @@ just boot router
 ## Customization
 
 ### Network Configuration
-- Edit `hosts/router/network.nix` for firewall rules, DHCP settings
+- Edit `modules/hosts/router/network.nix` for firewall rules, DHCP settings
 - Interface names are parameterized in `router.interfaces`
 - Network prefix is configurable via `router.network`
 
@@ -117,7 +117,7 @@ To change the LAN network (default: 192.168.10.0/24), create a file with:
 ```
 
 ### Services
-- Edit `hosts/router/services.nix` for DNS, monitoring, UPnP settings
+- Edit `modules/hosts/router/services.nix` for DNS, monitoring, UPnP settings
 - Blocky DNS blocklists can be customized
 - Grafana dashboards are auto-provisioned
 
@@ -127,7 +127,7 @@ The router provides `.lan` domain names for local devices:
 - `storage.lan` - Storage server (static IP)
 - Add more devices by editing the customDNS mapping in `services.nix`
 
-To add more local hostnames, edit `hosts/router/services.nix`:
+To add more local hostnames, edit `modules/hosts/router/services.nix`:
 ```nix
 customDNS = {
   mapping = {
@@ -140,7 +140,7 @@ customDNS = {
 ```
 
 ### Static DHCP Leases
-Add entries in `hosts/router/network.nix`:
+Add entries in `modules/hosts/router/network.nix`:
 ```nix
 dhcpServerStaticLeases = [
   {

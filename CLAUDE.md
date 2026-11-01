@@ -483,8 +483,8 @@ Things worth knowing before touching it:
 ### Available Hosts
 - **galactica** - Main server: media services, databases, backups. Hosts internal services on `*.arsfeld.one` via cloudflared tunnel (wildcard ingress)
 - **basestar** - Public-facing server (BSG Cylon Basestar): hosts services on `*.arsfeld.dev` (blog, plausible, planka, siyuan), and the fleet's only k3s cluster
-- **raider** - Desktop workstation: GNOME, gaming, development
-- **router** - Custom network device (no constellation modules, standalone config)
+- **raider** - Desktop workstation: Pantheon, gaming, development
+- **router** - Home router: gets the `base` features every host has and imports `podman`; the rest of its configuration lives in `modules/hosts/router/`
 - **r2s** - ARM-based router (NanoPi R2S)
 - **raspi3** - Raspberry Pi 3
 - **blackbird** - ASUS ROG Zephyrus G14 laptop (BSG Blackbird — custom stealth ship)

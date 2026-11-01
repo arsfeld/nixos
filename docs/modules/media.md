@@ -7,7 +7,7 @@ This document provides comprehensive documentation for the media system architec
 The media system consists of three main components:
 
 1. **Core Media Modules** (`modules/media/`) - Low-level configuration and container management
-2. **Constellation Media Module** (`modules/constellation/media.nix`) - High-level service definitions
+2. **Host service declarations** (`modules/hosts/<host>/services/`) - `media.services.<name>` definitions, one file per service
 3. **Gateway System** - Automated reverse proxy and authentication
 
 ## Architecture Components
@@ -158,40 +158,35 @@ generateTsnsrvService {
 ##### `generateCaddyExtraConfig`
 Creates global Caddy configuration with CORS and error handling.
 
-### 2. Constellation Media Module
+### 2. Importing the feature and declaring services
 
-The constellation layer provides high-level service definitions that utilize the core media system:
+Everything under `modules/media/` defines one feature module,
+`flake.modules.nixos.media`. There is no enable flag: a host gets the media
+system by importing the feature in `modules/hosts/<host>.nix`, as galactica,
+basestar, pegasus and raider do:
 
 ```nix
-constellation.media.enable = true;
+# modules/hosts/galactica.nix
+configurations.nixos.galactica.module.imports = [
+  features.media
+  # ...
+];
 ```
 
-This enables predefined service configurations for two host categories:
+Services are then declared per host with `media.services.<name>`, one file per
+service under `modules/hosts/<host>/services/`:
 
-#### Storage Services (host: "storage")
-Media and content management services:
-
-| Service | Port | Features | Description |
-|---------|------|----------|-------------|
-| nextcloud | 443 | insecureTls, custom volumes | File sync and sharing |
-| jackett | 9117 | - | Torrent indexer proxy |
-| bazarr | 6767 | mediaVolumes | Subtitle management |
-| radarr | 7878 | mediaVolumes | Movie automation |
-| sonarr | 8989 | mediaVolumes | TV show automation |
-| prowlarr | 9696 | - | Indexer management |
-| autobrr | 7474 | - | Torrent automation |
-| pinchflat | 8945 | custom volumes | YouTube downloading |
-| plex | - | mediaVolumes, host network, GPU | Media server |
-| stash | - | mediaVolumes, host network, GPU | Media organization |
-| flaresolverr | 8191 | - | Cloudflare solver |
-| kavita | 5000 | custom volumes | Digital library |
-
-#### Basestar Services (host: "basestar")
-Blog and content services:
-
-| Service | Port | Features | Description |
-|---------|------|----------|-------------|
-| ghost | 2368 | custom config | Blog platform |
+```nix
+# modules/hosts/galactica/services/myapp.nix
+{
+  configurations.nixos.galactica.module = {
+    media.services.myapp = {
+      port = 8080;
+      image = "ghcr.io/example/myapp";
+    };
+  };
+}
+```
 
 ### 3. Port Management
 
@@ -254,26 +249,9 @@ media.containers.nextcloud = {
 
 ## Deployment Patterns
 
-### Host-Specific Deployment
-Services automatically deploy to specified hosts:
-```nix
-# Service will only run on "storage" host
-media.containers.plex = {
-  host = "storage";
-  # ... other config
-};
-```
-
 ### Multi-Host Configuration
-Different services on different hosts:
-```nix
-# In constellation/media.nix
-storageServices = { /* media services */ };
-basestarServices = { /* blog services */ };
-
-lib.mapAttrs (addHost "storage") storageServices // 
-lib.mapAttrs (addHost "basestar") basestarServices;
-```
+Each host declares its own services in `modules/hosts/<host>/services/`; a
+service runs on the host whose configuration declares it.
 
 ## Authentication Integration
 
@@ -398,7 +376,7 @@ journalctl -u podman-<service-name>
 ## Best Practices
 
 ### Service Definition
-1. Use constellation layer for standard services
+1. Declare services with `media.services.<name>` in the host's `services/` directory
 2. Override in host-specific config for customization
 3. Use descriptive service names
 4. Enable mediaVolumes for media-related services

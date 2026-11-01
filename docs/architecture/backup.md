@@ -78,7 +78,7 @@ constellation.backrest = {
 };
 ```
 
-Source: `modules/constellation/backrest.nix`.
+Source: `modules/backup/backrest.nix`.
 
 ### Design notes
 

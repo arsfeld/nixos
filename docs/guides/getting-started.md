@@ -215,29 +215,32 @@ agenix -e secrets/mysecret.age
 
 ### Adding a Service
 
-1. **Define in constellation services**:
+Shared features live under `modules/` as `flake.modules.nixos.<feature>`
+modules, and a host takes one by importing it in `modules/hosts/<host>.nix`
+(galactica already imports `features.media`). Host-specific configuration lives
+in `modules/hosts/<host>/`; every `.nix` file there is loaded automatically.
+
+1. **Declare the service** in a new file under the host's directory:
 ```nix
-# modules/constellation/services.nix
-services.myapp = {
-  host = "storage";
-  port = 8080;
-  public = true;
-};
+# modules/hosts/galactica/services/myapp.nix
+{
+  configurations.nixos.galactica.module = {
+    media.services.myapp = {
+      port = 8080;
+      image = "ghcr.io/example/myapp";
+    };
+  };
+}
 ```
 
-2. **Configure the container**:
-```nix
-# hosts/storage/services/myapp.nix
-virtualisation.oci-containers.containers.myapp = {
-  image = "myapp:latest";
-  ports = ["8080:8080"];
-  volumes = ["/mnt/data/myapp:/config"];
-};
+2. **Track the file** so the flake can see it:
+```bash
+git add modules/hosts/galactica/services/myapp.nix
 ```
 
 3. **Deploy**:
 ```bash
-just deploy storage
+just deploy galactica
 ```
 
 ## Development Workflow
