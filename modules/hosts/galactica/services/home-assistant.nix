@@ -11,6 +11,7 @@
 # - Trusted proxy configuration for reverse proxy integration
 # - UI-managed automation, scene, and script files
 # - Heating automations live in ./home-assistant-heating/
+# - Network quality history (ping + Speedtest.net); see "automation network"
 #
 # Prefer packaging a component over installing it through HACS: pip is
 # disabled here, so a HACS-installed component whose Python requirements are
@@ -63,6 +64,7 @@
           "sonos" # Sonos media players
           "spotify" # Spotify media player
           "ping" # Ping (ICMP) network presence detection
+          "speedtestdotnet" # Internet speed; polled only by "automation network"
           "wake_on_lan" # Wake on LAN
 
           # Found by default_config's discovery; without their deps every
@@ -165,6 +167,49 @@
             living_room_ac_heat_18 = send "heat_18" // {alias = "Living room AC - Heat 18°C";};
             living_room_ac_off = send "off" // {alias = "Living room AC - Off";};
           };
+
+          # Network quality history: mesh latency to raider, internet latency,
+          # internet throughput. Design:
+          # docs/superpowers/specs/2026-11-01-network-quality-monitoring-design.md
+          #
+          # Ping and Speedtest.net are config-flow only, so their entries are
+          # added once in the UI (Settings → Devices & services → Add):
+          #   Ping  raider.local             mesh latency over the LAN. Not the
+          #                                  Tailscale name: that measures the
+          #                                  tunnel, not the Deco mesh.
+          #   Ping  basestar.bat-boa.ts.net  internet path. basestar's public
+          #                                  IP drops ICMP echo (OCI list allows
+          #                                  type 3 only).
+          #   Ping  1.1.1.1                  neutral reference. If basestar
+          #                                  rises and this doesn't, the cause is
+          #                                  Tailscale/DERP, not the fiber.
+          #   (count 5 each)
+          #   Speedtest.net, then System options → disable "Enable polling for
+          #   updates", so only the automation below runs tests (its default is
+          #   hourly, ~24 full-bandwidth tests a day).
+          #
+          # Updating one speedtest entity refreshes the integration's
+          # coordinator, so download, upload and ping all update. The entity
+          # ID comes from the UI-created entry: renaming it breaks this.
+          "automation network" = [
+            {
+              alias = "Network - Speedtest";
+              description = "Run an internet speed test every 4 hours";
+              triggers = [
+                {
+                  trigger = "time_pattern";
+                  hours = "/4";
+                }
+              ];
+              actions = [
+                {
+                  action = "homeassistant.update_entity";
+                  target.entity_id = "sensor.speedtest_download";
+                }
+              ];
+              mode = "single";
+            }
+          ];
 
           # Allow UI-managed configuration files
           # These files will be created and managed by the Home Assistant UI
