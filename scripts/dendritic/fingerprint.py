@@ -13,7 +13,7 @@ lastModified) becomes a constant. Two evaluations that differ only in which
 commit of this flake produced them hash identically.
 
 --loose additionally sorts the whitespace/colon/comma-separated tokens of every
-string, so a pure reordering (e.g. systemPackages or kernelParams merged in a
+string and the elements of every structuredAttrs list, so a pure reordering (e.g. systemPackages or kernelParams merged in a
 different module order) hashes identically. It also masks reorderings that DO
 matter (PATH precedence, a repeated kernel parameter), so a loose-only match
 must be read with `explain` before it is accepted.
@@ -101,7 +101,10 @@ class Canon:
         if isinstance(v, dict):
             return {k: self.scrub_tree(x) for k, x in sorted(v.items())}
         if isinstance(v, list):
-            return [self.scrub_tree(x) for x in v]
+            items = [self.scrub_tree(x) for x in v]
+            # loose: a structuredAttrs list (buildEnv's paths, …) merged in a
+            # different module order is the same multiset
+            return sorted(items, key=lambda x: json.dumps(x, sort_keys=True)) if self.loose else items
         return v
 
     def visit(self, path):
