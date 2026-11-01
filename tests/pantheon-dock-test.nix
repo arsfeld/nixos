@@ -11,7 +11,7 @@
   nodes.machine = {...}: {
     imports = [
       "${pkgs.path}/nixos/tests/common/user-account.nix"
-      ../modules/_legacy/constellation/pantheon-dock
+      (import ../modules/desktop/pantheon-dock/default.nix).flake.modules.nixos.pantheon-dock
     ];
 
     # Workaround ".gala-wrapped invoked oom-killer" (as upstream's test).

@@ -92,7 +92,6 @@
   # Enable constellation modules
   constellation = {
     desktop = {
-      enable = true;
       # Experimental. "gnome" is the way back: the GNOME settings below and in
       # appearance.nix are inert under Pantheon and kept for that switch.
       variant = "pantheon";
@@ -109,7 +108,6 @@
       ];
     };
     gaming = {
-      enable = true;
       cpuVendor = "intel";
       # sched_ext (scx_lavd 1.1.3) has ABI mismatch on Linux 7.1+ (missing
       # rescue_bandwidth_ppt / rescue_quantum_us) and starves UI threads under

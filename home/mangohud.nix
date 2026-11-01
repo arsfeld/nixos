@@ -10,8 +10,7 @@
   gamingEnabled =
     osConfig
     != null
-    && (osConfig.constellation.gaming.enable or false)
-    && (osConfig.constellation.gaming.performanceOsd or true);
+    && (osConfig.constellation.gaming.performanceOsd or false);
   hostname =
     if osConfig != null
     then osConfig.networking.hostName

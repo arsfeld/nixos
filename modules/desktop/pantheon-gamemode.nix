@@ -7,14 +7,21 @@
 # (tests/pantheon-gamemode-test.nix) can import this module alone; callPackage
 # rather than the flake overlay's attribute for the same reason.
 {
-  config,
-  lib,
-  pkgs,
-  ...
-}: {
-  config = lib.mkIf (config.programs.gamemode.enable && config.services.desktopManager.pantheon.enable) {
-    services.desktopManager.pantheon.extraWingpanelIndicators = [
-      (pkgs.callPackage ../../../packages/wingpanel-indicator-gamemode/package.nix {})
+  flake.modules.nixos.pantheon-gamemode = {
+    key = "modules/desktop/pantheon-gamemode";
+    imports = [
+      ({
+        config,
+        lib,
+        pkgs,
+        ...
+      }: {
+        config = lib.mkIf (config.programs.gamemode.enable && config.services.desktopManager.pantheon.enable) {
+          services.desktopManager.pantheon.extraWingpanelIndicators = [
+            (pkgs.callPackage ../../packages/wingpanel-indicator-gamemode/package.nix {})
+          ];
+        };
+      })
     ];
   };
 }

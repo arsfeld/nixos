@@ -81,7 +81,6 @@ in {
   # Enable constellation modules
   constellation = {
     desktop = {
-      enable = true;
       # Experimental. "gnome" is the way back: the GNOME settings below are
       # inert under Pantheon and kept for that switch.
       variant = "pantheon";
@@ -104,7 +103,6 @@ in {
       };
     };
     gaming = {
-      enable = true;
       cpuVendor = "amd";
     };
   };
