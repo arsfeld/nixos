@@ -54,17 +54,20 @@ dock-run log="/tmp/io.elementary.dock.log" *env:
     pgrep -fa "$pattern" >&2 || true
     exit 1
 
-# Replace the session's panel with one that loads this checkout's GameMode
-# indicator in place of the deployed one, passing any VAR=value environment
-# through (e.g. G_MESSAGES_DEBUG=all). Logs go to LOG.
+# Replace the session's panel with one that loads this checkout's build of
+# INDICATOR (wingpanel-indicator-INDICATOR, libINDICATOR-indicator.so) in place
+# of the deployed one, passing any VAR=value environment through (e.g.
+# G_MESSAGES_DEBUG=all). Logs go to LOG.
 [positional-arguments]
-panel-run log="/tmp/io.elementary.wingpanel.log" *env:
+panel-run indicator="gamemode" log="/tmp/io.elementary.wingpanel.log" *env:
     #!/usr/bin/env bash
     set -euo pipefail
-    indicator=$(nix build --no-link --print-out-paths '{{ justfile_directory() }}#nixosConfigurations.raider.pkgs.wingpanel-indicator-gamemode')
-    log="$1"
-    shift
+    name="$1"
+    log="$2"
+    shift 2
     extra=("$@")
+    indicator=$(nix build --no-link --print-out-paths "{{ justfile_directory() }}#nixosConfigurations.raider.pkgs.wingpanel-indicator-$name")
+    so="lib$name-indicator.so"
     # `pgrep -x` cannot match: the process name is longer than 15 characters.
     pattern='(^|/)io\.elementary\.wingpanel$'
     pid=$(pgrep -f "$pattern" | head -n1) || { echo "no wingpanel is running" >&2; exit 1; }
@@ -74,10 +77,10 @@ panel-run log="/tmp/io.elementary.wingpanel.log" *env:
     mapfile -d '' session_env < "/proc/$pid/environ"
     current=$(printf '%s\n' "${session_env[@]}" | sed -n 's/^WINGPANEL_INDICATORS_PATH=//p')
     dir=$(mktemp -d /tmp/wingpanel-indicators.XXXXXX)
-    for so in "$current"/*.so; do
-        [ "$(basename "$so")" = libgamemode-indicator.so ] || ln -s "$so" "$dir/"
+    for f in "$current"/*.so; do
+        [ "$(basename "$f")" = "$so" ] || ln -s "$f" "$dir/"
     done
-    ln -s "$indicator/lib/wingpanel/libgamemode-indicator.so" "$dir/"
+    ln -s "$indicator/lib/wingpanel/$so" "$dir/"
     # gala respawns the panel the moment one dies, and a second panel hands its
     # command line to the first and exits, so kill and start in the same
     # breath, then make sure ours is the one left. `exec -a` keeps the name
