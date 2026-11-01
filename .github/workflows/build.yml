@@ -112,6 +112,18 @@ jobs:
           sudo apt-get clean
           docker image prune --all --force
 
+          # raider's closure is ~41 GiB, more than the root disk has free even
+          # after the cleanup above (it failed with ENOSPC on 2026-11-01). x64
+          # runners carry a second, otherwise unused disk at /mnt, so the store
+          # goes there. This must run before install-nix-action creates /nix.
+          # The arm runners have no such disk; they build small hosts and keep
+          # the store on root.
+          if mountpoint -q /mnt; then
+            sudo mkdir -p /mnt/nix /nix
+            sudo mount --bind /mnt/nix /nix
+          fi
+          df -h / /nix
+
       - uses: actions/checkout@v6
 
       - uses: cachix/install-nix-action@v31
