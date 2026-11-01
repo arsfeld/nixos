@@ -534,7 +534,7 @@ flash-cylon-link DEVICE:
     read -r -p "Erase everything on $dev? [y/N] " answer
     [ "$answer" = y ] || { echo "aborted"; exit 1; }
 
-    sudo env PATH="$zstd/bin:$PATH" bash hosts/cylon-link/flash.sh "$dev" "$image" "$key_dir"
+    sudo env PATH="$zstd/bin:$PATH" bash modules/hosts/cylon-link/flash.sh "$dev" "$image" "$key_dir"
     udisksctl power-off -b "$(readlink -f "$dev")"
     echo "Done: move the stick to the Steam Link, plug in Ethernet, and power-cycle it."
 

@@ -18,7 +18,7 @@
     chmod +x $out/bin/*
   '';
 
-  bootTool = pkgs.callPackage ./package.nix {
+  bootTool = pkgs.callPackage ./_package.nix {
     kexec = "${stubs}/bin/kexec";
     kexecModule = "${pkgs.writeText "kexec_load.ko" "stub module"}";
   };
