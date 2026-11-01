@@ -9,7 +9,9 @@
   }: let
     appleFontPkgs = inputs.apple-fonts.packages.${pkgs.stdenv.hostPlatform.system};
   in {
-    fonts.packages = [
+    # mkBefore keeps the Apple fonts ahead of the desktop feature's fonts, the
+    # order they had before the host moved under modules/hosts.
+    fonts.packages = lib.mkBefore [
       appleFontPkgs.sf-pro
       appleFontPkgs.sf-compact
       appleFontPkgs.sf-mono-nerd

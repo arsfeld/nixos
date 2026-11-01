@@ -610,9 +610,7 @@
 
     config = {
       # Allow the configured user to manage VMs without sudo
-      # mkAfter keeps this behind the virtualization feature's "root", as when
-      # that module was loaded before the host files; the order carries no meaning.
-      users.groups.libvirtd.members = lib.mkAfter [cfg.user];
+      users.groups.libvirtd.members = [cfg.user];
 
       # Install the CLI tool
       environment.systemPackages = [projectVmCli];

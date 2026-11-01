@@ -9,7 +9,10 @@
   in {
     sops.secrets.seafile-env = {};
 
-    systemd.tmpfiles.rules = [
+    # mkBefore: media.containers also emits a 0775 `d` rule for this path (it
+    # is a container volume), and systemd-tmpfiles applies the first rule for a
+    # duplicate path, so this 0750 one must come first.
+    systemd.tmpfiles.rules = lib.mkBefore [
       "d ${dataDir} 0750 ${vars.user} ${vars.group} -"
     ];
 
