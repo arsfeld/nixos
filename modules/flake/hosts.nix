@@ -19,7 +19,6 @@
       nixpkgs = "unstable";
       tier = "tier1";
     };
-    router = {};
   };
 
   # Features each legacy host imports, by name in flake.modules.nixos. base is
@@ -30,7 +29,6 @@
     galactica = ["backrest" "backup-summary" "check-stock" "development" "forgejo-runner" "media" "podman" "tsnsrv" "virtualization"];
     pegasus = ["backrest" "media" "netdata-client" "podman" "tsnsrv" "virtualization"];
     raider = ["backrest" "desktop" "development" "gaming" "media" "netdata-client" "tsnsrv" "virtualization"];
-    router = ["podman"];
   };
 
   legacyHosts = lib.filterAttrs (name: _: builtins.pathExists ../../hosts/${name}/configuration.nix) legacy;
