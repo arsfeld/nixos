@@ -19,7 +19,7 @@
           inputs.nixpkgs.legacyPackages.${system}.runCommand "immich-pixel-sync-test" {
             nativeBuildInputs = [inputs.nixpkgs.legacyPackages.${system}.python3];
           } ''
-            cp ${../../hosts/galactica/services/immich-pixel-sync}/*.py .
+            cp ${../hosts/galactica/services/immich-pixel-sync}/*.py .
             python3 -m unittest discover -v -s . -p 'test_*.py'
             touch $out
           '';
@@ -64,7 +64,7 @@
             nativeBuildInputs = [(pkgs.python3.withPackages (ps: [ps.jinja2]))];
             HEATING_CONFIG = config;
           } ''
-            cp ${../../hosts/galactica/services/home-assistant-heating}/*.py .
+            cp ${../hosts/galactica/services/home-assistant-heating}/*.py .
             python3 -m unittest discover -v -s . -p 'test_*.py'
             touch $out
           '';

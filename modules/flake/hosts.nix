@@ -10,15 +10,11 @@
 
   # Hosts still under hosts/<name>/, not yet moved to modules/hosts/<name>.nix.
   # Their settings live here until each moves; then the entry is deleted.
-  legacy = {
-    galactica = {tier = "tier1";};
-  };
+  legacy = {};
 
   # Features each legacy host imports, by name in flake.modules.nixos. base is
   # added to every host by mkLinuxSystem and is not listed.
-  legacyFeatures = {
-    galactica = ["backrest" "backup-summary" "check-stock" "development" "forgejo-runner" "media" "podman" "tsnsrv" "virtualization"];
-  };
+  legacyFeatures = {};
 
   legacyHosts = lib.filterAttrs (name: _: builtins.pathExists ../../hosts/${name}/configuration.nix) legacy;
 in {
