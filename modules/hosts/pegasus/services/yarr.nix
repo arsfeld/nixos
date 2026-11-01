@@ -1,6 +1,7 @@
 # Upstream yarr (nkanaev/yarr), not the arsfeld fork — see
-# hosts/galactica/services/yarr.nix. pegasus has no Authelia and bypassAuth is
-# set, so YARR_AUTH is the only thing standing in front of this instance.
+# modules/hosts/galactica/services/yarr.nix. pegasus has no Authelia and
+# bypassAuth is set, so YARR_AUTH is the only thing standing in front of this
+# instance.
 {
   configurations.nixos.pegasus.module = {config, ...}: {
     sops.secrets."yarr-env" = {};

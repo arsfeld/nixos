@@ -1,4 +1,4 @@
-{self, ...}: {
+{
   configurations.nixos.basestar.module = {
     pkgs,
     config,

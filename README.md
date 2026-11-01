@@ -34,7 +34,7 @@ See [HARDWARE.md](HARDWARE.md) for detailed disk and CPU specs.
 
 ### Tiers
 
-Hosts are grouped into deployment tiers (defined in `flake-modules/hosts.nix` as `tiers`):
+Hosts are grouped into deployment tiers (each host's `tier` in `modules/hosts/<name>.nix`, collected into the `tiers` flake output):
 
 | Tier | Hosts | Meaning |
 |------|-------|---------|
@@ -48,8 +48,8 @@ just deploy @tier1     # deploy all tier-1 hosts
 
 ## Features
 
-- **Modular Architecture** - Opt-in constellation modules for services, media, backups, observability, and more
-- **Auto-Discovery** - Hosts and modules loaded automatically via [haumea](https://github.com/nix-community/haumea)
+- **Modular Architecture** - Opt-in features for services, media, backups, observability, and more, imported per host
+- **Auto-Discovery** - Every file under `modules/` loaded automatically via [import-tree](https://github.com/vic/import-tree) (the dendritic pattern)
 - **Service Registry** - Centralized port assignments, auth bypass, Tailscale exposure, and CORS config
 - **Container Orchestration** - Podman/Docker-based media stack with declarative volume and network config
 - **DNS & Routing** - `*.arsfeld.one` (internal via cloudflared), `*.arsfeld.dev` (public), `*.bat-boa.ts.net` (Tailscale)
@@ -88,45 +88,50 @@ just tf apply
 ## Project Structure
 
 ```
-flake.nix              # Flake entry point (nixpkgs-25.11, flake-parts)
-flake-modules/         # Flake-parts modules
-  lib.nix              #   Core utilities, haumea loaders, overlays
-  hosts.nix            #   Auto-discovers hosts from hosts/ directories
-  deploy.nix           #   deployTargets: per-host system closures
-  dev.nix              #   Development shell
-  checks.nix           #   Pre-commit hooks, formatter
-  images.nix           #   SD card, kexec, and installer ISO images
-hosts/                 # Per-host configurations (auto-discovered)
-modules/               # All NixOS modules (auto-loaded by haumea)
-  constellation/       #   Opt-in feature modules
-  services/            #   Service group modules (media, home apps, network)
-  media/               #   Media stack (config, gateway, components)
+flake.nix              # Flake entry point (nixpkgs-26.05, flake-parts, import-tree ./modules)
+modules/               # Every .nix file is a flake-parts module (paths with /_ excepted)
+  flake/               #   Flake plumbing
+    lib.nix            #     mkLinuxSystem, overlays, baseModules
+    hosts.nix          #     configurations.nixos option -> nixosConfigurations, tiers, ciMatrix
+    deploy.nix         #     deployTargets: per-host system closures
+    dev.nix            #     Development shell, formatter, git hooks
+    checks.nix         #     Flake checks (NixOS VM tests and others)
+    images.nix         #     SD card, kexec, and installer ISO images
+    infra.nix          #     OpenTofu config (terranix) and pinned tofu
+    systems.nix        #     Supported systems, flake.modules option
+    nixos-modules.nix  #     Exports the features as nixosModules
+  base/                #   The base feature, added to every host
+  hosts/               #   One <name>.nix declaration plus a <name>/ directory per host
+  media/               #   Media stack (config, gateway, containers, services)
+  backup/ desktop/ ... #   Other features, flake.modules.nixos.<feature>
 home/                  # Home Manager configurations
-packages/              # Custom Nix derivations (auto-loaded by haumea)
+packages/              # Custom Nix derivations (packages/<name>/package.nix)
 secrets/               # Encrypted secrets (sops/*.yaml)
 ```
 
-## Constellation Modules
+## Features
 
-Hosts compose their configuration by enabling modules via `constellation.<module>.enable = true`:
+Hosts compose their configuration by importing features in their declaration,
+`modules/hosts/<name>.nix` (`module.imports = [features.podman …]`). `base`
+(common settings, users, sops, email, Tailscale, SSH) is added to every host.
 
-| Module | Purpose |
-|--------|---------|
-| `common` | Base config: Nix settings, caches, SSH, Tailscale, Avahi |
-| `users` | User accounts, SSH keys, sudo |
-| `sops` | sops-nix secret management |
-| `docker` / `podman` | Container runtimes |
-| `backup` | Automated rustic/restic backups |
-| `gnome` / `cosmic` / `niri` | Desktop environments |
+| Feature | Purpose |
+|---------|---------|
+| `base` | Base config: Nix settings, caches, SSH, Tailscale, users, sops, email |
+| `media` | Media stack: `media.services`, gateway, containers |
+| `podman` | Container runtime |
+| `tsnsrv` | Tailscale service nodes |
+| `backrest` (+ `backup-notify`, `backup-status`) / `backup-summary` | Backups via Backrest; weekly summary |
+| `desktop` (+ `pantheon-dock`, `pantheon-gamemode`) | Desktop environments (GNOME, Pantheon, …) |
 | `gaming` | Gaming environment (Steam, etc.) |
 | `development` | Dev tools (Docker, Node, Python, Go, Rust) |
-| `virtualization` / `project-vms` | KVM/libvirt VMs |
-| `home-assistant` | Home automation |
-| `vpn-exit-nodes` | Tailscale exit nodes via AirVPN/Gluetun |
-| `observability-hub` | Central Prometheus/Loki hub |
-| `metrics-client` / `logs-client` / `netdata-client` | Observability agents |
-| `media-sync` / `tablet-sync` | File synchronization |
-| `opencloud` / `email` | Cloud storage, email |
+| `virtualization` | KVM/libvirt VMs |
+| `netdata-client` | Netdata agent |
+| `forgejo-runner` | Forgejo Actions runner |
+| `check-stock` / `blocky` | Stock checker; Blocky DNS (unused) |
+
+Code only one host uses (home-assistant, vpn-exit-nodes, media-sync,
+project-vms, …) lives in that host's `modules/hosts/<name>/` directory.
 
 ## Tooling
 
@@ -135,7 +140,7 @@ Hosts compose their configuration by enabling modules via `constellation.<module
 - [Home Manager](https://github.com/nix-community/home-manager) - User environment management
 - [sops-nix](https://github.com/Mic92/sops-nix) - Secret management
 - [disko](https://github.com/nix-community/disko) - Declarative disk partitioning
-- [haumea](https://github.com/nix-community/haumea) - Automatic module/package discovery
+- [import-tree](https://github.com/vic/import-tree) - Loads every file under `modules/` as a flake-parts module
 - [niks3](https://github.com/Mic92/niks3) - S3-backed binary cache with reference-tracking GC
 - [Tailscale](https://tailscale.com/) - VPN mesh network
 - [OpenTofu](https://opentofu.org/) + [terranix](https://terranix.org/) - Oracle Cloud and Cloudflare DNS as Nix code

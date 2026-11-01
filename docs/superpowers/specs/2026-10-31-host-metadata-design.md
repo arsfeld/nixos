@@ -1,3 +1,5 @@
+> Superseded by 2026-10-31-dendritic-restructure-design.md; never built.
+
 # Per-host metadata next to each host
 
 ## Context

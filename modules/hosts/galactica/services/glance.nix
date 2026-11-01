@@ -1,4 +1,4 @@
-{self, ...}: {
+{
   configurations.nixos.galactica.module = {
     lib,
     config,

@@ -14,7 +14,7 @@
 #
 # The module helps monitor system availability and detect unexpected reboots
 # or prolonged downtime by sending regular status updates.
-{self, ...}: {
+{
   flake.modules.nixos.base = {
     key = "modules/base/email";
     imports = [

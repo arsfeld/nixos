@@ -43,10 +43,10 @@ To install this system:
 
 1. Boot from a NixOS live USB/CD
 2. Clone this repository
-3. Update the device paths in `disko-config.nix` to match the actual hardware
+3. Update the device paths in `modules/hosts/pegasus/disko-config.nix` to match the actual hardware
 4. Run the installation with:
    ```
-   nix --extra-experimental-features "nix-command flakes" run github:nix-community/disko -- --mode disko ./hosts/pegasus/disko-config.nix
+   nix --extra-experimental-features "nix-command flakes" run github:nix-community/disko -- --mode disko --flake .#pegasus
    nixos-install --flake .#pegasus
    ```
 

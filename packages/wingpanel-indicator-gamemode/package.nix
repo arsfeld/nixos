@@ -1,6 +1,6 @@
 # Wingpanel indicator showing GameMode's state, macOS-style: a controller icon
 # while gamemoded has a registered game, and a popover naming the game(s).
-# Added to Pantheon by modules/constellation/pantheon-gamemode.nix.
+# Added to Pantheon by modules/desktop/pantheon-gamemode.nix.
 # Design: docs/superpowers/specs/2026-10-31-pantheon-gamemode-indicator-design.md
 {pkgs, ...}:
 pkgs.stdenv.mkDerivation {

@@ -1,4 +1,4 @@
-# Boots Pantheon with the patched dock (modules/constellation/pantheon-dock):
+# Boots Pantheon with the patched dock (modules/desktop/pantheon-dock):
 # two stacks, and the zoom pinned mid-dock through the DOCK_ZOOM_AT test hook,
 # since pointer injection is unreliable. Checks that the dock comes up with
 # both, and survives an invalid stacks value and an out-of-range zoom-size.

@@ -24,11 +24,7 @@
 #   - BACKREST_RESTIC_COMMAND is hardcoded to nixpkgs restic so Backrest
 #     never downloads its own binary into /var/lib.
 #   - Uses pkgs.unstable.backrest to track upstream releases faster.
-{
-  self,
-  config,
-  ...
-}: let
+{config, ...}: let
   features = config.flake.modules.nixos;
 in {
   flake.modules.nixos.backrest = {

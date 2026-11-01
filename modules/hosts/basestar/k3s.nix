@@ -490,8 +490,8 @@
       # extraDomainNames. security.acme.certs.<d>.extraDomainNames concatenates
       # rather than dedupes, so the list evaluates to two identical entries —
       # which ACME tolerates. A redundant third declaration in
-      # modules/hosts/basestar/configuration.nix was deleted alongside this one; keep the
-      # count at two, and check it with:
+      # modules/hosts/basestar/configuration.nix was deleted alongside this one;
+      # keep the count at two, and check it with:
       #   nix eval --json .#nixosConfigurations.basestar.config \
       #     .security.acme.certs.\"arsfeld.dev\".extraDomainNames
       security.acme.certs =

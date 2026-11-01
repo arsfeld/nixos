@@ -13,8 +13,8 @@ fmt:
 # arguments, runs over every package that can be bumped unattended. Not in the
 # default list: anycubic-slicer (its .deb URL embeds a build timestamp and the
 # CDN has no apt index), home-assistant-eufy-sdk (bumped together with the
-# bridge image in hosts/galactica/services/eufy.nix), and libfprint-goodix-521d
-# (pinned to a commit on our own fork).
+# bridge image in modules/hosts/galactica/services/eufy.nix), and
+# libfprint-goodix-521d (pinned to a commit on our own fork).
 update-packages *PKGS:
     #!/usr/bin/env bash
     set -uo pipefail
@@ -94,7 +94,7 @@ _poke-targets *TARGETS:
     set -euo pipefail
     targets=({{ TARGETS }})
     if [ ${#targets[@]} -eq 0 ]; then
-        mapfile -t targets < <(find hosts -mindepth 2 -maxdepth 2 -name configuration.nix -printf '%h\n' | xargs -r -n1 basename | sort)
+        mapfile -t targets < <(just info)
     fi
 
     for target in "${targets[@]}"; do
@@ -198,7 +198,7 @@ _apply ACTION +TARGETS:
     # anything (__init__.py:375). With --flake it resolves that from the flake;
     # with --store-path and no --flake it falls back to `<nixpkgs/nixos>`, and
     # this repo's nix.nixPath is derived from nix.registry with nixpkgs
-    # explicitly removed (modules/constellation/common.nix:78), so the lookup
+    # explicitly removed (modules/base/common.nix), so the lookup
     # finds nothing and nixos-rebuild exits 1 before contacting any host.
     # Suppressing the re-exec is safe here: the closure is already built, and
     # activation runs the *target's* own switch-to-configuration.
@@ -277,7 +277,7 @@ dry-run +TARGETS:
 
 # CVE-2026-111497: fail if a host closure still holds a vulnerable Brotli,
 # brotlicffi or Bun. Judges libraries, not package names: grafted paths keep
-# their old names. Delete with modules/security/brotli-cve-2026-111497.nix.
+# their old names. Delete with modules/base/brotli-cve-2026-111497.nix.
 cve-2026-111497-check +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -760,13 +760,15 @@ hardware-config HOST TARGET_HOST:
     echo "Generating hardware configuration for {{ HOST }} at {{ TARGET_HOST }}..."
 
     # Create host directory if it doesn't exist
-    mkdir -p hosts/{{ HOST }}
+    mkdir -p modules/hosts/{{ HOST }}
 
-    # Generate hardware config on the target
-    ssh root@{{ TARGET_HOST }} nixos-generate-config --show-hardware-config > hosts/{{ HOST }}/hardware-configuration.nix
+    # Generate hardware config on the target. The `_` prefix keeps import-tree
+    # from loading the raw NixOS module; wrap it as
+    # `configurations.nixos.{{ HOST }}.module` and rename it to use it.
+    ssh root@{{ TARGET_HOST }} nixos-generate-config --show-hardware-config > modules/hosts/{{ HOST }}/_hardware-configuration.nix
 
-    echo "Hardware configuration saved to hosts/{{ HOST }}/hardware-configuration.nix"
-    echo "Review the file and commit it to the repository."
+    echo "Hardware configuration saved to modules/hosts/{{ HOST }}/_hardware-configuration.nix"
+    echo "Wrap it as configurations.nixos.{{ HOST }}.module, drop the _ prefix and commit it."
 
 # Apply disko configuration to format and partition disks on a host
 # WARNING: This will DESTROY ALL DATA on the configured disks!

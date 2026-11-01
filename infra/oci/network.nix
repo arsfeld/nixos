@@ -383,7 +383,7 @@
         }
         {
           # The first rule here that is not transcribed from discovery.
-          # mydia's iroh relay: QUIC address discovery, hosts/basestar/services/iroh-relay.nix.
+          # mydia's iroh relay: QUIC address discovery, modules/hosts/basestar/services/iroh-relay.nix.
           description = "mydia iroh relay QUIC address discovery";
           source = "0.0.0.0/0";
           source_type = "CIDR_BLOCK";

@@ -1,6 +1,5 @@
 {
   config,
-  self,
   inputs,
   ...
 }: {
@@ -82,8 +81,6 @@
       homeManagerInput ? inputs.home-manager,
     }:
       nixpkgsInput.lib.nixosSystem {
-        # Arguments to pass to all modules.
-        specialArgs = {inherit self inputs;};
         modules =
           baseModules
           ++ (

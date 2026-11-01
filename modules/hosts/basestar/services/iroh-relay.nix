@@ -20,7 +20,7 @@
     # (n0-computer/noq#774). Run iroh-relay-verify-image.sh before changing this;
     # a plain boot test cannot catch that bug.
     #
-    # The digest pin also neutralises modules/constellation/podman.nix's daily
+    # The digest pin also neutralises modules/podman.nix's daily
     # podman-image-pull timer, which restarts any oci-container whose freshly
     # pulled image differs from the running one and has no opt-out for this
     # container. Pulling a digest can only ever yield the same image, so that

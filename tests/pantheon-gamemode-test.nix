@@ -1,4 +1,4 @@
-# Boots Pantheon with the GameMode indicator (modules/constellation/pantheon-gamemode.nix)
+# Boots Pantheon with the GameMode indicator (modules/desktop/pantheon-gamemode.nix)
 # and drives it with two fake games under gamemoderun: fake-game, named by its
 # executable, and a binary named `reaper` launched the way Steam launches games,
 # named from a Steam app manifest. Both are C, not `sleep`: nixpkgs' coreutils

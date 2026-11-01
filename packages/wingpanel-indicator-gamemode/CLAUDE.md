@@ -1,7 +1,7 @@
 # The GameMode Wingpanel indicator
 
 Design: `docs/superpowers/specs/2026-10-31-pantheon-gamemode-indicator-design.md`.
-Wired in by `modules/constellation/pantheon-gamemode.nix` wherever GameMode and Pantheon
+Wired in by `modules/desktop/pantheon-gamemode.nix` wherever GameMode and Pantheon
 are both on.
 
 - `src/Names.vala` is pure and unit-tested (`tests/TestNames.vala`, run in `checkPhase`);
@@ -23,7 +23,7 @@ are both on.
 
 Wingpanel's own `open-indicator`/`close-indicator` actions open the popover, so there is no
 test hook and no input injection. Everything about `shot` (locked or blanked screens, why
-it is the only capture that works) is in `modules/constellation/pantheon-dock/CLAUDE.md`.
+it is the only capture that works) is in `modules/desktop/pantheon-dock/CLAUDE.md`.
 
 The restarted panel docks at the top like the stock one. Activate `open-indicator` only
 after the indicator is visible, i.e. after the log shows `GameMode on`: an activation sent

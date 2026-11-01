@@ -11,7 +11,7 @@
     # from AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY in the environment: backend
     # configuration cannot reference variables.
     #
-    # The account ID is already committed in hosts/basestar/services/niks3.nix,
+    # The account ID is already committed in modules/hosts/basestar/services/niks3.nix,
     # so naming it here adds no exposure. Every skip_* below turns off an
     # AWS-specific validation or metadata call that R2 does not implement;
     # use_lockfile gets state locking from R2's conditional PUT support, which

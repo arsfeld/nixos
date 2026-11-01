@@ -77,8 +77,6 @@
     nix.gc.options = lib.mkForce "--max-free 75G --min-free 25G";
 
     # tsnsrv configuration for Tailscale node creation
-    # The harmonia service is auto-configured via constellation.services
-    # (see modules/constellation/services.nix and modules/media/gateway.nix)
     services.tsnsrv = {
       enable = true;
       separateProcesses = true; # Create individual systemd service per tsnsrv service

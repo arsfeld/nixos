@@ -12,7 +12,7 @@
 #
 # This module ensures all media services run under the same user account
 # with proper permissions and consistent configuration paths.
-{self, ...}: {
+{
   flake.modules.nixos.media = {
     key = "modules/media/config";
     imports = [

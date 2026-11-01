@@ -1,3 +1,5 @@
+> Carried out as part of the dendritic restructure (Tasks 16–17 of 2026-10-31-dendritic-restructure.md).
+
 # Split blackbird's and raider's configuration.nix
 
 ## Context

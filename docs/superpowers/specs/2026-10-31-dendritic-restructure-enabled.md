@@ -1,5 +1,7 @@
 Per-host enabled features at the start of the dendritic restructure, from `scripts/dendritic/enabled.nix`; drives which hosts import each feature.
 
+`Y` on, `.` off, `-` option absent, numbers are service counts.
+
 ```
 feature                   basest blackb cylon- galact octopi pegasu r2s    raider raspi3 router
 @blocky                   .      .      .      .      .      .      .      .      .      .

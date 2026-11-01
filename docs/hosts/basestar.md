@@ -100,16 +100,18 @@ The basestar server is the authentication hub for the entire infrastructure:
 
 ## Enabled Modules
 
+Features imported in `modules/hosts/basestar.nix` (`base`, which carries
+common settings, email, sops and users, is added to every host):
+
 ```nix
-constellation = {
-  common.enable = true;       # Base configuration
-  services.enable = true;     # Service registry
-  backup.enable = true;       # Automated backups
-  email.enable = true;        # Email notifications
-  podman.enable = true;       # Container runtime
-  netdata.enable = true;      # Monitoring
-  users.enable = true;        # User management
-};
+module.imports = [
+  features.backrest       # Backups via Backrest
+  features.media          # media.services, gateway
+  features.netdata-client # Monitoring
+  features.podman         # Container runtime
+  features.tsnsrv         # Tailscale service nodes
+  features.virtualization # KVM/libvirt
+];
 ```
 
 ## Cloud Provider Configuration

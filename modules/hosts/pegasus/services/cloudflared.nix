@@ -1,6 +1,6 @@
 # Cloudflare tunnel for pegasus's public domain (arsfeld.xyz).
 #
-# Mirrors galactica's tunnel (hosts/galactica/services/cloudflared.nix) but for
+# Mirrors galactica's tunnel (modules/hosts/galactica/services/cloudflared.nix) but for
 # arsfeld.xyz. The tunnel only needs outbound connectivity, so it survives NAT,
 # DHCP and the physical move.
 #

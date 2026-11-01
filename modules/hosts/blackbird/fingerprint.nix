@@ -12,7 +12,7 @@
     # driver patched to accept this sensor's firmware. fprintd takes libfprint
     # as an overridable argument, which keeps the fork scoped to this host
     # instead of overlaying libfprint globally -- the overlay in
-    # flake-modules/lib.nix would otherwise put all nine hosts on a libfprint
+    # modules/flake/lib.nix would otherwise put all nine hosts on a libfprint
     # that carries an out-of-tree driver none of them have hardware for.
     #
     # Security note (deliberate, accepted choice, reviewed 2026-09-05): NixOS

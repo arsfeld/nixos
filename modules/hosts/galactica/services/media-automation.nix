@@ -66,8 +66,8 @@
       # FlareSolverr — solves Cloudflare challenges for indexers. Internal only
       # (no gateway entry): an unauthenticated FlareSolverr is an abusable proxy
       # — /v1 fetches any URL through this host's IP — so it is not exposed
-      # publicly. Mirrors the same decision on pegasus (hosts/pegasus/services/
-      # media.nix).
+      # publicly. Mirrors the same decision on pegasus
+      # (modules/hosts/pegasus/services/media.nix).
       #
       # Every client reaches it internally, never through a vhost: mydia is
       # host-networked on http://localhost:8191 (media-apps.nix), and prowlarr's

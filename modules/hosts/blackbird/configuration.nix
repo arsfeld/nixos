@@ -19,8 +19,9 @@
     # Enable constellation modules
     constellation = {
       desktop = {
-        # Experimental. "gnome" is the way back: the GNOME settings below are
-        # inert under Pantheon and kept for that switch.
+        # Experimental. "gnome" is the way back: the GNOME settings below, and
+        # the gsettings overrides in power.nix, are inert under Pantheon and
+        # kept for that switch.
         variant = "pantheon";
         pantheon.dockStacks = [
           {

@@ -29,7 +29,7 @@
       blackbird.programs.dconf.profiles.user.databases);
 
   # blackbird runs Pantheon, where the GNOME settings asserted below are inert
-  # but kept for the switch back (hosts/blackbird/configuration.nix). They hold
+  # but kept for the switch back (modules/hosts/blackbird/configuration.nix). They hold
   # only while that variant is actually selected, and all of them fall with it:
   # the i2c module, ddcutil, the monitor-control extension and its dconf
   # database are set inside the module's `variant == "gnome"` branch.

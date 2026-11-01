@@ -11,7 +11,7 @@
 # script over and run it there, so no deploy is needed to change it.
 #
 # ONE SESSION PER ACCOUNT. The secondary eufy account is held by
-# eufy-sdk-bridge (hosts/galactica/services/eufy.nix), so `up` stops that
+# eufy-sdk-bridge (modules/hosts/galactica/services/eufy.nix), so `up` stops that
 # bridge and `down` restarts it. Home Assistant's eufy cameras, sensors and
 # doorbell events are all dead in between — always `down` when finished. The
 # permanent fix is a third eufy account shared into the home, which would let

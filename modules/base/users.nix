@@ -26,9 +26,6 @@
         lib,
         ...
       }: {
-        options.constellation.users = {
-        };
-
         config = {
           security.sudo = {
             enable = true;

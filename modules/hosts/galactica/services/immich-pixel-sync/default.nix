@@ -7,7 +7,7 @@
 #
 # The staging directory is the interface. This module knows nothing about
 # Syncthing — declare the folder wherever Syncthing is configured (on galactica
-# that is hosts/galactica/services/files.nix).
+# that is modules/hosts/galactica/services/files.nix).
 #
 # Nothing here ever writes into Immich's library. Everything staged is a reflink
 # copy — free on btrfs, but a separate inode, which matters: Immich's originals

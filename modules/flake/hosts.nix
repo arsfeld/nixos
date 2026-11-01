@@ -6,17 +6,6 @@
   ...
 }: let
   hosts = config.configurations.nixos;
-  features = config.flake.modules.nixos;
-
-  # Hosts still under hosts/<name>/, not yet moved to modules/hosts/<name>.nix.
-  # Their settings live here until each moves; then the entry is deleted.
-  legacy = {};
-
-  # Features each legacy host imports, by name in flake.modules.nixos. base is
-  # added to every host by mkLinuxSystem and is not listed.
-  legacyFeatures = {};
-
-  legacyHosts = lib.filterAttrs (name: _: builtins.pathExists ../../hosts/${name}/configuration.nix) legacy;
 in {
   options.configurations.nixos = lib.mkOption {
     description = "NixOS hosts. Each becomes nixosConfigurations.<name>.";
@@ -52,16 +41,6 @@ in {
   };
 
   config = {
-    configurations.nixos = lib.mapAttrs (name: meta:
-      meta
-      // {
-        module.imports =
-          lib.optional (builtins.pathExists ../../hosts/${name}/disko-config.nix) inputs.disko.nixosModules.disko
-          ++ map (f: features.${f}) (legacyFeatures.${name} or [])
-          ++ [../../hosts/${name}/configuration.nix];
-      })
-    legacyHosts;
-
     flake = {
       hosts = builtins.attrNames hosts;
 

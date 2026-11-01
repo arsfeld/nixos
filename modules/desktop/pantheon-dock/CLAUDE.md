@@ -116,5 +116,5 @@ So the order is: deploy, then re-login (or restart the deployed dock with the lo
 GTK 4.22 draws 399 of elementary-icon-theme's SVGs fully transparent, including
 `text-x-generic` and `application-pdf`. Those files spell the xlink namespace `nsN:`, and
 GTK's own SVG renderer matches only a literal `xlink:href`. librsvg renders them fine, so
-`rsvg-convert` is no test. `elementaryIconFix` in `modules/constellation/desktop.nix` ships
+`rsvg-convert` is no test. `elementaryIconFix` in `modules/desktop/desktop.nix` ships
 corrected copies. A "blank" icon anywhere in Pantheon is this before it is anything else.

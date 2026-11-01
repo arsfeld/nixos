@@ -1,6 +1,6 @@
 # eufy-sdk custom component for Home Assistant: the client half of the
 # eufy-sdk stack. It talks to the ha-eufy-sdk-bridge container
-# (hosts/galactica/services/eufy.nix), which holds the eufy login.
+# (modules/hosts/galactica/services/eufy.nix), which holds the eufy login.
 #
 # Bump version together with the bridge image tag there; the two are
 # released as a pair.

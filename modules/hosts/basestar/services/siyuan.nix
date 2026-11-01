@@ -119,7 +119,7 @@
         '';
       };
 
-      # siyuan-auth-code is managed via sops (declared in cloud/configuration.nix)
+      # siyuan-auth-code is managed via sops (declared in modules/hosts/basestar/configuration.nix)
     };
   };
 }

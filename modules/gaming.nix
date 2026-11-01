@@ -817,8 +817,8 @@
           # switching would mostly duplicate autopilot while costing a BPF
           # unload/reload stall at both game start and exit.
           #
-          # scx-loader landed in nixpkgs after 26.05, so it exists only for hosts in
-          # `unstableHosts`. Hosts on stable fall back to services.scx: same daemon,
+          # scx-loader landed in nixpkgs after 26.05, so it exists only for hosts with
+          # `nixpkgs = "unstable"`. Hosts on stable fall back to services.scx: same daemon,
           # same scheduler, minus the org.scx.Loader D-Bus interface. This lives as
           # its own lib.mkMerge branch (rather than merged into `services` above via
           # `// lib.optionalAttrs`) because gaming.nix's `services` value has several

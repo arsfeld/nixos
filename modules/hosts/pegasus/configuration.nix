@@ -1,4 +1,4 @@
-{...}: {
+{
   configurations.nixos.pegasus.module = {
     lib,
     pkgs,
@@ -105,7 +105,7 @@
     constellation.mediaSync.enable = false;
 
     # Media stack with pegasus's own public domain (arsfeld.xyz), served over a
-    # Cloudflare tunnel (hosts/pegasus/services/cloudflared.nix). This makes Plex,
+    # Cloudflare tunnel (modules/hosts/pegasus/services/cloudflared.nix). This makes Plex,
     # Stash and mydia reachable without Tailscale while galactica is offline.
     # galactica hosts Authelia/OIDC, so every service here sets bypassAuth and
     # relies on its own login (see services/media.nix).

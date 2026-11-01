@@ -12,7 +12,7 @@
 // secret. `just eufy::...` from raider copies this over and runs it there.
 //
 // eufy allows a single session per account, and the secondary account is held by
-// eufy-sdk-bridge (hosts/galactica/services/eufy.nix), so `up` stops that bridge
+// eufy-sdk-bridge (modules/hosts/galactica/services/eufy.nix), so `up` stops that bridge
 // and `down` restarts it. Home Assistant's eufy entities are dead in between —
 // keep the window short, or give this its own third account.
 //

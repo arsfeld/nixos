@@ -97,16 +97,22 @@ The storage server is the primary workhorse of the infrastructure, hosting most 
 
 ### Enabled Modules
 
+Features imported in `modules/hosts/galactica.nix` (`base`, which carries
+common settings, email, sops and users, is added to every host):
+
 ```nix
-constellation = {
-  common.enable = true;        # Base configuration
-  services.enable = true;      # Service registry
-  backup.enable = true;        # Automated backups
-  media.enable = true;         # Media services
-  podman.enable = true;        # Container runtime
-  netdata.enable = true;       # Monitoring
-  users.enable = true;         # User management
-};
+module.imports = [
+  inputs.disko.nixosModules.disko
+  features.backrest       # Backups via Backrest
+  features.backup-summary # Weekly backup summary
+  features.check-stock    # Stock checker
+  features.development    # Dev tools
+  features.forgejo-runner # Forgejo Actions runner
+  features.media          # media.services, gateway
+  features.podman         # Container runtime
+  features.tsnsrv         # Tailscale service nodes
+  features.virtualization # KVM/libvirt
+];
 ```
 
 ## Services Hosted
@@ -201,11 +207,11 @@ All services run in Podman containers with:
 
 ## Backup Configuration
 
-Storage runs `constellation.backrest` as a client, pushing five plans
+Storage runs the `backrest` feature as a client, pushing five plans
 (`nas`, `hetzner-system`, `hetzner`, `pegasus-system`, `pegasus`) to
 the local NAS disk, hetzner rclone repos, and pegasus's restic REST
 server. See `docs/architecture/backup.md` and
-`hosts/storage/backup/backrest-client.nix`.
+`modules/hosts/galactica/backup/backrest-client.nix`.
 
 Storage also runs `services.restic.server` on `:8000` (Tailscale,
 `--no-auth`) as the write target for basestar, pegasus, and raider.

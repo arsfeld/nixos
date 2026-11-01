@@ -25,7 +25,7 @@
 #      opencloud-env: |
 #        IDM_ADMIN_PASSWORD=your-secure-password
 #   2. The module will automatically use it when constellation.sops is enabled
-{self, ...}: {
+{
   configurations.nixos.galactica.module = {
     config,
     lib,

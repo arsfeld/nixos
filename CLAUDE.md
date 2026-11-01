@@ -56,7 +56,7 @@ Two consequences of that flag are easy to hit and hard to diagnose from the erro
 - **raider is the deploy driver.** The flag lives in `_apply`, so it binds all six recipes
   (`deploy`, `boot`, `test`, `dry-run`, `deploy-all`, `reboot`), and phase 1 needs a push
   token. `NIKS3_AUTH_TOKEN_FILE` is set only on raider
-  (`hosts/raider/configuration.nix`). Run any of these from another machine and phase 1
+  (`modules/hosts/raider/niks3.nix`). Run any of these from another machine and phase 1
   aborts *after* the full build with `auth token is required …`, which names niks3 and not
   the deploy driver. Note this includes `just dry-run`, so the read-only inspection recipe
   now depends on the write path being reachable. To deploy from elsewhere, either export
@@ -156,7 +156,7 @@ and the R2 buckets `attic`, `attic-data` and
 A `dig` that answers is therefore not evidence attic survived — count records in the
 zone instead.
 
-It answers **410** because `hosts/basestar/services/attic-tombstone.nix` makes it. That
+It answers **410** because `modules/hosts/basestar/services/attic-tombstone.nix` makes it. That
 vhost used to be the only thing standing between a stale host and a bad failure: without
 it the name fell through to Caddy's default, HTTP 200 with a zero-byte body for every
 path, and Nix parses an empty `nix-cache-info` fine — so it initialises the substituter,
@@ -197,8 +197,8 @@ supersedes it.
 backend to `media.containers` on 2026-02-14; `0f23f9d` deleted it 23 days later, and the
 coupling was the reason. `media.services.<name>` remains the only way to declare a service;
 putting something in the cluster is a separate act with its own lane. Do not build a bridge
-between them again. The module is `hosts/basestar/k3s.nix`, configured from
-`hosts/basestar/configuration.nix` under `constellation.k3s`.
+between them again. The module is `modules/hosts/basestar/k3s.nix`, configured from
+`modules/hosts/basestar/configuration.nix` under `constellation.k3s`.
 
 Caddy keeps `:80` and `:443`. traefik is the in-cluster ingress controller, reached at a
 **pinned ClusterIP** — `constellation.k3s.ingressAddress`, `10.43.0.80` — which one Caddy
@@ -256,11 +256,11 @@ default and `bypassAuth = true` is the exception. Auth is each app's own problem
 traefik middleware. Decide it before writing the Ingress, not after.
 
 Two lanes write to the same cluster, and it does not care which one an object arrived
-through. **Lane A** is `hosts/basestar/k8s/`: plain Nix attrsets (with a `mkApp` helper for
+through. **Lane A** is `modules/hosts/basestar/k8s/`: plain Nix attrsets (with a `mkApp` helper for
 the Namespace/Deployment/Service/Ingress quartet) feeding `services.k3s.manifests`, applied
 at activation — the home for the platform layer and for apps that have settled. It sits
-under `hosts/` and not `modules/` on purpose, because `modules/` is haumea-loaded for every
-host in the fleet and these manifests belong to one. **Lane B** is `just k8s::apply <path>`
+in basestar's own directory and not in a shared feature on purpose, because these
+manifests belong to one host in the fleet. **Lane B** is `just k8s::apply <path>`
 from raider, with `just k8s::k` as a kubectl passthrough and `just k8s::kubeconfig` to fetch
 credentials; it applies `--server-side --validate=strict`, which is what makes untyped
 attrsets safe — the API server rejects a typo'd field instead of ignoring it. Iterate in
@@ -351,7 +351,7 @@ nix develop -c sops --decrypt secrets/sops/basestar.yaml  # View decrypted
 nix develop -c sops updatekeys secrets/sops/<file>.yaml  # Re-encrypt after key changes
 ```
 
-Configured via `.sops.yaml`. All hosts use `constellation.sops.enable = true`. Use standard `sops.secrets` options. Common/shared secrets: `config.constellation.sops.commonSopsFile`.
+Configured via `.sops.yaml`. sops-nix is part of the `base` feature, so every host has it. Use standard `sops.secrets` options. Common/shared secrets: `config.constellation.sops.commonSopsFile`.
 
 ### Infrastructure (OpenTofu via terranix)
 
@@ -494,11 +494,11 @@ Things worth knowing before touching it:
 
 ### Host Tiers
 
-Hosts are grouped into deployment tiers, defined in `flake-modules/hosts.nix` as the `tiers` attribute (also exposed as the `tiers` flake output):
+Hosts are grouped into deployment tiers by the `tier` key of each host's declaration, `modules/hosts/<name>.nix`; `modules/flake/hosts.nix` collects them into the `tiers` flake output:
 
 - **tier1** - `galactica`, `basestar`, `raider`. Always on, should always be deployed. Deploy the whole tier with `just deploy @tier1`.
 
-To add or change a tier, edit `tiers` in `flake-modules/hosts.nix`; the `@tier` selectors in the justfile and the README table follow from it. The CI build matrix (`.github/workflows/build.yml`) is derived from the `ciMatrix` flake output (all discovered hosts except `ciExcludedHosts`, with auto-detected platform) — it is not tier-gated.
+To add or change a tier, set `tier` in the host's `modules/hosts/<name>.nix`; the `@tier` selectors in the justfile and the README table follow from it. The CI build matrix (`.github/workflows/build.yml`) is derived from the `ciMatrix` flake output (every host except those declared with `ci = false`, with auto-detected platform) — it is not tier-gated.
 
 For hardware specs (CPU, RAM, disks), see [HARDWARE.md](HARDWARE.md).
 
@@ -509,11 +509,14 @@ A 2015 Steam Link running NixOS: one Cortex-A9 core, 512 MB of RAM, a
 
 **It is cross-compiled on raider and never built by CI.** `nixpkgs.buildPlatform`
 is x86_64, so every derivation is an x86_64 job: `just deploy cylon-link` works
-unchanged, and `ciExcludedHosts` in `flake-modules/hosts.nix` keeps it out of
+unchanged, and `ci = false` in `modules/hosts/cylon-link.nix` keeps it out of
 `ciMatrix`. nixpkgs caches nothing for armv7l, so a nixpkgs bump rebuilds its
 closure on raider; the kernel alone took 21 minutes there. A native build on
 basestar is possible but was abandoned after 86 minutes without finishing the
-toolchain. The device itself has `max-jobs = 0`.
+toolchain. The device itself has `max-jobs = 0`. Evaluating its toplevel builds that
+cross toolchain (import-from-derivation), so even `nix eval` on it is a long build, and
+`nix flake check`, which evaluates every host plus the `cylon-link-config` check, should
+not be run locally; CI's `checks.yml` runs it.
 
 **Its kernel is `multi_v7_defconfig` plus an explicit list, and nothing else
 exists.** `autoModules = false` keeps the build short, so an option the
@@ -523,7 +526,7 @@ rounds during bring-up. The Berlin reset controller (`reset-berlin`) is a
 module the USB PHY defers on, and the initrd did not carry it, so the stick
 never appeared and the first boot hung silently before mounting root. And the
 defconfig has no netfilter and no TUN at all, so neither tailscaled nor the
-nftables firewall could start. Both are now in `hosts/cylon-link/hardware.nix`.
+nftables firewall could start. Both are now in `modules/hosts/cylon-link/hardware.nix`.
 Anything new in the fleet that needs kernel support (a netfilter expression, a
 tunnel type) has to be added to that `structuredExtraConfig` list too. One known
 gap: without `NF_CONNTRACK_MARK`, tailscaled shows a health warning about
@@ -589,57 +592,78 @@ the old one in the admin console.
 
 ### Flake Structure
 
-The flake uses **flake-parts** to organize outputs into modules under `flake-modules/`:
-- **`lib.nix`** - Core utilities: `mkLinuxSystem`, overlays, `baseModules`, `homeManagerModules`. Uses **haumea** to auto-load every file under `modules/`, and `lib.packagesFromDirectoryRecursive` to load `packages/<name>/package.nix` (the nixpkgs by-name layout; other files in a package directory are ignored).
-- **`hosts.nix`** - Auto-discovers hosts by scanning `hosts/` for directories with `configuration.nix`. Automatically includes `disko-config.nix` if present.
+`flake.nix` hands `modules/` to **import-tree**, and the flake is assembled with
+**flake-parts** from what it loads. The flake plumbing lives in `modules/flake/`:
+- **`lib.nix`** - Core utilities: `mkLinuxSystem`, overlays, `baseModules`, `homeManagerModules`. Loads `packages/<name>/package.nix` with `lib.packagesFromDirectoryRecursive` (the nixpkgs by-name layout; other files in a package directory are ignored).
+- **`hosts.nix`** - Declares the `configurations.nixos` option and turns each entry into `nixosConfigurations.<name>`; also emits `hosts`, `tiers`, `ciMatrix` and the `unstableHosts`/`lightHosts`/`ciExcludedHosts` lists.
 - **`deploy.nix`** - `deployTargets`: each host's system closure, the attribute `just deploy` builds
-- **`dev.nix`** - Development shell, formatter, git hooks, custom packages
-- **`checks.nix`** - Flake checks (router NixOS test)
-- **`images.nix`** - System image generators (SD cards, kexec)
+- **`checks.nix`** - Flake checks (NixOS VM tests, the media guards, the heating policy, cylon-link's boot script and config)
+- **`dev.nix`** - Development shells, formatter, git hooks, custom packages
+- **`images.nix`** - System image generators (SD cards, kexec, installer ISO)
+- **`infra.nix`** - `infra-config` (terranix) and the pinned `tofu`
+- **`systems.nix`** - Supported systems; imports flake-parts' `flake.modules` option
+- **`nixos-modules.nix`** - Exports the features as `nixosModules`, for discovery only
+
+A host is `configurations.nixos.<name>`, with five keys: `module` (its NixOS
+configuration), `nixpkgs` (`"stable"` or `"unstable"`, which also picks the matching
+home-manager), `homeManager` (whether it gets home-manager and `home/home.nix`), `tier`
+(for `just deploy @<tier>`) and `ci` (membership of `ciMatrix`).
 
 ### Module Auto-Discovery
 
-All `.nix` files under `modules/` are loaded automatically by haumea into every host — no
-explicit imports needed. That makes `modules/` the place for code **more than one host
-uses**, switched on per host with `constellation.<module>.enable = true`.
+Every `.nix` file under `modules/` is a flake-parts module, loaded by import-tree, except
+paths containing `/_` (helpers, tests, raw data, a whole `_dir/`). Code **more than one
+host uses** is a feature, `flake.modules.nixos.<feature>`, and a host turns it on by
+importing it in its declaration (`module.imports = [features.podman …]`, with
+`features = config.flake.modules.nixos` bound from the flake-parts `config`). Several
+files may contribute to one feature (`media`, `base`); each contribution carries a `key`,
+`"modules/<path without .nix>"`, so the module system de-duplicates it. `base` is added
+to every host by `mkLinuxSystem` and is never listed.
 
-**Code only one host uses lives in `hosts/<host>/`, and importing it is what turns it on** —
-no `enable` flag unless the host genuinely toggles it (pegasus's `media-sync` and
-galactica's `vpn-exit-nodes` do; both are configured with `enable = false`). Options that
-carry values keep their `constellation.*` names even when the module is host-local
-(`constellation.k3s.domains`, `constellation.pia.consumers`, …). A shared module must never
-read a host-local option: it would fail to evaluate on every other host. When a module
-gains its second user, move it to `modules/constellation/` and give it an `enable` flag.
+**Code only one host uses lives with that host, in `modules/hosts/<host>/`, and being
+there is what turns it on** — each file is a flake-parts module defining
+`configurations.nixos.<host>.module`, so adding a file is enough and there is no `imports`
+list to edit. The host's declaration (tier, nixpkgs, features) is `modules/hosts/<host>.nix`
+beside that directory. No `enable` flag unless the host genuinely toggles it (pegasus's
+`media-sync` and galactica's `vpn-exit-nodes` do; both are configured with `enable =
+false`). Options that carry values keep their `constellation.*` names even when the module
+is host-local (`constellation.k3s.domains`, `constellation.pia.consumers`, …). A shared
+module must never read a host-local option: it would fail to evaluate on every other host.
+When a module gains its second user, move it out of the host's directory into
+`modules/<feature>.nix` as `flake.modules.nixos.<feature>`, and import it from both hosts.
 
 ### Packages from nixpkgs-unstable
 
-Take them from `pkgs.unstable` — an overlay in `flake-modules/lib.nix` that
+Take them from `pkgs.unstable` — an overlay in `modules/flake/lib.nix` that
 instantiates nixpkgs-unstable once per package set, inheriting the host's
 nixpkgs config. Never `import inputs.nixpkgs*` inside a module, host file or
 Home Manager config: each such import is another full nixpkgs evaluation per
 host, carries its own idea of `allowUnfree`, and never sees our overlays.
 
-### Constellation Modules (`modules/constellation/`)
+### Features (`flake.modules.nixos.*`)
 
-Opt-in feature modules that hosts compose. Key modules:
+Opt-in modules that hosts compose by importing them; `nix eval --json .#nixosModules
+--apply builtins.attrNames` lists them.
 
-| Module | Purpose |
-|--------|---------|
-| `common.nix` | Base config: Nix flakes, caches, SSH, Tailscale, Avahi (on by default) |
-| `users.nix` | User accounts, SSH keys, sudo |
-| `sops.nix` | sops-nix infrastructure (age keys, default paths) |
-| `podman.nix` | Container runtime |
-| `backrest.nix` | restic backups via Backrest |
-| `backup-notify.nix` / `backup-status.nix` | Backup notification and status helpers, enabled by `backrest` and galactica's `rustic` |
-| `email.nix` | Outgoing mail settings, read by `systemd-email-notify` |
-| `netdata-client.nix` | Netdata agent |
-| `forgejo-runner.nix` | Forgejo Actions runner |
-| `virtualization.nix` | KVM/libvirt |
-| `development.nix` | Dev tools (Docker, Node, Python, Go, Rust, …) |
-| `desktop.nix` | Desktop environment (`variant` selects GNOME etc.) |
-| `gaming.nix` | Gaming environment |
+| Feature | Files | Purpose |
+|---------|-------|---------|
+| `base` | `modules/base/` | On every host: Nix flakes, caches, SSH, Tailscale, Avahi (`common.nix`); users, SSH keys, sudo (`users.nix`); sops-nix (`sops.nix`); outgoing mail (`email.nix`, read by `systemd-email-notify.nix`); cloudflared, caddy-security |
+| `media` | `modules/media/` | `media.services`, its lowering targets, the gateway and `media.config` |
+| `podman` | `modules/podman.nix` | Container runtime |
+| `tsnsrv` | `modules/tsnsrv.nix` | Tailscale service nodes |
+| `backrest` | `modules/backup/backrest.nix` | restic backups via Backrest; imports `backup-notify` and `backup-status` |
+| `backup-notify` / `backup-status` | `modules/backup/` | Backup notification and status helpers, imported by `backrest` and used by galactica's `rustic` |
+| `backup-summary` | `modules/backup/backup-summary.nix` | Weekly fleet backup summary |
+| `netdata-client` | `modules/netdata-client.nix` | Netdata agent |
+| `forgejo-runner` | `modules/forgejo-runner.nix` | Forgejo Actions runner |
+| `virtualization` | `modules/virtualization.nix` | KVM/libvirt |
+| `development` | `modules/development.nix` | Dev tools (Docker, Node, Python, Go, Rust, …) |
+| `desktop` | `modules/desktop/desktop.nix` | Desktop environment (`variant` selects GNOME etc.); imports `pantheon-dock` and `pantheon-gamemode` |
+| `gaming` | `modules/gaming.nix` | Gaming environment |
+| `check-stock` | `modules/check-stock.nix` | Stock availability monitor |
+| `blocky` | `modules/blocky.nix` | Blocky DNS (no host imports it) |
 
-Host-local modules (see the rule above): galactica —
+Host-local modules (see the rule above), under `modules/hosts/`: galactica —
 `backup/rustic.nix`, and under `services/` `pia`, `opencloud`, `home-assistant`,
 `tablet-sync`, `vpn-exit-nodes`, `immich-pixel-sync/`, `stash-identify/`, `media-apps`, `media-automation`,
 `media-streaming`, `home-apps`, `network-tools`; basestar — `k3s.nix`, `sites/`;
@@ -719,14 +743,15 @@ Caddy reverse proxy consuming service definitions. Generates TLS configs, error 
 `basestar` (aarch64-linux) serves as remote builder. When in `nix develop`, aarch64 packages build on basestar automatically via `nix-builders.conf`.
 
 ### Directory Structure
-- `hosts/` - Per-machine configs (auto-discovered by `flake-modules/hosts.nix`)
-- `modules/` - Shared NixOS modules (auto-loaded into every host by haumea); host-only modules live under `hosts/<host>/`
-  - `constellation/` - Opt-in feature modules
-  - `media/` - Media stack (config, gateway, components)
+- `modules/` - Every file a flake-parts module, loaded by import-tree (paths with `/_` excepted)
+  - `flake/` - Flake plumbing (lib, hosts, deploy, checks, dev, images, infra, systems, nixos-modules)
+  - `hosts/` - Per-machine configs: `<host>.nix` declares the host, `<host>/` holds its configuration
+  - `base/` - The feature every host gets
+  - `media/` - Media stack (config, gateway, containers, services)
+  - `backup/`, `desktop/`, `*.nix` - The other features
 - `packages/` - Custom Nix derivations, one `<name>/package.nix` each (auto-loaded)
 - `home/` - Home Manager config (`home.nix` for user `arosenfeld`)
 - `secrets/` - Encrypted secrets (`sops/*.yaml` managed by sops-nix)
-- `flake-modules/` - Flake-parts modules
 - `just/` - Justfile submodules (blog, secrets, docs, k8s)
 
 ## Host & Container Conventions
@@ -747,12 +772,12 @@ Always declare services with `media.services.<name>` (see "Service and Network A
 
 ### `*.arsfeld.one` services (on galactica)
 
-1. Create a service file in `hosts/galactica/services/` and add it to `default.nix` imports.
+1. Create a service file in `modules/hosts/galactica/services/`, defining `configurations.nixos.galactica.module`. There is no `imports` list to edit: import-tree loads it.
 2. Define the service with `media.services.<name>`.
 3. Galactica's wildcard cloudflared tunnel routes traffic automatically; the gateway entry is created by `media.services`.
 
 ### `*.arsfeld.dev` services (on basestar)
-1. Create a service file in `hosts/basestar/services/` and add it to `default.nix` imports.
+1. Create a service file in `modules/hosts/basestar/services/` the same way.
 2. Use `media.services.<name>` the same way; basestar uses dedicated Caddy vhosts for `arsfeld.dev` subdomains.
 
 basestar has a second option the other hosts do not: an Ingress in its k3s cluster, which
