@@ -21,7 +21,6 @@
       ci = false;
     };
     galactica = {tier = "tier1";};
-    octopi = {homeManager = false;};
     pegasus = {};
     r2s = {homeManager = false;};
     raider = {
@@ -38,7 +37,6 @@
     basestar = ["backrest" "media" "netdata-client" "podman" "tsnsrv" "virtualization"];
     blackbird = ["desktop" "development" "gaming" "netdata-client" "virtualization"];
     galactica = ["backrest" "backup-summary" "check-stock" "development" "forgejo-runner" "media" "podman" "tsnsrv" "virtualization"];
-    octopi = ["netdata-client" "tsnsrv" "virtualization"];
     pegasus = ["backrest" "media" "netdata-client" "podman" "tsnsrv" "virtualization"];
     r2s = ["netdata-client" "virtualization"];
     raider = ["backrest" "desktop" "development" "gaming" "media" "netdata-client" "tsnsrv" "virtualization"];
