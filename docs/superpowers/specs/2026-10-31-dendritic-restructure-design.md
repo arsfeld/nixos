@@ -97,7 +97,35 @@ off (`mediaSync` and `vpn-exit-nodes` today).
 Options that carry values keep their `constellation.*` names.
 
 A feature that reads another feature's options imports that feature itself,
-rather than relying on the host to import both.
+rather than relying on the host to import both (`podman` imports `media`,
+whose `media.containers` it reads; `backrest` imports `backup-notify` and
+`backup-status`, which it used to switch on with `mkDefault true`).
+
+Every feature module carries a `key` (`"modules/<path without .nix>"`), as
+`{key = ...; imports = [<module>];}`. flake-parts' `modules` wrapper sets none,
+and without one a feature imported from two places declares its options twice
+and fails to evaluate. One feature may be defined across several files (`base`
+is); each file's key is its own path, so none is mistaken for a duplicate.
+
+`base` is not listed by each host: the host option machinery adds it to every
+host, in the position haumea's module list holds today.
+
+Two kinds of module keep a gate of their own, because the gate is not a
+`constellation.<x>.enable` switch:
+
+- nixpkgs-style service modules (`blocky`, `services.check-stock`,
+  `services.tsnsrv`) keep their `enable`, as nixpkgs' own modules do. A host
+  imports the module and enables the service. `media.services` sets
+  `services.tsnsrv.enable` itself, so `media` imports `tsnsrv`.
+- modules conditioned on another module's state keep that condition:
+  `caddy-security` (on caddy), `cloudflared.nix` (an extension of nixpkgs'
+  `services.cloudflared`), `pantheon-dock` and `pantheon-gamemode` (on
+  Pantheon, imported by `desktop`).
+
+Two conditional enables cannot be expressed as imports and are deleted:
+galactica's disabled `vpn-exit-nodes` sets `podman.enable`, and raider's
+`project-vms` sets `virtualization.enable`. Both hosts already have both
+features on.
 
 Feature files take `inputs` and `self` from the enclosing flake-parts
 arguments, and the NixOS module inside closes over them. `specialArgs` is
@@ -119,7 +147,25 @@ All 41 files with a module-scope or attrset-scope `with lib;` get explicit
 (none use `inherit (lib) ...`). This includes `meta = with lib; {...}` in
 `packages/`. Narrow scoped forms such as `structuredExtraConfig = with
 lib.kernel; {...}` in `hosts/cylon-link/hardware.nix` stay, because that is
-the nixpkgs idiom for kernel configuration.
+the nixpkgs idiom for kernel configuration. `hosts/router/xdp-firewall.nix` is
+excluded: it has not parsed for some time and nothing imports it. The router
+step hides it with a `_` prefix like every other dead file.
+
+### Dead and helper files in host directories
+
+import-tree loads every `.nix` file, so a host directory may hold only modules.
+`scripts/dendritic/dendritic.py reach` walks each host's imports from
+`configuration.nix` and lists everything else: helpers called with arguments
+(`k8s/lib.nix`, r2s's `networking.nix`, the heating `templates.nix` and
+`zones.nix`, cylon-link's `boot/package.nix`), tests (cylon-link's
+`config-test.nix` and `boot/test.nix`), and files nothing imports (galactica's
+`metrics.nix` and `timemachine.nix`, raider's `appimage.nix`, and five of
+router's, `xdp-firewall.nix` among them). Each gets a `_` prefix, which keeps
+it as it is. Deleting the dead ones is a separate decision.
+
+`tests/router-test.nix` imports three router files as NixOS modules. After
+the move it takes each one's `configurations.nixos.router.module` instead.
+`tests/router-ipv6-test.nix` is not wired into any check and is left alone.
 
 ## Migration stages
 
@@ -136,23 +182,26 @@ update routine can deploy any commit along the way.
    the `configurations.nixos` option. Until stage 5, the old `hosts/` discovery
    and lists feed into that option.
 3. **Snapshot what each host has enabled.** Evaluate every host, one at a time,
-   for each `constellation.*.enable` and the media stack's equivalents,
-   including those that are on by default (`common`, `email`,
-   `netdata-client`, `development`, ...). Save the table under
-   `docs/superpowers/specs/` next to this spec. Use it, not a grep of host
-   files, to decide which hosts import each feature.
+   with `scripts/dendritic/enabled.nix`: each `constellation.*.enable`
+   including defaults (`common`, `email`, `netdata-client`, ...), the service
+   modules' own `enable`, and the media stack's service counts. Save the table
+   as `2026-10-31-dendritic-restructure-enabled.md` next to this spec. Use it,
+   not a grep of host files, to decide which hosts import each feature.
 4. **Move features one at a time** from `_legacy/` into `modules/<feature>`,
    dropping their `enable` and adding imports to exactly the hosts the table
-   lists. `common`, `users`, `sops`, `security` and `email` merge into `base`,
-   which every host imports. `media/` (`config`, `services`, `containers`,
-   `gateway`) moves as one unit because its parts reference each other.
+   lists. Until a host moves in stage 5, its feature list sits next to its
+   other legacy metadata in `modules/flake/hosts.nix`. `common`, `users`,
+   `sops`, `email`, `systemd-email-notify`, the security grafts,
+   `caddy-security` and `cloudflared.nix` merge into `base`. `media/`
+   (`config`, `services`, `containers`, `gateway`) moves as one unit because
+   its parts reference each other. Once `_legacy/` is empty, haumea goes.
 5. **Move hosts one at a time** to `modules/hosts/<name>.nix` and
    `modules/hosts/<name>/`, carrying their metadata onto
    `configurations.nixos.<name>`. Disko is imported by the host itself instead
    of being detected from `disko-config.nix`. blackbird and raider are split
    into concern files as they move, following the split spec.
-6. **Clean up.** Delete `_legacy/`, the haumea input, `specialArgs`, the old
-   host lists and `hosts/`. Add the `nixosModules` export. Repoint the
+6. **Clean up.** Delete `specialArgs`, the legacy host lists and `hosts/`,
+   and `scripts/dendritic/`. Add the `nixosModules` export. Repoint the
    paths that are hard-coded (`tests/router-test.nix`,
    the pantheon-gamemode package reference, any others a `grep` for
    `hosts/` or `modules/` turns up). Rewrite the
@@ -162,18 +211,34 @@ update routine can deploy any commit along the way.
 
 ## Verification
 
-No closure changes at any stage. Before stage 1, record a baseline:
+No closure changes at any stage. Every host's toplevel depends on the flake
+source, through sops file paths and the flake registry (which also carries the
+source's `narHash`, `rev` and `lastModified`), so every commit changes every
+`drvPath` and a raw `nix-diff` is mostly noise. Verification uses
+`scripts/dendritic/`, tested on octopi while planning:
 
-- For each of the ten hosts, **one at a time** under `nice` (evaluating several
-  in parallel ran raider out of memory before), the toplevel `.drv`.
-- A JSON snapshot of `hosts`, `tiers`, `unstableHosts`, `lightHosts` (sorted),
-  `ciExcludedHosts`, `ciMatrix` and the attribute names of `deployTargets`.
+- `fingerprint.py` rehashes a toplevel's derivation graph bottom-up with the
+  self source path, every output path and the registry's `self` entry
+  normalized away. A comment-only edit gives the same fingerprint; an added
+  `environment.etc` entry does not.
+- `--loose` also sorts the tokens of every string, so a pure reordering hashes
+  the same. Module order does change in stages 4 and 5: import-tree loads
+  files in path order, not in the order of the old `imports` lists. That
+  reaches derivations through order-sensitive lists such as `kernelParams`
+  (`systemPackages` is sorted, so it does not). A loose-only match is accepted
+  only after `fingerprint.py explain` shows nothing but reordering of
+  entries whose order has no meaning.
+- `verify.sh baseline` records, before stage 1 and **one host at a time** under
+  `nice` (evaluating several in parallel ran raider out of memory before),
+  each host's graph and fingerprints, plus a snapshot of `hosts`, `tiers`,
+  `unstableHosts`, `lightHosts` (sorted), `ciExcludedHosts`, `ciMatrix` and
+  the attribute names of `deployTargets`.
 
 After each commit's edits:
 
-1. `nix-diff` each host's toplevel against the baseline, sequentially. The only
-   difference allowed is the flake source path, which is in every closure.
-   Any other difference is explained and resolved before committing.
+1. `verify.sh check` reports `MATCH` for every host, or `LOOSE-ONLY` with an
+   `explain` output that has been read and is pure reordering. A `DIFF` is
+   explained and resolved before committing.
 2. The output snapshot matches byte for byte.
 3. `nix flake check` passes and `just fmt` leaves no diff.
 4. After stage 6: no module-scope `with lib;`, and no `haumea`, `specialArgs`,
