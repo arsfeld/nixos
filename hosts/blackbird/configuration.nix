@@ -80,7 +80,6 @@ in {
 
   # Enable constellation modules
   constellation = {
-    sops.enable = true;
     desktop = {
       enable = true;
       # Experimental. "gnome" is the way back: the GNOME settings below are

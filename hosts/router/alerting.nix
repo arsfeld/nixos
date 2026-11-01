@@ -18,7 +18,7 @@ in {
     emailConfig = {
       enable = lib.mkOption {
         type = lib.types.bool;
-        default = config.constellation.email.enable;
+        default = true;
         description = "Enable email notifications (uses constellation email config)";
       };
     };

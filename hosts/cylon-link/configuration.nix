@@ -14,7 +14,6 @@
   networking.hostName = "cylon-link";
 
   constellation.common.minimal = true;
-  constellation.sops.enable = true;
   # Too heavy for 500 MB of RAM and a cross build.
   constellation.virtualization.enable = false;
   constellation.netdataClient.enable = false;

@@ -46,7 +46,6 @@
   };
 
   # Enable sops-nix for secrets management
-  constellation.sops.enable = true;
 
   # Tailscale VPN exit nodes via AirVPN
   sops.secrets.airvpn-env = {};

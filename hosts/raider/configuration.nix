@@ -23,7 +23,6 @@
   ];
 
   # Enable sops-nix for secrets management
-  constellation.sops.enable = true;
 
   # Stash secrets
   sops.secrets."stash-jwt-secret" = {

@@ -173,7 +173,6 @@
   media.gateway.authPort = 443;
 
   # Enable sops-nix secret management
-  constellation.sops.enable = true;
 
   # Define secrets using standard sops-nix options
   sops.secrets = {

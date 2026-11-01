@@ -22,7 +22,7 @@
         Enable virtualization support including libvirt and QEMU.
         This adds significant disk usage and is not needed on all systems.
       '';
-      default = config.constellation.common.enable;
+      default = true;
     };
   };
 

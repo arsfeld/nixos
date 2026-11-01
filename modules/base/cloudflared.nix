@@ -15,21 +15,28 @@
 # Restart = "on-failure" (set upstream) is left intact; combined with the
 # disabled start-limit it means the tunnel reconnects on its own.
 {
-  config,
-  lib,
-  ...
-}: let
-  cfg = config.services.cloudflared;
-in {
-  config = lib.mkIf cfg.enable {
-    systemd.services =
-      lib.mapAttrs'
-      (name: _:
-        lib.nameValuePair "cloudflared-tunnel-${name}" {
-          after = ["tailscaled.service"];
-          unitConfig.StartLimitIntervalSec = 0;
-          serviceConfig.RestartSec = "10s";
-        })
-      cfg.tunnels;
+  flake.modules.nixos.base = {
+    key = "modules/base/cloudflared";
+    imports = [
+      ({
+        config,
+        lib,
+        ...
+      }: let
+        cfg = config.services.cloudflared;
+      in {
+        config = lib.mkIf cfg.enable {
+          systemd.services =
+            lib.mapAttrs'
+            (name: _:
+              lib.nameValuePair "cloudflared-tunnel-${name}" {
+                after = ["tailscaled.service"];
+                unitConfig.StartLimitIntervalSec = 0;
+                serviceConfig.RestartSec = "10s";
+              })
+            cfg.tunnels;
+        };
+      })
+    ];
   };
 }

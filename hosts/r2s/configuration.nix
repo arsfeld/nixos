@@ -25,8 +25,6 @@
     inputs.eh5.overlays.default
   ];
 
-  constellation.sops.enable = true;
-
   networking.hostName = "r2s";
   networking.useNetworkd = true;
   networking.useDHCP = false;

@@ -11,8 +11,6 @@
 
   nixpkgs.hostPlatform = "aarch64-linux";
 
-  constellation.sops.enable = true;
-
   networking.hostName = "raspi3";
   time.timeZone = "America/Toronto";
 

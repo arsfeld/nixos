@@ -87,7 +87,7 @@ in {
 
     # OpenCloud secrets via sops-nix
     # The secret should be in env file format: KEY=value
-    sops.secrets.opencloud-env = lib.mkIf (config.constellation.sops.enable && cfg.environmentFile == null) {
+    sops.secrets.opencloud-env = lib.mkIf (cfg.environmentFile == null) {
       mode = "0400";
       owner = "opencloud";
     };
@@ -113,9 +113,7 @@ in {
       environmentFile =
         if cfg.environmentFile != null
         then cfg.environmentFile
-        else if config.constellation.sops.enable
-        then config.sops.secrets.opencloud-env.path
-        else null;
+        else config.sops.secrets.opencloud-env.path;
 
       # OpenCloud configuration via settings
       # These are written as YAML files in /etc/opencloud/

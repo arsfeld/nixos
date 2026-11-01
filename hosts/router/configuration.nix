@@ -20,8 +20,6 @@
     ../../packages/router_ui/module.nix
   ];
 
-  constellation.sops.enable = true;
-
   # Boot configuration
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
@@ -106,7 +104,6 @@
 
   # Email configuration using constellation module
   constellation.email = {
-    enable = true;
     fromEmail = "router-alerts@rosenfeld.one";
     toEmail = "alex@rosenfeld.one"; # Change to your email
   };

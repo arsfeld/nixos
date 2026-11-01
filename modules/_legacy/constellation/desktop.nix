@@ -183,7 +183,7 @@ in {
         ++ lib.optionals cfg.multimedia [
           celluloid
           plex-mpv-shim
-          pkgs.unstable.multiviewer-for-f1
+          multiviewer-for-f1
           gst_all_1.gstreamer
           gst_all_1.gst-plugins-base
           gst_all_1.gst-plugins-good

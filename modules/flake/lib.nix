@@ -1,4 +1,5 @@
 {
+  config,
   self,
   inputs,
   ...
@@ -47,6 +48,8 @@
       {
         nixpkgs.overlays = overlays;
       }
+      # Features every host has; see modules/base/.
+      config.flake.modules.nixos.base
       # Load all modules from the modules directory
       (
         let

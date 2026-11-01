@@ -16,9 +16,6 @@
 
   # Enable all constellation modules
   constellation = {
-    sops.enable = true;
-    common.enable = true;
-    email.enable = true;
     podman.enable = true;
     virtualization.enable = true;
   };

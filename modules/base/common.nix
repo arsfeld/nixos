@@ -1,0 +1,312 @@
+# Constellation common configuration module
+#
+# This module provides baseline configuration shared across all Constellation hosts.
+# It establishes fundamental system settings, tools, and services that form the
+# foundation of a functional NixOS system.
+#
+# Key features:
+# - Nix flakes and experimental features configuration
+# - Binary cache setup (nixos-community, numtide, cache.arsfeld.dev, etc.)
+# - Essential system packages and utilities
+# - Network discovery via Avahi/mDNS
+# - SSH and Tailscale for remote access
+# - Automatic garbage collection
+# - Common firewall and security settings
+# - Hardware support and firmware
+#
+# This module is typically enabled on all hosts to ensure consistent base
+# functionality across the infrastructure.
+{inputs, ...}: {
+  flake.modules.nixos.base = {
+    key = "modules/base/common";
+    imports = [
+      ({
+        config,
+        options,
+        pkgs,
+        lib,
+        ...
+      }: {
+        options.constellation.common = {
+          minimal = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+            description = ''
+              Keep the baseline small, for hosts with little RAM or no binary cache
+              (cylon-link is cross-compiled for armv7l). Replaces the large tool
+              list with a few basics and skips nix-ld. Caches, SSH, Tailscale, GC
+              and the rest of the baseline are unchanged.
+            '';
+          };
+        };
+
+        config = {
+          nix = {
+            settings = {
+              # Deduplicate and optimize nix store
+              auto-optimise-store = true;
+
+              # Enable substitutes for remote builders
+              builders-use-substitutes = true;
+
+              # Increase download buffer size to prevent "download buffer is full" warnings
+              # Default is 64 MiB, increasing to 256 MiB
+              download-buffer-size = 268435456; # 256 * 1024 * 1024
+              substituters = lib.mkAfter [
+                # The read path is the R2 bucket itself behind a custom domain, not a
+                # server. Nothing we run has to be up for a substitution to succeed,
+                # which is the entire reason niks3 replaced attic: atticd sat in the
+                # read path, and every time can-1 ran out of memory three tier-1
+                # hosts stopped being deployable under `max-jobs = 0`.
+                #
+                # This is the only cache we operate. attic was retired on 2026-09-07;
+                # there is no second endpoint to fall back to.
+                "https://cache.arsfeld.dev"
+                "https://nyx-cache.chaotic.cx/"
+              ];
+              trusted-public-keys = lib.mkAfter [
+                "cache.arsfeld.dev-1:rf7PgrG/BVE3llOcYdiP0hNqIvOSvIQoz7zoH1kt1d8="
+                "nyx-cache.chaotic.cx:dJxTrgMC3V3cFfyIiBQDQorG6k1LsqurH/srpMSq7qk="
+              ];
+            };
+
+            # Configure remote builders (skip on basestar to avoid circular dependency)
+            buildMachines = lib.optionals (config.networking.hostName != "basestar") [
+              {
+                hostName = "basestar.bat-boa.ts.net";
+                system = "aarch64-linux";
+                protocol = "ssh";
+                sshUser = "root";
+                maxJobs = 4;
+                speedFactor = 2;
+                supportedFeatures = ["nixos-test" "benchmark" "big-parallel"];
+                mandatoryFeatures = [];
+              }
+            ];
+
+            # Add each flake input as a registry entry.
+            # Exclude nixpkgs/nixpkgs-unstable — handled by nixpkgs' built-in nixpkgs-flake module.
+            # Exclude import-tree — it only loads this flake's own modules/ at evaluation time.
+            registry = lib.mapAttrs (_: value: {flake = value;}) (builtins.removeAttrs inputs ["nixpkgs" "nixpkgs-unstable" "import-tree"]);
+
+            # This will additionally add your inputs to the system's legacy channels
+            # Making legacy nix commands consistent as well, awesome!
+            nixPath = lib.mapAttrsToList (key: value: "${key}=${value.to.path}") (lib.filterAttrs (_: value: value.to ? path) config.nix.registry);
+          };
+
+          services.avahi = {
+            enable = true;
+            nssmdns4 = true; # Required for .local resolution via nsswitch
+            publish = {
+              enable = true;
+              addresses = true;
+              workstation = true;
+              domain = true; # Optional: publishes domain info
+              hinfo = true; # Optional: publishes hardware/OS details
+            };
+          };
+
+          # Determinate Nix module (loaded via baseModules) manages nix.package
+          # and experimental-features automatically
+
+          security.polkit.enable = true;
+          security.pki.certificateFiles = [
+            ./certs/controld-root-x1.pem
+          ];
+
+          # Local documentation is never read on these machines, and it is not free.
+          # documentation.{man,doc,info} each add the matching output of every
+          # package to system-path. Determinate publishes only the `out` output of
+          # determinate-nix to install.determinate.systems -- `man` and `doc` are
+          # absent -- so referencing either forces a from-source rebuild of Nix,
+          # including its entire test suite, on any host that cannot substitute it.
+          # On basestar (aarch64, maxJobs = 4) that single derivation dominated a
+          # whole tier-1 deploy. `doc` is the binding one: dropping only `man` still
+          # leaves extraOutputsToInstall = ["info" "doc"] and rebuilds Nix anyway.
+          # See issue #405.
+          documentation.man.enable = false;
+          documentation.doc.enable = false;
+          documentation.info.enable = false;
+          # programs.fish sets this to mkDefault true "for man completions";
+          # with man disabled there is nothing to cache, and fish generates its
+          # completions from each package's own share/man regardless.
+          documentation.man.cache.enable = false;
+
+          programs.fish.enable = true;
+
+          # Configure SSH known hosts for remote builders
+          programs.ssh.knownHosts = {
+            "basestar.bat-boa.ts.net" = {
+              publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH51UBt4enqaDYdbEaBD1I1ef+wZGFmkjv68Mv4bnVWA";
+            };
+          };
+
+          nix.settings.trusted-users = [
+            "root"
+            "@wheel"
+          ];
+
+          environment.systemPackages =
+            if config.constellation.common.minimal
+            then
+              with pkgs; [
+                # Terminfo only: 5 KiB of data with no references. pkgsBuildBuild
+                # shares hashes with the native x86_64 set, so this comes from
+                # cache.nixos.org. buildPackages targets the host platform, which
+                # changes the hashes and rebuilds ghostty's GUI stack from source.
+                pkgsBuildBuild.ghostty.terminfo
+                file
+                htop
+                iproute2
+                lsof
+                psmisc
+                tcpdump
+                tmux
+                usbutils
+                vim
+              ]
+            else
+              with pkgs; [
+                # From base profile
+                w3m-nographics # needed for the manual anyway
+                testdisk # useful for repairing boot problems
+                ms-sys # for writing Microsoft boot sectors / MBRs
+                efibootmgr
+                efivar
+                parted
+                gptfdisk
+                ddrescue
+                ccrypt
+                cryptsetup # needed for dm-crypt volumes
+
+                # Some text editors.
+                vim
+
+                # Some networking tools.
+                fuse
+                fuse3
+                sshfs-fuse
+                socat
+                screen
+                tcpdump
+                lsof
+                iftop
+                nmap
+                dnsutils
+                netcat
+                mtr
+                iproute2
+                ethtool
+
+                # System diagnostics and tracing
+                iotop
+                strace
+                sysstat
+
+                # Hardware-related tools.
+                sdparm
+                hdparm
+                smartmontools # for diagnosing hard disks
+                pciutils
+                usbutils
+                nvme-cli
+
+                # Some compression/archiver tools.
+                unzip
+                zip
+
+                # Add terminfo from ghostty
+                ghostty
+
+                binutils
+                bubblewrap
+                dosfstools
+                duf
+                exiftool
+                ffmpeg
+                file
+                git
+                gptfdisk
+                htop
+                home-manager
+                keychain
+                killall
+                moreutils
+                nano
+                ncdu
+                psmisc
+                rclone
+                tmux
+                usbutils
+                wget
+                zpaq
+              ];
+
+          programs.nix-ld.enable = !config.constellation.common.minimal;
+
+          services.openssh.enable = true;
+          nixpkgs.config.allowUnfree = true;
+          time.timeZone = "America/Toronto";
+          i18n.defaultLocale = "en_CA.UTF-8";
+          zramSwap.enable = true;
+          services.earlyoom.enable = lib.mkDefault true;
+          networking.nftables.enable = true;
+          networking.firewall.allowedTCPPorts = [22];
+
+          services.tailscale = {
+            enable = true;
+            # Tailscale SSH is what lets galactica's weekly-deploy reach root on the
+            # other tier-1 hosts with no key material anywhere. It was imperative
+            # state until now, so a host re-auth or reinstall could silently break
+            # the deployer. extraSetFlags reapplies on every activation, unlike
+            # extraUpFlags which only applies to the initial `tailscale up`.
+            # Who may actually use it is governed by the tailnet ACL, out of repo.
+            extraSetFlags = ["--ssh"];
+          };
+
+          # Prevent Tailscale SSH drops during system activation.
+          # If tailscaled restarts while switch-to-configuration is running over Tailscale SSH,
+          # the SSH connection drops, closing the systemd-run pipe. The resulting EPIPE
+          # panics switch-to-configuration-ng (exit 101), aborting the switch before Phase 3
+          # can start stopped units. Setting stopIfChanged and restartIfChanged to false
+          # matches the upstream protection that sshd.service already has.
+          systemd.services.tailscaled = {
+            stopIfChanged = false;
+            restartIfChanged = false;
+          };
+
+          networking.firewall = {
+            checkReversePath = "loose";
+            trustedInterfaces = ["tailscale0"];
+          };
+
+          hardware.enableRedistributableFirmware = true;
+
+          nix.gc = {
+            automatic = true;
+            dates = "Sat *-*-* 03:15:00";
+            options = "--delete-older-than 7d";
+          };
+
+          # journald defaults to 10% of the filesystem, which on basestar's 97G root
+          # had grown to 3.9G unbounded. mkDefault so a host that wants deeper
+          # history can raise it.
+          services.journald =
+            if options.services.journald ? settings
+            then {
+              settings.Journal = {
+                SystemMaxUse = lib.mkDefault "1G";
+              };
+            }
+            else {
+              extraConfig = lib.mkDefault ''
+                SystemMaxUse=1G
+              '';
+            };
+
+          system.stateVersion = lib.mkDefault "22.05";
+        };
+      })
+    ];
+  };
+}

@@ -11,8 +11,6 @@
 
   nixpkgs.hostPlatform = "aarch64-linux";
 
-  constellation.sops.enable = true;
-
   networking.hostName = "octopi";
   time.timeZone = "America/Toronto";
 
