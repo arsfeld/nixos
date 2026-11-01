@@ -13,7 +13,6 @@
     ./sites
   ];
 
-  constellation.podman.enable = true;
   constellation.k3s = {
     domains = ["arsfeld.dev"];
   };

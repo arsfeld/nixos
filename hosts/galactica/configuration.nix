@@ -14,19 +14,15 @@
     ./scripts
   ];
 
-  # We're the netdata server, not a client.
-  constellation.netdataClient.enable = false;
   # Gateway configuration (auth handled by Authelia on galactica)
   media.gateway = {
     enable = true;
     authHost = "127.0.0.1";
     authPort = 9091;
   };
-  constellation.podman.enable = true;
 
   # Development environment with packages but using podman (not docker)
   constellation.development = {
-    enable = true;
     docker = false; # Keep using podman as the container runtime
   };
   services.isponsorblock.enable = false;

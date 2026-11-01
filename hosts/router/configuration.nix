@@ -92,13 +92,6 @@
   documentation.info.enable = false;
   documentation.doc.enable = false;
 
-  # Disable virtualization to save disk space
-  constellation.virtualization.enable = false;
-  constellation.netdataClient.enable = false;
-
-  # Enable Podman for containerized services
-  constellation.podman.enable = true;
-
   # System state version
   system.stateVersion = "24.05";
 

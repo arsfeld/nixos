@@ -608,11 +608,10 @@ in {
   };
 
   config = {
-    # Ensure virtualization is enabled
-    constellation.virtualization.enable = true;
-
     # Allow the configured user to manage VMs without sudo
-    users.groups.libvirtd.members = [cfg.user];
+    # mkAfter keeps this behind the virtualization feature's "root", as when
+    # that module was loaded before the host files; the order carries no meaning.
+    users.groups.libvirtd.members = lib.mkAfter [cfg.user];
 
     # Install the CLI tool
     environment.systemPackages = [projectVmCli];

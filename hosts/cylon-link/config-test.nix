@@ -19,8 +19,8 @@ in
   assert check c.constellation.common.minimal "needs the minimal baseline";
   assert check (!builtins.any (n: lib.hasPrefix "ffmpeg" n) names) "the full tool list leaked in";
   assert check (c.nix.settings.max-jobs == 0) "the device must never build";
-  assert check (!c.constellation.virtualization.enable) "virtualization is too heavy";
-  assert check (!c.constellation.netdataClient.enable) "netdata is too heavy";
+  assert check (!c.virtualisation.libvirtd.enable) "virtualization is too heavy";
+  assert check (!c.services.netdata.enable) "netdata is too heavy";
   assert check c.boot.loader.external.enable "must boot through the kexec chain";
   assert check (c.fileSystems."/".device == "/dev/disk/by-label/CYLON_ROOT") "root must be CYLON_ROOT";
   assert check (c.fileSystems."/boot/steamlink".device == "/dev/disk/by-label/CYLON_BOOT") "the install hook needs CYLON_BOOT mounted";

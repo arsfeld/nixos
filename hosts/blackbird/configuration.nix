@@ -107,8 +107,6 @@ in {
       enable = true;
       cpuVendor = "amd";
     };
-    development.enable = true;
-    virtualization.enable = true;
   };
 
   # Display scaling for high-DPI laptop screen.

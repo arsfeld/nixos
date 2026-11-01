@@ -14,9 +14,6 @@
   networking.hostName = "cylon-link";
 
   constellation.common.minimal = true;
-  # Too heavy for 500 MB of RAM and a cross build.
-  constellation.virtualization.enable = false;
-  constellation.netdataClient.enable = false;
   # Determinate publishes no armv7l build, so use nixpkgs' Nix.
   determinate.enable = false;
   # fish does not cross-compile: its build-time xtask helper links for the

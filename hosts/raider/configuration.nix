@@ -129,7 +129,6 @@
         refreshRate = 144;
       };
     };
-    development.enable = true;
     backrest = {
       # Interval-based scheduler matches laptop usage: runs ~24h after the
       # last successful run, catches up once after long suspensions

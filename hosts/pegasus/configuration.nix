@@ -14,12 +14,6 @@
     ./media-sync.nix
   ];
 
-  # Enable all constellation modules
-  constellation = {
-    podman.enable = true;
-    virtualization.enable = true;
-  };
-
   # Publisher credential for claude-notify (authenticated ntfy.arsfeld.one
   # publishes). owner + mode let the user-mode script read it directly.
   sops.secrets."ntfy-publisher-env" = {

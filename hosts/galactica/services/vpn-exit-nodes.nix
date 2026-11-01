@@ -303,9 +303,6 @@ in {
       })
       enabledNodes;
 
-    # Ensure podman is enabled
-    constellation.podman.enable = true;
-
     # Create all containers
     virtualisation.oci-containers.containers = allContainers;
 
