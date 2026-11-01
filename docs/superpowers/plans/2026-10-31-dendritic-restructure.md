@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **Closure-neutral, every commit.** `scripts/dendritic/verify.sh check` must print `MATCH` for every host and `MATCH flake outputs`. `LOOSE-ONLY` is accepted only after running the printed `explain` command and confirming that every change it lists reorders entries whose order means nothing (a kernel cmdline whose parameters are all distinct, an unordered set). Order that *does* mean something gets an explicit `lib.mkBefore`/`lib.mkAfter`/`lib.mkOrder`. Examples: `nixpkgs.overlays`, PATH-like lists, a kernel parameter given twice. A `DIFF` is explained and fixed before committing, never waved through.
+- **Closure-neutral, every commit.** `scripts/dendritic/verify.sh check` must print `MATCH` for every host and `MATCH flake outputs`. `LOOSE-ONLY` is accepted only after running the printed `explain` command and confirming that every change it lists reorders entries whose order means nothing (a kernel cmdline whose parameters are all distinct, an unordered set). Order that *does* mean something gets an explicit `lib.mkBefore`/`lib.mkAfter`/`lib.mkOrder`. Examples: `nixpkgs.overlays`, PATH-like lists, a kernel parameter given twice. A `DIFF` is explained and fixed before committing, never waved through. One exception, and only this one: a `DIFF` whose `explain` output consists solely of a source directory captured whole with `${./.}` or `src = ./.` changing because a `.nix` file inside that directory was edited (and everything downstream of it) is accepted; name it in the commit message. Known cases: `stash-identify`, `plab` and `vault-grab` under galactica's services (Task 18). The three `packages/` files with `src = ./.` (telequebec-archiver, natpmp-server, network-metrics-exporter) keep `with lib;` instead, to avoid rebuilding them.
 - **One host at a time.** Never evaluate several hosts in parallel; parallel toplevel evaluations have run raider out of memory. `verify.sh` already runs them sequentially under `nice`.
 - **New files are invisible to the flake until tracked.** `git add` (or `git add -N`) every new file and every `git mv` before any `nix eval`.
 - **Commit straight to `master`.** No branches, no worktrees. Conventional commits, `<type>(<scope>): <subject>`, scope `modules` or a host name. Never mention Claude.
@@ -1488,7 +1488,7 @@ Expected: `["backrest","backup-notify","backup-status","backup-summary","base","
 git add -A hosts modules
 just fmt
 scripts/dendritic/verify.sh check
-grep -rnE "with lib;" --include=*.nix modules packages | grep -v '/_'
+grep -rnE "with lib;" --include=*.nix modules packages | grep -v '/_' | grep -vE '^packages/(telequebec-archiver|natpmp-server|network-metrics-exporter)/'
 grep -rnE "haumea|specialArgs|_legacy|flake-modules" --include=*.nix --include=justfile --include=*.just --include=*.yml . | grep -v '^./docs'
 ```
 
