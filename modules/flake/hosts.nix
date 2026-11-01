@@ -27,7 +27,6 @@
       nixpkgs = "unstable";
       tier = "tier1";
     };
-    raspi3 = {homeManager = false;};
     router = {};
   };
 
@@ -40,7 +39,6 @@
     pegasus = ["backrest" "media" "netdata-client" "podman" "tsnsrv" "virtualization"];
     r2s = ["netdata-client" "virtualization"];
     raider = ["backrest" "desktop" "development" "gaming" "media" "netdata-client" "tsnsrv" "virtualization"];
-    raspi3 = ["netdata-client" "tsnsrv" "virtualization"];
     router = ["podman"];
   };
 
