@@ -83,7 +83,7 @@ Resulting feature imports (base is automatic and not listed):
 | feature | hosts |
 |---|---|
 | `tsnsrv` | basestar galactica octopi pegasus raider raspi3 (and through `media`) |
-| `media` | basestar galactica pegasus router (router through `podman`, which reads `media.containers`) |
+| `media` | basestar galactica pegasus raider router (raider sets `media.config`; router through `podman`, which reads `media.containers`) |
 | `check-stock` | galactica |
 | `blocky` | none (exported, unused) |
 | `podman` | basestar galactica pegasus router |
@@ -661,7 +661,7 @@ Expected afterwards: the grep prints nothing.
     octopi = ["netdata-client" "tsnsrv" "virtualization"];
     pegasus = ["media" "netdata-client" "podman" "tsnsrv" "virtualization"];
     r2s = ["netdata-client" "virtualization"];
-    raider = ["development" "netdata-client" "tsnsrv" "virtualization"];
+    raider = ["development" "media" "netdata-client" "tsnsrv" "virtualization"];
     raspi3 = ["netdata-client" "tsnsrv" "virtualization"];
     router = ["podman"];
   };
@@ -1351,6 +1351,7 @@ in {
       features.desktop
       features.development
       features.gaming
+      features.media
       features.netdata-client
       features.tsnsrv
       features.virtualization
