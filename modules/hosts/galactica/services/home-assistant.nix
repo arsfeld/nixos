@@ -25,146 +25,7 @@
 # - Default port: 8123
 # - Should be exposed via constellation.services for reverse proxy access
 {
-  configurations.nixos.galactica.module = {pkgs, ...}: let
-    # Ping config entries (added in the UI, see "automation network"), by the
-    # entity-id prefix HA derived from each host. Labels are what the graphs show.
-    pingTargets = [
-      {
-        id = "raider_local";
-        name = "raider (mesh)";
-      }
-      {
-        id = "basestar_bat_boa_ts_net";
-        name = "basestar (Tailscale)";
-      }
-      {
-        id = "1_1_1_1";
-        name = "1.1.1.1";
-      }
-    ];
-    pingEntities = metric:
-      map (t: {
-        entity = "sensor.${t.id}_${metric}";
-        inherit (t) name;
-      })
-      pingTargets;
-    speedtest = [
-      {
-        entity = "sensor.speedtest_download";
-        name = "Download";
-      }
-      {
-        entity = "sensor.speedtest_upload";
-        name = "Upload";
-      }
-    ];
-
-    # YAML-mode dashboard: declared here, read-only in the UI. The Home
-    # dashboard stays UI-managed; HA cannot mix a YAML view into it.
-    networkDashboard = (pkgs.formats.yaml {}).generate "network-dashboard.yaml" {
-      title = "Network";
-      views = [
-        {
-          title = "Network";
-          path = "network";
-          type = "sections";
-          max_columns = 2;
-          sections = [
-            {
-              title = "Latency";
-              cards = [
-                {
-                  type = "history-graph";
-                  title = "Round-trip average, 48 h";
-                  hours_to_show = 48;
-                  entities = pingEntities "round_trip_time_average";
-                }
-                {
-                  type = "history-graph";
-                  title = "Jitter, 48 h";
-                  hours_to_show = 48;
-                  entities = pingEntities "jitter";
-                }
-                {
-                  type = "statistics-graph";
-                  title = "Round-trip average, 30 days (hourly mean)";
-                  days_to_show = 30;
-                  period = "hour";
-                  chart_type = "line";
-                  stat_types = ["mean"];
-                  entities = pingEntities "round_trip_time_average";
-                }
-                {
-                  type = "history-graph";
-                  title = "Packet loss, 7 days";
-                  hours_to_show = 168;
-                  entities = pingEntities "packet_loss";
-                }
-              ];
-            }
-            {
-              title = "Internet";
-              cards = [
-                {
-                  type = "entities";
-                  title = "Last speed test";
-                  entities =
-                    speedtest
-                    ++ [
-                      {
-                        entity = "sensor.speedtest_ping";
-                        name = "Ping";
-                      }
-                    ];
-                }
-                {
-                  type = "statistics-graph";
-                  title = "Throughput, 30 days";
-                  days_to_show = 30;
-                  period = "day";
-                  chart_type = "line";
-                  stat_types = ["mean" "min" "max"];
-                  entities = speedtest;
-                }
-                {
-                  type = "history-graph";
-                  title = "Speed tests, 7 days";
-                  hours_to_show = 168;
-                  entities = speedtest;
-                }
-              ];
-            }
-            {
-              title = "Deco mesh";
-              cards = [
-                {
-                  type = "entities";
-                  title = "Nodes";
-                  entities = [
-                    "binary_sensor.garage_deco_internet_online"
-                    "binary_sensor.living_room_deco_deco_online"
-                    "binary_sensor.basement_deco_deco_online"
-                    "sensor.garage_deco_connected_clients"
-                    "sensor.living_room_deco_connected_clients"
-                    "sensor.basement_deco_connected_clients"
-                  ];
-                }
-                {
-                  type = "history-graph";
-                  title = "Mesh traffic (main node), 48 h";
-                  hours_to_show = 48;
-                  entities = [
-                    "sensor.garage_deco_total_down"
-                    "sensor.garage_deco_total_up"
-                  ];
-                }
-              ];
-            }
-          ];
-        }
-      ];
-    };
-  in {
+  configurations.nixos.galactica.module = {pkgs, ...}: {
     config = {
       media.services.hass = {
         port = 8123;
@@ -323,7 +184,8 @@
           #                                  rises and this doesn't, the cause is
           #                                  Tailscale/DERP, not the fiber.
           #   (count 5 each). Ping creates its latency, jitter and loss sensors
-          #   disabled: enable them, or nothing is recorded or graphed.
+          #   disabled: enable them, or nothing is recorded or graphed. They
+          #   are graphed on the UI-managed Home dashboard's Network view.
           #   Speedtest.net, then System options → disable "Enable polling for
           #   updates", so only the automation below runs tests (its default is
           #   hourly, ~24 full-bandwidth tests a day).
@@ -350,17 +212,6 @@
               mode = "single";
             }
           ];
-
-          # url_path must contain a hyphen. HA joins filename onto the config
-          # dir, and an absolute store path survives that join unchanged.
-          lovelace.dashboards.dashboard-network = {
-            mode = "yaml";
-            title = "Network";
-            icon = "mdi:lan";
-            show_in_sidebar = true;
-            require_admin = false;
-            filename = "${networkDashboard}";
-          };
 
           # Allow UI-managed configuration files
           # These files will be created and managed by the Home Assistant UI
