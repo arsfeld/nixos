@@ -95,7 +95,6 @@
   # prune — until Phase B decides on a coordinated retention policy for
   # the shared storage repo.
   constellation.backrest = {
-    enable = true;
     repos = {
       storage = {
         uri = "rest:http://galactica.bat-boa.ts.net:8000/";

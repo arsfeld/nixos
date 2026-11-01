@@ -35,13 +35,13 @@
   # Features each legacy host imports, by name in flake.modules.nixos. base is
   # added to every host by mkLinuxSystem and is not listed.
   legacyFeatures = {
-    basestar = ["media" "netdata-client" "podman" "tsnsrv" "virtualization"];
+    basestar = ["backrest" "media" "netdata-client" "podman" "tsnsrv" "virtualization"];
     blackbird = ["development" "netdata-client" "virtualization"];
-    galactica = ["check-stock" "development" "forgejo-runner" "media" "podman" "tsnsrv" "virtualization"];
+    galactica = ["backrest" "backup-summary" "check-stock" "development" "forgejo-runner" "media" "podman" "tsnsrv" "virtualization"];
     octopi = ["netdata-client" "tsnsrv" "virtualization"];
-    pegasus = ["media" "netdata-client" "podman" "tsnsrv" "virtualization"];
+    pegasus = ["backrest" "media" "netdata-client" "podman" "tsnsrv" "virtualization"];
     r2s = ["netdata-client" "virtualization"];
-    raider = ["development" "media" "netdata-client" "tsnsrv" "virtualization"];
+    raider = ["backrest" "development" "media" "netdata-client" "tsnsrv" "virtualization"];
     raspi3 = ["netdata-client" "tsnsrv" "virtualization"];
     router = ["podman"];
   };

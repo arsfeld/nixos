@@ -130,10 +130,6 @@
       };
     };
     backrest = {
-      # Interval-based scheduler matches laptop usage: runs ~24h after the
-      # last successful run, catches up once after long suspensions
-      # instead of stacking skipped cron entries.
-      enable = true;
       repos.storage = {
         uri = "rest:http://galactica.bat-boa.ts.net:8000/";
         passwordFile = config.sops.secrets."restic-password".path;
@@ -163,6 +159,9 @@
           "**/.local/share/containers"
         ];
         excludeIfPresent = [".nobackup" "CACHEDIR.TAG"];
+        # Interval-based scheduler matches laptop usage: runs ~24h after the
+        # last successful run, catches up once after long suspensions
+        # instead of stacking skipped cron entries.
         schedule = {
           maxFrequencyHours = 24;
           clock = "last-run";

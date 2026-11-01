@@ -284,9 +284,9 @@ in {
   };
 
   config = {
-    constellation.backupNotify.enable = lib.mkDefault true;
-    constellation.backupStatus.enable = lib.mkDefault true;
-    constellation.backupStatus.sources =
+    # mkBefore keeps rustic profiles ahead of backrest's repos in the status
+    # report, whichever module the module system merges first.
+    constellation.backupStatus.sources = lib.mkBefore (
       lib.mapAttrsToList (name: profile: {
         inherit name;
         kind = "rustic";
@@ -294,7 +294,8 @@ in {
         command = "${mkProfileScript name profile}/bin/rustic-${name} snapshots --json";
         inherit (profile) maxAgeHours;
       })
-      cfg.profiles;
+      cfg.profiles
+    );
 
     environment.systemPackages = [cfg.package] ++ profileScripts;
 

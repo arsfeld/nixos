@@ -5,6 +5,4 @@
     ./rustic-ovh.nix
     ./rustic.nix
   ];
-
-  constellation.backupSummary.enable = true;
 }

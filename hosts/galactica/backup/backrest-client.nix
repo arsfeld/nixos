@@ -120,8 +120,6 @@
   };
 in {
   constellation.backrest = {
-    enable = true;
-
     repos = {
       local =
         {

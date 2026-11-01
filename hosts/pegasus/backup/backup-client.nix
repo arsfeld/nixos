@@ -7,7 +7,6 @@
 # runs services.restic.server, see backup-server.nix).
 {config, ...}: {
   constellation.backrest = {
-    enable = true;
     repos.storage = {
       uri = "rest:http://galactica.bat-boa.ts.net:8000/";
       passwordFile = config.sops.secrets."restic-password".path;
