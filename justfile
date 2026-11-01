@@ -737,7 +737,7 @@ install-infect HOST TARGET_HOST:
 
     # Copy and run the install script
     echo "Copying installation script to target..."
-    scp hosts/{{ HOST }}/install-nixos.sh root@{{ TARGET_HOST }}:/tmp/
+    scp scripts/install-nixos.sh root@{{ TARGET_HOST }}:/tmp/
 
     echo "Running installation script..."
     echo "NOTE: You may temporarily lose connection during the conversion"
@@ -783,28 +783,29 @@ disko HOST TARGET:
     echo "⚠️  WARNING: This will DESTROY ALL DATA on the configured disks!"
     echo ""
     echo "This command will:"
-    echo "  1. Copy the disko configuration to {{ TARGET }}"
-    echo "  2. Run disko on the target system"
+    echo "  1. Build {{ HOST }}'s disko script (destroy, format, mount) from its evaluated config"
+    echo "  2. Copy it to {{ TARGET }} and run it there"
     echo "  3. Partition and format all configured disks"
     echo "  4. Create filesystems (including ZFS pools if configured)"
     echo "  5. Mount everything according to the configuration"
     echo ""
 
-    # Check if disko config exists
-    if [ ! -f "hosts/{{ HOST }}/disko-config.nix" ]; then
-        echo "Error: No disko configuration found at hosts/{{ HOST }}/disko-config.nix"
+    # The host's disko-config.nix is a flake-parts module now, not a file disko
+    # can read, so everything comes from the evaluated nixosConfiguration.
+    cfg=".#nixosConfigurations.{{ HOST }}.config"
+    if ! disks=$(nix eval --json "$cfg.disko.devices.disk" --apply 'd: builtins.mapAttrs (_: v: v.device) d' 2>/dev/null) \
+        || [ "$disks" = "{}" ]; then
+        echo "Error: {{ HOST }} declares no disko devices (does it import inputs.disko.nixosModules.disko?)"
         exit 1
     fi
 
     # Show disk configuration summary
     echo "Disk configuration preview:"
-    if grep -q "zpool" "hosts/{{ HOST }}/disko-config.nix"; then
-        echo "  - ZFS pool configuration detected"
-        grep -E "(pool = |type = \"zpool\"|mode = )" "hosts/{{ HOST }}/disko-config.nix" | sed 's/^/    /'
-    fi
-    if grep -q "disk = {" "hosts/{{ HOST }}/disko-config.nix"; then
-        echo "  - Disk devices:"
-        grep -E "device = " "hosts/{{ HOST }}/disko-config.nix" | sed 's/^/    /'
+    echo "  - Disk devices:"
+    echo "$disks" | jq -r 'to_entries[] | "    \(.key): \(.value)"'
+    zpools=$(nix eval --json "$cfg.disko.devices.zpool" --apply builtins.attrNames)
+    if [ "$zpools" != "[]" ]; then
+        echo "  - ZFS pools: $(echo "$zpools" | jq -r 'join(", ")')"
     fi
     echo ""
 
@@ -815,17 +816,17 @@ disko HOST TARGET:
     fi
 
     echo ""
-    echo "Copying disko configuration to target..."
+    echo "Building the disko script..."
+    script=$(nix build --no-link --print-out-paths "$cfg.system.build.diskoScript")
 
-    # Copy the disko configuration to the target
-    scp "hosts/{{ HOST }}/disko-config.nix" "{{ TARGET }}:/tmp/disko-config.nix"
+    echo "Copying it to the target..."
+    nix copy --to "ssh://{{ TARGET }}" "$script"
 
     echo "Running disko on the target system..."
 
-    # Run disko on the target system
-    # Using --mode destroy,format,mount to wipe, format and mount
-    # Add --debug for more verbose output if needed
-    ssh "{{ TARGET }}" "nix run github:nix-community/disko -- --mode destroy,format,mount --yes-wipe-all-disks /tmp/disko-config.nix"
+    # diskoScript is destroy,format,mount. The confirmation above stands in for
+    # the script's own prompt, hence --yes-wipe-all-disks.
+    ssh "{{ TARGET }}" "$script --yes-wipe-all-disks"
 
     echo ""
     echo "✅ Disko configuration applied successfully!"

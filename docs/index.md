@@ -63,11 +63,14 @@ Netdata, Grafana, and custom alerts keep track of system health.
 
 ```
 nixos/
-├── hosts/          # Machine-specific configurations
-├── modules/        # Reusable NixOS modules
+├── flake.nix       # Flake definition (import-tree ./modules)
+├── modules/        # Every file a flake-parts module
+│   ├── flake/      # Flake plumbing (hosts, deployment, dev, etc.)
+│   ├── hosts/      # Machine-specific configurations: <host>.nix + <host>/
+│   ├── base/       # Feature every host gets
+│   └── ...         # Other features (media, backup, desktop, ...)
+├── packages/       # Custom packages
 ├── home/           # Home Manager configurations
 ├── secrets/        # Encrypted secrets (sops-nix)
-├── overlays/       # Nixpkgs overlays
-├── flake.nix       # Flake definition
-└── flake-modules/  # Flake-parts modules (deployment, dev, etc.)
+└── overlays/       # Nixpkgs overlays
 ```
