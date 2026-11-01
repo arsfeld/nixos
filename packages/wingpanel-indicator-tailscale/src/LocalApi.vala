@@ -93,6 +93,10 @@ public class TailscaleIndicator.LocalApi : Object {
                 debug ("/status: HTTP %u", msg.status_code);
                 return null;
             }
+            if (bytes.get_size () == 0) {
+                debug ("/status: empty reply");
+                return null;
+            }
             var parser = new Json.Parser ();
             parser.load_from_data ((string) bytes.get_data (), (ssize_t) bytes.get_size ());
             var root = parser.get_root ();

@@ -23,7 +23,12 @@
           # tailscaled lets only root and its operator change prefs, answering
           # 403 to anyone else, and the popover's switch and exit-node picker are
           # such changes. Merges with base's --ssh; tailscaled-set reapplies the
-          # list every time tailscaled starts.
+          # list every time tailscaled starts. The grant adds no privilege today
+          # only because arosenfeld already has passwordless sudo
+          # (modules/base/users.nix); it lets the user do every tailscaled write
+          # (serve/funnel, logout, prefs). OperatorUser persists in tailscaled's
+          # state, so removing this module does not revoke it; `tailscale set
+          # --operator=` does.
           services.tailscale.extraSetFlags = ["--operator=arosenfeld"];
         };
       })

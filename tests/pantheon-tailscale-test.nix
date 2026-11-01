@@ -116,8 +116,8 @@ in {
         before = count("Tailscale: unreachable$")
         machine.succeed("systemctl stop tailscaled")
         wait_for_more("Tailscale: unreachable$", before)
-        # Prefs are not persisted without a login, so a restarted tailscaled is
-        # switched off again, as on a fresh boot.
+        # Without a login, a restarted tailscaled has been observed to come back
+        # switched off, as on a fresh boot.
         before = count("Tailscale: NeedsLogin, switched off$")
         machine.succeed("systemctl start tailscaled")
         wait_for_more("Tailscale: NeedsLogin, switched off$", before)

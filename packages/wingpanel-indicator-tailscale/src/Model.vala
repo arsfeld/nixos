@@ -77,8 +77,10 @@ namespace TailscaleIndicator {
         }
 
         /*
-         * Folds one IPN bus Notify into state. A member the Notify lacks leaves
-         * that part of state alone. Notifications are held until every field is
+         * Folds one IPN bus Notify into state. A top-level member the Notify
+         * lacks (State, Prefs) leaves that part of state alone, but a Prefs
+         * without ExitNodeID resets exit_node_id to "" (tailscaled always sends
+         * ExitNodeID inside Prefs). Notifications are held until every field is
          * set, so a listener never sees half of one Notify.
          */
         public void apply_notify (State state, Json.Object notify) {
@@ -149,6 +151,16 @@ namespace TailscaleIndicator {
                 }
             }
             return id;
+        }
+
+        /* Whether some candidate has this id. */
+        public bool has_exit_node (string id, ExitNode[] nodes) {
+            foreach (var node in nodes) {
+                if (node.id == id) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /*

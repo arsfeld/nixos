@@ -185,19 +185,26 @@ public class TailscaleIndicator.Indicator : Wingpanel.Indicator {
         status_label.label = Model.status_line (state, status.ipv4);
 
         exit_box.foreach ((child) => child.destroy ());
-        if (state.backend == Backend.RUNNING && status.exit_nodes.length > 0) {
+        if (state.backend == Backend.RUNNING && (status.exit_nodes.length > 0 || state.exit_node_id != "")) {
             exit_box.add (new Gtk.Separator (Gtk.Orientation.HORIZONTAL) {
                 margin_top = 3,
                 margin_bottom = 3
             });
             var header = new Gtk.Label ("Exit node") {
                 halign = Gtk.Align.START,
-                margin_start = 12,
+                margin_start = 0,
                 margin_end = 12
             };
+            // h4 adds its own horizontal padding; zero the margin so the header
+            // lines up with the rows below.
             header.get_style_context ().add_class (Granite.STYLE_CLASS_H4_LABEL);
             exit_box.add (header);
             var group = exit_row (null, "", "None", true);
+            // The exit node is set but is no candidate (it lost ExitNodeOption, or
+            // /status failed): show it as the active row so "None" can clear it.
+            if (state.exit_node_id != "" && !Model.has_exit_node (state.exit_node_id, status.exit_nodes)) {
+                exit_row (group, state.exit_node_id, Model.exit_node_name (state.exit_node_id, status.exit_nodes), false);
+            }
             foreach (var node in status.exit_nodes) {
                 exit_row (group, node.id, node.online ? node.name : node.name + " (offline)", node.online);
             }
@@ -230,8 +237,8 @@ public class TailscaleIndicator.Indicator : Wingpanel.Indicator {
             margin_bottom = 3
         };
         row.active = state.exit_node_id == id;
-        // The handler's own argument, not `row`: capturing `row` would make the
-        // button own a closure that owns the button, and it could never be freed.
+        // The handler's own argument, not `row`, to avoid a needless
+        // self-reference cycle (as in the gamemode indicator).
         row.toggled.connect ((button) => {
             if (!syncing && button.active) {
                 write.begin (false, false, id);

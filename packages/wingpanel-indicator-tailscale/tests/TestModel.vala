@@ -108,6 +108,13 @@ void main (string[] args) {
         assert_cmpstr (Model.exit_node_name ("nGONE", nodes), CompareOperator.EQ, "nGONE");
     });
 
+    Test.add_func ("/model/has-exit-node", () => {
+        var nodes = Model.parse_status (parse (STATUS)).exit_nodes;
+        assert_true (Model.has_exit_node ("nbaJt4JzNB21CNTRL", nodes));
+        assert_false (Model.has_exit_node ("nGONE", nodes));
+        assert_false (Model.has_exit_node ("", nodes));
+    });
+
     Test.add_func ("/model/describe", () => {
         assert_cmpstr (Model.describe (running (""), null), CompareOperator.EQ, "Running");
         assert_cmpstr (Model.describe (running ("nX"), "basestar"), CompareOperator.EQ, "Running, exit node basestar");
