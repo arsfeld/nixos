@@ -1,0 +1,99 @@
+# Hardware configuration for raider gaming system
+# Generated based on actual hardware scan
+{
+  configurations.nixos.raider.module = {
+    config,
+    lib,
+    pkgs,
+    modulesPath,
+    ...
+  }: {
+    imports = [
+      (modulesPath + "/installer/scan/not-detected.nix")
+    ];
+
+    # Boot configuration
+    boot.initrd.availableKernelModules = ["xhci_pci" "ahci" "nvme" "usb_storage" "sd_mod"];
+    boot.initrd.kernelModules = ["amdgpu" "i915"]; # Early KMS for AMD GPU and Intel iGPU
+    boot.kernelModules = ["kvm-intel"];
+    boot.extraModulePackages = [];
+
+    # Filesystems will be managed by disko
+    # The disko-config.nix handles all filesystem configuration
+
+    # Disk swap backing the 25% zram from constellation.gaming. 32 GiB of zram on
+    # 31 GiB of RAM fills completely under a heavy build + desktop session, and
+    # once zram is full there is nowhere left to spill, so the box thrashes and
+    # earlyoom starts killing compilers. This file lives on the Solidigm 2 TB NVMe
+    # (/mnt/games, xfs) rather than the root NVMe, which sits at 80% full.
+    #
+    # priority 0 keeps it strictly below zram's priority 5, so cold pages still
+    # compress into RAM first and only overflow reaches the disk.
+    #
+    # NOTE: the file is created with fallocate. xfs accepts fallocate'd swapfiles
+    # here (verified with swapon); if that ever regresses to "it appears to have
+    # holes", the fix is a real dd write, not a different filesystem.
+    swapDevices = [
+      {
+        device = "/mnt/games/swapfile";
+        size = 32768; # MiB
+        priority = 0;
+      }
+    ];
+
+    # Network interfaces
+    networking.useDHCP = lib.mkDefault true;
+    # Uncomment specific interfaces if needed:
+    # networking.interfaces.enp6s0.useDHCP = lib.mkDefault true;
+    # networking.interfaces.enp7s0.useDHCP = lib.mkDefault true;
+    # networking.interfaces.wlp5s0.useDHCP = lib.mkDefault true;
+
+    nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
+
+    # Intel CPU microcode updates
+    hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
+
+    # Enable firmware
+    hardware.enableRedistributableFirmware = true;
+    hardware.enableAllFirmware = true;
+
+    # Dual GPU configuration
+    # - Intel Iris Xe Graphics (iGPU) at PCI 00:02.0 → /dev/dri/renderD128 for hardware video decode
+    # - AMD Radeon RX 6650 XT (dGPU) at PCI 03:00.0 → /dev/dri/renderD129 for graphics
+    services.xserver.videoDrivers = ["amdgpu" "modesetting"];
+
+    # Pin rendering to the dGPU. Inside Steam's pressure-vessel container Vulkan
+    # enumerates the iGPU first, so vkd3d/DXVK handed games the Iris Xe (Witcher 3
+    # ran entirely on it, the 6650 XT idle). The trailing `!` hides every other
+    # Vulkan device. DRI_PRIME must name the device: `=1` means "not the display
+    # GPU", which here is the iGPU. VA-API video decode is unaffected.
+    environment.sessionVariables = {
+      MESA_VK_DEVICE_SELECT = "1002:73ef!";
+      DRI_PRIME = "pci-0000_03_00_0";
+    };
+
+    # Hardware acceleration for both GPUs
+    hardware.graphics = {
+      enable = true;
+      enable32Bit = true;
+
+      extraPackages = with pkgs; [
+        # AMD GPU packages (RADV is now default, amdvlk removed)
+        rocmPackages.clr.icd
+        mesa
+
+        # Intel iGPU packages for hardware video decode/encode
+        intel-media-driver # iHD driver for modern Intel GPUs (Gen 8+)
+        intel-vaapi-driver # i965 driver (fallback)
+        libva-vdpau-driver
+        libvdpau-va-gl
+      ];
+    };
+
+    # Enable AMD GPU OpenCL support
+    hardware.amdgpu.opencl.enable = true;
+
+    # High DPI console for modern displays
+    console.font = lib.mkDefault "${pkgs.terminus_font}/share/consolefonts/ter-u28n.psf.gz";
+  };
+}

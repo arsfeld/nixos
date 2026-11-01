@@ -12,17 +12,12 @@
   # Their settings live here until each moves; then the entry is deleted.
   legacy = {
     galactica = {tier = "tier1";};
-    raider = {
-      nixpkgs = "unstable";
-      tier = "tier1";
-    };
   };
 
   # Features each legacy host imports, by name in flake.modules.nixos. base is
   # added to every host by mkLinuxSystem and is not listed.
   legacyFeatures = {
     galactica = ["backrest" "backup-summary" "check-stock" "development" "forgejo-runner" "media" "podman" "tsnsrv" "virtualization"];
-    raider = ["backrest" "desktop" "development" "gaming" "media" "netdata-client" "tsnsrv" "virtualization"];
   };
 
   legacyHosts = lib.filterAttrs (name: _: builtins.pathExists ../../hosts/${name}/configuration.nix) legacy;
