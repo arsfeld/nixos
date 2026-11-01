@@ -17,7 +17,7 @@
 - **New files are invisible to the flake until tracked.** `git add` (or `git add -N`) every new file and every `git mv` before any `nix eval`.
 - **Commit straight to `master`.** No branches, no worktrees. Conventional commits, `<type>(<scope>): <subject>`, scope `modules` or a host name. Never mention Claude.
 - **Format before committing:** `just fmt` must leave no diff.
-- **`nix flake check --no-build` passes** after every task; the full `nix flake check` (VM tests) runs in CI on push (`checks.yml`), and locally where a task says so.
+- **Never run `nix flake check`, and never build or evaluate cylon-link's toplevel.** Evaluating cylon-link builds its armv7l cross toolchain (import-from-derivation), and `nix flake check` evaluates every host and the `cylon-link-config` check. `verify.sh check` compares cylon-link on a dump of evaluated settings with import-from-derivation disabled, and evaluates every other flake check. The checks are built in CI on push (`checks.yml`), and locally only where a task names one.
 - **Feature key convention:** every `flake.modules.nixos.<feature>` definition is `{key = "modules/<file path under modules/ without .nix>"; imports = [<module>];}`. `dendritic.py wrap --key` writes it. One key per file, never shared between files.
 - **Feature imports from the flake-parts side:** inside a feature or host file, refer to features through `let features = config.flake.modules.nixos; in`, where `config` is the *flake-parts* module argument, bound in the file's outer function. The inner NixOS module has its own `config`, which shadows the outer one inside it. That's why the `let` sits outside.
 - **Do not edit** `.github/workflows/*`, justfile recipes (only the one hard-coded path in Task 12), `packages/`, `overlays/` or `infra/` beyond what a task names.
@@ -29,7 +29,7 @@ Validated while planning. The fingerprint was tested on octopi: a comment-only e
 
 | tool | use |
 |---|---|
-| `verify.sh baseline` / `verify.sh check [host...]` | the per-commit proof described above; data in `/var/tmp/dendritic/` |
+| `verify.sh baseline` / `verify.sh check [host...]` | the per-commit proof described above, plus evaluation of every flake check except `cylon-link-config`; cylon-link is compared on `cylon-link-settings.nix` (evaluated settings, import-from-derivation off) instead of a fingerprint; data in `/var/tmp/dendritic/` |
 | `fingerprint.py explain …` | the command `verify.sh` prints next to a non-`MATCH` host: lists the derivations whose own content changed, field by field |
 | `dendritic.py unwith FILE…` | delete `with lib;` and prefix each name it supplied with `lib.` (Nix reports undefined names at parse time; the tool parses until none are left) |
 | `dendritic.py reach DIR` | `.nix` files in a host dir that its `configuration.nix` never imports as a module (helpers, tests, dead files) |
@@ -162,10 +162,9 @@ Expected: only `hosts/router/xdp-firewall.nix`. `with lib.kernel;` and similar s
 ```bash
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 ```
 
-Expected: `MATCH` for all ten hosts and `MATCH flake outputs`; flake check succeeds.
+Expected: `MATCH` for all ten hosts, `MATCH flake outputs`, and `OK flake checks evaluate`.
 
 - [ ] **Step 4: Commit**
 
@@ -438,7 +437,6 @@ Expected: no output.
 git add -A flake.nix flake.lock modules tests
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 ```
 
 Expected: `MATCH` for all ten hosts and `MATCH flake outputs`. The `lightHosts` line in `outputs.txt` was taken from `lib.lightHosts` at baseline and from the new top-level output now; both are sorted, so they compare equal. Also run `nix eval --json .#modules` → `{}` (no features yet), and `nix eval .#lib.lightHosts` → error (removed).
@@ -520,7 +518,6 @@ In `tests/router-test.nix`, replace the import line `"${self}/modules/_legacy/co
 git add -A modules hosts tests
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 ```
 
 Expected: `MATCH` (or a `LOOSE-ONLY` whose `explain` is pure reordering, per Global Constraints) for all hosts, and `MATCH flake outputs`. `nix eval --json .#modules.nixos --apply builtins.attrNames` → `["base"]`.
@@ -601,7 +598,6 @@ In `modules/flake/hosts.nix`, set `legacyFeatures`:
 git add -A modules
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 ```
 
 Expected: `MATCH`/accepted `LOOSE-ONLY` for all hosts, `MATCH flake outputs`. A host outside the lists failing on a `media.*` or `services.tsnsrv` option means a legacy module reads it. Add that host to the list only if the table shows it uses the feature. Otherwise find the reader and make it import the feature when it moves (record it in the commit message).
@@ -675,7 +671,6 @@ Expected afterwards: the grep prints nothing.
 git add -A modules hosts
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 git commit -m "refactor(modules): podman, virtualization, netdata-client, development, forgejo-runner imported instead of enabled"
 ```
 
@@ -724,7 +719,6 @@ Add `"backrest"` to basestar, galactica, pegasus, raider, and `"backup-summary"`
 git add -A modules hosts
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 git commit -m "refactor(modules): backup features imported instead of enabled"
 ```
 
@@ -787,7 +781,6 @@ Add `"desktop"` and `"gaming"` to blackbird and raider, keeping lists sorted.
 git add -A modules hosts tests
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 nice nix build .#checks.x86_64-linux.pantheon-dock-test .#checks.x86_64-linux.pantheon-gamemode-test
 git commit -m "refactor(modules): desktop, pantheon and gaming imported instead of enabled"
 ```
@@ -819,7 +812,6 @@ Expected: no output. If anything is left, it is a module this plan missed: stop 
 git add -A modules flake.nix flake.lock
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 git commit -m "refactor(modules): drop haumea, every shared module is a feature"
 ```
 
@@ -889,7 +881,6 @@ In `modules/flake/hosts.nix`, delete `octopi` from `legacy` and from `legacyFeat
 git add -A hosts modules
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 git commit -m "refactor(octopi): declare the host in modules/hosts"
 ```
 
@@ -936,7 +927,6 @@ Delete `raspi3` from `legacy` and `legacyFeatures`.
 git add -A hosts modules
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 git commit -m "refactor(raspi3): declare the host in modules/hosts"
 ```
 
@@ -982,7 +972,6 @@ Delete `r2s` from `legacy` and `legacyFeatures`.
 git add -A hosts modules
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 git commit -m "refactor(r2s): declare the host in modules/hosts"
 ```
 
@@ -1033,14 +1022,12 @@ Run: `grep -rn "hosts/cylon-link" --include=*.nix --include=justfile --include=*
 
 (`module = {};` gives the option a definition; the host's own files add the rest.) Delete `cylon-link` from `legacy` and `legacyFeatures`.
 
-- [ ] **Step 4: Track, format, verify, build the boot check, commit**
+- [ ] **Step 4: Track, format, verify, commit**
 
 ```bash
 git add -A hosts modules justfile
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
-nice nix build .#checks.x86_64-linux.cylon-link-boot
 git commit -m "refactor(cylon-link): declare the host in modules/hosts"
 ```
 
@@ -1123,7 +1110,6 @@ Delete `router` from `legacy` and `legacyFeatures`.
 git add -A hosts modules tests
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 nice nix build .#checks.x86_64-linux.router-test
 git commit -m "refactor(router): declare the host in modules/hosts; hide its unused modules"
 ```
@@ -1176,7 +1162,6 @@ Delete `pegasus` from `legacy` and `legacyFeatures`.
 git add -A hosts modules
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 git commit -m "refactor(pegasus): declare the host in modules/hosts"
 ```
 
@@ -1229,7 +1214,6 @@ Delete `basestar` from `legacy` and `legacyFeatures`.
 git add -A hosts modules
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 git commit -m "refactor(basestar): declare the host in modules/hosts"
 ```
 
@@ -1285,7 +1269,6 @@ Delete `blackbird` from `legacy` and `legacyFeatures`.
 git add -A hosts modules
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 git commit -m "refactor(blackbird): declare the host in modules/hosts"
 ```
 
@@ -1315,7 +1298,6 @@ Move the code per the split plan's Task 1 Steps 2–8, verbatim with its comment
 git add -A modules
 just fmt
 scripts/dendritic/verify.sh check blackbird
-nice nix flake check --no-build
 nice nix build .#checks.x86_64-linux.blackbird-audio-control-test
 git commit -m "refactor(blackbird): split configuration.nix by concern"
 ```
@@ -1381,7 +1363,6 @@ Delete `raider` from `legacy` and `legacyFeatures`.
 git add -A hosts modules
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 git commit -m "refactor(raider): declare the host in modules/hosts"
 ```
 
@@ -1395,7 +1376,6 @@ Same wrapped-file shape as Task 16 Step 4, with `configurations.nixos.raider.mod
 git add -A modules
 just fmt
 scripts/dendritic/verify.sh check raider
-nice nix flake check --no-build
 git commit -m "refactor(raider): split configuration.nix by concern"
 ```
 
@@ -1460,7 +1440,6 @@ Delete `galactica` from `legacy` and `legacyFeatures`. Both attrsets are now `{}
 git add -A hosts modules
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 nice nix build .#checks.x86_64-linux.immich-pixel-sync-test .#checks.x86_64-linux.home-assistant-heating-test
 git commit -m "refactor(galactica): declare the host in modules/hosts"
 ```
@@ -1485,7 +1464,7 @@ git commit -m "refactor(galactica): declare the host in modules/hosts"
 
 In `modules/flake/lib.nix`, delete `specialArgs = {inherit self inputs;};` from `mkLinuxSystem`. `home-manager.extraSpecialArgs` stays.
 
-Run: `nice nix eval .#nixosConfigurations.octopi.config.system.build.toplevel.drvPath`, then the same for each other host one at a time. A failure `called without required argument 'inputs'` (or `'self'`) names a module that still takes it from its argument pattern. It is one `wrap` reported `SKIPPED` for, or a `packages/*/module.nix`. Move the name to that file's outer function by hand (as `wrap` does) and re-run.
+Run `scripts/dendritic/verify.sh check <host>` for each host, one per command (it never evaluates cylon-link's toplevel). A failure `called without required argument 'inputs'` (or `'self'`) names a module that still takes it from its argument pattern. It is one `wrap` reported `SKIPPED` for, or a `packages/*/module.nix`. Move the name to that file's outer function by hand (as `wrap` does) and re-run.
 
 - [ ] **Step 3: Export**
 
@@ -1509,7 +1488,6 @@ Expected: `["backrest","backup-notify","backup-status","backup-summary","base","
 git add -A hosts modules
 just fmt
 scripts/dendritic/verify.sh check
-nice nix flake check --no-build
 grep -rnE "with lib;" --include=*.nix modules packages | grep -v '/_'
 grep -rnE "haumea|specialArgs|_legacy|flake-modules" --include=*.nix --include=justfile --include=*.just --include=*.yml . | grep -v '^./docs'
 ```

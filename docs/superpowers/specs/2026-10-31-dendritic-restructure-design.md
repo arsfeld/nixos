@@ -240,7 +240,15 @@ After each commit's edits:
    `explain` output that has been read and is pure reordering. A `DIFF` is
    explained and resolved before committing.
 2. The output snapshot matches byte for byte.
-3. `nix flake check` passes and `just fmt` leaves no diff.
+3. Every flake check still evaluates (built in CI by `checks.yml`), and
+   `just fmt` leaves no diff.
+
+cylon-link is never built, and its toplevel is never evaluated: evaluating it
+builds its armv7l cross toolchain (import-from-derivation). It is compared on
+a dump of evaluated settings (units, `/etc` text, users, packages, firewall)
+taken with import-from-derivation disabled, which is weaker than a fingerprint
+but catches a module gained or lost. `nix flake check` is never run locally:
+it evaluates cylon-link and its `cylon-link-config` check.
 4. After stage 6: no module-scope `with lib;`, and no `haumea`, `specialArgs`,
    `_legacy` or `flake-modules` anywhere in the tree.
 
