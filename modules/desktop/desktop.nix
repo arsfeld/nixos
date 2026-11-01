@@ -12,6 +12,7 @@ in {
     imports = [
       features.pantheon-dock
       features.pantheon-gamemode
+      features.pantheon-tailscale
       ({
         config,
         pkgs,
