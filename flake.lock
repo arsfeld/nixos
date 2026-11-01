@@ -621,26 +621,6 @@
         "type": "github"
       }
     },
-    "haumea": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1787503743,
-        "narHash": "sha256-+j7OOYezVrLpPQTUoSv6vlz551Zh+GbCg0tkjaJpDg4=",
-        "owner": "nix-community",
-        "repo": "haumea",
-        "rev": "252218e686de786f45311c323e105bd4340c2179",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nix-community",
-        "repo": "haumea",
-        "type": "github"
-      }
-    },
     "home-manager": {
       "inputs": {
         "nixpkgs": [
@@ -1207,7 +1187,6 @@
         "flake-parts": "flake-parts_3",
         "git-hooks": "git-hooks",
         "harmonia": "harmonia",
-        "haumea": "haumea",
         "home-manager": "home-manager_3",
         "home-manager-unstable": "home-manager-unstable",
         "import-tree": "import-tree",

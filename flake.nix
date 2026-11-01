@@ -13,8 +13,6 @@
     home-manager-unstable.inputs.nixpkgs.follows = "nixpkgs-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts"; # Flake framework for modular development
     flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
-    haumea.url = "github:nix-community/haumea"; # File tree loader for Nix
-    haumea.inputs.nixpkgs.follows = "nixpkgs";
     import-tree.url = "github:vic/import-tree"; # Loads every .nix file under modules/ as a flake-parts module
     git-hooks.url = "github:cachix/git-hooks.nix"; # Git hooks framework
     git-hooks.inputs.nixpkgs.follows = "nixpkgs";

@@ -13,7 +13,7 @@
 # restores cleanly takes the stock path unchanged.
 #
 # Loaded as an overlay by brotli-cve-2026-111497.nix; the `__` prefix keeps
-# haumea from loading it as a module. Delete with that file.
+# import-tree from loading it as a module. Delete with that file.
 {
   lib,
   runCommandLocal,

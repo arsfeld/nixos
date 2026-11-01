@@ -50,23 +50,6 @@
       }
       # Features every host has; see modules/base/.
       config.flake.modules.nixos.base
-      # Load all modules from the modules directory
-      (
-        let
-          getAllValues = set: let
-            recurse = value:
-              if builtins.isAttrs value
-              then builtins.concatLists (map recurse (builtins.attrValues value))
-              else [value];
-          in
-            recurse set;
-          modules = inputs.haumea.lib.load {
-            src = ../_legacy;
-            loader = inputs.haumea.lib.loaders.path;
-          };
-        in
-          getAllValues modules
-      )
     ];
 
     homeManagerModulesFor = hmInput: [
