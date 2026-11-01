@@ -13,8 +13,9 @@
   }: {
     _module.args.pkgs = import inputs.nixpkgs {
       inherit system;
-      # packages/claude-desktop is unfree; `nix flake check` evaluates every
-      # `packages` output and refuses it without this.
+      # packages/claude-desktop and packages/multiviewer-for-f1 are unfree;
+      # `nix flake check` evaluates every `packages` output and refuses them
+      # without this.
       config.allowUnfree = true;
       # The same overlays the hosts get, so `nix build .#<pkg>` produces the
       # derivation a host would.
