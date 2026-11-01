@@ -121,8 +121,9 @@ jobs:
           if mountpoint -q /mnt; then
             sudo mkdir -p /mnt/nix /nix
             sudo mount --bind /mnt/nix /nix
+            df -h /nix
           fi
-          df -h / /nix
+          df -h /
 
       - uses: actions/checkout@v6
 
