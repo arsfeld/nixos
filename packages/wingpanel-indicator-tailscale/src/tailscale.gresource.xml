@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <!-- Gtk.IconTheme.add_resource_path treats this prefix as a hicolor tree. -->
+  <gresource prefix="/io/elementary/wingpanel/tailscale/icons">
+    <file alias="scalable/status/tailscale-exit-node-symbolic.svg">icons/tailscale-exit-node-symbolic.svg</file>
+  </gresource>
+</gresources>
