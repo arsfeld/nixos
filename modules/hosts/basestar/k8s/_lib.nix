@@ -1,9 +1,9 @@
-# Helpers shared by Lane A manifests. Called as `import ./lib.nix {inherit lib;}`.
+# Helpers shared by Lane A manifests. Called as `import ./_lib.nix {inherit lib;}`.
 #
-# This is not a NixOS module and must never become one: it sits inside a
-# directory that hosts/basestar/configuration.nix imports as a module path, and
-# only ./default.nix is picked up from there. A second module here would be
-# silently ignored; a plain function cannot be.
+# This is not a NixOS module and must never become one: it sits inside
+# modules/hosts/basestar/, which import-tree loads, and the leading underscore
+# in its name is what keeps import-tree from picking it up. A plain function
+# cannot be mistaken for a module.
 #
 # It exists so app #2 does not have to live in default.nix or copy mkApp. There
 # is exactly one app-shaped helper today, and hoisting it before a second caller

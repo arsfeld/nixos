@@ -27,10 +27,12 @@
 # attic substituter and its signing key"). Until then it is load-bearing for the
 # stale ones.
 {
-  services.caddy.virtualHosts."attic.arsfeld.dev" = {
-    useACMEHost = "arsfeld.dev";
-    extraConfig = ''
-      respond "attic was retired on 2026-09-07; the cache is https://cache.arsfeld.dev" 410
-    '';
+  configurations.nixos.basestar.module = {
+    services.caddy.virtualHosts."attic.arsfeld.dev" = {
+      useACMEHost = "arsfeld.dev";
+      extraConfig = ''
+        respond "attic was retired on 2026-09-07; the cache is https://cache.arsfeld.dev" 410
+      '';
+    };
   };
 }

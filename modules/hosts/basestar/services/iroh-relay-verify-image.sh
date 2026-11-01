@@ -81,7 +81,7 @@ openssl req -x509 -newkey rsa:2048 -keyout "$WORK/tls.key" -out "$WORK/tls.crt" 
 
 # The config is inline rather than extracted from a manifest: this script
 # outlived the Kubernetes deployment it was written for. Keep it in step with
-# hosts/basestar/services/iroh-relay.nix by hand; the only thing that matters
+# modules/hosts/basestar/services/iroh-relay.nix by hand; the only thing that matters
 # for this test is that the relay boots and receives datagrams.
 cat > "$WORK/config.toml" <<'TOML'
 enable_relay = true

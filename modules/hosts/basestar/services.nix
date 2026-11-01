@@ -1,0 +1,44 @@
+{self, ...}: {
+  configurations.nixos.basestar.module = {config, ...}: {
+    services.mydia-iroh-relay.enable = true;
+
+    sops.secrets.tailscale-key.sopsFile = config.constellation.sops.commonSopsFile;
+    sops.secrets.tailscale-env = {};
+
+    # tsnsrv re-enabled - provides Tailscale node management for basestar services (task-100)
+    # Runs alongside galactica host's tsnsrv to expose basestar services via Tailscale
+    services.tsnsrv = {
+      enable = true;
+      separateProcesses = true; # Create individual systemd service per tsnsrv service
+      prometheusAddr = "127.0.0.1:9500"; # Moved from 9099 to avoid conflict with OpenCloud (uses 9100-9300)
+      defaults = {
+        tags = ["tag:service"];
+        authKeyPath = config.sops.secrets.tailscale-key.path;
+        ephemeral = true;
+      };
+    };
+
+    # users.users.beszel-agent = {
+    #   group = "beszel-agent";
+    #   home = "/var/lib/beszel-agent";
+    #   isSystemUser = true;
+    #   createHome = true;
+    # };
+
+    # users.groups.beszel-agent.name = "beszel-agent";
+
+    # systemd.services.beszel-agent = {
+    #   wantedBy = ["multi-user.target"];
+    #   after = ["network.target"];
+    #   serviceConfig = {
+    #     Environment = [
+    #       "PORT=45876"
+    #       "KEY='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGKIjUSMdRqYMmZopjoXBVbEW2SpjE4mxrPclsnQCvW9'"
+    #     ];
+    #     User = "beszel-agent";
+    #     ExecStart = "${pkgs.beszel}/bin/beszel-agent";
+    #     WorkingDirectory = "/var/lib/beszel-agent";
+    #   };
+    # };
+  };
+}

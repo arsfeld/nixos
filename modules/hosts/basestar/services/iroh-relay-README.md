@@ -23,7 +23,7 @@ can-1 is not yet safe to retire.
 
 The DNS-01 provider is invisible in `iroh-relay.nix`: that module only sets
 `extraDomainNames` and `reloadServices` on `security.acme.certs`. DNS-01 works
-at all because `hosts/basestar/configuration.nix` sets `media.config.enable =
+at all because `modules/hosts/basestar/configuration.nix` sets `media.config.enable =
 true`, which pulls in `modules/media/config.nix`'s host-wide
 `security.acme.defaults`, carrying `dnsProvider = "cloudflare"` and the
 `environmentFile`. That credential is a Cloudflare **global API key**

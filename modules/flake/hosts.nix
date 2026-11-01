@@ -11,7 +11,6 @@
   # Hosts still under hosts/<name>/, not yet moved to modules/hosts/<name>.nix.
   # Their settings live here until each moves; then the entry is deleted.
   legacy = {
-    basestar = {tier = "tier1";};
     blackbird = {};
     galactica = {tier = "tier1";};
     raider = {
@@ -23,7 +22,6 @@
   # Features each legacy host imports, by name in flake.modules.nixos. base is
   # added to every host by mkLinuxSystem and is not listed.
   legacyFeatures = {
-    basestar = ["backrest" "media" "netdata-client" "podman" "tsnsrv" "virtualization"];
     blackbird = ["desktop" "development" "gaming" "netdata-client" "virtualization"];
     galactica = ["backrest" "backup-summary" "check-stock" "development" "forgejo-runner" "media" "podman" "tsnsrv" "virtualization"];
     raider = ["backrest" "desktop" "development" "gaming" "media" "netdata-client" "tsnsrv" "virtualization"];
