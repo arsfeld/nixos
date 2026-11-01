@@ -666,7 +666,7 @@ Opt-in modules that hosts compose by importing them; `nix eval --json .#nixosMod
 Host-local modules (see the rule above), under `modules/hosts/`: galactica —
 `backup/rustic.nix`, and under `services/` `pia`, `opencloud`, `home-assistant`,
 `tablet-sync`, `vpn-exit-nodes`, `immich-pixel-sync/`, `stash-identify/`, `media-apps`, `media-automation`,
-`media-streaming`, `home-apps`, `network-tools`; basestar — `k3s.nix`, `sites/`;
+`media-streaming`, `home-apps`, `network-tools`; basestar — `k3s.nix`, `sites/`, `tailscale-exit-node.nix`;
 raider — `docker.nix`, `project-vms.nix`; pegasus — `media-sync.nix`.
 
 ### Media Configuration Variables (`modules/media/config.nix`)
