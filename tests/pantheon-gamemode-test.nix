@@ -24,7 +24,7 @@ in {
   nodes.machine = {...}: {
     imports = [
       "${pkgs.path}/nixos/tests/common/user-account.nix"
-      ../modules/constellation/pantheon-gamemode.nix
+      ../modules/_legacy/constellation/pantheon-gamemode.nix
     ];
 
     # Workaround ".gala-wrapped invoked oom-killer" (as upstream's test).

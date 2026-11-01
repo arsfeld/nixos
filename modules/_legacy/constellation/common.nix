@@ -92,7 +92,8 @@
 
       # Add each flake input as a registry entry.
       # Exclude nixpkgs/nixpkgs-unstable — handled by nixpkgs' built-in nixpkgs-flake module.
-      registry = lib.mapAttrs (_: value: {flake = value;}) (builtins.removeAttrs inputs ["nixpkgs" "nixpkgs-unstable"]);
+      # Exclude import-tree — it only loads this flake's own modules/ at evaluation time.
+      registry = lib.mapAttrs (_: value: {flake = value;}) (builtins.removeAttrs inputs ["nixpkgs" "nixpkgs-unstable" "import-tree"]);
 
       # This will additionally add your inputs to the system's legacy channels
       # Making legacy nix commands consistent as well, awesome!

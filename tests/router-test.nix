@@ -102,7 +102,7 @@
         # this node imports the router's own files only. Without it the
         # `import no_brotli_requests` in hosts/router/services/caddy.nix has no
         # snippet to resolve and caddy refuses to start.
-        "${self}/modules/constellation/caddy-security.nix"
+        "${self}/modules/_legacy/constellation/caddy-security.nix"
       ];
 
       # alerting.nix and client-monitor read these secrets' paths. The test VM

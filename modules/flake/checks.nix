@@ -7,19 +7,19 @@
     checks =
       {
         router-test = inputs.nixpkgs.legacyPackages.${system}.testers.nixosTest (
-          import ../tests/router-test.nix {inherit self inputs;}
+          import ../../tests/router-test.nix {inherit self inputs;}
         );
         harmonia-cache-test = inputs.nixpkgs.legacyPackages.${system}.testers.nixosTest (
-          import ../tests/harmonia-cache-test.nix {inherit self inputs;}
+          import ../../tests/harmonia-cache-test.nix {inherit self inputs;}
         );
-        blackbird-audio-control-test = import ../tests/blackbird-audio-control-test.nix {
+        blackbird-audio-control-test = import ../../tests/blackbird-audio-control-test.nix {
           inherit self inputs system;
         };
         immich-pixel-sync-test =
           inputs.nixpkgs.legacyPackages.${system}.runCommand "immich-pixel-sync-test" {
             nativeBuildInputs = [inputs.nixpkgs.legacyPackages.${system}.python3];
           } ''
-            cp ${../hosts/galactica/services/immich-pixel-sync}/*.py .
+            cp ${../../hosts/galactica/services/immich-pixel-sync}/*.py .
             python3 -m unittest discover -v -s . -p 'test_*.py'
             touch $out
           '';
@@ -27,23 +27,23 @@
           inputs.nixpkgs.legacyPackages.${system}.runCommand "raider-fan-control-test" {
             nativeBuildInputs = [inputs.nixpkgs.legacyPackages.${system}.python3];
           } ''
-            cp ${../hosts/raider/fan-control}/*.py .
+            cp ${../../hosts/raider/fan-control}/*.py .
             python3 -m unittest discover -v -s . -p 'test_*.py'
             touch $out
           '';
       }
       // inputs.nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
         pantheon-dock-test = inputs.nixpkgs.legacyPackages.${system}.testers.nixosTest (
-          import ../tests/pantheon-dock-test.nix
+          import ../../tests/pantheon-dock-test.nix
         );
         pantheon-gamemode-test = inputs.nixpkgs.legacyPackages.${system}.testers.nixosTest (
-          import ../tests/pantheon-gamemode-test.nix
+          import ../../tests/pantheon-gamemode-test.nix
         );
         # cylon-link is cross-compiled from x86_64; its checks are too.
-        cylon-link-boot = import ../hosts/cylon-link/boot/test.nix {
+        cylon-link-boot = import ../../hosts/cylon-link/boot/test.nix {
           pkgs = inputs.nixpkgs.legacyPackages.${system};
         };
-        cylon-link-config = import ../hosts/cylon-link/config-test.nix {
+        cylon-link-config = import ../../hosts/cylon-link/config-test.nix {
           inherit self;
           pkgs = inputs.nixpkgs.legacyPackages.${system};
         };
@@ -64,7 +64,7 @@
             nativeBuildInputs = [(pkgs.python3.withPackages (ps: [ps.jinja2]))];
             HEATING_CONFIG = config;
           } ''
-            cp ${../hosts/galactica/services/home-assistant-heating}/*.py .
+            cp ${../../hosts/galactica/services/home-assistant-heating}/*.py .
             python3 -m unittest discover -v -s . -p 'test_*.py'
             touch $out
           '';

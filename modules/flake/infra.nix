@@ -21,7 +21,7 @@
       # infra/.work as config.tf.json.
       infra-config = inputs.terranix.lib.terranixConfiguration {
         inherit pkgs;
-        modules = [../infra];
+        modules = [../../infra];
       };
 
       # OpenTofu with both providers baked into a local plugin mirror, so

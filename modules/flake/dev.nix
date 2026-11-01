@@ -144,7 +144,7 @@
       extraSpecialArgs = {inherit inputs;};
       modules = [
         inputs.nix-index-database.homeModules.nix-index
-        ../home/home.nix
+        ../../home/home.nix
         {
           # Specific to standalone home-manager
           nixpkgs.config = {

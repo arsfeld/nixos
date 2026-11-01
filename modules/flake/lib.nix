@@ -11,17 +11,17 @@
     loadPackages = pkgs:
       inputs.nixpkgs.lib.packagesFromDirectoryRecursive {
         inherit (pkgs) callPackage;
-        directory = ../packages;
+        directory = ../../packages;
       };
 
     # Common overlays used everywhere
     overlays = [
-      (import ../overlays/cve-2026-111497.nix)
-      (import ../overlays/python-packages.nix)
-      (import ../overlays/openldap.nix)
-      (import ../overlays/glances.nix)
-      (import ../overlays/libcap-ng-static.nix)
-      (import ../overlays/cloudflared.nix)
+      (import ../../overlays/cve-2026-111497.nix)
+      (import ../../overlays/python-packages.nix)
+      (import ../../overlays/openldap.nix)
+      (import ../../overlays/glances.nix)
+      (import ../../overlays/libcap-ng-static.nix)
+      (import ../../overlays/cloudflared.nix)
       # nixpkgs-unstable as `pkgs.unstable`, one instance per package set.
       # It inherits the host's nixpkgs config (allowUnfree, …) and no overlays:
       # what we take from it is plain upstream packages, and our overlays
@@ -58,7 +58,7 @@
           in
             recurse set;
           modules = inputs.haumea.lib.load {
-            src = ../modules;
+            src = ../_legacy;
             loader = inputs.haumea.lib.loaders.path;
           };
         in
@@ -76,11 +76,10 @@
         home-manager.useGlobalPkgs = true;
         home-manager.useUserPackages = false;
         home-manager.backupFileExtension = "bak";
-        home-manager.users.arosenfeld = import ../home/home.nix;
+        home-manager.users.arosenfeld = import ../../home/home.nix;
       }
     ];
     homeManagerModules = homeManagerModulesFor inputs.home-manager;
-    lightHosts = ["raspi3" "octopi" "r2s" "cylon-link"];
   in {
     inherit
       loadPackages
@@ -88,7 +87,6 @@
       baseModules
       homeManagerModulesFor
       homeManagerModules
-      lightHosts
       ;
 
     mkLinuxSystem = {

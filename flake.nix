@@ -15,6 +15,7 @@
     flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
     haumea.url = "github:nix-community/haumea"; # File tree loader for Nix
     haumea.inputs.nixpkgs.follows = "nixpkgs";
+    import-tree.url = "github:vic/import-tree"; # Loads every .nix file under modules/ as a flake-parts module
     git-hooks.url = "github:cachix/git-hooks.nix"; # Git hooks framework
     git-hooks.inputs.nixpkgs.follows = "nixpkgs";
     nix-flatpak.url = "github:gmodena/nix-flatpak"; # Flatpak support for NixOS
@@ -39,24 +40,7 @@
     terranix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = {self, ...} @ inputs:
-    inputs.flake-parts.lib.mkFlake {inherit inputs;} (
-      {...}: {
-        imports = [
-          ./flake-modules/lib.nix
-          ./flake-modules/hosts.nix
-          ./flake-modules/deploy.nix
-          ./flake-modules/checks.nix
-          ./flake-modules/images.nix
-          ./flake-modules/dev.nix
-          ./flake-modules/infra.nix
-        ];
-
-        systems = [
-          "x86_64-linux"
-          "aarch64-linux"
-          "aarch64-darwin"
-        ];
-      }
-    );
+  # Every .nix file under modules/ is a flake-parts module, except paths with a
+  # `/_` component. See modules/flake/ for the flake's own wiring.
+  outputs = inputs: inputs.flake-parts.lib.mkFlake {inherit inputs;} (inputs.import-tree ./modules);
 }

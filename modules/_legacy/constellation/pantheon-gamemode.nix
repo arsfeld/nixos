@@ -14,7 +14,7 @@
 }: {
   config = lib.mkIf (config.programs.gamemode.enable && config.services.desktopManager.pantheon.enable) {
     services.desktopManager.pantheon.extraWingpanelIndicators = [
-      (pkgs.callPackage ../../packages/wingpanel-indicator-gamemode/package.nix {})
+      (pkgs.callPackage ../../../packages/wingpanel-indicator-gamemode/package.nix {})
     ];
   };
 }

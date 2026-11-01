@@ -10,7 +10,7 @@
 # Each entry is *lowered* into the existing media.containers.<name> /
 # media.gateway.services.<name> options (unchanged underneath). Those two
 # options are lowering targets only: the assertions at the bottom of this file
-# reject a definition of either from any file outside modules/media/.
+# reject a definition of either from any file outside modules/_legacy/media/.
 {
   self,
   config,
@@ -24,12 +24,12 @@
   podmanSubnet = "10.88.0.0/16";
 
   # Reject definitions of a lower-layer option from any file outside
-  # modules/media/. `opt.files` lists each file whose definition survived
+  # modules/_legacy/media/. `opt.files` lists each file whose definition survived
   # mkIf (or, with none, the file declaring the option's default) as a store
   # path; relPath strips the store prefix for matching and for the message.
   guardLowerLayer = path: opt: let
     relPath = f: lib.last (lib.splitString "-source/" f);
-    strays = lib.unique (lib.filter (f: !lib.hasPrefix "modules/media/" (relPath f)) opt.files);
+    strays = lib.unique (lib.filter (f: !lib.hasPrefix "modules/_legacy/media/" (relPath f)) opt.files);
   in {
     assertion = strays == [];
     message = ''

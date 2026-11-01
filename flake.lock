@@ -726,6 +726,21 @@
     },
     "import-tree": {
       "locked": {
+        "lastModified": 1788467110,
+        "narHash": "sha256-ljEMTXP/rH0tOvDzc9gzwww6KcHRPRnEHzd9lK48V7s=",
+        "owner": "vic",
+        "repo": "import-tree",
+        "rev": "eb1b52eaecc57f7c136d07ae8a93e724dfecac46",
+        "type": "github"
+      },
+      "original": {
+        "owner": "vic",
+        "repo": "import-tree",
+        "type": "github"
+      }
+    },
+    "import-tree_2": {
+      "locked": {
         "lastModified": 1784254960,
         "narHash": "sha256-iI88R3wHz8wTKQb5orvpc51L/Xr64AJyxid/0MKa/b8=",
         "owner": "vic",
@@ -1195,6 +1210,7 @@
         "haumea": "haumea",
         "home-manager": "home-manager_3",
         "home-manager-unstable": "home-manager-unstable",
+        "import-tree": "import-tree",
         "llm-agents": "llm-agents",
         "niks3": "niks3",
         "niri": "niri",
@@ -1380,7 +1396,7 @@
     "terranix": {
       "inputs": {
         "flake-parts": "flake-parts_5",
-        "import-tree": "import-tree",
+        "import-tree": "import-tree_2",
         "nixpkgs": [
           "nixpkgs"
         ],
