@@ -557,6 +557,8 @@ done
 
 Fix any `DANGLING` first. `__utils.nix` is a helper and stays unwrapped.
 
+`modules/media/services.nix` guards the lower layers by file path: Task 2 changed its `modules/media/` prefix to `modules/_legacy/media/`. Set it back to `modules/media/` here, or every host fails the `media.gateway.services`/`media.containers` assertion. (`checks.x86_64-linux.media-lower-layers-guarded` must still evaluate.)
+
 - [ ] **Step 2: `media` imports `tsnsrv`**
 
 In `modules/media/services.nix`, make the outer function take `config` (add it to the existing outer pattern, or create `{config, ...}:` if there is none), bind `features`, and add tsnsrv to the keyed wrapper's imports:
@@ -804,7 +806,7 @@ Expected: no output. If anything is left, it is a module this plan missed: stop 
 
 - [ ] **Step 2: Delete the loader**
 
-`rmdir -p modules/_legacy` (or `rm -r` if empty dirs remain). In `modules/flake/lib.nix`, delete the whole `# Load all modules from the modules directory` block from `baseModules`. In `flake.nix`, delete the two `haumea` lines. Run `nix flake lock` and confirm the diff only removes `haumea`.
+`rmdir -p modules/_legacy` (or `rm -r` if empty dirs remain). `modules/base/common.nix` writes every flake input into `nix.registry`/`nix.nixPath` except those in its `removeAttrs` list (Task 2 added `import-tree` there). Removing the haumea input therefore drops its registry entry on every host: expect `DIFF` on all ten whose `explain` shows only the registry, `NIX_PATH` and `set-environment`/`etc-pam-environment` losing `haumea`. That is the intended change: accept it, say so in the commit message, then re-record the baseline (`verify.sh baseline <host>` for each host, one per command) so later tasks compare against the new state. In `modules/flake/lib.nix`, delete the whole `# Load all modules from the modules directory` block from `baseModules`. In `flake.nix`, delete the two `haumea` lines. Run `nix flake lock` and confirm the diff only removes `haumea`.
 
 - [ ] **Step 3: Verify, commit**
 
