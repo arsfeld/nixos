@@ -25,6 +25,7 @@ update-packages *PKGS:
       home-assistant-tplink-deco
       home-assistant-tuya-smart-ir-ac
       librepods
+      multiviewer-for-f1
     )
     # nix-update cannot handle buildHomeAssistantComponent: the derivation's
     # `version` is defined inside nixpkgs, and nix-update's eval throws on any
@@ -60,6 +61,17 @@ update-packages *PKGS:
           v=$(curl -fsSL https://downloads.claude.ai/claude-desktop/apt/stable/dists/stable/main/binary-amd64/Packages \
             | sed -n 's/^Version: //p' | sort -V | tail -n1)
           [ -n "$v" ] || { failed+=("$p"); continue; }
+          cmd+=(--version "$v") ;;
+        # Not a forge nix-update can query, and the download URL carries a
+        # per-release token it cannot derive from the version: take both from
+        # the release API, write the token, let nix-update do version + hash.
+        multiviewer-for-f1)
+          url=$(curl -fsSL https://api.multiviewer.app/api/v1/releases/latest \
+            | jq -r '.downloads[] | select(.platform == "linux_deb").url')
+          v=$(sed -nE 's|.*/v/([^/]+)/1/[^/]+/.*|\1|p' <<<"$url")
+          t=$(sed -nE 's|.*/v/[^/]+/1/([^/]+)/.*|\1|p' <<<"$url")
+          [ -n "$v" ] && [ -n "$t" ] || { failed+=("$p"); continue; }
+          sed -i "s|token = \"[^\"]*\"|token = \"$t\"|" "packages/$p/package.nix"
           cmd+=(--version "$v") ;;
       esac
       if "${cmd[@]}"; then
