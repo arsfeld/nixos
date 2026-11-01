@@ -27,6 +27,11 @@ SELF_ENTRY = re.compile(r'\{"exact":true,"from":\{"id":"self","type":"indirect"\
 SELF_PATH = re.compile(r'"id":"self","type":"indirect"\},"to":\{[^{}]*"path":"(/nix/store/[^"]+)"')
 STORE = re.compile(r"/nix/store/[0-9a-z]{32}-[A-Za-z0-9+._?=-]+")
 TOKENS = re.compile(r"[\s:,]+")
+# A space-separated run of two or more output placeholders. Such runs come from
+# lists nix built in store-path order (e.g. references.nix, which the brotli
+# graft reads), and store paths change with every commit, so their order is
+# noise: sort each run.
+PLACEHOLDER_RUN = re.compile(r"(?:(?:OUT\[[0-9a-f]{16}:[^\]]+\]|SELF)[ ]){1,}(?:OUT\[[0-9a-f]{16}:[^\]]+\]|SELF)")
 
 
 def full(p):
@@ -45,19 +50,59 @@ def load(src):
     return {full(k): v for k, v in g.items()}
 
 
+def strings(d):
+    """Every string a derivation's env and structuredAttrs (nixpkgs-unstable) carry."""
+    todo = list(d.get("env", {}).values()) + [d.get("structuredAttrs")]
+    while todo:
+        v = todo.pop()
+        if isinstance(v, str):
+            yield v
+        elif isinstance(v, dict):
+            todo.extend(v.values())
+        elif isinstance(v, list):
+            todo.extend(v)
+
+
 class Canon:
     def __init__(self, graph, loose):
         self.graph, self.loose = graph, loose
-        found = {m.group(1) for d in graph.values() for v in d.get("env", {}).values() for m in SELF_PATH.finditer(v)}
+        found = {m.group(1) for d in graph.values() for v in strings(d) for m in SELF_PATH.finditer(v)}
         if len(found) != 1:
             sys.exit(f"expected exactly one self source path in the flake registry, found {sorted(found)}")
-        self.out_map = {found.pop(): "SELF"}
-        self.hash, self.body = {}, {}
+        self.self_path = found.pop()
+        self.prev_map = {}
+
+    def run(self, top):
+        """Canonicalize until the output-path map stops changing.
+
+        A string can name an output whose producer is not among the
+        derivation's inputs, so a depth-first pass may meet the path before
+        its producer: replaceDependencies (the brotli graft) finds the paths
+        to rewrite by import-from-derivation. Later passes read placeholders
+        the previous pass assigned."""
+        for _ in range(10):
+            self.out_map = {self.self_path: "SELF"}
+            self.hash, self.body = {}, {}
+            h = self.visit(top)
+            if self.out_map == self.prev_map:
+                return h
+            self.prev_map = self.out_map
+        sys.exit("output-path placeholders did not converge in 10 passes")
 
     def scrub(self, s):
         s = SELF_ENTRY.sub("SELF_REGISTRY_ENTRY", s)
-        s = STORE.sub(lambda m: self.out_map.get(m.group(0), m.group(0)), s)
+        s = STORE.sub(lambda m: self.out_map.get(m.group(0)) or self.prev_map.get(m.group(0), m.group(0)), s)
+        s = PLACEHOLDER_RUN.sub(lambda m: " ".join(sorted(m.group(0).split(" "))), s)
         return " ".join(sorted(TOKENS.split(s))) if self.loose else s
+
+    def scrub_tree(self, v):
+        if isinstance(v, str):
+            return self.scrub(v)
+        if isinstance(v, dict):
+            return {k: self.scrub_tree(x) for k, x in sorted(v.items())}
+        if isinstance(v, list):
+            return [self.scrub_tree(x) for x in v]
+        return v
 
     def visit(self, path):
         if path in self.hash:
@@ -75,7 +120,8 @@ class Canon:
             "srcs": sorted(self.scrub(full(s)) for s in srcs),
             "builder": self.scrub(d["builder"]),
             "args": [self.scrub(a) for a in d["args"]],
-            "env": {k: self.scrub(v) for k, v in sorted(d["env"].items()) if k not in outs},
+            "env": {k: self.scrub(v) for k, v in sorted(d.get("env", {}).items()) if k not in outs},
+            "structuredAttrs": self.scrub_tree(d.get("structuredAttrs")),
             "outputs": sorted(outs),
         }
         h = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
@@ -91,11 +137,11 @@ def main(argv):
     argv = [a for a in argv if a != "--loose"]
     if argv and argv[0] == "hash":
         c = Canon(load("-"), loose)
-        print(c.visit(full(argv[1])))
+        print(c.run(full(argv[1])))
     elif argv and argv[0] == "explain":
         a, b = Canon(load(argv[1]), loose), Canon(load(argv[3]), loose)
-        a.visit(full(argv[2]))
-        b.visit(full(argv[4]))
+        a.run(full(argv[2]))
+        b.run(full(argv[4]))
         known = set(a.body)
         by_name = {}
         for body in a.body.values():
@@ -109,7 +155,7 @@ def main(argv):
                 print(f"   (no unique counterpart: {len(olds)} derivations named {body['name']} before)")
                 continue
             old = olds[0]
-            for field in ("builder", "args", "srcs", "outputs"):
+            for field in ("builder", "args", "srcs", "outputs", "structuredAttrs"):
                 if old[field] != body[field]:
                     print(f"   {field}: {old[field]!r} -> {body[field]!r}")
             for k in sorted(set(old["env"]) | set(body["env"])):
