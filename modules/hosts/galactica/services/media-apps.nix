@@ -16,7 +16,7 @@
 
         # Settings for the sideloaded Assistant plugin. Mydia applies them at
         # startup (and saves them to its database); the key is the same
-        # OpenRouter key stash-identify uses. Users can switch models on the page.
+        # OpenRouter key plab uses. Users can switch models on the page.
         sops.templates.mydia-assistant-env.content = ''
           PLUGIN_0_SLUG=assistant-openai
           PLUGIN_0_SETTINGS=${builtins.toJSON {
