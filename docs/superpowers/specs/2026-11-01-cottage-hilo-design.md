@@ -52,10 +52,16 @@ second time as domain `hilo_cottage`. It takes `version` and `src` from
   the account's Firebase and Android registration. The two accounts must not
   share it.
 - `sensor.py`: `"Defi Hilo"`, `"Recompenses Hilo"`, `"Notifications Hilo"` and
-  `"Outdoor Weather Hilo"` each gain the suffix ` Cottage`. Entity IDs then come
-  out as `sensor.defi_hilo_cottage` and so on, not as an unpredictable `_2`.
-- `climate.py`: the hardcoded `sensor.defi_hilo` (challenge lock) →
-  `sensor.defi_hilo_cottage`.
+  `"Outdoor Weather Hilo"` each gain the suffix ` Cottage`, so the two homes'
+  sensors are told apart by name.
+- `climate.py` (challenge lock) and `__init__.py` (`high_times`, the tariff
+  check): the hardcoded `sensor.defi_hilo` → `sensor.defi_hilo_cottage`.
+
+The entity ID the cottage's challenge sensor gets on creation depends on Home
+Assistant's device-name prefixing and on dvd-dev's gateway rename map, so it is
+not predicted here. After setup it is read from the entity registry and, if it
+differs, renamed in the UI to `sensor.defi_hilo_cottage`, the ID the two
+substitutions above and the automations use.
 
 Every substitution uses `substituteInPlace --replace-fail`. A dvd-dev release
 that moves any of these strings fails the build instead of shipping a
@@ -85,11 +91,20 @@ power and the cottage's smart meter from home's meter.
 `sensor.unknown_source_tracker_power` is the heat pump's power proxy in the
 heating analysis, so it would quietly read low or zero.
 
-`packages/home-assistant-hilo/unknown-power-own-entry.patch` makes that loop
-skip any entity whose entity-registry entry does not belong to this
-integration's config entry. `find_meter` gets the same filter. The patch goes
-in `patches` for both `home-assistant-hilo` and `home-assistant-hilo-cottage`,
-and fails to apply loudly if upstream moves the code.
+Subtracting every other `*_power` entity is upstream's intent: "unknown" means
+unmetered, so a metered plug elsewhere in Home Assistant counts as known. The
+patch therefore narrows only what the second account breaks.
+`packages/home-assistant-hilo/unknown-power-own-entry.patch` makes that loop,
+and `find_meter`, skip any entity owned by **another Hilo config entry**: its
+registry platform is `hilo` or `hilo_cottage`, and its config entry is not this
+one. It also sets `self.entry` before `__init__` calls `find_meter`, which needs
+it. The patch goes in `patches` for both `home-assistant-hilo` and
+`home-assistant-hilo-cottage`, and fails to apply loudly if upstream moves the
+code.
+
+`check_tarif` also walks every state, but it only touches
+`select.*_hilo_energy` utility-meter selects, and the cottage creates none with
+energy meters off.
 
 ### 3. Wiring and one-time UI setup
 
@@ -194,8 +209,9 @@ share no entities.
 1. **Flake check `hilo-cottage-rename`.** Inspect the built package and assert:
    `custom_components/hilo_cottage/` exists, `DOMAIN = "hilo_cottage"`, the
    manifest domain is `hilo_cottage`, the state file is
-   `hilo_cottage_state.yaml`, the four entity names carry ` Cottage`, and
-   `climate.py` has no `sensor.defi_hilo"` left.
+   `hilo_cottage_state.yaml`, the four entity names carry ` Cottage`,
+   neither `climate.py` nor `__init__.py` reads `"sensor.defi_hilo"` any more,
+   and the unknown-power patch is present.
 2. **Home is unchanged.** galactica builds, and `heating-policy-test` passes.
 3. **Unknown-power patch, live.** Deploy before adding the cottage integration
    and check `sensor.unknown_source_tracker_power` against its recent history.
