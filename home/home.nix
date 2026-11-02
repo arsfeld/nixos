@@ -123,27 +123,61 @@
   claudeRcServices = let
     claude = lib.findFirst (p: p.name == "claude") null llmAgentScripts;
     # After=network-online.target is a system target the user manager cannot
-    # see, so at boot the first start fails with ENOTFOUND. Wait for DNS
-    # instead, bounded so a real outage still falls through to Restart=.
+    # see (and raider's reaches it before any link is up anyway), so wait for
+    # DNS instead. The wired link has taken 85s after boot to get an address,
+    # which outlasted the 60s this used to allow; 5 minutes covers that, and a
+    # real outage still falls through to Restart=. TimeoutStartSec must exceed
+    # it, since ExecStartPre counts against the 90s default.
     waitForApi = pkgs.writeShellScript "claude-rc-wait-for-api" ''
-      for ((i = 0; i < 60; i++)); do
+      for ((i = 0; i < 300; i++)); do
         ${lib.getExe' pkgs.getent "getent"} hosts api.anthropic.com >/dev/null && exit 0
         ${pkgs.coreutils}/bin/sleep 1
       done
       exit 0
     '';
+    # The server redraws its whole status screen every second even without a
+    # TTY, and every frame landed in the journal: 1.6M lines in two days from
+    # one unit. Pass a line only when it was not in the previous frame (a
+    # frame starts with a cursor-up escape), so the journal keeps transitions
+    # (Connected, Reconnecting, a session appearing) and nothing else. Session
+    # hyperlinks become "title <url>". pipefail keeps claude's exit status.
+    dedupeFrames = ''
+      {
+        line = $0
+        if (line ~ /\033\[[0-9]+A/) { delete prev; for (k in cur) prev[k] = 1; delete cur }
+        line = gensub(/\033\]8;;([^\007]+)\007([^\033]*)\033\]8;;\007/, "\\2 <\\1>", "g", line)
+        gsub(/\033\[[0-9;?]*[A-Za-z]/, "", line)
+        cur[line] = 1
+        if (!(line in prev)) { print line; fflush() }
+      }
+    '';
+    runServer = project: extraArgs:
+      pkgs.writeShellScript "claude-rc-${project}" ''
+        set -o pipefail
+        ${lib.getExe claude} remote-control --name raider-${project} --permission-mode auto ${extraArgs} 2>&1 |
+          ${lib.getExe pkgs.gawk} ${lib.escapeShellArg dedupeFrames}
+      '';
   in
     lib.optionalAttrs (hostname == "raider" && claude != null) (
       lib.mapAttrs' (project: extraArgs:
         lib.nameValuePair "claude-rc-${project}" {
           Unit = {
             Description = "Claude Code remote-control for ~/Code/${project}";
+            # A deploy must not restart a server: that interrupts every session
+            # it hosts, including the one running the deploy. A changed unit
+            # takes effect on the next restart; do that by hand when no session
+            # is mid-turn (`systemctl --user restart claude-rc-<project>`).
+            X-SwitchMethod = "keep-old";
           };
           Service = {
             WorkingDirectory = "%h/Code/${project}";
             ExecStartPre = "${waitForApi}";
-            ExecStart = "${lib.getExe claude} remote-control --name raider-${project} --permission-mode auto ${extraArgs}";
-            Restart = "on-failure";
+            ExecStart = "${runServer project extraArgs}";
+            TimeoutStartSec = "6min";
+            # Not on-failure: after twelve minutes of failed reconnects the
+            # server gives up and exits 0, which on-failure leaves stopped (it
+            # stayed down for three hours on 2026-11-01).
+            Restart = "always";
             RestartSec = 30;
             Slice = agentsSlice;
           };
