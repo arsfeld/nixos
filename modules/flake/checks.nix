@@ -72,6 +72,19 @@
             touch $out
           '';
 
+        # tuya-local-rehost's decision: when to scan for a moved Tuya device
+        # and when to rewrite its host.
+        tuya-local-rehost-test = let
+          pkgs = inputs.nixpkgs.legacyPackages.${system};
+        in
+          pkgs.runCommand "tuya-local-rehost-test" {
+            nativeBuildInputs = [pkgs.python3];
+          } ''
+            cp ${../hosts/galactica/services/tuya-local-rehost}/*.py .
+            python3 -m unittest discover -v -s . -p 'test_*.py'
+            touch $out
+          '';
+
         # The media lower layers (media.gateway.services, media.containers)
         # may only be written by modules/media/; services.nix asserts it.
         # Probe galactica with a stray write to each and require that the

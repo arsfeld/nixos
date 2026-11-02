@@ -12,8 +12,9 @@
 #              shortfall and _needs_backup bring in the living/dining
 #              baseboards through sensor.heating_living_baseboards_target.
 #   actuators  one automation for the heat pump, one for every baseboard.
-#              The heat pump is HA's alone: it re-evaluates on a timer and on
-#              HA start, so a missed edge or a restart corrects itself. A
+#              The heat pump is HA's alone: it re-evaluates on a timer and
+#              re-sends its state on HA start and when the IR hub returns, so
+#              a missed edge, a restart or a hub outage corrects itself. A
 #              baseboard is set when its zone's target changes, on HA start,
 #              every morning at 06:00 and when a Hilo challenge ends; between
 #              those it is left to whoever turns the dial or uses the Hilo app.
@@ -56,6 +57,8 @@
     boostHelpers = lib.unique (lib.concatMap (z: lib.optional (z.boost != null) z.boost.helper) (lib.attrValues zones));
 
     living = tpl.targetEntity "living_area";
+    irHub = "remote.living_room_ir";
+    phone = "notify.mobile_app_alexandres_iphone";
     livingBaseboards = tpl.targetEntity "living_baseboards";
     targetAttributes = ["reason" "window" "minutes" "start" "since" "from_temp" "assisted" "reached"];
 
@@ -279,15 +282,25 @@
                 entity_id = ["sensor.defi_hilo" "sensor.living_area_temperature" living];
                 not_to = ["unknown" "unavailable"];
               }
+              {
+                # Commands sent while the IR hub is unavailable are dropped,
+                # yet HA's climate state moves as if they were not, so the unit
+                # is stuck on whatever it last received (see tuya-local-rehost).
+                trigger = "state";
+                entity_id = irHub;
+                from = "unavailable";
+                not_to = ["unknown" "unavailable"];
+                id = "ir_back";
+              }
             ];
             # HA renders these in order and Nix sorts attribute names, so each
             # may only use variables that sort before it.
             variables = {
               current = "{{ states('climate.living_room_heat_pump') }}";
               # IR is one-way, so the unit can disagree with the state HA
-              # restored; on start, send the wanted state even if HA thinks the
-              # unit is already there.
-              resend = "{{ trigger.id == 'start' }}";
+              # restored or assumed; on start, and when the IR hub comes back,
+              # send the wanted state even if HA thinks the unit is already there.
+              resend = "{{ trigger.id in ['start', 'ir_back'] }}";
               setpoint = "{{ 21 if states('${living}') | float(0) >= 20 or states('sensor.outdoor_weather_hilo') | float(99) < 5 else 19 }}";
               want = ''
                 {%- set temp = states('sensor.living_area_temperature') | float(none) %}
@@ -433,6 +446,45 @@
                       ];
                     }
                   ];
+                };
+              }
+            ];
+            mode = "queued";
+          }
+          {
+            # The IR hub once sat unreachable for six days with nothing but a
+            # log line to show for it, and the heat pump stuck on heat 21.
+            alias = "Heating - IR hub alert";
+            description = "Tell the phone when the heat pump's IR hub has been unavailable for 15 minutes, and when it is back";
+            triggers = [
+              {
+                trigger = "state";
+                entity_id = irHub;
+                to = "unavailable";
+                for.minutes = 15;
+                id = "lost";
+              }
+              {
+                trigger = "state";
+                entity_id = irHub;
+                from = "unavailable";
+                not_to = ["unknown" "unavailable"];
+                id = "back";
+              }
+            ];
+            conditions = [
+              {
+                # Only report a recovery from an outage that was reported.
+                condition = "template";
+                value_template = "{{ trigger.id == 'lost' or (now() - trigger.from_state.last_changed).total_seconds() >= 900 }}";
+              }
+            ];
+            actions = [
+              {
+                action = phone;
+                data = {
+                  title = "Heat pump";
+                  message = "{{ 'Not controlled: the IR hub is unreachable, so commands are dropped.' if trigger.id == 'lost' else 'Control restored: the IR hub is back.' }}";
                 };
               }
             ];

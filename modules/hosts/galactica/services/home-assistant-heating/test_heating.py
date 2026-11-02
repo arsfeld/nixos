@@ -271,11 +271,24 @@ class HeatPump(unittest.TestCase):
     def test_resends_on_start(self):
         self.assertTrue(heat_pump("19.0", "20", trigger_id="start")["resend"])
 
+    def test_resends_when_the_ir_hub_returns(self):
+        self.assertTrue(heat_pump("19.0", "20", trigger_id="ir_back")["resend"])
+        self.assertFalse(heat_pump("19.0", "20")["resend"])
+        back = [t for t in automation("Heating - Heat pump")["triggers"] if t.get("id") == "ir_back"]
+        self.assertEqual([(t["entity_id"], t["from"]) for t in back], [("remote.living_room_ir", "unavailable")])
+
     def test_state_trigger_ignores_attribute_only_changes(self):
         # Without a from/to filter HA fires on every attribute tick of the
         # living target (pre-heat minutes); any not_to makes it state-only.
         state = [t for t in automation("Heating - Heat pump")["triggers"] if t["trigger"] == "state"]
-        self.assertEqual([t.get("not_to") for t in state], [["unknown", "unavailable"]])
+        self.assertEqual([t.get("not_to") for t in state], [["unknown", "unavailable"]] * 2)
+
+
+class IrHubAlert(unittest.TestCase):
+    def test_lost_after_15_minutes_and_back(self):
+        triggers = {t["id"]: t for t in automation("Heating - IR hub alert")["triggers"]}
+        self.assertEqual((triggers["lost"]["to"], triggers["lost"]["for"]), ("unavailable", {"minutes": 15}))
+        self.assertEqual(triggers["back"]["from"], "unavailable")
 
 
 ALL_BASEBOARDS = {

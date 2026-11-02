@@ -127,6 +127,10 @@
           # room IR" Tuya hub, and Tuya's cloud remote never offers heat for it.
           # Its remote speaks the Midea protocol, so midea_ir builds any
           # mode/temperature/fan frame itself and sends it through the hub.
+          # tuya_local reaches the hub at a fixed IP (192.168.68.77, reserved
+          # on the Deco); if it moves anyway, tuya-local-rehost finds it and
+          # rewrites the entry, and the heating automations re-send the heat
+          # pump's state and alert the phone while the hub is unreachable.
           climate = [
             {
               platform = "midea_ir";
