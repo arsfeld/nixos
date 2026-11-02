@@ -665,7 +665,7 @@ Opt-in modules that hosts compose by importing them; `nix eval --json .#nixosMod
 
 Host-local modules (see the rule above), under `modules/hosts/`: galactica —
 `backup/rustic.nix`, and under `services/` `pia`, `opencloud`, `home-assistant`,
-`tablet-sync`, `vpn-exit-nodes`, `immich-pixel-sync/`, `plab/` (plab is a Rust daemon in `packages/plab`), `media-apps`, `media-automation`,
+`tablet-sync`, `vpn-exit-nodes`, `immich-pixel-sync/`, `plab/` (plab is a Rust daemon in `packages/plab`, with its Svelte app in `packages/plab/ui`), `media-apps`, `media-automation`,
 `media-streaming`, `home-apps`, `network-tools`; basestar — `k3s.nix`, `sites/`, `tailscale-exit-node.nix`;
 raider — `docker.nix`, `project-vms.nix`; pegasus — `media-sync.nix`.
 

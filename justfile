@@ -87,6 +87,11 @@ update-packages *PKGS:
     echo "failed:  ${failed[*]:-none}"
     [ ${#failed[@]} -eq 0 ]
 
+# plab's Svelte app with hot reload. /api (and its SSE stream) goes to PLAB_DEV_BACKEND,
+# default http://127.0.0.1:8577: a local `plab serve`, or galactica's through
+# `ssh -L 8577:127.0.0.1:8577 galactica`.
+plab-ui-dev:
+    cd packages/plab/ui && nix shell --inputs-from {{ justfile_directory() }} nixpkgs#nodejs -c sh -c 'npm install && npm run dev'
 
 # Private recipe to nudge systems back into the default target after activation
 _poke-targets *TARGETS:
