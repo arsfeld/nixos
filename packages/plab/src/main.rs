@@ -27,6 +27,7 @@ mod site;
 mod sources;
 mod stash;
 mod stream;
+mod taste;
 #[cfg(test)]
 mod testlog;
 mod tracker;
