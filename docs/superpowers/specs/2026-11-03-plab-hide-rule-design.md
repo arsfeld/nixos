@@ -32,8 +32,8 @@ shape it does:
 - **One broad tag is not reliable on its own.** It also appears on scenes it should
   not hide, so it is not a hide term.
 - **Keep terms are needed.** A multi-scene pack carried a hide term among tags that
-  rule the kind out. In Stash, 19 scenes with a hide tag list a man in the cast. Keep
-  tags caught 18 of them, and the cast caught the last one.
+  rule the kind out. In Stash, 7 scenes with a hide tag list a man in the cast. The
+  other 10 carried only keep tags. The keep tags and the cast together keep all of them.
 - **Untagged titles.** 510 of the 865 releases come from other indexers and have
   plain-text titles. Every one of them that carried a hide word was correctly a hide.
 
@@ -136,7 +136,7 @@ a scene from suggestions does not change that history.
 
 ## Behaviour notes
 
-- Listings re-read the exclude file on every page load (web.rs list), so a secret change shows at once once plab restarts; the refresh also stops listing hidden releases.
+- Listings re-read the exclude file on every page load (web.rs list), so listings pick up a secret change at once, and the Assistant picks it up because the secret's `restartUnits` restarts plab; the refresh also stops listing hidden releases.
 - A bad term cannot fail: terms are plain strings, not regexes.
 - The rule applies wherever the exclude list applies today, which includes the Games
   section. The whole-tag match is what keeps games visible, as measured above. Nothing
