@@ -76,6 +76,48 @@ pub fn parse(html: &str) -> AlbumPage {
     }
 }
 
+/// Results asked for per search.
+pub const PER_PAGE: u32 = 40;
+
+/// The index's search page, fetched directly from galactica: a few dozen HTML pages a
+/// day and no media, so not through PIA.
+pub struct AlbumIndex {
+    http: reqwest::Client,
+    url: String,
+    label: String,
+    mode: String,
+}
+
+impl AlbumIndex {
+    pub fn new(url: &str, label: &str, mode: &str) -> AlbumIndex {
+        AlbumIndex {
+            http: reqwest::Client::builder()
+                .user_agent("Mozilla/5.0")
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .expect("reqwest client"),
+            url: url.to_string(),
+            label: label.to_string(),
+            mode: mode.to_string(),
+        }
+    }
+
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    /// The newest `PER_PAGE` albums matching `term`.
+    pub async fn search(&self, term: &str) -> anyhow::Result<AlbumPage> {
+        let per = PER_PAGE.to_string();
+        let url = url::Url::parse_with_params(
+            &self.url,
+            [("search", term), ("mode", &self.mode), ("per", &per), ("sort", "latest")],
+        )?;
+        let html = self.http.get(url).send().await?.error_for_status()?.text().await?;
+        Ok(parse(&html))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,5 +175,38 @@ mod tests {
         assert!(parse(&html).looks_broken());
         // No header at all is broken too.
         assert!(parse("<html><body>nothing</body></html>").looks_broken());
+    }
+
+    use wiremock::matchers::{method, path, query_param};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn search_asks_for_the_latest_page_in_the_configured_mode() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/"))
+            .and(query_param("search", "alpha beta"))
+            .and(query_param("mode", "strict"))
+            .and(query_param("per", "40"))
+            .and(query_param("sort", "latest"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let index = AlbumIndex::new(&format!("{}/", server.uri()), "Album index A", "strict");
+        assert_eq!(index.label(), "Album index A");
+        let page = index.search("alpha beta").await.unwrap();
+        assert_eq!(page.albums.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn a_server_error_is_an_error() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(503))
+            .mount(&server)
+            .await;
+        let index = AlbumIndex::new(&format!("{}/", server.uri()), "Album index A", "strict");
+        assert!(index.search("alpha").await.is_err());
     }
 }
