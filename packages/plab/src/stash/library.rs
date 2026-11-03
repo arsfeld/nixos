@@ -78,6 +78,7 @@ impl Stash {
         self.query(&q, json!({"n": limit}), SCENES).await
     }
 
+    /// `limit` applies per criterion, so the result can hold up to 2x `limit`.
     pub async fn unwatched(
         &self,
         performer_ids: &[String],
@@ -130,7 +131,7 @@ impl Stash {
 mod tests {
     use super::*;
     use serde_json::{Value, json};
-    use wiremock::matchers::{body_string_contains, method};
+    use wiremock::matchers::{body_partial_json, body_string_contains, method};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn scenes(v: Value) -> ResponseTemplate {
@@ -147,6 +148,7 @@ mod tests {
         Mock::given(method("POST"))
             .and(body_string_contains("last_played_at"))
             .and(body_string_contains("GREATER_THAN"))
+            .and(body_partial_json(json!({"variables": {"n": 100}})))
             .respond_with(scenes(json!([{
                 "id": "4", "title": "Alpha", "studio": {"id": "s1", "name": "Studio A"},
                 "performers": [{"id": "p1", "name": "Performer B"}], "tags": [],
@@ -173,11 +175,19 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(body_string_contains("performers: {value: $ids"))
+            .and(body_string_contains("EQUALS"))
+            .and(body_partial_json(
+                json!({"variables": {"ids": ["p1"], "n": 60}}),
+            ))
             .respond_with(scenes(json!([{"id": "1"}, {"id": "2"}])))
             .mount(&server)
             .await;
         Mock::given(method("POST"))
             .and(body_string_contains("studios: {value: $ids"))
+            .and(body_string_contains("EQUALS"))
+            .and(body_partial_json(
+                json!({"variables": {"ids": ["s1"], "n": 60}}),
+            ))
             .respond_with(scenes(json!([{"id": "2"}, {"id": "3"}])))
             .mount(&server)
             .await;
@@ -189,6 +199,43 @@ mod tests {
         assert_eq!(
             got.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
             vec!["1", "2", "3"]
+        );
+    }
+
+    #[tokio::test]
+    async fn search_scenes_sends_query_and_limit() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(body_partial_json(
+                json!({"variables": {"q": "alpha", "n": 20}}),
+            ))
+            .respond_with(scenes(json!([{"id": "7", "title": "Alpha"}])))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let got = stash(&server)
+            .await
+            .search_scenes("alpha", 20)
+            .await
+            .unwrap();
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].label(), "Alpha");
+    }
+
+    #[tokio::test]
+    async fn lib_scenes_sends_ids() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(body_partial_json(json!({"variables": {"ids": ["4", "5"]}})))
+            .respond_with(scenes(json!([{"id": "4"}, {"id": "5"}])))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let ids = vec!["4".to_string(), "5".to_string()];
+        let got = stash(&server).await.lib_scenes(&ids).await.unwrap();
+        assert_eq!(
+            got.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+            vec!["4", "5"]
         );
     }
 
