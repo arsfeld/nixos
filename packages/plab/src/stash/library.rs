@@ -1,6 +1,5 @@
 //! Library reads for the assistant: what was played, what is unwatched, scene search.
 //! Inherent methods on `Stash` (not `StashApi`): only the assistant uses them.
-#![allow(dead_code)] // Used by assistant (task 6); remove then.
 
 use std::collections::HashSet;
 

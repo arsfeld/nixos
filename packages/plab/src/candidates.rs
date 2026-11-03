@@ -1,6 +1,5 @@
 //! The assistant's shortlist: unwatched scenes and listed releases that share studios,
 //! performers or tags with the taste profile. Pure; `assistant::context` builds the inputs.
-#![allow(dead_code)] // Used by assistant (task 6); remove then.
 
 use std::collections::HashMap;
 

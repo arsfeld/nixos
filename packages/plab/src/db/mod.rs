@@ -323,7 +323,6 @@ pub struct JobRunRow {
 /// A stream of the same release within this many seconds of the last is not a new view.
 pub const STREAM_VIEW_GAP: i64 = 6 * 3600;
 
-#[allow(dead_code)] // consumed by the assistant, added in the following tasks
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConversationRow {
     pub id: i64,
@@ -333,7 +332,6 @@ pub struct ConversationRow {
     pub updated_at: i64,
 }
 
-#[allow(dead_code)] // consumed by the assistant, added in the following tasks
 #[derive(Debug, Clone, PartialEq)]
 pub struct MessageRow {
     pub seq: i64,
@@ -342,7 +340,6 @@ pub struct MessageRow {
     pub at: i64,
 }
 
-#[allow(dead_code)] // consumed by the assistant, added in the following tasks
 fn conversation_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<ConversationRow> {
     Ok(ConversationRow {
         id: r.get(0)?,
@@ -429,7 +426,6 @@ impl Db {
         })
     }
 
-    #[allow(dead_code)] // consumed by the assistant, added in the following tasks
     pub fn stream_views(&self, since: i64) -> Result<Vec<(u64, i64)>> {
         self.with(|c| {
             let mut s = c.prepare(
@@ -441,7 +437,6 @@ impl Db {
         })
     }
 
-    #[allow(dead_code)] // consumed by the assistant, added in the following tasks
     pub fn create_conversation(&self, title: &str, kind: &str, now: i64) -> Result<i64> {
         self.with(|c| {
             c.execute(
@@ -452,7 +447,7 @@ impl Db {
         })
     }
 
-    #[allow(dead_code)] // consumed by the assistant, added in the following tasks
+    #[allow(dead_code)] // used by the assistant's routes (task 7)
     pub fn conversations(&self) -> Result<Vec<ConversationRow>> {
         self.with(|c| {
             let mut s = c.prepare(
@@ -464,7 +459,6 @@ impl Db {
         })
     }
 
-    #[allow(dead_code)] // consumed by the assistant, added in the following tasks
     pub fn conversation(&self, id: i64) -> Result<Option<ConversationRow>> {
         self.with(|c| {
             Ok(c.query_row(
@@ -476,12 +470,11 @@ impl Db {
         })
     }
 
-    #[allow(dead_code)] // consumed by the assistant, added in the following tasks
+    #[allow(dead_code)] // used by the assistant's routes (task 7)
     pub fn delete_conversation(&self, id: i64) -> Result<bool> {
         self.with(|c| Ok(c.execute("DELETE FROM conversation WHERE id = ?1", params![id])? > 0))
     }
 
-    #[allow(dead_code)] // consumed by the assistant, added in the following tasks
     pub fn append_message(
         &self,
         conversation: i64,
@@ -509,7 +502,6 @@ impl Db {
         })
     }
 
-    #[allow(dead_code)] // consumed by the assistant, added in the following tasks
     pub fn messages(&self, conversation: i64) -> Result<Vec<MessageRow>> {
         self.with(|c| {
             let mut s = c.prepare(
@@ -527,7 +519,6 @@ impl Db {
         })
     }
 
-    #[allow(dead_code)] // consumed by the assistant, added in the following tasks
     pub fn delete_messages_from(&self, conversation: i64, seq: i64) -> Result<()> {
         self.with(|c| {
             c.execute(

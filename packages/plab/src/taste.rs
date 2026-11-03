@@ -1,6 +1,5 @@
 //! The taste profile: what recent views say about what to suggest next. Pure: the views
 //! come from Stash's play history and plab's stream log (`assistant::context`).
-#![allow(dead_code)] // Used by assistant (task 6); remove then.
 
 use std::collections::HashMap;
 

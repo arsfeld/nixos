@@ -72,7 +72,6 @@ impl OpenRouter {
     }
 
     /// A chat completion with a caller-built body (the assistant's tool loop), the raw reply.
-    #[allow(dead_code)] // used by assistant (task 6)
     pub async fn chat(&self, body: &Value) -> anyhow::Result<Value> {
         self.post(CHAT_PATH, body).await
     }
