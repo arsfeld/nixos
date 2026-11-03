@@ -64,7 +64,7 @@ impl LibScene {
     }
 }
 
-const FIELDS: &str = "id title date studio { id name } performers { id name } tags { id name } \
+const FIELDS: &str = "id title date studio { id name } performers { id name gender } tags { id name } \
     play_count o_counter rating100 last_played_at paths { screenshot } files { path duration }";
 
 const SCENES: &[&str] = &["findScenes", "scenes"];

@@ -177,11 +177,18 @@ pub struct Assistant {
     model: String,
     prompt: String,
     busy: Mutex<HashSet<i64>>,
+    hide: crate::filters::HideRule,
 }
 
 impl Assistant {
     pub fn new(llm: OpenRouter, stash: Stash, model: String, prompt: String) -> Assistant {
-        Assistant { llm, stash, model, prompt, busy: Mutex::new(HashSet::new()) }
+        Assistant { llm, stash, model, prompt, busy: Mutex::new(HashSet::new()), hide: crate::filters::HideRule::default() }
+    }
+
+    /// The exclude file's hide rule, applied to the Stash scenes the model sees.
+    pub fn with_hide(mut self, hide: crate::filters::HideRule) -> Assistant {
+        self.hide = hide;
+        self
     }
 
     pub fn stash(&self) -> &Stash {
@@ -205,7 +212,7 @@ impl Assistant {
 
     pub async fn start(&self, db: &Db, kind: Kind, text: Option<&str>, now: i64) -> Result<i64, TurnError> {
         self.ready()?;
-        let ctx = context::gather(db, &self.stash, now).await?;
+        let ctx = context::gather(db, &self.stash, &self.hide, now).await?;
         let mut content = format!(
             "{}\n\nPROFILE:\n{}\n\nCANDIDATES:\n{}",
             self.prompt,
@@ -287,7 +294,7 @@ impl Assistant {
                 for c in calls {
                     let name = c.pointer("/function/name").and_then(Value::as_str).unwrap_or("");
                     let args = c.pointer("/function/arguments").and_then(Value::as_str).unwrap_or("{}");
-                    let result = tools::run(&self.stash, db, name, args, now).await;
+                    let result = tools::run(&self.stash, db, &self.hide, name, args, now).await;
                     let call_id = c.get("id").cloned().unwrap_or(Value::Null);
                     round.push(("tool", json!({"role": "tool", "tool_call_id": call_id, "content": result}).to_string()));
                 }
@@ -387,6 +394,41 @@ mod tests {
         assert_eq!(f.picks[0].ref_, "t:1");
         let c = db.conversation(id).unwrap().unwrap();
         assert_eq!((c.kind.as_str(), c.title.as_str()), ("recommend", "Recommendations · 1970-01-02"));
+    }
+
+    /// Covers the tool path only: a fresh profile has no views, so `gather` never queries
+    /// Stash for candidates and the scenes reach the model through `find_stash_scenes`.
+    #[tokio::test]
+    async fn hidden_scenes_never_reach_the_model() {
+        let server = MockServer::start().await;
+        let scenes = json!({"data": {"findScenes": {"scenes": [
+            {"id": "1", "title": "Pear Scene", "tags": [{"id": "t1", "name": "Pear"}],
+             "performers": [{"id": "p1", "name": "Ann", "gender": "FEMALE"}], "play_count": 0},
+            {"id": "2", "title": "Fig Scene", "tags": [{"id": "t2", "name": "Fig"}],
+             "performers": [{"id": "p1", "name": "Ann", "gender": "FEMALE"}], "play_count": 0}
+        ]}}});
+        Mock::given(path("/graphql"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(scenes))
+            .mount(&server)
+            .await;
+        Mock::given(path(crate::llm::CHAT_PATH))
+            .respond_with(tool_call("find_stash_scenes", r#"{"q":"scene"}"#))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        Mock::given(path(crate::llm::CHAT_PATH))
+            .respond_with(final_reply("ok", json!([])))
+            .mount(&server)
+            .await;
+        let llm = OpenRouter::new(&server.uri(), "k".into(), "p".into(), "j".into());
+        let stash = Stash::new(&format!("{}/graphql", server.uri()), None);
+        let rule = crate::filters::HideRule { hide: vec!["pear".into()], keep: vec![] };
+        let a = Assistant::new(llm, stash, "m".into(), "x".into()).with_hide(rule);
+        let db = Db::open_in_memory().unwrap();
+        a.start(&db, Kind::Chat, Some("hi"), 0).await.unwrap();
+        let all = sent(&server).await.join("\n");
+        assert!(all.contains("Fig Scene"));
+        assert!(!all.contains("Pear Scene"));
     }
 
     #[tokio::test]

@@ -134,7 +134,7 @@ fn releases(db: &Db) -> anyhow::Result<Vec<ReleaseIn>> {
         .collect())
 }
 
-pub async fn gather(db: &Db, stash: &Stash, now: i64) -> anyhow::Result<Context> {
+pub async fn gather(db: &Db, stash: &Stash, hide: &crate::filters::HideRule, now: i64) -> anyhow::Result<Context> {
     let (views, mut ok) = views(db, stash, now).await;
     let profile = taste::profile(&views, now);
     let ids = |ws: &[taste::Weighted], n: usize| -> Vec<String> {
@@ -154,6 +154,7 @@ pub async fn gather(db: &Db, stash: &Stash, now: i64) -> anyhow::Result<Context>
     };
     let scenes: Vec<SceneIn> = scenes
         .iter()
+        .filter(|s| !crate::filters::scene_hidden(hide, s))
         .map(|s| SceneIn {
             id: s.id.clone(),
             title: s.label(),

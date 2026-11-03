@@ -163,7 +163,6 @@ pub fn title_terms(title: &str) -> Terms {
 /// A Stash scene under the rule, on its tags. A man in the cast keeps it: Stash casts often
 /// leave male performers out, so a listed one proves presence and a missing one proves
 /// nothing.
-#[allow(dead_code)] // used by the assistant, in a later change
 pub fn scene_hidden(rule: &HideRule, scene: &crate::stash::library::LibScene) -> bool {
     if scene.performers.iter().any(|p| p.gender.as_deref() == Some("MALE")) {
         return false;

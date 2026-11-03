@@ -54,7 +54,7 @@ fn search_lists(db: &Db, q: &str) -> anyhow::Result<Value> {
     Ok(Value::Array(out))
 }
 
-pub async fn run(stash: &Stash, db: &Db, name: &str, arguments: &str, now: i64) -> String {
+pub async fn run(stash: &Stash, db: &Db, hide: &crate::filters::HideRule, name: &str, arguments: &str, now: i64) -> String {
     let r: Result<Value, String> = match name {
         "search_lists" => match query(arguments) {
             Ok(q) => search_lists(db, &q).map_err(|e| format!("{e:#}")),
@@ -67,6 +67,7 @@ pub async fn run(stash: &Stash, db: &Db, name: &str, arguments: &str, now: i64) 
                     Value::Array(
                         scenes
                             .iter()
+                            .filter(|s| !crate::filters::scene_hidden(hide, s))
                             .map(|s| {
                                 json!({
                                     "ref": format!("s:{}", s.id),

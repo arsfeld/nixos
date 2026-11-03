@@ -137,6 +137,7 @@ pub fn assistant(cfg: &Config, base: &str) -> anyhow::Result<Option<crate::assis
             cfg.assistant_model.clone(),
             crate::site::get().prompts.assistant.clone(),
         )
+        .with_hide(crate::filters::load_excludes(cfg.exclude_file.as_deref(), Some(&cfg.state_dir)).rule)
     }))
 }
 
