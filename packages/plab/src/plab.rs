@@ -110,10 +110,15 @@ pub async fn refresh<T: TrackerApi, C: TorrentClient, K: Classify>(
         Section::Video => load_filters(ctx.filter_file, Some(ctx.state_dir)),
         _ => vec![],
     };
-    // The curated job's stored hits (video only): their topics join the list, under the
-    // filters that found them.
-    let hits = match section {
-        Section::Video => ctx.db.curated_hits()?,
+    // The curated job's stored hits on the tracker (video only); other sources have
+    // their own lists (`curated::rebuild_external`).
+    let hits: Vec<crate::db::StoredHit> = match section {
+        Section::Video => ctx
+            .db
+            .curated_hits()?
+            .into_iter()
+            .filter(|h| h.kind.is_none())
+            .collect(),
         _ => vec![],
     };
     // topic id -> {filter name: badge of the first term that found it}
@@ -436,6 +441,11 @@ pub async fn run_refresh<T: TrackerApi, C: TorrentClient, K: Classify>(
         Err(e @ TrackerError::Login(_)) => return Err(e.into()),
         // The list refresh must still run.
         Err(e) => warn!("queue drain failed: {e}"),
+    }
+    // Cheap (no tracker request), and fills the source lists on the first start after a
+    // deploy, before the next curated run.
+    if let Err(e) = crate::curated::rebuild_external(ctx, now).await {
+        warn!("rebuilding the source lists failed: {e:#}");
     }
     let mut runs = vec![Section::Video];
     if ctx.games_dir.is_some_and(|d| !d.is_empty()) {

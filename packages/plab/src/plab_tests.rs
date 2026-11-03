@@ -1412,7 +1412,7 @@ async fn curated_lists_classified_releases_from_other_indexers() {
     )
     .await
     .unwrap();
-    let listing = env.db.listing(Section::Video).unwrap();
+    let listing = env.db.listing(Section::Indexers).unwrap();
     let ext: Vec<_> = listing
         .topics
         .iter()
@@ -1500,7 +1500,7 @@ async fn curated_drops_excluded_releases_from_other_indexers_before_classifying(
     .unwrap();
     let titles: Vec<String> = env
         .db
-        .listing(Section::Video)
+        .listing(Section::Indexers)
         .unwrap()
         .topics
         .into_iter()
@@ -1677,7 +1677,7 @@ async fn curated_sets_scene_images_on_an_accepted_hit_only() {
     let ext = env.db.externals().unwrap();
     let by_title = |t: &str| {
         env.db
-            .listing(Section::Video)
+            .listing(Section::Indexers)
             .unwrap()
             .topics
             .into_iter()
@@ -1778,7 +1778,9 @@ async fn adding_an_external_release_never_touches_the_tracker() {
         )
         .unwrap();
     let lab = FakeTracker::new(vec![row(1)]);
-    env.refresh(&lab).await.unwrap(); // lists it
+    crate::curated::rebuild_external(&env.ctx(&lab), NOW)
+        .await
+        .unwrap(); // lists it
     env.prowlarr = Some(Prowlarr::new(&server.uri(), "k".into()));
     let r = add_topic(&env.ctx(&lab), id, NOW).await.unwrap();
     assert!(matches!(r, AddResult::Added { .. }), "{r:?}");
@@ -1911,4 +1913,80 @@ async fn percent_terms_without_an_album_index_still_store_the_tracker_hits() {
         .map(|h| h.topic.row.id)
         .collect();
     assert_eq!(ids, vec![5]);
+}
+
+#[tokio::test]
+async fn each_source_kind_gets_its_own_list() {
+    let mut env = Env::new();
+    env.filter_file = Some(env.write(
+        "f.txt",
+        "[Group A]\nAlpha\n[Group B]\nBeta\n[Group C]\nGamma\n",
+    ));
+    fn ext(guid: &str, kind: Kind) -> crate::db::NewExternal<'_> {
+        crate::db::NewExternal {
+            indexer: "Indexer A",
+            guid,
+            link: "http://p/1",
+            info_url: Some("http://a/1"),
+            kind,
+            files: None,
+            seen: NOW,
+        }
+    }
+    let torrent = env.db.upsert_external(&ext("g1", Kind::Torrent)).unwrap();
+    let album = env.db.upsert_external(&ext("a1", Kind::Album)).unwrap();
+    let hit = |id: u64, f: &str| crate::db::CuratedHit {
+        topic_id: id,
+        filter: f.into(),
+        reason: "Alpha".into(),
+    };
+    let t = |id: u64, title: &str| Topic {
+        row: titled(id, title),
+        images: None,
+        production: None,
+    };
+    env.db
+        .save_curated(
+            &[
+                t(9, "Alpha nine"),
+                t(torrent, "Beta ext"),
+                t(album, "Gamma album"),
+            ],
+            &[
+                hit(9, "Group A"),
+                hit(torrent, "Group B"),
+                hit(album, "Group C"),
+            ],
+            NOW,
+        )
+        .unwrap();
+    let lab = FakeTracker::new(vec![row(1)]);
+    env.refresh(&lab).await.unwrap();
+    crate::curated::rebuild_external(&env.ctx(&lab), NOW)
+        .await
+        .unwrap();
+    let ids = |s| -> Vec<u64> {
+        env.db
+            .listing(s)
+            .unwrap()
+            .topics
+            .iter()
+            .map(|l| l.topic.row.id)
+            .collect()
+    };
+    let video = ids(Section::Video);
+    assert!(video.contains(&9) && !video.contains(&torrent) && !video.contains(&album));
+    assert_eq!(ids(Section::Indexers), vec![torrent]);
+    assert_eq!(ids(Section::Albums), vec![album]);
+    // A list names only the filters it holds hits of.
+    assert_eq!(
+        env.db.listing(Section::Indexers).unwrap().filters,
+        vec!["Group B".to_string()]
+    );
+    assert_eq!(
+        env.db.listing(Section::Albums).unwrap().filters,
+        vec!["Group C".to_string()]
+    );
+    // No tracker page is fetched for an external release.
+    assert!(!lab.calls().topics.contains(&torrent) && !lab.calls().topics.contains(&album));
 }

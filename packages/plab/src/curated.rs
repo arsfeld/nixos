@@ -2,8 +2,8 @@
 //! `WINDOW_DAYS`, and the terms marked `@` through Prowlarr's other indexers. Releases
 //! from other indexers are collapsed to one per release, dropped when the tracker has
 //! them, classified (the down-ranked class is dropped) and given scene images when the
-//! scene database knows them. The hits replace `curated_hit`, then the video list is
-//! rebuilt so they show at once. Terms marked `%` are also searched on the album index,
+//! scene database knows them. The hits replace `curated_hit`; then the Indexers
+//! and Albums lists and the Tracker list are rebuilt so they show at once. Terms marked `%` are also searched on the album index,
 //! whose albums are linked to, never classified or looked up.
 
 use std::collections::{HashMap, HashSet};
@@ -12,7 +12,7 @@ use anyhow::{Context, bail};
 use tracing::{info, warn};
 
 use crate::albums::AlbumIndex;
-use crate::db::{CuratedHit, Kind, NewExternal, Section, Topic};
+use crate::db::{CuratedHit, Kind, Listed, NewExternal, Section, Topic};
 use crate::external::{Candidate, collapse, is_duplicate, scene_query};
 use crate::filters::{FilterTerms, excluded, load_excludes, load_filter_terms};
 use crate::labels::term_label;
@@ -131,7 +131,66 @@ pub async fn run_curated<T: TrackerApi, C: TorrentClient, K: Classify>(
     }
     ctx.db.save_curated(&topics, &hits, now)?;
     info!("curated: {} hits", hits.len());
+    rebuild_external(ctx, now).await?;
     refresh(ctx, Section::Video, classify, now).await
+}
+
+/// The Indexers and Albums lists, rebuilt from the stored curated hits. No tracker request:
+/// their releases carry only the images the curated job gave them. A filter is named on a
+/// list only when the list holds one of its hits.
+pub async fn rebuild_external<T: TrackerApi, C: TorrentClient>(
+    ctx: &Ctx<'_, T, C>,
+    now: i64,
+) -> anyhow::Result<()> {
+    let order: Vec<String> = load_filter_terms(ctx.filter_file, Some(ctx.state_dir))
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+    let rank = |f: &String| order.iter().position(|n| n == f).unwrap_or(usize::MAX);
+    let hits = ctx.db.curated_hits()?;
+    for (section, kind) in [
+        (Section::Indexers, Kind::Torrent),
+        (Section::Albums, Kind::Album),
+    ] {
+        let mut listed: Vec<Listed> = vec![];
+        let mut at: HashMap<u64, usize> = HashMap::new();
+        for h in hits.iter().filter(|h| h.kind == Some(kind)) {
+            match at.get(&h.topic.row.id) {
+                Some(&i) => {
+                    if !listed[i].filters.contains(&h.filter) {
+                        listed[i].filters.push(h.filter.clone());
+                    }
+                }
+                None => {
+                    at.insert(h.topic.row.id, listed.len());
+                    listed.push(Listed {
+                        topic: h.topic.clone(),
+                        filters: vec![h.filter.clone()],
+                        curated_reason: Some(h.reason.clone()),
+                    });
+                }
+            }
+        }
+        for l in &mut listed {
+            l.filters.sort_by_key(rank);
+            if let Some(first) = l.topic.images.as_ref().and_then(|v| v.first())
+                && let Err(e) = ensure_image(ctx.tracker, ctx.images, first).await
+            {
+                warn!("image {first}: {e:#}");
+            }
+        }
+        let names: Vec<String> = order
+            .iter()
+            .filter(|n| listed.iter().any(|l| l.filters.contains(n)))
+            .cloned()
+            .collect();
+        ctx.db.save_listing(section, &listed, &names, now)?;
+        crate::events::publish(crate::events::Event::Listing {
+            section: section.as_str(),
+        });
+        info!("rebuilt {}: {} releases", section.as_str(), listed.len());
+    }
+    Ok(())
 }
 
 /// Every `%` term searched on the album index. An album's age is from plab's first sight
