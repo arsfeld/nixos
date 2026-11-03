@@ -55,7 +55,7 @@
         {list.topics.length} result{list.topics.length === 1 ? '' : 's'} for “{list.query}” · all time
       {/if}
     {:else}
-      {list.topics.length} releases · {kind === 'games' ? 'last 32 days' : 'last 7 days'} · updated {age(list.updated, list.now)}
+      {list.topics.length} releases · {kind === 'video' ? 'last 7 days' : 'last 32 days'} · updated {age(list.updated, list.now)}
       {#if curated}· {curated} curated{/if}
       {#if list.pending}· {list.pending} queued{/if}
       {#if newIds?.size}· {newIds.size} new{/if}
