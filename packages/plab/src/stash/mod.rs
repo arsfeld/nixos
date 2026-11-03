@@ -1,6 +1,7 @@
 //! Thin Stash GraphQL client for identify.
 
 pub mod de;
+pub mod library;
 pub mod types;
 
 use std::collections::HashSet;
