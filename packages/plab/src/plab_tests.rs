@@ -1805,6 +1805,12 @@ async fn adding_an_external_release_never_touches_the_tracker() {
             .unwrap()
             .is_empty()
     );
+    // Listed under Indexers, but a Vault video download all the same: provenance sync
+    // must see it.
+    assert_eq!(
+        env.db.unsynced_downloads().unwrap(),
+        vec![(1, "abc".to_string())]
+    );
 }
 
 /// An album index answering every search with the placeholder fixture page.

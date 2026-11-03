@@ -242,6 +242,14 @@ pub async fn add_topic<T: TrackerApi, C: TorrentClient>(
     let Some((topic, section)) = ctx.db.find(topic_id, now)? else {
         return Err(NotListed(topic_id).into());
     };
+    // A download row's section names the Vault it lands in, not the list it was added
+    // from: an Indexers release is a Vault video download, so provenance sync, card status
+    // and prune hold-back (all keyed on 'video') see it.
+    let section = if section == Section::Indexers {
+        Section::Video
+    } else {
+        section
+    };
     let dir = match section {
         Section::Video | Section::Indexers => Some(ctx.download_dir),
         Section::Games => ctx.games_dir,
