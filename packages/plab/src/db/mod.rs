@@ -240,9 +240,21 @@ impl Db {
     }
 
     /// Run `f` with the connection locked. Never call this across an `.await`.
+    ///
+    /// On the daemon's multi-thread runtime the call runs under `block_in_place`, so a
+    /// slow query or a busy wait (up to the 30 s busy timeout) hands this worker's other
+    /// tasks to another thread instead of stalling them. Tests run current-thread and the
+    /// one-shot commands may run outside a runtime; `block_in_place` panics in both, so
+    /// there the call runs directly, as it always did.
     fn with<R>(&self, f: impl FnOnce(&mut Connection) -> Result<R>) -> Result<R> {
-        let mut conn = self.0.lock().unwrap_or_else(|e| e.into_inner());
-        f(&mut conn)
+        let run = || {
+            let mut conn = self.0.lock().unwrap_or_else(|e| e.into_inner());
+            f(&mut conn)
+        };
+        match tokio::runtime::Handle::try_current().map(|h| h.runtime_flavor()) {
+            Ok(tokio::runtime::RuntimeFlavor::MultiThread) => tokio::task::block_in_place(run),
+            _ => run(),
+        }
     }
 
     /// Run raw SQL, for a test that needs the database in a state no method makes.
@@ -506,5 +518,29 @@ mod tests {
         let ext = db.upsert_external(&new_ext("g1", "http://p/1")).unwrap();
         db.save_listing(Section::Video, &[], &[], NOW).unwrap();
         assert!(db.external(ext).unwrap().is_some());
+    }
+
+    // One worker: while a slow query holds it, nothing else spawned can run unless the
+    // query gives the worker up.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn a_slow_query_does_not_hold_the_worker() {
+        let db = Db::open_in_memory().unwrap();
+        let (started, started_rx) = tokio::sync::oneshot::channel();
+        let slow = tokio::spawn({
+            let db = db.clone();
+            async move {
+                db.with(|_| {
+                    started.send(()).unwrap();
+                    std::thread::sleep(Duration::from_millis(500));
+                    Ok(())
+                })
+                .unwrap();
+                std::time::Instant::now()
+            }
+        });
+        started_rx.await.unwrap();
+        let other = tokio::spawn(async { std::time::Instant::now() }).await.unwrap();
+        let slow_done = slow.await.unwrap();
+        assert!(other < slow_done, "a spawned task waited for the query to finish");
     }
 }
