@@ -210,8 +210,9 @@ async fn stream_page<T: TrackerApi, C: TorrentClient>(
             Ok(stream::StreamStatus::Starting(s)) => ok_reply(json!({}), json!({ "starting": s })),
             Err(e) => stream_error(e),
         },
-        (Method::POST, StreamRoute::Topic(t)) => started(
-            st.streams
+        (Method::POST, StreamRoute::Topic(t)) => {
+            let r = st
+                .streams
                 .start(
                     &*st.tracker,
                     st.prowlarr.as_deref(),
@@ -220,8 +221,15 @@ async fn stream_page<T: TrackerApi, C: TorrentClient>(
                     t,
                     now(),
                 )
-                .await,
-        ),
+                .await;
+            // The assistant's view signal for releases that never reach Stash.
+            if r.is_ok()
+                && let Err(e) = st.db.record_stream_view(t, now())
+            {
+                info!(job = "web", "stream view {t}: {e:#}");
+            }
+            started(r)
+        }
         (Method::POST, StreamRoute::Select(t, f)) => {
             started(st.streams.select(engine, t, f, now()).await)
         }

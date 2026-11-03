@@ -92,7 +92,8 @@ const SCHEMA_V3: &str = include_str!("schema_v3.sql");
 const SCHEMA_V4: &str = include_str!("schema_v4.sql");
 const SCHEMA_V5: &str = include_str!("schema_v5.sql");
 const SCHEMA_V6: &str = include_str!("schema_v6.sql");
-const USER_VERSION: i64 = 6;
+const SCHEMA_V7: &str = include_str!("schema_v7.sql");
+const USER_VERSION: i64 = 7;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Section {
@@ -296,6 +297,9 @@ fn migrate(conn: &mut Connection, legacy: Option<&import::LegacyPaths>, now: i64
     if from < 6 {
         tx.execute_batch(SCHEMA_V6)?;
     }
+    if from < 7 {
+        tx.execute_batch(SCHEMA_V7)?;
+    }
     tx.pragma_update(None, "user_version", USER_VERSION)?;
     tx.commit()?;
     Ok(())
@@ -314,6 +318,39 @@ pub struct JobRunRow {
     pub finished: Option<i64>,
     pub ok: Option<bool>,
     pub error: Option<String>,
+}
+
+/// A stream of the same release within this many seconds of the last is not a new view.
+pub const STREAM_VIEW_GAP: i64 = 6 * 3600;
+
+#[allow(dead_code)] // consumed by the assistant, added in the following tasks
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConversationRow {
+    pub id: i64,
+    pub title: String,
+    pub kind: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[allow(dead_code)] // consumed by the assistant, added in the following tasks
+#[derive(Debug, Clone, PartialEq)]
+pub struct MessageRow {
+    pub seq: i64,
+    pub role: String,
+    pub content: String,
+    pub at: i64,
+}
+
+#[allow(dead_code)] // consumed by the assistant, added in the following tasks
+fn conversation_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<ConversationRow> {
+    Ok(ConversationRow {
+        id: r.get(0)?,
+        title: r.get(1)?,
+        kind: r.get(2)?,
+        created_at: r.get(3)?,
+        updated_at: r.get(4)?,
+    })
 }
 
 /// Runs kept per job in `job_history`.
@@ -370,6 +407,135 @@ impl Db {
     #[cfg(test)]
     pub fn exec(&self, sql: &str) -> Result<()> {
         self.with(|c| Ok(c.execute_batch(sql)?))
+    }
+
+    /// Record that `topic_id` started streaming, unless it already did in the last
+    /// `STREAM_VIEW_GAP` seconds: a reopen or a file switch is not a second view.
+    pub fn record_stream_view(&self, topic_id: u64, now: i64) -> Result<bool> {
+        self.with(|c| {
+            let last: Option<i64> = c.query_row(
+                "SELECT MAX(started_at) FROM stream_view WHERE topic_id = ?1",
+                params![topic_id],
+                |r| r.get(0),
+            )?;
+            if last.is_some_and(|l| now - l < STREAM_VIEW_GAP) {
+                return Ok(false);
+            }
+            c.execute(
+                "INSERT INTO stream_view (topic_id, started_at) VALUES (?1, ?2)",
+                params![topic_id, now],
+            )?;
+            Ok(true)
+        })
+    }
+
+    #[allow(dead_code)] // consumed by the assistant, added in the following tasks
+    pub fn stream_views(&self, since: i64) -> Result<Vec<(u64, i64)>> {
+        self.with(|c| {
+            let mut s = c.prepare(
+                "SELECT topic_id, started_at FROM stream_view WHERE started_at >= ?1
+                 ORDER BY started_at DESC, id DESC",
+            )?;
+            let rows = s.query_map(params![since], |r| Ok((r.get(0)?, r.get(1)?)))?;
+            Ok(rows.collect::<rusqlite::Result<_>>()?)
+        })
+    }
+
+    #[allow(dead_code)] // consumed by the assistant, added in the following tasks
+    pub fn create_conversation(&self, title: &str, kind: &str, now: i64) -> Result<i64> {
+        self.with(|c| {
+            c.execute(
+                "INSERT INTO conversation (title, kind, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)",
+                params![title, kind, now],
+            )?;
+            Ok(c.last_insert_rowid())
+        })
+    }
+
+    #[allow(dead_code)] // consumed by the assistant, added in the following tasks
+    pub fn conversations(&self) -> Result<Vec<ConversationRow>> {
+        self.with(|c| {
+            let mut s = c.prepare(
+                "SELECT id, title, kind, created_at, updated_at FROM conversation
+                 ORDER BY updated_at DESC, id DESC",
+            )?;
+            let rows = s.query_map([], conversation_row)?;
+            Ok(rows.collect::<rusqlite::Result<_>>()?)
+        })
+    }
+
+    #[allow(dead_code)] // consumed by the assistant, added in the following tasks
+    pub fn conversation(&self, id: i64) -> Result<Option<ConversationRow>> {
+        self.with(|c| {
+            Ok(c.query_row(
+                "SELECT id, title, kind, created_at, updated_at FROM conversation WHERE id = ?1",
+                params![id],
+                conversation_row,
+            )
+            .optional()?)
+        })
+    }
+
+    #[allow(dead_code)] // consumed by the assistant, added in the following tasks
+    pub fn delete_conversation(&self, id: i64) -> Result<bool> {
+        self.with(|c| Ok(c.execute("DELETE FROM conversation WHERE id = ?1", params![id])? > 0))
+    }
+
+    #[allow(dead_code)] // consumed by the assistant, added in the following tasks
+    pub fn append_message(
+        &self,
+        conversation: i64,
+        role: &str,
+        content: &str,
+        now: i64,
+    ) -> Result<i64> {
+        self.with(|c| {
+            let tx = c.transaction()?;
+            let seq: i64 = tx.query_row(
+                "SELECT COALESCE(MAX(seq) + 1, 0) FROM message WHERE conversation_id = ?1",
+                params![conversation],
+                |r| r.get(0),
+            )?;
+            tx.execute(
+                "INSERT INTO message (conversation_id, seq, role, content, at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![conversation, seq, role, content, now],
+            )?;
+            tx.execute(
+                "UPDATE conversation SET updated_at = ?2 WHERE id = ?1",
+                params![conversation, now],
+            )?;
+            tx.commit()?;
+            Ok(seq)
+        })
+    }
+
+    #[allow(dead_code)] // consumed by the assistant, added in the following tasks
+    pub fn messages(&self, conversation: i64) -> Result<Vec<MessageRow>> {
+        self.with(|c| {
+            let mut s = c.prepare(
+                "SELECT seq, role, content, at FROM message WHERE conversation_id = ?1 ORDER BY seq",
+            )?;
+            let rows = s.query_map(params![conversation], |r| {
+                Ok(MessageRow {
+                    seq: r.get(0)?,
+                    role: r.get(1)?,
+                    content: r.get(2)?,
+                    at: r.get(3)?,
+                })
+            })?;
+            Ok(rows.collect::<rusqlite::Result<_>>()?)
+        })
+    }
+
+    #[allow(dead_code)] // consumed by the assistant, added in the following tasks
+    pub fn delete_messages_from(&self, conversation: i64, seq: i64) -> Result<()> {
+        self.with(|c| {
+            c.execute(
+                "DELETE FROM message WHERE conversation_id = ?1 AND seq >= ?2",
+                params![conversation, seq],
+            )?;
+            Ok(())
+        })
     }
 
     #[cfg(test)]
@@ -2033,5 +2199,52 @@ mod tests {
         assert!(db.external(b).unwrap().is_none());
         let c = db.upsert_external(&new_ext("g3", "http://p/3")).unwrap();
         assert_eq!(c, EXTERNAL_BASE + 2);
+    }
+
+    #[test]
+    fn stream_views_dedupe_within_gap() {
+        let db = Db::open_in_memory().unwrap();
+        assert!(db.record_stream_view(7, 1_000).unwrap());
+        assert!(
+            !db.record_stream_view(7, 1_000 + STREAM_VIEW_GAP - 1)
+                .unwrap()
+        );
+        assert!(db.record_stream_view(7, 1_000 + STREAM_VIEW_GAP).unwrap());
+        assert!(db.record_stream_view(8, 1_001).unwrap());
+        assert_eq!(
+            db.stream_views(0).unwrap(),
+            vec![(7, 1_000 + STREAM_VIEW_GAP), (8, 1_001), (7, 1_000)]
+        );
+        assert_eq!(db.stream_views(1_001).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn conversations_round_trip() {
+        let db = Db::open_in_memory().unwrap();
+        let a = db.create_conversation("first", "chat", 10).unwrap();
+        let b = db.create_conversation("second", "recommend", 20).unwrap();
+        assert_eq!(
+            db.append_message(a, "user", r#"{"role":"user","content":"hi"}"#, 30)
+                .unwrap(),
+            0
+        );
+        assert_eq!(db.append_message(a, "assistant", "{}", 31).unwrap(), 1);
+        let list = db.conversations().unwrap();
+        assert_eq!(list.iter().map(|c| c.id).collect::<Vec<_>>(), vec![a, b]);
+        assert_eq!(list[0].updated_at, 31);
+        let msgs = db.messages(a).unwrap();
+        assert_eq!(
+            msgs.iter()
+                .map(|m| (m.seq, m.role.as_str()))
+                .collect::<Vec<_>>(),
+            vec![(0, "user"), (1, "assistant")]
+        );
+        db.delete_messages_from(a, 1).unwrap();
+        assert_eq!(db.messages(a).unwrap().len(), 1);
+        assert!(db.delete_conversation(a).unwrap());
+        assert!(!db.delete_conversation(a).unwrap());
+        assert!(db.messages(a).unwrap().is_empty());
+        assert_eq!(db.conversation(b).unwrap().unwrap().kind, "recommend");
+        assert!(db.conversation(a).unwrap().is_none());
     }
 }
