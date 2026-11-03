@@ -116,3 +116,45 @@ export interface Stats {
   state: string;
   error?: string | null;
 }
+
+export interface SceneCardData {
+  ref: string;
+  id: string;
+  title: string;
+  studio: string | null;
+  performers: string[];
+  screenshot: string | null;
+  link: string | null;
+}
+
+export type PickAction = 'watch' | 'stream' | 'download';
+
+export interface PickData {
+  ref: string;
+  action: PickAction;
+  reason: string;
+}
+
+export interface TurnData {
+  seq: number;
+  role: 'user' | 'assistant';
+  text: string;
+  picks: PickData[];
+  error: string | null;
+}
+
+export interface ConversationSummary {
+  id: number;
+  title: string;
+  kind: 'recommend' | 'chat';
+  updatedAt: number;
+}
+
+export interface Conversation extends ConversationSummary {
+  now: number;
+  topicUrl: string;
+  degraded: string[];
+  turns: TurnData[];
+  topics: Topic[];
+  scenes: SceneCardData[];
+}

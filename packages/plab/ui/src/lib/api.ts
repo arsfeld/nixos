@@ -1,4 +1,4 @@
-import type { AddReply, Grab, Job, List, Section } from './types';
+import type { AddReply, Conversation, ConversationSummary, Grab, Job, List, Section } from './types';
 
 export class HttpError extends Error {
   constructor(
@@ -19,14 +19,28 @@ async function reach(f: () => Promise<Response>): Promise<Response> {
   }
 }
 
+/** Only plab's own plain-text errors are worth showing; a gateway answers with HTML. */
+async function fail(r: Response): Promise<never> {
+  const plain = r.headers.get('content-type')?.startsWith('text/plain');
+  throw new HttpError((plain && (await r.text())) || `HTTP ${r.status}`, r.status);
+}
+
 async function getJson<T>(url: string): Promise<T> {
   const r = await reach(() => fetch(url));
-  if (!r.ok) {
-    // Only plab's own plain-text errors are worth showing; a gateway answers with HTML.
-    const plain = r.headers.get('content-type')?.startsWith('text/plain');
-    throw new HttpError((plain && (await r.text())) || `HTTP ${r.status}`, r.status);
-  }
+  if (!r.ok) return fail(r);
   return (await r.json()) as T;
+}
+
+async function sendJson<T>(url: string, method: string, body?: unknown): Promise<T> {
+  const r = await reach(() =>
+    fetch(url, {
+      method,
+      headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  );
+  if (!r.ok) return fail(r);
+  return (r.status === 204 ? undefined : await r.json()) as T;
 }
 
 export const fetchList = (section: Section) => getJson<List>(`/api/list?section=${section}`);
@@ -62,3 +76,13 @@ export async function streamCall<T>(path: string, method = 'GET'): Promise<T> {
   if (!j.ok) throw new HttpError(j.error ?? `HTTP ${r.status}`, r.status);
   return j;
 }
+
+const A = '/api/assistant';
+export const fetchConversations = () => getJson<ConversationSummary[]>(`${A}/conversations`);
+export const fetchConversation = (id: number) => getJson<Conversation>(`${A}/conversations/${id}`);
+export const postRecommend = () => sendJson<Conversation>(`${A}/recommend`, 'POST');
+export const postChat = (text: string) => sendJson<Conversation>(`${A}/conversations`, 'POST', { text });
+export const postMessage = (id: number, text: string) =>
+  sendJson<Conversation>(`${A}/conversations/${id}/messages`, 'POST', { text });
+export const postRetry = (id: number) => sendJson<Conversation>(`${A}/conversations/${id}/retry`, 'POST');
+export const deleteConversation = (id: number) => sendJson<void>(`${A}/conversations/${id}`, 'DELETE');

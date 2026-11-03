@@ -11,3 +11,9 @@ it('maps paths to views', () => {
   expect(parse('/search', '?q=')).toEqual({ view: 'video' });
   expect(parse('/nowhere', '')).toEqual({ view: 'video' });
 });
+
+it('parses the assistant routes', () => {
+  expect(parse('/assistant', '')).toEqual({ view: 'assistant', id: null });
+  expect(parse('/assistant/12', '')).toEqual({ view: 'assistant', id: 12 });
+  expect(parse('/assistant/x', '')).toEqual({ view: 'assistant', id: null });
+});

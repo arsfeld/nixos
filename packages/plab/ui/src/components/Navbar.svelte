@@ -9,6 +9,7 @@
     ['indexers', '/indexers', 'Indexers'],
     ['albums', '/albums', 'Albums'],
     ['games', '/games', 'Games'],
+    ['assistant', '/assistant', 'Assistant'],
     ['jobs', '/jobs', 'Jobs'],
   ] as const;
 </script>

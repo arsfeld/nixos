@@ -1,8 +1,8 @@
-import type { List, ServerEvent } from './types';
+import type { ServerEvent, Topic } from './types';
 
 /** Apply a topic event to every loaded list holding that topic. A topic's state and its
  * status arrive as separate events, so neither overwrites the other. */
-export function applyTopic(lists: Iterable<List>, ev: ServerEvent): void {
+export function applyTopic(lists: Iterable<{ topics: Topic[] }>, ev: ServerEvent): void {
   if (ev.type !== 'topicState' && ev.type !== 'topicStatus') return;
   for (const l of lists)
     for (const t of l.topics)
