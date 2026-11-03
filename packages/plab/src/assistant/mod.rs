@@ -108,15 +108,9 @@ pub fn degraded_of(msg: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-fn day(now: i64) -> String {
-    chrono::DateTime::from_timestamp(now, 0)
-        .map(|d| d.format("%Y-%m-%d").to_string())
-        .unwrap_or_default()
-}
-
 fn title(kind: Kind, text: Option<&str>, now: i64) -> String {
     match kind {
-        Kind::Recommend => format!("Recommendations · {}", day(now)),
+        Kind::Recommend => format!("Recommendations · {}", crate::taste::ymd(now)),
         Kind::Chat => text.unwrap_or("").trim().chars().take(TITLE_CHARS).collect(),
     }
 }
@@ -127,6 +121,43 @@ fn wire(mut msg: Value) -> Value {
         o.retain(|k, _| !k.starts_with("plab_"));
     }
     msg
+}
+
+fn call_ids(msg: &Value) -> Option<Vec<Option<&str>>> {
+    let calls = msg.get("tool_calls")?.as_array()?;
+    (!calls.is_empty()).then(|| calls.iter().map(|c| c.get("id").and_then(Value::as_str)).collect())
+}
+
+/// Keep only complete tool rounds: an assistant `tool_calls` message survives only when
+/// the tool messages right after it answer every one of its call ids, and a tool message
+/// survives only inside such a round. Rounds are stored atomically, so this is a backstop
+/// for a history written before that was true; the provider rejects any other shape, and
+/// would reject every later turn of the conversation with it.
+fn complete_rounds(msgs: Vec<Value>) -> Vec<Value> {
+    let is_tool = |m: &Value| m.get("role").and_then(Value::as_str) == Some("tool");
+    let mut out = vec![];
+    let mut i = 0;
+    while i < msgs.len() {
+        let Some(ids) = call_ids(&msgs[i]) else {
+            if !is_tool(&msgs[i]) {
+                out.push(msgs[i].clone());
+            }
+            i += 1;
+            continue;
+        };
+        let end = (i + 1..msgs.len()).find(|&j| !is_tool(&msgs[j])).unwrap_or(msgs.len());
+        let answered: HashSet<&str> = msgs[i + 1..end]
+            .iter()
+            .filter_map(|m| m.get("tool_call_id").and_then(Value::as_str))
+            .collect();
+        if ids.iter().all(|id| id.is_some_and(|id| answered.contains(id))) {
+            out.extend_from_slice(&msgs[i..end]);
+        } else {
+            tracing::info!(job = "assistant", "dropping an unanswered tool round from the history");
+        }
+        i = end;
+    }
+    out
 }
 
 pub struct TurnGuard<'a> {
@@ -205,7 +236,8 @@ impl Assistant {
         Ok(())
     }
 
-    /// The stored history as the model is sent it: errors dropped, plab keys stripped.
+    /// The stored history as the model is sent it: errors and incomplete tool rounds
+    /// dropped, plab keys stripped.
     fn history(&self, db: &Db, id: i64) -> anyhow::Result<Vec<Value>> {
         let mut out = vec![];
         for m in db.messages(id)? {
@@ -214,7 +246,7 @@ impl Assistant {
                 out.push(wire(v));
             }
         }
-        Ok(out)
+        Ok(complete_rounds(out))
     }
 
     pub async fn turn(&self, db: &Db, id: i64, text: Option<&str>, now: i64) -> Result<(), TurnError> {
@@ -249,14 +281,17 @@ impl Assistant {
             };
             let calls = msg.get("tool_calls").and_then(Value::as_array).cloned().unwrap_or_default();
             if !calls.is_empty() {
-                self.store(db, id, &msg, now)?;
+                // The call and its results are stored together or not at all: a round
+                // stored half-way is a history the provider rejects from then on.
+                let mut round = vec![("assistant", msg.to_string())];
                 for c in calls {
                     let name = c.pointer("/function/name").and_then(Value::as_str).unwrap_or("");
                     let args = c.pointer("/function/arguments").and_then(Value::as_str).unwrap_or("{}");
                     let result = tools::run(&self.stash, db, name, args, now).await;
                     let call_id = c.get("id").cloned().unwrap_or(Value::Null);
-                    self.store(db, id, &json!({"role": "tool", "tool_call_id": call_id, "content": result}), now)?;
+                    round.push(("tool", json!({"role": "tool", "tool_call_id": call_id, "content": result}).to_string()));
                 }
+                db.append_messages(id, &round, now)?;
                 continue;
             }
             let content = msg.get("content").and_then(Value::as_str).unwrap_or("");
@@ -310,6 +345,18 @@ mod tests {
         (server, a, Db::open_in_memory().unwrap())
     }
 
+    /// The bodies of every chat request the mock received.
+    async fn sent(server: &MockServer) -> Vec<String> {
+        server
+            .received_requests()
+            .await
+            .unwrap()
+            .into_iter()
+            .filter(|r| r.url.path() == crate::llm::CHAT_PATH)
+            .map(|r| String::from_utf8(r.body).unwrap())
+            .collect()
+    }
+
     fn roles(db: &Db, id: i64) -> Vec<String> {
         db.messages(id).unwrap().into_iter().map(|m| m.role).collect()
     }
@@ -334,6 +381,7 @@ mod tests {
             .await;
         let id = a.start(&db, Kind::Recommend, None, 86400).await.unwrap();
         assert_eq!(roles(&db, id), vec!["system", "user", "assistant", "tool", "assistant"]);
+        assert!(sent(&server).await.iter().all(|b| !b.contains("plab_")));
         let f = parse_final(last(&db, id)["content"].as_str().unwrap()).unwrap();
         assert_eq!(f.text, "Try these.");
         assert_eq!(f.picks[0].ref_, "t:1");
@@ -365,6 +413,48 @@ mod tests {
         let msgs: Vec<Value> = db.messages(id).unwrap().iter().map(|m| serde_json::from_str(&m.content).unwrap()).collect();
         assert!(msgs.iter().any(is_hidden));
         assert!(error_of(msgs.last().unwrap()).is_some());
+        // The re-ask resends the hidden messages, without plab's own keys.
+        let bodies = sent(&server).await;
+        assert_eq!(bodies.len(), 2);
+        assert!(bodies[1].contains(REASK));
+        assert!(bodies.iter().all(|b| !b.contains("plab_")), "{bodies:?}");
+    }
+
+    #[tokio::test]
+    async fn an_unanswered_tool_round_is_not_sent() {
+        let (server, a, db) = fixture().await;
+        Mock::given(path(crate::llm::CHAT_PATH)).respond_with(final_reply("ok", json!([]))).mount(&server).await;
+        let id = db.create_conversation("t", "chat", 0).unwrap();
+        for m in [
+            json!({"role": "system", "content": "s", "plab_degraded": []}),
+            json!({"role": "user", "content": "first"}),
+            // A turn cancelled between storing the call and storing its result.
+            json!({"role": "assistant", "content": null, "tool_calls": [
+                {"id": "dangling", "type": "function", "function": {"name": "recent_views", "arguments": "{}"}}
+            ]}),
+            json!({"role": "tool", "tool_call_id": "orphan", "content": "[]"}),
+        ] {
+            db.append_message(id, m["role"].as_str().unwrap(), &m.to_string(), 0).unwrap();
+        }
+        a.turn(&db, id, Some("again"), 1).await.unwrap();
+        assert!(error_of(&last(&db, id)).is_none());
+        let body = sent(&server).await.pop().unwrap();
+        assert!(!body.contains("dangling") && !body.contains("orphan"), "{body}");
+        assert!(body.contains("first") && body.contains("again"));
+        assert!(!body.contains("plab_"), "{body}");
+    }
+
+    #[test]
+    fn complete_rounds_keep_answered_calls() {
+        let call = |ids: &[&str]| {
+            json!({"role": "assistant", "tool_calls": ids.iter().map(|i| json!({"id": i})).collect::<Vec<_>>()})
+        };
+        let result = |id: &str| json!({"role": "tool", "tool_call_id": id});
+        let user = json!({"role": "user", "content": "u"});
+        let full = vec![user.clone(), call(&["a", "b"]), result("b"), result("a"), user.clone()];
+        assert_eq!(complete_rounds(full.clone()), full);
+        let partial = vec![user.clone(), call(&["a", "b"]), result("a"), user.clone()];
+        assert_eq!(complete_rounds(partial), vec![user.clone(), user.clone()]);
     }
 
     #[tokio::test]
@@ -399,6 +489,8 @@ mod tests {
         let id = a.start(&db, Kind::Chat, Some("hi"), 0).await.unwrap();
         let system: Value = serde_json::from_str(&db.messages(id).unwrap()[0].content).unwrap();
         assert_eq!(degraded_of(&system), vec!["stash"]);
+        let bodies = sent(&server).await;
+        assert!(!bodies.is_empty() && bodies.iter().all(|b| !b.contains("plab_")), "{bodies:?}");
     }
 
     #[tokio::test]

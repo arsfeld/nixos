@@ -473,6 +473,7 @@ impl Db {
         self.with(|c| Ok(c.execute("DELETE FROM conversation WHERE id = ?1", params![id])? > 0))
     }
 
+    /// Append one message; returns its seq.
     pub fn append_message(
         &self,
         conversation: i64,
@@ -480,23 +481,42 @@ impl Db {
         content: &str,
         now: i64,
     ) -> Result<i64> {
+        self.append(conversation, &[(role, content)], now)
+    }
+
+    /// Append `(role, content)` messages with consecutive seqs, all or none: a tool round
+    /// (the assistant's tool_calls and every result) must never be stored half-way.
+    pub fn append_messages(
+        &self,
+        conversation: i64,
+        msgs: &[(&str, String)],
+        now: i64,
+    ) -> Result<()> {
+        let msgs: Vec<(&str, &str)> = msgs.iter().map(|(r, c)| (*r, c.as_str())).collect();
+        self.append(conversation, &msgs, now).map(|_| ())
+    }
+
+    /// One transaction; returns the first message's seq.
+    fn append(&self, conversation: i64, msgs: &[(&str, &str)], now: i64) -> Result<i64> {
         self.with(|c| {
             let tx = c.transaction()?;
-            let seq: i64 = tx.query_row(
+            let first: i64 = tx.query_row(
                 "SELECT COALESCE(MAX(seq) + 1, 0) FROM message WHERE conversation_id = ?1",
                 params![conversation],
                 |r| r.get(0),
             )?;
-            tx.execute(
-                "INSERT INTO message (conversation_id, seq, role, content, at) VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![conversation, seq, role, content, now],
-            )?;
+            for (seq, (role, content)) in (first..).zip(msgs) {
+                tx.execute(
+                    "INSERT INTO message (conversation_id, seq, role, content, at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    params![conversation, seq, role, content, now],
+                )?;
+            }
             tx.execute(
                 "UPDATE conversation SET updated_at = ?2 WHERE id = ?1",
                 params![conversation, now],
             )?;
             tx.commit()?;
-            Ok(seq)
+            Ok(first)
         })
     }
 
@@ -2235,5 +2255,23 @@ mod tests {
         assert!(db.messages(a).unwrap().is_empty());
         assert_eq!(db.conversation(b).unwrap().unwrap().kind, "recommend");
         assert!(db.conversation(a).unwrap().is_none());
+    }
+
+    #[test]
+    fn append_messages_is_one_consecutive_batch() {
+        let db = Db::open_in_memory().unwrap();
+        let id = db.create_conversation("t", "chat", 10).unwrap();
+        db.append_message(id, "user", "{}", 11).unwrap();
+        db.append_messages(id, &[("assistant", "{}".into()), ("tool", "{}".into())], 40)
+            .unwrap();
+        assert_eq!(
+            db.messages(id)
+                .unwrap()
+                .iter()
+                .map(|m| (m.seq, m.role.as_str()))
+                .collect::<Vec<_>>(),
+            vec![(0, "user"), (1, "assistant"), (2, "tool")]
+        );
+        assert_eq!(db.conversation(id).unwrap().unwrap().updated_at, 40);
     }
 }

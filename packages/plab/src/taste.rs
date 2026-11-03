@@ -77,11 +77,15 @@ fn top(map: HashMap<String, Weighted>) -> Vec<Weighted> {
     v
 }
 
-fn line(v: &View) -> String {
-    let day = chrono::DateTime::from_timestamp(v.at, 0)
+/// `ts` as a UTC `YYYY-MM-DD`; empty when out of range.
+pub fn ymd(ts: i64) -> String {
+    chrono::DateTime::from_timestamp(ts, 0)
         .map(|d| d.format("%Y-%m-%d").to_string())
-        .unwrap_or_default();
-    let mut parts = vec![day, v.title.clone()];
+        .unwrap_or_default()
+}
+
+fn line(v: &View) -> String {
+    let mut parts = vec![ymd(v.at), v.title.clone()];
     if let Some(s) = &v.studio {
         parts.push(s.name.clone());
     }

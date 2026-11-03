@@ -1043,6 +1043,10 @@ async fn stream_unknown_topic_is_404_and_stop_deletes() {
 // Assistant
 
 async fn assistant_fx(server: &wiremock::MockServer) -> Fx {
+    assistant_fx_with(server, "x").await
+}
+
+async fn assistant_fx_with(server: &wiremock::MockServer, prompt: &str) -> Fx {
     use wiremock::{Mock, ResponseTemplate, matchers::path};
     Mock::given(path("/graphql"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": {"findScenes": {"scenes": [
@@ -1052,6 +1056,7 @@ async fn assistant_fx(server: &wiremock::MockServer) -> Fx {
         .mount(server)
         .await;
     let uri = server.uri();
+    let prompt = prompt.to_string();
     Fx::with(FakeTracker::default(), move |_, st| {
         let llm = crate::llm::OpenRouter::new(&uri, "k".into(), "p".into(), "j".into());
         let stash = crate::stash::Stash::new(&format!("{uri}/graphql"), None);
@@ -1059,7 +1064,7 @@ async fn assistant_fx(server: &wiremock::MockServer) -> Fx {
             llm,
             stash,
             "m".into(),
-            "x".into(),
+            prompt,
         )));
         st.stash_web_url = Some("https://stash.example".into());
     })
@@ -1107,6 +1112,8 @@ async fn recommend_resolves_picks_and_drops_unknown_refs() {
         .collect();
     assert_eq!(refs, vec!["t:5", "s:4"]);
     assert_eq!(j["topics"][0]["id"], 5);
+    assert_eq!(j["topics"][0]["section"], "video");
+    assert_eq!(j["scenesUnavailable"], false);
     assert_eq!(j["scenes"][0]["link"], "https://stash.example/scenes/4");
     assert_eq!(
         j["scenes"][0]["screenshot"],
@@ -1116,6 +1123,40 @@ async fn recommend_resolves_picks_and_drops_unknown_refs() {
     assert_eq!(j["turns"].as_array().unwrap().len(), 2);
     let list = fx.get("/api/assistant/conversations").await.json();
     assert_eq!(list[0]["kind"], "recommend");
+}
+
+#[tokio::test]
+async fn the_conversation_list_says_why_the_assistant_is_not_ready() {
+    let server = wiremock::MockServer::start().await;
+    let fx = assistant_fx_with(&server, "  ").await;
+    let r = fx.get("/api/assistant/conversations").await;
+    assert_eq!(r.status, 503);
+    assert!(r.text().contains("prompt"), "{}", r.text());
+}
+
+#[tokio::test]
+async fn picks_off_the_advised_lists_are_dropped() {
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::path(crate::llm::CHAT_PATH))
+        .respond_with(answer(json!([
+            {"ref": "t:5", "action": "download", "reason": "a game"},
+            {"ref": "t:6", "action": "download", "reason": "an indexer release"}
+        ])))
+        .mount(&server)
+        .await;
+    let fx = assistant_fx(&server).await;
+    let db = &fx.state.db;
+    db.save_listing(Section::Games, &[listed(row(5, "Alpha One"), &[COVER])], &[], now())
+        .unwrap();
+    db.save_listing(Section::Indexers, &[listed(row(6, "Alpha Two"), &[COVER])], &[], now())
+        .unwrap();
+    let j = fx.post("/api/assistant/recommend").await.json();
+    let topics = j["topics"].as_array().unwrap();
+    assert_eq!(topics.len(), 1);
+    assert_eq!((topics[0]["id"].as_u64(), topics[0]["section"].as_str()), (Some(6), Some("indexers")));
+    let picks = j["turns"][1]["picks"].as_array().unwrap();
+    assert_eq!(picks.len(), 1);
+    assert_eq!(picks[0]["ref"], "t:6");
 }
 
 #[tokio::test]

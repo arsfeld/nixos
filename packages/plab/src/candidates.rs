@@ -36,7 +36,7 @@ pub struct Candidate {
     pub ref_: String,
     pub kind: &'static str,
     pub title: String,
-    /// The profile terms it matched, strongest first.
+    /// The profile terms it matched, in profile order (studios, performers, tags).
     pub matched: Vec<String>,
     #[serde(skip)]
     pub score: f64,

@@ -3,11 +3,14 @@
 
 use serde_json::{Value, json};
 
-use crate::db::{Db, Section};
+use super::context::{advisable, bounded};
+use crate::db::Db;
 use crate::stash::Stash;
 
 /// Results per tool call.
 const LIMIT: usize = 20;
+/// Lines `recent_views` returns: the whole lookback, in practice.
+const RECENT_VIEWS: usize = 100;
 
 pub fn definitions() -> Value {
     let q = json!({"type": "object", "properties": {"q": {"type": "string"}}, "required": ["q"]});
@@ -39,20 +42,15 @@ fn query(arguments: &str) -> Result<String, String> {
 
 fn search_lists(db: &Db, q: &str) -> anyhow::Result<Value> {
     let words: Vec<String> = q.to_lowercase().split_whitespace().map(str::to_owned).collect();
-    let mut out = vec![];
-    for section in [Section::Video, Section::Indexers] {
-        for l in db.listing(section)?.topics {
+    let out: Vec<Value> = advisable(db)?
+        .into_iter()
+        .filter(|(l, _)| {
             let title = l.topic.row.title.to_lowercase();
-            if words.iter().all(|w| title.contains(w.as_str()))
-                && !out.iter().any(|v: &Value| v["ref"] == format!("t:{}", l.topic.row.id))
-            {
-                out.push(json!({"ref": format!("t:{}", l.topic.row.id), "title": l.topic.row.title}));
-            }
-            if out.len() == LIMIT {
-                return Ok(Value::Array(out));
-            }
-        }
-    }
+            words.iter().all(|w| title.contains(w.as_str()))
+        })
+        .take(LIMIT)
+        .map(|(l, _)| json!({"ref": format!("t:{}", l.topic.row.id), "title": l.topic.row.title}))
+        .collect();
     Ok(Value::Array(out))
 }
 
@@ -63,8 +61,7 @@ pub async fn run(stash: &Stash, db: &Db, name: &str, arguments: &str, now: i64) 
             Err(e) => Err(e),
         },
         "find_stash_scenes" => match query(arguments) {
-            Ok(q) => stash
-                .search_scenes(&q, LIMIT)
+            Ok(q) => bounded(stash.search_scenes(&q, LIMIT))
                 .await
                 .map(|scenes| {
                     Value::Array(
@@ -87,7 +84,7 @@ pub async fn run(stash: &Stash, db: &Db, name: &str, arguments: &str, now: i64) 
         },
         "recent_views" => {
             let (views, _) = super::context::views(db, stash, now).await;
-            Ok(json!(crate::taste::recent(&views, 100)))
+            Ok(json!(crate::taste::recent(&views, RECENT_VIEWS)))
         }
         other => Err(format!("unknown tool {other}")),
     };

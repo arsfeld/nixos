@@ -2,9 +2,11 @@
 //! the shortlist. Stash being down degrades it to plab's own data rather than failing.
 
 use std::collections::HashSet;
+use std::future::Future;
+use std::time::Duration;
 
 use crate::candidates::{self, Candidate, ReleaseIn, SceneIn};
-use crate::db::{Db, Kind, Section};
+use crate::db::{Db, Kind, Listed, Section};
 use crate::stash::Stash;
 use crate::stash::library::LibScene;
 use crate::taste::{self, Named, Profile, View};
@@ -15,6 +17,30 @@ pub const LOOKBACK: i64 = 60 * 86400;
 const PLAYS: usize = 100;
 /// Unwatched scenes asked of Stash, per criterion.
 const UNWATCHED: usize = 60;
+/// The longest the assistant waits on any one Stash read before treating Stash as down.
+pub const STASH_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// A Stash read bounded by `STASH_TIMEOUT`; running out of time is a failure like any other.
+pub async fn bounded<T>(read: impl Future<Output = anyhow::Result<T>>) -> anyhow::Result<T> {
+    tokio::time::timeout(STASH_TIMEOUT, read)
+        .await
+        .unwrap_or_else(|_| Err(anyhow::anyhow!("no answer in {}s", STASH_TIMEOUT.as_secs())))
+}
+
+/// The releases the assistant may advise on: the Video list, then the Indexers list, each
+/// topic once (the first section it appears in).
+pub fn advisable(db: &Db) -> anyhow::Result<Vec<(Listed, Section)>> {
+    let mut seen = HashSet::new();
+    let mut out = vec![];
+    for section in [Section::Video, Section::Indexers] {
+        for l in db.listing(section)?.topics {
+            if seen.insert(l.topic.row.id) {
+                out.push((l, section));
+            }
+        }
+    }
+    Ok(out)
+}
 
 pub struct Context {
     pub profile: Profile,
@@ -48,7 +74,7 @@ fn view_of(s: &LibScene, at: i64, streamed: bool) -> View {
 pub async fn views(db: &Db, stash: &Stash, now: i64) -> (Vec<View>, bool) {
     let since = now - LOOKBACK;
     let mut ok = true;
-    let mut out: Vec<View> = match stash.recent_plays(PLAYS).await {
+    let mut out: Vec<View> = match bounded(stash.recent_plays(PLAYS)).await {
         Ok(scenes) => scenes
             .iter()
             .filter_map(|s| played_at(s).filter(|&at| at >= since).map(|at| view_of(s, at, false)))
@@ -72,7 +98,7 @@ pub async fn views(db: &Db, stash: &Stash, now: i64) -> (Vec<View>, bool) {
     }
     let ids: Vec<String> = by_scene.iter().filter_map(|(_, _, s)| s.clone()).collect();
     let scenes = if ok && !ids.is_empty() {
-        stash.lib_scenes(&ids).await.unwrap_or_else(|e| {
+        bounded(stash.lib_scenes(&ids)).await.unwrap_or_else(|e| {
             tracing::info!(job = "assistant", "Stash scenes: {e:#}");
             ok = false;
             vec![]
@@ -93,24 +119,19 @@ pub async fn views(db: &Db, stash: &Stash, now: i64) -> (Vec<View>, bool) {
 fn releases(db: &Db) -> anyhow::Result<Vec<ReleaseIn>> {
     let added = db.added()?;
     let externals = db.externals()?;
-    let mut seen = HashSet::new();
-    let mut out = vec![];
-    for section in [Section::Video, Section::Indexers] {
-        for l in db.listing(section)?.topics {
+    Ok(advisable(db)?
+        .into_iter()
+        .map(|(l, _)| {
             let row = &l.topic.row;
-            if !seen.insert(row.id) {
-                continue;
-            }
-            out.push(ReleaseIn {
+            ReleaseIn {
                 id: row.id,
                 title: row.title.clone(),
                 studio: crate::labels::labels(&row.title, row.forum).studio,
                 downloaded: added.contains(&row.id),
                 album: externals.get(&row.id).is_some_and(|e| e.kind == Kind::Album),
-            });
-        }
-    }
-    Ok(out)
+            }
+        })
+        .collect())
 }
 
 pub async fn gather(db: &Db, stash: &Stash, now: i64) -> anyhow::Result<Context> {
@@ -120,7 +141,7 @@ pub async fn gather(db: &Db, stash: &Stash, now: i64) -> anyhow::Result<Context>
         ws.iter().filter_map(|w| w.id.clone()).take(n).collect()
     };
     let scenes = if ok {
-        match stash.unwatched(&ids(&profile.performers, 8), &ids(&profile.studios, 5), UNWATCHED).await {
+        match bounded(stash.unwatched(&ids(&profile.performers, 8), &ids(&profile.studios, 5), UNWATCHED)).await {
             Ok(s) => s,
             Err(e) => {
                 tracing::info!(job = "assistant", "Stash unwatched: {e:#}");
@@ -144,4 +165,15 @@ pub async fn gather(db: &Db, stash: &Stash, now: i64) -> anyhow::Result<Context>
         .collect();
     let candidates = candidates::candidates(&profile, &scenes, &releases(db)?);
     Ok(Context { profile, candidates, degraded: if ok { vec![] } else { vec!["stash"] } })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test(start_paused = true)]
+    async fn a_stash_read_that_never_answers_is_a_failure() {
+        let r: anyhow::Result<()> = bounded(std::future::pending()).await;
+        assert!(r.unwrap_err().to_string().contains("no answer"));
+    }
 }

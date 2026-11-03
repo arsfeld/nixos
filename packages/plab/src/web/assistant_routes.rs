@@ -3,6 +3,8 @@
 //! when the model named it.
 
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
+use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Method, Response};
@@ -11,8 +13,9 @@ use serde_json::Value;
 
 use super::{WebState, json_body, not_found, now, send, text};
 use crate::api::TopicDto;
+use crate::assistant::context::{advisable, bounded};
 use crate::assistant::{self, Assistant, Kind, TurnError};
-use crate::db::{ConversationRow, Listed, Section};
+use crate::db::{ConversationRow, Section};
 use crate::stash::library::LibScene;
 use crate::tracker::TrackerApi;
 use crate::transmission::TorrentClient;
@@ -38,10 +41,21 @@ struct ConversationDto {
     updated_at: i64,
     now: i64,
     topic_url: String,
+    /// What was missing when the conversation was built (from its system message).
     degraded: Vec<String>,
+    /// Stash did not answer for this read, so the watch picks could not be resolved.
+    scenes_unavailable: bool,
     turns: Vec<TurnDto>,
-    topics: Vec<TopicDto>,
+    topics: Vec<PickedTopic>,
     scenes: Vec<SceneDto>,
+}
+
+/// A picked release and the list it is on, which its card needs.
+#[derive(Serialize)]
+struct PickedTopic {
+    #[serde(flatten)]
+    topic: TopicDto,
+    section: &'static str,
 }
 
 #[derive(Serialize)]
@@ -76,6 +90,18 @@ struct SceneDto {
 #[derive(Deserialize)]
 struct TextBody {
     text: String,
+}
+
+/// Run a turn on its own task and wait for it. A turn runs for as long as the model takes,
+/// and Cloudflare cuts a request at about 100 s; inside the handler future, the client
+/// hanging up would cancel the turn wherever it stood. On a task it finishes regardless,
+/// and the app finds the answer when it reloads the conversation.
+async fn detached<R: Send + 'static>(
+    turn: impl Future<Output = Result<R, TurnError>> + Send + 'static,
+) -> Result<R, TurnError> {
+    tokio::spawn(turn)
+        .await
+        .unwrap_or_else(|e| Err(TurnError::Failed(anyhow::anyhow!("the turn's task: {e}"))))
 }
 
 fn turn_error(e: TurnError) -> Response<Body> {
@@ -117,12 +143,15 @@ pub(super) async fn route<T: TrackerApi, C: TorrentClient>(
     rest: &str,
     body: Body,
 ) -> Response<Body> {
-    let Some(a) = st.assistant.as_deref() else {
+    let Some(arc) = st.assistant.clone() else {
         return text(503, "the assistant needs an OpenRouter key");
     };
+    let a: &Assistant = &arc;
     let t = now();
+    // A turn owns its assistant and database handles, so it can outlive the request.
+    let owned = || (Arc::clone(&arc), st.db.clone());
     match (method, rest) {
-        (&Method::GET, "conversations") => match st.db.conversations() {
+        (&Method::GET, "conversations") => match a.ready().and_then(|()| Ok(st.db.conversations()?)) {
             Ok(rows) => json_body(
                 &rows
                     .into_iter()
@@ -134,18 +163,24 @@ pub(super) async fn route<T: TrackerApi, C: TorrentClient>(
                     })
                     .collect::<Vec<_>>(),
             ),
-            Err(e) => text(500, format!("{e:#}")),
-        },
-        (&Method::POST, "recommend") => match a.start(&st.db, Kind::Recommend, None, t).await {
-            Ok(id) => transcript(st, a, id).await,
             Err(e) => turn_error(e),
         },
-        (&Method::POST, "conversations") => match read_text(body).await {
-            Err(r) => *r,
-            Ok(msg) => match a.start(&st.db, Kind::Chat, Some(&msg), t).await {
+        (&Method::POST, "recommend") => {
+            let (a2, db) = owned();
+            match detached(async move { a2.start(&db, Kind::Recommend, None, t).await }).await {
                 Ok(id) => transcript(st, a, id).await,
                 Err(e) => turn_error(e),
-            },
+            }
+        }
+        (&Method::POST, "conversations") => match read_text(body).await {
+            Err(r) => *r,
+            Ok(msg) => {
+                let (a2, db) = owned();
+                match detached(async move { a2.start(&db, Kind::Chat, Some(&msg), t).await }).await {
+                    Ok(id) => transcript(st, a, id).await,
+                    Err(e) => turn_error(e),
+                }
+            }
         },
         _ => match (method, conversation_path(rest)) {
             (&Method::GET, Some((id, None))) => transcript(st, a, id).await,
@@ -163,13 +198,17 @@ pub(super) async fn route<T: TrackerApi, C: TorrentClient>(
             }
             (&Method::POST, Some((id, Some("messages")))) => match read_text(body).await {
                 Err(r) => *r,
-                Ok(msg) => match a.turn(&st.db, id, Some(&msg), t).await {
-                    Ok(()) => transcript(st, a, id).await,
-                    Err(e) => turn_error(e),
-                },
+                Ok(msg) => {
+                    let (a2, db) = owned();
+                    match detached(async move { a2.turn(&db, id, Some(&msg), t).await }).await {
+                        Ok(()) => transcript(st, a, id).await,
+                        Err(e) => turn_error(e),
+                    }
+                }
             },
             (&Method::POST, Some((id, Some("retry")))) => {
-                match a.turn(&st.db, id, None, t).await {
+                let (a2, db) = owned();
+                match detached(async move { a2.turn(&db, id, None, t).await }).await {
                     Ok(()) => transcript(st, a, id).await,
                     Err(e) => turn_error(e),
                 }
@@ -276,26 +315,25 @@ async fn transcript<T: TrackerApi, C: TorrentClient>(
         }
     }
     let downloads = super::downloads(st, t).await;
-    let topics: Vec<TopicDto> = match resolve_topics(st, &topic_ids, &downloads, t) {
+    let topics = match resolve_topics(st, &topic_ids, &downloads) {
         Ok(v) => v,
         Err(e) => return text(500, format!("{e:#}")),
     };
-    let scenes: Vec<SceneDto> = match a.stash().lib_scenes(&scene_ids).await {
+    let mut scenes_unavailable = false;
+    let scenes: Vec<SceneDto> = match bounded(a.stash().lib_scenes(&scene_ids)).await {
         Ok(s) => s
             .iter()
             .map(|s| scene_dto(s, st.stash_web_url.as_deref()))
             .collect(),
         Err(e) => {
             tracing::info!(job = "web", "assistant scenes: {e:#}");
-            if !degraded.iter().any(|d| d == "stash") {
-                degraded.push("stash".into());
-            }
+            scenes_unavailable = true;
             vec![]
         }
     };
     let known: HashSet<String> = topics
         .iter()
-        .map(|t| format!("t:{}", t.id))
+        .map(|t| format!("t:{}", t.topic.id))
         .chain(scenes.iter().map(|s| s.ref_.clone()))
         .collect();
     let turns = turns
@@ -335,36 +373,41 @@ async fn transcript<T: TrackerApi, C: TorrentClient>(
         now: t,
         topic_url: crate::site::get().topic_url(),
         degraded,
+        scenes_unavailable,
         turns,
         topics,
         scenes,
     })
 }
 
+/// The picked releases still on a list the assistant advises from, in one pass over those
+/// lists. A release that has left them (or was never on them) does not resolve, and its
+/// pick is dropped.
 fn resolve_topics<T: TrackerApi, C: TorrentClient>(
     st: &WebState<T, C>,
     ids: &[u64],
     downloads: &crate::api::Downloads,
-    now: i64,
-) -> anyhow::Result<Vec<TopicDto>> {
+) -> anyhow::Result<Vec<PickedTopic>> {
+    if ids.is_empty() {
+        return Ok(vec![]);
+    }
     let added = st.db.added()?;
     let mut queued: HashSet<u64> = HashSet::new();
     for s in [Section::Video, Section::Indexers] {
         queued.extend(st.db.queued(s)?);
     }
     let externals: HashMap<u64, crate::db::External> = st.db.externals()?;
-    let mut out = vec![];
-    for &id in ids {
-        if let Some((topic, _)) = st.db.find(id, now)? {
-            let listed = Listed {
-                topic,
-                filters: vec![],
-                curated_reason: None,
-            };
-            out.push(crate::api::topic(&listed, &added, &queued, downloads, &externals));
-        }
-    }
-    Ok(out)
+    let wanted: HashSet<u64> = ids.iter().copied().collect();
+    let mut found: HashMap<u64, PickedTopic> = advisable(&st.db)?
+        .into_iter()
+        .filter(|(l, _)| wanted.contains(&l.topic.row.id))
+        .map(|(l, section)| {
+            let topic = crate::api::topic(&l, &added, &queued, downloads, &externals);
+            (topic.id, PickedTopic { topic, section: section.as_str() })
+        })
+        .collect();
+    // In the order the picks first named them.
+    Ok(ids.iter().filter_map(|id| found.remove(id)).collect())
 }
 
 #[cfg(test)]
