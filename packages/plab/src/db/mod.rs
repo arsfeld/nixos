@@ -172,8 +172,11 @@ fn migrate(conn: &mut Connection, legacy: Option<&import::LegacyPaths>, now: i64
     if from >= USER_VERSION {
         return Ok(());
     }
+    // A negative version is corruption; converting it fails here rather than wrapping to a
+    // huge index that would skip every step and stamp the current version over it.
+    let from = usize::try_from(from).context("negative user_version")?;
     // Stepwise: a fresh database runs every step, a v1 one only what it lacks.
-    for (step, sql) in MIGRATIONS.iter().enumerate().skip(from as usize) {
+    for (step, sql) in MIGRATIONS.iter().enumerate().skip(from) {
         tx.execute_batch(sql)?;
         // The legacy import fills the v1 tables, so it runs right after step 0 creates them.
         if step == 0
@@ -243,9 +246,9 @@ impl Db {
     ///
     /// On the daemon's multi-thread runtime the call runs under `block_in_place`, so a
     /// slow query or a busy wait (up to the 30 s busy timeout) hands this worker's other
-    /// tasks to another thread instead of stalling them. Tests run current-thread and the
-    /// one-shot commands may run outside a runtime; `block_in_place` panics in both, so
-    /// there the call runs directly, as it always did.
+    /// tasks to another thread instead of stalling them. On a current-thread runtime (every
+    /// `#[tokio::test]`) or outside any runtime, `block_in_place` would panic, so there the
+    /// call runs directly, as it always did.
     fn with<R>(&self, f: impl FnOnce(&mut Connection) -> Result<R>) -> Result<R> {
         let run = || {
             let mut conn = self.0.lock().unwrap_or_else(|e| e.into_inner());
@@ -453,6 +456,17 @@ mod tests {
         assert_eq!(db.user_version().unwrap(), USER_VERSION);
         db.store_torrent_file(1, b"x", 1).unwrap();
         assert_eq!(db.torrent_file(1).unwrap().unwrap(), b"x");
+    }
+
+    #[test]
+    fn a_negative_user_version_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("corrupt.db");
+        {
+            let c = Connection::open(&path).unwrap();
+            c.pragma_update(None, "user_version", -1).unwrap();
+        }
+        assert!(Db::open(&path).is_err());
     }
 
 

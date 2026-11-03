@@ -9,8 +9,7 @@ use crate::tracker::{Tracker, TrackerApi};
 use crate::transmission::{TorrentClient, Transmission};
 
 /// The tracker and the torrent client: what the list refresh, adds, curated runs and the
-/// web server use. The `'static` bounds are what axum's router state needs; four web.rs
-/// functions spelled them out as `T: TrackerApi + 'static`.
+/// web server use. The `'static` bounds are what axum's router state needs.
 pub trait Backends: Send + Sync + 'static {
     type Tracker: TrackerApi + 'static;
     type Torrents: TorrentClient + 'static;
