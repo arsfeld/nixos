@@ -24,7 +24,7 @@ class Topics {
     try {
       const l = await fetchList(key);
       if (!this.latest.current(key, token)) return;
-      const seenKey = 'plab.seen' + (key === 'games' ? '.games' : '');
+      const seenKey = 'plab.seen' + (key === 'video' ? '' : '.' + key);
       const r = nextSeen(readJson(seenKey), l.topics.map((t) => String(t.id)), Date.now());
       writeStr(seenKey, JSON.stringify(r.next));
       this.newIds = { ...this.newIds, [key]: r.newIds };
@@ -75,7 +75,7 @@ class Topics {
 
   /** After a reconnect or a lag: refetch what is on screen, forget the rest. */
   resync(view: string) {
-    for (const k of ['video', 'games'] as const) {
+    for (const k of ['video', 'indexers', 'albums', 'games'] as const) {
       if (k === view) void this.load(k);
       else delete this.lists[k];
     }

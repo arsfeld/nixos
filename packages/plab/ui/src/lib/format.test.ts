@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { age, day, duration, freshShort, isFresh, size } from './format';
+import { age, day, duration, filesLabel, freshShort, isFresh, size } from './format';
 
 describe('format', () => {
+  it('counts an album\'s files', () => {
+    expect(filesLabel(1)).toBe('1 file');
+    expect(filesLabel(3)).toBe('3 files');
+    expect(filesLabel(0)).toBe('0 files');
+  });
+
   it('sizes in binary units', () => {
     expect(size(512)).toBe('512 B');
     expect(size(2048)).toBe('2.0 KB');

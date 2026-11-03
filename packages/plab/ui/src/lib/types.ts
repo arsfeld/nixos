@@ -1,7 +1,7 @@
 // The server's JSON, as packages/plab/src/api.rs and events.rs shape it (their tests pin
 // these shapes). The jobs entry keeps the jobs spec's snake_case keys.
 
-export type Section = 'video' | 'games';
+export type Section = 'video' | 'indexers' | 'albums' | 'games';
 export type TopicState = '' | 'queued' | 'added';
 
 export type Status =
@@ -34,6 +34,10 @@ export interface Topic {
   source: string | null;
   /** That release's page; null for the tracker's own. */
   link: string | null;
+  /** 'tracker', or an external release's kind; an album is only linked to. */
+  kind: 'tracker' | 'torrent' | 'album';
+  /** An album's file count. */
+  files: number | null;
 }
 
 export interface List {

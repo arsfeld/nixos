@@ -47,6 +47,8 @@ export class FilterState {
 
 export const filters = {
   video: new FilterState('plab.filters'),
+  indexers: new FilterState('plab.filters.indexers'),
+  albums: new FilterState('plab.filters.albums'),
   games: new FilterState('plab.filters.games'),
   search: new FilterState(null),
 };

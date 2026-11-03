@@ -35,3 +35,5 @@ export function duration(s: number): string {
   if (m < 60) return `${m}m ${s % 60}s`;
   return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
+
+export const filesLabel = (n: number) => `${n} ${n === 1 ? 'file' : 'files'}`;

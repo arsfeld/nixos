@@ -5,7 +5,7 @@ import type { List, Topic } from './types';
 const topic = (over: Partial<Topic> = {}): Topic => ({
   id: 1, title: 't', name: 'n', studio: 'Studio', quality: '1080p', category: 'Couples',
   production: 'amateur', tags: ['a', 'b'], filters: ['couples'], size: 1, seeders: 1,
-  leechers: 0, added: 0, images: [], state: '', status: null, source: null, link: null, ...over,
+  leechers: 0, added: 0, images: [], state: '', status: null, source: null, link: null, kind: 'tracker', files: null, ...over,
 });
 
 describe('hash', () => {

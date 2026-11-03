@@ -3,9 +3,9 @@
   import { mostCommon, valueOf, type Select, type Toggle } from '../lib/filters';
   import type { FilterState } from '../lib/filters.svelte';
   import { router } from '../lib/router.svelte';
-  import type { List } from '../lib/types';
+  import type { List, Section } from '../lib/types';
 
-  let { kind, list, fs, shown }: { kind: 'video' | 'games' | 'search'; list: List; fs: FilterState; shown: number } =
+  let { kind, list, fs, shown }: { kind: Section | 'search'; list: List; fs: FilterState; shown: number } =
     $props();
 
   const games = $derived(kind === 'games');

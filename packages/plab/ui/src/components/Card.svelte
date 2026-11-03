@@ -1,7 +1,7 @@
 <script lang="ts">
   import { fetchImages, imgUrl, thumbUrl } from '../lib/api';
   import type { FilterState } from '../lib/filters.svelte';
-  import { age, day, freshShort, isFresh, size } from '../lib/format';
+  import { age, day, filesLabel, freshShort, isFresh, size } from '../lib/format';
   import type { Section, Topic } from '../lib/types';
   import AddButton from './AddButton.svelte';
   import StatusBadge from './StatusBadge.svelte';
@@ -30,6 +30,7 @@
   } = $props();
 
   const PRODUCTION = { amateur: 'badge-success', artistic: 'badge-info', industrial: 'badge-neutral' } as const;
+  const album = $derived(topic.kind === 'album');
   const fresh = $derived(isFresh(topic.added, now));
   let thumbFailed = $state(false);
 
@@ -46,7 +47,7 @@
 <div class={['card bg-base-200 shadow-sm overflow-hidden', isNew && 'is-new ring-2 ring-(--color-accent)']}>
   <figure class="relative aspect-[16/10] bg-black">
     {#if isNew}<span class="badge badge-accent badge-lg font-bold absolute top-2 left-2 z-[1]">NEW</span>{/if}
-    {#if fresh}
+    {#if fresh && !album}
       <span class="badge badge-warning font-bold absolute top-2 right-2 z-[1]">{freshShort(topic.added, now)}</span>
     {/if}
     {#if topic.production}
@@ -89,15 +90,25 @@
       </div>
     {/if}
     <div class="text-xs text-base-content/60">
-      {size(topic.size)} · ▲ {topic.seeders} ▼ {topic.leechers} ·
-      {#if fresh}<span class="text-warning font-bold">uploaded {age(topic.added, now)}</span>{:else}{day(topic.added)}{/if}
+      {#if album}
+        {filesLabel(topic.files ?? 0)} · first seen {day(topic.added)}
+      {:else}
+        {size(topic.size)} · ▲ {topic.seeders} ▼ {topic.leechers} ·
+        {#if fresh}<span class="text-warning font-bold">uploaded {age(topic.added, now)}</span>{:else}{day(topic.added)}{/if}
+      {/if}
     </div>
     <div class="card-actions mt-auto items-center">
-      <AddButton {topic} {section} />
-      {#if stream}
-        <button type="button" class="btn btn-sm btn-ghost" onclick={() => onstream(topic.id)}>Stream ▶</button>
+      {#if album}
+        {#if topic.link}
+          <a class="btn btn-sm btn-primary" href={topic.link} target="_blank" rel="noreferrer">Open ↗</a>
+        {/if}
+      {:else}
+        <AddButton {topic} {section} />
+        {#if stream}
+          <button type="button" class="btn btn-sm btn-ghost" onclick={() => onstream(topic.id)}>Stream ▶</button>
+        {/if}
+        {#if topic.status}<StatusBadge status={topic.status} />{/if}
       {/if}
-      {#if topic.status}<StatusBadge status={topic.status} />{/if}
     </div>
   </div>
 </div>

@@ -4,7 +4,7 @@ import type { List, Topic } from './types';
 
 const t = (id: number): Topic => ({
   id, title: '', name: '', studio: null, quality: null, category: '', production: null, tags: [],
-  filters: [], size: 0, seeders: 0, leechers: 0, added: 0, images: [], state: '', status: null, source: null, link: null,
+  filters: [], size: 0, seeders: 0, leechers: 0, added: 0, images: [], state: '', status: null, source: null, link: null, kind: 'tracker', files: null,
 });
 const list = (...ids: number[]) => ({ topics: ids.map(t) }) as List;
 
