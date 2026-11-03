@@ -18,6 +18,8 @@
   // kind is fixed for this instance: App keys ListView by view and query.
   const fs = untrack(() => filters[kind]);
   const section: Section = untrack(() => (kind === 'search' ? 'video' : kind));
+  // Video and Indexers cards stream; Albums are links only.
+  const streams = section === 'video' || section === 'indexers';
   let gallery = $state<ReturnType<typeof Gallery>>();
   let player = $state<ReturnType<typeof Player>>();
 
@@ -78,7 +80,7 @@
         topicUrl={list.topicUrl}
         isNew={isNew(t.id)}
         {fs}
-        stream={section === 'video'}
+        stream={streams}
         ongallery={(images) => gallery?.open(images)}
         onstream={(id) => player?.open(id)}
       />
@@ -89,4 +91,4 @@
 {/if}
 
 <Gallery bind:this={gallery} />
-{#if section === 'video'}<Player bind:this={player} />{/if}
+{#if streams}<Player bind:this={player} />{/if}
