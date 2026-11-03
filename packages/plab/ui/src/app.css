@@ -1,0 +1,10 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: luxury --default;
+}
+
+/* A queued button turns into its Remove action on hover. */
+.add.queued:not(:disabled):hover {
+  --btn-color: var(--color-error);
+  --btn-fg: var(--color-error-content);
+}

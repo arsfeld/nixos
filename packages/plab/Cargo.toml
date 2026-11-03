@@ -1,0 +1,36 @@
+[package]
+name = "plab"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+axum = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
+regex = "1"
+fancy-regex = "0.14"
+encoding_rs = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+clap = { version = "4", features = ["derive"] }
+notify = "8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+sha1 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+form_urlencoded = "1"
+url = "2"
+futures = "0.3"
+html-escape = "0.3.0"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
+wiremock = "0.6"
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
