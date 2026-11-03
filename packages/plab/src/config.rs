@@ -25,7 +25,6 @@ pub struct Config {
     pub jev_model: String,
     pub parse_model: String,
     /// The assistant's chat model; defaults to `parse_model`.
-    #[allow(dead_code)] // used by assistant (task 6)
     pub assistant_model: String,
     pub stash_url: String,
     /// Where the browser reaches Stash; None renders no links to it.

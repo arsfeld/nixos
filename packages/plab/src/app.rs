@@ -127,6 +127,19 @@ pub fn openrouter(cfg: &Config, base: &str) -> anyhow::Result<Option<OpenRouter>
     )))
 }
 
+/// The assistant, or None without an OpenRouter key. Its own OpenRouter client, so the
+/// web task and the jobs never share one; `base` is `llm::OPENROUTER` outside tests.
+pub fn assistant(cfg: &Config, base: &str) -> anyhow::Result<Option<crate::assistant::Assistant>> {
+    Ok(openrouter(cfg, base)?.map(|llm| {
+        crate::assistant::Assistant::new(
+            llm,
+            stash(cfg),
+            cfg.assistant_model.clone(),
+            crate::site::get().prompts.assistant.clone(),
+        )
+    }))
+}
+
 /// identify cannot run without the LLM: stash-identify always needed its key.
 pub fn require_openrouter(o: &Option<OpenRouter>) -> anyhow::Result<&OpenRouter> {
     o.as_ref().context(

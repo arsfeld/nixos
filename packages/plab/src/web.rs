@@ -25,6 +25,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tracing::info;
 
+mod assistant_routes;
+
 pub struct WebState<T: TrackerApi, C: TorrentClient> {
     pub tracker: Arc<T>,
     pub torrents: Arc<C>,
@@ -51,6 +53,8 @@ pub struct WebState<T: TrackerApi, C: TorrentClient> {
     pub monitor: Monitor,
     /// Other indexers' torrents, for releases from them; None when Prowlarr is unset.
     pub prowlarr: Option<Arc<Prowlarr>>,
+    /// The assistant; None without an OpenRouter key (its routes answer 503).
+    pub assistant: Option<Arc<crate::assistant::Assistant>>,
 }
 
 impl<T: TrackerApi, C: TorrentClient> WebState<T, C> {
@@ -302,8 +306,12 @@ async fn handle<T: TrackerApi + 'static, C: TorrentClient + 'static>(
     method: Method,
     uri: Uri,
     headers: HeaderMap,
+    body: Body,
 ) -> Response<Body> {
     let path = uri.path();
+    if let Some(rest) = path.strip_prefix("/api/assistant/") {
+        return assistant_routes::route(&st, &method, rest, body).await;
+    }
     if let Some(route) = path.strip_prefix("/api").and_then(stream_route) {
         let range = headers.get(header::RANGE).and_then(|v| v.to_str().ok());
         return stream_page(&st, method, route, range).await;

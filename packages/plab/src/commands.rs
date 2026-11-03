@@ -309,6 +309,8 @@ pub async fn serve(
                     events: events.clone(),
                     monitor: crate::monitor::global().clone(),
                     prowlarr: a.prowlarr.clone(),
+                    assistant: crate::app::assistant(&a.cfg, crate::llm::OPENROUTER)?
+                        .map(Arc::new),
                 });
                 let pump_state = state.clone();
                 let web_state = state.clone();

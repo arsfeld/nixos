@@ -447,7 +447,6 @@ impl Db {
         })
     }
 
-    #[allow(dead_code)] // used by the assistant's routes (task 7)
     pub fn conversations(&self) -> Result<Vec<ConversationRow>> {
         self.with(|c| {
             let mut s = c.prepare(
@@ -470,7 +469,6 @@ impl Db {
         })
     }
 
-    #[allow(dead_code)] // used by the assistant's routes (task 7)
     pub fn delete_conversation(&self, id: i64) -> Result<bool> {
         self.with(|c| Ok(c.execute("DELETE FROM conversation WHERE id = ?1", params![id])? > 0))
     }

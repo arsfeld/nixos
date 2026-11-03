@@ -1,6 +1,5 @@
 mod albums;
 mod api;
-#[allow(dead_code)] // Task 7 (routes in app.rs) constructs the Assistant; remove then.
 mod assistant;
 mod candidates;
 mod app;

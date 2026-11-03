@@ -188,7 +188,7 @@ pub fn list(
     }
 }
 
-fn topic(
+pub(crate) fn topic(
     t: &Listed,
     added: &HashSet<u64>,
     queued: &HashSet<u64>,

@@ -59,7 +59,6 @@ pub struct Prompts {
     /// The assistant's system prompt. Empty (absent from the secret) leaves the assistant
     /// off: it answers 503 until the secret carries one.
     #[serde(default)]
-    #[allow(dead_code)] // used by assistant (task 6)
     pub assistant: String,
 }
 

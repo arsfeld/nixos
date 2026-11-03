@@ -207,6 +207,7 @@ impl Fx {
             streams: Arc::new(crate::stream::Streams::default()),
             stream_public_url: Some("https://plab-stream.example".into()),
             prowlarr: None,
+            assistant: None,
         };
         setup(dir.path(), &mut state);
         Fx {
@@ -228,15 +229,20 @@ impl Fx {
         method: &str,
         path: &str,
         range: Option<&str>,
+        body: Option<Vec<u8>>,
     ) -> Reply {
         let mut req = Request::builder().method(method).uri(path);
         if let Some(r) = range {
             req = req.header("range", r);
         }
-        let resp = router
-            .oneshot(req.body(Body::empty()).unwrap())
-            .await
-            .unwrap();
+        let body = match body {
+            Some(b) => {
+                req = req.header("content-type", "application/json");
+                Body::from(b)
+            }
+            None => Body::empty(),
+        };
+        let resp = router.oneshot(req.body(body).unwrap()).await.unwrap();
         let (parts, body) = resp.into_parts();
         Reply {
             status: parts.status.as_u16(),
@@ -245,17 +251,27 @@ impl Fx {
         }
     }
 
+    async fn send_body(&self, method: &str, path: &str, body: Vec<u8>) -> Reply {
+        self.send_to(router(self.state.clone()), method, path, None, Some(body))
+            .await
+    }
+
+    async fn post_json(&self, path: &str, v: Value) -> Reply {
+        self.send_body("POST", path, v.to_string().into_bytes())
+            .await
+    }
+
     async fn request(&self, method: &str, path: &str) -> Reply {
         self.page(method, path, None).await
     }
 
     async fn page(&self, method: &str, path: &str, range: Option<&str>) -> Reply {
-        self.send_to(router(self.state.clone()), method, path, range)
+        self.send_to(router(self.state.clone()), method, path, range, None)
             .await
     }
 
     async fn tailnet(&self, method: &str, path: &str) -> Reply {
-        self.send_to(stream_router(self.state.clone()), method, path, None)
+        self.send_to(stream_router(self.state.clone()), method, path, None, None)
             .await
     }
 
@@ -933,6 +949,7 @@ async fn the_tailnet_listener_only_reads() {
             "GET",
             "/stream/5/0",
             Some("bytes=0-3"),
+            None,
         )
         .await;
     assert_eq!(r.status, 206);
@@ -949,6 +966,7 @@ async fn the_tailnet_listener_answers_head_like_get() {
             "HEAD",
             "/stream/5/0",
             Some("bytes=0-3"),
+            None,
         )
         .await;
     assert_eq!(r.status, 206);
@@ -1020,4 +1038,158 @@ async fn stream_unknown_topic_is_404_and_stop_deletes() {
     fx.page("POST", "/api/stream/5", None).await;
     assert_eq!(fx.page("DELETE", "/api/stream/5", None).await.status, 200);
     assert_eq!(fx.page("GET", "/api/stream/5", None).await.status, 404);
+}
+
+// Assistant
+
+async fn assistant_fx(server: &wiremock::MockServer) -> Fx {
+    use wiremock::{Mock, ResponseTemplate, matchers::path};
+    Mock::given(path("/graphql"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": {"findScenes": {"scenes": [
+            {"id": "4", "title": "Alpha", "performers": [{"id": "p", "name": "Performer B"}],
+             "paths": {"screenshot": "http://localhost:9999/scene/4/screenshot?t=1"}}
+        ]}}})))
+        .mount(server)
+        .await;
+    let uri = server.uri();
+    Fx::with(FakeTracker::default(), move |_, st| {
+        let llm = crate::llm::OpenRouter::new(&uri, "k".into(), "p".into(), "j".into());
+        let stash = crate::stash::Stash::new(&format!("{uri}/graphql"), None);
+        st.assistant = Some(Arc::new(crate::assistant::Assistant::new(
+            llm,
+            stash,
+            "m".into(),
+            "x".into(),
+        )));
+        st.stash_web_url = Some("https://stash.example".into());
+    })
+}
+
+fn answer(picks: Value) -> wiremock::ResponseTemplate {
+    wiremock::ResponseTemplate::new(200).set_body_json(json!({"choices": [{"message": {
+        "role": "assistant", "content": json!({"text": "Here.", "picks": picks}).to_string()
+    }}]}))
+}
+
+#[tokio::test]
+async fn assistant_off_without_a_key() {
+    let fx = Fx::new();
+    let r = fx.post("/api/assistant/recommend").await;
+    assert_eq!(r.status, 503);
+    assert!(r.text().contains("OpenRouter"));
+}
+
+#[tokio::test]
+async fn recommend_resolves_picks_and_drops_unknown_refs() {
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::path(crate::llm::CHAT_PATH))
+        .respond_with(answer(json!([
+            {"ref": "t:5", "action": "download", "reason": "same studio"},
+            {"ref": "s:4", "action": "watch", "reason": "same performer"},
+            {"ref": "t:999", "action": "stream", "reason": "gone"},
+            {"ref": "s:4", "action": "download", "reason": "wrong action for a scene"}
+        ])))
+        .mount(&server)
+        .await;
+    let fx = assistant_fx(&server).await;
+    fx.save_video(&[listed(row(5, "Alpha One"), &[COVER])]);
+    let r = fx.post("/api/assistant/recommend").await;
+    assert_eq!(r.status, 200, "{}", r.text());
+    let j = r.json();
+    let turn = j["turns"].as_array().unwrap().last().unwrap().clone();
+    assert_eq!(turn["role"], "assistant");
+    assert_eq!(turn["text"], "Here.");
+    let refs: Vec<&str> = turn["picks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["ref"].as_str().unwrap())
+        .collect();
+    assert_eq!(refs, vec!["t:5", "s:4"]);
+    assert_eq!(j["topics"][0]["id"], 5);
+    assert_eq!(j["scenes"][0]["link"], "https://stash.example/scenes/4");
+    assert_eq!(
+        j["scenes"][0]["screenshot"],
+        "https://stash.example/scene/4/screenshot?t=1"
+    );
+    // The user's turn is the canned ask; system and tool messages are not shown.
+    assert_eq!(j["turns"].as_array().unwrap().len(), 2);
+    let list = fx.get("/api/assistant/conversations").await.json();
+    assert_eq!(list[0]["kind"], "recommend");
+}
+
+#[tokio::test]
+async fn chat_messages_get_and_delete() {
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::path(crate::llm::CHAT_PATH))
+        .respond_with(answer(json!([])))
+        .mount(&server)
+        .await;
+    let fx = assistant_fx(&server).await;
+    let r = fx
+        .post_json("/api/assistant/conversations", json!({"text": "something short"}))
+        .await;
+    assert_eq!(r.status, 200, "{}", r.text());
+    let id = r.json()["id"].as_i64().unwrap();
+    assert_eq!(r.json()["title"], "something short");
+    let r = fx
+        .post_json(
+            &format!("/api/assistant/conversations/{id}/messages"),
+            json!({"text": "more"}),
+        )
+        .await;
+    assert_eq!(r.json()["turns"].as_array().unwrap().len(), 4);
+    assert_eq!(
+        fx.get(&format!("/api/assistant/conversations/{id}"))
+            .await
+            .status,
+        200
+    );
+    assert_eq!(
+        fx.request("DELETE", &format!("/api/assistant/conversations/{id}"))
+            .await
+            .status,
+        204
+    );
+    assert_eq!(
+        fx.get(&format!("/api/assistant/conversations/{id}"))
+            .await
+            .status,
+        404
+    );
+}
+
+#[tokio::test]
+async fn assistant_rejects_bad_bodies_and_busy_conversations() {
+    let server = wiremock::MockServer::start().await;
+    let fx = assistant_fx(&server).await;
+    let big = vec![b'a'; 16 * 1024 + 1];
+    assert_eq!(
+        fx.send_body("POST", "/api/assistant/conversations", big)
+            .await
+            .status,
+        413
+    );
+    assert_eq!(
+        fx.post_json("/api/assistant/conversations", json!({"text": "  "}))
+            .await
+            .status,
+        400
+    );
+    assert_eq!(
+        fx.send_body("POST", "/api/assistant/conversations", b"{".to_vec())
+            .await
+            .status,
+        400
+    );
+    let id = fx.state.db.create_conversation("t", "chat", 0).unwrap();
+    let a = fx.state.assistant.clone().unwrap();
+    let _g = a.lock(id).unwrap();
+    let r = fx
+        .post_json(
+            &format!("/api/assistant/conversations/{id}/messages"),
+            json!({"text": "x"}),
+        )
+        .await;
+    assert_eq!(r.status, 409);
 }
