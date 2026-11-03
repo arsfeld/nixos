@@ -149,11 +149,18 @@ pub(super) async fn route<T: TrackerApi, C: TorrentClient>(
         },
         _ => match (method, conversation_path(rest)) {
             (&Method::GET, Some((id, None))) => transcript(st, a, id).await,
-            (&Method::DELETE, Some((id, None))) => match st.db.delete_conversation(id) {
-                Ok(true) => send(204, Vec::new(), "text/plain", "no-store"),
-                Ok(false) => not_found(),
-                Err(e) => text(500, format!("{e:#}")),
-            },
+            (&Method::DELETE, Some((id, None))) => {
+                // A turn in flight would write into a conversation that no longer exists.
+                let _guard = match a.lock(id) {
+                    Ok(g) => g,
+                    Err(e) => return turn_error(e),
+                };
+                match st.db.delete_conversation(id) {
+                    Ok(true) => send(204, Vec::new(), "text/plain", "no-store"),
+                    Ok(false) => not_found(),
+                    Err(e) => text(500, format!("{e:#}")),
+                }
+            }
             (&Method::POST, Some((id, Some("messages")))) => match read_text(body).await {
                 Err(r) => *r,
                 Ok(msg) => match a.turn(&st.db, id, Some(&msg), t).await {
@@ -173,13 +180,31 @@ pub(super) async fn route<T: TrackerApi, C: TorrentClient>(
 }
 
 /// Stash's own screenshot URL names the address plab reached it at; the browser needs
-/// Stash's public address with the same path.
-fn rebase(url: &str, web: &str) -> String {
-    let path = url
-        .split_once("://")
-        .and_then(|(_, rest)| rest.find('/').map(|i| &rest[i..]))
-        .unwrap_or(url);
-    format!("{}{path}", web.trim_end_matches('/'))
+/// Stash's public address with the same path. Only `<scheme>://<authority>/<path>` or a
+/// rooted `/<path>` carry a path worth keeping; anything else yields None.
+fn rebase(url: &str, web: &str) -> Option<String> {
+    let path = if let Some((_, rest)) = url.split_once("://") {
+        &rest[rest.find('/')?..]
+    } else if url.starts_with('/') && !url.starts_with("//") {
+        url
+    } else {
+        return None;
+    };
+    Some(format!("{}{path}", web.trim_end_matches('/')))
+}
+
+/// What a pick points at; None for a ref/action pair that does not fit together.
+enum Target {
+    Topic(u64),
+    Scene(String),
+}
+
+fn pick_target(p: &assistant::Pick) -> Option<Target> {
+    match (p.ref_.split_once(':')?, p.action.as_str()) {
+        (("t", id), "stream" | "download") => id.parse().ok().map(Target::Topic),
+        (("s", id), "watch") => Some(Target::Scene(id.to_string())),
+        _ => None,
+    }
 }
 
 fn scene_dto(s: &LibScene, web: Option<&str>) -> SceneDto {
@@ -189,7 +214,7 @@ fn scene_dto(s: &LibScene, web: Option<&str>) -> SceneDto {
         title: s.label(),
         studio: s.studio.as_ref().map(|x| x.name.clone()),
         performers: s.performers.iter().map(|p| p.name.clone()).collect(),
-        screenshot: web.and_then(|w| s.paths.screenshot.as_deref().map(|u| rebase(u, w))),
+        screenshot: web.and_then(|w| s.paths.screenshot.as_deref().and_then(|u| rebase(u, w))),
         link: web.map(|w| format!("{}/scenes/{}", w.trim_end_matches('/'), s.id)),
     }
 }
@@ -243,17 +268,9 @@ async fn transcript<T: TrackerApi, C: TorrentClient>(
     let mut scene_ids: Vec<String> = vec![];
     for (_, _, _, picks, _) in &turns {
         for p in picks {
-            match (p.ref_.split_once(':'), p.action.as_str()) {
-                (Some(("t", id)), "stream" | "download") => {
-                    if let Ok(id) = id.parse::<u64>()
-                        && !topic_ids.contains(&id)
-                    {
-                        topic_ids.push(id);
-                    }
-                }
-                (Some(("s", id)), "watch") if !scene_ids.iter().any(|s| s == id) => {
-                    scene_ids.push(id.to_string());
-                }
+            match pick_target(p) {
+                Some(Target::Topic(id)) if !topic_ids.contains(&id) => topic_ids.push(id),
+                Some(Target::Scene(id)) if !scene_ids.contains(&id) => scene_ids.push(id),
                 _ => {}
             }
         }
@@ -290,11 +307,7 @@ async fn transcript<T: TrackerApi, C: TorrentClient>(
             picks: picks
                 .into_iter()
                 .filter(|p| {
-                    let ok_kind = matches!(
-                        (p.ref_.as_bytes().first(), p.action.as_str()),
-                        (Some(b't'), "stream" | "download") | (Some(b's'), "watch")
-                    );
-                    let ok = ok_kind && known.contains(&p.ref_);
+                    let ok = pick_target(p).is_some() && known.contains(&p.ref_);
                     if !ok {
                         tracing::debug!(
                             job = "web",
@@ -352,4 +365,26 @@ fn resolve_topics<T: TrackerApi, C: TorrentClient>(
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::rebase;
+
+    #[test]
+    fn rebase_keeps_only_a_rooted_path() {
+        let w = "https://stash.example/";
+        assert_eq!(
+            rebase("http://localhost:9999/scene/4/screenshot?t=1", w).as_deref(),
+            Some("https://stash.example/scene/4/screenshot?t=1")
+        );
+        assert_eq!(
+            rebase("/scene/4/screenshot", w).as_deref(),
+            Some("https://stash.example/scene/4/screenshot")
+        );
+        assert_eq!(rebase("scene/4/screenshot", w), None);
+        assert_eq!(rebase("http://host?x", w), None);
+        assert_eq!(rebase("javascript:alert(1)", w), None);
+        assert_eq!(rebase("//evil.example/x", w), None);
+    }
 }

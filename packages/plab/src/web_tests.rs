@@ -1192,4 +1192,8 @@ async fn assistant_rejects_bad_bodies_and_busy_conversations() {
         )
         .await;
     assert_eq!(r.status, 409);
+    let r = fx
+        .request("DELETE", &format!("/api/assistant/conversations/{id}"))
+        .await;
+    assert_eq!(r.status, 409);
 }
