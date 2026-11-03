@@ -5,7 +5,7 @@
 use super::*;
 use crate::db::{Listed, Topic};
 use crate::events::Event;
-use crate::tracker::TrackerError;
+use crate::tracker::{TrackerApi, TrackerError};
 use crate::tracker::parse::Row;
 use crate::transmission::{Added, Torrent, TorrentSource};
 use axum::http::Request;
@@ -119,6 +119,14 @@ struct FakeTorrents {
     calls: Mutex<Vec<(Vec<u8>, String)>>,
 }
 
+/// The fakes, as one `Backends`.
+struct Fakes;
+
+impl crate::backends::Backends for Fakes {
+    type Tracker = FakeTracker;
+    type Torrents = FakeTorrents;
+}
+
 impl TorrentClient for FakeTorrents {
     async fn add(&self, src: &TorrentSource, dir: &str) -> anyhow::Result<Added> {
         let TorrentSource::Bytes(b) = src else {
@@ -154,7 +162,7 @@ impl TorrentClient for FakeTorrents {
 
 struct Fx {
     _dir: tempfile::TempDir,
-    state: Arc<WebState<FakeTracker, FakeTorrents>>,
+    state: Arc<WebState<Fakes>>,
 }
 
 struct Reply {
@@ -184,10 +192,10 @@ impl Fx {
 
     fn with(
         tracker: FakeTracker,
-        setup: impl FnOnce(&std::path::Path, &mut WebState<FakeTracker, FakeTorrents>),
+        setup: impl FnOnce(&std::path::Path, &mut WebState<Fakes>),
     ) -> Fx {
         let dir = tempfile::tempdir().unwrap();
-        let mut state = WebState {
+        let mut state = WebState::<Fakes> {
             tracker: Arc::new(tracker),
             torrents: Arc::new(FakeTorrents::default()),
             db: Db::open(&dir.path().join("plab.db")).unwrap(),

@@ -1,5 +1,6 @@
 //! The CLI's commands: the `serve` daemon, and each of its jobs once.
 
+use crate::backends::Live;
 use std::process::ExitCode;
 use std::sync::Arc;
 
@@ -76,7 +77,7 @@ async fn refresh_with(
     fetch_slots: &Semaphore,
     prowlarr: Option<&Prowlarr>,
 ) -> anyhow::Result<()> {
-    let ctx = plab::Ctx {
+    let ctx = plab::Ctx::<Live> {
         tracker,
         torrents,
         db,
@@ -107,7 +108,7 @@ async fn curated_with(
     prowlarr: Option<&Prowlarr>,
     stash: &crate::stash::Stash,
 ) -> anyhow::Result<()> {
-    let ctx = plab::Ctx {
+    let ctx = plab::Ctx::<Live> {
         tracker,
         torrents,
         db,
@@ -220,9 +221,9 @@ fn clients<'a>(
     a: &'a App,
     paths: &'a Paths,
     codedb: Option<&'a crate::codedb::CodeDb>,
-) -> anyhow::Result<Clients<'a, crate::stash::Stash, OpenRouter, crate::codedb::CodeDb, Transmission>>
+) -> anyhow::Result<Clients<'a, Live>>
 {
-    Ok(Clients {
+    Ok(Clients::<Live> {
         stash: &a.stash,
         llm: app::require_openrouter(&a.openrouter)?,
         codedb,
@@ -288,7 +289,7 @@ pub async fn serve(
         let a = app.clone();
         match task {
             Task::Web => {
-                let state = Arc::new(WebState {
+                let state = Arc::new(WebState::<Live> {
                     tracker: a.tracker.clone(),
                     torrents: a.transmission.clone(),
                     db: a.db.clone(),
@@ -537,7 +538,7 @@ pub async fn identify(
     let codedb = app::codedb(&stash).await;
     let library = app::paths(cfg);
     let torrents = app::transmission(cfg)?;
-    let c = Clients {
+    let c = Clients::<Live> {
         stash: &stash,
         llm,
         codedb: codedb.as_ref(),

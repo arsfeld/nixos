@@ -2,6 +2,7 @@
 //! changes. Port of stash-identify `main.py`'s Debouncer/changed_dir/watch. The 24 h sweep
 //! is a scheduled job (Task 16), not part of this loop.
 
+use crate::backends::IdentifyBackends;
 use std::collections::{BTreeSet, HashSet};
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -11,11 +12,8 @@ use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
 use super::Clients;
-use crate::codedb::CodeSearch;
 use crate::db::Db;
-use crate::llm::Llm;
 use crate::stash::StashApi;
-use crate::transmission::TorrentClient;
 
 /// Quiet time without events before a pass runs.
 pub const SETTLE: Duration = Duration::from_secs(120);
@@ -135,8 +133,8 @@ pub fn start_watcher(
 /// Watch the library and run a pass over the changed folders after `SETTLE` of quiet.
 /// A watcher error or a closed channel is an `Err`, for the supervisor to restart.
 /// Each pass holds `pass_lock`, shared with the daily sweep (see `locked_pass`).
-pub async fn watch<S: StashApi, L: Llm, J: CodeSearch, T: TorrentClient>(
-    c: &Clients<'_, S, L, J, T>,
+pub async fn watch<B: IdentifyBackends>(
+    c: &Clients<'_, B>,
     db: &Db,
     pass_lock: &tokio::sync::Mutex<()>,
 ) -> anyhow::Result<()> {

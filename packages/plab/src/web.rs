@@ -1,5 +1,6 @@
 //! plab's HTTP server: the JSON API under /api, its SSE stream, the app's built files under /assets, and the app's index.html for every other path (the app routes itself). Plus the tailnet listener that only reads streams.
 
+use crate::backends::Backends;
 use crate::api::{self, Downloads, SearchReply};
 use crate::db::{Db, Listing, Section};
 use crate::events::{self, Event, Events};
@@ -11,7 +12,6 @@ use crate::provenance::{self, Status};
 use crate::prowlarr::Prowlarr;
 use crate::rqbit::Rqbit;
 use crate::stream::{self, StreamError, Streams};
-use crate::tracker::TrackerApi;
 use crate::transmission::TorrentClient;
 use axum::Router;
 use axum::body::Body;
@@ -27,9 +27,9 @@ use tracing::info;
 
 mod assistant_routes;
 
-pub struct WebState<T: TrackerApi, C: TorrentClient> {
-    pub tracker: Arc<T>,
-    pub torrents: Arc<C>,
+pub struct WebState<B: Backends> {
+    pub tracker: Arc<B::Tracker>,
+    pub torrents: Arc<B::Torrents>,
     pub db: Db,
     pub images: ImageCache,
     pub state_dir: PathBuf,
@@ -57,8 +57,8 @@ pub struct WebState<T: TrackerApi, C: TorrentClient> {
     pub assistant: Option<Arc<crate::assistant::Assistant>>,
 }
 
-impl<T: TrackerApi, C: TorrentClient> WebState<T, C> {
-    fn ctx(&self) -> Ctx<'_, T, C> {
+impl<B: Backends> WebState<B> {
+    fn ctx(&self) -> Ctx<'_, B> {
         Ctx {
             tracker: &*self.tracker,
             torrents: &*self.torrents,
@@ -76,10 +76,10 @@ impl<T: TrackerApi, C: TorrentClient> WebState<T, C> {
     }
 }
 
-pub fn router<T: TrackerApi + 'static, C: TorrentClient + 'static>(
-    state: Arc<WebState<T, C>>,
+pub fn router<B: Backends>(
+    state: Arc<WebState<B>>,
 ) -> Router {
-    Router::new().fallback(handle::<T, C>).with_state(state)
+    Router::new().fallback(handle::<B>).with_state(state)
 }
 
 pub async fn serve(router: Router, bind: &str, port: u16) -> anyhow::Result<()> {
@@ -171,8 +171,8 @@ fn ok_reply<V: Serialize>(v: V, extra: Value) -> Response<Body> {
     json_reply(200, Value::Object(m))
 }
 
-async fn stream_page<T: TrackerApi, C: TorrentClient>(
-    st: &WebState<T, C>,
+async fn stream_page<B: Backends>(
+    st: &WebState<B>,
     method: Method,
     route: StreamRoute,
     range: Option<&str>,
@@ -275,14 +275,14 @@ async fn stream_file(
 }
 
 /// The tailnet listener: reads a stream that was started on the gated page, nothing else.
-pub fn stream_router<T: TrackerApi + 'static, C: TorrentClient + 'static>(
-    state: Arc<WebState<T, C>>,
+pub fn stream_router<B: Backends>(
+    state: Arc<WebState<B>>,
 ) -> Router {
-    Router::new().fallback(tailnet::<T, C>).with_state(state)
+    Router::new().fallback(tailnet::<B>).with_state(state)
 }
 
-async fn tailnet<T: TrackerApi + 'static, C: TorrentClient + 'static>(
-    State(st): State<Arc<WebState<T, C>>>,
+async fn tailnet<B: Backends>(
+    State(st): State<Arc<WebState<B>>>,
     method: Method,
     uri: Uri,
     headers: HeaderMap,
@@ -301,8 +301,8 @@ async fn tailnet<T: TrackerApi + 'static, C: TorrentClient + 'static>(
     stream_file(&st.streams, engine, topic, file, range).await
 }
 
-async fn handle<T: TrackerApi + 'static, C: TorrentClient + 'static>(
-    State(st): State<Arc<WebState<T, C>>>,
+async fn handle<B: Backends>(
+    State(st): State<Arc<WebState<B>>>,
     method: Method,
     uri: Uri,
     headers: HeaderMap,
@@ -323,8 +323,8 @@ async fn handle<T: TrackerApi + 'static, C: TorrentClient + 'static>(
     }
 }
 
-async fn get<T: TrackerApi, C: TorrentClient>(
-    st: &WebState<T, C>,
+async fn get<B: Backends>(
+    st: &WebState<B>,
     path: &str,
     query: Option<&str>,
 ) -> Response<Body> {
@@ -352,8 +352,8 @@ fn json_body<V: Serialize>(v: &V) -> Response<Body> {
     )
 }
 
-async fn api_get<T: TrackerApi, C: TorrentClient>(
-    st: &WebState<T, C>,
+async fn api_get<B: Backends>(
+    st: &WebState<B>,
     path: &str,
     query: Option<&str>,
 ) -> Response<Body> {
@@ -452,8 +452,8 @@ const GRAB_DAYS: i64 = 14;
 
 /// Each recent download's status. Transmission is asked once, briefly; if it does not
 /// answer, statuses come from the database alone.
-pub(crate) async fn downloads<T: TrackerApi, C: TorrentClient>(
-    st: &WebState<T, C>,
+pub(crate) async fn downloads<B: Backends>(
+    st: &WebState<B>,
     now: i64,
 ) -> Downloads {
     let rows = match st.db.download_rows(now - LIVE_DAYS * 86400) {
@@ -502,7 +502,7 @@ pub(crate) async fn downloads<T: TrackerApi, C: TorrentClient>(
     out
 }
 
-async fn search<T: TrackerApi, C: TorrentClient>(st: &WebState<T, C>, q: &str) -> Response<Body> {
+async fn search<B: Backends>(st: &WebState<B>, q: &str) -> Response<Body> {
     let t = now();
     let (topics, error) = match plab::run_search(&st.ctx(), q, t).await {
         Ok(topics) => (topics, None),
@@ -536,8 +536,8 @@ async fn search<T: TrackerApi, C: TorrentClient>(st: &WebState<T, C>, q: &str) -
     }
 }
 
-async fn list<T: TrackerApi, C: TorrentClient>(
-    st: &WebState<T, C>,
+async fn list<B: Backends>(
+    st: &WebState<B>,
     section: Section,
 ) -> Response<Body> {
     let t = now();
@@ -574,8 +574,8 @@ async fn list<T: TrackerApi, C: TorrentClient>(
     }
 }
 
-async fn topic_images<T: TrackerApi, C: TorrentClient>(
-    st: &WebState<T, C>,
+async fn topic_images<B: Backends>(
+    st: &WebState<B>,
     kind: &str,
     id: u64,
 ) -> Response<Body> {
@@ -608,7 +608,7 @@ fn images_error(kind: &str, id: u64, e: anyhow::Error) -> Response<Body> {
     text(502, "images unavailable")
 }
 
-async fn post<T: TrackerApi, C: TorrentClient>(st: &WebState<T, C>, path: &str) -> Response<Body> {
+async fn post<B: Backends>(st: &WebState<B>, path: &str) -> Response<Body> {
     let Some((action, id)) = ["add", "unqueue"]
         .into_iter()
         .find_map(|a| id_after(path, &format!("/api/{a}")).map(|id| (a, id)))

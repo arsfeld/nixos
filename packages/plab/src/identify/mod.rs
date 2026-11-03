@@ -6,6 +6,7 @@
 pub mod matching;
 pub mod watch;
 
+use crate::backends::IdentifyBackends;
 use std::collections::{BTreeSet, HashSet};
 use std::path::Path;
 
@@ -19,7 +20,6 @@ use crate::stash::{
     Candidate, Defaults, GqlError, PerformerCreate, Resolved, Scene, SceneUpdate, StashApi,
     StashId, StudioCreate,
 };
-use crate::transmission::TorrentClient;
 use matching::Hit;
 
 pub const STASHDB: &str = "https://stashdb.org/graphql";
@@ -226,14 +226,14 @@ impl Outcome {
     }
 }
 
-pub struct Clients<'a, S: StashApi, L: Llm, J: CodeSearch, T: TorrentClient> {
-    pub stash: &'a S,
-    pub llm: &'a L,
-    pub codedb: Option<&'a J>,
+pub struct Clients<'a, B: IdentifyBackends> {
+    pub stash: &'a B::Stash,
+    pub llm: &'a B::Llm,
+    pub codedb: Option<&'a B::CodeSearch>,
     pub paths: &'a Paths,
     /// Transmission, for recording download files at the start of a pass; None in a
     /// dry run's tests.
-    pub torrents: Option<&'a T>,
+    pub torrents: Option<&'a B::Torrents>,
 }
 
 /// A "scrape" proposal from the FC2 article itself, via Stash's fc2 scraper, or None.
@@ -242,8 +242,8 @@ pub struct Clients<'a, S: StashApi, L: Llm, J: CodeSearch, T: TorrentClient> {
 /// nil dereference), so any Stash-side error counts as a miss. That costs nothing: a
 /// miss leaves an llm-identified guess, which every pass looks up again. Only Stash
 /// being unreachable, or the translation failing, is Transient.
-pub async fn fc2_prop<S: StashApi, L: Llm, J: CodeSearch, T: TorrentClient>(
-    c: &Clients<'_, S, L, J, T>,
+pub async fn fc2_prop<B: IdentifyBackends>(
+    c: &Clients<'_, B>,
     scene: &Scene,
     number: &str,
 ) -> anyhow::Result<Option<Proposal>> {
@@ -287,8 +287,8 @@ pub async fn fc2_prop<S: StashApi, L: Llm, J: CodeSearch, T: TorrentClient>(
 /// duration gate: the code database lists durations in whole minutes, and multi-part files share
 /// one code. A failed lookup is Transient rather than letting the scene fall through to
 /// a guess.
-pub async fn code_prop<S: StashApi, L: Llm, J: CodeSearch, T: TorrentClient>(
-    c: &Clients<'_, S, L, J, T>,
+pub async fn code_prop<B: IdentifyBackends>(
+    c: &Clients<'_, B>,
     scene: &Scene,
 ) -> anyhow::Result<Option<Proposal>> {
     let id = scene.id.clone();
@@ -364,8 +364,8 @@ fn box_index(ep: &str) -> usize {
 /// good. Only downgrades to llm-only when every search succeeded and turned up nothing
 /// usable (or Jev affirmatively picked none). A search or Jev failure is Transient; a
 /// malformed LLM parse reply is scene-specific and propagates as-is.
-pub async fn identify_scene<S: StashApi, L: Llm, J: CodeSearch, T: TorrentClient>(
-    c: &Clients<'_, S, L, J, T>,
+pub async fn identify_scene<B: IdentifyBackends>(
+    c: &Clients<'_, B>,
     scene: &Scene,
     prov: Option<&Provenance>,
 ) -> anyhow::Result<Proposal> {
@@ -518,8 +518,8 @@ async fn resolve_performer<S: StashApi>(
     stash.create_performer(&inp).await
 }
 
-pub async fn apply<S: StashApi, L: Llm, J: CodeSearch, T: TorrentClient>(
-    c: &Clients<'_, S, L, J, T>,
+pub async fn apply<B: IdentifyBackends>(
+    c: &Clients<'_, B>,
     scene: &Scene,
     prop: &Proposal,
     skip_tag_ids: &HashSet<String>,
@@ -615,8 +615,8 @@ fn is_non_latin(title: &str) -> bool {
 /// it came from: a stash-box or code-database scrape, an LLM guess off the filename. FC2 titles are
 /// already translated in fc2_prop and pass through untouched. A failed translation is
 /// Transient, so the scene is retried rather than written in a language nobody reads.
-async fn english_title<S: StashApi, L: Llm, J: CodeSearch, T: TorrentClient>(
-    c: &Clients<'_, S, L, J, T>,
+async fn english_title<B: IdentifyBackends>(
+    c: &Clients<'_, B>,
     scene: &Scene,
     mut up: SceneUpdate,
 ) -> anyhow::Result<SceneUpdate> {
@@ -787,8 +787,8 @@ async fn fingerprint_suspects<S: StashApi>(
 /// could not in stash-identify's single watch loop: overlapping passes would pick the same
 /// bare scenes (double LLM spend, double failure counts, duplicate studios or performers
 /// created in Stash) and queue a library-wide scan beside a per-folder one.
-pub async fn locked_pass<S: StashApi, L: Llm, J: CodeSearch, T: TorrentClient>(
-    c: &Clients<'_, S, L, J, T>,
+pub async fn locked_pass<B: IdentifyBackends>(
+    c: &Clients<'_, B>,
     db: &Db,
     lock: &tokio::sync::Mutex<()>,
     paths: Option<Vec<String>>,
@@ -806,8 +806,8 @@ pub async fn locked_pass<S: StashApi, L: Llm, J: CodeSearch, T: TorrentClient>(
 
 /// One pass. paths=None means the whole library (the sweep). jobs=false skips Stash's
 /// scan/generate/identify; scene_ids processes exactly those scenes, ignoring the done set.
-pub async fn run_pass<S: StashApi, L: Llm, J: CodeSearch, T: TorrentClient>(
-    c: &Clients<'_, S, L, J, T>,
+pub async fn run_pass<B: IdentifyBackends>(
+    c: &Clients<'_, B>,
     db: &Db,
     defaults: &Defaults,
     paths: Option<Vec<String>>,
@@ -885,8 +885,8 @@ pub async fn run_pass<S: StashApi, L: Llm, J: CodeSearch, T: TorrentClient>(
 /// Link the scenes a scan just made to their downloads; one Stash already filled (by
 /// fingerprint) is done, and recorded as such. Failures are logged: the page's status is
 /// all that depends on this.
-async fn record_new<S: StashApi, L: Llm, J: CodeSearch, T: TorrentClient>(
-    c: &Clients<'_, S, L, J, T>,
+async fn record_new<B: IdentifyBackends>(
+    c: &Clients<'_, B>,
     db: &Db,
     ids: &[String],
 ) {
@@ -929,8 +929,8 @@ fn outcome_of(prop: &Proposal) -> (Outcome, Option<String>) {
     }
 }
 
-async fn pass_scene<S: StashApi, L: Llm, J: CodeSearch, T: TorrentClient>(
-    c: &Clients<'_, S, L, J, T>,
+async fn pass_scene<B: IdentifyBackends>(
+    c: &Clients<'_, B>,
     db: &Db,
     scene: &Scene,
     id: &str,

@@ -3,6 +3,7 @@
 //! `WebState` (refresh) publish through the process-wide sender `serve` sets. There is no
 //! replay: a client that reconnects, or lags and gets `resync`, refetches its view.
 
+use crate::backends::Backends;
 use crate::api::{JobDto, StatusDto};
 use axum::body::Body;
 use axum::http::Response;
@@ -17,8 +18,6 @@ use std::sync::OnceLock;
 use std::time::Duration;
 use tokio::sync::broadcast::{self, error::RecvError};
 
-use crate::tracker::TrackerApi;
-use crate::transmission::TorrentClient;
 use crate::web::{self, WebState};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -135,7 +134,7 @@ const STATUS_EVERY: u64 = 40;
 /// Publish what changed in the jobs and the download statuses, while anyone listens.
 /// With no clients it only sleeps; the first status sample after a client arrives is a
 /// baseline, not a burst of events (the client fetched the list itself).
-pub async fn pump<T: TrackerApi, C: TorrentClient>(st: Arc<WebState<T, C>>) -> anyhow::Result<()> {
+pub async fn pump<B: Backends>(st: Arc<WebState<B>>) -> anyhow::Result<()> {
     let mut statuses: Option<HashMap<u64, StatusDto>> = None;
     let mut sent: HashMap<String, crate::monitor::JobLive> = HashMap::new();
     let mut tick = tokio::time::interval(SAMPLE);

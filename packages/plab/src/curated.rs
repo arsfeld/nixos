@@ -7,6 +7,7 @@
 //! searched on the album index, whose albums are linked to, never classified or looked
 //! up.
 
+use crate::backends::Backends;
 use std::collections::{HashMap, HashSet};
 
 use anyhow::{Context, bail};
@@ -25,7 +26,6 @@ use crate::sources::Sources;
 use crate::tracker::forums::{self, category};
 use crate::tracker::parse::Row;
 use crate::tracker::{TrackerApi, TrackerError};
-use crate::transmission::TorrentClient;
 
 pub const WINDOW_DAYS: u32 = 32;
 /// Tracker results per term.
@@ -41,8 +41,8 @@ pub struct Elsewhere<'a> {
     pub albums: Option<&'a AlbumIndex>,
 }
 
-pub async fn run_curated<T: TrackerApi, C: TorrentClient, K: Classify>(
-    ctx: &Ctx<'_, T, C>,
+pub async fn run_curated<B: Backends, K: Classify>(
+    ctx: &Ctx<'_, B>,
     classify: Option<&K>,
     elsewhere: Option<Elsewhere<'_>>,
     now: i64,
@@ -154,8 +154,8 @@ fn newest_first_interleaved(listed: &mut Vec<Listed>) {
 /// The Indexers and Albums lists, rebuilt from the stored curated hits. No tracker page is fetched:
 /// their releases carry only the images the curated job gave them. A filter is named on a
 /// list only when the list holds one of its hits.
-pub async fn rebuild_external<T: TrackerApi, C: TorrentClient>(
-    ctx: &Ctx<'_, T, C>,
+pub async fn rebuild_external<B: Backends>(
+    ctx: &Ctx<'_, B>,
     now: i64,
 ) -> anyhow::Result<()> {
     let order: Vec<String> = load_filter_terms(ctx.filter_file, Some(ctx.state_dir))
@@ -213,8 +213,8 @@ pub async fn rebuild_external<T: TrackerApi, C: TorrentClient>(
 /// Every `%` term searched on the album index. An album's age is from plab's first sight
 /// of it (the index shows no dates); one first seen more than `WINDOW_DAYS` ago is not a
 /// hit. No classification and no scene lookup: album names are free text.
-async fn album_pass<T: TrackerApi, C: TorrentClient>(
-    ctx: &Ctx<'_, T, C>,
+async fn album_pass<B: Backends>(
+    ctx: &Ctx<'_, B>,
     index: &AlbumIndex,
     filters: &FilterTerms,
     excludes: &crate::filters::Excludes,
@@ -314,8 +314,8 @@ fn candidate(r: &ProwlarrResult, cutoff: i64) -> Option<Candidate> {
     })
 }
 
-async fn external_pass<T: TrackerApi, C: TorrentClient, K: Classify>(
-    ctx: &Ctx<'_, T, C>,
+async fn external_pass<B: Backends, K: Classify>(
+    ctx: &Ctx<'_, B>,
     classify: Option<&K>,
     e: &Elsewhere<'_>,
     filters: &FilterTerms,

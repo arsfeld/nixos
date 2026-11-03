@@ -229,6 +229,14 @@ impl FakeTorrents {
     }
 }
 
+/// The fakes, as one `Backends`.
+struct Fakes;
+
+impl crate::backends::Backends for Fakes {
+    type Tracker = FakeTracker;
+    type Torrents = FakeTorrents;
+}
+
 impl TorrentClient for FakeTorrents {
     async fn add(&self, src: &TorrentSource, download_dir: &str) -> anyhow::Result<Added> {
         let bytes = match src {
@@ -353,8 +361,8 @@ impl Env {
         path
     }
 
-    fn ctx<'a>(&'a self, tracker: &'a FakeTracker) -> Ctx<'a, FakeTracker, FakeTorrents> {
-        Ctx {
+    fn ctx<'a>(&'a self, tracker: &'a FakeTracker) -> Ctx<'a, Fakes> {
+        Ctx::<Fakes> {
             tracker,
             torrents: &self.torrents,
             db: &self.db,
@@ -371,7 +379,7 @@ impl Env {
     }
 
     async fn refresh(&self, lab: &FakeTracker) -> anyhow::Result<()> {
-        refresh::<_, _, FakeClassify>(&self.ctx(lab), Section::Video, None, NOW).await
+        refresh::<_, FakeClassify>(&self.ctx(lab), Section::Video, None, NOW).await
     }
 
     async fn refresh_classified(&self, lab: &FakeTracker, k: &FakeClassify) -> anyhow::Result<()> {
@@ -379,11 +387,11 @@ impl Env {
     }
 
     async fn refresh_games(&self, lab: &FakeTracker) -> anyhow::Result<()> {
-        refresh::<_, _, FakeClassify>(&self.ctx(lab), Section::Games, None, NOW).await
+        refresh::<_, FakeClassify>(&self.ctx(lab), Section::Games, None, NOW).await
     }
 
     async fn run_refresh(&self, lab: &FakeTracker) -> anyhow::Result<()> {
-        run_refresh::<_, _, FakeClassify>(&self.ctx(lab), None, NOW).await
+        run_refresh::<_, FakeClassify>(&self.ctx(lab), None, NOW).await
     }
 
     async fn drain(&self, lab: &FakeTracker) -> Result<bool, TrackerError> {
@@ -1249,7 +1257,7 @@ async fn games_failure_leaves_video_refreshed_and_raises() {
 fn futures_are_send() {
     fn send<F: std::future::Future + Send>(_: F) {}
     fn check<'a>(
-        ctx: &'a Ctx<'a, crate::tracker::Tracker, crate::transmission::Transmission>,
+        ctx: &'a Ctx<'a, crate::backends::Live>,
         k: Option<&'a crate::llm::OpenRouter>,
     ) {
         send(run_refresh(ctx, k, 0));
@@ -1291,7 +1299,7 @@ async fn prune_covers_deletes_old_ones() {
 
 impl Env {
     async fn curated(&self, lab: &FakeTracker) -> anyhow::Result<()> {
-        run_curated::<_, _, FakeClassify>(&self.ctx(lab), None, None, NOW).await
+        run_curated::<_, FakeClassify>(&self.ctx(lab), None, None, NOW).await
     }
 }
 
@@ -1835,7 +1843,7 @@ async fn album_index() -> MockServer {
 impl Env {
     async fn curated_albums(&self, lab: &FakeTracker, index: &AlbumIndex, now: i64) {
         let s = Sources::default();
-        run_curated::<_, _, FakeClassify>(
+        run_curated::<_, FakeClassify>(
             &self.ctx(lab),
             None,
             Some(Elsewhere {

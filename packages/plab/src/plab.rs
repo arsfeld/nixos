@@ -2,6 +2,7 @@
 //! image proxy. Port of main.py's `refresh`, `add_topic`, `unqueue_topic`, `drain_queue`,
 //! `run_refresh`, `image_for`, `run_search` and `topic_images`.
 
+use crate::backends::Backends;
 use crate::db::{Db, Listed, NewDownload, Section, Topic};
 use crate::filters::{Filters, load_excludes, load_filters, match_filters};
 use crate::images::{ImageCache, key, sniff};
@@ -29,9 +30,9 @@ pub const CLASSIFY_FAILURE_LIMIT: u32 = 3;
 /// One results page per live search: a single tracker request.
 pub const SEARCH_LIMIT: usize = 50;
 
-pub struct Ctx<'a, T: TrackerApi, C: TorrentClient> {
-    pub tracker: &'a T,
-    pub torrents: &'a C,
+pub struct Ctx<'a, B: Backends> {
+    pub tracker: &'a B::Tracker,
+    pub torrents: &'a B::Torrents,
     pub db: &'a Db,
     pub images: &'a ImageCache,
     pub state_dir: &'a Path,
@@ -86,8 +87,8 @@ fn is_login(e: &anyhow::Error) -> bool {
 
 /// Rebuild a section's list. Errors, leaving the old list in place, if the list fails.
 /// Curated filters and `classify` belong to the video list only.
-pub async fn refresh<T: TrackerApi, C: TorrentClient, K: Classify>(
-    ctx: &Ctx<'_, T, C>,
+pub async fn refresh<B: Backends, K: Classify>(
+    ctx: &Ctx<'_, B>,
     section: Section,
     classify: Option<&K>,
     now: i64,
@@ -231,8 +232,8 @@ pub async fn refresh<T: TrackerApi, C: TorrentClient, K: Classify>(
 /// Send a listed (or recently searched) topic's torrent to Transmission: into
 /// `download_dir`, or `games_dir` for a topic of the games list. Past the tracker's daily
 /// download limit the topic waits in its section's queue for `drain_queue`.
-pub async fn add_topic<T: TrackerApi, C: TorrentClient>(
-    ctx: &Ctx<'_, T, C>,
+pub async fn add_topic<B: Backends>(
+    ctx: &Ctx<'_, B>,
     topic_id: u64,
     now: i64,
 ) -> anyhow::Result<AddResult> {
@@ -292,8 +293,8 @@ pub const COVER_DAYS: i64 = 90;
 /// Copy a just-added topic's first image out of the image cache, which forgets it once the
 /// topic leaves the lists, to <state_dir>/covers/<download id>, for identify to use as the
 /// scene's cover. The add has already happened, so a failure is only logged.
-pub async fn save_cover<T: TrackerApi, C: TorrentClient>(
-    ctx: &Ctx<'_, T, C>,
+pub async fn save_cover<B: Backends>(
+    ctx: &Ctx<'_, B>,
     topic_id: u64,
     download_id: i64,
     now: i64,
@@ -354,8 +355,8 @@ fn db_error(e: anyhow::Error) -> TrackerError {
 /// returning false: every further attempt, in any queue, would only fetch the limit page
 /// again. Returns true otherwise. A database failure reading the queue comes back as
 /// `TrackerError::Tracker`.
-pub async fn drain_queue<T: TrackerApi, C: TorrentClient>(
-    ctx: &Ctx<'_, T, C>,
+pub async fn drain_queue<B: Backends>(
+    ctx: &Ctx<'_, B>,
     section: Section,
     dir: &str,
     now: i64,
@@ -422,8 +423,8 @@ pub async fn drain_queue<T: TrackerApi, C: TorrentClient>(
 /// The `refresh` job: drain the queues, then rebuild the video list and, with a
 /// `games_dir`, the games list. A failure of one list leaves the other refreshed; the first
 /// error is returned at the end. A login failure stops everything at once.
-pub async fn run_refresh<T: TrackerApi, C: TorrentClient, K: Classify>(
-    ctx: &Ctx<'_, T, C>,
+pub async fn run_refresh<B: Backends, K: Classify>(
+    ctx: &Ctx<'_, B>,
     classify: Option<&K>,
     now: i64,
 ) -> anyhow::Result<()> {
@@ -477,8 +478,8 @@ pub async fn run_refresh<T: TrackerApi, C: TorrentClient, K: Classify>(
 
 /// (bytes, content type) for an image of a listed or searched topic, fetching it on first
 /// use. Only those topics' URLs resolve, so this is not an open proxy.
-pub async fn image_for<T: TrackerApi, C: TorrentClient>(
-    ctx: &Ctx<'_, T, C>,
+pub async fn image_for<B: Backends>(
+    ctx: &Ctx<'_, B>,
     image_key: &str,
     now: i64,
 ) -> anyhow::Result<Option<(Vec<u8>, &'static str)>> {
@@ -499,8 +500,8 @@ pub async fn image_for<T: TrackerApi, C: TorrentClient>(
 
 /// A live tracker search over all time, recorded in the database; the entries in tracker
 /// order, with their curated filters. Never touches the lists.
-pub async fn run_search<T: TrackerApi, C: TorrentClient>(
-    ctx: &Ctx<'_, T, C>,
+pub async fn run_search<B: Backends>(
+    ctx: &Ctx<'_, B>,
     query: &str,
     now: i64,
 ) -> anyhow::Result<Vec<Listed>> {
@@ -561,8 +562,8 @@ pub async fn external_torrent(
 }
 
 /// The image URLs of a listed or searched topic, fetching a searched one's on first use.
-pub async fn topic_images<T: TrackerApi, C: TorrentClient>(
-    ctx: &Ctx<'_, T, C>,
+pub async fn topic_images<B: Backends>(
+    ctx: &Ctx<'_, B>,
     topic_id: u64,
     now: i64,
 ) -> anyhow::Result<Vec<String>> {

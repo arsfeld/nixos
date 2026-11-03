@@ -2,6 +2,7 @@
 //! at read time, so a release card shows its live status rather than the status it had
 //! when the model named it.
 
+use crate::backends::Backends;
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::sync::Arc;
@@ -17,8 +18,6 @@ use crate::assistant::context::{advisable, bounded};
 use crate::assistant::{self, Assistant, Kind, TurnError};
 use crate::db::{ConversationRow, Section};
 use crate::stash::library::LibScene;
-use crate::tracker::TrackerApi;
-use crate::transmission::TorrentClient;
 
 /// Request bodies are a chat message: 16 KB is generous.
 const BODY_LIMIT: usize = 16 * 1024;
@@ -137,8 +136,8 @@ fn conversation_path(rest: &str) -> Option<(i64, Option<&str>)> {
     Some((id.parse().ok()?, action))
 }
 
-pub(super) async fn route<T: TrackerApi, C: TorrentClient>(
-    st: &WebState<T, C>,
+pub(super) async fn route<B: Backends>(
+    st: &WebState<B>,
     method: &Method,
     rest: &str,
     body: Body,
@@ -260,8 +259,8 @@ fn scene_dto(s: &LibScene, web: Option<&str>) -> SceneDto {
 
 type RawTurn = (i64, &'static str, String, Vec<assistant::Pick>, Option<String>);
 
-async fn transcript<T: TrackerApi, C: TorrentClient>(
-    st: &WebState<T, C>,
+async fn transcript<B: Backends>(
+    st: &WebState<B>,
     a: &Assistant,
     id: i64,
 ) -> Response<Body> {
@@ -383,8 +382,8 @@ async fn transcript<T: TrackerApi, C: TorrentClient>(
 /// The picked releases still on a list the assistant advises from, in one pass over those
 /// lists. A release that has left them (or was never on them) does not resolve, and its
 /// pick is dropped.
-fn resolve_topics<T: TrackerApi, C: TorrentClient>(
-    st: &WebState<T, C>,
+fn resolve_topics<B: Backends>(
+    st: &WebState<B>,
     ids: &[u64],
     downloads: &crate::api::Downloads,
 ) -> anyhow::Result<Vec<PickedTopic>> {

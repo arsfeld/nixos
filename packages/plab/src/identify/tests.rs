@@ -408,6 +408,16 @@ impl FakeCodeDb {
     }
 }
 
+/// The fakes, as one `IdentifyBackends`.
+struct Fakes;
+
+impl crate::backends::IdentifyBackends for Fakes {
+    type Stash = FakeStash;
+    type Llm = FakeLlm;
+    type CodeSearch = FakeCodeDb;
+    type Torrents = crate::provenance::tests::FakeTorrents;
+}
+
 impl CodeSearch for FakeCodeDb {
     async fn code_search(&self, code: &str) -> Result<Vec<CodeHit>, CodeDbError> {
         self.calls.lock().unwrap().push(code.to_string());
@@ -423,8 +433,8 @@ fn clients<'a>(
     st: &'a FakeStash,
     llm: &'a FakeLlm,
     tp: Option<&'a FakeCodeDb>,
-) -> Clients<'a, FakeStash, FakeLlm, FakeCodeDb, crate::provenance::tests::FakeTorrents> {
-    Clients {
+) -> Clients<'a, Fakes> {
+    Clients::<Fakes> {
         stash: st,
         llm,
         codedb: tp,
