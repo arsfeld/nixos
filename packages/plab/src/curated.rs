@@ -136,6 +136,21 @@ pub async fn run_curated<T: TrackerApi, C: TorrentClient, K: Classify>(
     refresh(ctx, Section::Video, classify, now).await
 }
 
+/// Albums have no seeders and the index shows no dates, so order by `added`, then round-robin over terms.
+fn newest_first_interleaved(listed: &mut Vec<Listed>) {
+    let mut seen: HashMap<Option<String>, usize> = HashMap::new();
+    let mut ranked: Vec<(usize, Listed)> = std::mem::take(listed)
+        .into_iter()
+        .map(|l| {
+            let n = seen.entry(l.curated_reason.clone()).or_insert(0);
+            *n += 1;
+            (*n - 1, l)
+        })
+        .collect();
+    ranked.sort_by_key(|(r, l)| (std::cmp::Reverse(l.topic.row.added), *r));
+    listed.extend(ranked.into_iter().map(|(_, l)| l));
+}
+
 /// The Indexers and Albums lists, rebuilt from the stored curated hits. No tracker page is fetched:
 /// their releases carry only the images the curated job gave them. A filter is named on a
 /// list only when the list holds one of its hits.
@@ -172,6 +187,7 @@ pub async fn rebuild_external<T: TrackerApi, C: TorrentClient>(
                 }
             }
         }
+        newest_first_interleaved(&mut listed);
         for l in &mut listed {
             l.filters.sort_by_key(rank);
             if let Some(first) = l.topic.images.as_ref().and_then(|v| v.first())

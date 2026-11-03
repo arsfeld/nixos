@@ -1922,6 +1922,75 @@ async fn percent_terms_without_an_album_index_still_store_the_tracker_hits() {
 }
 
 #[tokio::test]
+async fn albums_list_newest_first_with_terms_interleaved() {
+    let mut env = Env::new();
+    env.filter_file = Some(env.write("f.txt", "[Group A]\nAlpha\nBeta\n"));
+    let album = |env: &Env, guid: &str| {
+        env.db
+            .upsert_external(&crate::db::NewExternal {
+                indexer: "Album Index",
+                guid,
+                link: "http://files.example/1",
+                info_url: Some("http://files.example/a"),
+                kind: Kind::Album,
+                files: None,
+                seen: NOW,
+            })
+            .unwrap()
+    };
+    let (a1, a2) = (album(&env, "a1"), album(&env, "a2"));
+    let (b1, b2) = (album(&env, "b1"), album(&env, "b2"));
+    let c1 = album(&env, "c1");
+    let t = |id: u64, title: &str, added: i64| {
+        let mut row = titled(id, title);
+        row.added = added;
+        Topic {
+            row,
+            images: None,
+            production: None,
+        }
+    };
+    let hit = |id: u64, reason: &str| crate::db::CuratedHit {
+        topic_id: id,
+        filter: "Group A".into(),
+        reason: reason.into(),
+    };
+    env.db
+        .save_curated(
+            &[
+                t(a1, "Alpha one", 100),
+                t(a2, "Alpha two", 100),
+                t(b1, "Beta one", 100),
+                t(b2, "Beta two", 100),
+                t(c1, "Beta late", 200),
+            ],
+            &[
+                hit(a1, "Alpha"),
+                hit(a2, "Alpha"),
+                hit(b1, "Beta"),
+                hit(b2, "Beta"),
+                hit(c1, "Beta"),
+            ],
+            NOW,
+        )
+        .unwrap();
+    let lab = FakeTracker::new(vec![row(1)]);
+    env.refresh(&lab).await.unwrap();
+    crate::curated::rebuild_external(&env.ctx(&lab), NOW)
+        .await
+        .unwrap();
+    let ids: Vec<u64> = env
+        .db
+        .listing(Section::Albums)
+        .unwrap()
+        .topics
+        .iter()
+        .map(|l| l.topic.row.id)
+        .collect();
+    assert_eq!(ids, vec![c1, a1, b1, a2, b2]);
+}
+
+#[tokio::test]
 async fn each_source_kind_gets_its_own_list() {
     let mut env = Env::new();
     env.filter_file = Some(env.write(

@@ -39,6 +39,8 @@ The navbar becomes **Tracker / Indexers / Albums / Games / Jobs**.
 - `Section` (`db/mod.rs`) gains `Indexers` and `Albums`; `listing` is already keyed by
   section, so each tab is a listing like Games. The `video` section id stays so existing
   URLs and stored listings keep working; only the tab label changes to "Tracker".
+- Albums have no seeders, so the list is ordered newest `added` first; within equal `added`, terms
+  interleave round-robin (every term's 1st album, then every term's 2nd), ties in filter-file order.
 - `refresh` of `video` builds the Tracker listing from the top 100 and the `curated_hit`
   rows whose topic is a tracker topic, and the other two listings from the hits whose
   `external_release.kind` is `torrent` or `album` respectively. External releases no
