@@ -1323,6 +1323,7 @@ fn sources() -> Sources {
         categories: vec![100],
         scene_url: None,
         noise: vec![],
+        ..Default::default()
     }
 }
 

@@ -153,6 +153,10 @@ async fn external_pass<T: TrackerApi, C: TorrentClient, K: Classify>(
     {
         return Ok((vec![], vec![]));
     }
+    if e.sources.categories.is_empty() {
+        info!("plab-sources names no categories: other indexers are not searched");
+        return Ok((vec![], vec![]));
+    }
     let prowlarr = ctx.prowlarr.context("Prowlarr is not configured")?;
     let classify = classify
         .context("no classifier: releases from other indexers are shown only classified")?;
