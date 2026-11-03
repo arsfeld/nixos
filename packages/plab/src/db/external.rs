@@ -118,16 +118,14 @@ impl Db {
                  ORDER BY h.rowid"
             );
             let mut stmt = c.prepare(&sql)?;
-            let raw = stmt
-                .query_map([], |r| {
+            let raw = all(stmt.query_map([], |r| {
                     Ok((
                         raw_topic(r)?,
                         r.get::<_, String>(10)?,
                         r.get::<_, String>(11)?,
                         r.get::<_, Option<String>>(12)?,
                     ))
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
+                })?)?;
             raw.into_iter()
                 .map(|(t, filter, reason, kind)| {
                     Ok(StoredHit {
@@ -186,12 +184,8 @@ impl Db {
                 })
             };
             let rows = match id {
-                Some(id) => stmt
-                    .query_map([id], map)?
-                    .collect::<rusqlite::Result<Vec<_>>>()?,
-                None => stmt
-                    .query_map([], map)?
-                    .collect::<rusqlite::Result<Vec<_>>>()?,
+                Some(id) => all(stmt.query_map([id], map)?)?,
+                None => all(stmt.query_map([], map)?)?,
             };
             Ok(rows.into_iter().map(|e| (e.id, e)).collect())
         })

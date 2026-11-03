@@ -33,7 +33,7 @@ impl Db {
                  ORDER BY started_at DESC, id DESC",
             )?;
             let rows = s.query_map(params![since], |r| Ok((r.get(0)?, r.get(1)?)))?;
-            Ok(rows.collect::<rusqlite::Result<_>>()?)
+            all(rows)
         })
     }
 

@@ -37,9 +37,7 @@ impl Db {
                  WHERE l.section = ?1 ORDER BY l.position"
             );
             let mut stmt = c.prepare(&sql)?;
-            let raw = stmt
-                .query_map([section.as_str()], |r| Ok((raw_topic(r)?, r.get::<_, String>(10)?, r.get::<_, Option<String>>(11)?)))?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
+            let raw = all(stmt.query_map([section.as_str()], |r| Ok((raw_topic(r)?, r.get::<_, String>(10)?, r.get::<_, Option<String>>(11)?)))?)?;
             let topics = raw
                 .into_iter()
                 .map(|(t, filters, curated_reason)| {
@@ -101,7 +99,7 @@ impl Db {
                 "SELECT {TOPIC_COLS} FROM search_hit h JOIN topic t ON t.id = h.topic_id WHERE h.at >= ?1"
             );
             let mut stmt = c.prepare(&sql)?;
-            let raw = stmt.query_map([now - SEARCH_TTL], raw_topic)?.collect::<rusqlite::Result<Vec<_>>>()?;
+            let raw = all(stmt.query_map([now - SEARCH_TTL], raw_topic)?)?;
             raw.into_iter().map(|t| topic_of(t).map(|t| (t.row.id, t))).collect()
         })
     }
@@ -159,9 +157,7 @@ impl Db {
                    t.id IN (SELECT topic_id FROM listing)
                    OR t.id IN (SELECT topic_id FROM search_hit WHERE at >= ?1))",
             )?;
-            let raw = stmt
-                .query_map([now - SEARCH_TTL], |r| r.get::<_, String>(0))?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
+            let raw = all(stmt.query_map([now - SEARCH_TTL], |r| r.get::<_, String>(0))?)?;
             let mut seen = HashSet::new();
             let mut urls = Vec::new();
             for s in raw {

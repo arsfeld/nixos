@@ -33,14 +33,18 @@ use std::time::Duration;
 
 
 
-const SCHEMA: &str = include_str!("schema.sql");
-const SCHEMA_V2: &str = include_str!("schema_v2.sql");
-const SCHEMA_V3: &str = include_str!("schema_v3.sql");
-const SCHEMA_V4: &str = include_str!("schema_v4.sql");
-const SCHEMA_V5: &str = include_str!("schema_v5.sql");
-const SCHEMA_V6: &str = include_str!("schema_v6.sql");
-const SCHEMA_V7: &str = include_str!("schema_v7.sql");
-const USER_VERSION: i64 = 7;
+/// The schema, one step per version: a database at `user_version` N has run the first N.
+/// A new version is a new `schema_vN.sql` and one entry here.
+const MIGRATIONS: &[&str] = &[
+    include_str!("schema.sql"),
+    include_str!("schema_v2.sql"),
+    include_str!("schema_v3.sql"),
+    include_str!("schema_v4.sql"),
+    include_str!("schema_v5.sql"),
+    include_str!("schema_v6.sql"),
+    include_str!("schema_v7.sql"),
+];
+const USER_VERSION: i64 = MIGRATIONS.len() as i64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Section {
@@ -169,33 +173,23 @@ fn migrate(conn: &mut Connection, legacy: Option<&import::LegacyPaths>, now: i64
         return Ok(());
     }
     // Stepwise: a fresh database runs every step, a v1 one only what it lacks.
-    if from < 1 {
-        tx.execute_batch(SCHEMA)?;
-        if let Some(legacy) = legacy {
+    for (step, sql) in MIGRATIONS.iter().enumerate().skip(from as usize) {
+        tx.execute_batch(sql)?;
+        // The legacy import fills the v1 tables, so it runs right after step 0 creates them.
+        if step == 0
+            && let Some(legacy) = legacy
+        {
             import::run(&tx, legacy, now)?;
         }
-    }
-    if from < 2 {
-        tx.execute_batch(SCHEMA_V2)?;
-    }
-    if from < 3 {
-        tx.execute_batch(SCHEMA_V3)?;
-    }
-    if from < 4 {
-        tx.execute_batch(SCHEMA_V4)?;
-    }
-    if from < 5 {
-        tx.execute_batch(SCHEMA_V5)?;
-    }
-    if from < 6 {
-        tx.execute_batch(SCHEMA_V6)?;
-    }
-    if from < 7 {
-        tx.execute_batch(SCHEMA_V7)?;
     }
     tx.pragma_update(None, "user_version", USER_VERSION)?;
     tx.commit()?;
     Ok(())
+}
+
+/// A query's rows, or its first error.
+fn all<T>(rows: impl Iterator<Item = rusqlite::Result<T>>) -> Result<Vec<T>> {
+    Ok(rows.collect::<rusqlite::Result<Vec<T>>>()?)
 }
 
 fn unix_now() -> i64 {
@@ -362,6 +356,17 @@ mod tests {
     }
 
     #[test]
+    fn every_schema_file_is_one_migration_step() {
+        let files = std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/src/db"))
+            .unwrap()
+            .filter_map(|e| e.ok()?.file_name().into_string().ok())
+            .filter(|n| n.starts_with("schema") && n.ends_with(".sql"))
+            .count();
+        assert_eq!(MIGRATIONS.len(), files);
+        assert_eq!(USER_VERSION, files as i64);
+    }
+
+    #[test]
     fn migrations_set_user_version() {
         let dir = tempfile::tempdir().unwrap();
         let db = Db::open(&dir.path().join("state.db")).unwrap();
@@ -382,7 +387,7 @@ mod tests {
         let p = dir.path().join("state.db");
         {
             let c = Connection::open(&p).unwrap();
-            c.execute_batch(SCHEMA).unwrap();
+            c.execute_batch(MIGRATIONS[0]).unwrap();
             c.execute(
                 "INSERT INTO download (source, release_title, section, state, torrent_hash, added_at)
                  VALUES ('grab', 'Old', 'video', 'added', 'h1', 5)",
@@ -428,8 +433,8 @@ mod tests {
         let path = dir.path().join("v2.db");
         {
             let c = Connection::open(&path).unwrap();
-            c.execute_batch(SCHEMA).unwrap();
-            c.execute_batch(SCHEMA_V2).unwrap();
+            c.execute_batch(MIGRATIONS[0]).unwrap();
+            c.execute_batch(MIGRATIONS[1]).unwrap();
             c.pragma_update(None, "user_version", 2).unwrap();
         }
         let db = Db::open(&path).unwrap();

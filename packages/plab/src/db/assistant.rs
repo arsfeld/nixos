@@ -19,14 +19,16 @@ pub struct MessageRow {
     pub at: i64,
 }
 
-fn conversation_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<ConversationRow> {
-    Ok(ConversationRow {
-        id: r.get(0)?,
-        title: r.get(1)?,
-        kind: r.get(2)?,
-        created_at: r.get(3)?,
-        updated_at: r.get(4)?,
-    })
+impl ConversationRow {
+    fn from_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Self> {
+        Ok(ConversationRow {
+            id: r.get(0)?,
+            title: r.get(1)?,
+            kind: r.get(2)?,
+            created_at: r.get(3)?,
+            updated_at: r.get(4)?,
+        })
+    }
 }
 
 impl Db {
@@ -46,8 +48,8 @@ impl Db {
                 "SELECT id, title, kind, created_at, updated_at FROM conversation
                  ORDER BY updated_at DESC, id DESC",
             )?;
-            let rows = s.query_map([], conversation_row)?;
-            Ok(rows.collect::<rusqlite::Result<_>>()?)
+            let rows = s.query_map([], ConversationRow::from_row)?;
+            all(rows)
         })
     }
 
@@ -56,7 +58,7 @@ impl Db {
             Ok(c.query_row(
                 "SELECT id, title, kind, created_at, updated_at FROM conversation WHERE id = ?1",
                 params![id],
-                conversation_row,
+                ConversationRow::from_row,
             )
             .optional()?)
         })
@@ -126,7 +128,7 @@ impl Db {
                     at: r.get(3)?,
                 })
             })?;
-            Ok(rows.collect::<rusqlite::Result<_>>()?)
+            all(rows)
         })
     }
 

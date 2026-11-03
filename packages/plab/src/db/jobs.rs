@@ -98,16 +98,14 @@ impl Db {
                 "SELECT started, finished, ok, error FROM job_history WHERE job = ?1
                  ORDER BY started DESC, id DESC LIMIT ?2",
             )?;
-            let rows = stmt
-                .query_map(params![job, limit as i64], |r| {
+            let rows = all(stmt.query_map(params![job, limit as i64], |r| {
                     Ok(JobRunRow {
                         started: r.get(0)?,
                         finished: r.get(1)?,
                         ok: r.get(2)?,
                         error: r.get(3)?,
                     })
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
+                })?)?;
             Ok(rows)
         })
     }

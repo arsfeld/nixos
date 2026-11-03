@@ -32,7 +32,7 @@ impl Db {
                 "SELECT topic_id FROM download WHERE state = 'queued' AND section = ?1 AND topic_id IS NOT NULL
                  ORDER BY queued_at, id",
             )?;
-            Ok(stmt.query_map([section.as_str()], |r| r.get(0))?.collect::<rusqlite::Result<Vec<u64>>>()?)
+            all::<u64>(stmt.query_map([section.as_str()], |r| r.get(0))?)
         })
     }
 
@@ -87,9 +87,7 @@ impl Db {
             let mut stmt = c.prepare(
                 "SELECT id, cover FROM download WHERE cover IS NOT NULL AND added_at < ?1 ORDER BY id",
             )?;
-            Ok(stmt
-                .query_map([before], |r| Ok((r.get(0)?, r.get(1)?)))?
-                .collect::<rusqlite::Result<Vec<_>>>()?)
+            all(stmt.query_map([before], |r| Ok((r.get(0)?, r.get(1)?)))?)
         })
     }
 

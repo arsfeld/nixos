@@ -50,9 +50,7 @@ impl Db {
                  WHERE state = 'added' AND section = 'video' AND torrent_hash IS NOT NULL
                    AND files_synced = 0 ORDER BY id",
             )?;
-            Ok(stmt
-                .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
-                .collect::<rusqlite::Result<Vec<_>>>()?)
+            all(stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?)
         })
     }
 
@@ -207,8 +205,7 @@ impl Db {
                    AND (d.state = 'queued' OR d.added_at >= ?1)
                  ORDER BY COALESCE(d.added_at, d.queued_at) DESC, d.id DESC",
             )?;
-            let mut rows = stmt
-                .query_map([since], |r| {
+            let mut rows = all(stmt.query_map([since], |r| {
                     Ok(DownloadRow {
                         id: r.get(0)?,
                         source: r.get(1)?,
@@ -221,22 +218,19 @@ impl Db {
                         files_synced: r.get::<_, i64>(8)? == 1,
                         files: vec![],
                     })
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
+                })?)?;
             let mut files = c.prepare(
                 "SELECT path, scene_id, outcome, label FROM download_file WHERE download_id = ?1 ORDER BY path",
             )?;
             for row in &mut rows {
-                row.files = files
-                    .query_map([row.id], |r| {
+                row.files = all(files.query_map([row.id], |r| {
                         Ok(FileRow {
                             path: r.get(0)?,
                             scene_id: r.get(1)?,
                             outcome: r.get(2)?,
                             label: r.get(3)?,
                         })
-                    })?
-                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                    })?)?;
             }
             Ok(rows)
         })
