@@ -312,7 +312,7 @@ with:
 
 ```
 attic is being retired. It was the binary cache until niks3 replaced it on 2026-08-21
-(`60dc149`, `194bfe3`), then sat frozen as a read-only fallback. As of 2026-09-07 its
+(`b0b2fb2`, `16ed587`), then sat frozen as a read-only fallback. As of 2026-09-07 its
 substituter and `system:` key are gone from every host and from CI, so nothing resolves
 against it any more. Still standing, pending the remaining steps of
 `docs/superpowers/plans/2026-09-06-attic-retirement.md`: the `attic.arsfeld.dev` DNS
@@ -1059,7 +1059,7 @@ point it was. Everything it listed as "still standing" is now gone, so replace:
 
 ```
 attic is being retired. It was the binary cache until niks3 replaced it on 2026-08-21
-(`60dc149`, `194bfe3`), then sat frozen as a read-only fallback. As of 2026-09-07 its
+(`b0b2fb2`, `16ed587`), then sat frozen as a read-only fallback. As of 2026-09-07 its
 substituter and `system:` key are gone from every host and from CI, so nothing resolves
 against it any more. Still standing, pending the remaining steps of
 `docs/superpowers/plans/2026-09-06-attic-retirement.md`: the `attic.arsfeld.dev` DNS
@@ -1070,8 +1070,8 @@ buckets `attic`, `attic-data` and `attic-cache`.
 with:
 
 ```
-attic is gone. It was the binary cache until niks3 replaced it on 2026-08-21 (`60dc149`,
-`194bfe3`), sat frozen as a read-only fallback for 17 days, and was retired entirely on
+attic is gone. It was the binary cache until niks3 replaced it on 2026-08-21 (`b0b2fb2`,
+`16ed587`), sat frozen as a read-only fallback for 17 days, and was retired entirely on
 2026-09-07: substituter and `system:` key removed from every host and from CI, the argocd
 app and namespace on can-1 torn down, the `ATTIC_TOKEN` secret deleted, all four
 `attic.arsfeld.dev` DNS records removed, and the R2 buckets `attic`, `attic-data` and

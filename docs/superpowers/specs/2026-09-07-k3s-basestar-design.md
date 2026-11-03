@@ -3,7 +3,7 @@
 **Date:** 2026-09-07
 **Scope:** `modules/constellation/k3s.nix` (new), `hosts/basestar/configuration.nix`,
 `hosts/basestar/k8s/` (new), `just/k8s.just` (new), `justfile`, `CLAUDE.md`
-**Status:** Implemented 2026-09-07 (`6ff0f4a`..`161cf95`). Deployed on basestar; documented
+**Status:** Implemented 2026-09-07 (`5b14ea9`..`ea1ee90`). Deployed on basestar; documented
 in `CLAUDE.md`. The two in-line correction notes below record where the shipped design
 diverges from the approved one.
 

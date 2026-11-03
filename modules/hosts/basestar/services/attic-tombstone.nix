@@ -23,7 +23,7 @@
 # substituter at store-open time and carries on. 410 rather than 404 because the
 # resource is deliberately and permanently gone.
 #
-# Safe to delete once all nine hosts have been deployed past 19686a2 ("drop the
+# Safe to delete once all nine hosts have been deployed past 4d4290b ("drop the
 # attic substituter and its signing key"). Until then it is load-bearing for the
 # stale ones.
 {

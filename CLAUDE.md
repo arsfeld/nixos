@@ -140,8 +140,8 @@ job red, tier-1 gate skips the commit — and `just deploy @tier1` is unaffected
 phase 1 finishes every push before phase 2 activates anything, and niks3 is socket-activated
 so connections queue across its own restart rather than being refused.
 
-attic is gone. It was the binary cache until niks3 replaced it on 2026-08-21 (`60dc149`,
-`194bfe3`), sat frozen as a read-only fallback for 17 days, and was retired entirely on
+attic is gone. It was the binary cache until niks3 replaced it on 2026-08-21 (`b0b2fb2`,
+`16ed587`), sat frozen as a read-only fallback for 17 days, and was retired entirely on
 2026-09-07: substituter and `system:` key removed from every host's configuration and from
 CI (galactica, basestar, raider and pegasus deployed 2026-09-07; router, r2s, raspi3,
 blackbird and octopi carry it until their next deploy), the argocd
@@ -169,7 +169,7 @@ k3s landed (see below), so an unmatched name gets a **404** from traefik rather 
 empty 200 from Caddy's default. The tombstone still wins for `attic.arsfeld.dev`
 specifically — an exact hostname beats a wildcard in Caddy — and it is still the better
 answer, because 410 Gone says *deliberately retired* where 404 says *never heard of it*.
-Keep it until all nine hosts have deployed past `19686a2`, then delete it; the wildcard is
+Keep it until all nine hosts have deployed past `4d4290b`, then delete it; the wildcard is
 now the backstop underneath it either way.
 
 The measurement that justified it: of 60 paths sampled at random from raider's live

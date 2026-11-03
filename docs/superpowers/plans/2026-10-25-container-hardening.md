@@ -18,7 +18,7 @@ Spec: `docs/superpowers/specs/2026-10-25-container-hardening-design.md`.
 - Every explicit `caps` value and every `hardening.enable = false` carries a comment saying why.
 - Commit straight to master; never branch or use a worktree. Conventional commits: `<type>(<scope>): <subject>`. Never mention Claude.
 - **Do not push until the galactica wave (Task 5) passes.** The weekly update routine deploys `origin/master` to tier 1 on Saturday 03:00 America/Toronto; a pushed default-on change would reach galactica unprobed. Deploys from raider use the local tree and are unaffected.
-- Do not re-enable hermes, ask, radarr, sonarr or jackett (disabled in `1fcac3d8` for CVE-2026-111497).
+- Do not re-enable hermes, ask, radarr, sonarr or jackett (disabled in `073e5f14` for CVE-2026-111497).
 - Out of scope, leave untouched: planka, siyuan, iroh-relay, isponsorblock, vpn-exit-nodes, tsnsrv sidecars, k3s pods.
 - Run `nix` commands from `/home/arosenfeld/Code/nixos` on raider, inside `nix develop` for `just`.
 - Don't read files or logs with `cat`/`head`/`tail`; use the Read tool or `grep`.

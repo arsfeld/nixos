@@ -21,7 +21,7 @@ Spec: `docs/superpowers/specs/2026-10-31-split-host-configurations-design.md`.
 - Commit types/scopes: `refactor(blackbird): …`, `refactor(raider): …`. Never mention Claude.
 - New files must be `git add`ed before any `nix eval`/`nix build`. The flake only sees tracked files.
 - The working tree has someone else's uncommitted edits to `modules/constellation/desktop.nix` and a pantheon-dock test. Never stage them. Always evaluate a **committed revision** (`git+file://$PWD?rev=<sha>`), so those edits cannot move either drvPath.
-- Line numbers below refer to the files as of commit `739ade31`. Read the file first. If the lines have drifted, match on content.
+- Line numbers below refer to the files as of commit `52f4e0bf`. Read the file first. If the lines have drifted, match on content.
 
 ## Merge-order facts this plan relies on
 

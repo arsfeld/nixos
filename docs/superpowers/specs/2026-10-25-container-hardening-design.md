@@ -19,7 +19,7 @@ capabilities), and far fewer kernel interfaces for escaping to the host.
 What it does not buy: an app's own data, secrets and network reach are the
 attacker's once the app is compromised. Containers with a known exploitable
 decoder stay disabled regardless (galactica's hermes, ask, radarr, sonarr,
-jackett, `1fcac3d8`).
+jackett, `073e5f14`).
 
 ## Options — `modules/media/containers.nix`
 

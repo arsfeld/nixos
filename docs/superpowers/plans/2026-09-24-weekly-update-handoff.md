@@ -36,7 +36,7 @@ Spec: `docs/superpowers/specs/2026-09-24-weekly-update-handoff-design.md`
 
 Run:
 ```bash
-gh api "repos/arsfeld/nixos/actions/runs?head_sha=$(git rev-parse f338debc)" --jq '.total_count'
+gh api "repos/arsfeld/nixos/actions/runs?head_sha=$(git rev-parse 12b62347)" --jq '.total_count'
 ```
 Expected: `0` — the Sep 20 bot commit has no runs at all. This is the defect.
 
@@ -77,7 +77,7 @@ with:
 
       # A push made with GITHUB_TOKEN starts no workflow runs, so the push above
       # never triggers build.yml on its own. Without this, the bot's lock commits
-      # (50b5580, f338deb) got no "Build & Cache" run, and galactica's
+      # (a95afd2, 12b6234) got no "Build & Cache" run, and galactica's
       # weekly-deploy gate, which looks for exactly that run by head_sha,
       # skipped every one of them. workflow_dispatch is the documented
       # exception to that rule. Not continue-on-error: a failed dispatch must

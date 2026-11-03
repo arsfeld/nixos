@@ -9,12 +9,12 @@ The weekly chain — GitHub `Weekly Update` refreshes `flake.lock`, galactica's
 
 `update.yml`'s commit job pushes with the default `GITHUB_TOKEN`, and GitHub
 does not start workflow runs for pushes made with that token. The bot's lock
-commits therefore never get a `Build & Cache` run: `50b5580` (2026-08-23) and
-`f338deb` (2026-09-20) have none, checked via `actions/runs?head_sha=`.
+commits therefore never get a `Build & Cache` run: `a95afd2` (2026-08-23) and
+`12b6234` (2026-09-20) have none, checked via `actions/runs?head_sha=`.
 `weekly-deploy`'s gate (`hosts/galactica/weekly-deploy.nix`, the "Precondition"
 block) looks for exactly that run, finds nothing, sends "skipped" and exits 0.
 galactica's `last-run.json` still dates from 2026-09-13, when it deployed a
-human commit; the 2026-09-20 run pulled `f338deb` and left no state.
+human commit; the 2026-09-20 run pulled `12b6234` and left no state.
 
 Even the build `update.yml` runs itself can't stand in: it builds the pre-commit
 SHA with an overridden lock, and `self` is in every system closure, so those
@@ -63,7 +63,7 @@ push cannot trigger CI on its own, so `update.yml` dispatches `Build & Cache`.
 
 1. Commit and push; `just deploy galactica` from raider (a deployer change must
    be installed by hand — see CLAUDE.md).
-2. `gh workflow run update.yml`. If inputs moved since `0d8213c`, confirm a
+2. `gh workflow run update.yml`. If inputs moved since `dc823c1`, confirm a
    `workflow_dispatch` `Build & Cache` run appears for the bot commit and goes
    green; once it has, `sudo systemctl start weekly-deploy` on galactica and
    confirm `last-run.json` names the bot commit.

@@ -54,7 +54,7 @@ chmod +x /tmp/flake-structure/drvs.sh
 Run: `git -C /home/arosenfeld/Code/nixos status --short && /tmp/flake-structure/drvs.sh /tmp/flake-structure/before`
 Expected: empty `git status`, then five lines `<host> /nix/store/…-nixos-system-<host>-….drv` (basestar, blackbird, galactica, raider, router). Takes several minutes per host. If any host fails to evaluate, stop — the baseline must be complete.
 
-(Executed by the controller on 2026-10-31 at efe799c6; the script below was replaced by the sequential version described in Global Constraints.)
+(Executed by the controller on 2026-10-31 at fc577e9b; the script below was replaced by the sequential version described in Global Constraints.)
 
 ---
 
