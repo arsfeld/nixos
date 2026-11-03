@@ -1711,6 +1711,9 @@ async fn external_torrent_stores_a_torrent_and_passes_a_magnet() {
         guid,
         link,
         info_url: None,
+        kind: crate::db::Kind::Torrent,
+        files: None,
+        seen: 0,
     };
     let a = env.db.upsert_external(&mk("1", &l1)).unwrap();
     let b = env.db.upsert_external(&mk("2", &l2)).unwrap();
@@ -1746,6 +1749,9 @@ async fn adding_an_external_release_never_touches_the_tracker() {
             guid: "1",
             link: &link,
             info_url: None,
+            kind: crate::db::Kind::Torrent,
+            files: None,
+            seen: 0,
         })
         .unwrap();
     env.db

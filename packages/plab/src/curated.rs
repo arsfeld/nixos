@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use anyhow::{Context, bail};
 use tracing::{info, warn};
 
-use crate::db::{CuratedHit, NewExternal, Section, Topic};
+use crate::db::{CuratedHit, Kind, NewExternal, Section, Topic};
 use crate::external::{Candidate, collapse, is_duplicate, scene_query};
 use crate::filters::{FilterTerms, excluded, load_excludes, load_filter_terms};
 use crate::labels::term_label;
@@ -208,6 +208,9 @@ async fn external_pass<T: TrackerApi, C: TorrentClient, K: Classify>(
                     guid: &c.guid,
                     link: &c.link,
                     info_url: c.info_url.as_deref(),
+                    kind: Kind::Torrent,
+                    files: None,
+                    seen: now,
                 })?;
                 let known = ctx.db.topic(id)?;
                 let production = match known.as_ref().and_then(|t| t.production.clone()) {

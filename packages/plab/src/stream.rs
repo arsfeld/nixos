@@ -686,6 +686,9 @@ mod tests {
                 guid: "1",
                 link: &link,
                 info_url: None,
+                kind: crate::db::Kind::Torrent,
+                files: None,
+                seen: 0,
             })
             .unwrap();
         let (s, r) = engine(&[("m.mkv", 900)]).await;

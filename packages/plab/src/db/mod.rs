@@ -29,13 +29,44 @@ pub struct External {
     pub link: String,
     pub info_url: Option<String>,
     pub scene_id: Option<String>,
+    pub kind: Kind,
+    pub files: Option<u32>,
+    pub first_seen: i64,
 }
 
+/// What an external release is. Only torrents can be streamed or added.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Kind {
+    Torrent,
+    Album,
+}
+
+impl Kind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Kind::Torrent => "torrent",
+            Kind::Album => "album",
+        }
+    }
+
+    fn from_db(s: &str) -> Kind {
+        if s == "album" {
+            Kind::Album
+        } else {
+            Kind::Torrent
+        }
+    }
+}
+
+/// `seen`: now; stored as `first_seen` on insert only.
 pub struct NewExternal<'a> {
     pub indexer: &'a str,
     pub guid: &'a str,
     pub link: &'a str,
     pub info_url: Option<&'a str>,
+    pub kind: Kind,
+    pub files: Option<u32>,
+    pub seen: i64,
 }
 
 /// One curated hit: `topic_id` was found for `filter` by the term whose badge is `reason`.
@@ -46,27 +77,51 @@ pub struct CuratedHit {
     pub reason: String,
 }
 
+/// A stored curated hit with its topic. `kind`: None for a tracker topic.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StoredHit {
+    pub topic: Topic,
+    pub filter: String,
+    pub reason: String,
+    pub kind: Option<Kind>,
+}
+
 const SCHEMA: &str = include_str!("schema.sql");
 const SCHEMA_V2: &str = include_str!("schema_v2.sql");
 const SCHEMA_V3: &str = include_str!("schema_v3.sql");
 const SCHEMA_V4: &str = include_str!("schema_v4.sql");
 const SCHEMA_V5: &str = include_str!("schema_v5.sql");
-const USER_VERSION: i64 = 5;
+const SCHEMA_V6: &str = include_str!("schema_v6.sql");
+const USER_VERSION: i64 = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Section {
     Video,
     Games,
+    Indexers,
+    Albums,
 }
 
 impl Section {
-    pub const ALL: [Section; 2] = [Section::Video, Section::Games];
+    pub const ALL: [Section; 4] = [
+        Section::Video,
+        Section::Games,
+        Section::Indexers,
+        Section::Albums,
+    ];
 
     pub fn as_str(self) -> &'static str {
         match self {
             Section::Video => "video",
             Section::Games => "games",
+            Section::Indexers => "indexers",
+            Section::Albums => "albums",
         }
+    }
+
+    #[allow(dead_code)] // used by the section API (a later task)
+    pub fn parse(s: &str) -> Option<Section> {
+        Section::ALL.into_iter().find(|x| x.as_str() == s)
     }
 }
 
@@ -238,6 +293,9 @@ fn migrate(conn: &mut Connection, legacy: Option<&import::LegacyPaths>, now: i64
     }
     if from < 5 {
         tx.execute_batch(SCHEMA_V5)?;
+    }
+    if from < 6 {
+        tx.execute_batch(SCHEMA_V6)?;
     }
     tx.pragma_update(None, "user_version", USER_VERSION)?;
     tx.commit()?;
@@ -1034,19 +1092,25 @@ impl Db {
                 )?;
             }
             // Only the curated job writes external releases, so only it prunes them: a
-            // refresh can never delete a row this job is still working on.
-            tx.execute("DELETE FROM external_release WHERE id NOT IN (SELECT id FROM topic)", [])?;
+            // refresh can never delete a row this job is still working on. Album rows are
+            // kept: see schema_v6.sql.
+            tx.execute(
+                "DELETE FROM external_release WHERE kind = 'torrent' AND id NOT IN (SELECT id FROM topic)",
+                [],
+            )?;
             tx.commit()?;
             Ok(())
         })
     }
 
-    /// Every curated hit with its topic, in the order the last run stored them.
-    pub fn curated_hits(&self) -> Result<Vec<(Topic, String, String)>> {
+    /// Every curated hit with its topic and release kind, in the order the last run stored them.
+    pub fn curated_hits(&self) -> Result<Vec<StoredHit>> {
         self.with(|c| {
             let sql = format!(
-                "SELECT {TOPIC_COLS}, h.filter, h.reason FROM curated_hit h
-                 JOIN topic t ON t.id = h.topic_id ORDER BY h.rowid"
+                "SELECT {TOPIC_COLS}, h.filter, h.reason, e.kind FROM curated_hit h
+                 JOIN topic t ON t.id = h.topic_id
+                 LEFT JOIN external_release e ON e.id = h.topic_id
+                 ORDER BY h.rowid"
             );
             let mut stmt = c.prepare(&sql)?;
             let raw = stmt
@@ -1055,11 +1119,19 @@ impl Db {
                         raw_topic(r)?,
                         r.get::<_, String>(10)?,
                         r.get::<_, String>(11)?,
+                        r.get::<_, Option<String>>(12)?,
                     ))
                 })?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             raw.into_iter()
-                .map(|(t, f, why)| Ok((topic_of(t)?, f, why)))
+                .map(|(t, filter, reason, kind)| {
+                    Ok(StoredHit {
+                        topic: topic_of(t)?,
+                        filter,
+                        reason,
+                        kind: kind.as_deref().map(Kind::from_db),
+                    })
+                })
                 .collect()
         })
     }
@@ -1077,11 +1149,12 @@ impl Db {
     pub fn upsert_external(&self, e: &NewExternal<'_>) -> Result<u64> {
         self.with(|c| {
             Ok(c.query_row(
-                "INSERT INTO external_release (id, indexer, guid, link, info_url)
-                 VALUES (NULL, ?1, ?2, ?3, ?4)
-                 ON CONFLICT(indexer, guid) DO UPDATE SET link = excluded.link, info_url = excluded.info_url
+                "INSERT INTO external_release (id, indexer, guid, link, info_url, kind, files, first_seen)
+                 VALUES (NULL, ?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                 ON CONFLICT(indexer, guid) DO UPDATE SET
+                   link = excluded.link, info_url = excluded.info_url, files = excluded.files
                  RETURNING id",
-                params![e.indexer, e.guid, e.link, e.info_url],
+                params![e.indexer, e.guid, e.link, e.info_url, e.kind.as_str(), e.files, e.seen],
                 |r| r.get(0),
             )?)
         })
@@ -1099,7 +1172,8 @@ impl Db {
     fn externals_where(&self, filter: &str, id: Option<u64>) -> Result<HashMap<u64, External>> {
         self.with(|c| {
             let sql = format!(
-                "SELECT id, indexer, link, info_url, scene_id FROM external_release {filter}"
+                "SELECT id, indexer, link, info_url, scene_id, kind, files, first_seen
+                 FROM external_release {filter}"
             );
             let mut stmt = c.prepare(&sql)?;
             let map = |r: &rusqlite::Row<'_>| {
@@ -1109,6 +1183,9 @@ impl Db {
                     link: r.get(2)?,
                     info_url: r.get(3)?,
                     scene_id: r.get(4)?,
+                    kind: Kind::from_db(&r.get::<_, String>(5)?),
+                    files: r.get(6)?,
+                    first_seen: r.get(7)?,
                 })
             };
             let rows = match id {
@@ -1121,6 +1198,12 @@ impl Db {
             };
             Ok(rows.into_iter().map(|e| (e.id, e)).collect())
         })
+    }
+
+    #[allow(dead_code)] // used by add/stream and the album search (a later task)
+    /// Whether `id` is an album index entry: linked to, never streamed or added.
+    pub fn is_album(&self, id: u64) -> Result<bool> {
+        Ok(is_external(id) && self.external(id)?.is_some_and(|e| e.kind == Kind::Album))
     }
 
     pub fn set_scene(&self, id: u64, scene_id: &str) -> Result<()> {
@@ -1800,7 +1883,66 @@ mod tests {
             guid,
             link,
             info_url: Some("http://a/1"),
+            kind: Kind::Torrent,
+            files: None,
+            seen: NOW,
         }
+    }
+
+    #[test]
+    fn album_rows_keep_their_first_sight_and_are_never_pruned() {
+        let db = Db::open_in_memory().unwrap();
+        let album = |seen| NewExternal {
+            indexer: "Album index A",
+            guid: "AbC123",
+            link: "https://files.example/a/AbC123",
+            info_url: Some("https://files.example/a/AbC123"),
+            kind: Kind::Album,
+            files: Some(3),
+            seen,
+        };
+        let id = db.upsert_external(&album(NOW)).unwrap();
+        assert_eq!(db.upsert_external(&album(NOW + 99)).unwrap(), id);
+        let e = db.external(id).unwrap().unwrap();
+        assert_eq!((e.kind, e.files, e.first_seen), (Kind::Album, Some(3), NOW));
+        assert!(db.is_album(id).unwrap());
+        // No topic and no hit: a torrent row would be pruned here, an album row is kept.
+        db.save_curated(&[], &[], NOW).unwrap();
+        assert!(db.external(id).unwrap().is_some());
+    }
+
+    #[test]
+    fn curated_hits_carry_the_release_kind() {
+        let db = Db::open_in_memory().unwrap();
+        let torrent = db.upsert_external(&new_ext("g1", "http://p/1")).unwrap();
+        let hit = |id: u64| CuratedHit {
+            topic_id: id,
+            filter: "A".into(),
+            reason: "Alpha".into(),
+        };
+        db.save_curated(
+            &[topic(5, "five"), topic(torrent, "ext")],
+            &[hit(5), hit(torrent)],
+            NOW,
+        )
+        .unwrap();
+        let kinds: Vec<_> = db
+            .curated_hits()
+            .unwrap()
+            .into_iter()
+            .map(|h| (h.topic.row.id, h.kind))
+            .collect();
+        assert_eq!(kinds, vec![(5, None), (torrent, Some(Kind::Torrent))]);
+        assert!(!db.is_album(torrent).unwrap());
+        assert!(!db.is_album(5).unwrap());
+    }
+
+    #[test]
+    fn sections_parse_by_id() {
+        assert_eq!(Section::parse("albums"), Some(Section::Albums));
+        assert_eq!(Section::parse("indexers"), Some(Section::Indexers));
+        assert_eq!(Section::parse("video"), Some(Section::Video));
+        assert_eq!(Section::parse("nope"), None);
     }
 
     #[test]
@@ -1838,7 +1980,7 @@ mod tests {
         let hits = db.curated_hits().unwrap();
         assert_eq!(
             hits.iter()
-                .map(|(t, f, _)| (t.row.id, f.as_str()))
+                .map(|h| (h.topic.row.id, h.filter.as_str()))
                 .collect::<Vec<_>>(),
             vec![(2, "B"), (1, "A")]
         );
@@ -1847,7 +1989,10 @@ mod tests {
             .unwrap();
         let hits = db.curated_hits().unwrap();
         assert_eq!(hits.len(), 1);
-        assert_eq!(hits[0].0.images, Some(vec!["http://i/1.jpg".to_string()]));
+        assert_eq!(
+            hits[0].topic.images,
+            Some(vec!["http://i/1.jpg".to_string()])
+        );
         assert_eq!(db.topic(1).unwrap().unwrap().row.title, "one");
         assert_eq!(db.topic(99).unwrap(), None);
     }

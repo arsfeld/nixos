@@ -95,6 +95,10 @@ pub async fn refresh<T: TrackerApi, C: TorrentClient, K: Classify>(
     let (forums, days, classify) = match section {
         Section::Video => (forums::forums(), DAYS, classify),
         Section::Games => (forums::games().to_vec(), GAMES_DAYS, None),
+        Section::Indexers | Section::Albums => bail!(
+            "the {} list is rebuilt from curated hits, not refreshed",
+            section.as_str()
+        ),
     };
     let excludes = load_excludes(ctx.exclude_file, Some(ctx.state_dir));
     let rows = ctx.tracker.top(&forums, days, LIMIT, &excludes).await?;
@@ -104,19 +108,20 @@ pub async fn refresh<T: TrackerApi, C: TorrentClient, K: Classify>(
 
     let filters: Filters = match section {
         Section::Video => load_filters(ctx.filter_file, Some(ctx.state_dir)),
-        Section::Games => vec![],
+        _ => vec![],
     };
     // The curated job's stored hits (video only): their topics join the list, under the
     // filters that found them.
     let hits = match section {
         Section::Video => ctx.db.curated_hits()?,
-        Section::Games => vec![],
+        _ => vec![],
     };
     // topic id -> {filter name: badge of the first term that found it}
     let mut found: HashMap<u64, HashMap<String, String>> = HashMap::new();
     let mut stored: HashMap<u64, Topic> = HashMap::new();
     let mut extra_rows = vec![];
-    for (topic, filter, reason) in hits {
+    for h in hits {
+        let (topic, filter, reason) = (h.topic, h.filter, h.reason);
         found
             .entry(topic.row.id)
             .or_default()
@@ -233,8 +238,9 @@ pub async fn add_topic<T: TrackerApi, C: TorrentClient>(
         return Err(NotListed(topic_id).into());
     };
     let dir = match section {
-        Section::Video => Some(ctx.download_dir),
+        Section::Video | Section::Indexers => Some(ctx.download_dir),
         Section::Games => ctx.games_dir,
+        Section::Albums => None,
     }
     .filter(|d| !d.is_empty())
     .with_context(|| format!("no download directory for {}", section.as_str()))?;

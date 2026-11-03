@@ -127,6 +127,7 @@ pub fn run(tx: &Transaction<'_>, legacy: &LegacyPaths, now: i64) -> Result<Impor
         match section {
             Section::Video => report.video = list.topics.len(),
             Section::Games => report.games = list.topics.len(),
+            Section::Indexers | Section::Albums => {}
         }
     }
 

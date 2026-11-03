@@ -94,6 +94,9 @@ fn an_external_card_carries_its_indexer_and_page() {
             link: "http://p/1".into(),
             info_url: Some("http://a/1".into()),
             scene_id: None,
+            kind: crate::db::Kind::Torrent,
+            files: None,
+            first_seen: 0,
         },
     );
     let dto = list_with_externals(id, &externals);
@@ -122,6 +125,9 @@ fn only_http_release_pages_become_links() {
                 link: "http://p/1".into(),
                 info_url: Some(url.into()),
                 scene_id: None,
+                kind: crate::db::Kind::Torrent,
+                files: None,
+                first_seen: 0,
             },
         );
         list_with_externals(id, &externals).topics[0].link.clone()
