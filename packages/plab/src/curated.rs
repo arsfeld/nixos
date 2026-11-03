@@ -2,9 +2,10 @@
 //! `WINDOW_DAYS`, and the terms marked `@` through Prowlarr's other indexers. Releases
 //! from other indexers are collapsed to one per release, dropped when the tracker has
 //! them, classified (the down-ranked class is dropped) and given scene images when the
-//! scene database knows them. The hits replace `curated_hit`; then the Indexers
-//! and Albums lists and the Tracker list are rebuilt so they show at once. Terms marked `%` are also searched on the album index,
-//! whose albums are linked to, never classified or looked up.
+//! scene database knows them. The hits replace `curated_hit`; then the Indexers and Albums
+//! lists and the Tracker list are rebuilt so they show at once. Terms marked `%` are also
+//! searched on the album index, whose albums are linked to, never classified or looked
+//! up.
 
 use std::collections::{HashMap, HashSet};
 
@@ -135,7 +136,7 @@ pub async fn run_curated<T: TrackerApi, C: TorrentClient, K: Classify>(
     refresh(ctx, Section::Video, classify, now).await
 }
 
-/// The Indexers and Albums lists, rebuilt from the stored curated hits. No tracker request:
+/// The Indexers and Albums lists, rebuilt from the stored curated hits. No tracker page is fetched:
 /// their releases carry only the images the curated job gave them. A filter is named on a
 /// list only when the list holds one of its hits.
 pub async fn rebuild_external<T: TrackerApi, C: TorrentClient>(
