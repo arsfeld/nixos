@@ -15,7 +15,7 @@ use tracing::{info, warn};
 use crate::albums::AlbumIndex;
 use crate::db::{CuratedHit, Kind, Listed, NewExternal, Section, Topic};
 use crate::external::{Candidate, collapse, is_duplicate, scene_query};
-use crate::filters::{FilterTerms, excluded, load_excludes, load_filter_terms};
+use crate::filters::{FilterTerms, load_excludes, load_filter_terms};
 use crate::labels::term_label;
 use crate::llm::Classify;
 use crate::plab::{CLASSIFY_FAILURE_LIMIT, Ctx, ensure_image, refresh};
@@ -217,7 +217,7 @@ async fn album_pass<T: TrackerApi, C: TorrentClient>(
     ctx: &Ctx<'_, T, C>,
     index: &AlbumIndex,
     filters: &FilterTerms,
-    excludes: &[fancy_regex::Regex],
+    excludes: &crate::filters::Excludes,
     now: i64,
 ) -> anyhow::Result<(Vec<Topic>, Vec<CuratedHit>)> {
     let cutoff = now - i64::from(WINDOW_DAYS) * 86400;
@@ -241,7 +241,8 @@ async fn album_pass<T: TrackerApi, C: TorrentClient>(
                 );
             }
             for a in page.albums {
-                if excluded(excludes, &a.name) {
+                // Album names are image sets, not scenes: the patterns apply, the hide rule does not.
+                if excludes.pattern_excluded(&a.name) {
                     continue;
                 }
                 let id = ctx.db.upsert_external(&NewExternal {
@@ -319,7 +320,7 @@ async fn external_pass<T: TrackerApi, C: TorrentClient, K: Classify>(
     e: &Elsewhere<'_>,
     filters: &FilterTerms,
     tracker_titles: &HashMap<String, Vec<String>>,
-    excludes: &[fancy_regex::Regex],
+    excludes: &crate::filters::Excludes,
     now: i64,
 ) -> anyhow::Result<(Vec<Topic>, Vec<CuratedHit>)> {
     if !filters
@@ -372,7 +373,7 @@ async fn external_pass<T: TrackerApi, C: TorrentClient, K: Classify>(
                 .filter_map(|r| candidate(r, cutoff))
                 // The tracker applies the exclude list to its own searches; these never
                 // pass through it, so apply it here, before anything is classified.
-                .filter(|c| !excluded(excludes, &c.title))
+                .filter(|c| !excludes.excluded(&c.title))
                 .collect();
             for c in collapse(found, noise) {
                 if is_duplicate(&c.title, &titles, &term.text, noise) {

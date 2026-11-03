@@ -62,7 +62,7 @@ fn terms(p: &Profile) -> Vec<(String, String, f64)> {
 
 /// Whether `needle` (lowercase) occurs in `hay` (lowercase) with no letter or digit on
 /// either side.
-fn has_word(hay: &str, needle: &str) -> bool {
+pub(crate) fn has_word(hay: &str, needle: &str) -> bool {
     if needle.is_empty() {
         return false;
     }

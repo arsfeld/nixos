@@ -485,7 +485,7 @@ mod tests {
             _: &[u32],
             _: u32,
             _: usize,
-            _: &[fancy_regex::Regex],
+            _: &crate::filters::Excludes,
         ) -> Result<Vec<Row>, TrackerError> {
             Ok(vec![])
         }
@@ -495,7 +495,7 @@ mod tests {
             _: &[u32],
             _: Option<u32>,
             _: usize,
-            _: &[fancy_regex::Regex],
+            _: &crate::filters::Excludes,
             _: Option<usize>,
         ) -> Result<Vec<Row>, TrackerError> {
             Ok(vec![])

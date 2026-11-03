@@ -64,7 +64,7 @@ impl TrackerApi for FakeTracker {
         _: &[u32],
         _: u32,
         _: usize,
-        _: &[fancy_regex::Regex],
+        _: &crate::filters::Excludes,
     ) -> Result<Vec<Row>, TrackerError> {
         Ok(vec![])
     }
@@ -75,7 +75,7 @@ impl TrackerApi for FakeTracker {
         _: &[u32],
         days: Option<u32>,
         limit: usize,
-        _: &[fancy_regex::Regex],
+        _: &crate::filters::Excludes,
         pages: Option<usize>,
     ) -> Result<Vec<Row>, TrackerError> {
         self.searches

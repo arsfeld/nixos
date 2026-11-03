@@ -13,6 +13,9 @@ use super::types::VideoFile;
 pub struct Named {
     pub id: String,
     pub name: String,
+    /// Performers only: Stash's enum spelling (`MALE`, `FEMALE`, …).
+    #[serde(default)]
+    pub gender: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Deserialize)]

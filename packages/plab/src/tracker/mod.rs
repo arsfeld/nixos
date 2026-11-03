@@ -48,7 +48,7 @@ pub trait TrackerApi: Send + Sync {
         forums: &[u32],
         days: u32,
         limit: usize,
-        excludes: &[fancy_regex::Regex],
+        excludes: &crate::filters::Excludes,
     ) -> impl Future<Output = Result<Vec<Row>, TrackerError>> + Send;
     fn search(
         &self,
@@ -56,7 +56,7 @@ pub trait TrackerApi: Send + Sync {
         forums: &[u32],
         days: Option<u32>,
         limit: usize,
-        excludes: &[fancy_regex::Regex],
+        excludes: &crate::filters::Excludes,
         pages: Option<usize>,
     ) -> impl Future<Output = Result<Vec<Row>, TrackerError>> + Send;
     fn topic(&self, topic_id: u64) -> impl Future<Output = Result<String, TrackerError>> + Send;
@@ -300,12 +300,12 @@ impl Tracker {
         &self,
         first: String,
         limit: usize,
-        excludes: &[fancy_regex::Regex],
+        excludes: &crate::filters::Excludes,
         pages: Option<usize>,
     ) -> Result<Vec<Row>, TrackerError> {
         let keep = |rows: Vec<Row>| {
             rows.into_iter()
-                .filter(|r| !crate::filters::excluded(excludes, &r.title))
+                .filter(|r| !excludes.excluded(&r.title))
                 .collect::<Vec<_>>()
         };
         let mut page = self.page(&first).await?;
@@ -396,7 +396,7 @@ impl TrackerApi for Tracker {
         forums: &[u32],
         days: u32,
         limit: usize,
-        excludes: &[fancy_regex::Regex],
+        excludes: &crate::filters::Excludes,
     ) -> impl Future<Output = Result<Vec<Row>, TrackerError>> + Send {
         let q = query(
             forums,
@@ -417,7 +417,7 @@ impl TrackerApi for Tracker {
         forums: &[u32],
         days: Option<u32>,
         limit: usize,
-        excludes: &[fancy_regex::Regex],
+        excludes: &crate::filters::Excludes,
         pages: Option<usize>,
     ) -> impl Future<Output = Result<Vec<Row>, TrackerError>> + Send {
         let mut rest = vec![

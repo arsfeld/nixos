@@ -3,7 +3,7 @@
 use crate::api::{self, Downloads, SearchReply};
 use crate::db::{Db, Listing, Section};
 use crate::events::{self, Event, Events};
-use crate::filters::{excluded, load_excludes};
+use crate::filters::load_excludes;
 use crate::images::{ImageCache, key};
 use crate::monitor::Monitor;
 use crate::plab::{self, Ctx, NotListed};
@@ -543,11 +543,11 @@ async fn list<T: TrackerApi, C: TorrentClient>(
     let t = now();
     let downloads = downloads(st, t).await;
     let reply = st.db.listing(section).and_then(|mut listing| {
-        let patterns = load_excludes(st.exclude_file.as_deref(), Some(&st.state_dir));
-        if !patterns.is_empty() {
+        let excludes = load_excludes(st.exclude_file.as_deref(), Some(&st.state_dir));
+        if !excludes.is_empty() {
             listing
                 .topics
-                .retain(|t| !excluded(&patterns, &t.topic.row.title));
+                .retain(|t| !excludes.excluded(&t.topic.row.title));
         }
         let queued = st.db.queued(section)?.into_iter().collect();
         let externals = st.db.externals()?;

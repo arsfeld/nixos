@@ -135,9 +135,9 @@ impl FakeTracker {
     }
 }
 
-fn keep(rows: &[Row], excludes: &[fancy_regex::Regex]) -> Vec<Row> {
+fn keep(rows: &[Row], excludes: &crate::filters::Excludes) -> Vec<Row> {
     rows.iter()
-        .filter(|r| !crate::filters::excluded(excludes, &r.title))
+        .filter(|r| !excludes.excluded(&r.title))
         .cloned()
         .collect()
 }
@@ -148,7 +148,7 @@ impl TrackerApi for FakeTracker {
         forums: &[u32],
         _days: u32,
         _limit: usize,
-        excludes: &[fancy_regex::Regex],
+        excludes: &crate::filters::Excludes,
     ) -> Result<Vec<Row>, TrackerError> {
         self.calls().tops.push(forums.to_vec());
         if self.games_down && forums == crate::tracker::forums::games() {
@@ -163,7 +163,7 @@ impl TrackerApi for FakeTracker {
         _forums: &[u32],
         days: Option<u32>,
         limit: usize,
-        excludes: &[fancy_regex::Regex],
+        excludes: &crate::filters::Excludes,
         pages: Option<usize>,
     ) -> Result<Vec<Row>, TrackerError> {
         self.calls()
@@ -998,6 +998,14 @@ async fn run_search_all_time_excludes_and_records() {
         [5].into()
     );
     assert_eq!(env.ids(Section::Video), [1]); // the weekly list is untouched
+}
+
+#[tokio::test]
+async fn run_search_applies_the_hide_rule() {
+    let (mut env, lab) = search_env();
+    env.exclude_file = Some(env.write("ex.txt", "[hide]\ncherry\n"));
+    let topics = run_search(&env.ctx(&lab), "alpha", NOW).await.unwrap();
+    assert_eq!(topics.iter().map(|l| l.topic.row.id).collect::<Vec<_>>(), [5]);
 }
 
 #[tokio::test]
