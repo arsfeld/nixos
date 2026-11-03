@@ -3,13 +3,15 @@
 //! from other indexers are collapsed to one per release, dropped when the tracker has
 //! them, classified (the down-ranked class is dropped) and given scene images when the
 //! scene database knows them. The hits replace `curated_hit`, then the video list is
-//! rebuilt so they show at once.
+//! rebuilt so they show at once. Terms marked `%` are also searched on the album index,
+//! whose albums are linked to, never classified or looked up.
 
 use std::collections::{HashMap, HashSet};
 
 use anyhow::{Context, bail};
 use tracing::{info, warn};
 
+use crate::albums::AlbumIndex;
 use crate::db::{CuratedHit, Kind, NewExternal, Section, Topic};
 use crate::external::{Candidate, collapse, is_duplicate, scene_query};
 use crate::filters::{FilterTerms, excluded, load_excludes, load_filter_terms};
@@ -34,6 +36,8 @@ pub const DOWN_RANKED: &str = "industrial";
 pub struct Elsewhere<'a> {
     pub sources: &'a Sources,
     pub scenes: Option<&'a SceneDb>,
+    /// None: `%` terms are searched nowhere else.
+    pub albums: Option<&'a AlbumIndex>,
 }
 
 pub async fn run_curated<T: TrackerApi, C: TorrentClient, K: Classify>(
@@ -97,8 +101,8 @@ pub async fn run_curated<T: TrackerApi, C: TorrentClient, K: Classify>(
             }
         }
     }
-    if let Some(e) = elsewhere {
-        match external_pass(ctx, classify, &e, &filters, &tracker_titles, &excludes, now).await {
+    if let Some(e) = elsewhere.as_ref() {
+        match external_pass(ctx, classify, e, &filters, &tracker_titles, &excludes, now).await {
             Ok((t, h)) => {
                 topics.extend(t);
                 hits.extend(
@@ -110,9 +114,104 @@ pub async fn run_curated<T: TrackerApi, C: TorrentClient, K: Classify>(
             Err(err) => warn!("other indexers skipped: {err:#}"),
         }
     }
+    if filters.iter().any(|(_, t)| t.iter().any(|t| t.albums)) {
+        match elsewhere.as_ref().and_then(|e| e.albums) {
+            Some(index) => match album_pass(ctx, index, &filters, &excludes, now).await {
+                Ok((t, h)) => {
+                    topics.extend(t);
+                    hits.extend(
+                        h.into_iter()
+                            .filter(|h| seen.insert((h.topic_id, h.filter.clone()))),
+                    );
+                }
+                Err(err) => warn!("album index skipped: {err:#}"),
+            },
+            None => warn!("filter terms are marked % but plab-sources names no album_index_url"),
+        }
+    }
     ctx.db.save_curated(&topics, &hits, now)?;
     info!("curated: {} hits", hits.len());
     refresh(ctx, Section::Video, classify, now).await
+}
+
+/// Every `%` term searched on the album index. An album's age is from plab's first sight
+/// of it (the index shows no dates); one first seen more than `WINDOW_DAYS` ago is not a
+/// hit. No classification and no scene lookup: album names are free text.
+async fn album_pass<T: TrackerApi, C: TorrentClient>(
+    ctx: &Ctx<'_, T, C>,
+    index: &AlbumIndex,
+    filters: &FilterTerms,
+    excludes: &[fancy_regex::Regex],
+    now: i64,
+) -> anyhow::Result<(Vec<Topic>, Vec<CuratedHit>)> {
+    let cutoff = now - i64::from(WINDOW_DAYS) * 86400;
+    let mut topics = vec![];
+    let mut hits = vec![];
+    let mut kept: HashSet<u64> = HashSet::new();
+    for (name, terms) in filters {
+        for term in terms.iter().filter(|t| t.albums) {
+            tokio::time::sleep(ctx.delay).await;
+            let page = match index.search(&term.text).await {
+                Ok(p) => p,
+                Err(err) => {
+                    warn!("album index: search failed for {:?}: {err:#}", term.text);
+                    continue;
+                }
+            };
+            if page.looks_broken() {
+                warn!(
+                    "album index: no album read for {:?} although the page is not empty; has its layout changed?",
+                    term.text
+                );
+            }
+            for a in page.albums {
+                if excluded(excludes, &a.name) {
+                    continue;
+                }
+                let id = ctx.db.upsert_external(&NewExternal {
+                    indexer: index.label(),
+                    guid: &a.id,
+                    link: &a.href,
+                    info_url: Some(&a.href),
+                    kind: Kind::Album,
+                    files: Some(a.files),
+                    seen: now,
+                })?;
+                let first_seen = ctx.db.external(id)?.map_or(now, |e| e.first_seen);
+                if first_seen < cutoff {
+                    continue;
+                }
+                hits.push(CuratedHit {
+                    topic_id: id,
+                    filter: name.clone(),
+                    reason: term_label(&term.text),
+                });
+                if !kept.insert(id) {
+                    continue;
+                }
+                let stored = ctx
+                    .db
+                    .topic(id)?
+                    .and_then(|t| t.images)
+                    .filter(|v| !v.is_empty());
+                topics.push(Topic {
+                    row: Row {
+                        id,
+                        title: a.name,
+                        forum: 0,
+                        size: 0,
+                        seeders: 0,
+                        leechers: 0,
+                        completed: 0,
+                        added: first_seen,
+                    },
+                    images: stored.or_else(|| a.thumb.map(|u| vec![u])),
+                    production: None,
+                });
+            }
+        }
+    }
+    Ok((topics, hits))
 }
 
 fn candidate(r: &ProwlarrResult, cutoff: i64) -> Option<Candidate> {

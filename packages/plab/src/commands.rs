@@ -133,9 +133,15 @@ async fn curated_with(
         (Some(url), Some(key)) => Some(crate::scenes::SceneDb::new(url, &key)),
         _ => None,
     };
+    let albums = sources.as_ref().and_then(|s| {
+        s.album_index_url
+            .as_deref()
+            .map(|u| crate::albums::AlbumIndex::new(u, s.album_label(), s.album_mode()))
+    });
     let elsewhere = sources.as_ref().map(|s| curated::Elsewhere {
         sources: s,
         scenes: scenes.as_ref(),
+        albums: albums.as_ref(),
     });
     curated::run_curated(&ctx, classify, elsewhere, now_f64() as i64).await
 }

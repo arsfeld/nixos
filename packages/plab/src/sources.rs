@@ -25,8 +25,6 @@ pub struct Sources {
     pub album_search_mode: Option<String>,
 }
 
-// Read by the album search, which lands after these settings.
-#[allow(dead_code)]
 impl Sources {
     pub fn album_label(&self) -> &str {
         self.album_index_label.as_deref().unwrap_or("albums")

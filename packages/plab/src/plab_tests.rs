@@ -6,8 +6,9 @@
 //! every curated search).
 
 use super::*;
+use crate::albums::AlbumIndex;
 use crate::curated::{Elsewhere, run_curated};
-use crate::db::Production;
+use crate::db::{Kind, Production};
 use crate::scenes::SceneDb;
 use crate::sources::Sources;
 use crate::tracker::parse::Row;
@@ -1405,6 +1406,7 @@ async fn curated_lists_classified_releases_from_other_indexers() {
         Some(Elsewhere {
             sources: &s,
             scenes: None,
+            albums: None,
         }),
         NOW,
     )
@@ -1451,6 +1453,7 @@ async fn curated_drops_the_down_ranked_class_and_holds_back_unclassified() {
             Some(Elsewhere {
                 sources: &s,
                 scenes: None,
+                albums: None,
             }),
             NOW,
         )
@@ -1489,6 +1492,7 @@ async fn curated_drops_excluded_releases_from_other_indexers_before_classifying(
         Some(Elsewhere {
             sources: &s,
             scenes: None,
+            albums: None,
         }),
         NOW,
     )
@@ -1543,6 +1547,7 @@ async fn curated_drops_what_the_tracker_already_has() {
         Some(Elsewhere {
             sources: &s,
             scenes: None,
+            albums: None,
         }),
         NOW,
     )
@@ -1575,6 +1580,7 @@ async fn curated_keeps_tracker_hits_when_prowlarr_is_down_and_ids_stay_stable() 
         Some(Elsewhere {
             sources: &s,
             scenes: None,
+            albums: None,
         }),
         NOW,
     )
@@ -1604,6 +1610,7 @@ async fn curated_keeps_tracker_hits_when_prowlarr_is_down_and_ids_stay_stable() 
             Some(Elsewhere {
                 sources: &s,
                 scenes: None,
+                albums: None,
             }),
             NOW,
         )
@@ -1661,6 +1668,7 @@ async fn curated_sets_scene_images_on_an_accepted_hit_only() {
         Some(Elsewhere {
             sources: &s,
             scenes: Some(&db),
+            albums: None,
         }),
         NOW,
     )
@@ -1795,4 +1803,112 @@ async fn adding_an_external_release_never_touches_the_tracker() {
             .unwrap()
             .is_empty()
     );
+}
+
+/// An album index answering every search with the placeholder fixture page.
+async fn album_index() -> MockServer {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(fixture("albums_search.html")))
+        .mount(&server)
+        .await;
+    server
+}
+
+impl Env {
+    async fn curated_albums(&self, lab: &FakeTracker, index: &AlbumIndex, now: i64) {
+        let s = Sources::default();
+        run_curated::<_, _, FakeClassify>(
+            &self.ctx(lab),
+            None,
+            Some(Elsewhere {
+                sources: &s,
+                scenes: None,
+                albums: Some(index),
+            }),
+            now,
+        )
+        .await
+        .unwrap();
+    }
+
+    fn album_hits(&self) -> Vec<(String, i64, Option<Vec<String>>)> {
+        self.db
+            .curated_hits()
+            .unwrap()
+            .into_iter()
+            .filter(|h| h.kind == Some(Kind::Album))
+            .map(|h| (h.topic.row.title, h.topic.row.added, h.topic.images))
+            .collect()
+    }
+}
+
+#[tokio::test]
+async fn curated_searches_only_percent_terms_on_the_album_index() {
+    let server = album_index().await;
+    let index = AlbumIndex::new(&format!("{}/", server.uri()), "Album index A", "strict");
+    let mut env = Env::new();
+    env.filter_file = Some(env.write("f.txt", "[Group A]\n%Alpha\nBeta\n"));
+    let lab = FakeTracker::new(vec![row(1)]);
+    env.curated_albums(&lab, &index, NOW).await;
+    let asked: Vec<String> = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter_map(|r| {
+            r.url
+                .query_pairs()
+                .find(|(k, _)| k == "search")
+                .map(|(_, v)| v.into_owned())
+        })
+        .collect();
+    assert_eq!(asked, vec!["Alpha".to_string()]);
+    let hits = env.album_hits();
+    assert_eq!(hits.len(), 2);
+    assert_eq!(hits[0].0, "Alpha One & Two");
+    assert_eq!(hits[0].1, NOW);
+    assert_eq!(
+        hits[0].2,
+        Some(vec!["https://cdn.example/thumbs/one.png".to_string()])
+    );
+    // Both are still searched on the tracker as before.
+    assert_eq!(lab.calls().searches.len(), 2);
+}
+
+#[tokio::test]
+async fn an_album_keeps_its_first_sight_and_ages_out_for_good() {
+    let server = album_index().await;
+    let index = AlbumIndex::new(&format!("{}/", server.uri()), "Album index A", "strict");
+    let mut env = Env::new();
+    env.filter_file = Some(env.write("f.txt", "[Group A]\n%Alpha\n"));
+    let lab = FakeTracker::new(vec![row(1)]);
+    env.curated_albums(&lab, &index, NOW).await;
+    env.curated_albums(&lab, &index, NOW + 10 * 86400).await;
+    assert!(env.album_hits().iter().all(|h| h.1 == NOW));
+    // 33 days after first sight: out of the window, although the page still lists them.
+    env.curated_albums(&lab, &index, NOW + 33 * 86400).await;
+    assert!(env.album_hits().is_empty());
+    // And not re-seen as new once their topics are gone.
+    env.curated_albums(&lab, &index, NOW + 34 * 86400).await;
+    assert!(env.album_hits().is_empty());
+}
+
+#[tokio::test]
+async fn percent_terms_without_an_album_index_still_store_the_tracker_hits() {
+    let mut env = Env::new();
+    env.filter_file = Some(env.write("f.txt", "[Group A]\n%Alpha\n"));
+    let mut lab = FakeTracker::new(vec![row(1)]);
+    lab.searched
+        .insert("Alpha".into(), vec![titled(5, "Alpha five")]);
+    env.curated(&lab).await.unwrap();
+    let ids: Vec<u64> = env
+        .db
+        .curated_hits()
+        .unwrap()
+        .iter()
+        .map(|h| h.topic.row.id)
+        .collect();
+    assert_eq!(ids, vec![5]);
 }

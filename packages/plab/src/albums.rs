@@ -3,9 +3,6 @@
 //! resolves anything on the file host, whose album page the card links to. The index's
 //! address and label come from `plab-sources`, never from this repository.
 
-// The curated job uses this module from Task 6 on; until then only the tests call it.
-#![allow(dead_code)]
-
 use std::sync::LazyLock;
 
 use regex::Regex;
@@ -111,9 +108,21 @@ impl AlbumIndex {
         let per = PER_PAGE.to_string();
         let url = url::Url::parse_with_params(
             &self.url,
-            [("search", term), ("mode", &self.mode), ("per", &per), ("sort", "latest")],
+            [
+                ("search", term),
+                ("mode", &self.mode),
+                ("per", &per),
+                ("sort", "latest"),
+            ],
         )?;
-        let html = self.http.get(url).send().await?.error_for_status()?.text().await?;
+        let html = self
+            .http
+            .get(url)
+            .send()
+            .await?
+            .error_for_status()?
+            .text()
+            .await?;
         Ok(parse(&html))
     }
 }
