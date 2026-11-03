@@ -545,9 +545,15 @@ async fn list<T: TrackerApi, C: TorrentClient>(
     let reply = st.db.listing(section).and_then(|mut listing| {
         let excludes = load_excludes(st.exclude_file.as_deref(), Some(&st.state_dir));
         if !excludes.is_empty() {
-            listing
-                .topics
-                .retain(|t| !excludes.excluded(&t.topic.row.title));
+            // Album names answer to the regex patterns only, as in curated.rs.
+            listing.topics.retain(|t| {
+                let title = &t.topic.row.title;
+                !if section == Section::Albums {
+                    excludes.pattern_excluded(title)
+                } else {
+                    excludes.excluded(title)
+                }
+            });
         }
         let queued = st.db.queued(section)?.into_iter().collect();
         let externals = st.db.externals()?;

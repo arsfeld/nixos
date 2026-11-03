@@ -511,6 +511,29 @@ async fn the_list_leaves_out_excluded_topics() {
 }
 
 #[tokio::test]
+async fn the_hide_rule_skips_the_albums_list() {
+    let fx = Fx::with(FakeTracker::default(), |dir, st| {
+        let path = dir.join("exclude.txt");
+        std::fs::write(&path, "[hide]\npear\n").unwrap();
+        st.exclude_file = Some(path);
+    });
+    fx.save_video(&[
+        listed(row(1, "Fresh Apple"), &[]),
+        listed(row(2, "Ripe Pear"), &[]),
+    ]);
+    fx.state
+        .db
+        .save_listing(Section::Albums, &[listed(row(3, "Pear Album"), &[])], &[], now())
+        .unwrap();
+    let v = fx.get("/api/list?section=video").await.json();
+    assert_eq!(v["topics"].as_array().unwrap().len(), 1);
+    assert_eq!(v["topics"][0]["title"], "Fresh Apple");
+    let v = fx.get("/api/list?section=albums").await.json();
+    assert_eq!(v["topics"].as_array().unwrap().len(), 1);
+    assert_eq!(v["topics"][0]["title"], "Pear Album");
+}
+
+#[tokio::test]
 async fn the_games_list() {
     let fx = Fx::with(FakeTracker::default(), |_, st| {
         st.games_dir = Some("/games".into())

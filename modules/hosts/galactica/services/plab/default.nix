@@ -99,7 +99,11 @@
   in {
     sops.secrets.plab-username.owner = vars.user;
     sops.secrets.plab-password.owner = vars.user;
-    sops.secrets.plab-exclude.owner = vars.user;
+    sops.secrets.plab-exclude = {
+      owner = vars.user;
+      # The Assistant reads the rule once at startup, and sops-nix restarts nothing itself.
+      restartUnits = ["plab.service"];
+    };
     sops.secrets.plab-filter.owner = vars.user;
     sops.secrets.plab-sources.owner = vars.user;
     sops.secrets.plab-site.owner = vars.user;
