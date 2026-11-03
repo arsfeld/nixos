@@ -150,11 +150,17 @@ export interface ConversationSummary {
   updatedAt: number;
 }
 
+/** A picked release and the list it is on. */
+export type PickedTopic = Topic & { section: Section };
+
 export interface Conversation extends ConversationSummary {
   now: number;
   topicUrl: string;
+  /** What was missing when the conversation was built. */
   degraded: string[];
+  /** Stash did not answer this read: watch picks could not be resolved. */
+  scenesUnavailable: boolean;
   turns: TurnData[];
-  topics: Topic[];
+  topics: PickedTopic[];
   scenes: SceneCardData[];
 }

@@ -1,8 +1,8 @@
 import type { Route } from './route';
-import type { Conversation, ConversationSummary, PickData, SceneCardData, Topic } from './types';
+import type { Conversation, ConversationSummary, PickData, PickedTopic, SceneCardData } from './types';
 
 export type Resolved =
-  | { kind: 'topic'; topic: Topic; pick: PickData }
+  | { kind: 'topic'; topic: PickedTopic; pick: PickData }
   | { kind: 'scene'; scene: SceneCardData; pick: PickData };
 
 /** A pick's card data, or null when the server could not resolve it. */
@@ -16,8 +16,10 @@ export function resolvePick(c: Conversation, pick: PickData): Resolved | null {
   return scene ? { kind: 'scene', scene, pick } : null;
 }
 
+/** The last turn needs a Retry: it is an error, or a user turn that never got a reply. */
 export function lastFailed(c: Conversation): boolean {
-  return c.turns.at(-1)?.error != null;
+  const last = c.turns.at(-1);
+  return last != null && (last.error != null || last.role === 'user');
 }
 
 export function upsertSummary(list: ConversationSummary[], c: Conversation): ConversationSummary[] {

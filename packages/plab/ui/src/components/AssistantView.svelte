@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { resolvePick } from '../lib/assistant';
+  import { lastFailed, resolvePick } from '../lib/assistant';
   import { assistant } from '../lib/assistant.svelte';
   import { FilterState } from '../lib/filters.svelte';
   import { link, router } from '../lib/router.svelte';
@@ -25,7 +25,8 @@
     const t = draft.trim();
     if (!t || assistant.busy) return;
     draft = '';
-    await assistant.send(t);
+    // A failed send gives the text back, unless something new has been typed since.
+    if (!(await assistant.send(t)) && !draft) draft = t;
   }
 </script>
 
@@ -53,13 +54,23 @@
       {#if c.degraded.includes('stash')}
         <div role="alert" class="alert alert-warning text-sm">Stash could not be reached: no watch picks, and the profile has only streams.</div>
       {/if}
+      {#if c.scenesUnavailable}
+        <div role="alert" class="alert alert-warning text-sm">Stash is not answering; watch picks are hidden.</div>
+      {/if}
       {#each c.turns as turn (turn.seq)}
+        {@const retry = turn.seq === c.turns.at(-1)?.seq && lastFailed(c)}
         {#if turn.role === 'user'}
           <div class="chat chat-end"><div class="chat-bubble">{turn.text}</div></div>
+          {#if retry && !assistant.busy}
+            <div class="flex items-center gap-2 text-sm">
+              <span>No reply yet.</span>
+              <button class="btn btn-sm" onclick={() => assistant.retry()}>Retry</button>
+            </div>
+          {/if}
         {:else if turn.error}
           <div role="alert" class="alert alert-error">
             <span>{turn.error}</span>
-            {#if turn.seq === c.turns.at(-1)?.seq}
+            {#if retry}
               <button class="btn btn-sm" disabled={assistant.busy} onclick={() => assistant.retry()}>Retry</button>
             {/if}
           </div>
@@ -74,7 +85,7 @@
                     <span class="text-sm italic"><span class="badge badge-sm mr-1">{pick.action}</span>{pick.reason}</span>
                     <Card
                       topic={r.topic}
-                      section="video"
+                      section={r.topic.section}
                       now={c.now}
                       topicUrl={c.topicUrl}
                       isNew={false}

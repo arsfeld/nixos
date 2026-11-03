@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { Latest } from './latest';
 import { resolvePick, lastFailed, upsertSummary, shouldNavigate, openTarget } from './assistant';
-import type { Conversation, Topic } from './types';
+import type { Conversation, PickedTopic } from './types';
 
-const topic = { id: 5, title: 'Alpha One' } as Topic;
+const topic = { id: 5, title: 'Alpha One', section: 'video' } as PickedTopic;
 const conv: Conversation = {
-  id: 1, title: 't', kind: 'chat', updatedAt: 2, now: 3, topicUrl: 'u', degraded: [],
+  id: 1, title: 't', kind: 'chat', updatedAt: 2, now: 3, topicUrl: 'u', degraded: [], scenesUnavailable: false,
   turns: [
     { seq: 1, role: 'user', text: 'hi', picks: [], error: null },
     { seq: 2, role: 'assistant', text: 'x', picks: [
@@ -28,10 +28,13 @@ describe('resolvePick', () => {
 });
 
 describe('lastFailed', () => {
-  it('is true only when the last turn is an error', () => {
+  it('is true when the last turn is an error or an unanswered user turn', () => {
     expect(lastFailed(conv)).toBe(false);
     const failed = { ...conv, turns: [...conv.turns, { seq: 3, role: 'assistant' as const, text: '', picks: [], error: 'boom' }] };
     expect(lastFailed(failed)).toBe(true);
+    const unanswered = { ...conv, turns: [...conv.turns, { seq: 3, role: 'user' as const, text: 'more', picks: [], error: null }] };
+    expect(lastFailed(unanswered)).toBe(true);
+    expect(lastFailed({ ...conv, turns: [] })).toBe(false);
   });
 });
 

@@ -22,7 +22,8 @@ class AssistantStore {
   private latest = new Latest<'open'>();
   error = $state<string | null>(null);
 
-  private async run(f: () => Promise<Conversation>) {
+  /** Whether the request succeeded. */
+  private async run(f: () => Promise<Conversation>): Promise<boolean> {
     this.busy = true;
     this.error = null;
     const start = $state.snapshot(router.route);
@@ -35,8 +36,12 @@ class AssistantStore {
         this.current = c;
         if (router.route.view !== 'assistant' || router.route.id !== c.id) router.go(`/assistant/${c.id}`);
       }
+      return true;
     } catch (e) {
       this.error = message(e);
+      // The turn runs on in the server after a dropped request: show what it stored.
+      await Promise.all([this.load(), this.refresh()]);
+      return false;
     } finally {
       this.busy = false;
     }
@@ -47,6 +52,19 @@ class AssistantStore {
       this.list = await fetchConversations();
     } catch (e) {
       this.error = message(e);
+    }
+  }
+
+  /** Re-fetch the open conversation, keeping any error on screen. */
+  private async refresh() {
+    const id = this.current?.id;
+    if (id == null) return;
+    const token = this.latest.next('open');
+    try {
+      const c = await fetchConversation(id);
+      if (this.latest.current('open', token) && this.current?.id === id) this.current = c;
+    } catch {
+      // The error from the request that failed is the one worth showing.
     }
   }
 
@@ -73,7 +91,7 @@ class AssistantStore {
   };
   retry = () => {
     const c = this.current;
-    return c ? this.run(() => postRetry(c.id)) : Promise.resolve();
+    return c ? this.run(() => postRetry(c.id)) : Promise.resolve(false);
   };
 
   async remove(id: number) {
