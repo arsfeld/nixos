@@ -422,7 +422,7 @@ mod tests {
             .await;
         let llm = OpenRouter::new(&server.uri(), "k".into(), "p".into(), "j".into());
         let stash = Stash::new(&format!("{}/graphql", server.uri()), None);
-        let rule = crate::filters::HideRule { hide: vec!["pear".into()], keep: vec![] };
+        let rule = crate::filters::HideRule { hide: vec!["pear".into()], ..Default::default() };
         let a = Assistant::new(llm, stash, "m".into(), "x".into()).with_hide(rule);
         let db = Db::open_in_memory().unwrap();
         a.start(&db, Kind::Chat, Some("hi"), 0).await.unwrap();

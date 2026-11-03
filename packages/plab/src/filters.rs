@@ -117,13 +117,15 @@ pub fn load_filters(path: Option<&Path>, state_dir: Option<&Path>) -> Filters {
 }
 
 /// The hide rule: a scene is hidden when one of its terms is a hide term and none is a
-/// keep term, so it hides only what its own tags make certain. Lowercase. On galactica
-/// both lists are the `[hide]` and `[keep]` sections of the plab-exclude sops secret; the
+/// keep term, so it hides only what its own tags make certain; or when one is an `always`
+/// term, which nothing else on the scene can outweigh. Lowercase. On galactica the lists
+/// are the `[hide]`, `[keep]` and `[always]` sections of the plab-exclude sops secret; the
 /// words are kept out of this repository on purpose.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct HideRule {
     pub hide: Vec<String>,
     pub keep: Vec<String>,
+    pub always: Vec<String>,
 }
 
 /// What a scene is matched on, lowercase: its whole tags, or, for a title with no tag
@@ -145,7 +147,8 @@ impl Terms {
 
 impl HideRule {
     pub fn hides(&self, terms: &Terms) -> bool {
-        self.hide.iter().any(|h| terms.has(h)) && !self.keep.iter().any(|k| terms.has(k))
+        self.always.iter().any(|a| terms.has(a))
+            || self.hide.iter().any(|h| terms.has(h)) && !self.keep.iter().any(|k| terms.has(k))
     }
 }
 
@@ -160,17 +163,19 @@ pub fn title_terms(title: &str) -> Terms {
     }
 }
 
-/// A Stash scene under the rule, on its tags. A man in the cast keeps it: Stash casts often
-/// leave male performers out, so a listed one proves presence and a missing one proves
-/// nothing.
+/// A Stash scene under the rule, on its tags. A man in the cast keeps it from a hide term
+/// (Stash casts often leave male performers out, so a listed one proves presence and a
+/// missing one proves nothing), but not from an `always` term.
 pub fn scene_hidden(rule: &HideRule, scene: &crate::stash::library::LibScene) -> bool {
+    let tags = Terms::Tags(scene.tags.iter().map(|t| t.name.to_lowercase()).collect());
     if scene.performers.iter().any(|p| p.gender.as_deref() == Some("MALE")) {
-        return false;
+        return rule.always.iter().any(|a| tags.has(a));
     }
-    rule.hides(&Terms::Tags(scene.tags.iter().map(|t| t.name.to_lowercase()).collect()))
+    rule.hides(&tags)
 }
 
-/// The exclude file: regex patterns, then the optional `[hide]` and `[keep]` sections.
+/// The exclude file: regex patterns, then the optional `[hide]`, `[keep]` and `[always]`
+/// sections.
 #[derive(Debug, Default)]
 pub struct Excludes {
     pub patterns: Vec<fancy_regex::Regex>,
@@ -195,13 +200,14 @@ impl Excludes {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.patterns.is_empty() && self.rule.hide.is_empty()
+        // Keep terms alone hide nothing.
+        self.patterns.is_empty() && self.rule.hide.is_empty() && self.rule.always.is_empty()
     }
 }
 
 /// Lines before any section are regexes, case-insensitive; Python raised on a bad pattern,
 /// here it is logged and skipped so one typo cannot sink the refresh. A line that is exactly
-/// `[hide]` or `[keep]` starts that section, whose lines are plain terms. Blank lines and
+/// `[hide]`, `[keep]` or `[always]` starts that section, whose lines are plain terms. Blank lines and
 /// `#` comments are ignored throughout.
 pub fn parse_excludes(text: &str) -> Excludes {
     #[derive(PartialEq)]
@@ -209,6 +215,7 @@ pub fn parse_excludes(text: &str) -> Excludes {
         Patterns,
         Hide,
         Keep,
+        Always,
     }
     let mut at = In::Patterns;
     let mut ex = Excludes::default();
@@ -219,8 +226,10 @@ pub fn parse_excludes(text: &str) -> Excludes {
         match line {
             "[hide]" => at = In::Hide,
             "[keep]" => at = In::Keep,
+            "[always]" => at = In::Always,
             _ if at == In::Hide => ex.rule.hide.push(line.to_lowercase()),
             _ if at == In::Keep => ex.rule.keep.push(line.to_lowercase()),
+            _ if at == In::Always => ex.rule.always.push(line.to_lowercase()),
             // An inline flag, not RegexBuilder::case_insensitive: fancy-regex 0.14 drops the
             // builder's flag for some patterns (`\b` ones among them), so `\bword` never
             // matched "Word".
@@ -491,7 +500,22 @@ mod tests {
         HideRule {
             hide: hide.iter().map(|s| s.to_string()).collect(),
             keep: keep.iter().map(|s| s.to_string()).collect(),
+            ..HideRule::default()
         }
+    }
+
+    #[test]
+    fn always_terms_hide_whatever_else_is_there() {
+        let ex = parse_excludes("[hide]\npear\n[keep]\nkiwi\n[always]\nGrape Vine\n");
+        assert_eq!(ex.rule.always, ["grape vine"]);
+        let r = &ex.rule;
+        assert!(r.hides(&tags(&["grape vine"])));
+        assert!(r.hides(&tags(&["grape vine", "kiwi"]))); // a keep term does not save it
+        assert!(r.hides(&Terms::Words("a grape vine story".into())));
+        assert!(!r.hides(&tags(&["grape"])));
+        assert!(!ex.is_empty());
+        assert!(!parse_excludes("[always]\ngrape\n").is_empty());
+        assert!(scene_hidden(r, &scene(&["Grape Vine"], &[Some("MALE")]))); // nor does the cast
     }
 
     fn tags(t: &[&str]) -> Terms {

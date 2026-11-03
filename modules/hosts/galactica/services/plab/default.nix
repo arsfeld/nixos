@@ -37,9 +37,10 @@
 # PLAB_ASSISTANT_MODEL defaults to the parse model.
 # Design: docs/superpowers/specs/2026-11-03-plab-assistant-design.md
 #
-# plab-exclude holds regexes, then optional [hide] and [keep] sections of plain terms: a
-# release or Stash scene is hidden when a hide term is one of its tags (or, untagged, a
-# whole word of its title) and no keep term is; a man in a Stash cast always keeps it.
+# plab-exclude holds regexes, then optional [hide], [keep] and [always] sections of plain
+# terms: a release or Stash scene is hidden when a hide term is one of its tags (or,
+# untagged, a whole word of its title) and no keep term is; a man in a Stash cast always
+# keeps it. An [always] term hides regardless of the rest (VR, for one).
 # Design: docs/superpowers/specs/2026-11-03-plab-hide-rule-design.md.
 #
 # Rollback: revert this commit. The legacy JSON state under /var/lib/{plab,stash-identify,

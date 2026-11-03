@@ -57,6 +57,25 @@ it comes from:
 | A release title with no tag list | each whole word of the title. A multi-word term matches as a run of whole words (`candidates::has_word` semantics) |
 | A Stash scene | each tag name, whole. A listed performer whose `gender` is `MALE` adds an implicit keep |
 
+### Always terms (added 2026-11-03)
+
+A third list, `always`, hides whatever else a scene carries: no keep term and no listed
+cast member saves it. It is for a format rather than a kind of content, one where the
+other tags say nothing about whether it is wanted. Its terms are matched like hide terms
+(whole tags, or whole words of an untagged title).
+
+```
+hides(rule, terms) = any always term ∈ terms
+                  || (any hide term ∈ terms && no keep term ∈ terms)
+```
+
+Its first use is VR releases. On the tracker, the VR forum is also dropped from
+`plab-site`'s video groups, so plab stops fetching it; the `always` terms catch VR
+releases that come from other indexers and VR scenes in Stash. Measured on the same
+copy: the VR forum held 8 releases, all of which the terms alone hide; no other release
+and no game matched. A bare format word was left out because three game releases use
+it as a tag. Stash held 5 scenes with the VR tag.
+
 A titled release with a tag list is **not** also matched on its free-text words. The
 title text of a tagged release can contain a hide word without being that kind, and
 the tag list is the more precise of the two.
@@ -79,7 +98,8 @@ a case-insensitive regex, as today. The file gains two optional sections:
 ...
 ```
 
-A line is a section header only if, once trimmed, it is exactly `[hide]` or `[keep]`.
+A line is a section header only if, once trimmed, it is exactly `[hide]`, `[keep]` or
+`[always]`.
 Any other line starting with `[` is still a regex (a character class), so existing
 patterns cannot be misread. Blank lines and `#` comments are ignored in every section.
 Regex lines after a section header belong to that section, as terms, not patterns.
