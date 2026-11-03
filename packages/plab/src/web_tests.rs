@@ -822,6 +822,42 @@ fn streaming(server: &MockServer) -> Fx {
 }
 
 #[tokio::test]
+async fn an_album_is_never_added_or_streamed() {
+    let fx = Fx::new();
+    let id = fx
+        .state
+        .db
+        .upsert_external(&crate::db::NewExternal {
+            indexer: "Album index A",
+            guid: "AbC123",
+            link: "https://files.example/a/AbC123",
+            info_url: Some("https://files.example/a/AbC123"),
+            kind: crate::db::Kind::Album,
+            files: Some(3),
+            seen: 0,
+        })
+        .unwrap();
+    assert_eq!(fx.post(&format!("/api/add/{id}")).await.status, 400);
+    assert_eq!(
+        fx.page("POST", &format!("/api/stream/{id}"), None)
+            .await
+            .status,
+        400
+    );
+}
+
+#[tokio::test]
+async fn every_section_has_a_list() {
+    let fx = Fx::new();
+    for s in ["video", "games", "indexers", "albums"] {
+        let r = fx.get(&format!("/api/list?section={s}")).await;
+        assert_eq!(r.status, 200, "{s}");
+        assert_eq!(r.json()["section"], s);
+    }
+    assert_eq!(fx.get("/api/list?section=nope").await.status, 400);
+}
+
+#[tokio::test]
 async fn stream_start_reports_files_and_the_tailnet_url() {
     let s = rqbit().await;
     let fx = streaming(&s);

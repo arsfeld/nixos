@@ -173,6 +173,19 @@ async fn stream_page<T: TrackerApi, C: TorrentClient>(
     route: StreamRoute,
     range: Option<&str>,
 ) -> Response<Body> {
+    let topic = match &route {
+        StreamRoute::Topic(t) | StreamRoute::Select(t, _) => Some(*t),
+        StreamRoute::File(..) => None,
+    };
+    if method == Method::POST
+        && let Some(t) = topic
+        && st.db.is_album(t).unwrap_or(false)
+    {
+        return json_reply(
+            400,
+            json!({"ok": false, "error": "an album is watched on its site, not streamed"}),
+        );
+    }
     let Some(engine) = &st.engine else {
         return stream_error(StreamError::Engine("PLAB_RQBIT_URL is not set".into()));
     };
@@ -331,9 +344,11 @@ async fn api_get<T: TrackerApi, C: TorrentClient>(
     match path {
         "list" => {
             return match param(query, "section").as_deref() {
-                None | Some("video") => list(st, Section::Video).await,
-                Some("games") => list(st, Section::Games).await,
-                Some(_) => text(400, "section is video or games"),
+                None => list(st, Section::Video).await,
+                Some(s) => match Section::parse(s) {
+                    Some(section) => list(st, section).await,
+                    None => text(400, "unknown section"),
+                },
             };
         }
         "search" => {
@@ -578,6 +593,12 @@ async fn post<T: TrackerApi, C: TorrentClient>(st: &WebState<T, C>, path: &str) 
     else {
         return not_found();
     };
+    if action == "add" && st.db.is_album(id).unwrap_or(false) {
+        return json_reply(
+            400,
+            json!({"ok": false, "error": "an album is opened on its site, not added"}),
+        );
+    }
     let result: anyhow::Result<AddReply> = {
         let _lock = st.add_lock.lock().await;
         let ctx = st.ctx();

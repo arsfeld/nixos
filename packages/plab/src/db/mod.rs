@@ -119,7 +119,6 @@ impl Section {
         }
     }
 
-    #[allow(dead_code)] // used by the section API (a later task)
     pub fn parse(s: &str) -> Option<Section> {
         Section::ALL.into_iter().find(|x| x.as_str() == s)
     }
@@ -1200,7 +1199,6 @@ impl Db {
         })
     }
 
-    #[allow(dead_code)] // used by add/stream and the album search (a later task)
     /// Whether `id` is an album index entry: linked to, never streamed or added.
     pub fn is_album(&self, id: u64) -> Result<bool> {
         Ok(is_external(id) && self.external(id)?.is_some_and(|e| e.kind == Kind::Album))

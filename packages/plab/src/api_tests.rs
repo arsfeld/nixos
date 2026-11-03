@@ -83,6 +83,40 @@ fn list_with_externals(
 }
 
 #[test]
+fn a_card_says_what_kind_of_release_it_is() {
+    let id = crate::db::EXTERNAL_BASE;
+    let ext = |kind, files| {
+        let mut m = std::collections::HashMap::new();
+        m.insert(
+            id,
+            crate::db::External {
+                id,
+                indexer: "Album index A".into(),
+                link: "https://files.example/a/AbC123".into(),
+                info_url: Some("https://files.example/a/AbC123".into()),
+                scene_id: None,
+                kind,
+                files,
+                first_seen: 0,
+            },
+        );
+        m
+    };
+    let album = list_with_externals(id, &ext(crate::db::Kind::Album, Some(3)));
+    assert_eq!(
+        (album.topics[0].kind, album.topics[0].files),
+        ("album", Some(3))
+    );
+    let torrent = list_with_externals(id, &ext(crate::db::Kind::Torrent, None));
+    assert_eq!(torrent.topics[0].kind, "torrent");
+    let tracker = list_with_externals(5, &ext(crate::db::Kind::Album, Some(3)));
+    assert_eq!(
+        (tracker.topics[0].kind, tracker.topics[0].files),
+        ("tracker", None)
+    );
+}
+
+#[test]
 fn an_external_card_carries_its_indexer_and_page() {
     let mut externals = std::collections::HashMap::new();
     let id = crate::db::EXTERNAL_BASE;

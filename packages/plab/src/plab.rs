@@ -541,6 +541,9 @@ pub async fn external_torrent(
     let ext = db
         .external(id)?
         .with_context(|| format!("release {id} is not known"))?;
+    if ext.kind == crate::db::Kind::Album {
+        bail!("release {id} is an album, not a torrent");
+    }
     let prowlarr = prowlarr.context("Prowlarr is not configured")?;
     let src = prowlarr.fetch(&ext.link).await?;
     if let TorrentSource::Bytes(b) = &src {

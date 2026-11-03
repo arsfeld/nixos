@@ -131,6 +131,10 @@ pub struct TopicDto {
     pub source: Option<String>,
     /// That release's page; None for the tracker's own (the app builds the tracker link).
     pub link: Option<String>,
+    /// "tracker", or the external release's kind: "torrent" or "album".
+    pub kind: &'static str,
+    /// An album's file count.
+    pub files: Option<u32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -230,6 +234,12 @@ fn topic(
             .and_then(|e| e.info_url.as_deref())
             .filter(|u| is_http_url(u))
             .map(str::to_owned),
+        kind: match ext.map(|e| e.kind) {
+            None => "tracker",
+            Some(crate::db::Kind::Torrent) => "torrent",
+            Some(crate::db::Kind::Album) => "album",
+        },
+        files: ext.and_then(|e| e.files),
     }
 }
 
