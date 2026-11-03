@@ -1,0 +1,137 @@
+//! The album index: a site that lists albums kept on a direct-HTTP file host. The curated
+//! job scrapes its search page for terms marked `%`; plab never streams, downloads or
+//! resolves anything on the file host, whose album page the card links to. The index's
+//! address and label come from `plab-sources`, never from this repository.
+
+// The curated job uses this module from Task 6 on; until then only the tests call it.
+#![allow(dead_code)]
+
+use std::sync::LazyLock;
+
+use regex::Regex;
+
+/// One result card.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Album {
+    /// The file host's album id: the last segment of `href`.
+    pub id: String,
+    pub href: String,
+    pub name: String,
+    pub files: u32,
+    /// The card's thumbnail on the file host's CDN, if it has one.
+    pub thumb: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct AlbumPage {
+    pub albums: Vec<Album>,
+    /// The page count from the `page 1 of N` header; None when there is no header.
+    pub pages: Option<u32>,
+}
+
+impl AlbumPage {
+    /// No cards read, although the page does not say it is empty: its layout changed.
+    pub fn looks_broken(&self) -> bool {
+        self.albums.is_empty() && self.pages != Some(0)
+    }
+}
+
+fn re(p: &str) -> Regex {
+    Regex::new(p).unwrap()
+}
+
+static CARD: LazyLock<Regex> =
+    LazyLock::new(|| re(r#"(?s)<a href="(https?://[^"/]+/a/([A-Za-z0-9_-]+))"[^>]*>(.*?)</a>"#));
+static THUMB: LazyLock<Regex> = LazyLock::new(|| re(r#"<img src="(https?://[^"]+)""#));
+static NAME: LazyLock<Regex> = LazyLock::new(|| re(r"(?s)<h3[^>]*>(.*?)</h3>"));
+static FILES: LazyLock<Regex> = LazyLock::new(|| re(r"\b(\d+) files?\b"));
+static PAGES: LazyLock<Regex> =
+    LazyLock::new(|| re(r"page <span[^>]*>\d+</span> of <span[^>]*>(\d+)</span>"));
+
+pub fn parse(html: &str) -> AlbumPage {
+    let albums = CARD
+        .captures_iter(html)
+        .filter_map(|c| {
+            let body = c.get(3)?.as_str();
+            let name =
+                html_escape::decode_html_entities(NAME.captures(body)?[1].trim()).into_owned();
+            if name.is_empty() {
+                return None;
+            }
+            Some(Album {
+                id: c[2].to_string(),
+                href: c[1].to_string(),
+                name,
+                files: FILES
+                    .captures(body)
+                    .and_then(|f| f[1].parse().ok())
+                    .unwrap_or(0),
+                thumb: THUMB.captures(body).map(|t| t[1].to_string()),
+            })
+        })
+        .collect();
+    AlbumPage {
+        albums,
+        pages: PAGES.captures(html).and_then(|c| c[1].parse().ok()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fixture() -> String {
+        let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/albums_search.html");
+        std::fs::read_to_string(p).unwrap()
+    }
+
+    #[test]
+    fn every_card_is_read() {
+        let page = parse(&fixture());
+        assert_eq!(page.pages, Some(3));
+        assert_eq!(
+            page.albums,
+            vec![
+                Album {
+                    id: "AbC123".into(),
+                    href: "https://files.example/a/AbC123".into(),
+                    name: "Alpha One & Two".into(),
+                    files: 3,
+                    thumb: Some("https://cdn.example/thumbs/one.png".into()),
+                },
+                Album {
+                    id: "Def_456".into(),
+                    href: "https://files.example/a/Def_456".into(),
+                    name: "Alpha Solo".into(),
+                    files: 1,
+                    thumb: None,
+                },
+            ]
+        );
+        assert!(!page.looks_broken());
+    }
+
+    #[test]
+    fn an_empty_result_is_not_a_broken_page() {
+        let html = fixture().replace(">3</span>", ">0</span>").replace(
+            "<a href=\"https://files.example/a/",
+            "<a data-x href=\"https://files.example/a/",
+        );
+        let page = parse(&html);
+        assert!(page.albums.is_empty());
+        assert!(!page.looks_broken());
+    }
+
+    #[test]
+    fn results_reported_but_none_read_is_a_broken_page() {
+        // The card markup changed: the header still says 3 pages.
+        let html = fixture().replace(
+            "<a href=\"https://files.example/a/",
+            "<a data-x href=\"https://files.example/a/",
+        );
+        assert!(parse(&html).looks_broken());
+        // No header at all is broken too.
+        assert!(parse("<html><body>nothing</body></html>").looks_broken());
+    }
+}

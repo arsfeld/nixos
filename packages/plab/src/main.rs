@@ -1,3 +1,4 @@
+mod albums;
 mod api;
 mod app;
 mod codedb;
