@@ -24,6 +24,9 @@ pub struct Config {
     pub openrouter_key_file: Option<PathBuf>,
     pub jev_model: String,
     pub parse_model: String,
+    /// The assistant's chat model; defaults to `parse_model`.
+    #[allow(dead_code)] // used by assistant (task 6)
+    pub assistant_model: String,
     pub stash_url: String,
     /// Where the browser reaches Stash; None renders no links to it.
     pub stash_web_url: Option<String>,
@@ -47,6 +50,8 @@ impl Config {
         let or = |k: &str, default: &str| var(k).unwrap_or_else(|| default.to_string());
         let path = |k: &str| var(k).map(PathBuf::from);
         let state_dir = PathBuf::from(or("PLAB_STATE_DIR", "/var/lib/plab"));
+        let parse_model = or("PLAB_PARSE_MODEL", "~deepseek/deepseek-flash-latest");
+        let assistant_model = or("PLAB_ASSISTANT_MODEL", &parse_model);
         Config {
             username_file: path("PLAB_USERNAME_FILE"),
             password_file: path("PLAB_PASSWORD_FILE"),
@@ -60,7 +65,8 @@ impl Config {
             site_file: path("PLAB_SITE_FILE"),
             openrouter_key_file: path("PLAB_OPENROUTER_KEY_FILE"),
             jev_model: or("PLAB_JEV_MODEL", "typesafe/jev-1.13"),
-            parse_model: or("PLAB_PARSE_MODEL", "~deepseek/deepseek-flash-latest"),
+            parse_model,
+            assistant_model,
             stash_url: or("PLAB_STASH_URL", "http://localhost:9999/graphql"),
             stash_web_url: var("PLAB_STASH_WEB_URL"),
             stash_api_key: var("PLAB_STASH_API_KEY"),
@@ -125,6 +131,7 @@ mod tests {
         );
         assert_eq!(c.jev_model, "typesafe/jev-1.13");
         assert_eq!(c.parse_model, "~deepseek/deepseek-flash-latest");
+        assert_eq!(c.assistant_model, "~deepseek/deepseek-flash-latest");
         assert_eq!(c.library_host, "/mnt/storage/media/Vault");
         assert_eq!(c.library_container, "/media/Vault");
         assert_eq!(c.prowlarr_url, "http://127.0.0.1:9696");
@@ -154,6 +161,7 @@ mod tests {
             ("PLAB_OPENROUTER_KEY_FILE", "/key"),
             ("PLAB_JEV_MODEL", "j/m"),
             ("PLAB_PARSE_MODEL", "p/m"),
+            ("PLAB_ASSISTANT_MODEL", "a/m"),
             ("PLAB_STASH_URL", "http://stash/graphql"),
             ("PLAB_STASH_WEB_URL", "https://stash.example"),
             ("PLAB_STASH_API_KEY", "sk"),
@@ -181,6 +189,7 @@ mod tests {
         assert_eq!(c.openrouter_key_file, Some(p("/key")));
         assert_eq!(c.jev_model, "j/m");
         assert_eq!(c.parse_model, "p/m");
+        assert_eq!(c.assistant_model, "a/m");
         assert_eq!(c.stash_url, "http://stash/graphql");
         assert_eq!(c.stash_web_url.as_deref(), Some("https://stash.example"));
         assert_eq!(c.stash_api_key.as_deref(), Some("sk"));
@@ -192,6 +201,12 @@ mod tests {
         assert_eq!(c.legacy.plab, p("/old/plab"));
         assert_eq!(c.legacy.stash_identify, p("/old/si"));
         assert_eq!(c.legacy.vault_grab, p("/old/vg"));
+    }
+
+    #[test]
+    fn assistant_model_follows_parse_model() {
+        let c = Config::from_env(env(&[("PLAB_PARSE_MODEL", "p/m")]));
+        assert_eq!(c.assistant_model, "p/m");
     }
 
     #[test]

@@ -56,6 +56,11 @@ pub struct Prompts {
     pub classify: String,
     /// Its answers, in the order the question lists them.
     pub criteria: Vec<Criterion>,
+    /// The assistant's system prompt. Empty (absent from the secret) leaves the assistant
+    /// off: it answers 503 until the secret carries one.
+    #[serde(default)]
+    #[allow(dead_code)] // used by assistant (task 6)
+    pub assistant: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -127,6 +132,7 @@ impl Site {
                 translate: "translate prompt".into(),
                 classify: "classify question".into(),
                 criteria: vec![c("industrial"), c("pro_artistic"), c("amateur")],
+                assistant: "You help choose what to watch or download next.".into(),
             },
         }
     }
@@ -157,6 +163,15 @@ pub fn get() -> &'static Site {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn assistant_prompt_is_optional() {
+        let p: Prompts = serde_json::from_value(serde_json::json!({
+            "parse": "p", "translate": "t", "classify": "c", "criteria": []
+        }))
+        .unwrap();
+        assert!(p.assistant.is_empty());
+    }
 
     #[test]
     fn loads_the_json_shape() {

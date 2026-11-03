@@ -71,6 +71,12 @@ impl OpenRouter {
         .await
     }
 
+    /// A chat completion with a caller-built body (the assistant's tool loop), the raw reply.
+    #[allow(dead_code)] // used by assistant (task 6)
+    pub async fn chat(&self, body: &Value) -> anyhow::Result<Value> {
+        self.post(CHAT_PATH, body).await
+    }
+
     /// A chat completion in JSON mode, parsed to a `T`; one re-ask on a reply that is not
     /// one. HTTP errors are not retried.
     async fn chat_json<T: serde::de::DeserializeOwned>(
@@ -460,6 +466,21 @@ mod tests {
             )
             .mount(server)
             .await;
+    }
+
+    #[tokio::test]
+    async fn chat_posts_the_body_as_is() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::path(CHAT_PATH))
+            .and(wiremock::matchers::header("Authorization", "Bearer k"))
+            .and(wiremock::matchers::body_json(serde_json::json!({"model": "m", "messages": []})))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": 1})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let or = OpenRouter::new(&server.uri(), "k".into(), "p".into(), "j".into());
+        let r = or.chat(&serde_json::json!({"model": "m", "messages": []})).await.unwrap();
+        assert_eq!(r["ok"], 1);
     }
 
     // ---- ported from plab test_classify.py ----
