@@ -40,11 +40,13 @@ fn read_text(path: &Path) -> Option<String> {
 }
 
 /// A filter's search term. `elsewhere`: written `@term`, it is searched through Prowlarr's
-/// other indexers as well as on the tracker.
+/// other indexers as well as on the tracker. `albums`: written `%term`, it is also searched
+/// on the album index. The prefixes combine, in either order.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Term {
     pub text: String,
     pub elsewhere: bool,
+    pub albums: bool,
 }
 
 pub type FilterTerms = Vec<(String, Vec<Term>)>;
@@ -61,15 +63,22 @@ fn parse_filters(text: &str) -> FilterTerms {
             name = if n.is_empty() { "Curated" } else { n }.to_string();
             continue;
         }
-        let term = match line.strip_prefix('@') {
-            Some(rest) => Term {
-                text: rest.trim().to_string(),
-                elsewhere: true,
-            },
-            None => Term {
-                text: line.to_string(),
-                elsewhere: false,
-            },
+        let (mut rest, mut elsewhere, mut albums) = (line, false, false);
+        loop {
+            if let Some(r) = rest.strip_prefix('@') {
+                elsewhere = true;
+                rest = r.trim_start();
+            } else if let Some(r) = rest.strip_prefix('%') {
+                albums = true;
+                rest = r.trim_start();
+            } else {
+                break;
+            }
+        }
+        let term = Term {
+            text: rest.trim().to_string(),
+            elsewhere,
+            albums,
         };
         if term.text.is_empty() {
             continue;
@@ -98,7 +107,8 @@ pub fn load_filter_terms(path: Option<&Path>, state_dir: Option<&Path>) -> Filte
 /// and terms before any header belong to "Curated". Blank lines and `#` comments are
 /// ignored. On galactica the file is the plab-filter sops secret: the names and terms are
 /// kept out of this repository on purpose. A term written `@term` is also searched on other
-/// indexers (see `load_filter_terms`); here the `@` is stripped.
+/// indexers, and `%term` on the album index (see `load_filter_terms`); here `@` and `%` are
+/// stripped.
 pub fn load_filters(path: Option<&Path>, state_dir: Option<&Path>) -> Filters {
     load_filter_terms(path, state_dir)
         .into_iter()
@@ -323,6 +333,7 @@ mod tests {
         let t = |text: &str, elsewhere| Term {
             text: text.into(),
             elsewhere,
+            albums: false,
         };
         assert_eq!(
             terms,
@@ -357,9 +368,29 @@ mod tests {
                 "Group A".to_string(),
                 vec![Term {
                     text: "alpha".into(),
-                    elsewhere: false
+                    elsewhere: false,
+                    albums: false,
                 }]
             )]
+        );
+    }
+
+    #[test]
+    fn percent_marks_an_album_index_term_and_combines_with_at() {
+        let f = parse_filters("[G]\n%alpha\n@%beta\n% @gamma\ndelta\n%\n");
+        let terms: Vec<(&str, bool, bool)> = f[0]
+            .1
+            .iter()
+            .map(|t| (t.text.as_str(), t.elsewhere, t.albums))
+            .collect();
+        assert_eq!(
+            terms,
+            vec![
+                ("alpha", false, true),
+                ("beta", true, true),
+                ("gamma", true, true),
+                ("delta", false, false),
+            ]
         );
     }
 }
