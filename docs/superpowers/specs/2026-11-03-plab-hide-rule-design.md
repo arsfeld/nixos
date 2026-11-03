@@ -136,8 +136,7 @@ a scene from suggestions does not change that history.
 
 ## Behaviour notes
 
-- Listings are filtered when they are refreshed, so releases already listed disappear
-  at the next refresh rather than immediately.
+- Listings re-read the exclude file on every page load (web.rs list), so a secret change shows at once once plab restarts; the refresh also stops listing hidden releases.
 - A bad term cannot fail: terms are plain strings, not regexes.
 - The rule applies wherever the exclude list applies today, which includes the Games
   section. The whole-tag match is what keeps games visible, as measured above. Nothing
