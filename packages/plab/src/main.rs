@@ -1,5 +1,6 @@
 mod albums;
 mod api;
+mod candidates;
 mod app;
 mod codedb;
 mod commands;
