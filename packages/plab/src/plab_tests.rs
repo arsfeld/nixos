@@ -1879,7 +1879,7 @@ async fn curated_searches_only_percent_terms_on_the_album_index() {
     assert_eq!(hits[0].1, NOW);
     assert_eq!(
         hits[0].2,
-        Some(vec!["https://cdn.example/thumbs/one.png".to_string()])
+        Some(vec!["https://cdn.example/thumbs/one-&-two.png".to_string()])
     );
     // Both are still searched on the tracker as before.
     assert_eq!(lab.calls().searches.len(), 2);

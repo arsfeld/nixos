@@ -57,13 +57,15 @@ pub fn parse(html: &str) -> AlbumPage {
             }
             Some(Album {
                 id: c[2].to_string(),
-                href: c[1].to_string(),
+                href: html_escape::decode_html_entities(&c[1]).into_owned(),
                 name,
                 files: FILES
                     .captures(body)
                     .and_then(|f| f[1].parse().ok())
                     .unwrap_or(0),
-                thumb: THUMB.captures(body).map(|t| t[1].to_string()),
+                thumb: THUMB
+                    .captures(body)
+                    .map(|t| html_escape::decode_html_entities(&t[1]).into_owned()),
             })
         })
         .collect();
@@ -149,7 +151,7 @@ mod tests {
                     href: "https://files.example/a/AbC123".into(),
                     name: "Alpha One & Two".into(),
                     files: 3,
-                    thumb: Some("https://cdn.example/thumbs/one.png".into()),
+                    thumb: Some("https://cdn.example/thumbs/one-&-two.png".into()),
                 },
                 Album {
                     id: "Def_456".into(),
