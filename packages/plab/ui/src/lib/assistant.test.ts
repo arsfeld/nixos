@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { resolvePick, lastFailed, upsertSummary } from './assistant';
+import { Latest } from './latest';
+import { resolvePick, lastFailed, upsertSummary, shouldNavigate, openTarget } from './assistant';
 import type { Conversation, Topic } from './types';
 
 const topic = { id: 5, title: 'Alpha One' } as Topic;
@@ -38,5 +39,34 @@ describe('upsertSummary', () => {
   it('moves the conversation to the top', () => {
     const list = [{ id: 2, title: 'b', kind: 'chat' as const, updatedAt: 1 }, { id: 1, title: 'old', kind: 'chat' as const, updatedAt: 0 }];
     expect(upsertSummary(list, conv).map((c) => [c.id, c.title])).toEqual([[1, 't'], [2, 'b']]);
+  });
+});
+
+describe('shouldNavigate', () => {
+  it('only when the route is unchanged since the request began', () => {
+    expect(shouldNavigate({ view: 'assistant', id: null }, { view: 'assistant', id: null })).toBe(true);
+    expect(shouldNavigate({ view: 'assistant', id: 3 }, { view: 'assistant', id: 3 })).toBe(true);
+    expect(shouldNavigate({ view: 'assistant', id: 3 }, { view: 'assistant', id: 4 })).toBe(false);
+    expect(shouldNavigate({ view: 'assistant', id: null }, { view: 'jobs' })).toBe(false);
+  });
+});
+
+describe('openTarget', () => {
+  it('clears, keeps or fetches', () => {
+    expect(openTarget(5, null)).toBe('clear');
+    expect(openTarget(null, null)).toBe('clear');
+    expect(openTarget(5, 5)).toBe('keep');
+    expect(openTarget(5, 6)).toBe('fetch');
+    expect(openTarget(null, 6)).toBe('fetch');
+  });
+});
+
+describe('Latest guarding open()', () => {
+  it('lets only the newest request write', () => {
+    const latest = new Latest<'open'>();
+    const a = latest.next('open');
+    const b = latest.next('open');
+    expect(latest.current('open', a)).toBe(false);
+    expect(latest.current('open', b)).toBe(true);
   });
 });

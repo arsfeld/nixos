@@ -7,7 +7,8 @@ import {
   postRecommend,
   postRetry,
 } from './api';
-import { upsertSummary } from './assistant';
+import { openTarget, shouldNavigate, upsertSummary } from './assistant';
+import { Latest } from './latest';
 import { applyTopic } from './reducer';
 import { router } from './router.svelte';
 import type { Conversation, ConversationSummary, ServerEvent } from './types';
@@ -18,16 +19,22 @@ class AssistantStore {
   list = $state<ConversationSummary[]>([]);
   current = $state<Conversation | null>(null);
   busy = $state(false);
+  private latest = new Latest<'open'>();
   error = $state<string | null>(null);
 
   private async run(f: () => Promise<Conversation>) {
     this.busy = true;
     this.error = null;
+    const start = $state.snapshot(router.route);
     try {
       const c = await f();
-      this.current = c;
       this.list = upsertSummary(this.list, c);
-      if (router.route.view !== 'assistant' || router.route.id !== c.id) router.go(`/assistant/${c.id}`);
+      // The user may have opened something else while this ran: do not yank them back.
+      if (shouldNavigate(start, router.route)) {
+        this.latest.next('open'); // an in-flight open() must not overwrite this result
+        this.current = c;
+        if (router.route.view !== 'assistant' || router.route.id !== c.id) router.go(`/assistant/${c.id}`);
+      }
     } catch (e) {
       this.error = message(e);
     } finally {
@@ -38,23 +45,23 @@ class AssistantStore {
   async load() {
     try {
       this.list = await fetchConversations();
-      this.error = null;
     } catch (e) {
       this.error = message(e);
     }
   }
 
   async open(id: number | null) {
-    if (id === null) {
-      this.current = null;
-      return;
-    }
-    if (this.current?.id === id) return;
+    const target = openTarget(this.current?.id ?? null, id);
+    if (target === 'keep') return;
+    const token = this.latest.next('open');
+    this.error = null;
+    this.current = null;
+    if (target === 'clear' || id === null) return;
     try {
-      this.current = await fetchConversation(id);
-      this.error = null;
+      const c = await fetchConversation(id);
+      if (this.latest.current('open', token)) this.current = c;
     } catch (e) {
-      this.error = message(e);
+      if (this.latest.current('open', token)) this.error = message(e);
     }
   }
 
@@ -72,6 +79,7 @@ class AssistantStore {
   async remove(id: number) {
     try {
       await deleteConversation(id);
+      this.error = null;
       this.list = this.list.filter((c) => c.id !== id);
       if (this.current?.id === id) router.go('/assistant');
     } catch (e) {

@@ -1,3 +1,4 @@
+import type { Route } from './route';
 import type { Conversation, ConversationSummary, PickData, SceneCardData, Topic } from './types';
 
 export type Resolved =
@@ -22,4 +23,17 @@ export function lastFailed(c: Conversation): boolean {
 export function upsertSummary(list: ConversationSummary[], c: Conversation): ConversationSummary[] {
   const s: ConversationSummary = { id: c.id, title: c.title, kind: c.kind, updatedAt: c.updatedAt };
   return [s, ...list.filter((x) => x.id !== c.id)];
+}
+
+const sameRoute = (a: Route, b: Route) => a.view === b.view && (a.view !== 'assistant' || (b.view === 'assistant' && a.id === b.id));
+
+/** A finished request may navigate or show its result only if the user is still where it started. */
+export function shouldNavigate(start: Route, now: Route): boolean {
+  return sameRoute(start, now);
+}
+
+/** What `open(routeId)` must do given the conversation on screen. */
+export function openTarget(currentId: number | null, routeId: number | null): 'clear' | 'keep' | 'fetch' {
+  if (routeId === null) return 'clear';
+  return currentId === routeId ? 'keep' : 'fetch';
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { lastFailed, resolvePick } from '../lib/assistant';
+  import { resolvePick } from '../lib/assistant';
   import { assistant } from '../lib/assistant.svelte';
   import { FilterState } from '../lib/filters.svelte';
   import { link, router } from '../lib/router.svelte';
@@ -59,7 +59,7 @@
         {:else if turn.error}
           <div role="alert" class="alert alert-error">
             <span>{turn.error}</span>
-            {#if lastFailed(c) && turn === c.turns.at(-1)}
+            {#if turn.seq === c.turns.at(-1)?.seq}
               <button class="btn btn-sm" disabled={assistant.busy} onclick={() => assistant.retry()}>Retry</button>
             {/if}
           </div>
@@ -67,7 +67,7 @@
           <div class="chat chat-start"><div class="chat-bubble chat-bubble-neutral whitespace-pre-wrap">{turn.text}</div></div>
           {#if turn.picks.length}
             <div class="grid gap-3 grid-cols-[repeat(auto-fill,minmax(18rem,1fr))]">
-              {#each turn.picks as pick (pick.ref + pick.action)}
+              {#each turn.picks as pick, i (i)}
                 {@const r = resolvePick(c, pick)}
                 {#if r?.kind === 'topic'}
                   <div class="flex flex-col gap-1">
