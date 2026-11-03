@@ -79,10 +79,12 @@ These go in a separate commit after the move:
   `.query_map(..)?.collect::<rusqlite::Result<Vec<_>>>()?`. Replace them with a
   `fn all<T>(rows: impl Iterator<Item = rusqlite::Result<T>>) -> Result<Vec<T>>` in
   `mod.rs`. The two `HashSet` collects keep their own form.
-- **`from_row` where it removes a tuple type.** `RawTopic` and any other row that is
-  assembled from a positional tuple and then converted gets an associated
-  `fn from_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Self>`, placed next to the
-  struct. Mappings that are already a clear closure are left alone.
+- **`from_row` beside its struct.** The free `conversation_row` becomes
+  `ConversationRow::from_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Self>`.
+  `RawTopic` stays a tuple: `topic_of` parses its JSON columns with anyhow context
+  (`topic.images`, `topic.production`), and a `rusqlite::Result` constructor could only
+  carry that as a `FromSqlConversionFailure`, a worse error for no gain. Mappings that
+  are already a clear closure are left alone.
 
 ## 3. SQLite off the tokio workers
 
@@ -138,8 +140,13 @@ pub trait IdentifyBackends: Send + Sync + 'static {
   `watch` and the identify-pass functions to match.
 - `GrabSource` sites (two) are left alone, since a two-parameter signature used twice is
   not a burden.
-- Production: `pub struct Live;` in `app.rs`, implementing both traits with the real
-  `Tracker`, `Transmission`, `Stash`, `OpenRouter` and `CodeDb` types.
+- Both traits and production's `pub struct Live;` live in a new `src/backends.rs`.
+  `Live` implements both with the real `Tracker`, `Transmission`, `Stash`, `OpenRouter`
+  and `CodeDb` types.
+- A projection like `B::Tracker` does not let the compiler infer `B` from a struct
+  literal, so each construction site names it: `Ctx::<Live> { .. }`,
+  `WebState::<Live> { .. }`, `Clients::<Live> { .. }`. Calls to the generic functions
+  still infer `B` from their `Ctx`/`WebState`/`Clients` argument.
 - Tests: one zero-sized marker per fake combination already in use, defined next to
   the fakes. `web_tests` and most of `plab_tests` use `FakeTracker` + `FakeTorrents`;
   `plab_tests.rs:1252` uses the real `Tracker` + `Transmission` and gets `Live`. The
