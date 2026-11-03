@@ -30,6 +30,13 @@
 # plab-stream.<tailnet>. torrent_file keeps every grabbed .torrent.
 # Design: docs/superpowers/specs/2026-11-02-plab-streaming-design.md
 #
+# Assistant (the page's Assistant tab): on demand only, never scheduled. Recommend and chat
+# over OpenRouter with read-only tools; picks come from a profile of recent Stash plays plus
+# plab's stream log (stream_view), and every conversation is kept in state.db. Its system
+# prompt is `prompts.assistant` in plab-site (the tab answers 503 without it), and
+# PLAB_ASSISTANT_MODEL defaults to the parse model.
+# Design: docs/superpowers/specs/2026-11-03-plab-assistant-design.md
+#
 # Rollback: revert this commit. The legacy JSON state under /var/lib/{plab,stash-identify,
 # vault-grab} is never modified by the daemon, so the Python resumes where it stopped.
 {
