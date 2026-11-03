@@ -70,7 +70,7 @@ Three new keys in the existing `PLAB_SOURCES_FILE`:
 |---|---|
 | `album_index_url` | Base URL of the index's search page |
 | `album_index_label` | The badge and `external_release.indexer` value; defaults to `albums` |
-| `album_search_mode` | The index's `mode` parameter; defaults to whole word |
+| `album_search_mode` | The index's `mode` parameter; defaults to `strict` (every word must appear) |
 
 Without `album_index_url`, `%` terms are searched nowhere else and a warning is logged once
 per run. The tracker and Prowlarr parts of `curated` are unaffected.
@@ -85,15 +85,18 @@ Added after the Prowlarr step, before the store:
    applies. A failed request is logged and the term skipped.
 2. **Parse** (`albums.rs`, pure): each result anchor yields album id (the last path segment
    of its href), href, name, file count and thumbnail URL. A page that reports results but
-   yields zero parsed cards is logged as a warning naming the term, so a layout change
+   yields zero parsed cards (its `page 1 of N` header has N > 0) is logged as a warning naming the term, so a layout change
    cannot pass for an empty day.
 3. **Upsert.** Each album gets an `external_release` row (`kind = 'album'`, `indexer` = the
    label, `guid` = album id, `link` = `info_url` = href, `files` = count; an existing
    (indexer, guid) keeps its id) and a `topic` row with the name as title, `forum` 0, size,
-   seeders and leechers 0, and `added` set to **the time plab first saw the album**, kept
-   on later upserts.
+   seeders and leechers 0, and `added` set to the album's `first_seen`: **the time plab first
+   saw it**, stored on `external_release` at insert and never updated.
 4. **Window.** Albums first seen more than 32 days ago are not recorded as hits. On the
    first run every returned album is new; that is bounded by 40 × the number of `%` terms.
+   Album rows are **never pruned**: an album that ages out but stays on the results page
+   must not be re-seen as new once its topic row is gone. A row is about 100 bytes and only
+   genuinely new albums add one.
 5. **No classification and no scene lookup.** Album names are free text: they fit neither the
    classifier's input nor the scene database. Every album hit is kept.
 6. **Images.** `topic.images` is set to the thumbnail URL, fetched through the existing
@@ -108,9 +111,11 @@ Added by the schema migration (`schema_v6.sql`):
 ```sql
 ALTER TABLE external_release ADD COLUMN kind TEXT NOT NULL DEFAULT 'torrent';  -- 'torrent' | 'album'
 ALTER TABLE external_release ADD COLUMN files INTEGER;                         -- albums: file count
+ALTER TABLE external_release ADD COLUMN first_seen INTEGER NOT NULL DEFAULT 0; -- unix time of first sight
 ```
 
-Existing rows are torrent releases, which the default records. `Source::of(id)` stays the
+Existing rows are torrent releases, which the default records. `save_curated`'s prune of
+external rows without a topic is limited to `kind = 'torrent'`. `Source::of(id)` stays the
 tracker/external split; `kind` is read only where tracker-vs-external is not enough
 (listing split, the card, and refusing stream and add).
 
@@ -134,8 +139,8 @@ tracker/external split; `kind` is read only where tracker-vs-external is not eno
   release.
 - Filter parsing: `%`, `@%`, `%@`, quoted terms.
 - API: album topic serializes `kind` and `files`; stream and add refuse it with `400`.
-- Vitest: the card renders the Open-only variant for `kind: 'album'`; the navbar has the
-  three source tabs.
+- Vitest (the app tests `lib/` only, in node): the route parser maps `/indexers` and
+  `/albums`; the album card's `N files` label.
 
 ## Out of scope
 
