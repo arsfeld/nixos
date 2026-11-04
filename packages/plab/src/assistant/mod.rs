@@ -7,7 +7,8 @@ pub mod daily;
 pub mod tools;
 
 use std::collections::HashSet;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use anyhow::Context as _;
 use serde::Deserialize;
@@ -111,7 +112,7 @@ pub fn degraded_of(msg: &Value) -> Vec<String> {
 
 fn title(kind: Kind, text: Option<&str>, now: i64) -> String {
     match kind {
-        Kind::Recommend => format!("Recommendations · {}", crate::taste::ymd(now)),
+        Kind::Recommend => format!("Recommendations · {}", daily::local_ymd(now)),
         Kind::Chat => text.unwrap_or("").trim().chars().take(TITLE_CHARS).collect(),
     }
 }
@@ -172,18 +173,28 @@ impl Drop for TurnGuard<'_> {
     }
 }
 
+/// Clears `daily_running` when a daily generation's task ends, however it ends.
+struct DailyGuard<'a>(&'a AtomicBool);
+
+impl Drop for DailyGuard<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
 pub struct Assistant {
     llm: OpenRouter,
     stash: Stash,
     model: String,
     prompt: String,
     busy: Mutex<HashSet<i64>>,
+    daily_running: AtomicBool,
     hide: crate::filters::HideRule,
 }
 
 impl Assistant {
     pub fn new(llm: OpenRouter, stash: Stash, model: String, prompt: String) -> Assistant {
-        Assistant { llm, stash, model, prompt, busy: Mutex::new(HashSet::new()), hide: crate::filters::HideRule::default() }
+        Assistant { llm, stash, model, prompt, busy: Mutex::new(HashSet::new()), daily_running: AtomicBool::new(false), hide: crate::filters::HideRule::default() }
     }
 
     /// The exclude file's hide rule, applied to the Stash scenes the model sees.
@@ -209,6 +220,67 @@ impl Assistant {
             return Err(TurnError::Busy);
         }
         Ok(TurnGuard { busy: &self.busy, id: conversation })
+    }
+
+    /// A daily picks generation is running.
+    pub fn daily_running(&self) -> bool {
+        self.daily_running.load(Ordering::SeqCst)
+    }
+
+    /// Start today's picks on their own task, unless today has been attempted (`force`
+    /// skips that check) or a generation is running. Ok(true): one was started. While one
+    /// runs, a visit is Ok(false) and a forced start is Busy. When the task ends, the flag is
+    /// cleared and `Event::AssistantDaily` published, in that order, so a client refetching
+    /// on the event sees it done.
+    pub fn ensure_daily(
+        self: &Arc<Self>,
+        db: &Db,
+        events: &crate::events::Events,
+        now: i64,
+        force: bool,
+    ) -> Result<bool, TurnError> {
+        self.ready()?;
+        if self.daily_running.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+            return if force { Err(TurnError::Busy) } else { Ok(false) };
+        }
+        let attempted = match daily::state(db, now) {
+            Ok(d) => d.attempted_today,
+            Err(e) => {
+                self.daily_running.store(false, Ordering::SeqCst);
+                return Err(e.into());
+            }
+        };
+        if attempted && !force {
+            self.daily_running.store(false, Ordering::SeqCst);
+            return Ok(false);
+        }
+        let (a, db, events) = (Arc::clone(self), db.clone(), events.clone());
+        tokio::spawn(async move {
+            let done = DailyGuard(&a.daily_running);
+            if let Err(e) = a.start(&db, Kind::Recommend, None, now).await {
+                // Failed before the conversation existed: store the failure as today's
+                // attempt anyway, or every refetch on the event below would start another.
+                tracing::info!(job = "assistant", "daily picks: {e}");
+                let why = e.to_string();
+                let stored = db
+                    .create_conversation(&title(Kind::Recommend, None, now), Kind::Recommend.as_str(), now)
+                    .and_then(|id| {
+                        let msg = json!({"role": "assistant", "content": "", "plab_error": why});
+                        db.append_message(id, "assistant", &msg.to_string(), now)
+                    });
+                if let Err(e) = stored {
+                    tracing::warn!(job = "assistant", "daily picks: storing the failure: {e:#}");
+                }
+            }
+            match daily::prune(&db, now) {
+                Ok(0) => {}
+                Ok(n) => tracing::info!(job = "assistant", "pruned {n} unread daily picks"),
+                Err(e) => tracing::warn!(job = "assistant", "pruning daily picks: {e:#}"),
+            }
+            drop(done);
+            events.publish(crate::events::Event::AssistantDaily);
+        });
+        Ok(true)
     }
 
     pub async fn start(&self, db: &Db, kind: Kind, text: Option<&str>, now: i64) -> Result<i64, TurnError> {
@@ -365,6 +437,67 @@ mod tests {
             .collect()
     }
 
+    const NOON: i64 = 20_000 * 86_400 + 43_200;
+
+    async fn next_daily(rx: &mut tokio::sync::broadcast::Receiver<crate::events::Event>) {
+        while rx.recv().await.unwrap() != crate::events::Event::AssistantDaily {}
+    }
+
+    #[tokio::test]
+    async fn the_daily_starts_once_per_day_unless_forced() {
+        let (server, a, db) = fixture().await;
+        Mock::given(path(crate::llm::CHAT_PATH))
+            .respond_with(final_reply("ok", json!([{"ref": "t:1", "action": "download", "reason": "r"}])))
+            .expect(2)
+            .mount(&server)
+            .await;
+        let a = std::sync::Arc::new(a);
+        let events = crate::events::Events::default();
+        let mut rx = events.subscribe();
+        assert!(matches!(a.ensure_daily(&db, &events, NOON, false), Ok(true)));
+        assert!(a.daily_running());
+        // A second visit while it runs starts nothing; a forced one is refused.
+        assert!(matches!(a.ensure_daily(&db, &events, NOON, false), Ok(false)));
+        assert!(matches!(a.ensure_daily(&db, &events, NOON, true), Err(TurnError::Busy)));
+        next_daily(&mut rx).await;
+        assert!(!a.daily_running());
+        let d = daily::state(&db, NOON).unwrap();
+        assert!(d.attempted_today && d.shown.is_some());
+        // Today is done: a visit starts nothing, Refresh starts another.
+        assert!(matches!(a.ensure_daily(&db, &events, NOON + 60, false), Ok(false)));
+        assert!(matches!(a.ensure_daily(&db, &events, NOON + 60, true), Ok(true)));
+        next_daily(&mut rx).await;
+        assert_eq!(db.conversations_of_kind("recommend").unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn a_failed_daily_is_kept_and_not_retried_today() {
+        let (server, a, db) = fixture().await;
+        Mock::given(path(crate::llm::CHAT_PATH))
+            .respond_with(ResponseTemplate::new(500))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let a = std::sync::Arc::new(a);
+        let events = crate::events::Events::default();
+        let mut rx = events.subscribe();
+        assert!(matches!(a.ensure_daily(&db, &events, NOON, false), Ok(true)));
+        next_daily(&mut rx).await;
+        let d = daily::state(&db, NOON).unwrap();
+        assert!(d.attempted_today && d.shown.is_none());
+        assert!(d.error.unwrap().contains("OpenRouter"));
+        assert!(matches!(a.ensure_daily(&db, &events, NOON, false), Ok(false)));
+    }
+
+    #[test]
+    fn the_daily_needs_a_prompt() {
+        let llm = OpenRouter::new("http://x", "k".into(), "p".into(), "j".into());
+        let a = std::sync::Arc::new(Assistant::new(llm, Stash::new("http://x", None), "m".into(), " ".into()));
+        let db = Db::open_in_memory().unwrap();
+        let events = crate::events::Events::default();
+        assert!(matches!(a.ensure_daily(&db, &events, NOON, false), Err(TurnError::NotReady(_))));
+    }
+
     fn roles(db: &Db, id: i64) -> Vec<String> {
         db.messages(id).unwrap().into_iter().map(|m| m.role).collect()
     }
@@ -387,7 +520,7 @@ mod tests {
             .with_priority(2)
             .mount(&server)
             .await;
-        let id = a.start(&db, Kind::Recommend, None, 86400).await.unwrap();
+        let id = a.start(&db, Kind::Recommend, None, 86400 + 43_200).await.unwrap();
         assert_eq!(roles(&db, id), vec!["system", "user", "assistant", "tool", "assistant"]);
         assert!(sent(&server).await.iter().all(|b| !b.contains("plab_")));
         let f = parse_final(last(&db, id)["content"].as_str().unwrap()).unwrap();

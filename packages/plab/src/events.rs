@@ -38,6 +38,8 @@ pub enum Event {
     Listing {
         section: &'static str,
     },
+    /// A daily picks generation ended (picks or an error): refetch /api/assistant/daily.
+    AssistantDaily,
     /// The client fell behind: refetch.
     Resync,
 }

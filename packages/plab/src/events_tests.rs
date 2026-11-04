@@ -32,6 +32,7 @@ fn events_serialize_with_their_type() {
             Event::Listing { section: "games" },
             json!({"type": "listing", "section": "games"}),
         ),
+        (Event::AssistantDaily, json!({"type": "assistantDaily"})),
         (Event::Resync, json!({"type": "resync"})),
     ];
     for (e, want) in cases {
