@@ -16,8 +16,11 @@ public class Dock.StackPile : Gtk.Widget {
 
     public StackSource source { get; construct; }
     public int icon_size { get; set; default = 48; }
+    /** The owning item's BaseItem.render_scale. */
+    public int render_scale { get; set; default = 1; }
 
     private GenericArray<Gtk.Image> images = new GenericArray<Gtk.Image> ();
+    private GenericArray<IconResolution> resolutions = new GenericArray<IconResolution> ();
     private GenericArray<Gsk.Transform> transforms = new GenericArray<Gsk.Transform> ();
 
     public StackPile (StackSource source) {
@@ -33,11 +36,14 @@ public class Dock.StackPile : Gtk.Widget {
             var image = new Gtk.Image ();
             image.set_parent (this);
             images.add (image);
+            // Tilted slots are painted through StackRender's supersampled texture.
+            resolutions.add (IconResolution.attach (image, null, DEGREES[k] == 0 ? 1 : StackRender.OVERSAMPLE));
         }
 
         // Methods, not lambdas: a closure over `this` held by the source would
         // keep the pile alive for as long as the source is.
         notify["icon-size"].connect (update_sizes);
+        notify["render-scale"].connect (update_render_scale);
         source.previews.items_changed.connect (update_icons);
         update_sizes ();
         update_icons ();
@@ -52,6 +58,7 @@ public class Dock.StackPile : Gtk.Widget {
         foreach (var image in images) {
             image.unparent ();
         }
+        resolutions.length = 0;
         images.length = 0;
         base.dispose ();
     }
@@ -67,11 +74,18 @@ public class Dock.StackPile : Gtk.Widget {
         queue_resize ();
     }
 
+    private void update_render_scale () {
+        foreach (var resolution in resolutions) {
+            resolution.render_scale = render_scale;
+        }
+        queue_draw ();
+    }
+
     private void update_icons () {
         var n = source.previews.get_n_items ();
         for (int k = 0; k < images.length; k++) {
             if (k < n) {
-                images[k].gicon = ((StackEntry) source.previews.get_item (k)).icon;
+                resolutions[k].icon = ((StackEntry) source.previews.get_item (k)).icon;
                 images[k].visible = true;
             } else {
                 images[k].visible = false;
@@ -112,7 +126,7 @@ public class Dock.StackPile : Gtk.Widget {
                 snapshot_child (image, snapshot);
             } else {
                 var size = slot_size (k);
-                StackRender.append_supersampled (snapshot, image, transforms[k], size, size);
+                StackRender.append_supersampled (snapshot, image, transforms[k], size, size, render_scale);
             }
         }
     }

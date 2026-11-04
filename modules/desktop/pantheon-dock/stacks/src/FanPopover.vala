@@ -88,8 +88,11 @@ public class Dock.FanPopover : Gtk.Popover {
         return box;
     }
 
+    // Fan rows are tilted, so they are painted through StackRender's supersampled
+    // texture; the popover itself is never zoomed.
     private static Gtk.Image new_row_image (Icon? icon, int size) {
-        var image = new Gtk.Image () { pixel_size = size, gicon = icon };
+        var image = new Gtk.Image () { pixel_size = size };
+        IconResolution.attach (image, icon, StackRender.OVERSAMPLE);
         image.add_css_class ("stack-icon");
         return image;
     }

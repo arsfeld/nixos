@@ -3,12 +3,14 @@
  *
  * Painting a tilted widget cleanly. GSK draws rotated text and rounded clips
  * with jagged edges (see the 2026-10-31 dock stacks polish spec), so tilted
- * widgets are drawn upright into a texture at twice the surface scale, and the
+ * widgets are drawn upright into a texture at twice the surface scale (times the item's zoom render_scale), and the
  * texture is filtered as it is rotated and scaled back down.
  */
 
 namespace Dock.StackRender {
-    private const double OVERSAMPLE = 2;
+    // Also the oversample IconResolution must look tilted icons up at, or the
+    // texture below holds a 1× bitmap stretched to 2×.
+    public const int OVERSAMPLE = 2;
     // Room for what a widget paints outside its allocation: the fan pills'
     // box-shadow and the icons' -gtk-icon-shadow (StackStyle).
     private const float PAD = 4;
@@ -18,12 +20,13 @@ namespace Dock.StackRender {
      * also snapshot_child () it. The widget's own CSS box, outline, opacity and
      * clip are skipped, so pass widgets with no visible box of their own.
      */
-    public void append_supersampled (Gtk.Snapshot snapshot, Gtk.Widget widget, Gsk.Transform transform, float width, float height) {
+    public void append_supersampled (Gtk.Snapshot snapshot, Gtk.Widget widget, Gsk.Transform transform, float width, float height, int render_scale = 1) {
         var native = widget.get_native ();
         if (native == null || width <= 0 || height <= 0) {
             return;
         }
-        var scale = (float) (OVERSAMPLE * native.get_surface ().get_scale ());
+        // render_scale: a zoomed item scales this texture up again afterwards.
+        var scale = (float) (OVERSAMPLE * render_scale * native.get_surface ().get_scale ());
 
         var inner = new Gtk.Snapshot ();
         inner.scale (scale, scale);

@@ -45,11 +45,14 @@ public class Dock.StackItem : BaseIconGroup {
         // BaseIconGroup has already set child to its icon grid.
         preview = child;
 
-        folder_image = new Gtk.Image.from_gicon (source.folder_icon ());
+        folder_image = new Gtk.Image ();
+        var folder_resolution = IconResolution.attach (folder_image, source.folder_icon ());
         bind_property ("icon-size", folder_image, "pixel-size", SYNC_CREATE);
+        bind_property ("render-scale", folder_resolution, "render-scale", SYNC_CREATE);
 
         pile = new StackPile (source);
         bind_property ("icon-size", pile, "icon-size", SYNC_CREATE);
+        bind_property ("render-scale", pile, "render-scale", SYNC_CREATE);
 
         tooltip_text = config.is_applications ? _("Applications") : Path.get_basename (config.source);
 
