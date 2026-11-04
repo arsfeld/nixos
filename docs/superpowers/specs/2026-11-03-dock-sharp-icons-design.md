@@ -41,17 +41,18 @@ on `.stack-icon`, symbolic recoloring, icon filters. A replacement widget would 
 `Gtk.IconTheme.lookup_by_gicon (icon, pixel_size, lookup_scale, direction, 0)`, while
 `pixel_size` stays the logical size. The image lays out exactly as before, and its bitmap
 carries `render_scale` times the pixels. `FileIcon` thumbnails take the same path.
-`SharpPaintable` implements `Gdk.Paintable` and `Gtk.SymbolicPaintable` and forwards every
-call to the `Gtk.IconPaintable`; it exists because `Gtk.Image` resets the scale of a bare
+`SharpPaintable` implements `Gdk.Paintable` and `Gtk.SymbolicPaintable` and forwards its
+drawing and size calls to the `Gtk.IconPaintable`; `get_flags` returns
+`STATIC_SIZE | STATIC_CONTENTS` itself, the same constants GTK's icon paintable returns; it exists because `Gtk.Image` resets the scale of a bare
 `Gtk.IconPaintable` (see below).
 
 It holds `icon` and `render_scale` (int, ≥ 1) as properties, and re-runs the lookup when
 either changes, or when the image's `pixel-size` or `scale-factor` changes, or when the
 icon theme emits `changed`. Its handlers are methods, not lambdas that capture locals
-(`CLAUDE.md`: Vala pitfalls), and it disconnects when the image is disposed.
+(`CLAUDE.md`: Vala pitfalls), and the handlers on the image go with the image, while the icon-theme handler goes when the helper is finalized, with the image's finalize.
 
 The lookup scale is
-`IconMath.lookup_scale (surface_scale, oversample, render_scale) = ceil (surface_scale × oversample × render_scale)`.
+`IconMath.lookup_scale (surface_scale, oversample, render_scale) = surface_scale × oversample × render_scale` (an integer product).
 `IconMath` is pure and unit-tested, like `ZoomMath`.
 
 **Assumption checked first, and what was found:** the design assumed `Gtk.Image` draws a

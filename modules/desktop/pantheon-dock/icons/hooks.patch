@@ -34,20 +34,21 @@ index 6e086d17..b43c8c19 100644
              var icon_size = from_value.get_int ();
              to_value.set_int (get_pixel_size (icon_size));
 diff --git a/src/BaseItem.vala b/src/BaseItem.vala
-index dedc1589..b38bfc6b 100644
+index dedc1589..02349371 100644
 --- a/src/BaseItem.vala
 +++ b/src/BaseItem.vala
-@@ -35,6 +35,9 @@ public class Dock.BaseItem : Gtk.Box {
+@@ -35,6 +35,10 @@ public class Dock.BaseItem : Gtk.Box {
  
      /** Scale applied by the parent ItemGroup; 1.0 at rest. */
      public double zoom { get; set; default = 1.0; }
 +
 +    /** The scale icons inside this item rasterize at: IconMath.render_scale_for (zoom). */
 +    public int render_scale { get; private set; default = 1; }
++
      public new string tooltip_text { get; set; }
  
      private bool _moving;
-@@ -109,6 +112,7 @@ public class Dock.BaseItem : Gtk.Box {
+@@ -109,6 +113,7 @@ public class Dock.BaseItem : Gtk.Box {
  
          // A method, not a lambda: subclasses replace popover_menu after this construct.
          notify["zoom"].connect (lift_popovers);
@@ -55,10 +56,10 @@ index dedc1589..b38bfc6b 100644
  
          bind_property ("tooltip-text", tooltip_label, "label");
  
-@@ -244,6 +248,15 @@ public class Dock.BaseItem : Gtk.Box {
-      * and BackgroundItem's menus, and the stacks' FanPopover and GridPopover. So the
-      * offset is -1 - rise rather than a resting offset read back and kept.
-      */
+@@ -232,6 +237,15 @@ public class Dock.BaseItem : Gtk.Box {
+         return height;
+     }
+ 
 +    // Changes only when the zoom crosses a whole number, so images look their icon up
 +    // again a few times per hover, not every frame.
 +    private void update_render_scale () {
@@ -68,9 +69,9 @@ index dedc1589..b38bfc6b 100644
 +        }
 +    }
 +
-     private void lift_popovers () {
-         var rise = (int) Math.ceil ((zoom - 1.0) * get_icon_bottom (get_height ()));
-         popover_tooltip.set_offset (0, -1 - rise);
+     /**
+      * The dock counts the headroom above it as window shadow (MainWindow.init_panel),
+      * and GDK clips a popup's anchor to the window geometry, so a popover anchored to
 diff --git a/src/WorkspaceSystem/DynamicWorkspaceItem.vala b/src/WorkspaceSystem/DynamicWorkspaceItem.vala
 index 9cac739f..c9f039cb 100644
 --- a/src/WorkspaceSystem/DynamicWorkspaceItem.vala
