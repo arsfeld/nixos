@@ -135,6 +135,11 @@ in {
 
             systemd.services.NetworkManager-wait-online.enable = false;
 
+            # Realtime scheduling for PipeWire/WirePlumber and the compositor's
+            # KMS thread. Without it they log "RTKit error: ServiceUnknown" and
+            # run at normal priority, so audio and frames stall under load.
+            security.rtkit.enable = true;
+
             # Quiet graphical boot: firmware logo (bgrt) through to the greeter.
             boot.plymouth = {
               enable = true;
@@ -716,7 +721,6 @@ in {
             };
 
             security.polkit.enable = true;
-            security.rtkit.enable = true;
             security.pam.services.swaylock = {};
             services.gnome.gnome-keyring.enable = true;
 
