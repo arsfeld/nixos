@@ -53,6 +53,18 @@ impl Db {
         })
     }
 
+    /// Every conversation of one kind, newest first by creation.
+    pub fn conversations_of_kind(&self, kind: &str) -> Result<Vec<ConversationRow>> {
+        self.with(|c| {
+            let mut s = c.prepare(
+                "SELECT id, title, kind, created_at, updated_at FROM conversation
+                 WHERE kind = ?1 ORDER BY created_at DESC, id DESC",
+            )?;
+            let rows = s.query_map(params![kind], ConversationRow::from_row)?;
+            all(rows)
+        })
+    }
+
     pub fn conversation(&self, id: i64) -> Result<Option<ConversationRow>> {
         self.with(|c| {
             Ok(c.query_row(

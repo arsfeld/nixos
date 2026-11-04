@@ -3,6 +3,7 @@
 //! Design: docs/superpowers/specs/2026-11-03-plab-assistant-design.md
 
 pub mod context;
+pub mod daily;
 pub mod tools;
 
 use std::collections::HashSet;
