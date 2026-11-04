@@ -18,6 +18,11 @@
 # than stacks', because zoom changes how ItemGroup positions every item.
 # Design: docs/superpowers/specs/2026-10-31-dock-zoom-design.md
 #
+# icons/: keeps icons sharp when zoom magnifies them or stacks draw them tilted.
+# IconResolution looks each icon up at the size it finally covers on screen;
+# its hooks.patch routes the launcher, the grid-tile minis and the "+" item
+# through it. Design: docs/superpowers/specs/2026-11-03-dock-sharp-icons-design.md
+#
 # appcenter/progress.patch is the one patch here that is not the dock's: it makes
 # AppCenter publish its jobs, which the Applications stack shows as progress.
 # A nixpkgs bump of appcenter that breaks it is rebased the same way.
@@ -45,6 +50,10 @@
           {
             dir = ./zoom;
             dest = "Zoom";
+          }
+          {
+            dir = ./icons;
+            dest = "Icons";
           }
         ];
         inherit (lib.gvariant) mkArray mkInt32 mkTuple;
