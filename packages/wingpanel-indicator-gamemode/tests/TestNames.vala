@@ -38,6 +38,10 @@ string manifest (string id, string name) {
     return "\"AppState\"\n{\n\t\"appid\"\t\t\"%s\"\n\t\"name\"\t\t\"%s\"\n\t\"installdir\"\t\t\"x\"\n}\n".printf (id, name);
 }
 
+Names.Proc proc (string? exe, string[]? args) {
+    return Names.Proc () { exe = exe, args = args };
+}
+
 int main (string[] args) {
     Test.init (ref args);
 
@@ -74,7 +78,7 @@ int main (string[] args) {
         var steamapps = Path.build_filename (tmp_tree (), "steamapps");
         write (Path.build_filename (steamapps, "appmanifest_620.acf"), manifest ("620", "Portal 2"));
         var dirs = Names.steamapps_dirs (steamapps);
-        assert_cmpstr (Names.display_name ("/x/ubuntu12_32/reaper", { "reaper", "SteamLaunch", "AppId=620", "--", "g" }, dirs), CompareOperator.EQ, "Portal 2");
+        assert_cmpstr (Names.display_name ("/x/ubuntu12_32/reaper", { proc ("/x/ubuntu12_32/reaper", { "reaper", "SteamLaunch", "AppId=620", "--", "g" }) }, dirs), CompareOperator.EQ, "Portal 2");
     });
 
     Test.add_func ("/names/second-library", () => {
@@ -91,9 +95,36 @@ int main (string[] args) {
 
     Test.add_func ("/names/fallbacks", () => {
         var dirs = Names.steamapps_dirs (Path.build_filename (tmp_tree (), "steamapps"));
-        assert_cmpstr (Names.display_name ("/x/reaper", { "reaper", "AppId=999" }, dirs), CompareOperator.EQ, "Steam game 999");
-        assert_cmpstr (Names.display_name ("/x/reaper", null, dirs), CompareOperator.EQ, "reaper");
-        assert_cmpstr (Names.display_name ("/nix/store/abc-game/bin/witcher3", null, dirs), CompareOperator.EQ, "witcher3");
+        assert_cmpstr (Names.display_name ("/x/reaper", { proc ("/x/reaper", { "reaper", "AppId=999" }) }, dirs), CompareOperator.EQ, "Steam game 999");
+        // Process already gone: gamemoded's Executable is all there is.
+        assert_cmpstr (Names.display_name ("/x/reaper", { proc (null, null) }, dirs), CompareOperator.EQ, "reaper");
+        assert_cmpstr (Names.display_name ("/nix/store/abc-game/bin/witcher3", {}, dirs), CompareOperator.EQ, "witcher3");
+    });
+
+    // What raider showed with RimWorld: both registrations were recorded
+    // before an exec, as coreutils (`env`) and bash.
+    Test.add_func ("/names/stale-executable", () => {
+        var steamapps = Path.build_filename (tmp_tree (), "steamapps");
+        write (Path.build_filename (steamapps, "appmanifest_294100.acf"), manifest ("294100", "RimWorld"));
+        var dirs = Names.steamapps_dirs (steamapps);
+        var reaper = proc ("/s/steamrt64/reaper", { "/s/steamrt64/reaper", "SteamLaunch", "AppId=294100", "--", "/g/RimWorld" });
+        var bwrap = proc ("/r/srt-bwrap", { "/r/srt-bwrap", "--args", "26", "--", "/g/RimWorld" });
+        assert_cmpstr (Names.display_name ("/nix/store/x-coreutils/bin/coreutils", { reaper, proc ("/x/steam", { "steam" }) }, dirs), CompareOperator.EQ, "RimWorld");
+        assert_cmpstr (Names.display_name ("/nix/store/x-bash/bin/bash", { bwrap, reaper }, dirs), CompareOperator.EQ, "RimWorld");
+        // Not under a reaper: the current executable, not the recorded one.
+        assert_cmpstr (Names.display_name ("/nix/store/x-bash/bin/bash", { proc ("/g/witcher3", { "witcher3" }) }, dirs), CompareOperator.EQ, "witcher3");
+    });
+
+    Test.add_func ("/names/ppid", () => {
+        assert_cmpint (Names.ppid_from_stat ("1622460 (srt-bwrap) S 1622433 1622460 0"), CompareOperator.EQ, 1622433);
+        assert_cmpint (Names.ppid_from_stat ("7 (a) b) c) S 3 7 0"), CompareOperator.EQ, 3);
+        assert_cmpint (Names.ppid_from_stat ("garbage"), CompareOperator.EQ, 0);
+    });
+
+    Test.add_func ("/names/unique", () => {
+        var names = Names.unique ({ "RimWorld", "fake-game", "RimWorld" });
+        assert_cmpint (names.length, CompareOperator.EQ, 2);
+        assert_cmpstr (names[1], CompareOperator.EQ, "fake-game");
     });
 
     return Test.run ();

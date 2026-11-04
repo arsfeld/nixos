@@ -1,12 +1,19 @@
 /*
  * Turns a game gamemoded registered into the name the popover shows.
  *
- * Steam registers every game through its `reaper` process (gamemode-steam-watch
- * in modules/constellation/gaming.nix), so gamemoded's Executable reads
- * `reaper` for all of them. A reaper is named from Steam's app manifest
- * instead, using the AppId on its command line; anything else by its
- * executable's basename. Every lookup that fails falls back to a plainer
- * name, never to nothing.
+ * gamemoded records a game's Executable once, when it registers, so it goes
+ * stale when the process execs afterwards. Steam's launch chain does exactly
+ * that: libgamemodeauto, preloaded into it, registers `env` (coreutils) and a
+ * bash wrapper that then exec into `reaper` and `srt-bwrap`. So a game is
+ * named from its *current* executable and command line, read from /proc, and
+ * gamemoded's Executable is only the fallback for a process already gone.
+ *
+ * Every Steam game runs under a `reaper SteamLaunch AppId=<id>` process
+ * (gamemode-steam-watch in modules/gaming.nix registers it too). Any
+ * registered process that is a reaper, or descends from one, is named from
+ * Steam's app manifest using that AppId; anything else by its executable's
+ * basename. Every lookup that fails falls back to a plainer name, never to
+ * nothing.
  *
  * These take strings and paths, never /proc or $HOME, so tests can feed them.
  */
@@ -112,16 +119,52 @@ namespace GameModeIndicator.Names {
         return null;
     }
 
-    /* `args` is the game process's command line, or null if unreadable. */
-    public string display_name (string executable, string[]? args, string[] dirs) {
-        var basename = Path.get_basename (executable);
-        if (basename != "reaper" || args == null) {
-            return basename;
+    /* A process as /proc shows it now; either field is null if unreadable. */
+    public struct Proc {
+        public string? exe;
+        public string[]? args;
+    }
+
+    /* The parent pid from /proc/<pid>/stat, or 0. comm may hold ")" and spaces. */
+    public int ppid_from_stat (string stat) {
+        var close = stat.last_index_of_char (')');
+        if (close < 0) {
+            return 0;
         }
-        var id = app_id_from_args (args);
-        if (id == null) {
-            return basename;
+        var fields = stat.substring (close + 1).strip ().split (" ");
+        return fields.length >= 2 ? int.parse (fields[1]) : 0;
+    }
+
+    private string? steam_app_id (Proc proc) {
+        if (proc.exe == null || proc.args == null || Path.get_basename (proc.exe) != "reaper") {
+            return null;
         }
-        return steam_name (id, dirs) ?? "Steam game %s".printf (id);
+        return app_id_from_args (proc.args);
+    }
+
+    /*
+     * `chain` is the registered process followed by its ancestors, nearest
+     * first; `executable` is what gamemoded recorded at registration.
+     */
+    public string display_name (string executable, Proc[] chain, string[] dirs) {
+        foreach (unowned Proc proc in chain) {
+            var id = steam_app_id (proc);
+            if (id != null) {
+                return steam_name (id, dirs) ?? "Steam game %s".printf (id);
+            }
+        }
+        var current = chain.length > 0 ? chain[0].exe : null;
+        return Path.get_basename (current ?? executable);
+    }
+
+    /* One row per game: a Steam game can register several of its processes. */
+    public string[] unique (string[] names) {
+        string[] result = {};
+        foreach (unowned string name in names) {
+            if (!(name in result)) {
+                result += name;
+            }
+        }
+        return result;
     }
 }

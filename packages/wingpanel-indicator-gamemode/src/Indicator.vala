@@ -93,8 +93,9 @@ public class GameModeIndicator.Indicator : Wingpanel.Indicator {
         var dirs = Names.steamapps_dirs (Path.build_filename (Environment.get_user_data_dir (), "Steam", "steamapps"));
         string[] names = {};
         foreach (var game in games) {
-            names += Names.display_name (game.executable, read_cmdline (game.pid), dirs);
+            names += Names.display_name (game.executable, read_chain (game.pid), dirs);
         }
+        names = Names.unique (names);
         message ("Game Mode games: %s", string.joinv (", ", names));
 
         if (games_box == null) {
@@ -113,6 +114,30 @@ public class GameModeIndicator.Indicator : Wingpanel.Indicator {
             });
         }
         games_box.show_all ();
+    }
+
+    /*
+     * The process and its ancestors as they are now, nearest first. Bounded,
+     * so a pid reused mid-walk cannot loop it.
+     */
+    private static Names.Proc[] read_chain (int pid) {
+        Names.Proc[] chain = {};
+        for (int depth = 0; depth < 32 && pid > 1; depth++) {
+            string? exe = null;
+            try {
+                exe = FileUtils.read_link ("/proc/%d/exe".printf (pid));
+            } catch (FileError e) {
+            }
+            chain += Names.Proc () { exe = exe, args = read_cmdline (pid) };
+            string stat;
+            try {
+                FileUtils.get_contents ("/proc/%d/stat".printf (pid), out stat);
+            } catch (FileError e) {
+                break;
+            }
+            pid = Names.ppid_from_stat (stat);
+        }
+        return chain;
     }
 
     /* Null when the process is already gone. */
