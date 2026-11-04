@@ -5,7 +5,9 @@ icons_core_sources = files(
     'IconMath.vala',
 )
 
-icons_sources = icons_core_sources
+icons_sources = icons_core_sources + files(
+    'IconResolution.vala',
+)
 
 icons_test = executable(
     'icon-math-test',

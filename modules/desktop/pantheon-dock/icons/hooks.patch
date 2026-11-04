@@ -1,3 +1,117 @@
+diff --git a/src/AppSystem/Launcher.vala b/src/AppSystem/Launcher.vala
+index 9d453500..e1f87ec0 100644
+--- a/src/AppSystem/Launcher.vala
++++ b/src/AppSystem/Launcher.vala
+@@ -104,11 +104,11 @@ public class Dock.Launcher : BaseItem {
+         image = new Gtk.Image ();
+ 
+         var icon = app.app_info.get_icon ();
+-        if (icon != null && Gtk.IconTheme.get_for_display (Gdk.Display.get_default ()).has_gicon (icon)) {
+-            image.gicon = icon;
+-        } else {
+-            image.gicon = new ThemedIcon ("application-default-icon");
++        if (icon == null || !Gtk.IconTheme.get_for_display (Gdk.Display.get_default ()).has_gicon (icon)) {
++            icon = new ThemedIcon ("application-default-icon");
+         }
++        var resolution = IconResolution.attach (image, icon);
++        bind_property ("render-scale", resolution, "render-scale", SYNC_CREATE);
+ 
+         badge = new Gtk.Label ("!");
+         badge.add_css_class (Granite.STYLE_CLASS_BADGE);
+diff --git a/src/BaseIconGroup.vala b/src/BaseIconGroup.vala
+index 6e086d17..b43c8c19 100644
+--- a/src/BaseIconGroup.vala
++++ b/src/BaseIconGroup.vala
+@@ -25,7 +25,9 @@ public abstract class Dock.BaseIconGroup : ContainerItem {
+     }
+ 
+     private Gtk.Widget create_flow_box_child (Object? item) {
+-        var image = new Gtk.Image.from_gicon ((Icon) item);
++        var image = new Gtk.Image ();
++        var resolution = IconResolution.attach (image, (Icon) item);
++        bind_property ("render-scale", resolution, "render-scale", SYNC_CREATE);
+         bind_property ("icon-size", image, "pixel-size", SYNC_CREATE, (binding, from_value, ref to_value) => {
+             var icon_size = from_value.get_int ();
+             to_value.set_int (get_pixel_size (icon_size));
+diff --git a/src/BaseItem.vala b/src/BaseItem.vala
+index dedc1589..b38bfc6b 100644
+--- a/src/BaseItem.vala
++++ b/src/BaseItem.vala
+@@ -35,6 +35,9 @@ public class Dock.BaseItem : Gtk.Box {
+ 
+     /** Scale applied by the parent ItemGroup; 1.0 at rest. */
+     public double zoom { get; set; default = 1.0; }
++
++    /** The scale icons inside this item rasterize at: IconMath.render_scale_for (zoom). */
++    public int render_scale { get; private set; default = 1; }
+     public new string tooltip_text { get; set; }
+ 
+     private bool _moving;
+@@ -109,6 +112,7 @@ public class Dock.BaseItem : Gtk.Box {
+ 
+         // A method, not a lambda: subclasses replace popover_menu after this construct.
+         notify["zoom"].connect (lift_popovers);
++        notify["zoom"].connect (update_render_scale);
+ 
+         bind_property ("tooltip-text", tooltip_label, "label");
+ 
+@@ -244,6 +248,15 @@ public class Dock.BaseItem : Gtk.Box {
+      * and BackgroundItem's menus, and the stacks' FanPopover and GridPopover. So the
+      * offset is -1 - rise rather than a resting offset read back and kept.
+      */
++    // Changes only when the zoom crosses a whole number, so images look their icon up
++    // again a few times per hover, not every frame.
++    private void update_render_scale () {
++        var scale = IconMath.render_scale_for (zoom);
++        if (scale != render_scale) {
++            render_scale = scale;
++        }
++    }
++
+     private void lift_popovers () {
+         var rise = (int) Math.ceil ((zoom - 1.0) * get_icon_bottom (get_height ()));
+         popover_tooltip.set_offset (0, -1 - rise);
+diff --git a/src/WorkspaceSystem/DynamicWorkspaceItem.vala b/src/WorkspaceSystem/DynamicWorkspaceItem.vala
+index 9cac739f..c9f039cb 100644
+--- a/src/WorkspaceSystem/DynamicWorkspaceItem.vala
++++ b/src/WorkspaceSystem/DynamicWorkspaceItem.vala
+@@ -7,6 +7,7 @@ public class Dock.DynamicWorkspaceIcon : ContainerItem, WorkspaceItem {
+     public int workspace_index { get { return (int) WorkspaceSystem.get_default ().workspaces.get_n_items (); } }
+ 
+     private Gtk.Image image;
++    private IconResolution resolution;
+ 
+     public DynamicWorkspaceIcon () {
+         Object (group: Group.NONE);
+@@ -15,10 +16,12 @@ public class Dock.DynamicWorkspaceIcon : ContainerItem, WorkspaceItem {
+     construct {
+         var keybinding_settings = new GLib.Settings ("io.elementary.desktop.wm.keybindings");
+ 
+-        image = new Gtk.Image.from_icon_name ("list-add-symbolic") {
++        image = new Gtk.Image () {
+             hexpand = true,
+             vexpand = true
+         };
++        resolution = IconResolution.attach (image, new ThemedIcon ("list-add-symbolic"));
++        bind_property ("render-scale", resolution, "render-scale", SYNC_CREATE);
+         image.add_css_class ("add-image");
+ 
+         child = image;
+@@ -70,12 +73,12 @@ public class Dock.DynamicWorkspaceIcon : ContainerItem, WorkspaceItem {
+     }
+ 
+     public void window_entered (Window window) {
+-        image.gicon = window.icon;
++        resolution.icon = window.icon;
+         set_state_flags (DROP_ACTIVE, false);
+     }
+ 
+     public void window_left () {
+-        image.icon_name = "list-add-symbolic";
++        resolution.icon = new ThemedIcon ("list-add-symbolic");
+         unset_state_flags (DROP_ACTIVE);
+     }
+ }
 diff --git a/src/meson.build b/src/meson.build
 index 7abcf199..9967ce9f 100644
 --- a/src/meson.build
