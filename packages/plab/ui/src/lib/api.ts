@@ -80,7 +80,6 @@ export async function streamCall<T>(path: string, method = 'GET'): Promise<T> {
 const A = '/api/assistant';
 export const fetchConversations = () => getJson<ConversationSummary[]>(`${A}/conversations`);
 export const fetchConversation = (id: number) => getJson<Conversation>(`${A}/conversations/${id}`);
-export const postRecommend = () => sendJson<Conversation>(`${A}/recommend`, 'POST');
 export const postChat = (text: string) => sendJson<Conversation>(`${A}/conversations`, 'POST', { text });
 export const postMessage = (id: number, text: string) =>
   sendJson<Conversation>(`${A}/conversations/${id}/messages`, 'POST', { text });

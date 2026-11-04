@@ -2,15 +2,12 @@
   import { onMount } from 'svelte';
   import { lastFailed, resolvePick } from '../lib/assistant';
   import { assistant } from '../lib/assistant.svelte';
-  import { FilterState } from '../lib/filters.svelte';
   import { link, router } from '../lib/router.svelte';
-  import Card from './Card.svelte';
   import Gallery from './Gallery.svelte';
   import Navbar from './Navbar.svelte';
+  import Picks from './Picks.svelte';
   import Player from './Player.svelte';
-  import SceneCard from './SceneCard.svelte';
 
-  const fs = new FilterState(null);
   let draft = $state('');
   let gallery = $state<ReturnType<typeof Gallery>>();
   let player = $state<ReturnType<typeof Player>>();
@@ -33,10 +30,7 @@
 <Navbar />
 <div class="grid md:grid-cols-[16rem_1fr] gap-4">
   <aside class="flex flex-col gap-2">
-    <div class="flex gap-2">
-      <button class="btn btn-primary btn-sm flex-1" disabled={assistant.busy} onclick={() => assistant.recommend()}>Recommend</button>
-      <a class="btn btn-sm" href="/assistant" use:link>New chat</a>
-    </div>
+    <a class="btn btn-sm" href="/assistant" use:link>New chat</a>
     <ul class="menu menu-sm bg-base-200 rounded-box w-full">
       {#each assistant.list as c (c.id)}
         <li class="flex-row">
@@ -77,34 +71,15 @@
         {:else}
           <div class="chat chat-start"><div class="chat-bubble chat-bubble-neutral whitespace-pre-wrap">{turn.text}</div></div>
           {#if turn.picks.length}
-            <div class="grid gap-3 grid-cols-[repeat(auto-fill,minmax(18rem,1fr))]">
-              {#each turn.picks as pick, i (i)}
-                {@const r = resolvePick(c, pick)}
-                {#if r?.kind === 'topic'}
-                  <div class="flex flex-col gap-1">
-                    <span class="text-sm italic"><span class="badge badge-sm mr-1">{pick.action}</span>{pick.reason}</span>
-                    <Card
-                      topic={r.topic}
-                      section={r.topic.section}
-                      now={c.now}
-                      topicUrl={c.topicUrl}
-                      isNew={false}
-                      {fs}
-                      stream={true}
-                      ongallery={(images) => gallery?.open(images)}
-                      onstream={(id) => player?.open(id)}
-                    />
-                  </div>
-                {:else if r?.kind === 'scene'}
-                  <SceneCard scene={r.scene} reason={pick.reason} />
-                {/if}
-              {/each}
-            </div>
+            {@const items = turn.picks.map((p) => resolvePick(c, p)).filter((r) => r !== null)}
+            {#if items.length}
+              <Picks {c} {items} ongallery={(images) => gallery?.open(images)} onstream={(id) => player?.open(id)} />
+            {/if}
           {/if}
         {/if}
       {/each}
     {:else}
-      <p class="text-base-content/60">Press Recommend for picks from your recent views, or ask something below.</p>
+      <p class="text-base-content/60">Ask something below; today's picks are on For you.</p>
     {/if}
 
     {#if assistant.busy}<div class="flex items-center gap-2 text-sm"><span class="loading loading-dots loading-sm"></span>Thinking…</div>{/if}

@@ -4,7 +4,6 @@ import {
   fetchConversations,
   postChat,
   postMessage,
-  postRecommend,
   postRetry,
 } from './api';
 import { openTarget, shouldNavigate, upsertSummary } from './assistant';
@@ -83,7 +82,6 @@ class AssistantStore {
     }
   }
 
-  recommend = () => this.run(postRecommend);
   newChat = (text: string) => this.run(() => postChat(text));
   send = (text: string) => {
     const c = this.current;
