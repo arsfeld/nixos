@@ -34,10 +34,12 @@ No migration. A daily is a `kind = 'recommend'` conversation, as made by
 
 Three derived facts, all computed from `db`:
 
-- **Shown daily**: the newest recommend conversation whose last assistant turn has at
-  least one pick. That is today's if it succeeded, or else the last good one.
-- **Attempted today**: some recommend conversation has a `created_at` that falls on
-  today's local date, whatever its outcome.
+- **Shown daily**: the newest recommend conversation whose first answer (the reply to the
+  canned ask) has at least one pick. That is today's if it succeeded, or else the last good one.
+- **Attempted today**: the newest recommend conversation has a `created_at` that falls on
+  today's local date, whatever its outcome. Its error is today's error: the answer's
+  `plab_error`, "did not finish" when there is no answer, or "had no picks" when the answer
+  has none.
 - **Followed up**: a recommend conversation with more than one user turn.
 
 ## Server
@@ -47,17 +49,20 @@ Three derived facts, all computed from `db`:
 `Assistant` gains a `daily_running: AtomicBool`, set with `compare_exchange`, plus a method:
 
 ```rust
-/// Start today's recommendations on a detached task unless today has been attempted or one is
-/// running. Returns whether a generation is now running.
-pub fn ensure_daily(self: &Arc<Self>, db: Db, events: Events, now: i64) -> bool
+/// Start today's picks on their own task, unless today has been attempted (`force` skips
+/// that check) or a generation is running. Ok(true): one was started.
+pub fn ensure_daily(self: &Arc<Self>, db: &Db, events: &Events, now: i64, force: bool)
+    -> Result<bool, TurnError>
 ```
 
-- If today has been attempted and nothing is running, it returns `false` and does nothing.
-- Otherwise it sets the flag, and `tokio::spawn`s `start(Recommend)`, pruning, and then an
-  event. The task clears the flag when it ends, on success or failure. So concurrent requests
-  start exactly one generation.
-- `ensure_daily` returns `false` without spawning when `ready()` fails (no key, or no
-  prompt). The GET then reports the reason, as the other endpoints do.
+- If today has been attempted and nothing is running, an unforced call returns `Ok(false)`
+  and does nothing. While one runs, an unforced call is `Ok(false)` and a forced one `Busy`.
+- Otherwise it sets the flag, and `tokio::spawn`s `start(Recommend)` and pruning. A guard
+  clears the flag and then publishes the event when the task ends, however it ends (a panic
+  included). So concurrent requests start exactly one generation.
+- `ensure_daily` is `Err(NotReady)` without spawning when `ready()` fails (no prompt; with no
+  key there is no `Assistant` at all). The GET then reports the reason, as the other
+  endpoints do.
 
 ### Failure
 
@@ -66,7 +71,9 @@ A failed generation stays stored as today's conversation, with its `plab_error` 
 keeps a broken model or prompt from costing a call per page load. The shown daily stays
 the last good one, and the GET carries today's error. **Refresh** is the explicit retry.
 
-A restart does not reset this: "attempted today" lives in the DB, not in memory.
+A restart does not reset this: "attempted today" lives in the DB, not in memory. If even
+storing the failure fails, an in-memory backstop (`last_attempt`, the local day of the last
+start) still counts today as attempted until the next restart.
 
 ### Pruning
 
@@ -83,7 +90,7 @@ re-GET.
 
 | Method and path | Purpose |
 |---|---|
-| `GET /api/assistant/daily` | Call `ensure_daily`; return `{conversation, generatedOn, refreshing, error}` |
+| `GET /api/assistant/daily` | Call `ensure_daily`; return `{conversation, generatedOn, refreshing, error, ready}` |
 | `POST /api/assistant/daily/refresh` | Start a new daily even if today was attempted; 409 while one runs; returns as GET |
 
 - `conversation` is the shown daily as the existing `ConversationDto`, or `null` before
@@ -92,6 +99,8 @@ re-GET.
 - `refreshing` is whether a generation is running.
 - `error` is the error text of today's attempt when that attempt failed, or a `ready()`
   reason (no key or prompt); otherwise `null`.
+- `ready` is `false` when there is no key or no prompt, so the UI hides Refresh and Retry
+  (which would only answer 503).
 
 The GET answers 200 even when the assistant is not ready, because For you is now the
 landing page and must render. The reason travels in `error`.
@@ -134,16 +143,16 @@ Recommend button.
 ### Shared pick rendering
 
 The pick grid moves out of `AssistantView.svelte` into `Picks.svelte`, which takes the
-conversation, its picks, a `grouped` flag, and the gallery and player callbacks. Both
-views use it.
+conversation, its picks, and the gallery and player callbacks. Both views use it; the
+grouping into Watch and Stream / download lives in `DailyView`.
 
 ### Stores
 
-`lib/daily.svelte.ts` holds `{conversation, generatedOn, refreshing, error}`:
+`lib/daily.svelte.ts` holds `{conversation, generatedOn, refreshing, error, ready}`:
 
 - It loads on mount of `DailyView`.
 - It re-fetches on `assistantDaily` and on SSE reconnect while the route is `daily`.
-- `refresh()` POSTs and adopts the response.
+- `refresh()` POSTs and adopts the response, unless a later load (the event's) started.
 
 The pure parts (grouping picks by action, the header state) live in `lib/daily.ts` for
 vitest.
