@@ -51,7 +51,43 @@ public class Dock.IconResolution : Object {
             return;
         }
         var scale = IconMath.lookup_scale (image.get_scale_factor (), oversample, render_scale);
-        image.paintable = Gtk.IconTheme.get_for_display (image.get_display ())
-            .lookup_by_gicon (icon, image.pixel_size, scale, image.get_direction (), 0);
+        // Not the Gtk.IconPaintable itself: gtk_icon_helper_load_paintable () (gtk/gtkiconhelper.c)
+        // resets the "scale" of a bare Gtk.IconPaintable to the widget's scale factor, which
+        // discards the lookup scale above. A wrapper is not one, so the bitmap survives.
+        image.paintable = new SharpPaintable (Gtk.IconTheme.get_for_display (image.get_display ())
+            .lookup_by_gicon (icon, image.pixel_size, scale, image.get_direction (), 0));
+    }
+}
+
+/* Hands every call to a Gtk.IconPaintable, so Gtk.Image treats it as an opaque paintable. */
+private class Dock.SharpPaintable : Object, Gdk.Paintable, Gtk.SymbolicPaintable {
+    private Gtk.IconPaintable inner;
+
+    public SharpPaintable (Gtk.IconPaintable inner) {
+        this.inner = inner;
+    }
+
+    public void snapshot (Gdk.Snapshot snapshot, double width, double height) {
+        inner.snapshot (snapshot, width, height);
+    }
+
+    public void snapshot_symbolic (Gdk.Snapshot snapshot, double width, double height, Gdk.RGBA[] colors) {
+        inner.snapshot_symbolic (snapshot, width, height, colors);
+    }
+
+    public void snapshot_with_weight (Gdk.Snapshot snapshot, double width, double height, Gdk.RGBA[] colors, double weight) {
+        inner.snapshot_with_weight (snapshot, width, height, colors, weight);
+    }
+
+    public int get_intrinsic_width () {
+        return inner.get_intrinsic_width ();
+    }
+
+    public int get_intrinsic_height () {
+        return inner.get_intrinsic_height ();
+    }
+
+    public Gdk.PaintableFlags get_flags () {
+        return Gdk.PaintableFlags.STATIC_SIZE | Gdk.PaintableFlags.STATIC_CONTENTS;
     }
 }
