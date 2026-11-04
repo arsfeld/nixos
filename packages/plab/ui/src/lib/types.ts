@@ -99,7 +99,8 @@ export type ServerEvent =
   | { type: 'topicStatus'; id: number; status: Status | null }
   | ({ type: 'job' } & Job)
   | { type: 'listing'; section: Section }
-  | { type: 'resync' };
+  | { type: 'resync' }
+  | { type: 'assistantDaily' };
 
 export interface StreamFile {
   index: number;
@@ -163,4 +164,15 @@ export interface Conversation extends ConversationSummary {
   turns: TurnData[];
   topics: PickedTopic[];
   scenes: SceneCardData[];
+}
+
+/** GET /api/assistant/daily: the picks For you shows. */
+export interface Daily {
+  conversation: Conversation | null;
+  /** The local date the shown picks were made, YYYY-MM-DD. */
+  generatedOn: string | null;
+  /** Today's picks are being made; an `assistantDaily` event follows. */
+  refreshing: boolean;
+  /** Today's attempt failed, or the assistant is not set up. */
+  error: string | null;
 }
