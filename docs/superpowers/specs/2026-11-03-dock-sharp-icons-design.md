@@ -37,10 +37,13 @@ Every icon stays a `Gtk.Image`, so the dock's CSS keeps applying: the `-gtk-icon
 on `.stack-icon`, symbolic recoloring, icon filters. A replacement widget would lose them.
 
 `IconResolution` is attached to one `Gtk.Image` and owns its icon. Instead of setting
-`gicon`, it sets `paintable` to
+`gicon`, it sets `paintable` to a private `SharpPaintable` that delegates to
 `Gtk.IconTheme.lookup_by_gicon (icon, pixel_size, lookup_scale, direction, 0)`, while
 `pixel_size` stays the logical size. The image lays out exactly as before, and its bitmap
 carries `render_scale` times the pixels. `FileIcon` thumbnails take the same path.
+`SharpPaintable` implements `Gdk.Paintable` and `Gtk.SymbolicPaintable` and forwards every
+call to the `Gtk.IconPaintable`; it exists because `Gtk.Image` resets the scale of a bare
+`Gtk.IconPaintable` (see below).
 
 It holds `icon` and `render_scale` (int, ≥ 1) as properties, and re-runs the lookup when
 either changes, or when the image's `pixel-size` or `scale-factor` changes, or when the
@@ -51,19 +54,22 @@ The lookup scale is
 `IconMath.lookup_scale (surface_scale, oversample, render_scale) = ceil (surface_scale × oversample × render_scale)`.
 `IconMath` is pure and unit-tested, like `ZoomMath`.
 
-**Assumption checked first, before anything is built on it:** `Gtk.Image` draws a
+**Assumption checked first, and what was found:** the design assumed `Gtk.Image` draws a
 paintable at `pixel_size` (not at the paintable's intrinsic size) and applies
-`-gtk-icon-shadow` to it. That is GTK 4's `GtkIconHelper` behavior. If either fails on
-screen, the helper becomes a small widget that snapshots the paintable itself, with the
-shadow moved to a CSS `box-shadow` or a `filter` on that widget.
+`-gtk-icon-shadow` to it. That held. A third behavior was not assumed and did not hold:
+`gtk_icon_helper_load_paintable ()` (`gtk/gtkiconhelper.c`, GTK 4.22, around lines 129-132)
+resets the `scale` of a bare `Gtk.IconPaintable` to the widget's scale factor, so setting
+the `lookup_by_gicon` result directly gave back the 1× bitmap. Wrapping it in
+`SharpPaintable`, which is not an icon paintable and so is not rescaled, is the fix. It
+keeps `Gtk.Image`, so the fallback of a hand-written widget with a CSS `box-shadow` was not
+needed.
 
 ### Where the extra resolution comes from
 
-- **Zoom.** `BaseItem` gains `render_scale` (int). It is `ceil (max_factor)` (2 at the
-  default 84/48) while the item's `zoom > 1`, and 1 at `zoom == 1`. `ZoomController`
-  exposes `max_factor`; the value changes only when an item crosses the zoom edge, never
-  per frame, so each crossing costs one icon lookup, which GTK's icon cache absorbs.
-  Resting items keep their native bitmaps, so the resting dock is unchanged.
+- **Zoom.** `BaseItem` gains `render_scale` (int), `IconMath.render_scale_for (zoom)`: 1 at
+  `zoom == 1`, else `ceil (zoom)` — 2 at the default 84/48, 3 above a zoom of 2. It is always
+  at least the zoom, so a bitmap is only ever shrunk, and it needs nothing from
+  `ZoomController`. Resting items keep their native bitmaps, so the resting dock is unchanged.
 - **Tilted slots.** `StackPile`'s tilted slots and `FanPopover`'s rows use
   `oversample = StackRender.OVERSAMPLE` (2). `StackRender.append_supersampled` takes a
   `render_scale` argument and renders its offscreen texture at
@@ -80,6 +86,7 @@ shadow moved to a CSS `box-shadow` or a `filter` on that widget.
 | `StackPile` upright slot | 1 | its item (through `StackPile.render_scale`) |
 | `StackPile` tilted slots | 2 | its item |
 | `BaseIconGroup` minis (upstream, via hook): the dock's 2×2 grid tile, and the workspace icon groups | 1 | its item |
+| `DynamicWorkspaceIcon` image (upstream, via hook): the "+" item | 1 | its item |
 | `FanPopover` row icons | 2 | 1 |
 
 `GridPopover` cells are already sharp and are not changed.
@@ -91,8 +98,8 @@ A new feature directory, `modules/desktop/pantheon-dock/icons/`:
 - `src/IconResolution.vala`, `src/IconMath.vala`, `src/tests/IconMathTest.vala`,
   `src/meson.build`;
 - `hooks.patch`, generated on top of `zoom`'s: adds `BaseItem.render_scale`, sets it from
-  `zoom` and `ZoomController.max_factor`, and hands `Launcher`'s image and
-  `BaseIconGroup.create_flow_box_child`'s images to `IconResolution`.
+  `zoom`, and hands `Launcher`'s image, `BaseIconGroup.create_flow_box_child`'s images
+  and `DynamicWorkspaceItem.vala`'s "+" image to `IconResolution`.
 
 It is appended to `features` in `default.nix` after `zoom`, with `dest = "Icons"`. The
 stacks sources are ours and are edited in place.
@@ -100,8 +107,8 @@ stacks sources are ours and are edited in place.
 ## Testing
 
 - **Unit:** `IconMathTest` covers `lookup_scale` (surface 1 and 2, oversample 1 and 2,
-  render_scale 1 and 2) and `render_scale_for (zoom, max_factor)`, including
-  `zoom == 1` → 1 and a `max_factor` above 2 → 3.
+  render_scale 1 and 2) and `render_scale_for (zoom)`, including
+  `zoom == 1` → 1, 1.75 → 2 and 104/48 → 3.
 - **Visual loop** (`CLAUDE.md`: `just pantheon::dock-run`, `just pantheon::shot`), with
   crops enlarged 4× nearest-neighbour, before and after:
   - the resting dock;

@@ -111,6 +111,26 @@ So the order is: deploy, then re-login (or restart the deployed dock with the lo
 - **valac's `warning ()` prefixes `File.vala:LINE: `.** A `Test.expect_message` pattern
   needs a leading `*`, and GLib tests make any unexpected warning fatal.
 
+## Icon resolution
+
+`Gtk.Image` rasterizes its icon for the widget's scale factor only. Anything that scales it
+afterwards — the zoom's item transform, `StackRender`'s supersampled texture — stretches a
+1× bitmap, which is what made zoomed and tilted icons blurry. So a dock image whose icon may
+be drawn larger than its `pixel_size` gets its icon through `IconResolution.attach (image,
+icon, oversample)` (`icons/src/`), never through `gicon`: set `icon` on the helper, bind
+`render-scale` from its `BaseItem`, and pass `StackRender.OVERSAMPLE` if it is painted
+tilted. `BaseItem.render_scale` is `ceil (zoom)` and 1 at rest, so resting icons keep their
+native bitmaps. Popover images that are neither zoomed nor tilted (the Applications grid)
+need none of this.
+
+The helper sets a private `SharpPaintable` wrapper on the image, not the `Gtk.IconPaintable`
+it looked up. `gtk_icon_helper_load_paintable ()` in GTK 4.22's `gtk/gtkiconhelper.c`
+(around lines 129-132) resets the `scale` of any bare `Gtk.IconPaintable` to the widget's
+scale factor, which silently throws the high-resolution lookup away. A wrapper is not an
+icon paintable, so GTK leaves it alone, and it still implements `Gtk.SymbolicPaintable`, so
+icon CSS (`-gtk-icon-shadow`, symbolic recolouring) keeps applying. Do not simplify it back
+to `image.paintable = <lookup result>`.
+
 ## GTK 4.22 and elementary's icons
 
 GTK 4.22 draws 399 of elementary-icon-theme's SVGs fully transparent, including
