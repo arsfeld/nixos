@@ -1,5 +1,5 @@
-//! The plab assistant: on-demand recommendations and chat over OpenRouter, with read-only
-//! tools. Every conversation is stored (`conversation`/`message` in state.db).
+//! The plab assistant: the daily picks on For you (made lazily, once per local day) and
+//! chat over OpenRouter, with read-only tools. Every conversation is stored (`conversation`/`message` in state.db).
 //! Design: docs/superpowers/specs/2026-11-03-plab-assistant-design.md
 
 pub mod context;
@@ -173,12 +173,17 @@ impl Drop for TurnGuard<'_> {
     }
 }
 
-/// Clears `daily_running` when a daily generation's task ends, however it ends.
-struct DailyGuard<'a>(&'a AtomicBool);
+/// When a daily generation's task ends, however it ends (a panic included), clears
+/// `daily_running` and then publishes `Event::AssistantDaily`, in that order.
+struct DailyGuard<'a> {
+    running: &'a AtomicBool,
+    events: crate::events::Events,
+}
 
 impl Drop for DailyGuard<'_> {
     fn drop(&mut self) {
-        self.0.store(false, Ordering::SeqCst);
+        self.running.store(false, Ordering::SeqCst);
+        self.events.publish(crate::events::Event::AssistantDaily);
     }
 }
 
@@ -189,12 +194,15 @@ pub struct Assistant {
     prompt: String,
     busy: Mutex<HashSet<i64>>,
     daily_running: AtomicBool,
+    /// The local day a daily generation was last started: a backstop for when its failure
+    /// could not be stored either, which would otherwise read as "not attempted today".
+    last_attempt: Mutex<Option<String>>,
     hide: crate::filters::HideRule,
 }
 
 impl Assistant {
     pub fn new(llm: OpenRouter, stash: Stash, model: String, prompt: String) -> Assistant {
-        Assistant { llm, stash, model, prompt, busy: Mutex::new(HashSet::new()), daily_running: AtomicBool::new(false), hide: crate::filters::HideRule::default() }
+        Assistant { llm, stash, model, prompt, busy: Mutex::new(HashSet::new()), daily_running: AtomicBool::new(false), last_attempt: Mutex::new(None), hide: crate::filters::HideRule::default() }
     }
 
     /// The exclude file's hide rule, applied to the Stash scenes the model sees.
@@ -243,8 +251,10 @@ impl Assistant {
         if self.daily_running.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
             return if force { Err(TurnError::Busy) } else { Ok(false) };
         }
+        let today = daily::local_ymd(now);
+        let mut last = self.last_attempt.lock().unwrap_or_else(|e| e.into_inner());
         let attempted = match daily::state(db, now) {
-            Ok(d) => d.attempted_today,
+            Ok(d) => d.attempted_today || last.as_deref() == Some(today.as_str()),
             Err(e) => {
                 self.daily_running.store(false, Ordering::SeqCst);
                 return Err(e.into());
@@ -254,12 +264,14 @@ impl Assistant {
             self.daily_running.store(false, Ordering::SeqCst);
             return Ok(false);
         }
+        *last = Some(today);
+        drop(last);
         let (a, db, events) = (Arc::clone(self), db.clone(), events.clone());
         tokio::spawn(async move {
-            let done = DailyGuard(&a.daily_running);
+            let done = DailyGuard { running: &a.daily_running, events };
             if let Err(e) = a.start(&db, Kind::Recommend, None, now).await {
-                // Failed before the conversation existed: store the failure as today's
-                // attempt anyway, or every refetch on the event below would start another.
+                // Failed without storing an answer: store the failure as today's
+                // attempt anyway, or every refetch on the guard's event would start another.
                 tracing::info!(job = "assistant", "daily picks: {e}");
                 let why = e.to_string();
                 let stored = db
@@ -278,7 +290,6 @@ impl Assistant {
                 Err(e) => tracing::warn!(job = "assistant", "pruning daily picks: {e:#}"),
             }
             drop(done);
-            events.publish(crate::events::Event::AssistantDaily);
         });
         Ok(true)
     }
@@ -486,6 +497,12 @@ mod tests {
         let d = daily::state(&db, NOON).unwrap();
         assert!(d.attempted_today && d.shown.is_none());
         assert!(d.error.unwrap().contains("OpenRouter"));
+        assert!(matches!(a.ensure_daily(&db, &events, NOON, false), Ok(false)));
+        // Had the failure not been stored either, the in-memory backstop still holds.
+        for row in db.conversations_of_kind("recommend").unwrap() {
+            db.delete_conversation(row.id).unwrap();
+        }
+        assert!(!daily::state(&db, NOON).unwrap().attempted_today);
         assert!(matches!(a.ensure_daily(&db, &events, NOON, false), Ok(false)));
     }
 

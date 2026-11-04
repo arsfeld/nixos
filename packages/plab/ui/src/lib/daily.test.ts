@@ -18,7 +18,7 @@ const conv: Conversation = {
   topics: [topic],
   scenes: [{ ref: 's:4', id: '4', title: 'S', studio: null, performers: [], screenshot: null, link: null }],
 };
-const d = (over: Partial<Daily>): Daily => ({ conversation: null, generatedOn: null, refreshing: false, error: null, ...over });
+const d = (over: Partial<Daily>): Daily => ({ conversation: null, generatedOn: null, refreshing: false, error: null, ready: true, ...over });
 
 describe('dailyAnswer', () => {
   it('is the first assistant turn, not a follow-up', () => {
@@ -40,6 +40,6 @@ describe('show', () => {
     expect(show(null)).toBe('loading');
     expect(show(d({ refreshing: true }))).toBe('first');
     expect(show(d({ conversation: conv, refreshing: true }))).toBe('picks');
-    expect(show(d({ error: 'no prompt' }))).toBe('empty');
+    expect(show(d({ error: 'no prompt', ready: false }))).toBe('empty');
   });
 });

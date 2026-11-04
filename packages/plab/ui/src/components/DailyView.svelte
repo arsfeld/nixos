@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { dailyAnswer, groupPicks, show } from '../lib/daily';
   import { daily } from '../lib/daily.svelte';
+  import { live } from '../lib/events.svelte';
   import { link } from '../lib/router.svelte';
   import Gallery from './Gallery.svelte';
   import Navbar from './Navbar.svelte';
@@ -13,6 +14,15 @@
   let expanded = $state(false);
 
   onMount(() => void daily.load());
+
+  // The first load can be answered before the event stream subscribes, so a generation that
+  // ends in between publishes an event nobody hears. Once both are in, load again if needed.
+  let synced = false;
+  $effect(() => {
+    if (synced || !live.connected || !daily.data) return;
+    synced = true;
+    if (daily.data.refreshing) void daily.load();
+  });
 
   const d = $derived(daily.data);
   const c = $derived(d?.conversation ?? null);
@@ -31,14 +41,18 @@
     {/if}
     <span class="flex-1"></span>
     {#if c}<a class="btn btn-sm" href={`/assistant/${c.id}`} use:link>Ask about these</a>{/if}
-    <button class="btn btn-primary btn-sm" disabled={daily.busy || d?.refreshing} onclick={() => daily.refresh()}>Refresh</button>
+    {#if d?.ready}
+      <button class="btn btn-primary btn-sm" disabled={daily.busy || d.refreshing} onclick={() => daily.refresh()}>Refresh</button>
+    {/if}
   </div>
 
   {#if daily.error}<div role="alert" class="alert alert-error">{daily.error}</div>{/if}
   {#if d?.error}
     <div role="alert" class="alert alert-error">
       <span>{d.error}</span>
-      <button class="btn btn-sm" disabled={daily.busy || d.refreshing} onclick={() => daily.refresh()}>Retry</button>
+      {#if d.ready}
+        <button class="btn btn-sm" disabled={daily.busy || d.refreshing} onclick={() => daily.refresh()}>Retry</button>
+      {/if}
     </div>
   {/if}
 
@@ -46,6 +60,8 @@
     <span class="loading loading-dots loading-md"></span>
   {:else if show(d) === 'first'}
     <div class="flex items-center gap-2 text-base-content/60"><span class="loading loading-dots loading-sm"></span>Picking for today…</div>
+  {:else if show(d) === 'empty' && !d?.error}
+    <p class="text-base-content/60">No picks yet.</p>
   {:else if c}
     {#if c.degraded.includes('stash')}
       <div role="alert" class="alert alert-warning text-sm">Stash could not be reached: no watch picks, and the profile has only streams.</div>

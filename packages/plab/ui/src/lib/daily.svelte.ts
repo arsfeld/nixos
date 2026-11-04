@@ -30,12 +30,17 @@ class DailyStore {
   async refresh() {
     if (this.busy || this.data?.refreshing) return;
     this.busy = true;
-    this.latest.next('load'); // a load in flight must not overwrite this answer
+    // A load in flight must not overwrite this answer, nor this answer a later load (the
+    // one the `assistantDaily` event starts, if the generation ends first).
+    const token = this.latest.next('load');
     try {
-      this.data = await postDailyRefresh();
-      this.error = null;
+      const d = await postDailyRefresh();
+      if (this.latest.current('load', token)) {
+        this.data = d;
+        this.error = null;
+      }
     } catch (e) {
-      this.error = message(e);
+      if (this.latest.current('load', token)) this.error = message(e);
     } finally {
       this.busy = false;
     }

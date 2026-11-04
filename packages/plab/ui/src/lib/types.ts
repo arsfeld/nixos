@@ -175,4 +175,6 @@ export interface Daily {
   refreshing: boolean;
   /** Today's attempt failed, or the assistant is not set up. */
   error: string | null;
+  /** The assistant can make picks (it has a key and a prompt); Refresh needs it. */
+  ready: boolean;
 }

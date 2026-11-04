@@ -16,7 +16,8 @@
       topics.apply(ev);
       jobs.apply(ev);
       assistant.apply(ev);
-      daily.apply(ev);
+      // A finished generation matters only on For you, which loads again on mount anyway.
+      if (ev.type !== 'assistantDaily' || router.route.view === 'daily') daily.apply(ev);
     });
     live.onReconnect(() => {
       topics.resync(router.route.view);

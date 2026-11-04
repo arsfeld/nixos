@@ -1131,6 +1131,7 @@ async fn assistant_off_without_a_key() {
     let j = r.json();
     assert_eq!(j["conversation"], Value::Null);
     assert_eq!(j["refreshing"], false);
+    assert_eq!(j["ready"], false);
     assert!(j["error"].as_str().unwrap().contains("OpenRouter"));
     assert_eq!(fx.post("/api/assistant/daily/refresh").await.status, 503);
 }
@@ -1151,6 +1152,7 @@ async fn the_daily_resolves_picks_and_drops_unknown_refs() {
     fx.save_video(&[listed(row(5, "Alpha One"), &[COVER])]);
     let d = daily_done(&fx).await;
     assert_eq!(d["error"], Value::Null);
+    assert_eq!(d["ready"], true);
     assert_eq!(d["generatedOn"], crate::assistant::daily::local_ymd(now()));
     let j = d["conversation"].clone();
     let turn = j["turns"].as_array().unwrap().last().unwrap().clone();
@@ -1243,6 +1245,7 @@ async fn the_daily_says_why_the_assistant_is_not_ready() {
     let r = fx.get("/api/assistant/daily").await;
     assert_eq!(r.status, 200);
     assert!(r.json()["error"].as_str().unwrap().contains("prompt"));
+    assert_eq!(r.json()["ready"], false);
     assert_eq!(fx.post("/api/assistant/daily/refresh").await.status, 503);
 }
 

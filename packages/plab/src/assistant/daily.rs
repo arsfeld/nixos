@@ -28,7 +28,8 @@ pub struct Daily {
     pub shown: Option<ConversationRow>,
     /// The newest recommend conversation was created today, whatever came of it.
     pub attempted_today: bool,
-    /// Today's attempt has no good answer: its error, or that it never finished.
+    /// Today's attempt has no good answer: its error, that it never finished, or that
+    /// it had no picks.
     pub error: Option<String>,
 }
 
@@ -72,7 +73,11 @@ pub fn state(db: &Db, now: i64) -> Result<Daily> {
         if i == 0 && local_ymd(row.created_at) == today {
             d.attempted_today = true;
             d.error = match answer {
-                Some(v) => error_of(v).map(str::to_owned),
+                Some(v) => match error_of(v) {
+                    Some(e) => Some(e.to_owned()),
+                    None if !has_picks(answer) => Some("today's answer had no picks".into()),
+                    None => None,
+                },
                 None => Some("today's picks did not finish".into()),
             };
         }
@@ -181,6 +186,19 @@ mod tests {
         let db = Db::open_in_memory().unwrap();
         conv(&db, NOON - DAY, &[ask(), answer(json!([]))]);
         assert_eq!(state(&db, NOON).unwrap().shown, None);
+    }
+
+    #[test]
+    fn a_today_answer_without_picks_is_an_error() {
+        let db = Db::open_in_memory().unwrap();
+        let y = conv(&db, NOON - DAY, &good());
+        conv(&db, NOON, &[ask(), answer(json!([]))]);
+        let d = state(&db, NOON).unwrap();
+        assert_eq!(d.shown.map(|r| r.id), Some(y));
+        assert_eq!(d.error.as_deref(), Some("today's answer had no picks"));
+        let db = Db::open_in_memory().unwrap();
+        conv(&db, NOON, &[ask(), json!({"role": "assistant", "content": "not json"})]);
+        assert_eq!(state(&db, NOON).unwrap().error.as_deref(), Some("today's answer had no picks"));
     }
 
     #[test]

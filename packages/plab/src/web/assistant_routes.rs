@@ -284,6 +284,8 @@ struct DailyDto {
     generated_on: Option<String>,
     refreshing: bool,
     error: Option<String>,
+    /// The assistant can make picks: false without a key or a prompt, so Refresh is hidden.
+    ready: bool,
 }
 
 /// For you. A GET starts today's picks if they have not been attempted; Refresh (`force`)
@@ -301,6 +303,7 @@ async fn daily<B: Backends>(st: &WebState<B>, force: bool) -> Response<Body> {
             generated_on: None,
             refreshing: false,
             error: Some(NO_KEY.into()),
+            ready: false,
         });
     };
     let mut not_ready = None;
@@ -313,7 +316,6 @@ async fn daily<B: Backends>(st: &WebState<B>, force: bool) -> Response<Body> {
         Ok(d) => d,
         Err(e) => return text(500, format!("{e:#}")),
     };
-    let refreshing = arc.daily_running();
     let conversation = match &d.shown {
         Some(row) => match build(st, &arc, row.id).await {
             Ok(c) => Some(c),
@@ -321,10 +323,15 @@ async fn daily<B: Backends>(st: &WebState<B>, force: bool) -> Response<Body> {
         },
         None => None,
     };
+    // Read last, so a generation that ended meanwhile is not reported as still running: its
+    // `assistantDaily` event is published after the flag clears, and a client's refetch on
+    // it must be able to land after (and win over) this answer.
+    let refreshing = arc.daily_running();
     json_body(&DailyDto {
         conversation,
         generated_on: d.shown.as_ref().map(|r| assistant::daily::local_ymd(r.created_at)),
         refreshing,
+        ready: not_ready.is_none(),
         error: not_ready.or(if refreshing { None } else { d.error }),
     })
 }
