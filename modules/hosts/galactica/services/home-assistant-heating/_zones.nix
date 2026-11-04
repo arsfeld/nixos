@@ -14,6 +14,9 @@
 #   devices      the baseboards this zone's target drives
 #   assist       an entity whose "on" marks a pre-heat as helped, so its
 #                rate is not learned
+#   outdoor      [threshold cap] steps: once it is threshold °C or warmer
+#                outside (sensor.outdoor_weather_hilo), window and pre-heat
+#                targets are capped at cap; the lowest reached cap wins
 {
   # Heat pump zone. Its own baseboards (living_room_1, dining_room) only
   # close a shortfall or back it up; see default.nix.
@@ -61,6 +64,9 @@
     weekday = [["08:30" "17:00" 21] ["17:00" "20:30" 19] ["20:30" "24:00" 21]];
     weekend = [["08:30" "20:30" 19] ["20:30" "24:00" 21]];
     presence = true;
+    # The basement holds heat on mild days: 21 below 0°C, 20 from 0°C, 19
+    # from 10°C outside. Boost stays 21.
+    outdoor = [[0 20] [10 19]];
     boost = {
       helper = "office";
       target = 21;

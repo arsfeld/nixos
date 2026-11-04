@@ -52,7 +52,9 @@ in rec {
       {%- if latched or m >= nw[0] - lead %}
         {%- set p.target = nw[2] %}
         {%- set p.reason = 'preheat' %}
-        {%- set p.window = nw[0] %}
+        {%- set p.window = nw[0] %}${lib.optionalString (zone.outdoor != []) ''
+
+      {%- set p.outdoor_cap = nw[2] if nw[3] > nw[2] else none %}''}
         {%- set p.minutes = nw[0] - m %}
         {%- set p.since = prev.get('since') if latched else n.timestamp() %}
         {%- set p.from_temp = prev.get('from_temp') if latched else temp %}
@@ -60,6 +62,23 @@ in rec {
         {%- set p.reached = (latched and prev.get('reached', false)) or (temp is not none and temp >= nw[2]) %}
       {%- endif %}
     {%- endif %}
+  '';
+
+  # On a mild day a zone needs less: each `outdoor` step [threshold cap] whose
+  # threshold the outside temperature has reached caps every window's target,
+  # the lowest such cap winning. Rewrites `wins` as [from to capped original].
+  # Boost, base and away are never capped, and an unknown outside temperature
+  # caps nothing.
+  outdoorCap = zone: ''
+    {%- set outside = states('sensor.outdoor_weather_hilo') | float(none) %}
+    {%- set cap = namespace(v=99, wins=[]) %}
+    {%- for s in ${builtins.toJSON zone.outdoor} if outside is not none and outside >= s[0] %}
+      {%- set cap.v = [cap.v, s[1]] | min %}
+    {%- endfor %}
+    {%- for w in wins %}
+      {%- set cap.wins = cap.wins + [[w[0], w[1], [w[2], cap.v] | min, w[2]]] %}
+    {%- endfor %}
+    {%- set wins = cap.wins %}
   '';
 
   # Sets namespace `p` to what the zone wants now. Highest precedence first:
@@ -77,7 +96,7 @@ in rec {
     {%- set n = now() %}
     {%- set m = n.hour * 60 + n.minute %}
     {%- set prev = this.attributes %}
-    {%- set p = namespace(target=${num zone.base}, reason='base', window=none, minutes=none, start=none, since=none, from_temp=none, assisted=false, reached=false) %}
+    {%- set p = namespace(target=${num zone.base}, reason='base', window=none, minutes=none, start=none, since=none, from_temp=none, assisted=false, reached=false, outdoor_cap=none) %}
     {%- if ${boostOn} %}
       {%- set p.target = ${
       if zone.boost == null
@@ -89,9 +108,12 @@ in rec {
       {%- set p.reason = 'away' %}
     {%- else %}
       {%- set wins = ${builtins.toJSON (windows zone.weekday)} if n.weekday() < 5 else ${builtins.toJSON (windows zone.weekend)} %}
+    ${lib.optionalString (zone.outdoor != []) (outdoorCap zone)}
       {%- for w in wins if w[0] <= m < w[1] %}
         {%- set p.target = w[2] %}
-        {%- set p.reason = 'schedule' %}
+        {%- set p.reason = 'schedule' %}${lib.optionalString (zone.outdoor != []) ''
+
+      {%- set p.outdoor_cap = w[2] if w[3] > w[2] else none %}''}
       {%- endfor %}
     ${lib.optionalString (zone.rate != null) (preheat zone)}
     {%- endif %}

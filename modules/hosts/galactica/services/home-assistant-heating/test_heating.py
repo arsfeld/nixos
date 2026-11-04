@@ -94,6 +94,44 @@ class OfficeTarget(unittest.TestCase):
         self.assertEqual((r.value, r.attributes["reason"]), (21, "boost"))
 
 
+def outside(degrees, **extra):
+    return {"sensor.outdoor_weather_hilo": degrees, **extra}
+
+
+class OfficeOutdoorCap(unittest.TestCase):
+    def test_steps_down_as_it_warms_outside(self):
+        for degrees, want in {"-5": 21, "0": 20, "5": 20, "9": 20, "10": 19, "12": 19}.items():
+            with self.subTest(degrees):
+                self.assertEqual(office(at(MONDAY, "10:00"), temp="20.0", extra=outside(degrees)).value, want)
+
+    def test_reports_the_cap(self):
+        self.assertEqual(office(at(MONDAY, "10:00"), extra=outside("12")).attributes["outdoor_cap"], 19)
+        self.assertIsNone(office(at(MONDAY, "10:00"), extra=outside("-5")).attributes["outdoor_cap"])
+
+    def test_19_window_is_unaffected(self):
+        r = office(at(MONDAY, "18:00"), temp="19.0", extra=outside("12"))
+        self.assertEqual((r.value, r.attributes["outdoor_cap"]), (19, None))
+
+    def test_no_evening_preheat_when_capped_at_the_room(self):
+        r = office(at(MONDAY, "20:00"), temp="19.0", extra=outside("12"))
+        self.assertEqual((r.value, r.attributes["reason"], r.attributes["start"]), (19, "schedule", None))
+
+    def test_preheat_aims_at_the_cap(self):
+        # (20 - 18) / 1.5 °C/h = 80 min before 08:30
+        r = office(at(MONDAY, "07:30"), extra=outside("5"))
+        self.assertEqual((r.value, r.attributes["reason"], r.attributes["outdoor_cap"]), (20, "preheat", 20))
+
+    def test_boost_stays_21(self):
+        r = office(at(MONDAY, "10:00"), extra=outside("12", **{"input_boolean.heating_boost_office": "on"}))
+        self.assertEqual((r.value, r.attributes["reason"]), (21, "boost"))
+
+    def test_unknown_outside_caps_nothing(self):
+        self.assertEqual(office(at(MONDAY, "10:00"), extra=outside("unavailable")).value, 21)
+
+    def test_other_zones_ignore_the_outside(self):
+        self.assertEqual(living(at(MONDAY, "07:30"), temp="20.0", extra=outside("15")).value, 20)
+
+
 def living(now, temp="19.0", rate="0", extra=None, this=None):
     return target("living_area", now, {
         "sensor.living_area_temperature": temp,
