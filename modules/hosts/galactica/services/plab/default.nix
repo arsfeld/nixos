@@ -30,12 +30,17 @@
 # plab-stream.<tailnet>. torrent_file keeps every grabbed .torrent.
 # Design: docs/superpowers/specs/2026-11-02-plab-streaming-design.md
 #
-# Assistant (the page's Assistant tab): on demand only, never scheduled. Recommend and chat
-# over OpenRouter with read-only tools; picks come from a profile of recent Stash plays plus
-# plab's stream log (stream_view), and every conversation is kept in state.db. Its system
-# prompt is `prompts.assistant` in plab-site (the tab answers 503 without it), and
-# PLAB_ASSISTANT_MODEL defaults to the parse model.
-# Design: docs/superpowers/specs/2026-11-03-plab-assistant-design.md
+# Assistant: For you (`/`, the landing page) shows today's picks, made lazily: the first
+# visit of a local day starts one generation on the server (deduped across tabs; an
+# assistantDaily SSE event swaps it in) while the last good picks stay on screen. A failed
+# day is not retried until tomorrow or Refresh. Nothing is scheduled. The Assistant tab is
+# chat and history; a daily joins the history once followed up, and unread dailies are
+# pruned after 30 days. Picks come from a profile of recent Stash plays plus plab's stream
+# log (stream_view), with read-only tools over OpenRouter. Its system prompt is
+# `prompts.assistant` in plab-site (For you shows why without it), and
+# PLAB_ASSISTANT_MODEL defaults to the parse model. The Tracker list is at /tracker.
+# Design: docs/superpowers/specs/2026-11-03-plab-assistant-design.md and
+# docs/superpowers/specs/2026-11-03-plab-daily-picks-design.md
 #
 # plab-exclude holds regexes, then optional [hide], [keep] and [always] sections of plain
 # terms: a release or Stash scene is hidden when a hide term is one of its tags (or,

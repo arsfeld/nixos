@@ -52,7 +52,7 @@
 <Navbar>
   {#if list}
     {#if kind === 'search'}
-      <a class="link link-hover" href="/" use:link>← weekly list</a> ·
+      <a class="link link-hover" href="/tracker" use:link>← weekly list</a> ·
       {#if list.error}<span class="text-error">{list.error}</span>{:else}
         {list.topics.length} result{list.topics.length === 1 ? '' : 's'} for “{list.query}” · all time
       {/if}
