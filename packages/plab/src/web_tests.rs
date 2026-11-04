@@ -417,7 +417,7 @@ fn app_fx() -> Fx {
 #[tokio::test]
 async fn app_routes_serve_the_index() {
     let fx = app_fx();
-    for path in ["/", "/games", "/jobs", "/search?q=x", "/anything/else"] {
+    for path in ["/", "/games", "/jobs", "/tracker", "/search?q=x", "/anything/else"] {
         let r = fx.get(path).await;
         assert_eq!(r.status, 200, "{path}");
         assert_eq!(r.header("content-type"), "text/html; charset=utf-8");
@@ -1107,16 +1107,36 @@ fn answer(picks: Value) -> wiremock::ResponseTemplate {
     }}]}))
 }
 
-#[tokio::test]
-async fn assistant_off_without_a_key() {
-    let fx = Fx::new();
-    let r = fx.post("/api/assistant/recommend").await;
-    assert_eq!(r.status, 503);
-    assert!(r.text().contains("OpenRouter"));
+/// GET the daily, which starts today's generation, wait for it to end, and GET it again.
+async fn daily_done(fx: &Fx) -> Value {
+    let mut rx = fx.state.events.subscribe();
+    let r = fx.get("/api/assistant/daily").await;
+    assert_eq!(r.status, 200, "{}", r.text());
+    assert_eq!(r.json()["refreshing"], true);
+    while rx.recv().await.unwrap() != Event::AssistantDaily {}
+    let j = fx.get("/api/assistant/daily").await.json();
+    assert_eq!(j["refreshing"], false);
+    j
 }
 
 #[tokio::test]
-async fn recommend_resolves_picks_and_drops_unknown_refs() {
+async fn assistant_off_without_a_key() {
+    let fx = Fx::new();
+    let r = fx.get("/api/assistant/conversations").await;
+    assert_eq!(r.status, 503);
+    assert!(r.text().contains("OpenRouter"));
+    // For you is the landing page: it renders, and says why.
+    let r = fx.get("/api/assistant/daily").await;
+    assert_eq!(r.status, 200);
+    let j = r.json();
+    assert_eq!(j["conversation"], Value::Null);
+    assert_eq!(j["refreshing"], false);
+    assert!(j["error"].as_str().unwrap().contains("OpenRouter"));
+    assert_eq!(fx.post("/api/assistant/daily/refresh").await.status, 503);
+}
+
+#[tokio::test]
+async fn the_daily_resolves_picks_and_drops_unknown_refs() {
     let server = wiremock::MockServer::start().await;
     wiremock::Mock::given(wiremock::matchers::path(crate::llm::CHAT_PATH))
         .respond_with(answer(json!([
@@ -1129,9 +1149,10 @@ async fn recommend_resolves_picks_and_drops_unknown_refs() {
         .await;
     let fx = assistant_fx(&server).await;
     fx.save_video(&[listed(row(5, "Alpha One"), &[COVER])]);
-    let r = fx.post("/api/assistant/recommend").await;
-    assert_eq!(r.status, 200, "{}", r.text());
-    let j = r.json();
+    let d = daily_done(&fx).await;
+    assert_eq!(d["error"], Value::Null);
+    assert_eq!(d["generatedOn"], crate::assistant::daily::local_ymd(now()));
+    let j = d["conversation"].clone();
     let turn = j["turns"].as_array().unwrap().last().unwrap().clone();
     assert_eq!(turn["role"], "assistant");
     assert_eq!(turn["text"], "Here.");
@@ -1152,8 +1173,77 @@ async fn recommend_resolves_picks_and_drops_unknown_refs() {
     );
     // The user's turn is the canned ask; system and tool messages are not shown.
     assert_eq!(j["turns"].as_array().unwrap().len(), 2);
+    // An unread daily is not in the history; a follow-up puts it there.
+    let list = fx.get("/api/assistant/conversations").await.json();
+    assert_eq!(list.as_array().unwrap().len(), 0);
+    let id = j["id"].as_i64().unwrap();
+    fx.post_json(&format!("/api/assistant/conversations/{id}/messages"), json!({"text": "why?"}))
+        .await;
     let list = fx.get("/api/assistant/conversations").await.json();
     assert_eq!(list[0]["kind"], "recommend");
+}
+
+#[tokio::test]
+async fn the_daily_is_made_once_a_day() {
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::path(crate::llm::CHAT_PATH))
+        .respond_with(answer(json!([{"ref": "s:4", "action": "watch", "reason": "r"}])))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let fx = assistant_fx(&server).await;
+    let first = daily_done(&fx).await;
+    let again = fx.get("/api/assistant/daily").await.json();
+    assert_eq!(again["refreshing"], false);
+    assert_eq!(again["conversation"]["id"], first["conversation"]["id"]);
+}
+
+#[tokio::test]
+async fn refresh_is_409_while_the_daily_runs() {
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::path(crate::llm::CHAT_PATH))
+        .respond_with(answer(json!([])))
+        .mount(&server)
+        .await;
+    let fx = assistant_fx(&server).await;
+    assert_eq!(fx.get("/api/assistant/daily").await.json()["refreshing"], true);
+    assert_eq!(fx.post("/api/assistant/daily/refresh").await.status, 409);
+}
+
+#[tokio::test]
+async fn a_failed_daily_keeps_the_last_good_picks() {
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::path(crate::llm::CHAT_PATH))
+        .respond_with(wiremock::ResponseTemplate::new(500))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let fx = assistant_fx(&server).await;
+    fx.save_video(&[listed(row(5, "Alpha One"), &[COVER])]);
+    // Two days back, so a DST change cannot make it today.
+    let then = now() - 2 * 86_400;
+    let db = &fx.state.db;
+    let old = db.create_conversation("Recommendations", "recommend", then).unwrap();
+    let ans = json!({"role": "assistant", "content": json!({"text": "Old.", "picks": [
+        {"ref": "t:5", "action": "download", "reason": "r"}]}).to_string()});
+    db.append_message(old, "user", &json!({"role": "user", "content": "ask"}).to_string(), then).unwrap();
+    db.append_message(old, "assistant", &ans.to_string(), then).unwrap();
+    let d = daily_done(&fx).await;
+    assert_eq!(d["conversation"]["id"], old);
+    assert_eq!(d["generatedOn"], crate::assistant::daily::local_ymd(then));
+    assert!(d["error"].as_str().unwrap().contains("OpenRouter"), "{d}");
+    // Not retried on the next visit (the mock expects exactly one call).
+    assert_eq!(fx.get("/api/assistant/daily").await.json()["refreshing"], false);
+}
+
+#[tokio::test]
+async fn the_daily_says_why_the_assistant_is_not_ready() {
+    let server = wiremock::MockServer::start().await;
+    let fx = assistant_fx_with(&server, "  ").await;
+    let r = fx.get("/api/assistant/daily").await;
+    assert_eq!(r.status, 200);
+    assert!(r.json()["error"].as_str().unwrap().contains("prompt"));
+    assert_eq!(fx.post("/api/assistant/daily/refresh").await.status, 503);
 }
 
 #[tokio::test]
@@ -1181,7 +1271,7 @@ async fn picks_off_the_advised_lists_are_dropped() {
         .unwrap();
     db.save_listing(Section::Indexers, &[listed(row(6, "Alpha Two"), &[COVER])], &[], now())
         .unwrap();
-    let j = fx.post("/api/assistant/recommend").await.json();
+    let j = daily_done(&fx).await["conversation"].clone();
     let topics = j["topics"].as_array().unwrap();
     assert_eq!(topics.len(), 1);
     assert_eq!((topics[0]["id"].as_u64(), topics[0]["section"].as_str()), (Some(6), Some("indexers")));

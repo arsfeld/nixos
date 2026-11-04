@@ -22,6 +22,8 @@ use crate::stash::library::LibScene;
 /// Request bodies are a chat message: 16 KB is generous.
 const BODY_LIMIT: usize = 16 * 1024;
 
+const NO_KEY: &str = "the assistant needs an OpenRouter key";
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ConversationSummaryDto {
@@ -142,32 +144,41 @@ pub(super) async fn route<B: Backends>(
     rest: &str,
     body: Body,
 ) -> Response<Body> {
+    match (method, rest) {
+        (&Method::GET, "daily") => return daily(st, false).await,
+        (&Method::POST, "daily/refresh") => return daily(st, true).await,
+        _ => {}
+    }
     let Some(arc) = st.assistant.clone() else {
-        return text(503, "the assistant needs an OpenRouter key");
+        return text(503, NO_KEY);
     };
     let a: &Assistant = &arc;
     let t = now();
     // A turn owns its assistant and database handles, so it can outlive the request.
     let owned = || (Arc::clone(&arc), st.db.clone());
     match (method, rest) {
-        (&Method::GET, "conversations") => match a.ready().and_then(|()| Ok(st.db.conversations()?)) {
-            Ok(rows) => json_body(
-                &rows
-                    .into_iter()
-                    .map(|c| ConversationSummaryDto {
-                        id: c.id,
-                        title: c.title,
-                        kind: c.kind,
-                        updated_at: c.updated_at,
-                    })
-                    .collect::<Vec<_>>(),
-            ),
-            Err(e) => turn_error(e),
-        },
-        (&Method::POST, "recommend") => {
-            let (a2, db) = owned();
-            match detached(async move { a2.start(&db, Kind::Recommend, None, t).await }).await {
-                Ok(id) => transcript(st, a, id).await,
+        (&Method::GET, "conversations") => {
+            let rows = a.ready().and_then(|()| {
+                let mut out = vec![];
+                for c in st.db.conversations()? {
+                    if c.kind != Kind::Recommend.as_str() || assistant::daily::followed_up(&st.db, c.id)? {
+                        out.push(c);
+                    }
+                }
+                Ok(out)
+            });
+            match rows {
+                Ok(rows) => json_body(
+                    &rows
+                        .into_iter()
+                        .map(|c| ConversationSummaryDto {
+                            id: c.id,
+                            title: c.title,
+                            kind: c.kind,
+                            updated_at: c.updated_at,
+                        })
+                        .collect::<Vec<_>>(),
+                ),
                 Err(e) => turn_error(e),
             }
         }
@@ -259,20 +270,81 @@ fn scene_dto(s: &LibScene, web: Option<&str>) -> SceneDto {
 
 type RawTurn = (i64, &'static str, String, Vec<assistant::Pick>, Option<String>);
 
-async fn transcript<B: Backends>(
+async fn transcript<B: Backends>(st: &WebState<B>, a: &Assistant, id: i64) -> Response<Body> {
+    match build(st, a, id).await {
+        Ok(c) => json_body(&c),
+        Err(r) => r,
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DailyDto {
+    conversation: Option<ConversationDto>,
+    generated_on: Option<String>,
+    refreshing: bool,
+    error: Option<String>,
+}
+
+/// For you. A GET starts today's picks if they have not been attempted; Refresh (`force`)
+/// starts new ones regardless. Either way the answer is the picks to show now, and a
+/// generation in flight ends with an `assistantDaily` event. A GET answers 200 even when
+/// the assistant is not ready: the landing page must render, so the reason goes in `error`.
+async fn daily<B: Backends>(st: &WebState<B>, force: bool) -> Response<Body> {
+    let t = now();
+    let Some(arc) = st.assistant.clone() else {
+        if force {
+            return text(503, NO_KEY);
+        }
+        return json_body(&DailyDto {
+            conversation: None,
+            generated_on: None,
+            refreshing: false,
+            error: Some(NO_KEY.into()),
+        });
+    };
+    let mut not_ready = None;
+    match arc.ensure_daily(&st.db, &st.events, t, force) {
+        Ok(_) => {}
+        Err(TurnError::NotReady(why)) if !force => not_ready = Some(why.to_string()),
+        Err(e) => return turn_error(e),
+    }
+    let d = match assistant::daily::state(&st.db, t) {
+        Ok(d) => d,
+        Err(e) => return text(500, format!("{e:#}")),
+    };
+    let refreshing = arc.daily_running();
+    let conversation = match &d.shown {
+        Some(row) => match build(st, &arc, row.id).await {
+            Ok(c) => Some(c),
+            Err(r) => return r,
+        },
+        None => None,
+    };
+    json_body(&DailyDto {
+        conversation,
+        generated_on: d.shown.as_ref().map(|r| assistant::daily::local_ymd(r.created_at)),
+        refreshing,
+        error: not_ready.or(if refreshing { None } else { d.error }),
+    })
+}
+
+// The Err is a ready response, returned as-is by both callers; boxing it buys nothing.
+#[allow(clippy::result_large_err)]
+async fn build<B: Backends>(
     st: &WebState<B>,
     a: &Assistant,
     id: i64,
-) -> Response<Body> {
+) -> Result<ConversationDto, Response<Body>> {
     let t = now();
     let row: ConversationRow = match st.db.conversation(id) {
         Ok(Some(r)) => r,
-        Ok(None) => return not_found(),
-        Err(e) => return text(500, format!("{e:#}")),
+        Ok(None) => return Err(not_found()),
+        Err(e) => return Err(text(500, format!("{e:#}"))),
     };
     let msgs = match st.db.messages(id) {
         Ok(m) => m,
-        Err(e) => return text(500, format!("{e:#}")),
+        Err(e) => return Err(text(500, format!("{e:#}"))),
     };
     let mut degraded = vec![];
     let mut turns: Vec<RawTurn> = vec![];
@@ -316,7 +388,7 @@ async fn transcript<B: Backends>(
     let downloads = super::downloads(st, t).await;
     let topics = match resolve_topics(st, &topic_ids, &downloads) {
         Ok(v) => v,
-        Err(e) => return text(500, format!("{e:#}")),
+        Err(e) => return Err(text(500, format!("{e:#}"))),
     };
     let mut scenes_unavailable = false;
     let scenes: Vec<SceneDto> = match bounded(a.stash().lib_scenes(&scene_ids)).await {
@@ -364,7 +436,7 @@ async fn transcript<B: Backends>(
             error,
         })
         .collect();
-    json_body(&ConversationDto {
+    Ok(ConversationDto {
         id: row.id,
         title: row.title,
         kind: row.kind,
