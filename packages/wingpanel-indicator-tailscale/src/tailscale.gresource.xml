@@ -2,6 +2,10 @@
 <gresources>
   <!-- Gtk.IconTheme.add_resource_path treats this prefix as a hicolor tree. -->
   <gresource prefix="/io/elementary/wingpanel/tailscale/icons">
+    <file alias="scalable/status/tailscale-symbolic.svg">icons/tailscale-symbolic.svg</file>
     <file alias="scalable/status/tailscale-exit-node-symbolic.svg">icons/tailscale-exit-node-symbolic.svg</file>
+    <file alias="scalable/status/tailscale-acquiring-symbolic.svg">icons/tailscale-acquiring-symbolic.svg</file>
+    <file alias="scalable/status/tailscale-disabled-symbolic.svg">icons/tailscale-disabled-symbolic.svg</file>
+    <file alias="scalable/status/tailscale-disconnected-symbolic.svg">icons/tailscale-disconnected-symbolic.svg</file>
   </gresource>
 </gresources>

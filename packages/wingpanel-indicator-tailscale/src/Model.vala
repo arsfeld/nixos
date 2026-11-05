@@ -185,15 +185,15 @@ namespace TailscaleIndicator {
         public string icon_name (State state) {
             switch (state.backend) {
                 case Backend.RUNNING:
-                    return state.exit_node_id != "" ? "tailscale-exit-node-symbolic" : "network-vpn-symbolic";
+                    return state.exit_node_id != "" ? "tailscale-exit-node-symbolic" : "tailscale-symbolic";
                 case Backend.STARTING:
-                    return "network-vpn-acquiring-symbolic";
+                    return "tailscale-acquiring-symbolic";
                 case Backend.STOPPED:
-                    return "network-vpn-disabled-symbolic";
+                    return "tailscale-disabled-symbolic";
                 case Backend.NEEDS_LOGIN:
-                    return "network-vpn-no-route-symbolic";
+                    return "tailscale-disconnected-symbolic";
                 default:
-                    return "network-vpn-disconnected-symbolic";
+                    return "tailscale-disconnected-symbolic";
             }
         }
 

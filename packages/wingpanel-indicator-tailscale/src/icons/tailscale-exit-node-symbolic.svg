@@ -1,4 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
-  <path fill="#474747" d="M5 1a3 3 0 0 0-3 3v2H1v8h8V6H8V4a3 3 0 0 0-3-3zm0 1.5A1.5 1.5 0 0 1 6.5 4v2h-3V4A1.5 1.5 0 0 1 5 2.5z"/>
-  <path fill="#474747" d="M11 1h4v4l-1.5-1.5L11 6 10 5l2.5-2.5z"/>
+<g fill="#474747">
+  <circle cx="3" cy="3" r="2" opacity="0.35"/>
+  <circle cx="8" cy="3" r="2" opacity="0.35"/>
+  <circle cx="3" cy="8" r="2"/>
+  <circle cx="8" cy="8" r="2"/>
+  <circle cx="13" cy="8" r="2"/>
+  <circle cx="3" cy="13" r="2" opacity="0.35"/>
+  <circle cx="8" cy="13" r="2"/>
+  <circle cx="13" cy="13" r="2" opacity="0.35"/>
+  <path d="M10.5 0.5h5v5l-1.75-1.75-2.5 2.5-1.25-1.25 2.5-2.5z"/>
+</g>
 </svg>

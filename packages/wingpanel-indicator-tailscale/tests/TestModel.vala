@@ -132,16 +132,16 @@ void main (string[] args) {
     });
 
     Test.add_func ("/model/icon-name", () => {
-        assert_cmpstr (Model.icon_name (running ("")), CompareOperator.EQ, "network-vpn-symbolic");
+        assert_cmpstr (Model.icon_name (running ("")), CompareOperator.EQ, "tailscale-symbolic");
         assert_cmpstr (Model.icon_name (running ("nX")), CompareOperator.EQ, "tailscale-exit-node-symbolic");
         var state = new State ();
-        assert_cmpstr (Model.icon_name (state), CompareOperator.EQ, "network-vpn-disconnected-symbolic");
+        assert_cmpstr (Model.icon_name (state), CompareOperator.EQ, "tailscale-disconnected-symbolic");
         state.backend = Backend.STARTING;
-        assert_cmpstr (Model.icon_name (state), CompareOperator.EQ, "network-vpn-acquiring-symbolic");
+        assert_cmpstr (Model.icon_name (state), CompareOperator.EQ, "tailscale-acquiring-symbolic");
         state.backend = Backend.STOPPED;
-        assert_cmpstr (Model.icon_name (state), CompareOperator.EQ, "network-vpn-disabled-symbolic");
+        assert_cmpstr (Model.icon_name (state), CompareOperator.EQ, "tailscale-disabled-symbolic");
         state.backend = Backend.NEEDS_LOGIN;
-        assert_cmpstr (Model.icon_name (state), CompareOperator.EQ, "network-vpn-no-route-symbolic");
+        assert_cmpstr (Model.icon_name (state), CompareOperator.EQ, "tailscale-disconnected-symbolic");
     });
 
     Test.add_func ("/model/status-line", () => {

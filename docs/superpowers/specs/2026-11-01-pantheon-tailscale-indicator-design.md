@@ -59,8 +59,9 @@ derivation in `packages/wingpanel-indicator-tailscale/`:
 - `src/Model.vala`: pure functions from parsed JSON (json-glib) to a small
   state record: backend state, `WantRunning`, exit-node id and name, first
   IPv4, health messages, and exit-node candidates (id, hostname, online).
-- `src/icons/tailscale-exit-node-symbolic.svg` plus a GResource: the one icon
-  the theme lacks, the VPN glyph with an outbound arrow.
+- `src/icons/tailscale-*-symbolic.svg` plus a GResource: Tailscale's own mark
+  (the 3x3 dot grid, its T solid and the rest faint), one variant per state.
+  Symbolic, so GTK recolours them to the panel's foreground.
 - `tests/TestModel.vala` and `tests/fixtures/*.json`: unit tests on fixtures
   captured from 1.104.1.
 - `meson.build` and `package.nix`: as the gamemode indicator's, plus `libsoup_3`
@@ -89,12 +90,13 @@ Always visible.
 
 | State | Icon |
 |---|---|
-| Running, no exit node | `network-vpn-symbolic` |
-| Running via an exit node | `tailscale-exit-node-symbolic` (bundled) |
-| Starting (5) | `network-vpn-acquiring-symbolic` |
-| Stopped (4) | `network-vpn-disabled-symbolic` |
-| NeedsLogin (2), NeedsMachineAuth (3) | `network-vpn-no-route-symbolic` |
-| tailscaled unreachable, NoState (0), InUseOtherUser (1), unknown value | `network-vpn-disconnected-symbolic` |
+| Running, no exit node | `tailscale-symbolic`: the mark |
+| Running via an exit node | `tailscale-exit-node-symbolic`: the mark, an outbound arrow in place of its top-right dot |
+| Starting (5) | `tailscale-acquiring-symbolic`: only the T's bar solid |
+| Stopped (4) | `tailscale-disabled-symbolic`: every dot faint |
+| NeedsLogin (2), NeedsMachineAuth (3), tailscaled unreachable, NoState (0), InUseOtherUser (1), unknown value | `tailscale-disconnected-symbolic`: every dot faint, struck through |
+
+All are bundled; the tooltip still tells the last row's cases apart.
 
 ### Popover
 
