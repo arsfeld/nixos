@@ -26,6 +26,7 @@ update-packages *PKGS:
       home-assistant-tuya-smart-ir-ac
       librepods
       multiviewer-for-f1
+      pantheon-global-menu
     )
     # nix-update cannot handle buildHomeAssistantComponent: the derivation's
     # `version` is defined inside nixpkgs, and nix-update's eval throws on any
@@ -73,6 +74,9 @@ update-packages *PKGS:
           [ -n "$v" ] && [ -n "$t" ] || { failed+=("$p"); continue; }
           sed -i "s|token = \"[^\"]*\"|token = \"$t\"|" "packages/$p/package.nix"
           cmd+=(--version "$v") ;;
+        # Tracks the fork's main branch; there are no releases.
+        pantheon-global-menu)
+          cmd+=(--version=branch) ;;
       esac
       if "${cmd[@]}"; then
         if git diff --quiet -- "packages/$p"; then current+=("$p"); else updated+=("$p"); fi

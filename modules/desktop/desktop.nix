@@ -13,6 +13,7 @@ in {
       features.pantheon-dock
       features.pantheon-gamemode
       features.pantheon-tailscale
+      features.pantheon-globalmenu
       ({
         config,
         pkgs,
