@@ -57,6 +57,8 @@ struct PickedTopic {
     #[serde(flatten)]
     topic: TopicDto,
     section: &'static str,
+    /// Drawn from a stored search result whose search hit has expired: shown, not actionable.
+    expired: bool,
 }
 
 #[derive(Serialize)]
@@ -412,7 +414,8 @@ async fn build<B: Backends>(
         }
     }
     let downloads = super::downloads(st, t).await;
-    let topics = match resolve_topics(st, &topic_ids, &downloads) {
+    let searched = searched_hits(&msgs);
+    let topics = match resolve_topics(st, &topic_ids, &downloads, &searched, t) {
         Ok(v) => v,
         Err(e) => return Err(text(500, format!("{e:#}"))),
     };
@@ -477,13 +480,76 @@ async fn build<B: Backends>(
     })
 }
 
+/// The latest `search_releases` hit for each release in this conversation's stored tool
+/// results, by id. A result that does not parse is skipped.
+fn searched_hits(msgs: &[crate::db::MessageRow]) -> HashMap<u64, Value> {
+    let mut calls: HashSet<String> = HashSet::new();
+    let mut out = HashMap::new();
+    for m in msgs {
+        let Ok(v) = serde_json::from_str::<Value>(&m.content) else {
+            continue;
+        };
+        if m.role == "assistant" {
+            for c in v.get("tool_calls").and_then(Value::as_array).into_iter().flatten() {
+                if c.pointer("/function/name").and_then(Value::as_str) == Some("search_releases")
+                    && let Some(id) = c.get("id").and_then(Value::as_str)
+                {
+                    calls.insert(id.to_string());
+                }
+            }
+        } else if m.role == "tool"
+            && v.get("tool_call_id").and_then(Value::as_str).is_some_and(|id| calls.contains(id))
+        {
+            let Some(result) = v
+                .get("content")
+                .and_then(Value::as_str)
+                .and_then(|c| serde_json::from_str::<Value>(c).ok())
+            else {
+                continue;
+            };
+            for h in result.get("results").and_then(Value::as_array).into_iter().flatten() {
+                if let Some(id) = h.get("ref").and_then(Value::as_str).and_then(|r| r.strip_prefix("t:")).and_then(|i| i.parse().ok()) {
+                    out.insert(id, h.clone());
+                }
+            }
+        }
+    }
+    out
+}
+
+/// A stored search hit as the topic it was when found.
+fn snapshot(id: u64, h: &Value) -> crate::db::Listed {
+    let n = |k: &str| h.get(k).and_then(Value::as_u64).unwrap_or(0);
+    crate::db::Listed {
+        topic: crate::db::Topic {
+            row: crate::tracker::parse::Row {
+                id,
+                title: h.get("title").and_then(Value::as_str).unwrap_or("?").to_string(),
+                forum: 0,
+                size: n("size"),
+                seeders: n("seeders") as u32,
+                leechers: n("leechers") as u32,
+                completed: 0,
+                added: h.get("published").and_then(Value::as_i64).unwrap_or(0),
+            },
+            images: None,
+            production: None,
+        },
+        filters: vec![],
+        curated_reason: None,
+    }
+}
+
 /// The picked releases still on a list the assistant advises from, in one pass over those
-/// lists. A release that has left them (or was never on them) does not resolve, and its
-/// pick is dropped.
+/// lists, else found by this conversation's own `search_releases`: live while its search
+/// hit is, then drawn from the stored result and marked expired. Any other pick does not
+/// resolve, and is dropped.
 fn resolve_topics<B: Backends>(
     st: &WebState<B>,
     ids: &[u64],
     downloads: &crate::api::Downloads,
+    searched: &HashMap<u64, Value>,
+    now: i64,
 ) -> anyhow::Result<Vec<PickedTopic>> {
     if ids.is_empty() {
         return Ok(vec![]);
@@ -500,9 +566,25 @@ fn resolve_topics<B: Backends>(
         .filter(|(l, _)| wanted.contains(&l.topic.row.id))
         .map(|(l, section)| {
             let topic = crate::api::topic(&l, &added, &queued, downloads, &externals);
-            (topic.id, PickedTopic { topic, section: section.as_str() })
+            (topic.id, PickedTopic { topic, section: section.as_str(), expired: false })
         })
         .collect();
+    for id in ids {
+        let Some(h) = searched.get(id).filter(|_| !found.contains_key(id)) else {
+            continue;
+        };
+        let (listed, expired) = match st.db.find(*id, now)? {
+            Some((topic, _)) => (crate::db::Listed { topic, filters: vec![], curated_reason: None }, false),
+            None => (snapshot(*id, h), true),
+        };
+        let mut topic = crate::api::topic(&listed, &added, &queued, downloads, &externals);
+        if expired && let Some(src) = h.get("source").and_then(Value::as_str).filter(|s| *s != "tracker") {
+            // The external row went with the search hit; the snapshot still names its indexer.
+            topic.source = Some(src.to_string());
+            topic.kind = "torrent";
+        }
+        found.insert(*id, PickedTopic { topic, section: Section::Video.as_str(), expired });
+    }
     // In the order the picks first named them.
     Ok(ids.iter().filter_map(|id| found.remove(id)).collect())
 }

@@ -1389,7 +1389,6 @@ async fn searching_assistant(server: &wiremock::MockServer, picks: Value) -> Fx 
 }
 
 #[tokio::test]
-#[ignore = "cards from search results: next commit"]
 async fn chat_search_pick_renders_card() {
     let server = wiremock::MockServer::start().await;
     let fx = searching_assistant(&server, json!([{"ref": "t:5", "action": "download", "reason": "r"}])).await;
@@ -1400,4 +1399,71 @@ async fn chat_search_pick_renders_card() {
     assert_eq!(j["topics"][0]["id"], 5, "{j}");
     assert_eq!(j["topics"][0]["expired"], false);
     assert_eq!(j["turns"].as_array().unwrap().last().unwrap()["picks"][0]["ref"], "t:5");
+}
+
+/// A stored chat: a `search_releases` round per entry of `searches` (each the hits it
+/// returned), then an answer picking `t:<pick>` to download.
+fn seed_search_chat(fx: &Fx, searches: &[Value], pick: u64) -> i64 {
+    let db = &fx.state.db;
+    let id = db.create_conversation("t", "chat", 0).unwrap();
+    let mut msgs = vec![("user", json!({"role": "user", "content": "find"}).to_string())];
+    for (i, hits) in searches.iter().enumerate() {
+        let call = format!("c{i}");
+        msgs.push(("assistant", json!({"role": "assistant", "content": null, "tool_calls": [
+            {"id": call, "type": "function", "function": {"name": "search_releases", "arguments": "{\"q\":\"a\"}"}}
+        ]}).to_string()));
+        msgs.push(("tool", json!({"role": "tool", "tool_call_id": call,
+            "content": json!({"results": hits}).to_string()}).to_string()));
+    }
+    msgs.push(("assistant", json!({"role": "assistant", "content": json!({"text": "Here.",
+        "picks": [{"ref": format!("t:{pick}"), "action": "download", "reason": "r"}]}).to_string()}).to_string()));
+    db.append_messages(id, &msgs, 0).unwrap();
+    id
+}
+
+fn search_hit(id: u64, title: &str, source: &str, seeders: u32) -> Value {
+    json!({"ref": format!("t:{id}"), "title": title, "source": source, "size": 10,
+           "seeders": seeders, "leechers": 1, "published": 1_700_000_000})
+}
+
+async fn conversation(fx: &Fx, id: i64) -> Value {
+    let r = fx.get(&format!("/api/assistant/conversations/{id}")).await;
+    assert_eq!(r.status, 200, "{}", r.text());
+    r.json()
+}
+
+#[tokio::test]
+async fn search_pick_card_outlives_search_hit() {
+    let server = wiremock::MockServer::start().await;
+    let fx = assistant_fx(&server).await;
+    let id = seed_search_chat(&fx, &[json!([search_hit(77, "Gone Release", "Indexer A", 3)])], 77);
+    let j = conversation(&fx, id).await;
+    assert_eq!(j["topics"][0]["id"], 77, "{j}");
+    assert_eq!(j["topics"][0]["title"], "Gone Release");
+    assert_eq!(j["topics"][0]["source"], "Indexer A");
+    assert_eq!(j["topics"][0]["expired"], true);
+    assert_eq!(j["turns"].as_array().unwrap().last().unwrap()["picks"][0]["ref"], "t:77");
+}
+
+#[tokio::test]
+async fn latest_search_result_wins() {
+    let server = wiremock::MockServer::start().await;
+    let fx = assistant_fx(&server).await;
+    let id = seed_search_chat(
+        &fx,
+        &[json!([search_hit(77, "R", "tracker", 1)]), json!([search_hit(77, "R", "tracker", 9)])],
+        77,
+    );
+    assert_eq!(conversation(&fx, id).await["topics"][0]["seeders"], 9);
+}
+
+#[tokio::test]
+async fn pick_from_another_conversations_search_is_dropped() {
+    let server = wiremock::MockServer::start().await;
+    let fx = assistant_fx(&server).await;
+    seed_search_chat(&fx, &[json!([search_hit(77, "R", "tracker", 1)])], 77);
+    let b = seed_search_chat(&fx, &[], 77);
+    let j = conversation(&fx, b).await;
+    assert_eq!(j["topics"], json!([]), "{j}");
+    assert_eq!(j["turns"].as_array().unwrap().last().unwrap()["picks"], json!([]));
 }
