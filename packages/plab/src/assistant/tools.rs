@@ -8,7 +8,7 @@ use crate::db::Db;
 use crate::stash::Stash;
 
 /// Results per tool call.
-const LIMIT: usize = 20;
+pub(crate) const LIMIT: usize = 20;
 /// Lines `recent_views` returns: the whole lookback, in practice.
 const RECENT_VIEWS: usize = 100;
 

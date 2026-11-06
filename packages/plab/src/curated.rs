@@ -291,7 +291,7 @@ async fn album_pass<B: Backends>(
     Ok((topics, hits))
 }
 
-fn candidate(r: &ProwlarrResult, cutoff: i64) -> Option<Candidate> {
+pub(crate) fn candidate(r: &ProwlarrResult, cutoff: i64) -> Option<Candidate> {
     if r.protocol.as_deref() != Some("torrent") {
         return None;
     }

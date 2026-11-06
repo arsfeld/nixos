@@ -2081,3 +2081,125 @@ async fn each_source_kind_gets_its_own_list() {
     // No tracker page is fetched for an external release.
     assert!(!lab.calls().topics.contains(&torrent) && !lab.calls().topics.contains(&album));
 }
+
+// search_releases: the assistant's tracker + Prowlarr search.
+
+mod search_releases_tests {
+    use super::*;
+    use crate::assistant::search::search_releases;
+    use crate::filters::HideRule;
+
+    fn ids(v: &serde_json::Value) -> Vec<String> {
+        v["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|h| h["ref"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    fn ext_id(v: &serde_json::Value, i: usize) -> u64 {
+        v["results"][i]["ref"].as_str().unwrap()[2..].parse().unwrap()
+    }
+
+    #[tokio::test]
+    async fn search_releases_returns_tracker_and_prowlarr_hits() {
+        let server = prowlarr(
+            "alpha",
+            serde_json::json!([ext_result("g1", "Bravo Two 1080p", 5, RECENT)]),
+        )
+        .await;
+        let mut env = Env::new();
+        env.prowlarr = Some(Prowlarr::new(&server.uri(), "k".into()));
+        let mut lab = FakeTracker::new(vec![]);
+        lab.searched.insert("alpha".into(), vec![titled(7, "Alpha One")]);
+        let v = search_releases(&env.ctx(&lab), Some(&sources()), &HideRule::default(), "alpha", NOW)
+            .await
+            .unwrap();
+        assert_eq!(v["results"][0]["ref"], "t:7");
+        assert_eq!(v["results"][0]["source"], "tracker");
+        assert_eq!(v["results"][0]["title"], "Alpha One");
+        assert_eq!(v["results"][1]["source"], "Indexer A");
+        assert_eq!(v["results"][1]["seeders"], 5);
+        let id = ext_id(&v, 1);
+        assert!(crate::db::is_external(id));
+        assert!(env.db.find(id, NOW).unwrap().is_some());
+        assert!(env.db.external(id).unwrap().is_some());
+        assert!(env.db.find(7, NOW).unwrap().is_some());
+        assert!(v.get("errors").is_none(), "{v}");
+        assert!(!v.to_string().contains("http://p/g1"), "{v}");
+    }
+
+    #[tokio::test]
+    async fn search_releases_drops_prowlarr_duplicate_of_tracker_hit() {
+        let server = prowlarr(
+            "alpha",
+            serde_json::json!([ext_result("g1", "Alpha.Ann.2027.01.10.1080p.MP4", 5, RECENT)]),
+        )
+        .await;
+        let mut env = Env::new();
+        env.prowlarr = Some(Prowlarr::new(&server.uri(), "k".into()));
+        let mut lab = FakeTracker::new(vec![]);
+        lab.searched.insert("alpha".into(), vec![titled(7, "[2027-01-10] Alpha Ann")]);
+        let v = search_releases(&env.ctx(&lab), Some(&sources()), &HideRule::default(), "alpha", NOW)
+            .await
+            .unwrap();
+        assert_eq!(ids(&v), vec!["t:7"]);
+        assert!(v.get("errors").is_none(), "{v}");
+    }
+
+    #[tokio::test]
+    async fn search_releases_applies_hide_rule() {
+        let server = prowlarr(
+            "alpha",
+            serde_json::json!([
+                ext_result("g1", "Bravo Zulu Two", 5, RECENT),
+                ext_result("g2", "Charlie Three", 4, RECENT),
+            ]),
+        )
+        .await;
+        let mut env = Env::new();
+        env.prowlarr = Some(Prowlarr::new(&server.uri(), "k".into()));
+        let mut lab = FakeTracker::new(vec![]);
+        lab.searched.insert(
+            "alpha".into(),
+            vec![titled(7, "Alpha Zulu One"), titled(8, "Alpha Eight")],
+        );
+        let hide = HideRule { hide: vec!["zulu".into()], ..Default::default() };
+        let v = search_releases(&env.ctx(&lab), Some(&sources()), &hide, "alpha", NOW)
+            .await
+            .unwrap();
+        let titles: Vec<&str> = v["results"].as_array().unwrap().iter().map(|h| h["title"].as_str().unwrap()).collect();
+        assert_eq!(titles, vec!["Alpha Eight", "Charlie Three"]);
+    }
+
+    #[tokio::test]
+    async fn search_releases_reports_one_half_failing() {
+        let server = prowlarr(
+            "alpha",
+            serde_json::json!([ext_result("g1", "Bravo Two", 5, RECENT)]),
+        )
+        .await;
+        let mut env = Env::new();
+        env.prowlarr = Some(Prowlarr::new(&server.uri(), "k".into()));
+        let mut lab = FakeTracker::new(vec![]);
+        lab.search_error = Some(Fail::Http);
+        let v = search_releases(&env.ctx(&lab), Some(&sources()), &HideRule::default(), "alpha", NOW)
+            .await
+            .unwrap();
+        assert_eq!(v["results"][0]["source"], "Indexer A");
+        assert!(v["errors"][0].as_str().unwrap().starts_with("Tracker: "), "{v}");
+    }
+
+    #[tokio::test]
+    async fn search_releases_without_prowlarr_is_tracker_only() {
+        let env = Env::new();
+        let mut lab = FakeTracker::new(vec![]);
+        lab.searched.insert("alpha".into(), vec![titled(7, "Alpha One")]);
+        let v = search_releases(&env.ctx(&lab), Some(&sources()), &HideRule::default(), "alpha", NOW)
+            .await
+            .unwrap();
+        assert_eq!(ids(&v), vec!["t:7"]);
+        assert!(v.get("errors").is_none(), "{v}");
+    }
+}

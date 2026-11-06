@@ -4,6 +4,7 @@
 
 pub mod context;
 pub mod daily;
+pub mod search;
 pub mod tools;
 
 use std::collections::HashSet;
