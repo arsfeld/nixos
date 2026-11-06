@@ -152,7 +152,8 @@ export interface ConversationSummary {
 }
 
 /** A picked release and the list it is on. */
-export type PickedTopic = Topic & { section: Section };
+/** `expired`: drawn from a stored search result whose search hit is gone; shown, not actionable. */
+export type PickedTopic = Topic & { section: Section; expired?: boolean };
 
 export interface Conversation extends ConversationSummary {
   now: number;

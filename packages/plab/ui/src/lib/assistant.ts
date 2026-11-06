@@ -16,6 +16,11 @@ export function resolvePick(c: Conversation, pick: PickData): Resolved | null {
   return scene ? { kind: 'scene', scene, pick } : null;
 }
 
+/** What stands in for a picked release's actions, or null when it has them. */
+export function pickNote(t: PickedTopic): string | null {
+  return t.expired ? 'Search result expired, search again' : null;
+}
+
 /** The last turn needs a Retry: it is an error, or a user turn that never got a reply. */
 export function lastFailed(c: Conversation): boolean {
   const last = c.turns.at(-1);

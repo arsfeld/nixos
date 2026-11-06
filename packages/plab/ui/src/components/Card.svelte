@@ -15,6 +15,7 @@
     isNew,
     fs,
     stream,
+    note = null,
     ongallery,
     onstream,
   }: {
@@ -25,6 +26,8 @@
     isNew: boolean;
     fs: FilterState;
     stream: boolean;
+    /** Shown in place of the actions when set. */
+    note?: string | null;
     ongallery: (images: string[]) => void;
     onstream: (id: number) => void;
   } = $props();
@@ -98,7 +101,9 @@
       {/if}
     </div>
     <div class="card-actions mt-auto items-center">
-      {#if album}
+      {#if note}
+        <span class="text-xs italic text-base-content/60">{note}</span>
+      {:else if album}
         {#if topic.link}
           <a class="btn btn-sm btn-primary" href={topic.link} target="_blank" rel="noreferrer">Open ↗</a>
         {/if}

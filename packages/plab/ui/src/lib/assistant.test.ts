@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Latest } from './latest';
-import { resolvePick, lastFailed, upsertSummary, shouldNavigate, openTarget } from './assistant';
+import { resolvePick, lastFailed, upsertSummary, shouldNavigate, openTarget, pickNote } from './assistant';
 import type { Conversation, PickedTopic } from './types';
 
 const topic = { id: 5, title: 'Alpha One', section: 'video' } as PickedTopic;
@@ -71,5 +71,13 @@ describe('Latest guarding open()', () => {
     const b = latest.next('open');
     expect(latest.current('open', a)).toBe(false);
     expect(latest.current('open', b)).toBe(true);
+  });
+});
+
+describe('pickNote', () => {
+  it('stands in for the actions of an expired search pick only', () => {
+    expect(pickNote({ ...topic, expired: true })).toBe('Search result expired, search again');
+    expect(pickNote({ ...topic, expired: false })).toBeNull();
+    expect(pickNote(topic)).toBeNull();
   });
 });

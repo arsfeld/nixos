@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Resolved } from '../lib/assistant';
+  import { pickNote, type Resolved } from '../lib/assistant';
   import { FilterState } from '../lib/filters.svelte';
   import type { Conversation } from '../lib/types';
   import Card from './Card.svelte';
@@ -25,7 +25,7 @@
     {#if r.kind === 'topic'}
       <div class="flex flex-col gap-1">
         <span class="text-sm italic"><span class="badge badge-sm mr-1">{r.pick.action}</span>{r.pick.reason}</span>
-        <Card topic={r.topic} section={r.topic.section} now={c.now} topicUrl={c.topicUrl} isNew={false} {fs} stream={true} {ongallery} {onstream} />
+        <Card topic={r.topic} section={r.topic.section} note={pickNote(r.topic)} now={c.now} topicUrl={c.topicUrl} isNew={false} {fs} stream={true} {ongallery} {onstream} />
       </div>
     {:else}
       <SceneCard scene={r.scene} reason={r.pick.reason} />
