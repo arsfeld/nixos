@@ -3,6 +3,9 @@
 //! hit, so a pick of it streams and downloads like any search result for `SEARCH_TTL`.
 //! Design: docs/superpowers/specs/2026-11-06-plab-assistant-search-design.md
 
+use std::future::Future;
+use std::pin::Pin;
+
 use serde_json::{Value, json};
 
 use crate::backends::Backends;
@@ -12,6 +15,12 @@ use crate::filters::{HideRule, title_terms};
 use crate::plab::Ctx;
 use crate::sources::Sources;
 use crate::tracker::parse::Row;
+
+/// The search the assistant's `search_releases` tool runs. A trait object because the
+/// assistant's turns run on detached tasks and cannot borrow the web task's `Ctx`.
+pub trait ReleaseSearch: Send + Sync {
+    fn search<'a>(&'a self, q: &'a str, now: i64) -> Pin<Box<dyn Future<Output = anyhow::Result<Value>> + Send + 'a>>;
+}
 
 fn hidden(hide: &HideRule, title: &str) -> bool {
     hide.hides(&title_terms(title))

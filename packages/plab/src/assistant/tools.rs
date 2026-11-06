@@ -4,6 +4,7 @@
 use serde_json::{Value, json};
 
 use super::context::{advisable, bounded};
+use super::search::ReleaseSearch;
 use crate::db::Db;
 use crate::stash::Stash;
 
@@ -12,9 +13,10 @@ pub(crate) const LIMIT: usize = 20;
 /// Lines `recent_views` returns: the whole lookback, in practice.
 const RECENT_VIEWS: usize = 100;
 
-pub fn definitions() -> Value {
+/// The tool definitions; `search_releases` only when there is a search to run it.
+pub fn definitions(search: bool) -> Value {
     let q = json!({"type": "object", "properties": {"q": {"type": "string"}}, "required": ["q"]});
-    json!([
+    let mut tools = json!([
         {"type": "function", "function": {
             "name": "search_lists",
             "description": "Search the releases currently on plab's lists by words in their titles. Returns refs usable as stream or download picks.",
@@ -27,7 +29,14 @@ pub fn definitions() -> Value {
             "name": "recent_views",
             "description": "The full list of recent views, newest first.",
             "parameters": {"type": "object", "properties": {}}}}
-    ])
+    ]);
+    if search {
+        tools.as_array_mut().expect("an array").push(json!({"type": "function", "function": {
+            "name": "search_releases",
+            "description": "Search the tracker and other indexers for releases not on plab's lists. Returns refs usable as stream or download picks.",
+            "parameters": q}}));
+    }
+    tools
 }
 
 fn query(arguments: &str) -> Result<String, String> {
@@ -54,7 +63,15 @@ fn search_lists(db: &Db, q: &str) -> anyhow::Result<Value> {
     Ok(Value::Array(out))
 }
 
-pub async fn run(stash: &Stash, db: &Db, hide: &crate::filters::HideRule, name: &str, arguments: &str, now: i64) -> String {
+pub async fn run(
+    stash: &Stash,
+    db: &Db,
+    hide: &crate::filters::HideRule,
+    search: Option<&dyn ReleaseSearch>,
+    name: &str,
+    arguments: &str,
+    now: i64,
+) -> String {
     let r: Result<Value, String> = match name {
         "search_lists" => match query(arguments) {
             Ok(q) => search_lists(db, &q).map_err(|e| format!("{e:#}")),
@@ -82,6 +99,11 @@ pub async fn run(stash: &Stash, db: &Db, hide: &crate::filters::HideRule, name: 
                 })
                 .map_err(|e| format!("Stash: {e:#}")),
             Err(e) => Err(e),
+        },
+        "search_releases" => match (query(arguments), search) {
+            (Err(e), _) => Err(e),
+            (Ok(_), None) => Err("search is not available".into()),
+            (Ok(q), Some(s)) => s.search(&q, now).await.map_err(|e| format!("{e:#}")),
         },
         "recent_views" => {
             let (views, _) = super::context::views(db, stash, now).await;

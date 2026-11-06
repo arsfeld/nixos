@@ -9,7 +9,7 @@ pub mod tools;
 
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use anyhow::Context as _;
 use serde::Deserialize;
@@ -199,17 +199,25 @@ pub struct Assistant {
     /// could not be stored either, which would otherwise read as "not attempted today".
     last_attempt: Mutex<Option<String>>,
     hide: crate::filters::HideRule,
+    /// The tracker and Prowlarr search, set once the web task that owns it exists.
+    search: OnceLock<Arc<dyn search::ReleaseSearch>>,
 }
 
 impl Assistant {
     pub fn new(llm: OpenRouter, stash: Stash, model: String, prompt: String) -> Assistant {
-        Assistant { llm, stash, model, prompt, busy: Mutex::new(HashSet::new()), daily_running: AtomicBool::new(false), last_attempt: Mutex::new(None), hide: crate::filters::HideRule::default() }
+        Assistant { llm, stash, model, prompt, busy: Mutex::new(HashSet::new()), daily_running: AtomicBool::new(false), last_attempt: Mutex::new(None), hide: crate::filters::HideRule::default(), search: OnceLock::new() }
     }
 
     /// The exclude file's hide rule, applied to the Stash scenes the model sees.
     pub fn with_hide(mut self, hide: crate::filters::HideRule) -> Assistant {
         self.hide = hide;
         self
+    }
+
+    /// The search `search_releases` runs; a second call is ignored. A setter on `&self`
+    /// because the search needs the web state that already owns this assistant.
+    pub fn set_search(&self, s: Arc<dyn search::ReleaseSearch>) {
+        let _ = self.search.set(s);
     }
 
     pub fn stash(&self) -> &Stash {
@@ -363,7 +371,7 @@ impl Assistant {
         }
         let mut reasked = false;
         for _ in 0..MAX_ROUNDS {
-            let body = json!({"model": self.model, "messages": self.history(db, id)?, "tools": tools::definitions()});
+            let body = json!({"model": self.model, "messages": self.history(db, id)?, "tools": tools::definitions(self.search.get().is_some())});
             let reply = match self.llm.chat(&body).await {
                 Ok(r) => r,
                 Err(e) => return self.fail(db, id, &format!("OpenRouter: {e:#}"), now),
@@ -379,7 +387,7 @@ impl Assistant {
                 for c in calls {
                     let name = c.pointer("/function/name").and_then(Value::as_str).unwrap_or("");
                     let args = c.pointer("/function/arguments").and_then(Value::as_str).unwrap_or("{}");
-                    let result = tools::run(&self.stash, db, &self.hide, name, args, now).await;
+                    let result = tools::run(&self.stash, db, &self.hide, self.search.get().map(|s| &**s), name, args, now).await;
                     let call_id = c.get("id").cloned().unwrap_or(Value::Null);
                     round.push(("tool", json!({"role": "tool", "tool_call_id": call_id, "content": result}).to_string()));
                 }
@@ -581,6 +589,67 @@ mod tests {
         let all = sent(&server).await.join("\n");
         assert!(all.contains("Fig Scene"));
         assert!(!all.contains("Pear Scene"));
+    }
+
+    struct FakeSearch(std::sync::Mutex<Vec<String>>);
+
+    impl search::ReleaseSearch for FakeSearch {
+        fn search<'a>(
+            &'a self,
+            q: &'a str,
+            _now: i64,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Value>> + Send + 'a>> {
+            self.0.lock().unwrap().push(q.to_string());
+            Box::pin(async { Ok(json!({"results": [{"ref": "t:9", "title": "X"}]})) })
+        }
+    }
+
+    /// The tool names the first chat request offered.
+    async fn offered(server: &MockServer) -> Vec<String> {
+        let first: Value = serde_json::from_str(&sent(server).await[0]).unwrap();
+        first["tools"].as_array().unwrap().iter().map(|t| t["function"]["name"].as_str().unwrap().to_string()).collect()
+    }
+
+    async fn search_then_answer(server: &MockServer) {
+        Mock::given(path(crate::llm::CHAT_PATH))
+            .respond_with(tool_call("search_releases", r#"{"q":"alpha"}"#))
+            .up_to_n_times(1)
+            .mount(server)
+            .await;
+        Mock::given(path(crate::llm::CHAT_PATH))
+            .respond_with(final_reply("ok", json!([])))
+            .mount(server)
+            .await;
+    }
+
+    fn tool_result(db: &Db, id: i64) -> String {
+        let m = db.messages(id).unwrap().into_iter().find(|m| m.role == "tool").unwrap();
+        let v: Value = serde_json::from_str(&m.content).unwrap();
+        v["content"].as_str().unwrap().to_string()
+    }
+
+    #[tokio::test]
+    async fn search_tool_offered_and_result_stored() {
+        let (server, a, db) = fixture().await;
+        search_then_answer(&server).await;
+        let fake = Arc::new(FakeSearch(std::sync::Mutex::new(vec![])));
+        a.set_search(fake.clone());
+        let id = a.start(&db, Kind::Chat, Some("find alpha"), 0).await.unwrap();
+        assert!(offered(&server).await.contains(&"search_releases".to_string()));
+        assert_eq!(*fake.0.lock().unwrap(), vec!["alpha".to_string()]);
+        let stored: Value = serde_json::from_str(&tool_result(&db, id)).unwrap();
+        assert_eq!(stored, json!({"results": [{"ref": "t:9", "title": "X"}]}));
+        assert_eq!(roles(&db, id).last().unwrap(), "assistant");
+    }
+
+    #[tokio::test]
+    async fn search_tool_absent_without_handle() {
+        let (server, a, db) = fixture().await;
+        search_then_answer(&server).await;
+        let id = a.start(&db, Kind::Chat, Some("find alpha"), 0).await.unwrap();
+        assert!(!offered(&server).await.contains(&"search_releases".to_string()));
+        assert!(tool_result(&db, id).contains("search is not available"));
+        assert!(parse_final(last(&db, id)["content"].as_str().unwrap()).is_some());
     }
 
     #[tokio::test]
