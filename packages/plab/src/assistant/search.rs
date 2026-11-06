@@ -5,6 +5,7 @@
 
 use std::future::Future;
 use std::pin::Pin;
+use std::time::Duration;
 
 use serde_json::{Value, json};
 
@@ -65,9 +66,23 @@ async fn prowlarr_candidates<B: Backends>(
     Ok(collapse(found, &sources.noise))
 }
 
+/// How long either half may take: a turn waits on its tools, and its conversation is busy
+/// meanwhile, while Prowlarr's own client waits minutes.
+const HALF_TIMEOUT: Duration = if cfg!(test) { Duration::from_secs(1) } else { Duration::from_secs(45) };
+/// The tracker's share of `tools::LIMIT` when both halves have more: room for the others.
+const TRACKER_SHARE: usize = 12;
+
+async fn bounded_half<T>(f: impl Future<Output = anyhow::Result<T>>) -> anyhow::Result<T> {
+    tokio::time::timeout(HALF_TIMEOUT, f)
+        .await
+        .map_err(|_| anyhow::anyhow!("timed out after {}s", HALF_TIMEOUT.as_secs()))?
+}
+
 /// `{"results": [...], "errors": [...]}`: tracker hits first, then the other indexers' by
-/// seeders, at most `tools::LIMIT`. Either source failing is an `errors` entry; failing to
-/// store a hit is the Err, since a hit that was not stored cannot be picked.
+/// seeders, at most `tools::LIMIT`, of which the tracker takes `TRACKER_SHARE` when the
+/// others can fill the rest. Both halves run at once, each bounded by `HALF_TIMEOUT`;
+/// either failing is an `errors` entry. Only returned hits are stored, and failing to
+/// store one is the Err, since a hit that was not stored cannot be picked.
 pub async fn search_releases<B: Backends>(
     ctx: &Ctx<'_, B>,
     sources: Option<&Sources>,
@@ -75,55 +90,66 @@ pub async fn search_releases<B: Backends>(
     q: &str,
     now: i64,
 ) -> anyhow::Result<Value> {
-    let mut results = vec![];
+    let limit = super::tools::LIMIT;
     let mut errors: Vec<String> = vec![];
+    let (tracker, others) = tokio::join!(
+        bounded_half(crate::plab::run_search(ctx, q, now)),
+        bounded_half(prowlarr_candidates(ctx, sources, hide, q)),
+    );
     let mut tracker_titles: Vec<String> = vec![];
-    match crate::plab::run_search(ctx, q, now).await {
+    let mut tracker_hits = vec![];
+    match tracker {
         Ok(listed) => {
             for l in listed {
                 let r = &l.topic.row;
                 tracker_titles.push(r.title.clone());
                 if !hidden(hide, &r.title) {
-                    results.push(hit(r.id, &r.title, "tracker", r.size, r.seeders, r.leechers, r.added));
+                    tracker_hits.push(hit(r.id, &r.title, "tracker", r.size, r.seeders, r.leechers, r.added));
                 }
             }
         }
         Err(e) => errors.push(format!("Tracker: {e:#}")),
     }
-    match prowlarr_candidates(ctx, sources, hide, q).await {
+    let mut found: Vec<Candidate> = match others {
         Ok(found) => {
             let noise = sources.map_or(&[][..], |s| &s.noise[..]);
             let titles: Vec<&str> = tracker_titles.iter().map(String::as_str).collect();
-            let mut found: Vec<Candidate> =
-                found.into_iter().filter(|c| !is_duplicate(&c.title, &titles, q, noise)).collect();
-            found.sort_by_key(|c| std::cmp::Reverse(c.seeders));
-            for c in found {
-                let id = ctx.db.upsert_external(&NewExternal {
-                    indexer: &c.indexer,
-                    guid: &c.guid,
-                    link: &c.link,
-                    info_url: c.info_url.as_deref(),
-                    kind: Kind::Torrent,
-                    files: None,
-                    seen: now,
-                })?;
-                let row = Row {
-                    id,
-                    title: c.title.clone(),
-                    forum: 0,
-                    size: c.size,
-                    seeders: c.seeders,
-                    leechers: c.leechers,
-                    completed: 0,
-                    added: c.published,
-                };
-                ctx.db.save_search(&[row], now)?;
-                results.push(hit(id, &c.title, &c.indexer, c.size, c.seeders, c.leechers, c.published));
-            }
+            // No term: `q` is often the very names a duplicate shares, and the term's own
+            // words are left out of the comparison.
+            found.into_iter().filter(|c| !is_duplicate(&c.title, &titles, "", noise)).collect()
         }
-        Err(e) => errors.push(format!("Prowlarr: {e:#}")),
+        Err(e) => {
+            errors.push(format!("Prowlarr: {e:#}"));
+            vec![]
+        }
+    };
+    found.sort_by_key(|c| std::cmp::Reverse(c.seeders));
+    found.truncate(limit - tracker_hits.len().min(TRACKER_SHARE));
+    tracker_hits.truncate(limit - found.len());
+    let mut results = tracker_hits;
+    for c in found {
+        let id = ctx.db.upsert_external(&NewExternal {
+            indexer: &c.indexer,
+            guid: &c.guid,
+            link: &c.link,
+            info_url: c.info_url.as_deref(),
+            kind: Kind::Torrent,
+            files: None,
+            seen: now,
+        })?;
+        let row = Row {
+            id,
+            title: c.title.clone(),
+            forum: 0,
+            size: c.size,
+            seeders: c.seeders,
+            leechers: c.leechers,
+            completed: 0,
+            added: c.published,
+        };
+        ctx.db.save_search(&[row], now)?;
+        results.push(hit(id, &c.title, &c.indexer, c.size, c.seeders, c.leechers, c.published));
     }
-    results.truncate(super::tools::LIMIT);
     let mut out = json!({"results": results});
     if !errors.is_empty() {
         out["errors"] = json!(errors);

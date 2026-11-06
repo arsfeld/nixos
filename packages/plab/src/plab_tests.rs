@@ -2202,4 +2202,82 @@ mod search_releases_tests {
         assert_eq!(ids(&v), vec!["t:7"]);
         assert!(v.get("errors").is_none(), "{v}");
     }
+
+    #[tokio::test]
+    async fn search_releases_drops_duplicate_when_query_names_everyone() {
+        let server = prowlarr(
+            "alpha ann",
+            serde_json::json!([ext_result("g1", "Alpha.Ann.2027.01.10.1080p.MP4", 5, RECENT)]),
+        )
+        .await;
+        let mut env = Env::new();
+        env.prowlarr = Some(Prowlarr::new(&server.uri(), "k".into()));
+        let mut lab = FakeTracker::new(vec![]);
+        lab.searched.insert("alpha ann".into(), vec![titled(7, "[2027-01-10] Alpha Ann")]);
+        let v = search_releases(&env.ctx(&lab), Some(&sources()), &HideRule::default(), "alpha ann", NOW)
+            .await
+            .unwrap();
+        assert_eq!(ids(&v), vec!["t:7"]);
+        assert!(v.get("errors").is_none(), "{v}");
+    }
+
+    #[tokio::test]
+    async fn search_releases_keeps_room_for_other_indexers() {
+        let server = prowlarr(
+            "alpha",
+            serde_json::json!([ext_result("g1", "Bravo Two", 5, RECENT)]),
+        )
+        .await;
+        let mut env = Env::new();
+        env.prowlarr = Some(Prowlarr::new(&server.uri(), "k".into()));
+        let mut lab = FakeTracker::new(vec![]);
+        lab.searched.insert("alpha".into(), (1..=25).map(|i| titled(i, &format!("Alpha {i}"))).collect());
+        let v = search_releases(&env.ctx(&lab), Some(&sources()), &HideRule::default(), "alpha", NOW)
+            .await
+            .unwrap();
+        let sources: Vec<&str> = v["results"].as_array().unwrap().iter().map(|h| h["source"].as_str().unwrap()).collect();
+        assert_eq!(sources.len(), 20);
+        assert_eq!(sources.iter().filter(|s| **s == "tracker").count(), 19);
+        assert_eq!(sources.last(), Some(&"Indexer A"));
+    }
+
+    #[tokio::test]
+    async fn search_releases_stores_only_the_prowlarr_hits_it_returns() {
+        let results: Vec<serde_json::Value> =
+            (0..25).map(|i| ext_result(&format!("g{i}"), &format!("Bravo {i} Unique{i}"), 25 - i, RECENT)).collect();
+        let server = prowlarr("alpha", serde_json::json!(results)).await;
+        let mut env = Env::new();
+        env.prowlarr = Some(Prowlarr::new(&server.uri(), "k".into()));
+        let lab = FakeTracker::new(vec![]);
+        let v = search_releases(&env.ctx(&lab), Some(&sources()), &HideRule::default(), "alpha", NOW)
+            .await
+            .unwrap();
+        assert_eq!(v["results"].as_array().unwrap().len(), 20);
+        assert_eq!(env.db.externals().unwrap().len(), 20);
+    }
+
+    #[tokio::test]
+    async fn search_releases_gives_up_on_a_slow_half() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/indexer"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!([{"id": 2, "name": "Indexer A", "enable": true, "protocol": "torrent"}]))
+                    .set_delay(std::time::Duration::from_secs(5)),
+            )
+            .mount(&server)
+            .await;
+        let mut env = Env::new();
+        env.prowlarr = Some(Prowlarr::new(&server.uri(), "k".into()));
+        let mut lab = FakeTracker::new(vec![]);
+        lab.searched.insert("alpha".into(), vec![titled(7, "Alpha One")]);
+        let started = std::time::Instant::now();
+        let v = search_releases(&env.ctx(&lab), Some(&sources()), &HideRule::default(), "alpha", NOW)
+            .await
+            .unwrap();
+        assert!(started.elapsed() < std::time::Duration::from_secs(4));
+        assert_eq!(ids(&v), vec!["t:7"]);
+        assert!(v["errors"][0].as_str().unwrap().starts_with("Prowlarr: timed out"), "{v}");
+    }
 }
