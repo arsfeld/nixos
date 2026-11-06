@@ -172,6 +172,28 @@ pub fn scene_keys(rule: &Rule, title: &str) -> BTreeSet<String> {
     if name.len() >= MIN_NAME {
         keys.insert(format!("name:{name}"));
     }
+    // The same scene as the other source words it: 1337x leads with a "yy mm dd" date and
+    // joins performers with "And", the tracker uses commas and its own performer order. So
+    // also key on the sorted words, without the date or "and". It is a second key rather
+    // than a new `name:`, so the keys grab_seen already holds keep matching.
+    let lower = rest.to_lowercase();
+    let mut words: Vec<&str> = lower
+        .split(|c: char| !(c.is_ascii_lowercase() || c.is_ascii_digit()))
+        .filter(|w| !w.is_empty())
+        .collect();
+    if words.len() >= 3
+        && words[..3]
+            .iter()
+            .all(|w| w.len() == 2 && w.bytes().all(|b| b.is_ascii_digit()))
+    {
+        words.drain(..3);
+    }
+    words.retain(|w| *w != "and");
+    words.sort_unstable();
+    words.dedup();
+    if words.concat().len() >= MIN_NAME {
+        keys.insert(format!("words:{}", words.join("-")));
+    }
     keys
 }
 
@@ -589,8 +611,31 @@ mod tests {
             &a(),
             "StudioA E2274 Cara And Dan Park And Walk TAG 1080p MP4 GRP [RG]",
         );
-        assert_eq!(lab, set(&["ep:2274", "name:caraanddanparkandwalk"]));
+        assert_eq!(
+            lab,
+            set(&[
+                "ep:2274",
+                "name:caraanddanparkandwalk",
+                "words:cara-dan-park-walk"
+            ])
+        );
         assert_eq!(x, lab);
+    }
+
+    #[test]
+    fn keys_dated_and_reordered_namings_share_a_key() {
+        // 1337x leads with the date and joins performers with "And"; the tracker drops the
+        // date into its tags, uses commas, and may list the performers the other way round.
+        let x = scene_keys(
+            &b(),
+            "Studio B 26 10 30 Cara Kim And Dana Lee Close To You TAG 1080p MP4 GRP [RG]",
+        );
+        let lab = scene_keys(
+            &b(),
+            "[StudioB.com] Dana Lee, Cara Kim - Close To You [2026-10-30, Couples, 1080p, SiteRip]",
+        );
+        assert!(!x.is_disjoint(&lab), "{x:?} vs {lab:?}");
+        assert!(lab.contains("words:cara-close-dana-kim-lee-to-you"));
     }
 
     #[test]
@@ -600,7 +645,10 @@ mod tests {
                 &b(),
                 "[StudioB.com] Sofia Smith - Beauty In The Bath [2026-10-16, 1080p]"
             ),
-            set(&["name:sofiasmithbeautyinthebath"])
+            set(&[
+                "name:sofiasmithbeautyinthebath",
+                "words:bath-beauty-in-smith-sofia-the"
+            ])
         );
     }
 
