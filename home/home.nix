@@ -171,6 +171,14 @@
           };
           Service = {
             WorkingDirectory = "%h/Code/${project}";
+            # Session children run as CLAUDE_CODE_ENTRYPOINT=sdk-cli, and the
+            # server's environment passes through to every one of them.
+            # - Artifacts are withheld from SDK entrypoints ("sdk_default_off")
+            #   unless CLAUDE_CODE_ARTIFACT is set or claude.ai tags the
+            #   session as attended, which a headless server's sessions are not.
+            # - Claude in Chrome is off in non-interactive sessions unless the
+            #   server got --chrome or CLAUDE_CODE_ENABLE_CFC is set.
+            Environment = ["CLAUDE_CODE_ARTIFACT=1" "CLAUDE_CODE_ENABLE_CFC=1"];
             ExecStartPre = "${waitForApi}";
             ExecStart = "${runServer project extraArgs}";
             TimeoutStartSec = "6min";
@@ -185,7 +193,7 @@
         }) {
         nixos = "--spawn same-dir";
         mydia = "--spawn worktree";
-        job-hunting = "--spawn same-dir --chrome";
+        job-hunting = "--spawn same-dir";
       }
     );
 
