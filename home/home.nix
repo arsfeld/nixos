@@ -22,11 +22,6 @@
 
   claude-notify = pkgs.writeScriptBin "claude-notify" (builtins.readFile ./scripts/claude-notify);
 
-  # Every zellij setting, plus a copy_command for sessions started at the desktop.
-  zellijWaylandConfig = pkgs.writeText "zellij-wayland.kdl" (lib.hm.generators.toKDL {} (
-    config.programs.zellij.settings // {copy_command = "${pkgs.wl-clipboard}/bin/wl-copy";}
-  ));
-
   # zellij decides a session exists by probing its socket, and when the probe
   # fails `attach --create` starts a second server that unlinks the first one's
   # socket before binding. The first server keeps running with its clients
@@ -59,15 +54,6 @@
         done
       done < <(pgrep -u "$(id -u)" -af -- '/bin/zellij --server ' || true)
     fi
-    # Zellij copies with OSC 52, which elementary Terminal (VTE) drops, so a
-    # session started at the desktop hands copies to wl-copy instead. Sessions
-    # started over SSH have no WAYLAND_DISPLAY and keep OSC 52, which carries
-    # the copy back to the terminal on the other end.
-    ${lib.optionalString stdenv.isLinux ''
-      if [ -n "''${WAYLAND_DISPLAY:-}" ] && [ -z "''${ZELLIJ_CONFIG_FILE:-}" ]; then
-        export ZELLIJ_CONFIG_FILE=${zellijWaylandConfig}
-      fi
-    ''}
     exec "$real" "$@"
   '';
   zellijGuarded = pkgs.symlinkJoin {
@@ -217,9 +203,6 @@
       nvidia-offload
       waypipe
       seafile-shared
-      # Claude Code copies with wl-copy when it can find it and falls back to
-      # OSC 52 otherwise, which elementary Terminal drops.
-      wl-clipboard
     ];
 in {
   imports = [
