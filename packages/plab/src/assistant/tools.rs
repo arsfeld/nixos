@@ -40,7 +40,8 @@ pub fn definitions(search: bool) -> Value {
 }
 
 fn query(arguments: &str) -> Result<String, String> {
-    let v: Value = serde_json::from_str(arguments).map_err(|e| format!("arguments are not JSON: {e}"))?;
+    let v: Value =
+        serde_json::from_str(arguments).map_err(|e| format!("arguments are not JSON: {e}"))?;
     v.get("q")
         .and_then(Value::as_str)
         .map(str::trim)
@@ -50,7 +51,11 @@ fn query(arguments: &str) -> Result<String, String> {
 }
 
 fn search_lists(db: &Db, q: &str) -> anyhow::Result<Value> {
-    let words: Vec<String> = q.to_lowercase().split_whitespace().map(str::to_owned).collect();
+    let words: Vec<String> = q
+        .to_lowercase()
+        .split_whitespace()
+        .map(str::to_owned)
+        .collect();
     let out: Vec<Value> = advisable(db)?
         .into_iter()
         .filter(|(l, _)| {

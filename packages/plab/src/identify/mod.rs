@@ -885,11 +885,7 @@ pub async fn run_pass<B: IdentifyBackends>(
 /// Link the scenes a scan just made to their downloads; one Stash already filled (by
 /// fingerprint) is done, and recorded as such. Failures are logged: the page's status is
 /// all that depends on this.
-async fn record_new<B: IdentifyBackends>(
-    c: &Clients<'_, B>,
-    db: &Db,
-    ids: &[String],
-) {
+async fn record_new<B: IdentifyBackends>(c: &Clients<'_, B>, db: &Db, ids: &[String]) {
     let scenes = match c.stash.scenes(ids).await {
         Ok(s) => s,
         Err(e) => {

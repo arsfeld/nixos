@@ -99,13 +99,13 @@ impl Db {
                  ORDER BY started DESC, id DESC LIMIT ?2",
             )?;
             let rows = all(stmt.query_map(params![job, limit as i64], |r| {
-                    Ok(JobRunRow {
-                        started: r.get(0)?,
-                        finished: r.get(1)?,
-                        ok: r.get(2)?,
-                        error: r.get(3)?,
-                    })
-                })?)?;
+                Ok(JobRunRow {
+                    started: r.get(0)?,
+                    finished: r.get(1)?,
+                    ok: r.get(2)?,
+                    error: r.get(3)?,
+                })
+            })?)?;
             Ok(rows)
         })
     }

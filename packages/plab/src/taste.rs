@@ -72,7 +72,11 @@ fn add(map: &mut HashMap<String, Weighted>, name: &str, id: Option<&str>, w: f64
 
 fn top(map: HashMap<String, Weighted>) -> Vec<Weighted> {
     let mut v: Vec<Weighted> = map.into_values().collect();
-    v.sort_by(|a, b| b.weight.total_cmp(&a.weight).then_with(|| a.name.cmp(&b.name)));
+    v.sort_by(|a, b| {
+        b.weight
+            .total_cmp(&a.weight)
+            .then_with(|| a.name.cmp(&b.name))
+    });
     v.truncate(TOP);
     v
 }
@@ -135,7 +139,10 @@ mod tests {
     const DAY: i64 = 86400;
 
     fn named(n: &str) -> Named {
-        Named { name: n.into(), id: Some(format!("id-{n}")) }
+        Named {
+            name: n.into(),
+            id: Some(format!("id-{n}")),
+        }
     }
 
     fn view(at: i64, studio: &str, performers: &[&str]) -> View {
@@ -193,10 +200,18 @@ mod tests {
     fn recent_lines_newest_first_and_mark_streams() {
         let mut a = view(DAY, "Studio A", &["Performer B", "Performer C"]);
         a.title = "Alpha".into();
-        let b = View { at: 2 * DAY, title: "Beta".into(), streamed: true, ..View::default() };
+        let b = View {
+            at: 2 * DAY,
+            title: "Beta".into(),
+            streamed: true,
+            ..View::default()
+        };
         let lines = recent(&[a, b], 10);
         assert_eq!(lines[0], "1970-01-03 · Beta · streamed");
-        assert_eq!(lines[1], "1970-01-02 · Alpha · Studio A · Performer B, Performer C");
+        assert_eq!(
+            lines[1],
+            "1970-01-02 · Alpha · Studio A · Performer B, Performer C"
+        );
         assert_eq!(profile(&[], 0).recent.len(), 0);
     }
 }

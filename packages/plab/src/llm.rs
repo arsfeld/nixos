@@ -472,13 +472,20 @@ mod tests {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::path(CHAT_PATH))
             .and(wiremock::matchers::header("Authorization", "Bearer k"))
-            .and(wiremock::matchers::body_json(serde_json::json!({"model": "m", "messages": []})))
-            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": 1})))
+            .and(wiremock::matchers::body_json(
+                serde_json::json!({"model": "m", "messages": []}),
+            ))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": 1})),
+            )
             .expect(1)
             .mount(&server)
             .await;
         let or = OpenRouter::new(&server.uri(), "k".into(), "p".into(), "j".into());
-        let r = or.chat(&serde_json::json!({"model": "m", "messages": []})).await.unwrap();
+        let r = or
+            .chat(&serde_json::json!({"model": "m", "messages": []}))
+            .await
+            .unwrap();
         assert_eq!(r["ok"], 1);
     }
 

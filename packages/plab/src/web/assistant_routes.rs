@@ -121,8 +121,8 @@ async fn read_text(body: Body) -> Result<String, Box<Response<Body>>> {
     let bytes = axum::body::to_bytes(body, BODY_LIMIT)
         .await
         .map_err(|_| Box::new(text(413, "the message is too long")))?;
-    let b: TextBody =
-        serde_json::from_slice(&bytes).map_err(|e| Box::new(text(400, format!("bad body: {e}"))))?;
+    let b: TextBody = serde_json::from_slice(&bytes)
+        .map_err(|e| Box::new(text(400, format!("bad body: {e}"))))?;
     let t = b.text.trim();
     if t.is_empty() {
         return Err(Box::new(text(400, "text is required")));
@@ -163,7 +163,9 @@ pub(super) async fn route<B: Backends>(
             let rows = a.ready().and_then(|()| {
                 let mut out = vec![];
                 for c in st.db.conversations()? {
-                    if c.kind != Kind::Recommend.as_str() || assistant::daily::followed_up(&st.db, c.id)? {
+                    if c.kind != Kind::Recommend.as_str()
+                        || assistant::daily::followed_up(&st.db, c.id)?
+                    {
                         out.push(c);
                     }
                 }
@@ -188,7 +190,8 @@ pub(super) async fn route<B: Backends>(
             Err(r) => *r,
             Ok(msg) => {
                 let (a2, db) = owned();
-                match detached(async move { a2.start(&db, Kind::Chat, Some(&msg), t).await }).await {
+                match detached(async move { a2.start(&db, Kind::Chat, Some(&msg), t).await }).await
+                {
                     Ok(id) => transcript(st, a, id).await,
                     Err(e) => turn_error(e),
                 }
@@ -270,7 +273,13 @@ fn scene_dto(s: &LibScene, web: Option<&str>) -> SceneDto {
     }
 }
 
-type RawTurn = (i64, &'static str, String, Vec<assistant::Pick>, Option<String>);
+type RawTurn = (
+    i64,
+    &'static str,
+    String,
+    Vec<assistant::Pick>,
+    Option<String>,
+);
 
 async fn transcript<B: Backends>(st: &WebState<B>, a: &Assistant, id: i64) -> Response<Body> {
     match build(st, a, id).await {
@@ -331,7 +340,10 @@ async fn daily<B: Backends>(st: &WebState<B>, force: bool) -> Response<Body> {
     let refreshing = arc.daily_running();
     json_body(&DailyDto {
         conversation,
-        generated_on: d.shown.as_ref().map(|r| assistant::daily::local_ymd(r.created_at)),
+        generated_on: d
+            .shown
+            .as_ref()
+            .map(|r| assistant::daily::local_ymd(r.created_at)),
         refreshing,
         ready: not_ready.is_none(),
         error: not_ready.or(if refreshing { None } else { d.error }),
@@ -347,10 +359,15 @@ impl<B: Backends> assistant::search::ReleaseSearch for WebSearch<B> {
         &'a self,
         q: &'a str,
         now: i64,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Value>> + Send + 'a>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Value>> + Send + 'a>>
+    {
         Box::pin(async move {
-            let st = self.0.upgrade().ok_or_else(|| anyhow::anyhow!("plab is shutting down"))?;
-            let hide = crate::filters::load_excludes(st.exclude_file.as_deref(), Some(&st.state_dir)).rule;
+            let st = self
+                .0
+                .upgrade()
+                .ok_or_else(|| anyhow::anyhow!("plab is shutting down"))?;
+            let hide =
+                crate::filters::load_excludes(st.exclude_file.as_deref(), Some(&st.state_dir)).rule;
             let sources = crate::sources::load(st.sources_file.as_deref());
             assistant::search::search_releases(&st.ctx(), sources.as_ref(), &hide, q, now).await
         })
@@ -396,7 +413,13 @@ async fn build<B: Backends>(
         if m.role == "user" {
             turns.push((m.seq, "user", content.to_string(), vec![], None));
         } else if let Some(err) = assistant::error_of(&v) {
-            turns.push((m.seq, "assistant", String::new(), vec![], Some(err.to_string())));
+            turns.push((
+                m.seq,
+                "assistant",
+                String::new(),
+                vec![],
+                Some(err.to_string()),
+            ));
         } else if let Some(f) = assistant::parse_final(content) {
             turns.push((m.seq, "assistant", f.text, f.picks, None));
         }
@@ -490,7 +513,12 @@ fn searched_hits(msgs: &[crate::db::MessageRow]) -> HashMap<u64, Value> {
             continue;
         };
         if m.role == "assistant" {
-            for c in v.get("tool_calls").and_then(Value::as_array).into_iter().flatten() {
+            for c in v
+                .get("tool_calls")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
                 if c.pointer("/function/name").and_then(Value::as_str) == Some("search_releases")
                     && let Some(id) = c.get("id").and_then(Value::as_str)
                 {
@@ -498,7 +526,9 @@ fn searched_hits(msgs: &[crate::db::MessageRow]) -> HashMap<u64, Value> {
                 }
             }
         } else if m.role == "tool"
-            && v.get("tool_call_id").and_then(Value::as_str).is_some_and(|id| calls.contains(id))
+            && v.get("tool_call_id")
+                .and_then(Value::as_str)
+                .is_some_and(|id| calls.contains(id))
         {
             let Some(result) = v
                 .get("content")
@@ -507,8 +537,18 @@ fn searched_hits(msgs: &[crate::db::MessageRow]) -> HashMap<u64, Value> {
             else {
                 continue;
             };
-            for h in result.get("results").and_then(Value::as_array).into_iter().flatten() {
-                if let Some(id) = h.get("ref").and_then(Value::as_str).and_then(|r| r.strip_prefix("t:")).and_then(|i| i.parse().ok()) {
+            for h in result
+                .get("results")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                if let Some(id) = h
+                    .get("ref")
+                    .and_then(Value::as_str)
+                    .and_then(|r| r.strip_prefix("t:"))
+                    .and_then(|i| i.parse().ok())
+                {
                     out.insert(id, h.clone());
                 }
             }
@@ -524,7 +564,11 @@ fn snapshot(id: u64, h: &Value) -> crate::db::Listed {
         topic: crate::db::Topic {
             row: crate::tracker::parse::Row {
                 id,
-                title: h.get("title").and_then(Value::as_str).unwrap_or("?").to_string(),
+                title: h
+                    .get("title")
+                    .and_then(Value::as_str)
+                    .unwrap_or("?")
+                    .to_string(),
                 forum: 0,
                 size: n("size"),
                 seeders: n("seeders") as u32,
@@ -566,7 +610,14 @@ fn resolve_topics<B: Backends>(
         .filter(|(l, _)| wanted.contains(&l.topic.row.id))
         .map(|(l, section)| {
             let topic = crate::api::topic(&l, &added, &queued, downloads, &externals);
-            (topic.id, PickedTopic { topic, section: section.as_str(), expired: false })
+            (
+                topic.id,
+                PickedTopic {
+                    topic,
+                    section: section.as_str(),
+                    expired: false,
+                },
+            )
         })
         .collect();
     for id in ids {
@@ -574,16 +625,35 @@ fn resolve_topics<B: Backends>(
             continue;
         };
         let (listed, expired) = match st.db.find(*id, now)? {
-            Some((topic, _)) => (crate::db::Listed { topic, filters: vec![], curated_reason: None }, false),
+            Some((topic, _)) => (
+                crate::db::Listed {
+                    topic,
+                    filters: vec![],
+                    curated_reason: None,
+                },
+                false,
+            ),
             None => (snapshot(*id, h), true),
         };
         let mut topic = crate::api::topic(&listed, &added, &queued, downloads, &externals);
-        if expired && let Some(src) = h.get("source").and_then(Value::as_str).filter(|s| *s != "tracker") {
+        if expired
+            && let Some(src) = h
+                .get("source")
+                .and_then(Value::as_str)
+                .filter(|s| *s != "tracker")
+        {
             // The external row went with the search hit; the snapshot still names its indexer.
             topic.source = Some(src.to_string());
             topic.kind = "torrent";
         }
-        found.insert(*id, PickedTopic { topic, section: Section::Video.as_str(), expired });
+        found.insert(
+            *id,
+            PickedTopic {
+                topic,
+                section: Section::Video.as_str(),
+                expired,
+            },
+        );
     }
     // In the order the picks first named them.
     Ok(ids.iter().filter_map(|id| found.remove(id)).collect())

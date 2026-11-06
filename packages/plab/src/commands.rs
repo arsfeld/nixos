@@ -221,8 +221,7 @@ fn clients<'a>(
     a: &'a App,
     paths: &'a Paths,
     codedb: Option<&'a crate::codedb::CodeDb>,
-) -> anyhow::Result<Clients<'a, Live>>
-{
+) -> anyhow::Result<Clients<'a, Live>> {
     Ok(Clients::<Live> {
         stash: &a.stash,
         llm: app::require_openrouter(&a.openrouter)?,
@@ -311,8 +310,7 @@ pub async fn serve(
                     monitor: crate::monitor::global().clone(),
                     prowlarr: a.prowlarr.clone(),
                     sources_file: a.cfg.sources_file.clone(),
-                    assistant: crate::app::assistant(&a.cfg, crate::llm::OPENROUTER)?
-                        .map(Arc::new),
+                    assistant: crate::app::assistant(&a.cfg, crate::llm::OPENROUTER)?.map(Arc::new),
                 });
                 if let Some(assistant) = &state.assistant {
                     assistant.set_search(Arc::new(web::WebSearch(Arc::downgrade(&state))));

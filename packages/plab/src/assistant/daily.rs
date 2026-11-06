@@ -43,7 +43,9 @@ fn parsed(db: &Db, id: i64) -> Result<Vec<(String, Value)>> {
 
 /// User turns the user can see: the canned ask counts, a hidden re-ask does not.
 fn user_turns(msgs: &[(String, Value)]) -> usize {
-    msgs.iter().filter(|(r, v)| r == "user" && !is_hidden(v)).count()
+    msgs.iter()
+        .filter(|(r, v)| r == "user" && !is_hidden(v))
+        .count()
 }
 
 /// The daily's answer: the first shown assistant message (not hidden, not a tool call).
@@ -52,7 +54,9 @@ fn first_answer(msgs: &[(String, Value)]) -> Option<&Value> {
         .find(|(r, v)| {
             r == "assistant"
                 && !is_hidden(v)
-                && v.get("tool_calls").and_then(Value::as_array).is_none_or(|a| a.is_empty())
+                && v.get("tool_calls")
+                    .and_then(Value::as_array)
+                    .is_none_or(|a| a.is_empty())
         })
         .map(|(_, v)| v)
 }
@@ -67,7 +71,11 @@ fn has_picks(answer: Option<&Value>) -> bool {
 pub fn state(db: &Db, now: i64) -> Result<Daily> {
     let today = local_ymd(now);
     let mut d = Daily::default();
-    for (i, row) in db.conversations_of_kind("recommend")?.into_iter().enumerate() {
+    for (i, row) in db
+        .conversations_of_kind("recommend")?
+        .into_iter()
+        .enumerate()
+    {
         let msgs = parsed(db, row.id)?;
         let answer = first_answer(&msgs);
         if i == 0 && local_ymd(row.created_at) == today {
@@ -121,9 +129,12 @@ mod tests {
     }
 
     fn conv(db: &Db, at: i64, msgs: &[Value]) -> i64 {
-        let id = db.create_conversation("Recommendations", "recommend", at).unwrap();
+        let id = db
+            .create_conversation("Recommendations", "recommend", at)
+            .unwrap();
         for m in msgs {
-            db.append_message(id, m["role"].as_str().unwrap(), &m.to_string(), at).unwrap();
+            db.append_message(id, m["role"].as_str().unwrap(), &m.to_string(), at)
+                .unwrap();
         }
         id
     }
@@ -133,7 +144,11 @@ mod tests {
     }
 
     fn good() -> Vec<Value> {
-        vec![json!({"role": "system", "content": "s"}), ask(), answer(json!([{"ref": "t:1", "action": "download", "reason": "r"}]))]
+        vec![
+            json!({"role": "system", "content": "s"}),
+            ask(),
+            answer(json!([{"ref": "t:1", "action": "download", "reason": "r"}])),
+        ]
     }
 
     #[test]
@@ -156,7 +171,14 @@ mod tests {
     fn a_failed_today_keeps_yesterday_and_carries_the_error() {
         let db = Db::open_in_memory().unwrap();
         let y = conv(&db, NOON - DAY, &good());
-        conv(&db, NOON, &[ask(), json!({"role": "assistant", "content": "", "plab_error": "boom"})]);
+        conv(
+            &db,
+            NOON,
+            &[
+                ask(),
+                json!({"role": "assistant", "content": "", "plab_error": "boom"}),
+            ],
+        );
         let d = state(&db, NOON + 60).unwrap();
         assert_eq!(d.shown.map(|r| r.id), Some(y));
         assert!(d.attempted_today);
@@ -169,7 +191,10 @@ mod tests {
         conv(&db, NOON - DAY, &good());
         let t = conv(&db, NOON, &good());
         let d = state(&db, NOON).unwrap();
-        assert_eq!((d.shown.map(|r| r.id), d.attempted_today, d.error), (Some(t), true, None));
+        assert_eq!(
+            (d.shown.map(|r| r.id), d.attempted_today, d.error),
+            (Some(t), true, None)
+        );
     }
 
     #[test]
@@ -197,8 +222,15 @@ mod tests {
         assert_eq!(d.shown.map(|r| r.id), Some(y));
         assert_eq!(d.error.as_deref(), Some("today's answer had no picks"));
         let db = Db::open_in_memory().unwrap();
-        conv(&db, NOON, &[ask(), json!({"role": "assistant", "content": "not json"})]);
-        assert_eq!(state(&db, NOON).unwrap().error.as_deref(), Some("today's answer had no picks"));
+        conv(
+            &db,
+            NOON,
+            &[ask(), json!({"role": "assistant", "content": "not json"})],
+        );
+        assert_eq!(
+            state(&db, NOON).unwrap().error.as_deref(),
+            Some("today's answer had no picks")
+        );
     }
 
     #[test]
@@ -208,7 +240,13 @@ mod tests {
         msgs.push(json!({"role": "user", "content": "again", "plab_hidden": true}));
         let id = conv(&db, NOON, &msgs);
         assert!(!followed_up(&db, id).unwrap());
-        db.append_message(id, "user", &json!({"role": "user", "content": "why?"}).to_string(), NOON).unwrap();
+        db.append_message(
+            id,
+            "user",
+            &json!({"role": "user", "content": "why?"}).to_string(),
+            NOON,
+        )
+        .unwrap();
         assert!(followed_up(&db, id).unwrap());
     }
 
@@ -220,7 +258,9 @@ mod tests {
         asked.push(json!({"role": "user", "content": "why?"}));
         let kept = conv(&db, NOON - 31 * DAY, &asked);
         let recent = conv(&db, NOON - 29 * DAY, &good());
-        let chat = db.create_conversation("c", "chat", NOON - 40 * DAY).unwrap();
+        let chat = db
+            .create_conversation("c", "chat", NOON - 40 * DAY)
+            .unwrap();
         assert_eq!(prune(&db, NOON).unwrap(), 1);
         assert!(db.conversation(old).unwrap().is_none());
         for id in [kept, recent, chat] {

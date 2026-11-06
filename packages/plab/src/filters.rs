@@ -168,7 +168,11 @@ pub fn title_terms(title: &str) -> Terms {
 /// missing one proves nothing), but not from an `always` term.
 pub fn scene_hidden(rule: &HideRule, scene: &crate::stash::library::LibScene) -> bool {
     let tags = Terms::Tags(scene.tags.iter().map(|t| t.name.to_lowercase()).collect());
-    if scene.performers.iter().any(|p| p.gender.as_deref() == Some("MALE")) {
+    if scene
+        .performers
+        .iter()
+        .any(|p| p.gender.as_deref() == Some("MALE"))
+    {
         return rule.always.iter().any(|a| tags.has(a));
     }
     rule.hides(&tags)
@@ -184,7 +188,10 @@ pub struct Excludes {
 
 impl From<Vec<fancy_regex::Regex>> for Excludes {
     fn from(patterns: Vec<fancy_regex::Regex>) -> Self {
-        Excludes { patterns, rule: HideRule::default() }
+        Excludes {
+            patterns,
+            rule: HideRule::default(),
+        }
     }
 }
 
@@ -196,7 +203,9 @@ impl Excludes {
 
     /// The patterns alone: for album names, which are not scenes.
     pub fn pattern_excluded(&self, title: &str) -> bool {
-        self.patterns.iter().any(|p| p.is_match(title).unwrap_or(false))
+        self.patterns
+            .iter()
+            .any(|p| p.is_match(title).unwrap_or(false))
     }
 
     pub fn is_empty(&self) -> bool {
@@ -524,9 +533,8 @@ mod tests {
 
     #[test]
     fn sections_split_patterns_from_terms() {
-        let ex = parse_excludes(
-            "apple\n[a-z]fruit\n\n[hide]\nPear\n# note\nwild plum\n[keep]\nKiwi\n",
-        );
+        let ex =
+            parse_excludes("apple\n[a-z]fruit\n\n[hide]\nPear\n# note\nwild plum\n[keep]\nKiwi\n");
         assert_eq!(ex.patterns.len(), 2); // `[a-z]fruit` is a character class, not a header
         assert_eq!(ex.rule, rule(&["pear", "wild plum"], &["kiwi"]));
     }
@@ -564,7 +572,10 @@ mod tests {
             title_terms("[Site.com] A Pear Story [2026-10-01, Fig, Kiwi, 1080p, SiteRip]"),
             tags(&["fig", "kiwi"])
         );
-        assert_eq!(title_terms("Site 26 01 01 Pear Video 1080p"), Terms::Words("site 26 01 01 pear video 1080p".into()));
+        assert_eq!(
+            title_terms("Site 26 01 01 Pear Video 1080p"),
+            Terms::Words("site 26 01 01 pear video 1080p".into())
+        );
     }
 
     #[test]
@@ -596,11 +607,20 @@ mod tests {
     #[test]
     fn scene_hidden_uses_tags_and_a_listed_man_keeps() {
         let r = rule(&["pear"], &["kiwi"]);
-        assert!(scene_hidden(&r, &scene(&["Pear"], &[Some("FEMALE"), Some("FEMALE")])));
+        assert!(scene_hidden(
+            &r,
+            &scene(&["Pear"], &[Some("FEMALE"), Some("FEMALE")])
+        ));
         assert!(scene_hidden(&r, &scene(&["Pear"], &[]))); // an empty cast proves nothing
         assert!(scene_hidden(&r, &scene(&["Pear"], &[None])));
-        assert!(!scene_hidden(&r, &scene(&["Pear", "Kiwi"], &[Some("FEMALE")])));
-        assert!(!scene_hidden(&r, &scene(&["Pear"], &[Some("FEMALE"), Some("MALE")])));
+        assert!(!scene_hidden(
+            &r,
+            &scene(&["Pear", "Kiwi"], &[Some("FEMALE")])
+        ));
+        assert!(!scene_hidden(
+            &r,
+            &scene(&["Pear"], &[Some("FEMALE"), Some("MALE")])
+        ));
         assert!(!scene_hidden(&r, &scene(&["Fig"], &[Some("FEMALE")])));
     }
 }

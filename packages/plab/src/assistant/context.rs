@@ -49,12 +49,17 @@ pub struct Context {
 }
 
 fn named(n: &crate::stash::library::Named) -> Named {
-    Named { name: n.name.clone(), id: Some(n.id.clone()) }
+    Named {
+        name: n.name.clone(),
+        id: Some(n.id.clone()),
+    }
 }
 
 fn played_at(s: &LibScene) -> Option<i64> {
     let t = s.last_played_at.as_deref()?;
-    chrono::DateTime::parse_from_rfc3339(t).ok().map(|d| d.timestamp())
+    chrono::DateTime::parse_from_rfc3339(t)
+        .ok()
+        .map(|d| d.timestamp())
 }
 
 fn view_of(s: &LibScene, at: i64, streamed: bool) -> View {
@@ -64,7 +69,11 @@ fn view_of(s: &LibScene, at: i64, streamed: bool) -> View {
         studio: s.studio.as_ref().map(named),
         performers: s.performers.iter().map(named).collect(),
         tags: s.tags.iter().map(|t| t.name.clone()).collect(),
-        o_count: if streamed { 0 } else { s.o_counter.unwrap_or(0) },
+        o_count: if streamed {
+            0
+        } else {
+            s.o_counter.unwrap_or(0)
+        },
         rating: if streamed { None } else { s.rating100 },
         streamed,
     }
@@ -77,7 +86,11 @@ pub async fn views(db: &Db, stash: &Stash, now: i64) -> (Vec<View>, bool) {
     let mut out: Vec<View> = match bounded(stash.recent_plays(PLAYS)).await {
         Ok(scenes) => scenes
             .iter()
-            .filter_map(|s| played_at(s).filter(|&at| at >= since).map(|at| view_of(s, at, false)))
+            .filter_map(|s| {
+                played_at(s)
+                    .filter(|&at| at >= since)
+                    .map(|at| view_of(s, at, false))
+            })
             .collect(),
         Err(e) => {
             tracing::info!(job = "assistant", "Stash plays: {e:#}");
@@ -92,7 +105,12 @@ pub async fn views(db: &Db, stash: &Stash, now: i64) -> (Vec<View>, bool) {
     // A streamed release matched to a scene takes that scene's studio, performers, tags.
     let mut by_scene: Vec<(i64, String, Option<String>)> = vec![]; // (at, title, scene id)
     for (topic, at) in streams {
-        let title = db.topic(topic).ok().flatten().map(|t| t.row.title).unwrap_or_else(|| format!("release {topic}"));
+        let title = db
+            .topic(topic)
+            .ok()
+            .flatten()
+            .map(|t| t.row.title)
+            .unwrap_or_else(|| format!("release {topic}"));
         let scene = db.external(topic).ok().flatten().and_then(|e| e.scene_id);
         by_scene.push((at, title, scene));
     }
@@ -108,8 +126,16 @@ pub async fn views(db: &Db, stash: &Stash, now: i64) -> (Vec<View>, bool) {
     };
     for (at, title, scene) in by_scene {
         match scene.and_then(|id| scenes.iter().find(|s| s.id == id)) {
-            Some(s) => out.push(View { title, ..view_of(s, at, true) }),
-            None => out.push(View { at, title, streamed: true, ..View::default() }),
+            Some(s) => out.push(View {
+                title,
+                ..view_of(s, at, true)
+            }),
+            None => out.push(View {
+                at,
+                title,
+                streamed: true,
+                ..View::default()
+            }),
         }
     }
     (out, ok)
@@ -128,20 +154,33 @@ fn releases(db: &Db) -> anyhow::Result<Vec<ReleaseIn>> {
                 title: row.title.clone(),
                 studio: crate::labels::labels(&row.title, row.forum).studio,
                 downloaded: added.contains(&row.id),
-                album: externals.get(&row.id).is_some_and(|e| e.kind == Kind::Album),
+                album: externals
+                    .get(&row.id)
+                    .is_some_and(|e| e.kind == Kind::Album),
             }
         })
         .collect())
 }
 
-pub async fn gather(db: &Db, stash: &Stash, hide: &crate::filters::HideRule, now: i64) -> anyhow::Result<Context> {
+pub async fn gather(
+    db: &Db,
+    stash: &Stash,
+    hide: &crate::filters::HideRule,
+    now: i64,
+) -> anyhow::Result<Context> {
     let (views, mut ok) = views(db, stash, now).await;
     let profile = taste::profile(&views, now);
     let ids = |ws: &[taste::Weighted], n: usize| -> Vec<String> {
         ws.iter().filter_map(|w| w.id.clone()).take(n).collect()
     };
     let scenes = if ok {
-        match bounded(stash.unwatched(&ids(&profile.performers, 8), &ids(&profile.studios, 5), UNWATCHED)).await {
+        match bounded(stash.unwatched(
+            &ids(&profile.performers, 8),
+            &ids(&profile.studios, 5),
+            UNWATCHED,
+        ))
+        .await
+        {
             Ok(s) => s,
             Err(e) => {
                 tracing::info!(job = "assistant", "Stash unwatched: {e:#}");
@@ -165,7 +204,11 @@ pub async fn gather(db: &Db, stash: &Stash, hide: &crate::filters::HideRule, now
         })
         .collect();
     let candidates = candidates::candidates(&profile, &scenes, &releases(db)?);
-    Ok(Context { profile, candidates, degraded: if ok { vec![] } else { vec!["stash"] } })
+    Ok(Context {
+        profile,
+        candidates,
+        degraded: if ok { vec![] } else { vec!["stash"] },
+    })
 }
 
 #[cfg(test)]

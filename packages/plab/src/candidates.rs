@@ -131,8 +131,9 @@ pub fn candidates(profile: &Profile, scenes: &[SceneIn], releases: &[ReleaseIn])
         .filter_map(|r| {
             let title = r.title.to_lowercase();
             let studio = r.studio.as_deref().map(str::to_lowercase);
-            let (score, matched) =
-                score(&terms, |k| has_word(&title, k) || studio.as_deref() == Some(k));
+            let (score, matched) = score(&terms, |k| {
+                has_word(&title, k) || studio.as_deref() == Some(k)
+            });
             (score > 0.0).then(|| Candidate {
                 ref_: format!("t:{}", r.id),
                 kind: "stream_or_download",
@@ -153,7 +154,11 @@ mod tests {
     use crate::taste::Weighted;
 
     fn w(name: &str, weight: f64) -> Weighted {
-        Weighted { name: name.into(), id: None, weight }
+        Weighted {
+            name: name.into(),
+            id: None,
+            weight,
+        }
     }
 
     fn profile() -> Profile {
@@ -177,12 +182,22 @@ mod tests {
     }
 
     fn release(id: u64, title: &str) -> ReleaseIn {
-        ReleaseIn { id, title: title.into(), studio: None, downloaded: false, album: false }
+        ReleaseIn {
+            id,
+            title: title.into(),
+            studio: None,
+            downloaded: false,
+            album: false,
+        }
     }
 
     #[test]
     fn scenes_score_by_studio_performers_and_tags() {
-        let c = candidates(&profile(), &[scene("1", Some("studio a"), &["Performer B"], 0)], &[]);
+        let c = candidates(
+            &profile(),
+            &[scene("1", Some("studio a"), &["Performer B"], 0)],
+            &[],
+        );
         assert_eq!(c.len(), 1);
         assert_eq!(c[0].ref_, "s:1");
         assert_eq!(c[0].kind, "watch");
@@ -198,7 +213,10 @@ mod tests {
             release(3, "Unrelated"),
         ];
         let c = candidates(&profile(), &[], &rs);
-        assert_eq!(c.iter().map(|c| c.ref_.as_str()).collect::<Vec<_>>(), vec!["t:1"]);
+        assert_eq!(
+            c.iter().map(|c| c.ref_.as_str()).collect::<Vec<_>>(),
+            vec!["t:1"]
+        );
         assert_eq!(c[0].kind, "stream_or_download");
     }
 
@@ -218,7 +236,9 @@ mod tests {
 
     #[test]
     fn caps_per_pool_and_overall() {
-        let scenes: Vec<SceneIn> = (0..30).map(|i| scene(&i.to_string(), Some("Studio A"), &[], 0)).collect();
+        let scenes: Vec<SceneIn> = (0..30)
+            .map(|i| scene(&i.to_string(), Some("Studio A"), &[], 0))
+            .collect();
         let releases: Vec<ReleaseIn> = (0..30).map(|i| release(i, "Performer B release")).collect();
         let c = candidates(&profile(), &scenes, &releases);
         assert_eq!(c.len(), MAX);

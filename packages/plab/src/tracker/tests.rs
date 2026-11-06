@@ -218,7 +218,11 @@ async fn still_logged_out_after_login_raises() {
 #[tokio::test]
 async fn top_query_and_second_page() {
     let lab = Lab::new(vec![fixture("tracker.html"), fixture("tracker.html")]).await;
-    let rows = lab.t.top(&[1875, 1818], 7, 3, &crate::filters::Excludes::default()).await.unwrap();
+    let rows = lab
+        .t
+        .top(&[1875, 1818], 7, 3, &crate::filters::Excludes::default())
+        .await
+        .unwrap();
     assert_eq!(
         rows.iter().map(|r| r.id).collect::<Vec<_>>(),
         vec![3313754, 3314001, 3313754]
@@ -233,7 +237,14 @@ async fn top_query_and_second_page() {
 #[tokio::test]
 async fn top_stops_at_limit_without_second_page() {
     let lab = Lab::new(vec![fixture("tracker.html")]).await;
-    assert_eq!(lab.t.top(&[1875], 7, 2, &crate::filters::Excludes::default()).await.unwrap().len(), 2);
+    assert_eq!(
+        lab.t
+            .top(&[1875], 7, 2, &crate::filters::Excludes::default())
+            .await
+            .unwrap()
+            .len(),
+        2
+    );
     assert_eq!(lab.calls().await.len(), 1);
 }
 
@@ -276,7 +287,14 @@ async fn search_encodes_params_and_filters() {
 async fn search_all_time_sends_no_window() {
     let lab = Lab::new(vec![fixture("tracker.html")]).await;
     lab.t
-        .search("Alpha", &[1875], None, 1, &crate::filters::Excludes::default(), None)
+        .search(
+            "Alpha",
+            &[1875],
+            None,
+            1,
+            &crate::filters::Excludes::default(),
+            None,
+        )
         .await
         .unwrap();
     let url = &lab.urls().await[0];
@@ -289,7 +307,14 @@ async fn search_pagination() {
     let lab = Lab::new(vec![fixture("tracker.html"), fixture("tracker.html")]).await;
     let rows = lab
         .t
-        .search("Alpha", &[1875], Some(32), 3, &crate::filters::Excludes::default(), None)
+        .search(
+            "Alpha",
+            &[1875],
+            Some(32),
+            3,
+            &crate::filters::Excludes::default(),
+            None,
+        )
         .await
         .unwrap();
     assert_eq!(rows.len(), 3);
@@ -694,7 +719,14 @@ fn futures_are_send() {
     send(t.page("x"));
     send(t.login(0));
     send(t.top(&[1], 7, 1, &crate::filters::Excludes::default()));
-    send(t.search("q", &[1], None, 1, &crate::filters::Excludes::default(), None));
+    send(t.search(
+        "q",
+        &[1],
+        None,
+        1,
+        &crate::filters::Excludes::default(),
+        None,
+    ));
     send(t.topic(1));
     send(t.torrent(1));
     send(t.fetch(&crate::site::get().tracker_url));

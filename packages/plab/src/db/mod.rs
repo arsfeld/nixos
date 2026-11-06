@@ -1,20 +1,20 @@
-pub mod import;
-mod topics;
 mod added;
-mod downloads;
-mod identify;
-mod jobs;
 mod assistant;
+mod downloads;
 mod external;
+mod identify;
+pub mod import;
+mod jobs;
 mod kv;
+mod topics;
 
-pub use topics::*;
 pub use added::*;
+pub use assistant::*;
 pub use downloads::*;
+pub use external::*;
 pub use identify::*;
 pub use jobs::*;
-pub use assistant::*;
-pub use external::*;
+pub use topics::*;
 
 use crate::tracker::parse::Row;
 use anyhow::{Context, Result};
@@ -23,15 +23,6 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-
-
-
-
-
-
-
-
-
 
 /// The schema, one step per version: a database at `user_version` N has run the first N.
 /// A new version is a new `schema_vN.sql` and one entry here.
@@ -89,12 +80,6 @@ pub struct Topic {
     pub images: Option<Vec<String>>,
     pub production: Option<Production>,
 }
-
-
-
-
-
-
 
 #[derive(Clone)]
 pub struct Db(Arc<Mutex<Connection>>);
@@ -266,17 +251,6 @@ impl Db {
         self.with(|c| Ok(c.execute_batch(sql)?))
     }
 
-
-
-
-
-
-
-
-
-
-
-
     #[cfg(test)]
     pub fn user_version(&self) -> Result<i64> {
         self.with(|c| Ok(c.pragma_query_value(None, "user_version", |r| r.get(0))?))
@@ -323,7 +297,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn empty_defaults() {
         // test_empty_defaults: no added topics, no search results.
@@ -333,31 +306,13 @@ mod tests {
         assert!(db.queued(Section::Video).unwrap().is_empty());
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    pub(super) fn added(db: &Db, source: &str, topic: Option<u64>, title: &str, hash: Option<&str>) -> i64 {
+    pub(super) fn added(
+        db: &Db,
+        source: &str,
+        topic: Option<u64>,
+        title: &str,
+        hash: Option<&str>,
+    ) -> i64 {
         db.mark_added(NewDownload {
             source,
             topic_id: topic,
@@ -438,10 +393,6 @@ mod tests {
         assert!(!rows[0].files_synced);
     }
 
-
-
-
-
     #[test]
     fn a_version_2_database_gains_torrent_file() {
         let dir = tempfile::tempdir().unwrap();
@@ -469,9 +420,6 @@ mod tests {
         assert!(Db::open(&path).is_err());
     }
 
-
-
-
     pub(super) const NOW: i64 = 1_800_000_000;
 
     pub(super) fn topic(id: u64, title: &str) -> Topic {
@@ -494,8 +442,6 @@ mod tests {
         }
     }
 
-
-
     #[test]
     fn sections_parse_by_id() {
         assert_eq!(Section::parse("albums"), Some(Section::Albums));
@@ -503,8 +449,6 @@ mod tests {
         assert_eq!(Section::parse("video"), Some(Section::Video));
         assert_eq!(Section::parse("nope"), None);
     }
-
-
 
     #[test]
     fn save_curated_drops_orphan_external_rows_and_save_listing_keeps_curated_topics() {
@@ -553,8 +497,13 @@ mod tests {
             }
         });
         started_rx.await.unwrap();
-        let other = tokio::spawn(async { std::time::Instant::now() }).await.unwrap();
+        let other = tokio::spawn(async { std::time::Instant::now() })
+            .await
+            .unwrap();
         let slow_done = slow.await.unwrap();
-        assert!(other < slow_done, "a spawned task waited for the query to finish");
+        assert!(
+            other < slow_done,
+            "a spawned task waited for the query to finish"
+        );
     }
 }

@@ -5,8 +5,8 @@
 use super::*;
 use crate::db::{Listed, Topic};
 use crate::events::Event;
-use crate::tracker::{TrackerApi, TrackerError};
 use crate::tracker::parse::Row;
+use crate::tracker::{TrackerApi, TrackerError};
 use crate::transmission::{Added, Torrent, TorrentSource};
 use axum::http::Request;
 use futures::StreamExt;
@@ -418,7 +418,14 @@ fn app_fx() -> Fx {
 #[tokio::test]
 async fn app_routes_serve_the_index() {
     let fx = app_fx();
-    for path in ["/", "/games", "/jobs", "/tracker", "/search?q=x", "/anything/else"] {
+    for path in [
+        "/",
+        "/games",
+        "/jobs",
+        "/tracker",
+        "/search?q=x",
+        "/anything/else",
+    ] {
         let r = fx.get(path).await;
         assert_eq!(r.status, 200, "{path}");
         assert_eq!(r.header("content-type"), "text/html; charset=utf-8");
@@ -532,7 +539,12 @@ async fn the_hide_rule_skips_the_albums_list() {
     ]);
     fx.state
         .db
-        .save_listing(Section::Albums, &[listed(row(3, "Pear Album"), &[])], &[], now())
+        .save_listing(
+            Section::Albums,
+            &[listed(row(3, "Pear Album"), &[])],
+            &[],
+            now(),
+        )
         .unwrap();
     let v = fx.get("/api/list?section=video").await.json();
     assert_eq!(v["topics"].as_array().unwrap().len(), 1);
@@ -1085,10 +1097,12 @@ async fn assistant_fx_with(server: &wiremock::MockServer, prompt: &str) -> Fx {
 async fn assistant_fx_on(server: &wiremock::MockServer, prompt: &str, tracker: FakeTracker) -> Fx {
     use wiremock::{Mock, ResponseTemplate, matchers::path};
     Mock::given(path("/graphql"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": {"findScenes": {"scenes": [
-            {"id": "4", "title": "Alpha", "performers": [{"id": "p", "name": "Performer B"}],
-             "paths": {"screenshot": "http://localhost:9999/scene/4/screenshot?t=1"}}
-        ]}}})))
+        .respond_with(ResponseTemplate::new(200).set_body_json(
+            json!({"data": {"findScenes": {"scenes": [
+                {"id": "4", "title": "Alpha", "performers": [{"id": "p", "name": "Performer B"}],
+                 "paths": {"screenshot": "http://localhost:9999/scene/4/screenshot?t=1"}}
+            ]}}}),
+        ))
         .mount(server)
         .await;
     let uri = server.uri();
@@ -1184,8 +1198,11 @@ async fn the_daily_resolves_picks_and_drops_unknown_refs() {
     let list = fx.get("/api/assistant/conversations").await.json();
     assert_eq!(list.as_array().unwrap().len(), 0);
     let id = j["id"].as_i64().unwrap();
-    fx.post_json(&format!("/api/assistant/conversations/{id}/messages"), json!({"text": "why?"}))
-        .await;
+    fx.post_json(
+        &format!("/api/assistant/conversations/{id}/messages"),
+        json!({"text": "why?"}),
+    )
+    .await;
     let list = fx.get("/api/assistant/conversations").await.json();
     assert_eq!(list[0]["kind"], "recommend");
 }
@@ -1194,7 +1211,9 @@ async fn the_daily_resolves_picks_and_drops_unknown_refs() {
 async fn the_daily_is_made_once_a_day() {
     let server = wiremock::MockServer::start().await;
     wiremock::Mock::given(wiremock::matchers::path(crate::llm::CHAT_PATH))
-        .respond_with(answer(json!([{"ref": "s:4", "action": "watch", "reason": "r"}])))
+        .respond_with(answer(
+            json!([{"ref": "s:4", "action": "watch", "reason": "r"}]),
+        ))
         .expect(1)
         .mount(&server)
         .await;
@@ -1213,7 +1232,10 @@ async fn refresh_is_409_while_the_daily_runs() {
         .mount(&server)
         .await;
     let fx = assistant_fx(&server).await;
-    assert_eq!(fx.get("/api/assistant/daily").await.json()["refreshing"], true);
+    assert_eq!(
+        fx.get("/api/assistant/daily").await.json()["refreshing"],
+        true
+    );
     assert_eq!(fx.post("/api/assistant/daily/refresh").await.status, 409);
 }
 
@@ -1230,17 +1252,29 @@ async fn a_failed_daily_keeps_the_last_good_picks() {
     // Two days back, so a DST change cannot make it today.
     let then = now() - 2 * 86_400;
     let db = &fx.state.db;
-    let old = db.create_conversation("Recommendations", "recommend", then).unwrap();
+    let old = db
+        .create_conversation("Recommendations", "recommend", then)
+        .unwrap();
     let ans = json!({"role": "assistant", "content": json!({"text": "Old.", "picks": [
         {"ref": "t:5", "action": "download", "reason": "r"}]}).to_string()});
-    db.append_message(old, "user", &json!({"role": "user", "content": "ask"}).to_string(), then).unwrap();
-    db.append_message(old, "assistant", &ans.to_string(), then).unwrap();
+    db.append_message(
+        old,
+        "user",
+        &json!({"role": "user", "content": "ask"}).to_string(),
+        then,
+    )
+    .unwrap();
+    db.append_message(old, "assistant", &ans.to_string(), then)
+        .unwrap();
     let d = daily_done(&fx).await;
     assert_eq!(d["conversation"]["id"], old);
     assert_eq!(d["generatedOn"], crate::assistant::daily::local_ymd(then));
     assert!(d["error"].as_str().unwrap().contains("OpenRouter"), "{d}");
     // Not retried on the next visit (the mock expects exactly one call).
-    assert_eq!(fx.get("/api/assistant/daily").await.json()["refreshing"], false);
+    assert_eq!(
+        fx.get("/api/assistant/daily").await.json()["refreshing"],
+        false
+    );
 }
 
 #[tokio::test]
@@ -1275,14 +1309,27 @@ async fn picks_off_the_advised_lists_are_dropped() {
         .await;
     let fx = assistant_fx(&server).await;
     let db = &fx.state.db;
-    db.save_listing(Section::Games, &[listed(row(5, "Alpha One"), &[COVER])], &[], now())
-        .unwrap();
-    db.save_listing(Section::Indexers, &[listed(row(6, "Alpha Two"), &[COVER])], &[], now())
-        .unwrap();
+    db.save_listing(
+        Section::Games,
+        &[listed(row(5, "Alpha One"), &[COVER])],
+        &[],
+        now(),
+    )
+    .unwrap();
+    db.save_listing(
+        Section::Indexers,
+        &[listed(row(6, "Alpha Two"), &[COVER])],
+        &[],
+        now(),
+    )
+    .unwrap();
     let j = daily_done(&fx).await["conversation"].clone();
     let topics = j["topics"].as_array().unwrap();
     assert_eq!(topics.len(), 1);
-    assert_eq!((topics[0]["id"].as_u64(), topics[0]["section"].as_str()), (Some(6), Some("indexers")));
+    assert_eq!(
+        (topics[0]["id"].as_u64(), topics[0]["section"].as_str()),
+        (Some(6), Some("indexers"))
+    );
     let picks = j["turns"][1]["picks"].as_array().unwrap();
     assert_eq!(picks.len(), 1);
     assert_eq!(picks[0]["ref"], "t:6");
@@ -1297,7 +1344,10 @@ async fn chat_messages_get_and_delete() {
         .await;
     let fx = assistant_fx(&server).await;
     let r = fx
-        .post_json("/api/assistant/conversations", json!({"text": "something short"}))
+        .post_json(
+            "/api/assistant/conversations",
+            json!({"text": "something short"}),
+        )
         .await;
     assert_eq!(r.status, 200, "{}", r.text());
     let id = r.json()["id"].as_i64().unwrap();
@@ -1375,13 +1425,18 @@ async fn assistant_rejects_bad_bodies_and_busy_conversations() {
 async fn searching_assistant(server: &wiremock::MockServer, picks: Value) -> Fx {
     use wiremock::{Mock, ResponseTemplate, matchers::path};
     Mock::given(path(crate::llm::CHAT_PATH))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"choices": [{"message": {
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({"choices": [{"message": {
             "role": "assistant", "content": null, "tool_calls": [{"id": "c1", "type": "function",
-                "function": {"name": "search_releases", "arguments": "{\"q\":\"alpha\"}"}}]}}]})))
+                "function": {"name": "search_releases", "arguments": "{\"q\":\"alpha\"}"}}]}}]})),
+        )
         .up_to_n_times(1)
         .mount(server)
         .await;
-    Mock::given(path(crate::llm::CHAT_PATH)).respond_with(answer(picks)).mount(server).await;
+    Mock::given(path(crate::llm::CHAT_PATH))
+        .respond_with(answer(picks))
+        .mount(server)
+        .await;
     let fx = assistant_fx_on(server, "x", searching()).await;
     let a = fx.state.assistant.clone().unwrap();
     a.set_search(Arc::new(crate::web::WebSearch(Arc::downgrade(&fx.state))));
@@ -1391,14 +1446,26 @@ async fn searching_assistant(server: &wiremock::MockServer, picks: Value) -> Fx 
 #[tokio::test]
 async fn chat_search_pick_renders_card() {
     let server = wiremock::MockServer::start().await;
-    let fx = searching_assistant(&server, json!([{"ref": "t:5", "action": "download", "reason": "r"}])).await;
-    let r = fx.post_json("/api/assistant/conversations", json!({"text": "find alpha"})).await;
+    let fx = searching_assistant(
+        &server,
+        json!([{"ref": "t:5", "action": "download", "reason": "r"}]),
+    )
+    .await;
+    let r = fx
+        .post_json(
+            "/api/assistant/conversations",
+            json!({"text": "find alpha"}),
+        )
+        .await;
     assert_eq!(r.status, 200, "{}", r.text());
     let j = r.json();
     assert_eq!(fx.state.tracker.searches.lock().unwrap()[0].0, "alpha");
     assert_eq!(j["topics"][0]["id"], 5, "{j}");
     assert_eq!(j["topics"][0]["expired"], false);
-    assert_eq!(j["turns"].as_array().unwrap().last().unwrap()["picks"][0]["ref"], "t:5");
+    assert_eq!(
+        j["turns"].as_array().unwrap().last().unwrap()["picks"][0]["ref"],
+        "t:5"
+    );
 }
 
 /// A stored chat: a `search_releases` round per entry of `searches` (each the hits it
@@ -1406,17 +1473,28 @@ async fn chat_search_pick_renders_card() {
 fn seed_search_chat(fx: &Fx, searches: &[Value], pick: u64) -> i64 {
     let db = &fx.state.db;
     let id = db.create_conversation("t", "chat", 0).unwrap();
-    let mut msgs = vec![("user", json!({"role": "user", "content": "find"}).to_string())];
+    let mut msgs = vec![(
+        "user",
+        json!({"role": "user", "content": "find"}).to_string(),
+    )];
     for (i, hits) in searches.iter().enumerate() {
         let call = format!("c{i}");
         msgs.push(("assistant", json!({"role": "assistant", "content": null, "tool_calls": [
             {"id": call, "type": "function", "function": {"name": "search_releases", "arguments": "{\"q\":\"a\"}"}}
         ]}).to_string()));
-        msgs.push(("tool", json!({"role": "tool", "tool_call_id": call,
-            "content": json!({"results": hits}).to_string()}).to_string()));
+        msgs.push((
+            "tool",
+            json!({"role": "tool", "tool_call_id": call,
+            "content": json!({"results": hits}).to_string()})
+            .to_string(),
+        ));
     }
-    msgs.push(("assistant", json!({"role": "assistant", "content": json!({"text": "Here.",
-        "picks": [{"ref": format!("t:{pick}"), "action": "download", "reason": "r"}]}).to_string()}).to_string()));
+    msgs.push((
+        "assistant",
+        json!({"role": "assistant", "content": json!({"text": "Here.",
+        "picks": [{"ref": format!("t:{pick}"), "action": "download", "reason": "r"}]}).to_string()})
+        .to_string(),
+    ));
     db.append_messages(id, &msgs, 0).unwrap();
     id
 }
@@ -1436,13 +1514,20 @@ async fn conversation(fx: &Fx, id: i64) -> Value {
 async fn search_pick_card_outlives_search_hit() {
     let server = wiremock::MockServer::start().await;
     let fx = assistant_fx(&server).await;
-    let id = seed_search_chat(&fx, &[json!([search_hit(77, "Gone Release", "Indexer A", 3)])], 77);
+    let id = seed_search_chat(
+        &fx,
+        &[json!([search_hit(77, "Gone Release", "Indexer A", 3)])],
+        77,
+    );
     let j = conversation(&fx, id).await;
     assert_eq!(j["topics"][0]["id"], 77, "{j}");
     assert_eq!(j["topics"][0]["title"], "Gone Release");
     assert_eq!(j["topics"][0]["source"], "Indexer A");
     assert_eq!(j["topics"][0]["expired"], true);
-    assert_eq!(j["turns"].as_array().unwrap().last().unwrap()["picks"][0]["ref"], "t:77");
+    assert_eq!(
+        j["turns"].as_array().unwrap().last().unwrap()["picks"][0]["ref"],
+        "t:77"
+    );
 }
 
 #[tokio::test]
@@ -1451,7 +1536,10 @@ async fn latest_search_result_wins() {
     let fx = assistant_fx(&server).await;
     let id = seed_search_chat(
         &fx,
-        &[json!([search_hit(77, "R", "tracker", 1)]), json!([search_hit(77, "R", "tracker", 9)])],
+        &[
+            json!([search_hit(77, "R", "tracker", 1)]),
+            json!([search_hit(77, "R", "tracker", 9)]),
+        ],
         77,
     );
     assert_eq!(conversation(&fx, id).await["topics"][0]["seeders"], 9);
@@ -1465,5 +1553,8 @@ async fn pick_from_another_conversations_search_is_dropped() {
     let b = seed_search_chat(&fx, &[], 77);
     let j = conversation(&fx, b).await;
     assert_eq!(j["topics"], json!([]), "{j}");
-    assert_eq!(j["turns"].as_array().unwrap().last().unwrap()["picks"], json!([]));
+    assert_eq!(
+        j["turns"].as_array().unwrap().last().unwrap()["picks"],
+        json!([])
+    );
 }

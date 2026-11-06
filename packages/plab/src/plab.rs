@@ -293,12 +293,7 @@ pub const COVER_DAYS: i64 = 90;
 /// Copy a just-added topic's first image out of the image cache, which forgets it once the
 /// topic leaves the lists, to <state_dir>/covers/<download id>, for identify to use as the
 /// scene's cover. The add has already happened, so a failure is only logged.
-pub async fn save_cover<B: Backends>(
-    ctx: &Ctx<'_, B>,
-    topic_id: u64,
-    download_id: i64,
-    now: i64,
-) {
+pub async fn save_cover<B: Backends>(ctx: &Ctx<'_, B>, topic_id: u64, download_id: i64, now: i64) {
     let result: anyhow::Result<()> = async {
         let images = topic_images(ctx, topic_id, now).await?;
         let Some(first) = images.first() else {

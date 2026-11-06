@@ -154,10 +154,7 @@ fn newest_first_interleaved(listed: &mut Vec<Listed>) {
 /// The Indexers and Albums lists, rebuilt from the stored curated hits. No tracker page is fetched:
 /// their releases carry only the images the curated job gave them. A filter is named on a
 /// list only when the list holds one of its hits.
-pub async fn rebuild_external<B: Backends>(
-    ctx: &Ctx<'_, B>,
-    now: i64,
-) -> anyhow::Result<()> {
+pub async fn rebuild_external<B: Backends>(ctx: &Ctx<'_, B>, now: i64) -> anyhow::Result<()> {
     let order: Vec<String> = load_filter_terms(ctx.filter_file, Some(ctx.state_dir))
         .into_iter()
         .map(|(name, _)| name)

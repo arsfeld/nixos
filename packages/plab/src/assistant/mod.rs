@@ -87,7 +87,10 @@ pub struct Final {
 
 pub fn parse_final(content: &str) -> Option<Final> {
     let s = content.trim();
-    let s = s.strip_prefix("```json").or_else(|| s.strip_prefix("```")).unwrap_or(s);
+    let s = s
+        .strip_prefix("```json")
+        .or_else(|| s.strip_prefix("```"))
+        .unwrap_or(s);
     let s = s.strip_suffix("```").unwrap_or(s).trim();
     let v: Value = serde_json::from_str(s).ok()?;
     if !v.is_object() {
@@ -107,14 +110,24 @@ pub fn error_of(msg: &Value) -> Option<&str> {
 pub fn degraded_of(msg: &Value) -> Vec<String> {
     msg.get("plab_degraded")
         .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(Value::as_str).map(str::to_owned).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
         .unwrap_or_default()
 }
 
 fn title(kind: Kind, text: Option<&str>, now: i64) -> String {
     match kind {
         Kind::Recommend => format!("Recommendations · {}", daily::local_ymd(now)),
-        Kind::Chat => text.unwrap_or("").trim().chars().take(TITLE_CHARS).collect(),
+        Kind::Chat => text
+            .unwrap_or("")
+            .trim()
+            .chars()
+            .take(TITLE_CHARS)
+            .collect(),
     }
 }
 
@@ -128,7 +141,12 @@ fn wire(mut msg: Value) -> Value {
 
 fn call_ids(msg: &Value) -> Option<Vec<Option<&str>>> {
     let calls = msg.get("tool_calls")?.as_array()?;
-    (!calls.is_empty()).then(|| calls.iter().map(|c| c.get("id").and_then(Value::as_str)).collect())
+    (!calls.is_empty()).then(|| {
+        calls
+            .iter()
+            .map(|c| c.get("id").and_then(Value::as_str))
+            .collect()
+    })
 }
 
 /// Keep only complete tool rounds: an assistant `tool_calls` message survives only when
@@ -148,15 +166,23 @@ fn complete_rounds(msgs: Vec<Value>) -> Vec<Value> {
             i += 1;
             continue;
         };
-        let end = (i + 1..msgs.len()).find(|&j| !is_tool(&msgs[j])).unwrap_or(msgs.len());
+        let end = (i + 1..msgs.len())
+            .find(|&j| !is_tool(&msgs[j]))
+            .unwrap_or(msgs.len());
         let answered: HashSet<&str> = msgs[i + 1..end]
             .iter()
             .filter_map(|m| m.get("tool_call_id").and_then(Value::as_str))
             .collect();
-        if ids.iter().all(|id| id.is_some_and(|id| answered.contains(id))) {
+        if ids
+            .iter()
+            .all(|id| id.is_some_and(|id| answered.contains(id)))
+        {
             out.extend_from_slice(&msgs[i..end]);
         } else {
-            tracing::info!(job = "assistant", "dropping an unanswered tool round from the history");
+            tracing::info!(
+                job = "assistant",
+                "dropping an unanswered tool round from the history"
+            );
         }
         i = end;
     }
@@ -170,7 +196,10 @@ pub struct TurnGuard<'a> {
 
 impl Drop for TurnGuard<'_> {
     fn drop(&mut self) {
-        self.busy.lock().unwrap_or_else(|e| e.into_inner()).remove(&self.id);
+        self.busy
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&self.id);
     }
 }
 
@@ -205,7 +234,17 @@ pub struct Assistant {
 
 impl Assistant {
     pub fn new(llm: OpenRouter, stash: Stash, model: String, prompt: String) -> Assistant {
-        Assistant { llm, stash, model, prompt, busy: Mutex::new(HashSet::new()), daily_running: AtomicBool::new(false), last_attempt: Mutex::new(None), hide: crate::filters::HideRule::default(), search: OnceLock::new() }
+        Assistant {
+            llm,
+            stash,
+            model,
+            prompt,
+            busy: Mutex::new(HashSet::new()),
+            daily_running: AtomicBool::new(false),
+            last_attempt: Mutex::new(None),
+            hide: crate::filters::HideRule::default(),
+            search: OnceLock::new(),
+        }
     }
 
     /// The exclude file's hide rule, applied to the Stash scenes the model sees.
@@ -226,7 +265,9 @@ impl Assistant {
 
     pub fn ready(&self) -> Result<(), TurnError> {
         if self.prompt.trim().is_empty() {
-            return Err(TurnError::NotReady("the assistant prompt is not set in plab-site"));
+            return Err(TurnError::NotReady(
+                "the assistant prompt is not set in plab-site",
+            ));
         }
         Ok(())
     }
@@ -236,7 +277,10 @@ impl Assistant {
         if !busy.insert(conversation) {
             return Err(TurnError::Busy);
         }
-        Ok(TurnGuard { busy: &self.busy, id: conversation })
+        Ok(TurnGuard {
+            busy: &self.busy,
+            id: conversation,
+        })
     }
 
     /// A daily picks generation is running.
@@ -257,8 +301,16 @@ impl Assistant {
         force: bool,
     ) -> Result<bool, TurnError> {
         self.ready()?;
-        if self.daily_running.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
-            return if force { Err(TurnError::Busy) } else { Ok(false) };
+        if self
+            .daily_running
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            return if force {
+                Err(TurnError::Busy)
+            } else {
+                Ok(false)
+            };
         }
         let today = daily::local_ymd(now);
         let mut last = self.last_attempt.lock().unwrap_or_else(|e| e.into_inner());
@@ -277,14 +329,21 @@ impl Assistant {
         drop(last);
         let (a, db, events) = (Arc::clone(self), db.clone(), events.clone());
         tokio::spawn(async move {
-            let done = DailyGuard { running: &a.daily_running, events };
+            let done = DailyGuard {
+                running: &a.daily_running,
+                events,
+            };
             if let Err(e) = a.start(&db, Kind::Recommend, None, now).await {
                 // Failed without storing an answer: store the failure as today's
                 // attempt anyway, or every refetch on the guard's event would start another.
                 tracing::info!(job = "assistant", "daily picks: {e}");
                 let why = e.to_string();
                 let stored = db
-                    .create_conversation(&title(Kind::Recommend, None, now), Kind::Recommend.as_str(), now)
+                    .create_conversation(
+                        &title(Kind::Recommend, None, now),
+                        Kind::Recommend.as_str(),
+                        now,
+                    )
                     .and_then(|id| {
                         let msg = json!({"role": "assistant", "content": "", "plab_error": why});
                         db.append_message(id, "assistant", &msg.to_string(), now)
@@ -303,7 +362,13 @@ impl Assistant {
         Ok(true)
     }
 
-    pub async fn start(&self, db: &Db, kind: Kind, text: Option<&str>, now: i64) -> Result<i64, TurnError> {
+    pub async fn start(
+        &self,
+        db: &Db,
+        kind: Kind,
+        text: Option<&str>,
+        now: i64,
+    ) -> Result<i64, TurnError> {
         self.ready()?;
         let ctx = context::gather(db, &self.stash, &self.hide, now).await?;
         let mut content = format!(
@@ -320,19 +385,28 @@ impl Assistant {
         let id = db.create_conversation(&title(kind, text, now), kind.as_str(), now)?;
         let system = json!({"role": "system", "content": content, "plab_degraded": ctx.degraded});
         db.append_message(id, "system", &system.to_string(), now)?;
-        self.turn(db, id, Some(text.unwrap_or(RECOMMEND_ASK)), now).await?;
+        self.turn(db, id, Some(text.unwrap_or(RECOMMEND_ASK)), now)
+            .await?;
         Ok(id)
     }
 
     fn store(&self, db: &Db, id: i64, msg: &Value, now: i64) -> anyhow::Result<()> {
-        let role = msg.get("role").and_then(Value::as_str).unwrap_or("assistant");
+        let role = msg
+            .get("role")
+            .and_then(Value::as_str)
+            .unwrap_or("assistant");
         db.append_message(id, role, &msg.to_string(), now)?;
         Ok(())
     }
 
     fn fail(&self, db: &Db, id: i64, why: &str, now: i64) -> Result<(), TurnError> {
         tracing::info!(job = "assistant", "conversation {id}: {why}");
-        self.store(db, id, &json!({"role": "assistant", "content": "", "plab_error": why}), now)?;
+        self.store(
+            db,
+            id,
+            &json!({"role": "assistant", "content": "", "plab_error": why}),
+            now,
+        )?;
         Ok(())
     }
 
@@ -349,7 +423,13 @@ impl Assistant {
         Ok(complete_rounds(out))
     }
 
-    pub async fn turn(&self, db: &Db, id: i64, text: Option<&str>, now: i64) -> Result<(), TurnError> {
+    pub async fn turn(
+        &self,
+        db: &Db,
+        id: i64,
+        text: Option<&str>,
+        now: i64,
+    ) -> Result<(), TurnError> {
         self.ready()?;
         let _guard = self.lock(id)?;
         if db.conversation(id)?.is_none() {
@@ -379,34 +459,77 @@ impl Assistant {
             let Some(msg) = reply.pointer("/choices/0/message").cloned() else {
                 return self.fail(db, id, "OpenRouter: no message in the reply", now);
             };
-            let calls = msg.get("tool_calls").and_then(Value::as_array).cloned().unwrap_or_default();
+            let calls = msg
+                .get("tool_calls")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
             if !calls.is_empty() {
                 // The call and its results are stored together or not at all: a round
                 // stored half-way is a history the provider rejects from then on.
                 let mut round = vec![("assistant", msg.to_string())];
                 for c in calls {
-                    let name = c.pointer("/function/name").and_then(Value::as_str).unwrap_or("");
-                    let args = c.pointer("/function/arguments").and_then(Value::as_str).unwrap_or("{}");
-                    let result = tools::run(&self.stash, db, &self.hide, self.search.get().map(|s| &**s), name, args, now).await;
+                    let name = c
+                        .pointer("/function/name")
+                        .and_then(Value::as_str)
+                        .unwrap_or("");
+                    let args = c
+                        .pointer("/function/arguments")
+                        .and_then(Value::as_str)
+                        .unwrap_or("{}");
+                    let result = tools::run(
+                        &self.stash,
+                        db,
+                        &self.hide,
+                        self.search.get().map(|s| &**s),
+                        name,
+                        args,
+                        now,
+                    )
+                    .await;
                     let call_id = c.get("id").cloned().unwrap_or(Value::Null);
-                    round.push(("tool", json!({"role": "tool", "tool_call_id": call_id, "content": result}).to_string()));
+                    round.push((
+                        "tool",
+                        json!({"role": "tool", "tool_call_id": call_id, "content": result})
+                            .to_string(),
+                    ));
                 }
                 db.append_messages(id, &round, now)?;
                 continue;
             }
             let content = msg.get("content").and_then(Value::as_str).unwrap_or("");
             if parse_final(content).is_some() {
-                self.store(db, id, &json!({"role": "assistant", "content": content}), now)?;
+                self.store(
+                    db,
+                    id,
+                    &json!({"role": "assistant", "content": content}),
+                    now,
+                )?;
                 return Ok(());
             }
             if reasked {
                 return self.fail(db, id, "the reply was not the JSON answer, twice", now);
             }
             reasked = true;
-            self.store(db, id, &json!({"role": "assistant", "content": content, "plab_hidden": true}), now)?;
-            self.store(db, id, &json!({"role": "user", "content": REASK, "plab_hidden": true}), now)?;
+            self.store(
+                db,
+                id,
+                &json!({"role": "assistant", "content": content, "plab_hidden": true}),
+                now,
+            )?;
+            self.store(
+                db,
+                id,
+                &json!({"role": "user", "content": REASK, "plab_hidden": true}),
+                now,
+            )?;
         }
-        self.fail(db, id, &format!("the assistant used its {MAX_ROUNDS} rounds without answering"), now)
+        self.fail(
+            db,
+            id,
+            &format!("the assistant used its {MAX_ROUNDS} rounds without answering"),
+            now,
+        )
     }
 }
 
@@ -422,7 +545,9 @@ mod tests {
     }
 
     fn final_reply(text: &str, picks: Value) -> ResponseTemplate {
-        reply(json!({"role": "assistant", "content": json!({"text": text, "picks": picks}).to_string()}))
+        reply(
+            json!({"role": "assistant", "content": json!({"text": text, "picks": picks}).to_string()}),
+        )
     }
 
     fn tool_call(name: &str, args: &str) -> ResponseTemplate {
@@ -436,7 +561,10 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/graphql"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": {"findScenes": {"scenes": []}}})))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"data": {"findScenes": {"scenes": []}}})),
+            )
             .mount(&server)
             .await;
         let llm = OpenRouter::new(&server.uri(), "k".into(), "p".into(), "j".into());
@@ -467,25 +595,43 @@ mod tests {
     async fn the_daily_starts_once_per_day_unless_forced() {
         let (server, a, db) = fixture().await;
         Mock::given(path(crate::llm::CHAT_PATH))
-            .respond_with(final_reply("ok", json!([{"ref": "t:1", "action": "download", "reason": "r"}])))
+            .respond_with(final_reply(
+                "ok",
+                json!([{"ref": "t:1", "action": "download", "reason": "r"}]),
+            ))
             .expect(2)
             .mount(&server)
             .await;
         let a = std::sync::Arc::new(a);
         let events = crate::events::Events::default();
         let mut rx = events.subscribe();
-        assert!(matches!(a.ensure_daily(&db, &events, NOON, false), Ok(true)));
+        assert!(matches!(
+            a.ensure_daily(&db, &events, NOON, false),
+            Ok(true)
+        ));
         assert!(a.daily_running());
         // A second visit while it runs starts nothing; a forced one is refused.
-        assert!(matches!(a.ensure_daily(&db, &events, NOON, false), Ok(false)));
-        assert!(matches!(a.ensure_daily(&db, &events, NOON, true), Err(TurnError::Busy)));
+        assert!(matches!(
+            a.ensure_daily(&db, &events, NOON, false),
+            Ok(false)
+        ));
+        assert!(matches!(
+            a.ensure_daily(&db, &events, NOON, true),
+            Err(TurnError::Busy)
+        ));
         next_daily(&mut rx).await;
         assert!(!a.daily_running());
         let d = daily::state(&db, NOON).unwrap();
         assert!(d.attempted_today && d.shown.is_some());
         // Today is done: a visit starts nothing, Refresh starts another.
-        assert!(matches!(a.ensure_daily(&db, &events, NOON + 60, false), Ok(false)));
-        assert!(matches!(a.ensure_daily(&db, &events, NOON + 60, true), Ok(true)));
+        assert!(matches!(
+            a.ensure_daily(&db, &events, NOON + 60, false),
+            Ok(false)
+        ));
+        assert!(matches!(
+            a.ensure_daily(&db, &events, NOON + 60, true),
+            Ok(true)
+        ));
         next_daily(&mut rx).await;
         assert_eq!(db.conversations_of_kind("recommend").unwrap().len(), 2);
     }
@@ -501,31 +647,52 @@ mod tests {
         let a = std::sync::Arc::new(a);
         let events = crate::events::Events::default();
         let mut rx = events.subscribe();
-        assert!(matches!(a.ensure_daily(&db, &events, NOON, false), Ok(true)));
+        assert!(matches!(
+            a.ensure_daily(&db, &events, NOON, false),
+            Ok(true)
+        ));
         next_daily(&mut rx).await;
         let d = daily::state(&db, NOON).unwrap();
         assert!(d.attempted_today && d.shown.is_none());
         assert!(d.error.unwrap().contains("OpenRouter"));
-        assert!(matches!(a.ensure_daily(&db, &events, NOON, false), Ok(false)));
+        assert!(matches!(
+            a.ensure_daily(&db, &events, NOON, false),
+            Ok(false)
+        ));
         // Had the failure not been stored either, the in-memory backstop still holds.
         for row in db.conversations_of_kind("recommend").unwrap() {
             db.delete_conversation(row.id).unwrap();
         }
         assert!(!daily::state(&db, NOON).unwrap().attempted_today);
-        assert!(matches!(a.ensure_daily(&db, &events, NOON, false), Ok(false)));
+        assert!(matches!(
+            a.ensure_daily(&db, &events, NOON, false),
+            Ok(false)
+        ));
     }
 
     #[test]
     fn the_daily_needs_a_prompt() {
         let llm = OpenRouter::new("http://x", "k".into(), "p".into(), "j".into());
-        let a = std::sync::Arc::new(Assistant::new(llm, Stash::new("http://x", None), "m".into(), " ".into()));
+        let a = std::sync::Arc::new(Assistant::new(
+            llm,
+            Stash::new("http://x", None),
+            "m".into(),
+            " ".into(),
+        ));
         let db = Db::open_in_memory().unwrap();
         let events = crate::events::Events::default();
-        assert!(matches!(a.ensure_daily(&db, &events, NOON, false), Err(TurnError::NotReady(_))));
+        assert!(matches!(
+            a.ensure_daily(&db, &events, NOON, false),
+            Err(TurnError::NotReady(_))
+        ));
     }
 
     fn roles(db: &Db, id: i64) -> Vec<String> {
-        db.messages(id).unwrap().into_iter().map(|m| m.role).collect()
+        db.messages(id)
+            .unwrap()
+            .into_iter()
+            .map(|m| m.role)
+            .collect()
     }
 
     fn last(db: &Db, id: i64) -> Value {
@@ -537,7 +704,10 @@ mod tests {
         let (server, a, db) = fixture().await;
         Mock::given(path(crate::llm::CHAT_PATH))
             .and(body_string_contains("tool_call_id"))
-            .respond_with(final_reply("Try these.", json!([{"ref": "t:1", "action": "download", "reason": "r"}])))
+            .respond_with(final_reply(
+                "Try these.",
+                json!([{"ref": "t:1", "action": "download", "reason": "r"}]),
+            ))
             .with_priority(1)
             .mount(&server)
             .await;
@@ -546,14 +716,23 @@ mod tests {
             .with_priority(2)
             .mount(&server)
             .await;
-        let id = a.start(&db, Kind::Recommend, None, 86400 + 43_200).await.unwrap();
-        assert_eq!(roles(&db, id), vec!["system", "user", "assistant", "tool", "assistant"]);
+        let id = a
+            .start(&db, Kind::Recommend, None, 86400 + 43_200)
+            .await
+            .unwrap();
+        assert_eq!(
+            roles(&db, id),
+            vec!["system", "user", "assistant", "tool", "assistant"]
+        );
         assert!(sent(&server).await.iter().all(|b| !b.contains("plab_")));
         let f = parse_final(last(&db, id)["content"].as_str().unwrap()).unwrap();
         assert_eq!(f.text, "Try these.");
         assert_eq!(f.picks[0].ref_, "t:1");
         let c = db.conversation(id).unwrap().unwrap();
-        assert_eq!((c.kind.as_str(), c.title.as_str()), ("recommend", "Recommendations · 1970-01-02"));
+        assert_eq!(
+            (c.kind.as_str(), c.title.as_str()),
+            ("recommend", "Recommendations · 1970-01-02")
+        );
     }
 
     /// Covers the tool path only: a fresh profile has no views, so `gather` never queries
@@ -582,7 +761,10 @@ mod tests {
             .await;
         let llm = OpenRouter::new(&server.uri(), "k".into(), "p".into(), "j".into());
         let stash = Stash::new(&format!("{}/graphql", server.uri()), None);
-        let rule = crate::filters::HideRule { hide: vec!["pear".into()], ..Default::default() };
+        let rule = crate::filters::HideRule {
+            hide: vec!["pear".into()],
+            ..Default::default()
+        };
         let a = Assistant::new(llm, stash, "m".into(), "x".into()).with_hide(rule);
         let db = Db::open_in_memory().unwrap();
         a.start(&db, Kind::Chat, Some("hi"), 0).await.unwrap();
@@ -598,7 +780,8 @@ mod tests {
             &'a self,
             q: &'a str,
             _now: i64,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Value>> + Send + 'a>> {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Value>> + Send + 'a>>
+        {
             self.0.lock().unwrap().push(q.to_string());
             Box::pin(async { Ok(json!({"results": [{"ref": "t:9", "title": "X"}]})) })
         }
@@ -607,7 +790,12 @@ mod tests {
     /// The tool names the first chat request offered.
     async fn offered(server: &MockServer) -> Vec<String> {
         let first: Value = serde_json::from_str(&sent(server).await[0]).unwrap();
-        first["tools"].as_array().unwrap().iter().map(|t| t["function"]["name"].as_str().unwrap().to_string()).collect()
+        first["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["function"]["name"].as_str().unwrap().to_string())
+            .collect()
     }
 
     async fn search_then_answer(server: &MockServer) {
@@ -623,7 +811,12 @@ mod tests {
     }
 
     fn tool_result(db: &Db, id: i64) -> String {
-        let m = db.messages(id).unwrap().into_iter().find(|m| m.role == "tool").unwrap();
+        let m = db
+            .messages(id)
+            .unwrap()
+            .into_iter()
+            .find(|m| m.role == "tool")
+            .unwrap();
         let v: Value = serde_json::from_str(&m.content).unwrap();
         v["content"].as_str().unwrap().to_string()
     }
@@ -634,8 +827,15 @@ mod tests {
         search_then_answer(&server).await;
         let fake = Arc::new(FakeSearch(std::sync::Mutex::new(vec![])));
         a.set_search(fake.clone());
-        let id = a.start(&db, Kind::Chat, Some("find alpha"), 0).await.unwrap();
-        assert!(offered(&server).await.contains(&"search_releases".to_string()));
+        let id = a
+            .start(&db, Kind::Chat, Some("find alpha"), 0)
+            .await
+            .unwrap();
+        assert!(
+            offered(&server)
+                .await
+                .contains(&"search_releases".to_string())
+        );
         assert_eq!(*fake.0.lock().unwrap(), vec!["alpha".to_string()]);
         let stored: Value = serde_json::from_str(&tool_result(&db, id)).unwrap();
         assert_eq!(stored, json!({"results": [{"ref": "t:9", "title": "X"}]}));
@@ -646,8 +846,15 @@ mod tests {
     async fn search_tool_absent_without_handle() {
         let (server, a, db) = fixture().await;
         search_then_answer(&server).await;
-        let id = a.start(&db, Kind::Chat, Some("find alpha"), 0).await.unwrap();
-        assert!(!offered(&server).await.contains(&"search_releases".to_string()));
+        let id = a
+            .start(&db, Kind::Chat, Some("find alpha"), 0)
+            .await
+            .unwrap();
+        assert!(
+            !offered(&server)
+                .await
+                .contains(&"search_releases".to_string())
+        );
         assert!(tool_result(&db, id).contains("search is not available"));
         assert!(parse_final(last(&db, id)["content"].as_str().unwrap()).is_some());
     }
@@ -673,7 +880,12 @@ mod tests {
             .mount(&server)
             .await;
         let id = a.start(&db, Kind::Chat, Some("hello"), 0).await.unwrap();
-        let msgs: Vec<Value> = db.messages(id).unwrap().iter().map(|m| serde_json::from_str(&m.content).unwrap()).collect();
+        let msgs: Vec<Value> = db
+            .messages(id)
+            .unwrap()
+            .iter()
+            .map(|m| serde_json::from_str(&m.content).unwrap())
+            .collect();
         assert!(msgs.iter().any(is_hidden));
         assert!(error_of(msgs.last().unwrap()).is_some());
         // The re-ask resends the hidden messages, without plab's own keys.
@@ -686,7 +898,10 @@ mod tests {
     #[tokio::test]
     async fn an_unanswered_tool_round_is_not_sent() {
         let (server, a, db) = fixture().await;
-        Mock::given(path(crate::llm::CHAT_PATH)).respond_with(final_reply("ok", json!([]))).mount(&server).await;
+        Mock::given(path(crate::llm::CHAT_PATH))
+            .respond_with(final_reply("ok", json!([])))
+            .mount(&server)
+            .await;
         let id = db.create_conversation("t", "chat", 0).unwrap();
         for m in [
             json!({"role": "system", "content": "s", "plab_degraded": []}),
@@ -697,24 +912,32 @@ mod tests {
             ]}),
             json!({"role": "tool", "tool_call_id": "orphan", "content": "[]"}),
         ] {
-            db.append_message(id, m["role"].as_str().unwrap(), &m.to_string(), 0).unwrap();
+            db.append_message(id, m["role"].as_str().unwrap(), &m.to_string(), 0)
+                .unwrap();
         }
         a.turn(&db, id, Some("again"), 1).await.unwrap();
         assert!(error_of(&last(&db, id)).is_none());
         let body = sent(&server).await.pop().unwrap();
-        assert!(!body.contains("dangling") && !body.contains("orphan"), "{body}");
+        assert!(
+            !body.contains("dangling") && !body.contains("orphan"),
+            "{body}"
+        );
         assert!(body.contains("first") && body.contains("again"));
         assert!(!body.contains("plab_"), "{body}");
     }
 
     #[test]
     fn complete_rounds_keep_answered_calls() {
-        let call = |ids: &[&str]| {
-            json!({"role": "assistant", "tool_calls": ids.iter().map(|i| json!({"id": i})).collect::<Vec<_>>()})
-        };
+        let call = |ids: &[&str]| json!({"role": "assistant", "tool_calls": ids.iter().map(|i| json!({"id": i})).collect::<Vec<_>>()});
         let result = |id: &str| json!({"role": "tool", "tool_call_id": id});
         let user = json!({"role": "user", "content": "u"});
-        let full = vec![user.clone(), call(&["a", "b"]), result("b"), result("a"), user.clone()];
+        let full = vec![
+            user.clone(),
+            call(&["a", "b"]),
+            result("b"),
+            result("a"),
+            user.clone(),
+        ];
         assert_eq!(complete_rounds(full.clone()), full);
         let partial = vec![user.clone(), call(&["a", "b"]), result("a"), user.clone()];
         assert_eq!(complete_rounds(partial), vec![user.clone(), user.clone()]);
@@ -744,16 +967,30 @@ mod tests {
     #[tokio::test]
     async fn stash_down_is_degraded_not_fatal() {
         let server = MockServer::start().await;
-        Mock::given(path("/graphql")).respond_with(ResponseTemplate::new(500)).mount(&server).await;
-        Mock::given(path(crate::llm::CHAT_PATH)).respond_with(final_reply("ok", json!([]))).mount(&server).await;
+        Mock::given(path("/graphql"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+        Mock::given(path(crate::llm::CHAT_PATH))
+            .respond_with(final_reply("ok", json!([])))
+            .mount(&server)
+            .await;
         let llm = OpenRouter::new(&server.uri(), "k".into(), "p".into(), "j".into());
-        let a = Assistant::new(llm, Stash::new(&format!("{}/graphql", server.uri()), None), "m".into(), "x".into());
+        let a = Assistant::new(
+            llm,
+            Stash::new(&format!("{}/graphql", server.uri()), None),
+            "m".into(),
+            "x".into(),
+        );
         let db = Db::open_in_memory().unwrap();
         let id = a.start(&db, Kind::Chat, Some("hi"), 0).await.unwrap();
         let system: Value = serde_json::from_str(&db.messages(id).unwrap()[0].content).unwrap();
         assert_eq!(degraded_of(&system), vec!["stash"]);
         let bodies = sent(&server).await;
-        assert!(!bodies.is_empty() && bodies.iter().all(|b| !b.contains("plab_")), "{bodies:?}");
+        assert!(
+            !bodies.is_empty() && bodies.iter().all(|b| !b.contains("plab_")),
+            "{bodies:?}"
+        );
     }
 
     #[tokio::test]
@@ -761,8 +998,14 @@ mod tests {
         let (_server, a, db) = fixture().await;
         let id = db.create_conversation("t", "chat", 0).unwrap();
         let _g = a.lock(id).unwrap();
-        assert!(matches!(a.turn(&db, id, Some("x"), 0).await, Err(TurnError::Busy)));
-        assert!(matches!(a.turn(&db, 999, Some("x"), 0).await, Err(TurnError::NotFound)));
+        assert!(matches!(
+            a.turn(&db, id, Some("x"), 0).await,
+            Err(TurnError::Busy)
+        ));
+        assert!(matches!(
+            a.turn(&db, 999, Some("x"), 0).await,
+            Err(TurnError::NotFound)
+        ));
     }
 
     #[test]
@@ -782,6 +1025,9 @@ mod tests {
 
     #[test]
     fn chat_titles_are_truncated() {
-        assert_eq!(title(Kind::Chat, Some(&"x".repeat(80)), 0).chars().count(), 60);
+        assert_eq!(
+            title(Kind::Chat, Some(&"x".repeat(80)), 0).chars().count(),
+            60
+        );
     }
 }

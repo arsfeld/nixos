@@ -119,13 +119,13 @@ impl Db {
             );
             let mut stmt = c.prepare(&sql)?;
             let raw = all(stmt.query_map([], |r| {
-                    Ok((
-                        raw_topic(r)?,
-                        r.get::<_, String>(10)?,
-                        r.get::<_, String>(11)?,
-                        r.get::<_, Option<String>>(12)?,
-                    ))
-                })?)?;
+                Ok((
+                    raw_topic(r)?,
+                    r.get::<_, String>(10)?,
+                    r.get::<_, String>(11)?,
+                    r.get::<_, Option<String>>(12)?,
+                ))
+            })?)?;
             raw.into_iter()
                 .map(|(t, filter, reason, kind)| {
                     Ok(StoredHit {

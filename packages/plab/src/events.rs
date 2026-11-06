@@ -3,8 +3,8 @@
 //! `WebState` (refresh) publish through the process-wide sender `serve` sets. There is no
 //! replay: a client that reconnects, or lags and gets `resync`, refetches its view.
 
-use crate::backends::Backends;
 use crate::api::{JobDto, StatusDto};
+use crate::backends::Backends;
 use axum::body::Body;
 use axum::http::Response;
 use axum::response::IntoResponse;

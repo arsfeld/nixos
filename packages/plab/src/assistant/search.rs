@@ -20,14 +20,26 @@ use crate::tracker::parse::Row;
 /// The search the assistant's `search_releases` tool runs. A trait object because the
 /// assistant's turns run on detached tasks and cannot borrow the web task's `Ctx`.
 pub trait ReleaseSearch: Send + Sync {
-    fn search<'a>(&'a self, q: &'a str, now: i64) -> Pin<Box<dyn Future<Output = anyhow::Result<Value>> + Send + 'a>>;
+    fn search<'a>(
+        &'a self,
+        q: &'a str,
+        now: i64,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Value>> + Send + 'a>>;
 }
 
 fn hidden(hide: &HideRule, title: &str) -> bool {
     hide.hides(&title_terms(title))
 }
 
-fn hit(id: u64, title: &str, source: &str, size: u64, seeders: u32, leechers: u32, published: i64) -> Value {
+fn hit(
+    id: u64,
+    title: &str,
+    source: &str,
+    size: u64,
+    seeders: u32,
+    leechers: u32,
+    published: i64,
+) -> Value {
     json!({"ref": format!("t:{id}"), "title": title, "source": source, "size": size,
            "seeders": seeders, "leechers": leechers, "published": published})
 }
@@ -68,7 +80,11 @@ async fn prowlarr_candidates<B: Backends>(
 
 /// How long either half may take: a turn waits on its tools, and its conversation is busy
 /// meanwhile, while Prowlarr's own client waits minutes.
-const HALF_TIMEOUT: Duration = if cfg!(test) { Duration::from_secs(1) } else { Duration::from_secs(45) };
+const HALF_TIMEOUT: Duration = if cfg!(test) {
+    Duration::from_secs(1)
+} else {
+    Duration::from_secs(45)
+};
 /// The tracker's share of `tools::LIMIT` when both halves have more: room for the others.
 const TRACKER_SHARE: usize = 12;
 
@@ -104,7 +120,9 @@ pub async fn search_releases<B: Backends>(
                 let r = &l.topic.row;
                 tracker_titles.push(r.title.clone());
                 if !hidden(hide, &r.title) {
-                    tracker_hits.push(hit(r.id, &r.title, "tracker", r.size, r.seeders, r.leechers, r.added));
+                    tracker_hits.push(hit(
+                        r.id, &r.title, "tracker", r.size, r.seeders, r.leechers, r.added,
+                    ));
                 }
             }
         }
@@ -116,7 +134,10 @@ pub async fn search_releases<B: Backends>(
             let titles: Vec<&str> = tracker_titles.iter().map(String::as_str).collect();
             // No term: `q` is often the very names a duplicate shares, and the term's own
             // words are left out of the comparison.
-            found.into_iter().filter(|c| !is_duplicate(&c.title, &titles, "", noise)).collect()
+            found
+                .into_iter()
+                .filter(|c| !is_duplicate(&c.title, &titles, "", noise))
+                .collect()
         }
         Err(e) => {
             errors.push(format!("Prowlarr: {e:#}"));
@@ -148,7 +169,15 @@ pub async fn search_releases<B: Backends>(
             added: c.published,
         };
         ctx.db.save_search(&[row], now)?;
-        results.push(hit(id, &c.title, &c.indexer, c.size, c.seeders, c.leechers, c.published));
+        results.push(hit(
+            id,
+            &c.title,
+            &c.indexer,
+            c.size,
+            c.seeders,
+            c.leechers,
+            c.published,
+        ));
     }
     let mut out = json!({"results": results});
     if !errors.is_empty() {

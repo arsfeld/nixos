@@ -1,7 +1,7 @@
 //! plab's HTTP server: the JSON API under /api, its SSE stream, the app's built files under /assets, and the app's index.html for every other path (the app routes itself). Plus the tailnet listener that only reads streams.
 
-use crate::backends::Backends;
 use crate::api::{self, Downloads, SearchReply};
+use crate::backends::Backends;
 use crate::db::{Db, Listing, Section};
 use crate::events::{self, Event, Events};
 use crate::filters::load_excludes;
@@ -80,9 +80,7 @@ impl<B: Backends> WebState<B> {
     }
 }
 
-pub fn router<B: Backends>(
-    state: Arc<WebState<B>>,
-) -> Router {
+pub fn router<B: Backends>(state: Arc<WebState<B>>) -> Router {
     Router::new().fallback(handle::<B>).with_state(state)
 }
 
@@ -279,9 +277,7 @@ async fn stream_file(
 }
 
 /// The tailnet listener: reads a stream that was started on the gated page, nothing else.
-pub fn stream_router<B: Backends>(
-    state: Arc<WebState<B>>,
-) -> Router {
+pub fn stream_router<B: Backends>(state: Arc<WebState<B>>) -> Router {
     Router::new().fallback(tailnet::<B>).with_state(state)
 }
 
@@ -327,11 +323,7 @@ async fn handle<B: Backends>(
     }
 }
 
-async fn get<B: Backends>(
-    st: &WebState<B>,
-    path: &str,
-    query: Option<&str>,
-) -> Response<Body> {
+async fn get<B: Backends>(st: &WebState<B>, path: &str, query: Option<&str>) -> Response<Body> {
     if let Some(rest) = path.strip_prefix("/api/") {
         return api_get(st, rest, query).await;
     }
@@ -356,11 +348,7 @@ fn json_body<V: Serialize>(v: &V) -> Response<Body> {
     )
 }
 
-async fn api_get<B: Backends>(
-    st: &WebState<B>,
-    path: &str,
-    query: Option<&str>,
-) -> Response<Body> {
+async fn api_get<B: Backends>(st: &WebState<B>, path: &str, query: Option<&str>) -> Response<Body> {
     match path {
         "list" => {
             return match param(query, "section").as_deref() {
@@ -456,10 +444,7 @@ const GRAB_DAYS: i64 = 14;
 
 /// Each recent download's status. Transmission is asked once, briefly; if it does not
 /// answer, statuses come from the database alone.
-pub(crate) async fn downloads<B: Backends>(
-    st: &WebState<B>,
-    now: i64,
-) -> Downloads {
+pub(crate) async fn downloads<B: Backends>(st: &WebState<B>, now: i64) -> Downloads {
     let rows = match st.db.download_rows(now - LIVE_DAYS * 86400) {
         Ok(r) => r,
         Err(e) => {
@@ -540,10 +525,7 @@ async fn search<B: Backends>(st: &WebState<B>, q: &str) -> Response<Body> {
     }
 }
 
-async fn list<B: Backends>(
-    st: &WebState<B>,
-    section: Section,
-) -> Response<Body> {
+async fn list<B: Backends>(st: &WebState<B>, section: Section) -> Response<Body> {
     let t = now();
     let downloads = downloads(st, t).await;
     let reply = st.db.listing(section).and_then(|mut listing| {
@@ -578,11 +560,7 @@ async fn list<B: Backends>(
     }
 }
 
-async fn topic_images<B: Backends>(
-    st: &WebState<B>,
-    kind: &str,
-    id: u64,
-) -> Response<Body> {
+async fn topic_images<B: Backends>(st: &WebState<B>, kind: &str, id: u64) -> Response<Body> {
     let ctx = st.ctx();
     let images = match plab::topic_images(&ctx, id, now()).await {
         Ok(images) => images,

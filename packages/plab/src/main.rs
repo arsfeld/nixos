@@ -1,9 +1,9 @@
 mod albums;
 mod api;
+mod app;
 mod assistant;
 mod backends;
 mod candidates;
-mod app;
 mod codedb;
 mod commands;
 mod config;
