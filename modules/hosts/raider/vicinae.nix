@@ -3,17 +3,22 @@
 # Gala has no wlr-layer-shell, so Vicinae draws as an ordinary undecorated
 # window, which Gala centres; layer_shell is turned off so it does not try.
 # For the same reason it cannot register a global shortcut itself: the key is
-# a gnome-settings-daemon custom keybinding running `vicinae toggle`, which
-# talks to the server the user unit keeps running.
+# an elementary application shortcut running `vicinae toggle`, which talks to
+# the server the user unit keeps running.
 #
-# Super+Space is GNOME's input-source switch. raider has a single layout
+# The shortcut is written to io.elementary.settings-daemon's own list, not to
+# gnome-settings-daemon's custom-keybindings: at every login elementary's
+# daemon moves anything found there into its list and empties the GNOME one.
+# Writing elementary's list directly means this module owns it, so shortcuts
+# added in System Settings are replaced at the next activation; add them here.
+#
+# Super+Space is Gala's input-source switch. raider has a single layout
 # (us+alt-intl), so the launcher takes the key.
 #
-# The keybindings go through home-manager, not the system dconf database: the
-# Pantheon user database already holds `custom-keybindings = @as []`, which
-# shadows any system default. home-manager's dconf writes land in that
-# database (see the Pantheon variant in modules/desktop/desktop.nix), so they
-# are gated on it.
+# These go through home-manager, not the system dconf database, because the
+# user database already holds values for them, which shadow system defaults.
+# home-manager's dconf writes land in the Pantheon database (see the Pantheon
+# variant in modules/desktop/desktop.nix), so they are gated on it.
 #
 # No clipboard history: Gala offers no data-control protocol, so Vicinae runs
 # its "dummy" clipboard server and the default clipboard favourite is dropped.
@@ -23,10 +28,16 @@
     lib,
     ...
   }: let
-    vicinae = config.home-manager.users.arosenfeld.programs.vicinae.package;
-    path = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/vicinae/";
+    pantheon = config.constellation.desktop.variant == "pantheon";
   in {
     home-manager.users.arosenfeld = {
+      config,
+      lib,
+      ...
+    }: let
+      vicinae = config.programs.vicinae.package;
+      gvariant = lib.hm.gvariant;
+    in {
       programs.vicinae = {
         enable = true;
         systemd.enable = true;
@@ -44,17 +55,23 @@
         };
       };
 
-      dconf.settings = lib.mkIf (config.constellation.desktop.variant == "pantheon") {
-        "org/gnome/desktop/wm/keybindings" = {
-          switch-input-source = ["XF86Keyboard"];
-          switch-input-source-backward = ["<Shift>XF86Keyboard"];
+      dconf.settings = lib.mkIf pantheon {
+        # Gala grabs the input-source switch from its own schema, not from
+        # org.gnome.desktop.wm.keybindings; while it holds Super+Space the
+        # launcher's grab fails ("Failed to grab accelerator").
+        "io/elementary/desktop/wm/keybindings" = {
+          switch-input-source = gvariant.mkEmptyArray gvariant.type.string;
+          switch-input-source-backward = gvariant.mkEmptyArray gvariant.type.string;
         };
-        "org/gnome/settings-daemon/plugins/media-keys".custom-keybindings = [path];
-        "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/vicinae" = {
-          name = "Vicinae";
-          command = "${lib.getExe' vicinae "vicinae"} toggle";
-          binding = "<Super>space";
-        };
+        # Type 1 runs a command line; the a{sv} is unused parameters.
+        "io/elementary/settings-daemon/applications".application-shortcuts = [
+          (gvariant.mkTuple [
+            (gvariant.mkInt32 1)
+            "${lib.getExe' vicinae "vicinae"} toggle"
+            (gvariant.mkEmptyArray (gvariant.type.dictionaryEntryOf [gvariant.type.string gvariant.type.variant]))
+            ["<Super>space"]
+          ])
+        ];
       };
     };
   };
