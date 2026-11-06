@@ -336,6 +336,25 @@ async fn daily<B: Backends>(st: &WebState<B>, force: bool) -> Response<Body> {
     })
 }
 
+/// The assistant's release search over the web task's backends. Weak: the web state owns
+/// the assistant that holds this.
+pub struct WebSearch<B: Backends>(pub std::sync::Weak<WebState<B>>);
+
+impl<B: Backends> assistant::search::ReleaseSearch for WebSearch<B> {
+    fn search<'a>(
+        &'a self,
+        q: &'a str,
+        now: i64,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Value>> + Send + 'a>> {
+        Box::pin(async move {
+            let st = self.0.upgrade().ok_or_else(|| anyhow::anyhow!("plab is shutting down"))?;
+            let hide = crate::filters::load_excludes(st.exclude_file.as_deref(), Some(&st.state_dir)).rule;
+            let sources = crate::sources::load(st.sources_file.as_deref());
+            assistant::search::search_releases(&st.ctx(), sources.as_ref(), &hide, q, now).await
+        })
+    }
+}
+
 // The Err is a ready response, returned as-is by both callers; boxing it buys nothing.
 #[allow(clippy::result_large_err)]
 async fn build<B: Backends>(

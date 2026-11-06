@@ -215,6 +215,7 @@ impl Fx {
             streams: Arc::new(crate::stream::Streams::default()),
             stream_public_url: Some("https://plab-stream.example".into()),
             prowlarr: None,
+            sources_file: None,
             assistant: None,
         };
         setup(dir.path(), &mut state);
@@ -1078,6 +1079,10 @@ async fn assistant_fx(server: &wiremock::MockServer) -> Fx {
 }
 
 async fn assistant_fx_with(server: &wiremock::MockServer, prompt: &str) -> Fx {
+    assistant_fx_on(server, prompt, FakeTracker::default()).await
+}
+
+async fn assistant_fx_on(server: &wiremock::MockServer, prompt: &str, tracker: FakeTracker) -> Fx {
     use wiremock::{Mock, ResponseTemplate, matchers::path};
     Mock::given(path("/graphql"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": {"findScenes": {"scenes": [
@@ -1088,7 +1093,7 @@ async fn assistant_fx_with(server: &wiremock::MockServer, prompt: &str) -> Fx {
         .await;
     let uri = server.uri();
     let prompt = prompt.to_string();
-    Fx::with(FakeTracker::default(), move |_, st| {
+    Fx::with(tracker, move |_, st| {
         let llm = crate::llm::OpenRouter::new(&uri, "k".into(), "p".into(), "j".into());
         let stash = crate::stash::Stash::new(&format!("{uri}/graphql"), None);
         st.assistant = Some(Arc::new(crate::assistant::Assistant::new(
@@ -1361,4 +1366,38 @@ async fn assistant_rejects_bad_bodies_and_busy_conversations() {
         .request("DELETE", &format!("/api/assistant/conversations/{id}"))
         .await;
     assert_eq!(r.status, 409);
+}
+
+// The assistant's release search
+
+/// An assistant over the `searching()` tracker with the live search set, and OpenRouter
+/// scripted to call `search_releases {"q":"alpha"}` once and then pick `picks`.
+async fn searching_assistant(server: &wiremock::MockServer, picks: Value) -> Fx {
+    use wiremock::{Mock, ResponseTemplate, matchers::path};
+    Mock::given(path(crate::llm::CHAT_PATH))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"choices": [{"message": {
+            "role": "assistant", "content": null, "tool_calls": [{"id": "c1", "type": "function",
+                "function": {"name": "search_releases", "arguments": "{\"q\":\"alpha\"}"}}]}}]})))
+        .up_to_n_times(1)
+        .mount(server)
+        .await;
+    Mock::given(path(crate::llm::CHAT_PATH)).respond_with(answer(picks)).mount(server).await;
+    let fx = assistant_fx_on(server, "x", searching()).await;
+    let a = fx.state.assistant.clone().unwrap();
+    a.set_search(Arc::new(crate::web::WebSearch(Arc::downgrade(&fx.state))));
+    fx
+}
+
+#[tokio::test]
+#[ignore = "cards from search results: next commit"]
+async fn chat_search_pick_renders_card() {
+    let server = wiremock::MockServer::start().await;
+    let fx = searching_assistant(&server, json!([{"ref": "t:5", "action": "download", "reason": "r"}])).await;
+    let r = fx.post_json("/api/assistant/conversations", json!({"text": "find alpha"})).await;
+    assert_eq!(r.status, 200, "{}", r.text());
+    let j = r.json();
+    assert_eq!(fx.state.tracker.searches.lock().unwrap()[0].0, "alpha");
+    assert_eq!(j["topics"][0]["id"], 5, "{j}");
+    assert_eq!(j["topics"][0]["expired"], false);
+    assert_eq!(j["turns"].as_array().unwrap().last().unwrap()["picks"][0]["ref"], "t:5");
 }

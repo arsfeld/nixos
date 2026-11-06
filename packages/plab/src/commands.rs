@@ -310,9 +310,13 @@ pub async fn serve(
                     events: events.clone(),
                     monitor: crate::monitor::global().clone(),
                     prowlarr: a.prowlarr.clone(),
+                    sources_file: a.cfg.sources_file.clone(),
                     assistant: crate::app::assistant(&a.cfg, crate::llm::OPENROUTER)?
                         .map(Arc::new),
                 });
+                if let Some(assistant) = &state.assistant {
+                    assistant.set_search(Arc::new(web::WebSearch(Arc::downgrade(&state))));
+                }
                 let pump_state = state.clone();
                 let web_state = state.clone();
                 let web_bind = bind.clone();

@@ -27,6 +27,8 @@ use tracing::info;
 
 mod assistant_routes;
 
+pub use assistant_routes::WebSearch;
+
 pub struct WebState<B: Backends> {
     pub tracker: Arc<B::Tracker>,
     pub torrents: Arc<B::Torrents>,
@@ -53,6 +55,8 @@ pub struct WebState<B: Backends> {
     pub monitor: Monitor,
     /// Other indexers' torrents, for releases from them; None when Prowlarr is unset.
     pub prowlarr: Option<Arc<Prowlarr>>,
+    /// plab-sources, read per assistant search as the curated job reads it per run.
+    pub sources_file: Option<PathBuf>,
     /// The assistant; None without an OpenRouter key (its routes answer 503).
     pub assistant: Option<Arc<crate::assistant::Assistant>>,
 }
