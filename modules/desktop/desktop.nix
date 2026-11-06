@@ -14,6 +14,7 @@ in {
       features.pantheon-gamemode
       features.pantheon-tailscale
       features.pantheon-globalmenu
+      features.pantheon-terminal
       ({
         config,
         pkgs,

@@ -1,0 +1,94 @@
+diff --git a/src/parser-string.hh b/src/parser-string.hh
+index e84a5ef..f3456dd 100644
+--- a/src/parser-string.hh
++++ b/src/parser-string.hh
+@@ -35,7 +35,8 @@ typedef struct vte_seq_string_t {
+ 
+ #define VTE_SEQ_STRING_DEFAULT_CAPACITY (1 << 7) /* must be power of two */
+ 
+-#define VTE_SEQ_STRING_MAX_CAPACITY     (1 << 12)
++/* Raised from 1 << 12 so an OSC 52 copy can carry about 190 KiB of text. */
++#define VTE_SEQ_STRING_MAX_CAPACITY     (1 << 18)
+ 
+ /*
+  * vte_seq_string_init:
+diff --git a/src/vte.cc b/src/vte.cc
+index 4f6b437..6986670 100644
+--- a/src/vte.cc
++++ b/src/vte.cc
+@@ -7112,6 +7112,31 @@ Terminal::widget_copy(vte::platform::ClipboardType type,
+         m_changing_selection = false;
+ }
+ 
++/* OSC 52: a program sets the clipboard. Writes only; a "?" payload asks for
++ * the clipboard's contents back and is never answered. */
++void
++Terminal::set_clipboard_from_osc(std::string_view targets,
++                                 std::string_view data) noexcept
++{
++        if (!widget() || data.empty() || data == "?")
++                return;
++
++        auto type = vte::platform::ClipboardType::CLIPBOARD;
++        if (!targets.empty() &&
++            targets.find('c') == targets.npos &&
++            targets.find_first_of("ps") != targets.npos)
++                type = vte::platform::ClipboardType::PRIMARY;
++
++        auto const encoded = std::string{data};
++        gsize len = 0;
++        auto decoded = g_base64_decode(encoded.c_str(), &len);
++        if (decoded && len > 0)
++                widget()->clipboard_set_text(type,
++                                             reinterpret_cast<char const*>(decoded),
++                                             len);
++        g_free(decoded);
++}
++
+ /* Confine coordinates into the visible area. Padding is already subtracted. */
+ void
+ Terminal::confine_coordinates(long *xp,
+diff --git a/src/vteinternal.hh b/src/vteinternal.hh
+index 4ba6357..602feec 100644
+--- a/src/vteinternal.hh
++++ b/src/vteinternal.hh
+@@ -1077,6 +1077,8 @@ public:
+ 
+         void widget_copy(vte::platform::ClipboardType selection,
+                          vte::platform::ClipboardFormat format);
++        void set_clipboard_from_osc(std::string_view targets,
++                                    std::string_view data) noexcept;
+ 
+         void widget_paste(std::string_view const& text);
+ 
+diff --git a/src/vteseq.cc b/src/vteseq.cc
+index 36ef93a..829ebe1 100644
+--- a/src/vteseq.cc
++++ b/src/vteseq.cc
+@@ -7655,6 +7655,18 @@ try
+                 set_current_shell_integration_mode(seq, it, cend);
+                 break;
+ 
++        case VTE_OSC_XTERM_SET_XSELECTION: {
++                /* OSC 52 ; targets ; base64 data ST */
++                if (it == cend)
++                        break;
++                auto const targets = it.string_view();
++                ++it;
++                if (it == cend)
++                        break;
++                set_clipboard_from_osc(targets, it.string_view_remaining());
++                break;
++        }
++
+         case -1: /* default */
+         case VTE_OSC_XTERM_SET_WINDOW_AND_ICON_TITLE:
+         case VTE_OSC_XTERM_SET_WINDOW_TITLE: {
+@@ -7763,7 +7775,6 @@ try
+         case VTE_OSC_XTERM_SET_CURSOR_NAME:
+         case VTE_OSC_XTERM_LOGFILE:
+         case VTE_OSC_XTERM_SET_FONT:
+-        case VTE_OSC_XTERM_SET_XSELECTION:
+         case VTE_OSC_XTERM_SET_COLOR_MODE:
+         case VTE_OSC_XTERM_RESET_COLOR_MOUSE_CURSOR_FG:
+         case VTE_OSC_XTERM_RESET_COLOR_MOUSE_CURSOR_BG:
