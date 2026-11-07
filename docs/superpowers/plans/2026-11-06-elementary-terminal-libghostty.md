@@ -38,6 +38,8 @@
 
 ### Task 1: libghostty-vt 1.0.0 package
 
+> Note: the package was later renamed to `packages/libghostty-vt-1` (attribute `libghostty-vt-1`) so it no longer shadows nixpkgs' `libghostty-vt`; devenv in raider's closure links that one and fails against the 1.0.0 ABI.
+
 **Files:**
 - Create: `packages/libghostty-vt/package.nix`
 - Create: `packages/libghostty-vt/smoke.c`

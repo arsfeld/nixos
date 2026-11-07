@@ -75,9 +75,10 @@ prescribes (`zig build --system <deps>`, fresh `ZIG_GLOBAL_CACHE_DIR`). It
 needs Zig **0.17.0**, taken from `pkgs.unstable.zig_0_17` because stable
 nixpkgs (blackbird) stops at 0.16. Outputs the shared library, `ghostty/vt.h`
 and `libghostty-vt.pc`. Pinned by hash, so `nix flake update` cannot move it.
-Nothing outside this package knows about Zig. The package name deliberately
-shadows nixpkgs-unstable's `libghostty-vt` (0.1.0-unstable) inside our
-overlay.
+Nothing outside this package knows about Zig. The package is named
+`libghostty-vt-1` so that it does NOT shadow nixpkgs' `libghostty-vt`
+(0.1.0-unstable): devenv in raider's closure links that one and fails against
+the 1.0.0 ABI.
 
 ### 2. `packages/gvt/`
 
