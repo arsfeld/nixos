@@ -167,7 +167,12 @@ namespace Gvt {
 
         /* One row at y = 0: merged background rects, then text runs. */
         private Gsk.RenderNode? build_row (Engine engine, uint32 default_fg, uint32 default_bg) {
+            // Backgrounds go in s and text in ts, which is appended after
+            // them: a text run can end (at a blank or a colour change)
+            // before the background under it does, and a fill appended
+            // later would paint over it.
             var s = new Gtk.Snapshot ();
+            var ts = new Gtk.Snapshot ();
             uint16 sel_start, sel_end;
             var has_selection = engine.row_selection (out sel_start, out sel_end);
             if (!engine.row_cells ()) {
@@ -234,7 +239,7 @@ namespace Gvt {
                     continue;
                 }
                 if (text_start >= 0) {
-                    draw_text (s, text.str, text_start, text_end - text_start, text_color, text_flags, true);
+                    draw_text (ts, text.str, text_start, text_end - text_start, text_color, text_flags, true);
                     text_start = -1;
                 }
                 if (simple) {
@@ -245,14 +250,18 @@ namespace Gvt {
                     text_color = color;
                     text_flags = flags;
                 } else {
-                    draw_text (s, glyph, x, width == CellWidth.WIDE ? 2 : 1, color, flags, false);
+                    draw_text (ts, glyph, x, width == CellWidth.WIDE ? 2 : 1, color, flags, false);
                 }
             }
             if (bg_start >= 0) {
                 fill_cells (s, bg_start, x, bg_color);
             }
             if (text_start >= 0) {
-                draw_text (s, text.str, text_start, text_end - text_start, text_color, text_flags, true);
+                draw_text (ts, text.str, text_start, text_end - text_start, text_color, text_flags, true);
+            }
+            var text_node = ts.to_node ();
+            if (text_node != null) {
+                s.append_node (text_node);
             }
             return s.to_node ();
         }

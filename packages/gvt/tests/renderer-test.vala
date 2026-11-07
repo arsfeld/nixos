@@ -237,6 +237,33 @@ static void test_one_layout_per_run () {
     window.destroy ();
 }
 
+/* White or grey ink over a red background. */
+static bool is_light_on_red (uint32 p) {
+    return ((p >> 8) & 0xff) > 0x60;
+}
+
+/* Text ending before its background run does is still drawn over it: a
+ * blank or a colour change ends a text run but not the background, and the
+ * background must not be painted over the text already drawn. zellij's tab
+ * and status bars lost "Tab" of "Tab #1" and the "<g>" of "<g> LOCK". */
+static void test_text_over_background () {
+    var t = TestUtil.new_terminal ();
+    var window = TestUtil.present (t);
+    set_test_colors (t);
+    t.process_output ("\x1b[?25l\x1b[41mab cd\x1b[0m\r\n\x1b[41;37mab\x1b[39mcd\x1b[0m".data);
+    TestUtil.run_for (100);
+    var px = new Pixels (t);
+    // "ab cd": a blank between two runs on one background.
+    foreach (var col in new int[] { 0, 1, 3, 4 }) {
+        assert_true (px.cell_has (t, col, 0, is_light_on_red));
+    }
+    // grey "ab" then white "cd": a colour change on one background.
+    foreach (var col in new int[] { 0, 1, 2, 3 }) {
+        assert_true (px.cell_has (t, col, 1, is_light_on_red));
+    }
+    window.destroy ();
+}
+
 int main (string[] args) {
     Test.init (ref args);
     Gtk.init ();
@@ -249,5 +276,6 @@ int main (string[] args) {
     Test.add_func ("/renderer/runs-proportional", test_runs_proportional);
     Test.add_func ("/renderer/runs-non-ascii", test_runs_non_ascii);
     Test.add_func ("/renderer/one-layout-per-run", test_one_layout_per_run);
+    Test.add_func ("/renderer/text-over-background", test_text_over_background);
     return Test.run ();
 }
