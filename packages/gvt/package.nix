@@ -66,6 +66,13 @@ stdenv.mkDerivation {
     kill $westonPid
   '';
 
+  # GLib reads only gschemas.compiled from each XDG_DATA_DIRS entry, so the
+  # schema an app's wrapper points at must ship compiled, as gtk4's does.
+  # postFixup, because glib's preFixup hook is what moves the schema here.
+  postFixup = ''
+    glib-compile-schemas "$out/share/gsettings-schemas/$name/glib-2.0/schemas"
+  '';
+
   meta = {
     description = "GTK4 terminal widget on libghostty-vt, with VTE's API";
     license = lib.licenses.gpl3Plus;
