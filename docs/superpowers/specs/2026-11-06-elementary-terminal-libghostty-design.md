@@ -68,11 +68,16 @@ All source lives in this repository.
 
 ### 1. `packages/libghostty-vt/`
 
-libghostty-vt 1.0.0 built from the Ghostty source at the 1.0 tag, as an
-override of nixpkgs-unstable's `libghostty-vt` to reuse its Zig build setup.
-Outputs the shared library, `ghostty/vt.h` and a pkg-config file. Pinned to the
-tag, so `nix flake update` cannot move it. Nothing outside this package knows
-about Zig.
+libghostty-vt 1.0.0 built from the official release tarballs,
+`https://release.files.ghostty.org/libghostty-vt/1.0.0/libghostty-vt-1.0.0.tar.gz`
+and its `-deps.tar.gz`, as `PACKAGING-LIBGHOSTTY.md` at tag `vt-1.0.0`
+prescribes (`zig build --system <deps>`, fresh `ZIG_GLOBAL_CACHE_DIR`). It
+needs Zig **0.17.0**, taken from `pkgs.unstable.zig_0_17` because stable
+nixpkgs (blackbird) stops at 0.16. Outputs the shared library, `ghostty/vt.h`
+and `libghostty-vt.pc`. Pinned by hash, so `nix flake update` cannot move it.
+Nothing outside this package knows about Zig. The package name deliberately
+shadows nixpkgs-unstable's `libghostty-vt` (0.1.0-unstable) inside our
+overlay.
 
 ### 2. `packages/gvt/`
 
@@ -90,17 +95,21 @@ Internal units, each its own class:
 | `Engine` | The only code touching the libghostty C API (via a handwritten `ghostty-vt.vapi`): write bytes, resize, read cells/cursor/dirty rows, terminal events, text export | libghostty-vt |
 | `Pty` | `openpty`/fork/exec, nonblocking reads on the GLib main loop, `TIOCSWINSZ`, child watch and exit status | GLib, Posix |
 | `Renderer` | GtkSnapshot + Pango; one cached render node per row, invalidated by dirty rows; cursor; colors and palette | Engine, Pango, GSK |
-| `Selection` | Mouse selection over the grid, including wrapped lines; selected text via Engine's export | Engine |
+| `Selection` | Mouse gestures onto libghostty's selection API (`ghostty_selection_gesture_*`, `ghostty_terminal_select_*`); selected text via the formatter | Engine |
 | `Input` | GTK key and mouse events to bytes, through libghostty's key/mouse encoders (honours kitty, application cursor, mouse reporting modes); bracketed paste | Engine |
-| `Search` | PCRE2 matching over exported text, VTE's search API | Engine |
+| `Search` | VTE's find-bar API over `ghostty_search_*` (literal, case-insensitive, scrollback included); URL matching (`match_add_regex`, `check_match_at`) with `GLib.Regex` over the row under the pointer | Engine, GLib |
 | `Clipboard` | OSC 52 writes, and reads gated by a setting, through `Gdk.Clipboard` | Engine, GDK |
 
 ### 3. `packages/elementary-terminal-ghostty/`
 
-`pkgs.pantheon.elementary-terminal` with `vte-gtk4` replaced by `gvt` in its
-inputs and a patch that changes `TerminalWidget`'s base class from
+`pkgs.pantheon.elementary-terminal`, pinned to source tag **8.1.0** (raider's
+unstable nixpkgs has 8.1.0 but blackbird's stable has 8.0.0, and one patch
+must apply everywhere; stable's granite 7.8.1 and GTK 4.22 satisfy 8.1.0's
+meson requirements), with `vte-gtk4` replaced by `gvt` in its inputs and a patch that changes `TerminalWidget`'s base class from
 `Vte.Terminal` to `Gvt.Terminal`, swaps the `Vte.*` symbols for their `Gvt.*`
-equivalents, and switches the meson dependency. A patch, not a copy of the
+equivalents, switches the meson dependency, and drops the
+`GLib.Regex.escape_string` in `SearchToolbar.vala` (gvt's find bar searches
+literally already). A patch, not a copy of the
 source, so upstream releases still apply and the diff is exactly the port. The
 patch's header lists the files and hunks it touches, as
 `pantheon-terminal.nix` does for the VTE patch, so whoever rebases it after a
@@ -133,6 +142,11 @@ PTY. Mouse events are encoded when mouse reporting is on, and drive
 `Selection` otherwise. Paste is wrapped in bracketed-paste markers when that
 mode is on; elementary's unsafe-paste dialog still runs first, because it
 overrides `paste_clipboard`.
+
+**Scrolling.** `Gvt.Terminal` implements `Gtk.Scrollable`, as VTE does,
+because elementary wraps it in a `Gtk.ScrolledWindow` bound to its
+`vadjustment`. The adjustment counts rows (VTE's unit); `scroll_unit_is_pixels`
+is accepted and stored but does not change that.
 
 **Resize.** Rows and columns come from the widget's allocation and the font's
 cell metrics; `Engine` resizes the terminal and `Pty` sends `TIOCSWINSZ`.
