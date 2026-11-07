@@ -1,8 +1,8 @@
-//! Releases from indexers other than the tracker: comparing titles, collapsing one
-//! release's variants (resolutions, re-uploads), and recognizing a release the tracker
-//! already has. Pure functions; `curated.rs` runs them.
+//! Releases from indexers other than the tracker: comparing titles and collapsing one
+//! release's variants (resolutions, re-uploads). Pure functions; `curated.rs` runs them.
+//! Whether the tracker already has a release is `same::duplicate`.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use chrono::NaiveDate;
@@ -97,17 +97,6 @@ pub fn release_date(title: &str) -> Option<NaiveDate> {
     ymd(&format!("20{}", &c[1]), &c[2], &c[3])
 }
 
-/// Words likely to be names: comparable words of three or more letters, minus the term's
-/// own words, numbers and `STOP` words.
-pub fn person_tokens(title: &str, term: &str, noise: &[String]) -> HashSet<String> {
-    let term_words: HashSet<String> = words(term, &[]).into_iter().collect();
-    words(title, noise)
-        .into_iter()
-        .filter(|w| w.chars().count() >= 3 && w.chars().all(char::is_alphabetic))
-        .filter(|w| !term_words.contains(w) && !STOP.contains(&w.as_str()))
-        .collect()
-}
-
 /// The query for the scene database: the comparable words without an episode token,
 /// and the release date, if any, appended as `YYYY-MM-DD`.
 pub fn scene_query(title: &str, noise: &[String]) -> String {
@@ -143,18 +132,6 @@ pub fn collapse(found: Vec<Candidate>, noise: &[String]) -> Vec<Candidate> {
         }
     }
     out
-}
-
-/// Whether the tracker already has this release: a tracker title of the same filter with
-/// the same date and at least one name in common. No readable date: never a duplicate.
-pub fn is_duplicate(title: &str, tracker_titles: &[&str], term: &str, noise: &[String]) -> bool {
-    let Some(date) = release_date(title) else {
-        return false;
-    };
-    let names = person_tokens(title, term, noise);
-    tracker_titles.iter().any(|t| {
-        release_date(t) == Some(date) && !person_tokens(t, term, noise).is_disjoint(&names)
-    })
 }
 
 #[cfg(test)]
@@ -223,41 +200,6 @@ mod tests {
         assert_eq!(out.len(), 2);
         assert_eq!(out[0].seeders, 9);
         assert_eq!(out[1].title, "Beta Cat Rain 1080p");
-    }
-
-    #[test]
-    fn a_tracker_release_of_the_same_date_and_names_is_a_duplicate() {
-        let tracker = ["[Alpha.com] Ann Doe, Ben Roe - Lazy Sunday (24.10.2026)"];
-        let ext = "Alpha 26 10 24 Ann And Ben Lazy Sunday 1080p MP4 [GR]";
-        assert!(is_duplicate(ext, &tracker, "alpha", &[]));
-        // Other date: kept.
-        assert!(!is_duplicate(
-            "Alpha 26 10 25 Ann And Ben Lazy Sunday",
-            &tracker,
-            "alpha",
-            &[]
-        ));
-        // Same date, nobody in common: kept.
-        assert!(!is_duplicate(
-            "Alpha 26 10 24 Cat Dee Rainy Day",
-            &tracker,
-            "alpha",
-            &[]
-        ));
-        // No readable date: never a duplicate.
-        assert!(!is_duplicate(
-            "Alpha Ann And Ben Lazy Sunday",
-            &tracker,
-            "alpha",
-            &[]
-        ));
-    }
-
-    #[test]
-    fn person_tokens_drop_the_term_numbers_and_stop_words() {
-        let t = person_tokens("Alpha E0012 Ann And Ben Lazy 26 10 24", "alpha", &[]);
-        let want: HashSet<String> = ["ann", "ben", "lazy"].map(String::from).into();
-        assert_eq!(t, want);
     }
 
     #[test]

@@ -11,9 +11,10 @@ use serde_json::{Value, json};
 
 use crate::backends::Backends;
 use crate::db::{Kind, NewExternal};
-use crate::external::{Candidate, collapse, is_duplicate};
+use crate::external::{Candidate, collapse};
 use crate::filters::{HideRule, title_terms};
 use crate::plab::Ctx;
+use crate::same::{SceneSig, duplicate, sig};
 use crate::sources::Sources;
 use crate::tracker::parse::Row;
 
@@ -131,12 +132,14 @@ pub async fn search_releases<B: Backends>(
     let mut found: Vec<Candidate> = match others {
         Ok(found) => {
             let noise = sources.map_or(&[][..], |s| &s.noise[..]);
-            let titles: Vec<&str> = tracker_titles.iter().map(String::as_str).collect();
-            // No term: `q` is often the very names a duplicate shares, and the term's own
-            // words are left out of the comparison.
+            // No stop words: `q` is often the very names a duplicate shares.
+            let tracker: Vec<SceneSig> = tracker_titles
+                .iter()
+                .filter_map(|t| sig(t, noise, &[]))
+                .collect();
             found
                 .into_iter()
-                .filter(|c| !is_duplicate(&c.title, &titles, "", noise))
+                .filter(|c| !duplicate(&c.title, &tracker, noise, &[]))
                 .collect()
         }
         Err(e) => {

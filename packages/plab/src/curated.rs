@@ -15,12 +15,13 @@ use tracing::{info, warn};
 
 use crate::albums::AlbumIndex;
 use crate::db::{CuratedHit, Kind, Listed, NewExternal, Section, Topic};
-use crate::external::{Candidate, collapse, is_duplicate, scene_query};
+use crate::external::{Candidate, collapse, scene_query, words};
 use crate::filters::{FilterTerms, load_excludes, load_filter_terms};
 use crate::labels::term_label;
 use crate::llm::Classify;
 use crate::plab::{CLASSIFY_FAILURE_LIMIT, Ctx, ensure_image, refresh};
 use crate::prowlarr::ProwlarrResult;
+use crate::same::{SceneSig, duplicate, sig};
 use crate::scenes::{SceneDb, accept};
 use crate::sources::Sources;
 use crate::tracker::forums::{self, category};
@@ -355,6 +356,11 @@ async fn external_pass<B: Backends, K: Classify>(
             .map(|v| v.iter().map(String::as_str).collect())
             .unwrap_or_default();
         for term in terms.iter().filter(|t| t.elsewhere) {
+            // The term's own words are in every title it finds, so they never link two.
+            let stop_words = words(&term.text, &[]);
+            let stop: Vec<&str> = stop_words.iter().map(String::as_str).collect();
+            let tracker: Vec<SceneSig> =
+                titles.iter().filter_map(|t| sig(t, noise, &stop)).collect();
             let results = match prowlarr
                 .search_in(&term.text, &e.sources.categories, &ids)
                 .await
@@ -373,7 +379,7 @@ async fn external_pass<B: Backends, K: Classify>(
                 .filter(|c| !excludes.excluded(&c.title))
                 .collect();
             for c in collapse(found, noise) {
-                if is_duplicate(&c.title, &titles, &term.text, noise) {
+                if duplicate(&c.title, &tracker, noise, &stop) {
                     continue;
                 }
                 let id = ctx.db.upsert_external(&NewExternal {

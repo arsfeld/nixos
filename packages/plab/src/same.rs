@@ -33,8 +33,9 @@ pub struct SceneSig {
 /// Names are its comparable words of three or more letters, minus `STOP`, `noise` and
 /// `stop`. A 1337x-style title leads with its studio and then an unbracketed date
 /// ("Studio B 26 10 30 Cara Kim ..."), so the words before that date are dropped: shared
-/// by every scene of the studio, they would link them all. The tracker keeps its date in a
-/// bracket, which `words` strips anyway, so nothing is dropped there.
+/// by every scene of the studio, they would link them all; unless no name follows the
+/// date, when the words before it are the scene. The tracker keeps its date in a bracket,
+/// which `words` strips anyway, so nothing is dropped there.
 pub fn sig(title: &str, noise: &[String], stop: &[&str]) -> Option<SceneSig> {
     let date = release_date(title)?;
     let bare = GROUPS.replace_all(title, " ");
@@ -43,17 +44,32 @@ pub fn sig(title: &str, noise: &[String], stop: &[&str]) -> Option<SceneSig> {
         .filter_map(|re| re.find(&bare))
         .min_by_key(|m| m.start())
         .map_or(0, |m| m.end());
-    let names = words(&bare[start..], noise)
-        .into_iter()
-        .filter(|w| w.chars().count() >= 3 && w.chars().all(char::is_alphabetic))
-        .filter(|w| !STOP.contains(&w.as_str()) && !stop.contains(&w.as_str()))
-        .collect();
+    let names_in = |text: &str| -> HashSet<String> {
+        words(text, noise)
+            .into_iter()
+            .filter(|w| w.chars().count() >= 3 && w.chars().all(char::is_alphabetic))
+            .filter(|w| !STOP.contains(&w.as_str()) && !stop.contains(&w.as_str()))
+            .collect()
+    };
+    let after = names_in(&bare[start..]);
+    // "Alpha.Ann.2027.01.10.1080p" names the scene before its date and nothing after it.
+    let names = if after.is_empty() {
+        names_in(&bare)
+    } else {
+        after
+    };
     Some(SceneSig { date, names })
 }
 
 /// Same date, and at least `min` names in common.
 pub fn same(a: &SceneSig, b: &SceneSig, min: usize) -> bool {
     a.date == b.date && a.names.intersection(&b.names).count() >= min
+}
+
+/// Whether a search candidate repeats a release the tracker already has: its scene is
+/// `same(.., SEARCH_MIN)` as one of `tracker`'s, signed with the same `noise` and `stop`.
+pub fn duplicate(title: &str, tracker: &[SceneSig], noise: &[String], stop: &[&str]) -> bool {
+    sig(title, noise, stop).is_some_and(|s| tracker.iter().any(|t| same(&s, t, SEARCH_MIN)))
 }
 
 /// Indices grouped by `same(.., LIST_MIN)`, transitively: A like B and B like C make one
@@ -240,5 +256,29 @@ mod tests {
         );
         assert_eq!(o.of(1, lab.as_ref()), Some(9));
         assert_eq!(o.of(1, None), None);
+    }
+    #[test]
+    fn a_tracker_release_of_the_same_date_and_names_is_a_duplicate() {
+        // Ported from external::is_duplicate: the term's words are the stop words.
+        let tracker = [sig(
+            "[Alpha.com] Ann Doe, Ben Roe - Lazy Sunday (24.10.2026)",
+            &[],
+            &["alpha"],
+        )
+        .unwrap()];
+        let dup = |title: &str| duplicate(title, &tracker, &[], &["alpha"]);
+        assert!(dup("Alpha 26 10 24 Ann And Ben Lazy Sunday 1080p MP4 [GR]"));
+        // Other date: kept.
+        assert!(!dup("Alpha 26 10 25 Ann And Ben Lazy Sunday"));
+        // Same date, nobody in common: kept.
+        assert!(!dup("Alpha 26 10 24 Cat Dee Rainy Day"));
+        // No readable date: never a duplicate.
+        assert!(!dup("Alpha Ann And Ben Lazy Sunday"));
+    }
+    #[test]
+    fn a_name_before_the_date_counts_when_nothing_follows_it() {
+        let a = s("Alpha.Ann.2027.01.10.1080p.MP4");
+        let b = s("[2027-01-10] Alpha Ann");
+        assert!(same(&a, &b, LIST_MIN));
     }
 }
