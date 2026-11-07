@@ -190,7 +190,7 @@ static void check_runs (string font, string glyphs) {
     t.process_output (("\x1b[31m" + glyphs + "\r\n\x1b[1m" + glyphs + "\x1b[0m").data);
     TestUtil.run_for (100);
     var w = (int) t.get_char_width ();
-    var n = glyphs.length;
+    var n = glyphs.char_count ();
     var px = new Pixels (t);
     for (var row = 0; row < 2; row++) {
         for (var col = 0; col < n; col++) {
@@ -211,6 +211,32 @@ static void test_runs_proportional () {
     check_runs ("DejaVu Sans 10", "ililililililililililmmmmmmmmmm");
 }
 
+/* Box drawing and accented letters are narrow cells too, and stay on the
+ * grid in a run, in a monospace face and a proportional one. */
+static void test_runs_non_ascii () {
+    check_runs ("DejaVu Sans Mono 10", "┌─┬─┐│╋═║éàüçñÉ");
+    check_runs ("DejaVu Sans 10", "┌─┬─┐│╋═║éàüçñÉ");
+}
+
+/* A row of narrow cells in one style is one Pango layout, whatever its
+ * characters: a layout per non-ASCII cell made box-drawing UIs (htop, mc,
+ * tmux borders) cost a layout per cell. */
+static void test_one_layout_per_run () {
+    var t = TestUtil.new_terminal ();
+    var window = TestUtil.present (t);
+    set_test_colors (t);
+    t.process_output ("\x1b[?25l┌──┬──┐ éàü ═║╋\r\nplain ascii".data);
+    TestUtil.run_for (100);
+    t.renderer.invalidate ();
+    var before = t.renderer.layouts;
+    var frames = t.renderer.frames;
+    t.queue_draw ();
+    assert_true (TestUtil.wait_until (() => t.renderer.frames > frames));
+    // A blank ends a run: "┌──┬──┐", "éàü", "═║╋", "plain", "ascii".
+    assert_cmpuint (t.renderer.layouts - before, CompareOperator.EQ, 5);
+    window.destroy ();
+}
+
 int main (string[] args) {
     Test.init (ref args);
     Gtk.init ();
@@ -221,5 +247,7 @@ int main (string[] args) {
     Test.add_func ("/renderer/prompt-proportional", test_prompt_proportional);
     Test.add_func ("/renderer/runs", test_runs);
     Test.add_func ("/renderer/runs-proportional", test_runs_proportional);
+    Test.add_func ("/renderer/runs-non-ascii", test_runs_non_ascii);
+    Test.add_func ("/renderer/one-layout-per-run", test_one_layout_per_run);
     return Test.run ();
 }

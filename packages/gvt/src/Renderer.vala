@@ -8,15 +8,15 @@
  * re-uses every clean row and only rebuilds the rest. The cursor is drawn on
  * top each frame and never cached.
  *
- * Text is laid out one Pango.Layout per run of single-cell ASCII cells with
- * the same style, and then every cluster's advance is set to exactly its
+ * Text is laid out one Pango.Layout per run of adjacent narrow cells with
+ * the same style, each holding one character (ASCII, accented letters, box
+ * drawing alike), and then every cluster's advance is set to exactly its
  * cells, the glyphs centred in them, as VTE draws. No font is assumed to be
  * monospace: the configured one may resolve to a proportional face, and a
  * bold or fallback face may advance differently from the regular one the
- * cell was measured with. Anything else (wide characters, combining
- * sequences, non-ASCII) is laid out alone and centred in its own cells, so
- * a glyph from a fallback font can never push the cells after it off the
- * grid.
+ * cell was measured with. Wide characters and multi-codepoint graphemes
+ * are laid out alone and centred in their own cells. Either way a glyph
+ * from a fallback font can never push the cells after it off the grid.
  */
 namespace Gvt {
     internal class Renderer : Object {
@@ -40,6 +40,8 @@ namespace Gvt {
 
         /* Frames drawn; tests count redraws with it. */
         internal uint frames = 0;
+        /* Pango layouts made; tests count them per frame. */
+        internal uint layouts = 0;
 
         /* The text under the cursor, found while walking the rows. */
         private string? cursor_text = null;
@@ -223,7 +225,7 @@ namespace Gvt {
                     continue;
                 }
                 var color = rgba (fg, (flags & CellFlag.FAINT) != 0 ? 0.5 : 1.0);
-                var simple = width == CellWidth.NARROW && glyph.length == 1 && glyph[0] < 0x80;
+                var simple = width == CellWidth.NARROW && glyph.char_count () == 1;
                 var extends = text_start >= 0 && text_end == x && text_flags == flags
                     && text_color.equal (color);
                 if (simple && extends) {
@@ -232,7 +234,7 @@ namespace Gvt {
                     continue;
                 }
                 if (text_start >= 0) {
-                    draw_text (s, text.str, text_start, text_end - text_start, text_color, text_flags);
+                    draw_text (s, text.str, text_start, text_end - text_start, text_color, text_flags, true);
                     text_start = -1;
                 }
                 if (simple) {
@@ -243,14 +245,14 @@ namespace Gvt {
                     text_color = color;
                     text_flags = flags;
                 } else {
-                    draw_text (s, glyph, x, width == CellWidth.WIDE ? 2 : 1, color, flags);
+                    draw_text (s, glyph, x, width == CellWidth.WIDE ? 2 : 1, color, flags, false);
                 }
             }
             if (bg_start >= 0) {
                 fill_cells (s, bg_start, x, bg_color);
             }
             if (text_start >= 0) {
-                draw_text (s, text.str, text_start, text_end - text_start, text_color, text_flags);
+                draw_text (s, text.str, text_start, text_end - text_start, text_color, text_flags, true);
             }
             return s.to_node ();
         }
@@ -260,10 +262,11 @@ namespace Gvt {
         }
 
         /* Draws text over `cells` cells from column col of a row at y = 0.
-         * text is either a run of single-cell ASCII characters, one per
-         * cell, or a single character or grapheme spanning all the cells. */
+         * text is either a run (`run`), one character per cell, or a single
+         * character or grapheme spanning all the cells. */
         private void draw_text (Gtk.Snapshot s, string text, int col, int cells,
-                                Gdk.RGBA color, uint16 flags) {
+                                Gdk.RGBA color, uint16 flags, bool run) {
+            layouts++;
             var layout = owner.create_pango_layout (text);
             layout.set_font_description (fonts[flags & (CellFlag.BOLD | CellFlag.ITALIC)]);
             var attrs = new Pango.AttrList ();
@@ -278,7 +281,7 @@ namespace Gvt {
             }
             layout.set_attributes (attrs);
             var shift = 0;
-            if (text.length == cells) {
+            if (run) {
                 fit_to_cells (layout, text);
             } else {
                 int w, h;
@@ -292,8 +295,8 @@ namespace Gvt {
             s.restore ();
         }
 
-        /* Gives each cluster of a one-byte-per-cell layout an advance of
-         * exactly its cells, its glyphs centred in them, so every cluster
+        /* Gives each cluster of a one-character-per-cell layout an advance
+         * of exactly its cells (its characters), its glyphs centred in them, so every cluster
          * starts at its own column whatever the font's advances are. Edits
          * the line's glyphs in place, which get_line (unlike its _readonly
          * twin) permits. */
@@ -316,7 +319,7 @@ namespace Gvt {
                     for (var i = first; i <= last; i++) {
                         natural += glyphs.glyphs[i].geometry.width;
                     }
-                    var cells = iter.end_index - iter.start_index;
+                    var cells = (int) text.offset (iter.start_index).char_count (iter.end_index - iter.start_index);
                     var delta = cells * cell_w * Pango.SCALE - natural;
                     var centre = whole_pixels (delta / 2);
                     for (var i = first; i <= last; i++) {
@@ -357,7 +360,7 @@ namespace Gvt {
                 if (cursor_text != null) {
                     s.save ();
                     s.translate ({ 0, y });
-                    draw_text (s, cursor_text, cx, cursor_wide ? 2 : 1, rgba (bg), 0);
+                    draw_text (s, cursor_text, cx, cursor_wide ? 2 : 1, rgba (bg), 0, false);
                     s.restore ();
                 }
                 break;
