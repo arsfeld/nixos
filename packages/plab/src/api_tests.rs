@@ -619,7 +619,6 @@ fn a_download_without_a_live_status_reads_added() {
     );
     assert_eq!(v["topics"][0]["ownedBy"], json!(6));
     assert_eq!(v["topics"][0]["status"], json!({"kind": "added"}));
-    assert_eq!(v["topics"][0]["also"][0]["state"], json!("added"));
 }
 
 #[test]
@@ -697,4 +696,36 @@ fn a_card_without_duplicates_has_no_also_and_no_owner() {
     );
     assert_eq!(v["topics"][0]["also"], json!([]));
     assert_eq!(v["topics"][0]["ownedBy"], Value::Null);
+}
+
+#[test]
+fn a_card_is_not_owned_by_its_own_download() {
+    // Its own row is its state ("queued" here); ownedBy is for another release's download,
+    // so that unqueueing the card leaves nothing claiming the scene.
+    let owned = crate::same::Owned::new(
+        &[crate::same::DownloadTitle {
+            id: 3,
+            topic_id: Some(1),
+            title: TRACKER.into(),
+        }],
+        &[],
+    );
+    let externals = HashMap::new();
+    let v = serde_json::to_value(list(
+        &listing(vec![listed(row(1, TRACKER, 5), None, None)]),
+        &[listed(row(E, OTHER, 9), None, None)],
+        &owned,
+        &[],
+        &HashSet::new(),
+        &HashSet::from([1]),
+        5000,
+        Section::Video,
+        &Downloads::default(),
+        None,
+        &externals,
+    ))
+    .unwrap();
+    assert_eq!(v["topics"][0]["state"], json!("queued"));
+    assert_eq!(v["topics"][0]["ownedBy"], Value::Null);
+    assert_eq!(v["topics"][0]["also"][0]["state"], json!(""));
 }

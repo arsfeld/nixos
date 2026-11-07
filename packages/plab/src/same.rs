@@ -19,6 +19,14 @@ pub const LIST_MIN: usize = 2;
 /// Curated and assistant search compare within one filter term, so one name is enough.
 pub const SEARCH_MIN: usize = 1;
 
+/// Release tags `words` keeps when they are not trailing all-caps: shared by unrelated
+/// releases named the same way, they are never names. Site-specific tags belong in the
+/// sources file's noise list.
+const TECHNICAL: [&str; 13] = [
+    "hevc", "avc", "web", "webrip", "webdl", "hdrip", "dvdrip", "bluray", "uhd", "sdr", "hdr",
+    "remux", "siterip",
+];
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct SceneSig {
     pub date: NaiveDate,
@@ -45,7 +53,10 @@ pub fn sig(title: &str, noise: &[String], stop: &[&str]) -> Option<SceneSig> {
         words(text, noise)
             .into_iter()
             .filter(|w| w.chars().count() >= 3 && w.chars().all(char::is_alphabetic))
-            .filter(|w| !STOP.contains(&w.as_str()) && !stop.contains(&w.as_str()))
+            .filter(|w| {
+                let w = w.as_str();
+                !STOP.contains(&w) && !TECHNICAL.contains(&w) && !stop.contains(&w)
+            })
             .collect()
     };
     let after = names_in(&bare[start..]);
@@ -128,7 +139,8 @@ pub struct DownloadTitle {
 /// Which downloads already cover a release: by its own topic id, else by scene.
 pub struct Owned {
     by_topic: HashMap<u64, i64>,
-    sigs: Vec<(i64, SceneSig)>,
+    /// (download id, its topic, its scene)
+    sigs: Vec<(i64, Option<u64>, SceneSig)>,
 }
 
 impl Owned {
@@ -140,7 +152,7 @@ impl Owned {
                 by_topic.entry(t).or_insert(d.id);
             }
             if let Some(s) = sig(&d.title, noise, &[]) {
-                sigs.push((d.id, s));
+                sigs.push((d.id, d.topic_id, s));
             }
         }
         Owned { by_topic, sigs }
@@ -152,11 +164,25 @@ impl Owned {
         if let Some(&d) = self.by_topic.get(&topic_id) {
             return Some(d);
         }
-        let sig = sig?;
+        self.by_scene(sig?, None)
+    }
+
+    /// A download of this release's scene other than `card`'s own: for a card, its own
+    /// row is its added/queued state, and owning itself would outlive an unqueue.
+    pub fn other_than(&self, card: u64, topic_id: u64, sig: Option<&SceneSig>) -> Option<i64> {
+        if topic_id != card
+            && let Some(&d) = self.by_topic.get(&topic_id)
+        {
+            return Some(d);
+        }
+        self.by_scene(sig?, Some(card))
+    }
+
+    fn by_scene(&self, sig: &SceneSig, skip: Option<u64>) -> Option<i64> {
         self.sigs
             .iter()
-            .find(|(_, s)| same(s, sig, LIST_MIN))
-            .map(|(d, _)| *d)
+            .find(|(_, t, s)| (skip.is_none() || *t != skip) && same(s, sig, LIST_MIN))
+            .map(|(d, _, _)| *d)
     }
 }
 
@@ -277,5 +303,11 @@ mod tests {
         let a = s("Alpha.Ann.2027.01.10.1080p.MP4");
         let b = s("[2027-01-10] Alpha Ann");
         assert!(same(&a, &b, LIST_MIN));
+    }
+    #[test]
+    fn technical_tags_are_not_names() {
+        let a = s("Studio B 26 10 30 Ann Lee WEBRip 1080p HEVC x265 PRT");
+        let b = s("Studio B 26 10 30 Bea Ray WEBRip 1080p HEVC x265 PRT");
+        assert!(!same(&a, &b, SEARCH_MIN));
     }
 }

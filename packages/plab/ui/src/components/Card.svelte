@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fetchImages, imgUrl, thumbUrl } from '../lib/api';
   import type { FilterState } from '../lib/filters.svelte';
+  import { sceneTaken } from '../lib/status';
   import { age, alsoLabel, day, filesLabel, freshShort, isFresh, size } from '../lib/format';
   import type { Section, Topic } from '../lib/types';
   import AddButton from './AddButton.svelte';
@@ -35,6 +36,8 @@
   const PRODUCTION = { amateur: 'badge-success', artistic: 'badge-info', industrial: 'badge-neutral' } as const;
   const album = $derived(topic.kind === 'album');
   const fresh = $derived(isFresh(topic.added, now));
+  // One scene, one download: once any release is queued or added, the others say "Have it".
+  const taken = $derived(sceneTaken(topic));
   let thumbFailed = $state(false);
 
   async function openTopicGallery() {
@@ -111,7 +114,7 @@
               <span>{alsoLabel(a)}</span>
             {/if}
             {#if !note}
-              <AddButton id={a.id} addState={a.state} owned={topic.ownedBy !== null} {section} small />
+              <AddButton id={a.id} addState={a.state} owned={taken} {section} small />
               {#if stream}
                 <button type="button" class="btn btn-xs btn-ghost" onclick={() => onstream(a.id)}>Stream ▶</button>
               {/if}
@@ -128,7 +131,7 @@
           <a class="btn btn-sm btn-primary" href={topic.link} target="_blank" rel="noreferrer">Open ↗</a>
         {/if}
       {:else}
-        <AddButton id={topic.id} addState={topic.state} owned={topic.ownedBy !== null} {section} />
+        <AddButton id={topic.id} addState={topic.state} owned={taken} {section} />
         {#if stream}
           <button type="button" class="btn btn-sm btn-ghost" onclick={() => onstream(topic.id)}>Stream ▶</button>
         {/if}

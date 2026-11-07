@@ -1,4 +1,4 @@
-import type { Status } from './types';
+import type { Status, Topic } from './types';
 
 /** A status badge's text. */
 export function statusText(s: Status): string {
@@ -26,3 +26,10 @@ export const STATUS_COLOR: Record<Status['kind'], string> = {
   identified: 'badge-success',
   failed: 'badge-error',
 };
+
+/** Whether plab has, or is getting, a card's scene: any of its releases queued or added,
+ * or a download of it through another release. Nothing on the card is then addable, so
+ * one scene is never downloaded twice. */
+export function sceneTaken(t: Topic): boolean {
+  return t.ownedBy != null || t.state !== '' || (t.also ?? []).some((a) => a.state !== '');
+}

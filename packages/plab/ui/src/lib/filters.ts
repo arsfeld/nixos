@@ -1,4 +1,5 @@
 import type { List, Topic } from './types';
+import { sceneTaken } from './status';
 
 // The filter state and its URL-hash form, ported unchanged from the old page.js so saved
 // filters (localStorage and bookmarked hashes) keep working.
@@ -74,7 +75,7 @@ export function isVisible(s: Filters, t: Topic, fresh: boolean, isNew: boolean):
   return (
     (!s.h24 || fresh) &&
     (!s.new || isNew) &&
-    (!s.hide || !t.state) &&
+    (!s.hide || !sceneTaken(t)) &&
     (!s.f || t.filters.includes(s.f)) &&
     (!s.cat || valueOf(t, 'cat') === s.cat) &&
     (!s.q || valueOf(t, 'q') === s.q) &&

@@ -34,6 +34,10 @@ describe('isVisible', () => {
     expect(isVisible({ ...empty(), h24: true }, t, true, false)).toBe(true);
     expect(isVisible({ ...empty(), new: true }, t, false, false)).toBe(false);
     expect(isVisible({ ...empty(), hide: true }, topic({ state: 'queued' }), false, false)).toBe(false);
+    // Owned through another release, or one of its other releases added: the scene is had.
+    expect(isVisible({ ...empty(), hide: true }, topic({ ownedBy: 4 }), false, false)).toBe(false);
+    const alsoAdded = { id: 2, source: 'Indexer A', seeders: 1, size: 0, quality: null, link: null, state: 'added' as const };
+    expect(isVisible({ ...empty(), hide: true }, topic({ also: [alsoAdded] }), false, false)).toBe(false);
     expect(isVisible({ ...empty(), f: 'other' }, t, false, false)).toBe(false);
     expect(isVisible({ ...empty(), cat: 'Couples', q: '1080p', studio: 'Studio', prod: 'amateur' }, t, false, false)).toBe(true);
     expect(isVisible({ ...empty(), studio: 'Studio' }, topic({ studio: null }), false, false)).toBe(false);

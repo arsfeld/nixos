@@ -237,7 +237,7 @@ pub fn list(
             }
             card.owned_by = std::iter::once(i)
                 .chain(rest())
-                .find_map(|m| owned.of(pool[m].topic.row.id, sigs[m].as_ref()));
+                .find_map(|m| owned.other_than(card.id, pool[m].topic.row.id, sigs[m].as_ref()));
             if let Some(d) = card.owned_by
                 && card.status.is_none()
             {
@@ -258,10 +258,7 @@ pub fn list(
                         size: t.size,
                         quality: t.quality,
                         link: t.link,
-                        state: match t.state {
-                            "" if card.owned_by.is_some() => "added",
-                            s => s,
-                        },
+                        state: t.state,
                     }
                 })
                 .collect();
