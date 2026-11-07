@@ -222,6 +222,52 @@ void test_allow_hyperlink () {
     assert_cmpint (notified, CompareOperator.EQ, 2);
 }
 
+/* Row numbers do not move when libghostty prunes the scrollback, as VTE's
+ * do not: elementary remembers the cursor row before a command and reads
+ * its output back by row afterwards (Alt+C, Alt+U). */
+static void test_rows_survive_pruning () {
+    var t = TestUtil.new_terminal ();
+    t.scrollback_lines = 1000;
+    var filler = new StringBuilder ();
+    for (var i = 0; i < 3000; i++) {
+        filler.append ("old %d\r\n".printf (i));
+    }
+    t.process_output (filler.str.data);
+
+    long col, marker_row;
+    t.get_cursor_position (out col, out marker_row);
+    t.process_output ("MARKER\r\n".data);
+    long last_row;
+    t.get_cursor_position (out col, out last_row);
+    assert_cmpint ((int) last_row, CompareOperator.EQ, (int) marker_row + 1);
+    long pruned_before = t.engine.scrollback_rows;
+    // Up to the first pruning after the marker, which takes the oldest
+    // rows and leaves the marker.
+    var pruned = false;
+    for (var i = 0; i < 5000 && !pruned; i++) {
+        t.process_output ("new %d\r\n".printf (i).data);
+        long row;
+        t.get_cursor_position (out col, out row);
+        assert_cmpint ((int) row, CompareOperator.EQ, (int) last_row + 1);
+        last_row = row;
+        pruned = t.engine.scrollback_rows < pruned_before;
+        pruned_before = t.engine.scrollback_rows;
+    }
+    assert_true (pruned);
+
+    size_t len;
+    assert_cmpstr (t.get_text_range_format (Gvt.Format.TEXT, marker_row, 0, marker_row + 1, 0, out len),
+                   CompareOperator.EQ, "MARKER");
+    // The scrollbar counts in the same rows: at the bottom, its value is
+    // the row at the top of the screen, and the pruned rows are below lower.
+    t.get_cursor_position (out col, out last_row);
+    long engine_col, engine_row;
+    t.engine.cursor (out engine_col, out engine_row);
+    var cursor_y = engine_row - t.engine.scrollback_rows;
+    assert_true (TestUtil.wait_until (() => t.vadjustment.value == last_row - cursor_y, 5));
+    assert_cmpfloat (t.vadjustment.lower, CompareOperator.GT, 0);
+}
+
 int main (string[] args) {
     Test.init (ref args);
     Gtk.init ();
@@ -236,5 +282,6 @@ int main (string[] args) {
     Test.add_func ("/terminal/engine-failed-drops-pty", test_engine_failed_drops_pty);
     Test.add_func ("/terminal/one-draw-per-tick", test_one_draw_per_tick);
     Test.add_func ("/terminal/allow-hyperlink", test_allow_hyperlink);
+    Test.add_func ("/terminal/rows-survive-pruning", test_rows_survive_pruning);
     return Test.run ();
 }

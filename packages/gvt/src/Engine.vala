@@ -79,6 +79,21 @@ namespace Gvt {
         private bool reset_reported = false;
         private ByteArray? pending = null;
 
+        /* Rows numbers here count from the oldest row libghostty still has,
+         * so they shift whenever it prunes scrollback, a page at a time.
+         * VTE's never do: elementary remembers rows across output (Alt+C,
+         * Alt+U). row_base is how many primary-screen rows have gone so far;
+         * Terminal adds it at its API. It is measured with a tracked
+         * reference on the cursor's row, which survives the pruning of
+         * everything older. */
+        private GhosttyVt.TrackedGridRef? anchor = null;
+        /* The anchor's screen row when last placed or measured. */
+        private long anchor_row = 0;
+        private long evicted = 0;
+        /* The scrollback limit, which bounds how many rows one vt_write may
+         * push out before the anchor is measured again. */
+        private size_t scrollback_limit = size_t.MAX;
+
         /* Bytes the terminal answers the program with (device reports, OSC 52
          * read replies, ...). They belong on the PTY. */
         public signal void write_pty (uint8[] bytes);
@@ -152,14 +167,86 @@ namespace Gvt {
             // mid-parse.
             Engine keep_alive = this;
             writing = true;
-            terminal.vt_write (bytes);
+            feed (bytes);
             while (pending != null) {
                 var queued = (owned) pending;
                 pending = null;
-                terminal.vt_write (queued.data);
+                feed (queued.data);
             }
             writing = false;
             keep_alive = null;
+        }
+
+        /* Rows of the primary screen pruned from the scrollback so far, and
+         * cleared with it (ED 3). */
+        public long row_base {
+            get { return evicted; }
+        }
+
+        /* vt_write in pieces small enough that no piece can push out more
+         * rows than the scrollback keeps (a byte makes at most one row,
+         * barring CSI S), measuring the anchor after each. */
+        private void feed (uint8[] bytes) {
+            if (anchor == null) {
+                place_anchor ();
+            }
+            var step = bytes.length;
+            if (scrollback_limit < (size_t) bytes.length) {
+                step = int.max ((int) scrollback_limit + rows, 1);
+            }
+            for (var at = 0; at < bytes.length; at += step) {
+                var end = int.min (at + step, bytes.length);
+                terminal.vt_write (bytes[at:end]);
+                measure_anchor ();
+                place_anchor ();
+            }
+        }
+
+        /* Counts the rows that went from above the anchor. */
+        private void measure_anchor () {
+            if (anchor == null) {
+                return;
+            }
+            GhosttyVt.PointCoordinate at;
+            if (anchor.point (GhosttyVt.PointTag.SCREEN, out at) == GhosttyVt.Result.SUCCESS) {
+                if ((long) at.y < anchor_row) {
+                    evicted += anchor_row - (long) at.y;
+                }
+                anchor_row = (long) at.y;
+            } else {
+                // The anchor went too (a CSI S of thousands of rows): at
+                // least every row up to it did.
+                evicted += anchor_row + 1;
+                anchor_row = 0;
+            }
+        }
+
+        /* Puts the anchor on the cursor's row, which is never older than
+         * what the next write prunes, and which a resize keeps anyway (a
+         * pin on a blank row below it would keep that row from being
+         * trimmed). On the alternate screen it stays where it is, on the
+         * primary. */
+        private void place_anchor () {
+            if (alternate_screen) {
+                return;
+            }
+            long col, row;
+            cursor (out col, out row);
+            GhosttyVt.Point point = {};
+            point.tag = GhosttyVt.PointTag.SCREEN;
+            point.value.coordinate.x = 0;
+            point.value.coordinate.y = (uint32) row;
+            if (anchor == null) {
+                GhosttyVt.TrackedGridRef tracked;
+                if (!check (terminal.grid_ref_track (point, out tracked), "ghostty_terminal_grid_ref_track")) {
+                    return;
+                }
+                anchor = (owned) tracked;
+            } else if (!check (anchor.set (terminal, point), "ghostty_tracked_grid_ref_set")) {
+                anchor = null;
+                return;
+            }
+            anchor_row = (long) point.value.coordinate.y;
         }
 
         /* Zero sizes are clamped to 1: libghostty rejects them. */
@@ -171,6 +258,8 @@ namespace Gvt {
             Engine keep_alive = this;
             check (terminal.resize (uint16.max (cols, 1), uint16.max (rows, 1), cell_w, cell_h),
                    "ghostty_terminal_resize");
+            // Reflow renumbers rows without losing any, as VTE's rewrap does.
+            place_anchor ();
             keep_alive = null;
         }
 
@@ -629,6 +718,7 @@ namespace Gvt {
                 Engine keep_alive = this;
                 reset_reported = false;
                 terminal.reset ();
+                place_anchor ();
                 // RIS clears the title and pwd without TITLE_CHANGED or
                 // PWD_CHANGED; on_reset reports that, unless libghostty only
                 // calls it for a program's RIS.
@@ -883,6 +973,10 @@ namespace Gvt {
             size_t unlimited = size_t.MAX;
             set_option (GhosttyVt.TerminalOption.SCROLLBACK_MAX_BYTES, &unlimited);
             set_option (GhosttyVt.TerminalOption.SCROLLBACK_MAX_LINES, &lines);
+            scrollback_limit = lines;
+            // A lower limit may prune at once.
+            measure_anchor ();
+            place_anchor ();
         }
 
         /* ---- rendering ----

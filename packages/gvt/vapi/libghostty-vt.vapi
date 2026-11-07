@@ -211,13 +211,24 @@ namespace GhosttyVt {
         public void vt_write ([CCode (array_length_type = "size_t")] uint8[] data);
         public Result scroll_viewport (TerminalScrollViewport behavior);
         public Result grid_ref (Point point, out GridRef out_ref);
+        /* A reference that follows its cell as the page list changes. */
+        public Result grid_ref_track (Point point, out TrackedGridRef out_ref);
         /* A snapshot covering all selectable content; NO_VALUE if none. */
         public Result select_all (out Selection out_selection);
         /* out_equal: a C bool*, like the bools Terminal.get writes. */
         public Result selection_equal (Selection a, Selection b, void* out_equal);
     }
 
-    /* ---- Grid references (grid_ref.h) ---- */
+    /* ---- Grid references (grid_ref.h, grid_ref_tracked.h) ---- */
+
+    [Compact]
+    [CCode (cname = "struct GhosttyTrackedGridRefImpl", free_function = "ghostty_tracked_grid_ref_free", lower_case_cprefix = "ghostty_tracked_grid_ref_")]
+    public class TrackedGridRef {
+        public bool has_value ();
+        /* NO_VALUE once the cell is gone (pruned, cleared). */
+        public Result point (PointTag tag, out PointCoordinate out_point);
+        public Result set (Terminal terminal, Point point);
+    }
 
     /* cell: a GhosttyCell (uint64_t), for cell_get. */
     [CCode (cname = "ghostty_grid_ref_cell")]

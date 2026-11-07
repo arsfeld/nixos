@@ -10,10 +10,13 @@
  * Size: the allocation in whole cells, never less than 1x1, goes to
  * Engine.resize () and Pty.set_size ().
  *
- * Scrolling: Gtk.Scrollable. The vadjustment counts rows: upper is
- * scrollback plus screen rows, page_size the screen rows, value the
- * viewport's top row; moving it scrolls the viewport. hadjustment is kept
- * and unused.
+ * Scrolling: Gtk.Scrollable. The vadjustment counts rows, in the same
+ * numbering as get_cursor_position (): lower is the oldest row kept, upper
+ * the row after the last, page_size the screen rows, value the viewport's
+ * top row; moving it scrolls the viewport. hadjustment is kept and unused.
+ *
+ * Rows: as in VTE, a row keeps its number for as long as it exists, however
+ * much scrollback is pruned above it (Engine.row_base).
  */
 namespace Gvt {
     public class Terminal : Gtk.Widget, Gtk.Scrollable {
@@ -536,7 +539,9 @@ namespace Gvt {
             }
             syncing_adjustment = true;
             double rows = engine.rows;
-            vadj.configure (engine.viewport_top, 0, engine.scrollback_rows + rows, 1, rows, rows);
+            double base_row = engine.row_base;
+            vadj.configure (base_row + engine.viewport_top, base_row,
+                            base_row + engine.scrollback_rows + rows, 1, rows, rows);
             syncing_adjustment = false;
         }
 
@@ -544,7 +549,7 @@ namespace Gvt {
             if (syncing_adjustment) {
                 return;
             }
-            var delta = (long) Math.round (vadj.value) - engine.viewport_top;
+            var delta = (long) Math.round (vadj.value) - engine.row_base - engine.viewport_top;
             if (delta != 0) {
                 engine.scroll_viewport (delta);
                 renderer_changed ();
@@ -559,9 +564,10 @@ namespace Gvt {
 
         /* ---- text and cursor ---- */
 
-        /* (column, absolute row), rows counting from the oldest scrollback row. */
+        /* (column, row), in the numbering every row API here shares. */
         public void get_cursor_position (out long column, out long row) {
             engine.cursor (out column, out row);
+            row += engine.row_base;
         }
 
         /* Text from (start_row, start_col) up to, not including, (end_row,
@@ -572,7 +578,8 @@ namespace Gvt {
             if (format != Format.TEXT) {
                 return null;
             }
-            var text = engine.text_range (start_row, start_col, end_row, end_col);
+            var text = engine.text_range (start_row - engine.row_base, start_col,
+                                          end_row - engine.row_base, end_col);
             length = text.length;
             return text;
         }
