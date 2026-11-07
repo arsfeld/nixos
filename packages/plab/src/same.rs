@@ -80,7 +80,16 @@ pub fn duplicate(title: &str, tracker: &[SceneSig], noise: &[String], stop: &[&s
     sig(title, noise, stop).is_some_and(|s| tracker.iter().any(|t| same(&s, t, SEARCH_MIN)))
 }
 
-/// Indices grouped by `same(.., LIST_MIN)`, transitively: A like B and B like C make one
+/// The lists' test, for merging cards and owning by a download: `same(.., LIST_MIN)`, and
+/// the shared names are at least half of the shorter title's. Two different scenes of one
+/// network on one day can share two generic title words ("big", "red"); a re-post or the
+/// same scene from another source shares nearly all its names.
+pub fn scene(a: &SceneSig, b: &SceneSig) -> bool {
+    let shared = a.names.intersection(&b.names).count();
+    a.date == b.date && shared >= LIST_MIN && 2 * shared >= a.names.len().min(b.names.len())
+}
+
+/// Indices grouped by `scene`, transitively: A like B and B like C make one
 /// group even when A and C share nothing. Every index appears once; members are in input
 /// order and groups are ordered by their first member.
 pub fn groups(sigs: &[Option<SceneSig>]) -> Vec<Vec<usize>> {
@@ -101,11 +110,7 @@ pub fn groups(sigs: &[Option<SceneSig>]) -> Vec<Vec<usize>> {
     for bucket in by_date.values() {
         for (k, &i) in bucket.iter().enumerate() {
             for &j in &bucket[k + 1..] {
-                if same(
-                    sigs[i].as_ref().unwrap(),
-                    sigs[j].as_ref().unwrap(),
-                    LIST_MIN,
-                ) {
+                if scene(sigs[i].as_ref().unwrap(), sigs[j].as_ref().unwrap()) {
                     let (ri, rj) = (root(&mut parent, i), root(&mut parent, j));
                     // The smaller index leads, so a group's root is its first member.
                     parent[ri.max(rj)] = ri.min(rj);
@@ -181,7 +186,7 @@ impl Owned {
     fn by_scene(&self, sig: &SceneSig, skip: Option<u64>) -> Option<i64> {
         self.sigs
             .iter()
-            .find(|(_, t, s)| (skip.is_none() || *t != skip) && same(s, sig, LIST_MIN))
+            .find(|(_, t, s)| (skip.is_none() || *t != skip) && scene(s, sig))
             .map(|(d, _, _)| *d)
     }
 }
@@ -309,5 +314,19 @@ mod tests {
         let a = s("Studio B 26 10 30 Ann Lee WEBRip 1080p HEVC x265 PRT");
         let b = s("Studio B 26 10 30 Bea Ray WEBRip 1080p HEVC x265 PRT");
         assert!(!same(&a, &b, SEARCH_MIN));
+    }
+    #[test]
+    fn two_generic_title_words_do_not_make_one_scene() {
+        // Same network, same day, different scenes: only "big" and "red" in common.
+        let a = s(
+            "[NetA.com / Studio A] Ann Lee - Sunny Morning Big Red Car (5506598) [2026-11-03, 1080p]",
+        );
+        let b = s(
+            "[NetA.com / Studio C] Bea Ray - Rainy Evening Big Red Boat (5499052) [2026-11-03, 1080p]",
+        );
+        assert!(!scene(&a, &b));
+        // A re-post at another resolution still is one.
+        let c = s("[NetA.com / Studio A] Ann Lee - Sunny Morning Big Red Car (03.11.2026) [720p]");
+        assert!(scene(&a, &c));
     }
 }

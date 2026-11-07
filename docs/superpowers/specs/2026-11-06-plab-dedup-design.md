@@ -69,6 +69,10 @@ pub const SEARCH_MIN: usize = 1;
   one shared word ("you", one first name) is too weak, so they need two (`LIST_MIN = 2`):
   a performer's first and last name, or a performer plus a title word. The user chose this
   on 2026-11-06, after the first draft of this spec.
+- **Lists also need coverage.** On top of `LIST_MIN`, the shared names must be at least
+  half of the shorter title's (`same::scene`). Added 2026-11-06 after the first deploy:
+  two different scenes of one network on one day shared only two generic title words and
+  merged into one card. Re-posts and cross-source pairs share nearly all their names.
 - **Accepted false-positive risk:** two different scenes from one studio on the same day,
   sharing two names. The second release still appears under "also" (§2), so nothing is
   lost.
