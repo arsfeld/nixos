@@ -1,0 +1,118 @@
+// Engine against known byte streams. Compiled together with src/Engine.vala,
+// because Engine is internal to the library.
+
+static Gvt.Engine make (uint16 cols = 80, uint16 rows = 24) {
+    return new Gvt.Engine (cols, rows);
+}
+
+static void feed (Gvt.Engine engine, string s) {
+    engine.write (s.data);
+}
+
+static string bytes_to_string (uint8[] bytes) {
+    var b = new StringBuilder ();
+    b.append_len ((string) bytes, bytes.length);
+    return b.str;
+}
+
+static void test_text () {
+    var engine = make ();
+    feed (engine, "hello");
+    assert_cmpstr (engine.text_range (0, 0, 0, 5), CompareOperator.EQ, "hello");
+    long col, row;
+    engine.cursor (out col, out row);
+    assert_cmpint ((int) col, CompareOperator.EQ, 5);
+    assert_cmpint ((int) row, CompareOperator.EQ, 0);
+}
+
+static void test_title () {
+    var engine = make ();
+    int fired = 0;
+    engine.title_changed.connect (() => fired++);
+    feed (engine, "\x1b]2;hi\x07");
+    assert_cmpint (fired, CompareOperator.EQ, 1);
+    assert_cmpstr (engine.title, CompareOperator.EQ, "hi");
+}
+
+static void test_pwd () {
+    var engine = make ();
+    int fired = 0;
+    engine.pwd_changed.connect (() => fired++);
+    feed (engine, "\x1b]7;file://host/tmp\x07");
+    assert_cmpint (fired, CompareOperator.GE, 1);
+    assert_cmpstr (engine.pwd, CompareOperator.EQ, "file://host/tmp");
+}
+
+static void test_bell () {
+    var engine = make ();
+    int fired = 0;
+    engine.bell.connect (() => fired++);
+    feed (engine, "\x07");
+    assert_cmpint (fired, CompareOperator.EQ, 1);
+}
+
+static void test_osc52_write () {
+    var engine = make ();
+    string? got = null;
+    engine.clipboard_write.connect ((text) => got = text);
+    feed (engine, "\x1b]52;c;aGVsbG8=\x07");
+    assert_cmpstr (got, CompareOperator.EQ, "hello");
+}
+
+static void test_osc52_read () {
+    var engine = make ();
+    int requested = 0;
+    var replies = new StringBuilder ();
+    engine.write_pty.connect ((bytes) => replies.append (bytes_to_string (bytes)));
+    // libghostty's read is synchronous: the reply must come before the
+    // handler returns.
+    engine.clipboard_read_requested.connect ((reply) => {
+        requested++;
+        reply ("x");
+    });
+    feed (engine, "\x1b]52;c;?\x07");
+    assert_cmpint (requested, CompareOperator.EQ, 1);
+    assert_true (replies.str.contains ("eA=="));
+}
+
+static void test_da1 () {
+    var engine = make ();
+    var replies = new StringBuilder ();
+    engine.write_pty.connect ((bytes) => replies.append (bytes_to_string (bytes)));
+    feed (engine, "\x1b[c");
+    assert_true (replies.str.has_prefix ("\x1b[?"));
+}
+
+static void test_scrollback () {
+    var engine = make (80, 5);
+    for (int i = 0; i < 10; i++) {
+        feed (engine, "L%d\r\n".printf (i));
+    }
+    assert_cmpint ((int) engine.scrollback_rows, CompareOperator.GE, 5);
+    long col, abs_row;
+    engine.cursor (out col, out abs_row);
+    // 10 lines on 5 rows leave the cursor on the last row of the screen.
+    assert_cmpint ((int) abs_row, CompareOperator.EQ, (int) engine.scrollback_rows + 4);
+    assert_cmpstr (engine.text_range (abs_row - 1, 0, abs_row - 1, 2), CompareOperator.EQ, "L9");
+}
+
+static void test_resize () {
+    var engine = make ();
+    engine.resize (40, 10, 8, 16);
+    assert_cmpint (engine.cols, CompareOperator.EQ, 40);
+    assert_cmpint (engine.rows, CompareOperator.EQ, 10);
+}
+
+int main (string[] args) {
+    Test.init (ref args);
+    Test.add_func ("/engine/text", test_text);
+    Test.add_func ("/engine/title", test_title);
+    Test.add_func ("/engine/pwd", test_pwd);
+    Test.add_func ("/engine/bell", test_bell);
+    Test.add_func ("/engine/osc52-write", test_osc52_write);
+    Test.add_func ("/engine/osc52-read", test_osc52_read);
+    Test.add_func ("/engine/da1", test_da1);
+    Test.add_func ("/engine/scrollback", test_scrollback);
+    Test.add_func ("/engine/resize", test_resize);
+    return Test.run ();
+}

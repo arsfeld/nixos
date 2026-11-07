@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="io.github.arsfeld.gvt" path="/io/github/arsfeld/gvt/">
+    <key name="clipboard-read" type="b">
+      <default>false</default>
+      <summary>Let programs read the clipboard (OSC 52)</summary>
+      <description>
+        When true, a program in the terminal, including one at the far end of
+        an SSH session, can read the local clipboard with an OSC 52 query.
+        Writes to the clipboard are always allowed.
+      </description>
+    </key>
+  </schema>
+</schemalist>
