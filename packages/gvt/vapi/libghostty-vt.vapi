@@ -127,7 +127,14 @@ namespace GhosttyVt {
         TOTAL_ROWS,
         SCROLLBACK_ROWS,
         MODE,
-        MOUSE_TRACKING
+        MOUSE_TRACKING,
+        ACTIVE_SCREEN
+    }
+
+    [CCode (cname = "GhosttyTerminalScreen", cprefix = "GHOSTTY_TERMINAL_SCREEN_", has_type_id = false)]
+    public enum TerminalScreen {
+        PRIMARY,
+        ALTERNATE
     }
 
     [CCode (cname = "GhosttyTerminalScrollbar", has_type_id = false)]

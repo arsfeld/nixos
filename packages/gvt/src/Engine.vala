@@ -305,6 +305,17 @@ namespace Gvt {
             }
         }
 
+        /* Whether the alternate screen (DECSET 47/1047/1049) is active. */
+        public bool alternate_screen {
+            get {
+                var screen = GhosttyVt.TerminalScreen.PRIMARY;
+                if (terminal != null) {
+                    check (terminal.get (GhosttyVt.TerminalData.ACTIVE_SCREEN, &screen), "active screen");
+                }
+                return screen == GhosttyVt.TerminalScreen.ALTERNATE;
+            }
+        }
+
         /* ---- input encoding ----
          *
          * Each encoder first takes the terminal's current modes (cursor key

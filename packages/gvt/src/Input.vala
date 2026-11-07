@@ -12,9 +12,9 @@
  * Mouse: while the program has mouse tracking on, clicks, motion and the
  * wheel are encoded for it. Otherwise presses, drags and releases go to
  * selection_event (Task 6's Selection) and the wheel scrolls the
- * vadjustment. A press and its drag and release stay with whichever of the
- * two got the press. libghostty's mouse encoder has no alternate-scroll
- * (wheel to arrow keys) mode, so the wheel never becomes keys.
+ * vadjustment, or, on the alternate screen under mode 1007 (alternate
+ * scroll, on by default), sends 3 cursor-key presses a notch. A press and its
+ * drag and release stay with whichever of the two got the press.
  *
  * Focus: reported to a program that set mode 1004, and redraws the cursor.
  *
@@ -22,6 +22,14 @@
  */
 namespace Gvt {
     internal enum PointerPhase { PRESS, DRAG, RELEASE }
+
+    /* An input method that can filter a key given by its fields. Only
+     * tests need it: GTK cannot build a Gdk.Event outside a real seat, and
+     * the headless compositor the tests run under has none, so
+     * Gtk.IMContext.filter_key () has no device to use either. */
+    internal interface KeyFilter : Gtk.IMContext {
+        public abstract bool filter_key_fields (uint keyval, uint keycode, Gdk.ModifierType state);
+    }
 
     /* The key-event accessors take a GdkEvent in C; gtk4.vapi binds them on
      * Gdk.KeyEvent, whose pointer type C then warns about. */
@@ -50,6 +58,8 @@ namespace Gvt {
         private long last_motion_col = -1;
         private long last_motion_row = -1;
         private double scroll_rest = 0;
+        private double line_rest = 0;
+        private const int LINES_PER_NOTCH = 3;
 
         /* Every byte Input sends the child, as it is sent. */
         public signal void sent (uint8[] bytes);
@@ -142,14 +152,19 @@ namespace Gvt {
 
         private bool on_key_pressed (Gtk.EventControllerKey controller, uint keyval, uint keycode,
                                      Gdk.ModifierType state) {
+            return key_press (controller.get_current_event (), keyval, keycode, state);
+        }
+
+        /* A key press, IM first. event is the GDK event; tests pass null,
+         * and an IM that is a KeyFilter then gets the key by its fields. */
+        public bool key_press (Gdk.Event? event, uint keyval, uint keycode, Gdk.ModifierType state) {
             var action = keycode in held_keys ? GhosttyVt.KeyAction.REPEAT : GhosttyVt.KeyAction.PRESS;
             held_keys.add (keycode);
-            unowned Gdk.Event? event = controller.get_current_event ();
 
             bool was_composing = preedit != "";
             update_im_cursor ();
             key_commit = new StringBuilder ();
-            bool filtered = event != null && im_context.filter_keypress (event);
+            bool filtered = im_filter (event, keyval, keycode, state);
             var committed = key_commit.str;
             key_commit = null;
 
@@ -168,8 +183,22 @@ namespace Gvt {
                 }
                 return true;
             }
+            // The IM let the key through but may have committed first: a dead
+            // key followed by one it does not compose with (´ then Enter)
+            // commits the spacing accent. That text comes before the key.
+            if (committed != "") {
+                send (committed.data, true);
+            }
             return key (Keymap.from_gdk (keycode), action, mods_of (state, event), text_of (keyval),
-                        unshifted_of (event, keycode, keyval), consumed_of (event));
+                        unshifted_of (event, keycode, keyval), consumed_of (event)) || committed != "";
+        }
+
+        private bool im_filter (Gdk.Event? event, uint keyval, uint keycode, Gdk.ModifierType state) {
+            if (event != null) {
+                return im_context.filter_keypress (event);
+            }
+            var filter = im_context as KeyFilter;
+            return filter != null && filter.filter_key_fields (keyval, keycode, state);
         }
 
         private void on_key_released (Gtk.EventControllerKey controller, uint keyval, uint keycode,
@@ -328,6 +357,27 @@ namespace Gvt {
         /* Scrolls by dy wheel steps, or dy pixels when `pixels`; negative
          * is up. Always handled. */
         public bool scroll (double dy, bool pixels) {
+            var engine = terminal.engine;
+            // Alternate scroll (mode 1007, on by default): on the alternate
+            // screen, which has no scrollback, the wheel sends cursor keys,
+            // so less and man scroll. 3 lines a notch; smooth deltas
+            // accumulate into whole lines.
+            if (!engine.mouse_tracking && engine.alternate_screen && engine.mode (1007)) {
+                var ch = double.max (terminal.get_char_height (), 1);
+                line_rest += pixels ? dy / ch : dy * LINES_PER_NOTCH;
+                var lines = (int) line_rest;
+                line_rest -= lines;
+                var arrow = lines < 0 ? GhosttyVt.Key.ARROW_UP : GhosttyVt.Key.ARROW_DOWN;
+                for (var i = 0; i < lines.abs (); i++) {
+                    var bytes = engine.encode_key (arrow, GhosttyVt.KeyAction.PRESS, 0, null, 0);
+                    bytes = concat (bytes, engine.encode_key (arrow, GhosttyVt.KeyAction.RELEASE, 0, null, 0));
+                    if (bytes.length > 0) {
+                        send (bytes, false);
+                    }
+                }
+                return true;
+            }
+            line_rest = 0;
             scroll_rest += pixels ? dy / double.max (terminal.get_char_height (), 1) : dy;
             var steps = (int) scroll_rest;
             scroll_rest -= steps;
@@ -346,6 +396,13 @@ namespace Gvt {
             var rows = double.max (Math.ceil (adj.page_size / 10), 1);
             adj.value = adj.value + steps * rows;
             return true;
+        }
+
+        private static uint8[] concat (uint8[] a, uint8[] b) {
+            var all = new ByteArray.sized ((uint) (a.length + b.length));
+            all.append (a);
+            all.append (b);
+            return all.steal ();
         }
 
         private void send_mouse (GhosttyVt.MouseAction action, GhosttyVt.MouseButton button,

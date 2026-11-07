@@ -37,6 +37,25 @@ class TestIM : Gtk.IMContext {
     }
 }
 
+/* GtkIMContextSimple after a dead key, on a key it does not compose with:
+ * commits the spacing accent and lets the key itself through. */
+class DeadKeyIM : Gtk.IMContext, Gvt.KeyFilter {
+    public int filtered = 0;
+
+    public override bool filter_keypress (Gdk.Event event) {
+        filtered++;
+        commit ("´");
+        return false;
+    }
+
+    /* The same, for a key given by its fields (see Gvt.KeyFilter). */
+    public bool filter_key_fields (uint keyval, uint keycode, Gdk.ModifierType state) {
+        filtered++;
+        commit ("´");
+        return false;
+    }
+}
+
 static string esc (string s) {
     return "\x1b" + s;
 }
@@ -102,6 +121,62 @@ static void test_ime_commit () {
     sent.clear ();
     t.input.key (GhosttyVt.Key.A, GhosttyVt.KeyAction.PRESS, 0, "a", 'a');
     assert_cmpstr (sent.text (), CompareOperator.EQ, "a");
+}
+
+/* Review Focus 5: ´ then Enter reaches the shell as "´\r", through the
+ * real key-press path (the IM filters first). */
+static void test_dead_key_then_enter () {
+    var t = terminal ();
+    var window = TestUtil.present (t);
+    var im = new DeadKeyIM ();
+    t.input.im = im;
+    var sent = new Sent (t.input);
+    // Enter: evdev 28, GDK hardware keycode 36.
+    assert_true (t.input.key_press (null, Gdk.Key.Return, 36, 0));
+    assert_cmpint (im.filtered, CompareOperator.EQ, 1);
+    assert_cmpuint (sent.bytes.len, CompareOperator.EQ, 3);
+    assert_cmpuint (sent.bytes.data[0], CompareOperator.EQ, 0xC2);
+    assert_cmpuint (sent.bytes.data[1], CompareOperator.EQ, 0xB4);
+    assert_cmpuint (sent.bytes.data[2], CompareOperator.EQ, '\r');
+    window.destroy ();
+}
+
+static void test_alt_scroll () {
+    var t = terminal ();
+    var sent = new Sent (t.input);
+    t.process_output (esc ("[?1049h").data);
+    assert_true (t.input.scroll (1, false));
+    assert_cmpstr (sent.text (), CompareOperator.EQ, esc ("[B") + esc ("[B") + esc ("[B"));
+    sent.clear ();
+    t.process_output (esc ("[?1h").data);
+    t.input.scroll (1, false);
+    assert_cmpstr (sent.text (), CompareOperator.EQ, esc ("OB") + esc ("OB") + esc ("OB"));
+    sent.clear ();
+    t.input.scroll (-1, false);
+    assert_cmpstr (sent.text (), CompareOperator.EQ, esc ("OA") + esc ("OA") + esc ("OA"));
+    // Smooth deltas accumulate into whole lines (one line = one cell height).
+    sent.clear ();
+    var ch = (double) t.get_char_height ();
+    t.input.scroll (ch * 0.6, true);
+    assert_cmpuint (sent.bytes.len, CompareOperator.EQ, 0);
+    t.input.scroll (ch * 0.6, true);
+    assert_cmpstr (sent.text (), CompareOperator.EQ, esc ("OB"));
+}
+
+static void test_primary_scroll () {
+    var t = terminal ();
+    var sent = new Sent (t.input);
+    var lines = new StringBuilder ();
+    for (var i = 0; i < 100; i++) {
+        lines.append ("line %d\r\n".printf (i));
+    }
+    t.process_output (lines.str.data);
+    assert_true (TestUtil.wait_until (() => t.vadjustment.upper > 100));
+    var bottom = t.vadjustment.value;
+    assert_true (t.input.scroll (-1, false));
+    assert_true (t.vadjustment.value < bottom);
+    assert_true (t.engine.viewport_top < (long) bottom);
+    assert_cmpuint (sent.bytes.len, CompareOperator.EQ, 0);
 }
 
 static void test_paste_bracketed () {
@@ -177,6 +252,9 @@ public static int main (string[] args) {
     Test.add_func ("/input/app-cursor", test_app_cursor);
     Test.add_func ("/input/kitty", test_kitty);
     Test.add_func ("/input/ime-commit", test_ime_commit);
+    Test.add_func ("/input/dead-key-then-enter", test_dead_key_then_enter);
+    Test.add_func ("/input/alt-scroll", test_alt_scroll);
+    Test.add_func ("/input/primary-scroll", test_primary_scroll);
     Test.add_func ("/input/paste-bracketed", test_paste_bracketed);
     Test.add_func ("/input/paste-plain", test_paste_plain);
     Test.add_func ("/input/mouse-sgr", test_mouse_sgr);
