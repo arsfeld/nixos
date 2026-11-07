@@ -25,18 +25,20 @@ pub struct Candidate {
 
 const CONTAINERS: [&str; 8] = ["mp4", "mkv", "avi", "wmv", "mov", "m4v", "ts", "webm"];
 /// Words that never tell two releases apart.
-const STOP: [&str; 7] = ["and", "the", "with", "part", "episode", "scene", "feat"];
+pub(crate) const STOP: [&str; 7] = ["and", "the", "with", "part", "episode", "scene", "feat"];
 
 fn re(p: &str) -> Regex {
     Regex::new(p).unwrap()
 }
 
-static GROUPS: LazyLock<Regex> = LazyLock::new(|| re(r"\[[^\]]*\]|\([^)]*\)"));
+pub(crate) static GROUPS: LazyLock<Regex> = LazyLock::new(|| re(r"\[[^\]]*\]|\([^)]*\)"));
 static RESOLUTION: LazyLock<Regex> = LazyLock::new(|| re(r"^\d{3,4}p$"));
 static EPISODE: LazyLock<Regex> = LazyLock::new(|| re(r"^e\d+$"));
-static YMD: LazyLock<Regex> = LazyLock::new(|| re(r"\b(20\d{2})[.\- ](\d{2})[.\- ](\d{2})\b"));
-static DMY: LazyLock<Regex> = LazyLock::new(|| re(r"\b(\d{2})\.(\d{2})\.(20\d{2})\b"));
-static SHORT: LazyLock<Regex> = LazyLock::new(|| re(r"\b(\d{2})[. ](\d{2})[. ](\d{2})\b"));
+pub(crate) static YMD: LazyLock<Regex> =
+    LazyLock::new(|| re(r"\b(20\d{2})[.\- ](\d{2})[.\- ](\d{2})\b"));
+pub(crate) static DMY: LazyLock<Regex> = LazyLock::new(|| re(r"\b(\d{2})\.(\d{2})\.(20\d{2})\b"));
+pub(crate) static SHORT: LazyLock<Regex> =
+    LazyLock::new(|| re(r"\b(\d{2})[. ](\d{2})[. ](\d{2})\b"));
 
 /// A trailing release-group tag: two or more characters, upper-case letters and digits
 /// only, at least one letter.
