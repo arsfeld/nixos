@@ -12,7 +12,7 @@
   glib,
   gtk4,
   pango,
-  libghostty-vt,
+  libghostty-vt-1,
   weston,
   makeFontsConf,
   dejavu_fonts,
@@ -37,7 +37,7 @@ stdenv.mkDerivation {
 
   strictDeps = true;
   nativeBuildInputs = [meson ninja vala pkg-config glib wrapGAppsNoGuiHook];
-  buildInputs = [glib gtk4 pango libghostty-vt];
+  buildInputs = [glib gtk4 pango libghostty-vt-1];
 
   doCheck = true;
   nativeCheckInputs = [weston];

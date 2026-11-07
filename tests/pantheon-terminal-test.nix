@@ -1,13 +1,19 @@
 # Boots Pantheon and runs elementary Terminal on gvt (packages/elementary-terminal-ghostty)
 # with a script that emits an OSC 52 clipboard write, an OSC 2 title and a
 # coloured word. Asserts the Wayland clipboard received the OSC 52 text and the
-# title reached the window (read back by OCR: wait_for_window needs X11 tools
-# and cannot see a Wayland window). Modelled on pantheon-tailscale-test.
+# title reached the window (read back by OCR: the header bar title is cropped
+# from a screendump, as the driver's OCR does not read it). The node imports
+# the pantheon-terminal feature, so the VM tests the real wiring. Modelled on
+# pantheon-tailscale-test.
 {self, ...}: {
   name = "pantheon-terminal";
   enableOCR = true;
 
   nodes.machine = {pkgs, ...}: {
+    imports = [
+      (import ../modules/desktop/pantheon-terminal.nix).flake.modules.nixos.pantheon-terminal
+    ];
+
     nixpkgs.overlays = self.lib.overlays;
 
     # Workaround ".gala-wrapped invoked oom-killer" (as upstream's test).
@@ -29,11 +35,7 @@
       };
     };
 
-    environment.systemPackages = [pkgs.elementary-terminal-ghostty pkgs.wl-clipboard];
-
-    # Pantheon's own elementary-terminal is on PATH ahead of the overlay's, so
-    # the test names the gvt build through this link.
-    environment.etc."gvt-terminal".source = "${pkgs.elementary-terminal-ghostty}/bin/io.elementary.terminal";
+    environment.systemPackages = [pkgs.wl-clipboard];
 
     environment.etc."osc-check.sh" = {
       mode = "0755";
@@ -60,7 +62,7 @@
     machine.wait_for_text("Applications")
 
     machine.succeed(
-        "su - arosenfeld -c '${env} nohup /etc/gvt-terminal -e /etc/osc-check.sh >/tmp/terminal.log 2>&1 &'"
+        "su - arosenfeld -c '${env} nohup io.elementary.terminal -e /etc/osc-check.sh >/tmp/terminal.log 2>&1 &'"
     )
 
     def header_text():

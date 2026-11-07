@@ -1,3 +1,6 @@
+# Named libghostty-vt-1, not libghostty-vt: the overlay would shadow nixpkgs'
+# libghostty-vt (0.1.0) for every package set consumer, and devenv links that
+# one and fails on the 1.0.0 ABI (undefined ghostty_render_state_colors_get).
 {
   lib,
   stdenv,

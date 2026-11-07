@@ -1,7 +1,7 @@
 # elementary Terminal on libghostty-vt
 
 Date: 2026-11-06
-Status: approved design, not yet implemented
+Status: implemented
 
 ## Goal
 
@@ -66,7 +66,7 @@ Rejected:
 
 All source lives in this repository.
 
-### 1. `packages/libghostty-vt/`
+### 1. `packages/libghostty-vt-1/`
 
 libghostty-vt 1.0.0 built from the official release tarballs,
 `https://release.files.ghostty.org/libghostty-vt/1.0.0/libghostty-vt-1.0.0.tar.gz`
