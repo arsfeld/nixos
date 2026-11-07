@@ -22,7 +22,7 @@ update-packages *PKGS:
     [ ${#pkgs[@]} -gt 0 ] || pkgs=(
       claude-desktop
       elementary-terminal-ghostty
-      gvt
+      libghostty-gtk
       home-assistant-hilo
       home-assistant-tplink-deco
       home-assistant-tuya-smart-ir-ac
@@ -77,11 +77,11 @@ update-packages *PKGS:
           sed -i "s|token = \"[^\"]*\"|token = \"$t\"|" "packages/$p/package.nix"
           cmd+=(--version "$v") ;;
         # Track the repo's default branch; there are no releases.
-        pantheon-global-menu | gvt)
+        pantheon-global-menu | libghostty-gtk)
           cmd+=(--version=branch) ;;
-        # The port lives on the fork's gvt branch, not its default branch.
+        # The port lives on the fork's libghostty-gtk branch, not its default branch.
         elementary-terminal-ghostty)
-          cmd+=(--version=branch=gvt) ;;
+          cmd+=(--version=branch=libghostty-gtk) ;;
       esac
       if "${cmd[@]}"; then
         if git diff --quiet -- "packages/$p"; then current+=("$p"); else updated+=("$p"); fi

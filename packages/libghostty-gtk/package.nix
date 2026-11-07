@@ -1,7 +1,7 @@
-# gvt: a GTK4 terminal widget on libghostty-vt, with VTE's API, so that
+# libghostty-gtk: a GTK4 terminal widget on libghostty-vt, with VTE's API, so that
 # elementary Terminal can be ported off VTE by a rename. Source:
-# github.com/arsfeld/gvt, our own project, kept upstreamable; it tracks master
-# through `just update-packages`. Its API moves in lockstep with the `gvt`
+# github.com/arsfeld/libghostty-gtk, our own project, kept upstreamable; it tracks master
+# through `just update-packages`. Its API moves in lockstep with the `libghostty-gtk`
 # branch of github.com/arsfeld/elementary-terminal
 # (packages/elementary-terminal-ghostty), so bump the two together.
 # Design: docs/superpowers/specs/2026-11-06-elementary-terminal-libghostty-design.md
@@ -23,14 +23,14 @@
   dejavu_fonts,
 }:
 stdenv.mkDerivation {
-  pname = "gvt";
+  pname = "libghostty-gtk";
   version = "0.1.0-unstable-2026-11-07";
 
   src = fetchFromGitHub {
     owner = "arsfeld";
-    repo = "gvt";
-    rev = "7a55eba825f293a1f7e9101a8e3287d42c37a8a8";
-    hash = "sha256-TE0HRHAyjdD8qTH5LgD93eiyQWLIjNbJ1q8OX9txGkY=";
+    repo = "libghostty-gtk";
+    rev = "db51582872a49234b52e2454ff83ea6bb9d3c00e";
+    hash = "sha256-/rEADvRdWEx2jDhwcrfPmnFVSejTnbMGKlXIYOeWiTQ=";
   };
 
   strictDeps = true;
@@ -50,9 +50,9 @@ stdenv.mkDerivation {
     # One known monospace font, so the widget tests' cell metrics are stable.
     export FONTCONFIG_FILE=${makeFontsConf {fontDirectories = [dejavu_fonts];}}
     export XDG_CACHE_HOME=$TMPDIR/cache
-    weston --backend=headless --socket=gvt-test --idle-time=0 &
+    weston --backend=headless --socket=ghostty-gtk-test --idle-time=0 &
     westonPid=$!
-    export WAYLAND_DISPLAY=gvt-test
+    export WAYLAND_DISPLAY=ghostty-gtk-test
     for _ in $(seq 100); do
       [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ] && break
       sleep 0.1
@@ -73,9 +73,9 @@ stdenv.mkDerivation {
 
   meta = {
     description = "GTK4 terminal widget on libghostty-vt, with VTE's API";
-    homepage = "https://github.com/arsfeld/gvt";
+    homepage = "https://github.com/arsfeld/libghostty-gtk";
     license = lib.licenses.gpl3Plus;
-    pkgConfigModules = ["gvt-1"];
+    pkgConfigModules = ["ghostty-gtk-1"];
     platforms = lib.platforms.linux;
   };
 }

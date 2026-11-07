@@ -1,5 +1,5 @@
-# elementary Terminal 8.1.0 with its VTE widget replaced by gvt, the
-# libghostty-vt widget in packages/gvt. Source: the `gvt` branch of
+# elementary Terminal 8.1.0 with its VTE widget replaced by libghostty-gtk, the
+# libghostty-vt widget in packages/libghostty-gtk. Source: the `libghostty-gtk` branch of
 # github.com/arsfeld/elementary-terminal, a fork of elementary/terminal whose
 # commits on top of the release are the port, kept upstreamable. Rebase that
 # branch onto a new elementary release and bump rev here; `just
@@ -9,7 +9,7 @@
   lib,
   pantheon,
   fetchFromGitHub,
-  gvt,
+  libghostty-gtk,
   vte-gtk4,
 }:
 pantheon.elementary-terminal.overrideAttrs (old: {
@@ -19,11 +19,11 @@ pantheon.elementary-terminal.overrideAttrs (old: {
   src = fetchFromGitHub {
     owner = "arsfeld";
     repo = "elementary-terminal";
-    rev = "f9f00a3ad7dbafe59ceb97019c534fc88095fd3a";
-    hash = "sha256-UETJvLWsdbBGR7W3UHmUrD9SBrK9/o0DM/vx5+lOAPM=";
+    rev = "72ff1b92fa41863e46585d68cb1c8ed73fb0e3be";
+    hash = "sha256-o5k7u4eAKjMpQLWhGAR12/SjhiXEWhQ1EAEVDbA8tRk=";
   };
 
-  buildInputs = lib.remove vte-gtk4 old.buildInputs ++ [gvt];
+  buildInputs = lib.remove vte-gtk4 old.buildInputs ++ [libghostty-gtk];
 
   # UnsafePasteTest, elementary's only test; it needs no display.
   doCheck = true;

@@ -1,4 +1,4 @@
-# Boots Pantheon and runs elementary Terminal on gvt (packages/elementary-terminal-ghostty)
+# Boots Pantheon and runs elementary Terminal on libghostty-gtk (packages/elementary-terminal-ghostty)
 # with a script that emits an OSC 52 clipboard write, an OSC 2 title and a
 # coloured word. Asserts the Wayland clipboard received the OSC 52 text and the
 # title reached the window (read back by OCR: the header bar title is cropped
