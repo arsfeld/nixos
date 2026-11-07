@@ -78,6 +78,9 @@ namespace Gvt {
         public bool enable_fallback_scrolling { get; set; default = true; }
         /* Stored only: the vadjustment always counts rows. */
         public bool scroll_unit_is_pixels { get; set; default = false; }
+        /* Stored only: VTE draws OSC 8 hyperlinks when this is set, and gvt
+         * draws none. elementary uses it as its own Ctrl+click flag. */
+        public bool allow_hyperlink { get; set; default = false; }
 
         public string window_title {
             get { return title; }

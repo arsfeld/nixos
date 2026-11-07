@@ -207,6 +207,21 @@ static void test_one_draw_per_tick () {
     window.destroy ();
 }
 
+// elementary reads and writes allow_hyperlink as a property; VTE's default
+// is false and a change notifies.
+void test_allow_hyperlink () {
+    var t = TestUtil.new_terminal ();
+    assert_false (t.allow_hyperlink);
+    int notified = 0;
+    t.notify["allow-hyperlink"].connect (() => notified++);
+    t.allow_hyperlink = true;
+    assert_true (t.allow_hyperlink);
+    assert_cmpint (notified, CompareOperator.EQ, 1);
+    t.allow_hyperlink = false;
+    assert_false (t.allow_hyperlink);
+    assert_cmpint (notified, CompareOperator.EQ, 2);
+}
+
 int main (string[] args) {
     Test.init (ref args);
     Gtk.init ();
@@ -220,5 +235,6 @@ int main (string[] args) {
     Test.add_func ("/terminal/engine-failed", test_engine_failed);
     Test.add_func ("/terminal/engine-failed-drops-pty", test_engine_failed_drops_pty);
     Test.add_func ("/terminal/one-draw-per-tick", test_one_draw_per_tick);
+    Test.add_func ("/terminal/allow-hyperlink", test_allow_hyperlink);
     return Test.run ();
 }
