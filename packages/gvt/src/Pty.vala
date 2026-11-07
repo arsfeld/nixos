@@ -11,6 +11,8 @@
 namespace Gvt {
     public class Pty : Object {
         private const size_t READ_CAP = 65536;
+        /* How long `exited` waits for EOF once the child is gone. */
+        private const uint EOF_WAIT_MS = 2000;
 
         public int fd { get; construct; }
 
@@ -22,6 +24,7 @@ namespace Gvt {
         private uint read_source = 0;
         private uint write_source = 0;
         private uint child_source = 0;
+        private uint eof_wait_source = 0;
         private bool eof = false;
         private bool have_status = false;
         private int wait_status = 0;
@@ -54,6 +57,10 @@ namespace Gvt {
             if (write_source != 0) {
                 Source.remove (write_source);
                 write_source = 0;
+            }
+            if (eof_wait_source != 0) {
+                Source.remove (eof_wait_source);
+                eof_wait_source = 0;
             }
             if (child_source != 0) {
                 Source.remove (child_source);
@@ -99,6 +106,9 @@ namespace Gvt {
             var envp = null_terminated (env);
             var file = argv[0];
             var search = (flags & SpawnFlags.SEARCH_PATH) != 0;
+            Posix.sigset_t no_signals, unused_mask;
+            Posix.sigemptyset (out no_signals);
+            var max_fd = (int) Posix.sysconf (Posix._SC_OPEN_MAX);
 
             var child = Posix.fork ();
             if (child < 0) {
@@ -117,7 +127,20 @@ namespace Gvt {
                 Posix.dup2 (slave, 1);
                 Posix.dup2 (slave, 2);
                 /* The slave and master are close-on-exec, so only the dup2
-                 * copies reach the program. */
+                 * copies reach the program; every other descriptor the
+                 * parent had open is made so too (VTE closes them). Marking
+                 * rather than closing keeps the report pipe working. */
+                if (GvtPosix.close_range (3, uint.MAX, (int) GvtPosix.CLOSE_RANGE_CLOEXEC) != 0) {
+                    for (var fd = 3; fd < max_fd; fd++) {
+                        Posix.fcntl (fd, Posix.F_SETFD, Posix.FD_CLOEXEC);
+                    }
+                }
+                /* The program starts with no signal blocked or ignored,
+                 * whatever the parent's threads had set up. */
+                for (var sig = 1; sig < GvtPosix.NSIG; sig++) {
+                    GvtPosix.signal (sig, GvtPosix.SIG_DFL);
+                }
+                Posix.sigprocmask (Posix.SIG_SETMASK, no_signals, out unused_mask);
                 if (cwd != null && Posix.chdir (cwd) != 0) {
                     child_fail (report[1]);
                 }
@@ -177,10 +200,26 @@ namespace Gvt {
             return copy;
         }
 
+        /* The parent's environment with envv's entries over it, as VTE
+         * builds the child's: elementary passes only its own variables, and
+         * the shell still needs WAYLAND_DISPLAY, DBUS_SESSION_BUS_ADDRESS,
+         * SSH_AUTH_SOCK and the rest. */
         private static string[] build_env (string[]? envv) {
-            var env = envv != null ? envv : Environ.get ();
-            env = Environ.set_variable (env, "TERM", "xterm-256color", false);
-            env = Environ.set_variable (env, "COLORTERM", "truecolor", false);
+            var env = Environ.get ();
+            if (envv != null) {
+                foreach (var entry in envv) {
+                    var eq = entry.index_of_char ('=');
+                    if (eq > 0) {
+                        env = Environ.set_variable (env, entry.substring (0, eq),
+                                                    entry.substring (eq + 1), true);
+                    }
+                }
+            }
+            /* Always ours, as VTE's are: a TERM inherited from whatever
+             * started the app (TERM=dumb under meson, xterm-kitty from
+             * another terminal) describes some other terminal. */
+            env = Environ.set_variable (env, "TERM", "xterm-256color", true);
+            env = Environ.set_variable (env, "COLORTERM", "truecolor", true);
             return env;
         }
 
@@ -267,12 +306,40 @@ namespace Gvt {
             child_source = 0;
             have_status = true;
             wait_status = status;
+            if (!eof) {
+                /* Something the child left behind (a nohup'd job, one in its
+                 * own process group) may hold the slave open for ever. Like
+                 * VTE, wait a little for EOF, then take what is there and
+                 * report anyway. */
+                eof_wait_source = Timeout.add (EOF_WAIT_MS, on_eof_wait);
+            }
             maybe_exited ();
+        }
+
+        private bool on_eof_wait () {
+            eof_wait_source = 0;
+            ref ();
+            if (read_source != 0) {
+                Source.remove (read_source);
+                read_source = 0;
+                var n = Posix.read (fd, read_buf, READ_CAP);
+                if (n > 0) {
+                    data (read_buf[0:n]);
+                }
+            }
+            eof = true;
+            maybe_exited ();
+            unref ();
+            return Source.REMOVE;
         }
 
         private void maybe_exited () {
             if (eof && have_status && !exit_reported) {
                 exit_reported = true;
+                if (eof_wait_source != 0) {
+                    Source.remove (eof_wait_source);
+                    eof_wait_source = 0;
+                }
                 exited (wait_status);
             }
         }

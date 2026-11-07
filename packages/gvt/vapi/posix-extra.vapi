@@ -31,4 +31,20 @@ namespace GvtPosix {
 
     [CCode (cname = "pipe2")]
     public int pipe2 ([CCode (array_length = false)] int[] fds, int flags);
+
+    /* Signal dispositions as plain pointers, so a child can reset every
+     * signal without Vala's delegate machinery. */
+    [CCode (cname = "NSIG", cheader_filename = "signal.h")]
+    public const int NSIG;
+    [CCode (cname = "SIG_DFL", cheader_filename = "signal.h")]
+    public void* SIG_DFL;
+    [CCode (cname = "SIG_IGN", cheader_filename = "signal.h")]
+    public void* SIG_IGN;
+    [CCode (cname = "signal", cheader_filename = "signal.h")]
+    public void* signal (int signum, void* handler);
+
+    [CCode (cname = "CLOSE_RANGE_CLOEXEC", cheader_filename = "linux/close_range.h")]
+    public const uint CLOSE_RANGE_CLOEXEC;
+    [CCode (cname = "close_range", cheader_filename = "unistd.h")]
+    public int close_range (uint first, uint last, int flags);
 }

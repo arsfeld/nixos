@@ -11,9 +11,10 @@ class Run : Object {
     public Gvt.Pty pty;
     public MainLoop loop = new MainLoop ();
 
-    public Run (string[] argv) throws Error {
-        Pid pid;
-        pty = Gvt.Pty.spawn (null, argv, null, SpawnFlags.SEARCH_PATH, null, out pid);
+    public Pid pid;
+
+    public Run (string[] argv, string[]? envv = null) throws Error {
+        pty = Gvt.Pty.spawn (null, argv, envv, SpawnFlags.SEARCH_PATH, null, out pid);
         pty.data.connect ((chunk) => {
             output.append (chunk);
             chunks++;
@@ -38,12 +39,16 @@ class Run : Object {
     }
 
     public void wait_for_exit () {
+        var timed_out = false;
         var timeout = Timeout.add_seconds (20, () => {
+            timed_out = true;
             loop.quit ();
             return Source.REMOVE;
         });
         loop.run ();
-        Source.remove (timeout);
+        if (!timed_out) {
+            Source.remove (timeout);
+        }
         assert_true (exited_seen);
     }
 
@@ -218,6 +223,71 @@ static void test_runtime_argv () {
     }
 }
 
+/* envv is merged over the parent's environment, as VTE does: elementary
+ * passes its own variables and the shell still needs WAYLAND_DISPLAY,
+ * DBUS_SESSION_BUS_ADDRESS and the rest. */
+static void test_env_merged () {
+    try {
+        Environment.set_variable ("GVT_INHERITED", "parent", true);
+        var run = new Run ({ "sh", "-c", "printf '%s/%s/%s' \"$GVT_INHERITED\" \"$GVT_EXTRA\" \"$TERM\"" },
+                           { "GVT_EXTRA=extra" });
+        run.wait_for_exit ();
+        assert_cmpstr (run.text, CompareOperator.EQ, "parent/extra/xterm-256color");
+    } catch (Error e) {
+        error ("%s", e.message);
+    }
+}
+
+/* A background job that keeps the slave open does not keep `exited` from
+ * firing: like VTE, Pty waits a short while for EOF after the child goes,
+ * then reports anyway. The job ignores SIGHUP, as a nohup'd one or one in
+ * an interactive shell's own process group survives the shell. */
+static void test_exit_with_background_holder () {
+    try {
+        var run = new Run ({ "sh", "-c", "trap '' HUP; sleep 30 & printf go; exit 4" });
+        var timer = new Timer ();
+        run.wait_for_exit ();
+        var elapsed = timer.elapsed ();
+        Posix.kill (-(Posix.pid_t) run.pid, Posix.Signal.KILL);
+        assert_cmpfloat (elapsed, CompareOperator.LT, 3.5);
+        assert_true (Process.if_exited (run.status));
+        assert_cmpint (Process.exit_status (run.status), CompareOperator.EQ, 4);
+        assert_cmpstr (run.text, CompareOperator.EQ, "go");
+    } catch (Error e) {
+        error ("%s", e.message);
+    }
+}
+
+/* The child starts with no blocked or ignored signals and none of the
+ * parent's stray descriptors, whatever the parent had. */
+static void test_child_clean_slate () {
+    try {
+        Posix.sigset_t block, old, ignored;
+        Posix.sigemptyset (out block);
+        Posix.sigaddset (ref block, Posix.Signal.USR1);
+        Posix.sigprocmask (Posix.SIG_BLOCK, block, out old);
+        var old_usr2 = GvtPosix.signal (Posix.Signal.USR2, GvtPosix.SIG_IGN);
+        var stray = Posix.open ("/dev/null", Posix.O_RDONLY);
+        assert_cmpint (stray, CompareOperator.GT, 2);
+
+        var run = new Run ({ "sh", "-c",
+                             "grep -E '^Sig(Blk|Ign)' /proc/self/status; " +
+                             "test -e /proc/$$/fd/%d && echo LEAK || echo CLEAN".printf (stray) });
+        run.wait_for_exit ();
+
+        Posix.close (stray);
+        GvtPosix.signal (Posix.Signal.USR2, old_usr2);
+        Posix.sigprocmask (Posix.SIG_SETMASK, old, out ignored);
+
+        assert_true (run.text.contains ("SigBlk:\t0000000000000000"));
+        /* The shell ignores nothing it was not told to; USR2 is 1 << 11. */
+        assert_false (run.text.contains ("SigIgn:\t0000000000000800"));
+        assert_true (run.text.contains ("CLEAN"));
+    } catch (Error e) {
+        error ("%s", e.message);
+    }
+}
+
 static int main (string[] args) {
     Test.init (ref args);
     Test.add_func ("/pty/output-then-exit", test_output_then_exit);
@@ -228,5 +298,8 @@ static int main (string[] args) {
     Test.add_func ("/pty/close", test_close);
     Test.add_func ("/pty/closed-is-inert", test_closed_is_inert);
     Test.add_func ("/pty/runtime-argv", test_runtime_argv);
+    Test.add_func ("/pty/env-merged", test_env_merged);
+    Test.add_func ("/pty/exit-with-background-holder", test_exit_with_background_holder);
+    Test.add_func ("/pty/child-clean-slate", test_child_clean_slate);
     return Test.run ();
 }
