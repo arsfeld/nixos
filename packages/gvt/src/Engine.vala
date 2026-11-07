@@ -45,6 +45,10 @@ namespace Gvt {
         private GhosttyVt.RenderState? state = null;
         private GhosttyVt.RenderStateRowIterator? row_iter = null;
         private GhosttyVt.RenderStateRowCells? cell_iter = null;
+        private GhosttyVt.KeyEncoder? key_encoder = null;
+        private GhosttyVt.KeyEvent? key_event = null;
+        private GhosttyVt.MouseEncoder? mouse_encoder = null;
+        private GhosttyVt.MouseEvent? mouse_event = null;
 
         /* Guards against re-entering vt_write from a signal handler, which
          * libghostty does not support: such bytes are queued instead. */
@@ -287,6 +291,153 @@ namespace Gvt {
                 return false;
             }
             return config.value;
+        }
+
+        /* Whether a program turned on mouse tracking (X10, normal, button or
+         * any-event); clicks and the wheel are then the program's. */
+        public bool mouse_tracking {
+            get {
+                bool value = false;
+                if (terminal != null) {
+                    check (terminal.get (GhosttyVt.TerminalData.MOUSE_TRACKING, &value), "mouse tracking");
+                }
+                return value;
+            }
+        }
+
+        /* ---- input encoding ----
+         *
+         * Each encoder first takes the terminal's current modes (cursor key
+         * mode, Kitty flags, mouse format, bracketed paste ...), so the bytes
+         * always match what the program asked for. An empty result means the
+         * event sends nothing.
+         */
+
+        /* utf8 is the key's text before Ctrl/Alt transformations; null (or a
+         * control character, which the encoder must not get) for none.
+         * consumed is the modifiers the layout used to produce that text. */
+        public uint8[] encode_key (GhosttyVt.Key key, GhosttyVt.KeyAction action, GhosttyVt.Mods mods,
+                                   string? utf8, unichar unshifted, GhosttyVt.Mods consumed = 0) {
+            if (terminal == null || !ensure_key_encoder ()) {
+                return {};
+            }
+            check (key_encoder.set_from_terminal (terminal), "ghostty_key_encoder_set_from_terminal");
+            unowned string text = utf8 ?? "";
+            if (text.length == 1 && ((uchar) text[0] < 0x20 || text[0] == 0x7f)) {
+                text = "";
+            }
+            key_event.set_action (action);
+            key_event.set_key (key);
+            key_event.set_mods (mods);
+            key_event.set_consumed_mods (consumed);
+            key_event.set_unshifted_codepoint ((uint32) unshifted);
+            // The event borrows the text: clear it before `text` goes away.
+            key_event.set_utf8 ({ (uint8*) text, text.length });
+            var bytes = encode_with ((buf, out written) => key_encoder.encode (key_event, buf, out written),
+                                     "ghostty_key_encoder_encode");
+            key_event.set_utf8 ({ null, 0 });
+            return bytes;
+        }
+
+        /* (x, y) in pixels from the top left of the terminal, which is
+         * width x height pixels of cell_w x cell_h cells. UNKNOWN is no
+         * button (motion with nothing held). */
+        public uint8[] encode_mouse (GhosttyVt.MouseAction action, GhosttyVt.MouseButton button,
+                                     GhosttyVt.Mods mods, float x, float y, uint32 width, uint32 height,
+                                     uint32 cell_w, uint32 cell_h, bool any_pressed) {
+            if (terminal == null || !ensure_mouse_encoder ()) {
+                return {};
+            }
+            check (mouse_encoder.set_from_terminal (terminal), "ghostty_mouse_encoder_set_from_terminal");
+            GhosttyVt.MouseEncoderSize size = {};
+            size.size = sizeof (GhosttyVt.MouseEncoderSize);
+            // libghostty rejects zero cells and a screen smaller than one.
+            size.cell_width = uint32.max (cell_w, 1);
+            size.cell_height = uint32.max (cell_h, 1);
+            size.screen_width = uint32.max (width, size.cell_width);
+            size.screen_height = uint32.max (height, size.cell_height);
+            check (mouse_encoder.set (GhosttyVt.MouseEncoderOption.SIZE, &size), "mouse encoder size");
+            check (mouse_encoder.set (GhosttyVt.MouseEncoderOption.ANY_BUTTON_PRESSED, &any_pressed),
+                   "mouse encoder any button");
+
+            mouse_event.set_action (action);
+            if (button == GhosttyVt.MouseButton.UNKNOWN) {
+                mouse_event.clear_button ();
+            } else {
+                mouse_event.set_button (button);
+            }
+            mouse_event.set_mods (mods);
+            mouse_event.set_position ({ x, y });
+            return encode_with ((buf, out written) => mouse_encoder.encode (mouse_event, buf, out written),
+                                "ghostty_mouse_encoder_encode");
+        }
+
+        /* Bracketed when the program set mode 2004; unsafe control bytes
+         * become spaces, so the text cannot end the bracket early. */
+        public uint8[] encode_paste (string text) {
+            bool bracketed = mode (2004);
+            // ghostty_paste_encode rewrites its input in place.
+            var data = text.data.copy ();
+            return encode_with ((buf, out written) => GhosttyVt.paste_encode (data, bracketed, buf, out written),
+                                "ghostty_paste_encode");
+        }
+
+        /* CSI I or CSI O. The caller checks mode 1004 first. */
+        public uint8[] encode_focus (bool focused) {
+            var event = focused ? GhosttyVt.FocusEvent.GAINED : GhosttyVt.FocusEvent.LOST;
+            return encode_with ((buf, out written) => GhosttyVt.focus_encode (event, buf, out written),
+                                "ghostty_focus_encode");
+        }
+
+        private delegate GhosttyVt.Result EncodeFn (uint8[]? buf, out size_t written);
+
+        /* Runs an encoder into a 128-byte buffer (enough for any key or
+         * mouse event), and again into one of the reported size if not. */
+        private uint8[] encode_with (EncodeFn encode, string what) {
+            var buf = new uint8[128];
+            size_t written = 0;
+            var result = encode (buf, out written);
+            if (result == GhosttyVt.Result.OUT_OF_SPACE) {
+                buf = new uint8[written];
+                result = encode (buf, out written);
+            }
+            if (!check (result, what)) {
+                return {};
+            }
+            buf.resize ((int) written);
+            return buf;
+        }
+
+        private bool ensure_key_encoder () {
+            if (key_encoder == null) {
+                GhosttyVt.KeyEncoder encoder;
+                GhosttyVt.KeyEvent event;
+                if (!check (GhosttyVt.KeyEncoder.create (null, out encoder), "ghostty_key_encoder_new")) {
+                    return false;
+                }
+                if (!check (GhosttyVt.KeyEvent.create (null, out event), "ghostty_key_event_new")) {
+                    return false;
+                }
+                key_encoder = (owned) encoder;
+                key_event = (owned) event;
+            }
+            return true;
+        }
+
+        private bool ensure_mouse_encoder () {
+            if (mouse_encoder == null) {
+                GhosttyVt.MouseEncoder encoder;
+                GhosttyVt.MouseEvent event;
+                if (!check (GhosttyVt.MouseEncoder.create (null, out encoder), "ghostty_mouse_encoder_new")) {
+                    return false;
+                }
+                if (!check (GhosttyVt.MouseEvent.create (null, out event), "ghostty_mouse_event_new")) {
+                    return false;
+                }
+                mouse_encoder = (owned) encoder;
+                mouse_event = (owned) event;
+            }
+            return true;
         }
 
         /* ---- options ---- */

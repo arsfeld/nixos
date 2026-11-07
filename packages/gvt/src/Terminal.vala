@@ -22,6 +22,7 @@ namespace Gvt {
 
         internal Engine engine;
         internal Renderer renderer;
+        internal Input input;
 
         private Pty? pty = null;
         private bool exit_reported = false;
@@ -138,6 +139,8 @@ namespace Gvt {
             renderer = new Renderer (this);
             apply_font ();
 
+            input = new Input (this);
+
             focusable = true;
             overflow = Gtk.Overflow.HIDDEN;
             sync_adjustment ();
@@ -160,6 +163,9 @@ namespace Gvt {
             if (vadj != null && vadj_handler != 0) {
                 vadj.disconnect (vadj_handler);
                 vadj_handler = 0;
+            }
+            if (input != null) {
+                input.detach ();
             }
             base.dispose ();
         }
@@ -224,6 +230,13 @@ namespace Gvt {
             if (pty != null && text != null) {
                 pty.write (text);
             }
+        }
+
+        /* Pastes text as the program wants it: bracketed under mode 2004,
+         * else with newlines as carriage returns; control bytes become
+         * spaces either way. */
+        public void paste_text (string text) {
+            input.paste (text);
         }
 
         /* The child's output: everything Pty reads comes through here. */
@@ -414,6 +427,12 @@ namespace Gvt {
                 engine.scroll_viewport (delta);
                 renderer_changed ();
             }
+        }
+
+        /* Brings the viewport back to the active screen. */
+        internal void scroll_to_bottom () {
+            sync_adjustment ();
+            vadj.value = vadj.upper - vadj.page_size;
         }
 
         /* ---- text and cursor ---- */

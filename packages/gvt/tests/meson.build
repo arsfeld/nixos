@@ -29,7 +29,7 @@ test(
 # every machine, and with the fonts.conf monospace package.nix provides. The
 # sandbox has no session bus, so accessibility and portals, which want one,
 # are off.
-foreach name : ['terminal-test', 'renderer-test']
+foreach name : ['terminal-test', 'renderer-test', 'input-test']
   test(
     name,
     executable(
