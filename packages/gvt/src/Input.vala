@@ -10,11 +10,14 @@
  * plain key is encoded as that key, so Kitty-mode programs still see the key.
  *
  * Mouse: while the program has mouse tracking on, clicks, motion and the
- * wheel are encoded for it. Otherwise presses, drags and releases go to
+ * wheel are encoded for it, unless Shift is held: Shift+click and
+ * Shift+drag select, as in VTE and xterm. Otherwise presses, drags and releases go to
  * selection_event (Task 6's Selection) and the wheel scrolls the
  * vadjustment, or, on the alternate screen under mode 1007 (alternate
  * scroll, on by default), sends 3 cursor-key presses a notch. A press and its
- * drag and release stay with whichever of the two got the press.
+ * drag and release stay with whichever of the two got the press. A press
+ * whose release never comes (the gesture cancelled, the window left) is
+ * forgotten, so the next one is routed afresh.
  *
  * Focus: reported to a program that set mode 1004, and redraws the cursor.
  *
@@ -92,6 +95,7 @@ namespace Gvt {
             var click = new Gtk.GestureClick ();
             click.button = 0;
             click.pressed.connect (on_pressed);
+            click.cancel.connect (on_cancel);
             terminal.add_controller (click);
 
             // Releases and held motion come from a drag gesture, which, unlike
@@ -100,6 +104,7 @@ namespace Gvt {
             drag.button = 0;
             drag.drag_update.connect (on_drag_update);
             drag.drag_end.connect (on_drag_end);
+            drag.cancel.connect (on_cancel);
             terminal.add_controller (drag);
 
             var motion = new Gtk.EventControllerMotion ();
@@ -310,8 +315,13 @@ namespace Gvt {
             var bit = button < 32 ? 1u << button : 0u;
             if (press) {
                 terminal.grab_focus ();
+                // state holds the buttons down before this press; a held
+                // bit it does not back lost its release.
+                held_buttons &= buttons_in (state) | ~BUTTON_STATE_BITS;
                 if (held_buttons == 0) {
-                    pointer_owner = terminal.engine.mouse_tracking ? Owner.PROGRAM : Owner.SELECTION;
+                    var tracking = terminal.engine.mouse_tracking
+                                   && !(Gdk.ModifierType.SHIFT_MASK in state);
+                    pointer_owner = tracking ? Owner.PROGRAM : Owner.SELECTION;
                     n_press = clicks;
                 }
                 held_buttons |= bit;
@@ -332,6 +342,41 @@ namespace Gvt {
                 selection_event (press ? PointerPhase.PRESS : PointerPhase.RELEASE, col, row, button,
                                  state, n_press, x, y);
             }
+        }
+
+        /* Buttons 1-5, the ones Gdk.ModifierType reports, as held_buttons bits. */
+        private const uint BUTTON_STATE_BITS = 0x3e;
+
+        private static uint buttons_in (Gdk.ModifierType state) {
+            uint bits = 0;
+            if (Gdk.ModifierType.BUTTON1_MASK in state) {
+                bits |= 1u << 1;
+            }
+            if (Gdk.ModifierType.BUTTON2_MASK in state) {
+                bits |= 1u << 2;
+            }
+            if (Gdk.ModifierType.BUTTON3_MASK in state) {
+                bits |= 1u << 3;
+            }
+            if (Gdk.ModifierType.BUTTON4_MASK in state) {
+                bits |= 1u << 4;
+            }
+            if (Gdk.ModifierType.BUTTON5_MASK in state) {
+                bits |= 1u << 5;
+            }
+            return bits;
+        }
+
+        /* Whether a press is waiting for its release. */
+        public bool pointer_held {
+            get { return held_buttons != 0; }
+        }
+
+        /* Forgets every held button without reporting a release: GTK
+         * cancelled the press, or focus went elsewhere. */
+        public void pointer_cancelled () {
+            held_buttons = 0;
+            pointer_owner = Owner.NONE;
         }
 
         /* The pointer moved to (x, y), with or without buttons held. */
@@ -380,6 +425,7 @@ namespace Gvt {
                 return true;
             }
             line_rest = 0;
+            // Pixel deltas are already rows here.
             scroll_rest += pixels ? dy / double.max (terminal.get_char_height (), 1) : dy;
             var steps = (int) scroll_rest;
             scroll_rest -= steps;
@@ -393,9 +439,10 @@ namespace Gvt {
                 }
                 return true;
             }
-            // VTE's step: a tenth of a page, at least a row.
+            // A wheel notch is VTE's step, a tenth of a page and at least a
+            // row; a touchpad moves the rows it covered.
             var adj = terminal.vadjustment;
-            var rows = double.max (Math.ceil (adj.page_size / 10), 1);
+            var rows = pixels ? 1.0 : double.max (Math.ceil (adj.page_size / 10), 1);
             adj.value = adj.value + steps * rows;
             return true;
         }
@@ -456,6 +503,10 @@ namespace Gvt {
             button (true, gesture.get_current_button (), x, y, gesture.get_current_event_state (), clicks);
         }
 
+        private void on_cancel (Gtk.Gesture gesture, Gdk.EventSequence? sequence) {
+            pointer_cancelled ();
+        }
+
         private void on_drag_update (Gtk.GestureDrag gesture, double dx, double dy) {
             double x, y;
             gesture.get_start_point (out x, out y);
@@ -494,6 +545,9 @@ namespace Gvt {
                 im_context.focus_in ();
             } else {
                 im_context.focus_out ();
+                // Their releases go to whatever has focus now.
+                held_keys.remove_all ();
+                pointer_cancelled ();
             }
             if (terminal.engine.mode (1004)) {
                 send (terminal.engine.encode_focus (focused), false);

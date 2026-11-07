@@ -244,6 +244,127 @@ static void test_keymap () {
     assert_true (Gvt.Keymap.from_evdev (100000) == GhosttyVt.Key.UNIDENTIFIED);
 }
 
+/* A touchpad (pixel) scroll moves the view by the rows it covers. The
+ * tenth-of-a-page step is the wheel's: on a 50-row window a three-row swipe
+ * scrolled fifteen. */
+static void test_pixel_scroll () {
+    var t = terminal ();
+    t.set_size_request ((int) t.get_char_width () * 80, (int) t.get_char_height () * 50);
+    var window = TestUtil.present (t);
+    var lines = new StringBuilder ();
+    for (var i = 0; i < 200; i++) {
+        lines.append ("line %d\r\n".printf (i));
+    }
+    t.process_output (lines.str.data);
+    assert_true (TestUtil.wait_until (() => t.vadjustment.upper > 200));
+    assert_cmpfloat (t.vadjustment.page_size, CompareOperator.EQ, 50);
+    var bottom = t.vadjustment.value;
+    var ch = (double) t.get_char_height ();
+    assert_true (t.input.scroll (-3 * ch, true));
+    assert_cmpfloat (t.vadjustment.value, CompareOperator.EQ, bottom - 3);
+    // The wheel keeps VTE's step: a tenth of the page a notch.
+    t.input.scroll (-1, false);
+    assert_cmpfloat (t.vadjustment.value, CompareOperator.EQ, bottom - 3 - 5);
+    window.destroy ();
+}
+
+/* Shift bypasses mouse tracking, as in VTE, xterm and Ghostty: Shift+drag
+ * selects even under a program that tracks the mouse. */
+static void test_shift_bypasses_tracking () {
+    var t = terminal ();
+    var window = TestUtil.present (t);
+    var sent = new Sent (t.input);
+    var phases = new GenericArray<Gvt.PointerPhase> ();
+    t.input.selection_event.connect ((phase) => phases.add (phase));
+    t.process_output (esc ("[?1000h").data);
+    t.process_output (esc ("[?1006h").data);
+
+    var cw = (double) t.get_char_width ();
+    var ch = (double) t.get_char_height ();
+    var shift = Gdk.ModifierType.SHIFT_MASK;
+    t.input.button (true, Gdk.BUTTON_PRIMARY, cw / 2, ch / 2, shift, 1);
+    t.input.motion (5 * cw + cw / 2, ch / 2, shift | Gdk.ModifierType.BUTTON1_MASK);
+    t.input.button (false, Gdk.BUTTON_PRIMARY, 5 * cw + cw / 2, ch / 2,
+                    shift | Gdk.ModifierType.BUTTON1_MASK, 1);
+    assert_cmpuint (sent.bytes.len, CompareOperator.EQ, 0);
+    assert_cmpint (phases.length, CompareOperator.EQ, 3);
+    assert_true (phases[0] == Gvt.PointerPhase.PRESS);
+    assert_true (phases[1] == Gvt.PointerPhase.DRAG);
+    assert_true (phases[2] == Gvt.PointerPhase.RELEASE);
+    assert_true (t.get_has_selection ());
+
+    // Without Shift the program still gets the click.
+    t.input.button (true, Gdk.BUTTON_PRIMARY, cw / 2, ch / 2, 0, 1);
+    assert_cmpstr (sent.text (), CompareOperator.EQ, esc ("[<0;1;1M"));
+    window.destroy ();
+}
+
+/* A press whose release never arrives (elementary's right-click handler
+ * claims the sequence and opens a popover, which cancels gvt's gestures)
+ * does not leave the button held: the next click is routed afresh. */
+static void test_cancelled_press () {
+    var t = terminal ();
+    var window = TestUtil.present (t);
+    var sent = new Sent (t.input);
+    var cw = (double) t.get_char_width ();
+    var ch = (double) t.get_char_height ();
+
+    t.input.button (true, Gdk.BUTTON_SECONDARY, cw / 2, ch / 2, 0, 1);
+    // GTK cancels the drag gesture, whose current button is then 0.
+    Gtk.GestureDrag? drag = null;
+    var controllers = t.observe_controllers ();
+    for (uint i = 0; i < controllers.get_n_items (); i++) {
+        var c = controllers.get_item (i) as Gtk.GestureDrag;
+        if (c != null) {
+            drag = c;
+        }
+    }
+    assert_nonnull (drag);
+    assert_true (t.input.pointer_held);
+    Signal.emit_by_name (drag, "cancel", null);
+    assert_false (t.input.pointer_held);
+
+    t.process_output (esc ("[?1000h").data);
+    t.process_output (esc ("[?1006h").data);
+    t.input.button (true, Gdk.BUTTON_PRIMARY, cw / 2, ch / 2, 0, 1);
+    assert_cmpstr (sent.text (), CompareOperator.EQ, esc ("[<0;1;1M"));
+    window.destroy ();
+}
+
+/* A held bit no button state backs (a release lost some other way) is
+ * dropped at the next press: GDK's state lists the buttons down before it. */
+static void test_stale_button_dropped () {
+    var t = terminal ();
+    var window = TestUtil.present (t);
+    var sent = new Sent (t.input);
+    var cw = (double) t.get_char_width ();
+    var ch = (double) t.get_char_height ();
+
+    t.input.button (true, Gdk.BUTTON_SECONDARY, cw / 2, ch / 2, 0, 1);
+    t.process_output (esc ("[?1000h").data);
+    t.process_output (esc ("[?1006h").data);
+    t.input.button (true, Gdk.BUTTON_PRIMARY, cw / 2, ch / 2, 0, 1);
+    assert_cmpstr (sent.text (), CompareOperator.EQ, esc ("[<0;1;1M"));
+    window.destroy ();
+}
+
+/* Keys held when focus goes are forgotten: their releases go to some other
+ * window, and the next press is a press, not a Kitty repeat. */
+static void test_focus_out_forgets_keys () {
+    var t = terminal ();
+    var sent = new Sent (t.input);
+    // Disambiguate + report event types.
+    t.process_output (esc ("[>3u").data);
+    // Escape: GDK hardware keycode 9.
+    t.input.key_press (null, Gdk.Key.Escape, 9, 0);
+    assert_cmpstr (sent.text (), CompareOperator.EQ, esc ("[27u"));
+    sent.clear ();
+    t.input.focus_changed (false);
+    t.input.focus_changed (true);
+    t.input.key_press (null, Gdk.Key.Escape, 9, 0);
+    assert_cmpstr (sent.text (), CompareOperator.EQ, esc ("[27u"));
+}
+
 public static int main (string[] args) {
     Test.init (ref args);
     Gtk.init ();
@@ -260,5 +381,10 @@ public static int main (string[] args) {
     Test.add_func ("/input/mouse-sgr", test_mouse_sgr);
     Test.add_func ("/input/focus", test_focus);
     Test.add_func ("/input/keymap", test_keymap);
+    Test.add_func ("/input/pixel-scroll", test_pixel_scroll);
+    Test.add_func ("/input/shift-bypasses-tracking", test_shift_bypasses_tracking);
+    Test.add_func ("/input/cancelled-press", test_cancelled_press);
+    Test.add_func ("/input/stale-button-dropped", test_stale_button_dropped);
+    Test.add_func ("/input/focus-out-forgets-keys", test_focus_out_forgets_keys);
     return Test.run ();
 }
