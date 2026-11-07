@@ -191,6 +191,23 @@ impl Db {
         })
     }
 
+    /// Every video download, queued or added and of any age, for the owned check
+    /// (`same::Owned`).
+    pub fn download_titles(&self) -> Result<Vec<crate::same::DownloadTitle>> {
+        self.with(|c| {
+            let mut stmt = c.prepare(
+                "SELECT id, topic_id, release_title FROM download WHERE section = 'video' ORDER BY id",
+            )?;
+            all(stmt.query_map([], |r| {
+                Ok(crate::same::DownloadTitle {
+                    id: r.get(0)?,
+                    topic_id: r.get(1)?,
+                    title: r.get(2)?,
+                })
+            })?)
+        })
+    }
+
     /// Every queued video download, and those added at or after `since`, newest first, with
     /// their files: the downloads that get a status. Games are outside provenance, and so
     /// are downloads added before it existed (`files_synced = 2`).
@@ -345,5 +362,48 @@ mod tests {
             .unsynced_among(&["ha".into(), "hb".into(), "hz".into()])
             .unwrap();
         assert_eq!(got, HashSet::from(["hb".to_string()]));
+    }
+    #[test]
+    fn download_titles_cover_every_video_download() {
+        use crate::db::{NewDownload, Section};
+        use crate::same::DownloadTitle;
+        // Queued: its topic row is unknown here, so its title is "".
+        let db = Db::open_in_memory().unwrap();
+        db.enqueue(5, Section::Video, 100).unwrap();
+        let old = added(&db, "plab", Some(6), "Old Release", None); // added_at 0: long gone from the live window
+        let grab = added(&db, "grab", None, "Grabbed Release", Some("h"));
+        db.mark_added(NewDownload {
+            source: "plab",
+            topic_id: Some(7),
+            release_title: "A Game",
+            section: Section::Games,
+            download_dir: None,
+            torrent_hash: None,
+            now: 100,
+        })
+        .unwrap();
+        let mut got = db.download_titles().unwrap();
+        got.sort_by_key(|d| d.id);
+        let queued = got.iter().find(|d| d.topic_id == Some(5)).unwrap().id;
+        assert_eq!(
+            got,
+            vec![
+                DownloadTitle {
+                    id: queued,
+                    topic_id: Some(5),
+                    title: String::new()
+                },
+                DownloadTitle {
+                    id: old,
+                    topic_id: Some(6),
+                    title: "Old Release".into()
+                },
+                DownloadTitle {
+                    id: grab,
+                    topic_id: None,
+                    title: "Grabbed Release".into()
+                },
+            ]
+        );
     }
 }

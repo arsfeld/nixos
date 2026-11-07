@@ -482,6 +482,7 @@ pub(crate) async fn downloads<B: Backends>(st: &WebState<B>, now: i64) -> Downlo
     };
     for r in rows {
         let s: Status = provenance::status(&r, live.as_ref(), now);
+        out.by_download.insert(r.id, s.clone());
         if let Some(t) = r.topic_id {
             out.by_topic.insert(t, s);
         } else if r.source == "grab" && r.added_at.is_some_and(|a| a >= now - GRAB_DAYS * 86400) {

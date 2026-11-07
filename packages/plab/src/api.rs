@@ -44,6 +44,8 @@ pub fn score(t: &Listed) -> f64 {
 #[derive(Debug, Default)]
 pub struct Downloads {
     pub by_topic: HashMap<u64, Status>,
+    /// Every recent download's status by its id: a grab has no topic to key it by.
+    pub by_download: HashMap<i64, Status>,
     pub grabs: Vec<(DownloadRow, Status)>,
     /// Stash's web address, for links to a download's scenes; None gives no links.
     pub stash: Option<String>,
