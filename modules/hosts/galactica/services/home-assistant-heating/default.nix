@@ -22,7 +22,9 @@
 # Pre-heat starts (target - temp) / rate before a window; a zone that owns a
 # rate helper learns it from its own unassisted pre-heats. The heat pump
 # (Kanion, IR-only) heats the living and dining rooms and, through them, the
-# bedrooms, so it runs long: on below the target - 0.5, off once the room
+# bedrooms, so it runs long: always on in comfort hours (a target of 20 or
+# more; 2026-11-07, idling at 20.0 felt cold), otherwise on below the target
+# - 0.5. Either way it goes off once the room
 # has stayed above the target + 1 for 15 minutes (binary_sensor.living_area_
 # warm). The wait matters: the median moves in 0.5 steps and one reading can
 # spike for a minute (2026-11-07: 21.4 for a minute at 16:28 switched it off,
@@ -279,7 +281,7 @@
         [
           {
             alias = "Heating - Heat pump";
-            description = "Run the heat pump below the living area's target - 0.5°C until it has been above the target + 1°C for 15 minutes; setpoint 21 whenever the target is 20 or more or it is below 5°C outside, else 19";
+            description = "Run the heat pump whenever the living area's target is 20°C or more, else below the target - 0.5°C, until it has been above the target + 1°C for 15 minutes; setpoint 21 whenever the target is 20 or more or it is below 5°C outside, else 19";
             triggers = [
               {
                 trigger = "homeassistant";
@@ -325,6 +327,7 @@
                 {%- elif temp is none or target is none %}{{ current }}
                 {%- elif temp < target - 0.5 %}heat
                 {%- elif is_state('binary_sensor.living_area_warm', 'on') %}off
+                {%- elif target >= 20 %}heat
                 {%- else %}{{ current }}
                 {%- endif %}
               '';

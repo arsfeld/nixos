@@ -314,9 +314,13 @@ class HeatPump(unittest.TestCase):
         self.assertEqual(heat_pump("21.5", "20", current="heat")["want"], "heat")
         self.assertEqual(heat_pump("21.5", "20", current="heat", warm="on")["want"], "off")
 
-    def test_stays_off_down_to_target_minus_half(self):
-        self.assertEqual(heat_pump("19.5", "20")["want"], "off")
-        self.assertEqual(heat_pump("19.0", "20")["want"], "heat")
+    def test_eco_stays_off_down_to_target_minus_half(self):
+        self.assertEqual(heat_pump("18.5", "19")["want"], "off")
+        self.assertEqual(heat_pump("18.0", "19")["want"], "heat")
+
+    def test_comfort_runs_until_warm(self):
+        self.assertEqual(heat_pump("20.5", "20")["want"], "heat")
+        self.assertEqual(heat_pump("21.5", "20", warm="on")["want"], "off")
 
     def test_cold_room_beats_a_stale_warm(self):
         # A boost raises the target; heat at once even if warm has not caught up.
