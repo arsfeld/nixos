@@ -41,11 +41,14 @@ pub struct SceneSig { pub date: NaiveDate, pub names: HashSet<String> }
 
 /// None when the title carries no readable release date.
 pub fn sig(title: &str, noise: &[String], stop: &[&str]) -> Option<SceneSig>;
-/// Same date, and at least one name in common.
-pub fn same(a: &SceneSig, b: &SceneSig) -> bool;
-/// Indices grouped by `same`, transitively (union-find); singletons included,
-/// each group in input order, groups ordered by their first member.
+/// Same date, and at least `min` names in common.
+pub fn same(a: &SceneSig, b: &SceneSig, min: usize) -> bool;
+/// Indices grouped by `same(.., LIST_MIN)`, transitively (union-find); singletons
+/// included, each group in input order, groups ordered by their first member.
 pub fn groups(sigs: &[Option<SceneSig>]) -> Vec<Vec<usize>>;
+/// Lists and the owned check: 2. Curated and assistant search: 1.
+pub const LIST_MIN: usize = 2;
+pub const SEARCH_MIN: usize = 1;
 ```
 
 - `date` comes from `external::release_date`, which already reads `YYYY-MM-DD`,
@@ -60,8 +63,14 @@ pub fn groups(sigs: &[Option<SceneSig>]) -> Vec<Vec<usize>>;
   equal dates are compared, so the pairwise work is per-date buckets and stays small.
 - **Fails safe.** No readable date means no signature, which means never merged and never
   owned. A miss leaves a duplicate visible; it can never hide a different scene.
+- **How many names must match.** Curated and assistant search compare candidates within
+  one filter term, so a single shared name is enough (`SEARCH_MIN = 1`), as `is_duplicate`
+  required. Lists and the owned check compare same-day titles across every studio, where
+  one shared word ("you", one first name) is too weak, so they need two (`LIST_MIN = 2`):
+  a performer's first and last name, or a performer plus a title word. The user chose this
+  on 2026-11-06, after the first draft of this spec.
 - **Accepted false-positive risk:** two different scenes from one studio on the same day,
-  sharing a performer. The second release still appears under "also" (§2), so nothing is
+  sharing two names. The second release still appears under "also" (§2), so nothing is
   lost.
 
 `external::is_duplicate` is removed. `curated.rs` and `assistant/search.rs` call
