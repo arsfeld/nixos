@@ -38,6 +38,22 @@ export interface Topic {
   kind: 'tracker' | 'torrent' | 'album';
   /** An album's file count. */
   files: number | null;
+  /** The scene's other releases, from this tab or the other: one card per scene. */
+  also: Also[];
+  /** The download that already has this scene, through this release or another. */
+  ownedBy: number | null;
+}
+
+/** Another release of a card's scene, with its own Add. */
+export interface Also {
+  id: number;
+  /** The indexer; null for the tracker's own. */
+  source: string | null;
+  seeders: number;
+  size: number;
+  quality: string | null;
+  link: string | null;
+  state: TopicState;
 }
 
 export interface List {

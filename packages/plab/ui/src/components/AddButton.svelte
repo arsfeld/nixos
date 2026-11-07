@@ -1,32 +1,41 @@
 <script lang="ts">
   import { postTopic } from '../lib/api';
   import { topics } from '../lib/topics.svelte';
-  import type { Section, Topic } from '../lib/types';
+  import type { Section, TopicState } from '../lib/types';
 
-  let { topic, section }: { topic: Topic; section: Section } = $props();
+  // owned: plab has this scene through another release, so there is nothing to add.
+  let {
+    id,
+    addState,
+    section,
+    owned = false,
+    small = false,
+  }: { id: number; addState: TopicState; section: Section; owned?: boolean; small?: boolean } = $props();
+  const have = $derived(owned && addState === '');
   let loading = $state(false);
   let hover = $state(false);
   let error = $state('');
 
   const label = $derived.by(() => {
-    if (loading) return topic.state === 'queued' ? 'Removing…' : 'Adding…';
-    if (topic.state === 'added') return 'Added ✓';
-    if (topic.state === 'queued') return hover ? 'Remove ✕' : 'Queued ⏳';
+    if (loading) return addState === 'queued' ? 'Removing…' : 'Adding…';
+    if (addState === 'added') return 'Added ✓';
+    if (have) return 'Have it ✓';
+    if (addState === 'queued') return hover ? 'Remove ✕' : 'Queued ⏳';
     return error ? 'Retry' : section === 'games' ? 'Add to Games' : 'Add to Vault';
   });
 
   async function toggle() {
-    if (loading || topic.state === 'added') return;
-    const unqueue = topic.state === 'queued';
+    if (loading || addState === 'added' || have) return;
+    const unqueue = addState === 'queued';
     loading = true;
     error = '';
     try {
-      const j = await postTopic(unqueue ? 'unqueue' : 'add', topic.id);
-      if (unqueue) topics.setState(topic.id, '');
+      const j = await postTopic(unqueue ? 'unqueue' : 'add', id);
+      if (unqueue) topics.setState(id, '');
       else if (j.queued) {
-        topics.setState(topic.id, 'queued');
+        topics.setState(id, 'queued');
         error = j.message ?? '';
-      } else topics.setState(topic.id, 'added');
+      } else topics.setState(id, 'added');
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -37,10 +46,10 @@
 </script>
 
 <button
-  class={['add btn btn-sm', topic.state === 'queued' ? 'btn-warning queued' : 'btn-primary']}
-  disabled={loading || topic.state === 'added'}
-  title={topic.state === 'queued' ? 'Click to remove from queue' : undefined}
-  onmouseenter={() => (hover = topic.state === 'queued' && !loading)}
+  class={['add btn', small ? 'btn-xs' : 'btn-sm', addState === 'queued' ? 'btn-warning queued' : 'btn-primary']}
+  disabled={loading || addState === 'added' || have}
+  title={addState === 'queued' ? 'Click to remove from queue' : undefined}
+  onmouseenter={() => (hover = addState === 'queued' && !loading)}
   onmouseleave={() => (hover = false)}
   onclick={toggle}>{label}</button
 >

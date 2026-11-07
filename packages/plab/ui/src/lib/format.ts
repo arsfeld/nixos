@@ -1,3 +1,5 @@
+import type { Also } from './types';
+
 // The page's number and time formats, ported from page.rs.
 
 export function size(n: number): string {
@@ -37,3 +39,8 @@ export function duration(s: number): string {
 }
 
 export const filesLabel = (n: number) => `${n} ${n === 1 ? 'file' : 'files'}`;
+
+/** Another release of a card's scene: where it is, how well seeded, what quality. */
+export function alsoLabel(a: Also): string {
+  return `${a.source ?? 'Tracker'} · ${a.seeders} seeders` + (a.quality ? ` · ${a.quality}` : '');
+}

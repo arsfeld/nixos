@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { age, day, duration, filesLabel, freshShort, isFresh, size } from './format';
+import { age, alsoLabel, day, duration, filesLabel, freshShort, isFresh, size } from './format';
 
 describe('format', () => {
+  it('names another release of a card\'s scene', () => {
+    const a = { id: 2, source: 'Indexer A', seeders: 42, size: 0, quality: '1080p', link: null, state: '' as const };
+    expect(alsoLabel(a)).toBe('Indexer A · 42 seeders · 1080p');
+    expect(alsoLabel({ ...a, source: null, seeders: 3, quality: null })).toBe('Tracker · 3 seeders');
+  });
+
   it('counts an album\'s files', () => {
     expect(filesLabel(1)).toBe('1 file');
     expect(filesLabel(3)).toBe('3 files');

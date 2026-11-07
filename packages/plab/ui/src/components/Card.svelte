@@ -1,7 +1,7 @@
 <script lang="ts">
   import { fetchImages, imgUrl, thumbUrl } from '../lib/api';
   import type { FilterState } from '../lib/filters.svelte';
-  import { age, day, filesLabel, freshShort, isFresh, size } from '../lib/format';
+  import { age, alsoLabel, day, filesLabel, freshShort, isFresh, size } from '../lib/format';
   import type { Section, Topic } from '../lib/types';
   import AddButton from './AddButton.svelte';
   import StatusBadge from './StatusBadge.svelte';
@@ -100,6 +100,26 @@
         {#if fresh}<span class="text-warning font-bold">uploaded {age(topic.added, now)}</span>{:else}{day(topic.added)}{/if}
       {/if}
     </div>
+    {#if topic.also?.length && !album}
+      <ul class="text-xs flex flex-col gap-1">
+        {#each topic.also as a (a.id)}
+          <li class="flex flex-wrap items-center gap-2">
+            <span class="text-base-content/60">also:</span>
+            {#if a.link || !a.source}
+              <a class="link link-hover" href={a.link ?? topicUrl + a.id} target="_blank" rel="noreferrer">{alsoLabel(a)}</a>
+            {:else}
+              <span>{alsoLabel(a)}</span>
+            {/if}
+            {#if !note}
+              <AddButton id={a.id} addState={a.state} owned={topic.ownedBy !== null} {section} small />
+              {#if stream}
+                <button type="button" class="btn btn-xs btn-ghost" onclick={() => onstream(a.id)}>Stream ▶</button>
+              {/if}
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    {/if}
     <div class="card-actions mt-auto items-center">
       {#if note}
         <span class="text-xs italic text-base-content/60">{note}</span>
@@ -108,7 +128,7 @@
           <a class="btn btn-sm btn-primary" href={topic.link} target="_blank" rel="noreferrer">Open ↗</a>
         {/if}
       {:else}
-        <AddButton {topic} {section} />
+        <AddButton id={topic.id} addState={topic.state} owned={topic.ownedBy !== null} {section} />
         {#if stream}
           <button type="button" class="btn btn-sm btn-ghost" onclick={() => onstream(topic.id)}>Stream ▶</button>
         {/if}
