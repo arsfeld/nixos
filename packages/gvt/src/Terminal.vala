@@ -143,6 +143,7 @@ namespace Gvt {
                 try {
                     var text = display_clipboard.read_text_async.end (res);
                     if (text != null) {
+                        clipboard.remember (text);
                         paste_text (text);
                     }
                 } catch (Error e) {

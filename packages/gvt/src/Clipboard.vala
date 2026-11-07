@@ -6,10 +6,12 @@
  *
  * Reads must be answered synchronously, inside the Engine's signal, and
  * Gdk.Clipboard can only be read asynchronously. So a copy of the display
- * clipboard's text is kept, refreshed whenever the clipboard changes, and
- * reads are answered from it. A read the user already granted (the follow-up
- * of a Kitty paste event) is always answered; a plain OSC 52 read only when
- * the io.github.arsfeld.gvt key clipboard-read is true. Otherwise, or when
+ * clipboard's text is kept and reads are answered from it. The copy is
+ * refreshed whenever the clipboard changes, but only while the
+ * io.github.arsfeld.gvt key clipboard-read is true (off by default, and then
+ * nothing is read); text the user pastes is kept too. A read the user
+ * already granted (the follow-up of a Kitty paste event) is always answered;
+ * a plain OSC 52 read only when clipboard-read is true. Otherwise, or when
  * the schema is not installed, the program is refused and libghostty tells it
  * the clipboard is empty. Only text is offered.
  */
@@ -24,15 +26,36 @@ namespace Gvt {
         private GLib.Settings? settings = null;
         private bool settings_looked_up = false;
 
-        /* The display clipboard's text, as last read; null if it has none. */
+        /* The display clipboard's text, as last read; null if it has none
+         * or it was not read. */
         internal string? cached { get; private set; default = null; }
+        /* Reads of the display clipboard started so far. */
+        internal uint reads { get; private set; default = 0; }
 
         public Clipboard (Terminal terminal) {
             display_clipboard = terminal.get_clipboard ();
-            display_clipboard.changed.connect (refresh);
+            display_clipboard.changed.connect (on_changed);
             terminal.engine.clipboard_write.connect (on_write);
             terminal.engine.clipboard_read_requested.connect (on_read_requested);
-            refresh ();
+            on_changed ();
+        }
+
+        /* Text the user pastes: the clipboard as it is now, which a Kitty
+         * paste event's granted follow-up read is answered with. */
+        internal void remember (string text) {
+            serial++;
+            cached = text;
+        }
+
+        /* Reads the new contents only if programs may read them; otherwise
+         * forgets the old ones. */
+        private void on_changed () {
+            if (read_allowed ()) {
+                refresh ();
+            } else {
+                serial++;
+                cached = null;
+            }
         }
 
         private void on_write (string text) {
@@ -56,6 +79,7 @@ namespace Gvt {
                 var schema = source != null ? source.lookup (SCHEMA, true) : null;
                 if (schema != null && schema.has_key (KEY)) {
                     settings = new GLib.Settings (SCHEMA);
+                    settings.changed[KEY].connect (on_changed);
                 }
             }
             return settings != null && settings.get_boolean (KEY);
@@ -63,6 +87,7 @@ namespace Gvt {
 
         private void refresh () {
             var mine = ++serial;
+            reads++;
             display_clipboard.read_text_async.begin (null, (obj, res) => {
                 string? text = null;
                 try {

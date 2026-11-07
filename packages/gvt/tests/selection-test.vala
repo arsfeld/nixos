@@ -116,18 +116,34 @@ static void test_osc52_write () {
     assert_cmpstr (clipboard_text (t.get_clipboard ()), CompareOperator.EQ, "hello");
 }
 
-/* Puts text on the display clipboard and waits until t's cached copy has it. */
+/* Puts text on the display clipboard and waits until it reads back. */
 static void set_clipboard (Gvt.Terminal t, string text) {
     t.get_clipboard ().set_text (text);
-    assert_true (TestUtil.wait_until (() => t.clipboard.cached == text, 5));
+    assert_cmpstr (clipboard_text (t.get_clipboard ()), CompareOperator.EQ, text);
 }
 
+/* With reads off (the default), a clipboard change is not even read: every
+ * tab would otherwise copy each new clipboard, password managers' included. */
 static void test_osc52_read_off () {
     var t = TestUtil.new_terminal ();
+    var reads_before = t.clipboard.reads;
     set_clipboard (t, "secret");
+    TestUtil.run_for (100);
+    assert_cmpuint (t.clipboard.reads, CompareOperator.EQ, reads_before);
+    assert_null (t.clipboard.cached);
     var replies = new Replies (t);
     t.process_output ("\x1b]52;c;?\x07".data);
     assert_false ("c2VjcmV0" in replies.bytes.str);
+}
+
+/* Turning reads on picks up what is already on the clipboard. */
+static void test_osc52_read_enabled_later () {
+    var settings = new Settings ("io.github.arsfeld.gvt");
+    var t = TestUtil.new_terminal ();
+    set_clipboard (t, "later");
+    settings.set_boolean ("clipboard-read", true);
+    assert_true (TestUtil.wait_until (() => t.clipboard.cached == "later", 5));
+    settings.reset ("clipboard-read");
 }
 
 static void test_osc52_read_on () {
@@ -135,6 +151,7 @@ static void test_osc52_read_on () {
     settings.set_boolean ("clipboard-read", true);
     var t = TestUtil.new_terminal ();
     set_clipboard (t, "secret");
+    assert_true (TestUtil.wait_until (() => t.clipboard.cached == "secret", 5));
     var replies = new Replies (t);
     t.process_output ("\x1b]52;c;?\x07".data);
     assert_true ("c2VjcmV0" in replies.bytes.str);
@@ -198,6 +215,7 @@ public static int main (string[] args) {
     Test.add_func ("/clipboard/osc52-write", test_osc52_write);
     Test.add_func ("/clipboard/osc52-read-off", test_osc52_read_off);
     Test.add_func ("/clipboard/osc52-read-on", test_osc52_read_on);
+    Test.add_func ("/clipboard/osc52-read-enabled-later", test_osc52_read_enabled_later);
     Test.add_func ("/clipboard/paste", test_paste);
     Test.add_func ("/clipboard/middle-paste", test_middle_paste);
     Test.add_func ("/clipboard/middle-tracking", test_middle_tracking);
