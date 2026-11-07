@@ -23,6 +23,9 @@ namespace Gvt {
         /* Guards against re-entering vt_write from a signal handler, which
          * libghostty does not support: such bytes are queued instead. */
         private bool writing = false;
+        /* Set by on_reset, so reset (true) knows whether libghostty already
+         * reported its own reset. */
+        private bool reset_reported = false;
         private ByteArray? pending = null;
 
         /* Bytes the terminal answers the program with (device reports, OSC 52
@@ -34,8 +37,12 @@ namespace Gvt {
         /* OSC 52 (and OSC 1337 Copy, OSC 5522) clipboard writes. */
         public signal void clipboard_write (string text);
         /* OSC 52 "?" and OSC 5522 reads. See ClipboardReply. Without a
-         * handler that replies, the program is told the clipboard is empty. */
-        public signal void clipboard_read_requested (ClipboardReply reply);
+         * handler that replies, the program is told the clipboard is empty.
+         * granted is libghostty's flag: true when the user already allowed
+         * this read, as for the follow-up read of a Kitty paste event (mode
+         * 5522, enabled because this callback is installed); always false for
+         * OSC 52. Only text/plain is answered. */
+        public signal void clipboard_read_requested (bool granted, ClipboardReply reply);
         /* Synchronized output (mode 2026): hold redraws while held. */
         public signal void render_hold (bool held);
         /* libghostty ran out of memory; the terminal can no longer be trusted. */
@@ -54,6 +61,7 @@ namespace Gvt {
             GhosttyVt.TitleChangedFn title_fn = on_title_changed;
             GhosttyVt.PwdChangedFn pwd_fn = on_pwd_changed;
             GhosttyVt.RenderHoldFn hold_fn = on_render_hold;
+            GhosttyVt.ResetFn reset_fn = on_reset;
             GhosttyVt.ClipboardWriteFn clipboard_write_fn = on_clipboard_write;
             GhosttyVt.ClipboardReadFn clipboard_read_fn = on_clipboard_read;
 
@@ -63,6 +71,7 @@ namespace Gvt {
             set_option (GhosttyVt.TerminalOption.TITLE_CHANGED, (void*) title_fn);
             set_option (GhosttyVt.TerminalOption.PWD_CHANGED, (void*) pwd_fn);
             set_option (GhosttyVt.TerminalOption.RENDER_HOLD, (void*) hold_fn);
+            set_option (GhosttyVt.TerminalOption.RESET, (void*) reset_fn);
             set_option (GhosttyVt.TerminalOption.CLIPBOARD_WRITE, (void*) clipboard_write_fn);
             set_option (GhosttyVt.TerminalOption.CLIPBOARD_READ, (void*) clipboard_read_fn);
         }
@@ -79,6 +88,10 @@ namespace Gvt {
                 pending.append (bytes);
                 return;
             }
+            // Signals fire inside vt_write; a handler may drop the last
+            // reference to this Engine, which must not free the terminal
+            // mid-parse.
+            Engine keep_alive = this;
             writing = true;
             terminal.vt_write (bytes);
             while (pending != null) {
@@ -87,6 +100,7 @@ namespace Gvt {
                 terminal.vt_write (queued.data);
             }
             writing = false;
+            keep_alive = null;
         }
 
         /* Zero sizes are clamped to 1: libghostty rejects them. */
@@ -94,8 +108,11 @@ namespace Gvt {
             if (terminal == null) {
                 return;
             }
+            // render_hold may fire inside; see write ().
+            Engine keep_alive = this;
             check (terminal.resize (uint16.max (cols, 1), uint16.max (rows, 1), cell_w, cell_h),
                    "ghostty_terminal_resize");
+            keep_alive = null;
         }
 
         public uint16 cols {
@@ -206,7 +223,17 @@ namespace Gvt {
                 return;
             }
             if (clear_history) {
+                // render_hold and the reset signals fire inside; see write ().
+                Engine keep_alive = this;
+                reset_reported = false;
                 terminal.reset ();
+                // RIS clears the title and pwd without TITLE_CHANGED or
+                // PWD_CHANGED; on_reset reports that, unless libghostty only
+                // calls it for a program's RIS.
+                if (!reset_reported) {
+                    emit_reset ();
+                }
+                keep_alive = null;
             } else {
                 write ("\x1b[!p".data);
             }
@@ -275,6 +302,18 @@ namespace Gvt {
             ((Engine) userdata).pwd_changed ();
         }
 
+        /* A full reset (RIS) cleared the title and pwd; libghostty does not
+         * call TITLE_CHANGED or PWD_CHANGED for that. */
+        private static void on_reset (GhosttyVt.Terminal t, void* userdata) {
+            ((Engine) userdata).emit_reset ();
+        }
+
+        private void emit_reset () {
+            reset_reported = true;
+            title_changed ();
+            pwd_changed ();
+        }
+
         private static void on_render_hold (GhosttyVt.Terminal t, void* userdata, [CCode (type = "bool")] bool held) {
             ((Engine) userdata).render_hold (held);
         }
@@ -313,7 +352,7 @@ namespace Gvt {
                 open = false;
                 answer_read (read, text);
             };
-            ((Engine) userdata).clipboard_read_requested (reply);
+            ((Engine) userdata).clipboard_read_requested (read->granted, reply);
             open = false;
         }
 

@@ -84,7 +84,8 @@ namespace GhosttyVt {
         PWD_CHANGED,
         CLIPBOARD_WRITE,
         CLIPBOARD_READ,
-        RENDER_HOLD
+        RENDER_HOLD,
+        RESET
     }
 
     [CCode (cname = "GhosttyTerminalData", cprefix = "GHOSTTY_TERMINAL_DATA_", has_type_id = false)]
@@ -150,6 +151,8 @@ namespace GhosttyVt {
     public delegate void PwdChangedFn (Terminal terminal, void* userdata);
     [CCode (cname = "GhosttyTerminalRenderHoldFn", has_target = false)]
     public delegate void RenderHoldFn (Terminal terminal, void* userdata, [CCode (type = "bool")] bool held);
+    [CCode (cname = "GhosttyTerminalResetFn", has_target = false)]
+    public delegate void ResetFn (Terminal terminal, void* userdata);
     [CCode (cname = "GhosttyTerminalClipboardWriteFn", has_target = false)]
     public delegate void ClipboardWriteFn (Terminal terminal, void* userdata, [CCode (type = "const GhosttyClipboardWrite*")] ClipboardWrite* write);
     [CCode (cname = "GhosttyTerminalClipboardReadFn", has_target = false)]

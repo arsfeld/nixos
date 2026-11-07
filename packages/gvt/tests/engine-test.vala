@@ -66,13 +66,68 @@ static void test_osc52_read () {
     engine.write_pty.connect ((bytes) => replies.append (bytes_to_string (bytes)));
     // libghostty's read is synchronous: the reply must come before the
     // handler returns.
-    engine.clipboard_read_requested.connect ((reply) => {
+    engine.clipboard_read_requested.connect ((granted, reply) => {
         requested++;
         reply ("x");
     });
     feed (engine, "\x1b]52;c;?\x07");
     assert_cmpint (requested, CompareOperator.EQ, 1);
     assert_true (replies.str.contains ("eA=="));
+}
+
+static void test_osc52_read_not_granted () {
+    var engine = make ();
+    bool? granted = null;
+    engine.clipboard_read_requested.connect ((g, reply) => {
+        granted = g;
+        reply ("x");
+    });
+    feed (engine, "\x1b]52;c;?\x07");
+    assert_true (granted != null);
+    assert_false (granted);
+}
+
+/* A handler that drops the last reference must not free the terminal in
+ * the middle of its own vt_write. */
+static void test_drop_in_handler () {
+    Gvt.Engine? engine = make ();
+    bool finalized = false;
+    engine.weak_ref (() => finalized = true);
+    int titles = 0;
+    engine.title_changed.connect (() => titles++);
+    engine.bell.connect (() => engine = null);
+    // Called on the captured variable, so the call itself holds no reference.
+    // Vala hex escapes are greedy, hence the concatenation.
+    engine.write (("\x07" + "after\x1b]2;t\x07more").data);
+    assert_true (engine == null);
+    assert_cmpint (titles, CompareOperator.EQ, 1);
+    assert_true (finalized);
+}
+
+static void test_ris_clears_title () {
+    var engine = make ();
+    feed (engine, "\x1b]2;hi\x07\x1b]7;file://host/tmp\x07");
+    int titles = 0, pwds = 0;
+    engine.title_changed.connect (() => titles++);
+    engine.pwd_changed.connect (() => pwds++);
+    feed (engine, "\x1b" + "c"); // RIS
+    assert_cmpint (titles, CompareOperator.EQ, 1);
+    assert_cmpint (pwds, CompareOperator.EQ, 1);
+    assert_true (engine.title == null);
+    assert_true (engine.pwd == null);
+}
+
+static void test_reset_clears_title () {
+    var engine = make ();
+    feed (engine, "\x1b]2;hi\x07\x1b]7;file://host/tmp\x07");
+    int titles = 0, pwds = 0;
+    engine.title_changed.connect (() => titles++);
+    engine.pwd_changed.connect (() => pwds++);
+    engine.reset (true);
+    assert_cmpint (titles, CompareOperator.EQ, 1);
+    assert_cmpint (pwds, CompareOperator.EQ, 1);
+    assert_true (engine.title == null);
+    assert_true (engine.pwd == null);
 }
 
 static void test_da1 () {
@@ -111,6 +166,10 @@ int main (string[] args) {
     Test.add_func ("/engine/bell", test_bell);
     Test.add_func ("/engine/osc52-write", test_osc52_write);
     Test.add_func ("/engine/osc52-read", test_osc52_read);
+    Test.add_func ("/engine/osc52-read-not-granted", test_osc52_read_not_granted);
+    Test.add_func ("/engine/drop-in-handler", test_drop_in_handler);
+    Test.add_func ("/engine/ris-clears-title", test_ris_clears_title);
+    Test.add_func ("/engine/reset-clears-title", test_reset_clears_title);
     Test.add_func ("/engine/da1", test_da1);
     Test.add_func ("/engine/scrollback", test_scrollback);
     Test.add_func ("/engine/resize", test_resize);
