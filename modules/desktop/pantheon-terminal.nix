@@ -6,10 +6,11 @@
 # the clipboard (over SSH too), and gvt reads it back only when programs may.
 # This replaces the VTE patch this module used to carry.
 #
-# elementary's patch lives in packages/elementary-terminal-ghostty/gvt.patch.
-# To rebase it after a nixpkgs bump moves pantheon.elementary-terminal, unpack
-# the new source, reapply the hunks by hand (they swap the VTE widget and its
-# API calls for gvt's) and regenerate the patch with `diff -u`.
+# Both live in their own repos, kept upstreamable but not proposed upstream:
+# gvt at github.com/arsfeld/gvt, and the port as commits on the `gvt` branch
+# of github.com/arsfeld/elementary-terminal, a fork of elementary/terminal.
+# After a nixpkgs bump moves pantheon.elementary-terminal, rebase that branch
+# onto the new release tag and bump packages/elementary-terminal-ghostty.
 {
   flake.modules.nixos.pantheon-terminal = {
     key = "modules/desktop/pantheon-terminal";

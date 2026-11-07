@@ -21,6 +21,8 @@ update-packages *PKGS:
     pkgs=({{ PKGS }})
     [ ${#pkgs[@]} -gt 0 ] || pkgs=(
       claude-desktop
+      elementary-terminal-ghostty
+      gvt
       home-assistant-hilo
       home-assistant-tplink-deco
       home-assistant-tuya-smart-ir-ac
@@ -74,9 +76,12 @@ update-packages *PKGS:
           [ -n "$v" ] && [ -n "$t" ] || { failed+=("$p"); continue; }
           sed -i "s|token = \"[^\"]*\"|token = \"$t\"|" "packages/$p/package.nix"
           cmd+=(--version "$v") ;;
-        # Tracks the fork's main branch; there are no releases.
-        pantheon-global-menu)
+        # Track the repo's default branch; there are no releases.
+        pantheon-global-menu | gvt)
           cmd+=(--version=branch) ;;
+        # The port lives on the fork's gvt branch, not its default branch.
+        elementary-terminal-ghostty)
+          cmd+=(--version=branch=gvt) ;;
       esac
       if "${cmd[@]}"; then
         if git diff --quiet -- "packages/$p"; then current+=("$p"); else updated+=("$p"); fi

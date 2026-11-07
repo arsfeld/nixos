@@ -658,7 +658,7 @@ Opt-in modules that hosts compose by importing them; `nix eval --json .#nixosMod
 | `forgejo-runner` | `modules/forgejo-runner.nix` | Forgejo Actions runner |
 | `virtualization` | `modules/virtualization.nix` | KVM/libvirt |
 | `development` | `modules/development.nix` | Dev tools (Docker, Node, Python, Go, Rust, …) |
-| `desktop` | `modules/desktop/desktop.nix` | Desktop environment (`variant` selects GNOME etc.); imports `pantheon-dock`, `pantheon-gamemode`, `pantheon-terminal` (elementary Terminal on libghostty-vt via `packages/gvt`) and `pantheon-tailscale` (Wingpanel Tailscale indicator; grants `--operator=arosenfeld`) |
+| `desktop` | `modules/desktop/desktop.nix` | Desktop environment (`variant` selects GNOME etc.); imports `pantheon-dock`, `pantheon-gamemode`, `pantheon-terminal` (elementary Terminal on libghostty-vt via gvt; arsfeld/gvt and the `gvt` branch of the arsfeld/elementary-terminal fork live in their own repos and are pinned in `packages/`) and `pantheon-tailscale` (Wingpanel Tailscale indicator; grants `--operator=arosenfeld`) |
 | `gaming` | `modules/gaming.nix` | Gaming environment |
 | `check-stock` | `modules/check-stock.nix` | Stock availability monitor |
 | `blocky` | `modules/blocky.nix` | Blocky DNS (no host imports it) |

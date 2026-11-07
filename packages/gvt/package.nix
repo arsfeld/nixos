@@ -1,9 +1,14 @@
 # gvt: a GTK4 terminal widget on libghostty-vt, with VTE's API, so that
-# elementary Terminal can be ported off VTE by a patch.
+# elementary Terminal can be ported off VTE by a rename. Source:
+# github.com/arsfeld/gvt, our own project, kept upstreamable; it tracks master
+# through `just update-packages`. Its API moves in lockstep with the `gvt`
+# branch of github.com/arsfeld/elementary-terminal
+# (packages/elementary-terminal-ghostty), so bump the two together.
 # Design: docs/superpowers/specs/2026-11-06-elementary-terminal-libghostty-design.md
 {
   lib,
   stdenv,
+  fetchFromGitHub,
   meson,
   ninja,
   vala,
@@ -19,20 +24,13 @@
 }:
 stdenv.mkDerivation {
   pname = "gvt";
-  version = "0.1.0";
+  version = "0.1.0-unstable-2026-11-07";
 
-  # Only the sources, so editing this file does not rebuild it.
-  src = lib.fileset.toSource {
-    root = ./.;
-    fileset = lib.fileset.unions [
-      ./meson.build
-      ./meson_options.txt
-      ./gvt-1.deps
-      ./src
-      ./vapi
-      ./data
-      ./tests
-    ];
+  src = fetchFromGitHub {
+    owner = "arsfeld";
+    repo = "gvt";
+    rev = "7a55eba825f293a1f7e9101a8e3287d42c37a8a8";
+    hash = "sha256-TE0HRHAyjdD8qTH5LgD93eiyQWLIjNbJ1q8OX9txGkY=";
   };
 
   strictDeps = true;
@@ -75,6 +73,7 @@ stdenv.mkDerivation {
 
   meta = {
     description = "GTK4 terminal widget on libghostty-vt, with VTE's API";
+    homepage = "https://github.com/arsfeld/gvt";
     license = lib.licenses.gpl3Plus;
     pkgConfigModules = ["gvt-1"];
     platforms = lib.platforms.linux;
