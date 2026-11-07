@@ -133,6 +133,55 @@ static void test_exec_fail () {
     assert_true (threw);
 }
 
+static void test_close () {
+    try {
+        Pid pid;
+        var pty = Gvt.Pty.spawn (null, { "sleep", "100" }, null, SpawnFlags.SEARCH_PATH, null, out pid);
+        var fired = false;
+        pty.exited.connect (() => fired = true);
+        pty.close ();
+        pty.close ();
+        /* The reaper runs from the main loop. */
+        var loop = new MainLoop ();
+        Timeout.add (50, () => {
+            if (Posix.kill ((Posix.pid_t) pid, 0) != 0 || fired) {
+                loop.quit ();
+                return Source.REMOVE;
+            }
+            return Source.CONTINUE;
+        });
+        var limit = Timeout.add_seconds (10, () => {
+            loop.quit ();
+            return Source.REMOVE;
+        });
+        loop.run ();
+        Source.remove (limit);
+        assert_true (Posix.kill ((Posix.pid_t) pid, 0) != 0);
+        /* Let any stray emission surface. */
+        var ctx = MainContext.default ();
+        for (var i = 0; i < 20; i++) {
+            ctx.iteration (false);
+        }
+        assert_false (fired);
+    } catch (Error e) {
+        error ("%s", e.message);
+    }
+}
+
+static void test_runtime_argv () {
+    try {
+        var args = new GenericArray<string> ();
+        args.add ("sh");
+        args.add ("-c");
+        args.add ("printf " + "%s" + " 'dyn" + "amic'");
+        var run = new Run (args.data);
+        run.wait_for_exit ();
+        assert_cmpstr (run.text, CompareOperator.EQ, "dynamic");
+    } catch (Error e) {
+        error ("%s", e.message);
+    }
+}
+
 static int main (string[] args) {
     Test.init (ref args);
     Test.add_func ("/pty/output-then-exit", test_output_then_exit);
@@ -140,5 +189,7 @@ static int main (string[] args) {
     Test.add_func ("/pty/write", test_write);
     Test.add_func ("/pty/read-cap", test_read_cap);
     Test.add_func ("/pty/exec-fail", test_exec_fail);
+    Test.add_func ("/pty/close", test_close);
+    Test.add_func ("/pty/runtime-argv", test_runtime_argv);
     return Test.run ();
 }

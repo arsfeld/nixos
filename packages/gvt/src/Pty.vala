@@ -9,15 +9,15 @@
  * This file does not touch libghostty.
  */
 namespace Gvt {
-    internal class Pty : Object {
+    public class Pty : Object {
         private const size_t READ_CAP = 65536;
 
         public int fd { get; construct; }
 
-        public signal void data (uint8[] chunk);
+        internal signal void data (uint8[] chunk);
         /* The raw wait status, as waitpid reports it and VTE's child-exited
          * passes it on: use Process.exit_status () to get the exit code. */
-        public signal void exited (int status);
+        internal signal void exited (int status);
 
         private uint read_source = 0;
         private uint write_source = 0;
@@ -26,6 +26,8 @@ namespace Gvt {
         private bool have_status = false;
         private int wait_status = 0;
         private bool exit_reported = false;
+        private bool closed = false;
+        private Pid child_pid = 0;
         private ByteArray out_queue = new ByteArray ();
         private uint8[] read_buf = new uint8[READ_CAP];
 
@@ -34,14 +36,31 @@ namespace Gvt {
         }
 
         ~Pty () {
+            close ();
+        }
+
+        /* Stops watching, hangs up the child's process group (it leads its own
+         * session) and closes the master. Safe to call twice; `exited` does not
+         * fire afterwards. */
+        internal void close () {
+            if (closed) {
+                return;
+            }
+            closed = true;
             if (read_source != 0) {
                 Source.remove (read_source);
+                read_source = 0;
             }
             if (write_source != 0) {
                 Source.remove (write_source);
+                write_source = 0;
             }
             if (child_source != 0) {
                 Source.remove (child_source);
+                child_source = 0;
+                Posix.kill (-(Posix.pid_t) child_pid, Posix.Signal.HUP);
+                /* Still reap it when it goes, without telling anyone. */
+                ChildWatch.add (child_pid, (p, st) => Process.close_pid (p));
             }
             Posix.close (fd);
         }
@@ -76,6 +95,9 @@ namespace Gvt {
             /* Everything the child needs is built before fork (), which keeps
              * the child to async-signal-safe calls. */
             var env = build_env (envv);
+            var args = null_terminated (argv);
+            var envp = null_terminated (env);
+            var file = argv[0];
             var search = (flags & SpawnFlags.SEARCH_PATH) != 0;
 
             var child = Posix.fork ();
@@ -103,9 +125,9 @@ namespace Gvt {
                     setup ();
                 }
                 if (search) {
-                    GvtPosix.execvpe (argv[0], argv, env);
+                    GvtPosix.execvpe (file, args, envp);
                 } else {
-                    GvtPosix.execve (argv[0], argv, env);
+                    GvtPosix.execve (file, args, envp);
                 }
                 child_fail (report[1]);
             }
@@ -146,6 +168,15 @@ namespace Gvt {
             Posix._exit (127);
         }
 
+        /* Copies with a NULL after the last element, whatever the source. */
+        private static string[] null_terminated (string[] src) {
+            var copy = new string[src.length + 1];
+            for (var i = 0; i < src.length; i++) {
+                copy[i] = src[i];
+            }
+            return copy;
+        }
+
         private static string[] build_env (string[]? envv) {
             var env = envv != null ? envv : Environ.get ();
             env = Environ.set_variable (env, "TERM", "xterm-256color", false);
@@ -154,6 +185,7 @@ namespace Gvt {
         }
 
         private void start (Pid pid) {
+            child_pid = pid;
             var flags = Posix.fcntl (fd, Posix.F_GETFL);
             Posix.fcntl (fd, Posix.F_SETFL, flags | Posix.O_NONBLOCK);
 
@@ -161,7 +193,7 @@ namespace Gvt {
             child_source = ChildWatch.add (pid, on_child);
         }
 
-        public void write (uint8[] bytes) {
+        internal void write (uint8[] bytes) {
             if (bytes.length == 0) {
                 return;
             }
@@ -240,7 +272,7 @@ namespace Gvt {
             }
         }
 
-        public void set_size (uint16 cols, uint16 rows, uint16 px_w, uint16 px_h) {
+        internal void set_size (uint16 cols, uint16 rows, uint16 px_w, uint16 px_h) {
             var ws = GvtPosix.WinSize () {
                 ws_row = rows, ws_col = cols, ws_xpixel = px_w, ws_ypixel = px_h
             };
