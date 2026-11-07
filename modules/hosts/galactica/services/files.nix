@@ -108,6 +108,21 @@
             auth = "true";
             setuid = true;
           }
+          # The media library, for Mydia player's WebDAV source (Add server ->
+          # WebDAV, URL https://webdav.bat-boa.ts.net/media/). The player sends
+          # Basic auth on every PROPFIND and on mpv's range GETs, so this sits
+          # behind the same htpasswd as photosync. setuid runs each request as
+          # the authenticated user, whose `media` group membership is what
+          # grants read access.
+          {
+            route = ["/media/*path"];
+            directory = vars.storageDir + "/media";
+            handler = "filesystem";
+            methods = ["webdav-ro"];
+            autoindex = true;
+            auth = "true";
+            setuid = true;
+          }
         ];
       };
     };
