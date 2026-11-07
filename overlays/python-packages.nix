@@ -45,13 +45,13 @@ final: prev: {
         # component (packages/home-assistant-hilo). Not in nixpkgs.
         python-hilo = python-final.buildPythonPackage rec {
           pname = "python-hilo";
-          version = "2026.10.1";
+          version = "2026.11.1";
           pyproject = true;
 
           src = python-final.fetchPypi {
             pname = "python_hilo";
             inherit version;
-            hash = "sha256-pPYlh0RJyZIgtDWkl/02lCWclVXUoPEo0kgSER6Sit8=";
+            hash = "sha256-xXDSIz2ea+pbHbVfYAZuDlx05fsYacFYh1EjPir1Orc=";
           };
 
           build-system = [python-final.hatchling];
