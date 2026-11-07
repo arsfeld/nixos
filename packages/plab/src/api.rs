@@ -8,6 +8,7 @@ use crate::jobs;
 use crate::labels::labels;
 use crate::monitor::{JobLive, Line, LiveState, Monitor};
 use crate::provenance::{self, Failure, Status};
+use crate::same::{self, Owned, SceneSig};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 
@@ -137,6 +138,24 @@ pub struct TopicDto {
     pub kind: &'static str,
     /// An album's file count.
     pub files: Option<u32>,
+    /// The scene's other releases, on this tab or the other: one card per scene.
+    pub also: Vec<AlsoDto>,
+    /// The download that already has this scene, through this release or another.
+    pub owned_by: Option<i64>,
+}
+
+/// Another release of a card's scene, for its own Add and Stream.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlsoDto {
+    pub id: u64,
+    /// The indexer; None for the tracker's own.
+    pub source: Option<String>,
+    pub seeders: u32,
+    pub size: u64,
+    pub quality: Option<String>,
+    pub link: Option<String>,
+    pub state: &'static str,
 }
 
 #[derive(Debug, Serialize)]
@@ -164,6 +183,9 @@ pub struct ListDto {
 #[allow(clippy::too_many_arguments)] // one argument per input of the page; a struct would only rename them
 pub fn list(
     listing: &Listing,
+    others: &[Listed],
+    owned: &Owned,
+    noise: &[String],
     added: &HashSet<u64>,
     queued: &HashSet<u64>,
     now: i64,
@@ -175,6 +197,77 @@ pub fn list(
     // A stable sort, descending: equal scores keep the tracker's order.
     let mut topics: Vec<&Listed> = listing.topics.iter().collect();
     topics.sort_by(|a, b| score(b).partial_cmp(&score(a)).unwrap());
+    let mine = topics.len();
+    // This tab's topics, then the other tab's: a scene on both is one card, on the tab of
+    // its best release.
+    let pool: Vec<&Listed> = topics.into_iter().chain(others).collect();
+    // Albums carry no dates and games are not scenes: neither is ever grouped.
+    let grouped = !matches!(section, Section::Albums | Section::Games);
+    let sigs: Vec<Option<SceneSig>> = pool
+        .iter()
+        .map(|l| {
+            let id = l.topic.row.id;
+            let album = externals
+                .get(&id)
+                .is_some_and(|e| e.kind == crate::db::Kind::Album);
+            (grouped && !album)
+                .then(|| same::sig(&l.topic.row.title, noise, &[]))
+                .flatten()
+        })
+        .collect();
+    let mut cards: HashMap<usize, Vec<usize>> = HashMap::new();
+    for group in same::groups(&sigs) {
+        let winner = best(&group, &pool);
+        if winner < mine {
+            cards.insert(winner, group);
+        }
+    }
+    let topics = (0..mine)
+        .filter_map(|i| {
+            let group = cards.get(&i)?;
+            let dto = |m: usize| topic(pool[m], added, queued, downloads, externals);
+            let mut card = dto(i);
+            let rest = || group.iter().copied().filter(|&m| m != i);
+            for m in rest() {
+                for f in &pool[m].filters {
+                    if !card.filters.contains(f) {
+                        card.filters.push(f.clone());
+                    }
+                }
+            }
+            card.owned_by = std::iter::once(i)
+                .chain(rest())
+                .find_map(|m| owned.of(pool[m].topic.row.id, sigs[m].as_ref()));
+            if let Some(d) = card.owned_by
+                && card.status.is_none()
+            {
+                card.status = Some(
+                    downloads
+                        .by_download
+                        .get(&d)
+                        .map_or(StatusDto::Added, |s| downloads.status_of(s)),
+                );
+            }
+            card.also = rest()
+                .map(|m| {
+                    let t = dto(m);
+                    AlsoDto {
+                        id: t.id,
+                        source: t.source,
+                        seeders: t.seeders,
+                        size: t.size,
+                        quality: t.quality,
+                        link: t.link,
+                        state: match t.state {
+                            "" if card.owned_by.is_some() => "added",
+                            s => s,
+                        },
+                    }
+                })
+                .collect();
+            Some(card)
+        })
+        .collect();
     ListDto {
         now,
         section: section.as_str(),
@@ -182,12 +275,25 @@ pub fn list(
         topic_url: crate::site::get().topic_url(),
         curated_filters: listing.filters.clone(),
         pending: queued.difference(added).count(),
-        topics: topics
-            .into_iter()
-            .map(|t| topic(t, added, queued, downloads, externals))
-            .collect(),
+        topics,
         search,
     }
+}
+
+/// A group's card: the tracker's own release if it has one, then the best seeded; the
+/// first member on a tie.
+fn best(group: &[usize], pool: &[&Listed]) -> usize {
+    let rank = |m: usize| {
+        let row = &pool[m].topic.row;
+        (!crate::db::is_external(row.id), row.seeders)
+    };
+    let mut winner = group[0];
+    for &m in &group[1..] {
+        if rank(m) > rank(winner) {
+            winner = m;
+        }
+    }
+    winner
 }
 
 pub(crate) fn topic(
@@ -242,6 +348,8 @@ pub(crate) fn topic(
             Some(crate::db::Kind::Album) => "album",
         },
         files: ext.and_then(|e| e.files),
+        also: vec![],
+        owned_by: None,
     }
 }
 

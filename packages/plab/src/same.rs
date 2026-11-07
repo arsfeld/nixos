@@ -6,9 +6,6 @@
 //! readable date has no signature, so it is never merged and never owned: a miss shows a
 //! duplicate, it never hides a different scene.
 
-// Callers arrive in the following commits; removed once they do.
-#![allow(dead_code)]
-
 use std::collections::{HashMap, HashSet};
 
 use chrono::NaiveDate;

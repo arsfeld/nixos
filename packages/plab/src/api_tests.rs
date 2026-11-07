@@ -54,6 +54,9 @@ fn reply(
     let externals = Default::default();
     serde_json::to_value(list(
         l,
+        &[],
+        &crate::same::Owned::new(&[], &[]),
+        &[],
         &added,
         &queued,
         5000,
@@ -72,6 +75,9 @@ fn list_with_externals(
     let l = listing(vec![listed(row(id, "alpha", 3), None, None)]);
     list(
         &l,
+        &[],
+        &crate::same::Owned::new(&[], &[]),
+        &[],
         &HashSet::new(),
         &HashSet::new(),
         5000,
@@ -428,4 +434,267 @@ fn jobs_list_registered_jobs_in_order_with_history_and_next_slot() {
         ),
         (Value::Null, Value::Null, json!([]))
     );
+}
+
+// One card per scene (design: 2026-11-06-plab-dedup-design.md).
+
+const TRACKER: &str =
+    "[StudioB.com] Dana Lee, Cara Kim - Close To You [2026-10-30, Couples, 1080p, SiteRip]";
+const OTHER: &str = "Studio B 26 10 30 Cara Kim And Dana Lee Close To You TAG 1080p MP4 GRP [RG]";
+const E: u64 = crate::db::EXTERNAL_BASE;
+
+fn ext(id: u64, kind: crate::db::Kind) -> crate::db::External {
+    crate::db::External {
+        id,
+        indexer: "Indexer A".into(),
+        link: format!("http://p/{id}"),
+        info_url: Some(format!("http://a/{id}")),
+        scene_id: None,
+        kind,
+        files: None,
+        first_seen: 0,
+    }
+}
+
+fn with_filters(mut l: Listed, f: &[&str]) -> Listed {
+    l.filters = f.iter().map(|s| s.to_string()).collect();
+    l
+}
+
+/// The list as `section` serves it, with `others` the other tab's topics. Every id from
+/// EXTERNAL_BASE up is an indexer release of `kind`.
+fn deduped(
+    section: Section,
+    mine: Vec<Listed>,
+    others: Vec<Listed>,
+    owned: &crate::same::Owned,
+    d: &Downloads,
+    kind: crate::db::Kind,
+) -> Value {
+    let externals: HashMap<u64, crate::db::External> = mine
+        .iter()
+        .chain(&others)
+        .map(|l| l.topic.row.id)
+        .filter(|&id| id >= E)
+        .map(|id| (id, ext(id, kind)))
+        .collect();
+    serde_json::to_value(list(
+        &listing(mine),
+        &others,
+        owned,
+        &[],
+        &HashSet::new(),
+        &HashSet::new(),
+        5000,
+        section,
+        d,
+        None,
+        &externals,
+    ))
+    .unwrap()
+}
+
+fn nobody() -> crate::same::Owned {
+    crate::same::Owned::new(&[], &[])
+}
+
+fn torrent(section: Section, mine: Vec<Listed>, others: Vec<Listed>) -> Value {
+    deduped(
+        section,
+        mine,
+        others,
+        &nobody(),
+        &Downloads::default(),
+        crate::db::Kind::Torrent,
+    )
+}
+
+#[test]
+fn a_tracker_and_an_indexer_release_of_one_scene_are_one_card() {
+    let v = torrent(
+        Section::Video,
+        vec![listed(row(1, TRACKER, 5), None, None)],
+        vec![listed(row(E, OTHER, 42), None, None)],
+    );
+    assert_eq!(ids(&v), vec![1]);
+    let also = &v["topics"][0]["also"];
+    assert_eq!(also[0]["id"], json!(E));
+    assert_eq!(also[0]["source"], json!("Indexer A"));
+    assert_eq!(also[0]["seeders"], json!(42));
+    assert_eq!(also[0]["link"], json!(format!("http://a/{E}")));
+}
+
+#[test]
+fn indexers_tab_drops_a_scene_the_tracker_has() {
+    let v = torrent(
+        Section::Indexers,
+        vec![listed(row(E, OTHER, 42), None, None)],
+        vec![listed(row(1, TRACKER, 5), None, None)],
+    );
+    assert_eq!(ids(&v), Vec::<u64>::new());
+}
+
+#[test]
+fn two_indexer_releases_of_one_scene_keep_the_better_seeded() {
+    let v = torrent(
+        Section::Indexers,
+        vec![
+            listed(row(E, OTHER, 3), None, None),
+            listed(
+                row(
+                    E + 1,
+                    "Studio B 26 10 30 Cara Kim And Dana Lee Close To You 720p MP4",
+                    9,
+                ),
+                None,
+                None,
+            ),
+        ],
+        vec![],
+    );
+    assert_eq!(ids(&v), vec![E + 1]);
+    assert_eq!(v["topics"][0]["also"][0]["id"], json!(E));
+}
+
+#[test]
+fn a_merged_card_carries_every_members_filters() {
+    let v = torrent(
+        Section::Video,
+        vec![with_filters(listed(row(1, TRACKER, 5), None, None), &["a"])],
+        vec![with_filters(
+            listed(row(E, OTHER, 9), None, None),
+            &["b", "a"],
+        )],
+    );
+    assert_eq!(v["topics"][0]["filters"], json!(["a", "b"]));
+}
+
+#[test]
+fn a_scene_downloaded_through_another_release_is_owned() {
+    let owned = crate::same::Owned::new(
+        &[crate::same::DownloadTitle {
+            id: 5,
+            topic_id: None,
+            title: OTHER.into(),
+        }],
+        &[],
+    );
+    let d = Downloads {
+        by_download: HashMap::from([(5, Status::Downloading(50))]),
+        ..Downloads::default()
+    };
+    let v = deduped(
+        Section::Video,
+        vec![listed(row(1, TRACKER, 5), None, None)],
+        vec![],
+        &owned,
+        &d,
+        crate::db::Kind::Torrent,
+    );
+    assert_eq!(v["topics"][0]["ownedBy"], json!(5));
+    assert_eq!(
+        v["topics"][0]["status"],
+        json!({"kind": "downloading", "percent": 50})
+    );
+}
+
+#[test]
+fn a_download_without_a_live_status_reads_added() {
+    // Owned, but outside the 30-day live window: no status to show but "added".
+    let owned = crate::same::Owned::new(
+        &[crate::same::DownloadTitle {
+            id: 6,
+            topic_id: Some(99),
+            title: OTHER.into(),
+        }],
+        &[],
+    );
+    let v = deduped(
+        Section::Video,
+        vec![listed(row(1, TRACKER, 5), None, None)],
+        vec![listed(row(E, OTHER, 9), None, None)],
+        &owned,
+        &Downloads::default(),
+        crate::db::Kind::Torrent,
+    );
+    assert_eq!(v["topics"][0]["ownedBy"], json!(6));
+    assert_eq!(v["topics"][0]["status"], json!({"kind": "added"}));
+    assert_eq!(v["topics"][0]["also"][0]["state"], json!("added"));
+}
+
+#[test]
+fn a_queued_download_makes_its_scene_owned() {
+    let owned = crate::same::Owned::new(
+        &[crate::same::DownloadTitle {
+            id: 8,
+            topic_id: Some(99),
+            title: OTHER.into(),
+        }],
+        &[],
+    );
+    let d = Downloads {
+        by_download: HashMap::from([(8, Status::Queued)]),
+        ..Downloads::default()
+    };
+    let v = deduped(
+        Section::Video,
+        vec![listed(row(1, TRACKER, 5), None, None)],
+        vec![],
+        &owned,
+        &d,
+        crate::db::Kind::Torrent,
+    );
+    assert_eq!(v["topics"][0]["ownedBy"], json!(8));
+    assert_eq!(v["topics"][0]["status"], json!({"kind": "queued"}));
+}
+
+#[test]
+fn albums_are_never_grouped() {
+    let v = deduped(
+        Section::Albums,
+        vec![
+            listed(row(E, OTHER, 0), None, None),
+            listed(row(E + 1, OTHER, 0), None, None),
+        ],
+        vec![],
+        &nobody(),
+        &Downloads::default(),
+        crate::db::Kind::Album,
+    );
+    assert_eq!(ids(&v).len(), 2);
+}
+
+#[test]
+fn undated_releases_are_never_merged_or_owned() {
+    let undated = "Studio B Cara Kim And Dana Lee Close To You 1080p";
+    let owned = crate::same::Owned::new(
+        &[crate::same::DownloadTitle {
+            id: 5,
+            topic_id: None,
+            title: undated.into(),
+        }],
+        &[],
+    );
+    let v = deduped(
+        Section::Video,
+        vec![listed(row(1, undated, 5), None, None)],
+        vec![listed(row(E, undated, 9), None, None)],
+        &owned,
+        &Downloads::default(),
+        crate::db::Kind::Torrent,
+    );
+    assert_eq!(ids(&v), vec![1]);
+    assert_eq!(v["topics"][0]["also"], json!([]));
+    assert_eq!(v["topics"][0]["ownedBy"], Value::Null);
+}
+
+#[test]
+fn a_card_without_duplicates_has_no_also_and_no_owner() {
+    let v = torrent(
+        Section::Video,
+        vec![listed(row(1, TRACKER, 5), None, None)],
+        vec![],
+    );
+    assert_eq!(v["topics"][0]["also"], json!([]));
+    assert_eq!(v["topics"][0]["ownedBy"], Value::Null);
 }

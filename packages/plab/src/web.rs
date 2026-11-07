@@ -11,6 +11,7 @@ use crate::plab::{self, Ctx, NotListed};
 use crate::provenance::{self, Status};
 use crate::prowlarr::Prowlarr;
 use crate::rqbit::Rqbit;
+use crate::same::Owned;
 use crate::stream::{self, StreamError, Streams};
 use crate::transmission::TorrentClient;
 use axum::Router;
@@ -506,8 +507,12 @@ async fn search<B: Backends>(st: &WebState<B>, q: &str) -> Response<Body> {
         let listing = Listing { topics, ..l };
         let queued = st.db.queued(Section::Video)?.into_iter().collect();
         let externals = st.db.externals()?;
+        let (noise, owned) = owned(st)?;
         Ok(api::list(
             &listing,
+            &[],
+            &owned,
+            &noise,
             &st.db.added()?,
             &queued,
             t,
@@ -526,26 +531,51 @@ async fn search<B: Backends>(st: &WebState<B>, q: &str) -> Response<Body> {
     }
 }
 
+/// A section's listing, less what the exclude file hides.
+fn shown<B: Backends>(st: &WebState<B>, section: Section) -> anyhow::Result<Listing> {
+    let mut listing = st.db.listing(section)?;
+    let excludes = load_excludes(st.exclude_file.as_deref(), Some(&st.state_dir));
+    if !excludes.is_empty() {
+        // Album names answer to the regex patterns only, as in curated.rs.
+        listing.topics.retain(|t| {
+            let title = &t.topic.row.title;
+            !if section == Section::Albums {
+                excludes.pattern_excluded(title)
+            } else {
+                excludes.excluded(title)
+            }
+        });
+    }
+    Ok(listing)
+}
+
+/// The noise words titles are compared without, and what plab has already downloaded.
+fn owned<B: Backends>(st: &WebState<B>) -> anyhow::Result<(Vec<String>, Owned)> {
+    let noise = crate::sources::load(st.sources_file.as_deref())
+        .map(|s| s.noise)
+        .unwrap_or_default();
+    let owned = Owned::new(&st.db.download_titles()?, &noise);
+    Ok((noise, owned))
+}
+
 async fn list<B: Backends>(st: &WebState<B>, section: Section) -> Response<Body> {
     let t = now();
     let downloads = downloads(st, t).await;
-    let reply = st.db.listing(section).and_then(|mut listing| {
-        let excludes = load_excludes(st.exclude_file.as_deref(), Some(&st.state_dir));
-        if !excludes.is_empty() {
-            // Album names answer to the regex patterns only, as in curated.rs.
-            listing.topics.retain(|t| {
-                let title = &t.topic.row.title;
-                !if section == Section::Albums {
-                    excludes.pattern_excluded(title)
-                } else {
-                    excludes.excluded(title)
-                }
-            });
-        }
+    let reply = shown(st, section).and_then(|listing| {
+        // A scene on the tracker and another indexer is one card: each tab sees the other.
+        let others = match section {
+            Section::Video => shown(st, Section::Indexers)?.topics,
+            Section::Indexers => shown(st, Section::Video)?.topics,
+            Section::Albums | Section::Games => vec![],
+        };
         let queued = st.db.queued(section)?.into_iter().collect();
         let externals = st.db.externals()?;
+        let (noise, owned) = owned(st)?;
         Ok(api::list(
             &listing,
+            &others,
+            &owned,
+            &noise,
             &st.db.added()?,
             &queued,
             t,
