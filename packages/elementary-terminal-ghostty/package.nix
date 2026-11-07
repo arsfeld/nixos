@@ -19,8 +19,8 @@ pantheon.elementary-terminal.overrideAttrs (old: {
   src = fetchFromGitHub {
     owner = "arsfeld";
     repo = "elementary-terminal";
-    rev = "72ff1b92fa41863e46585d68cb1c8ed73fb0e3be";
-    hash = "sha256-o5k7u4eAKjMpQLWhGAR12/SjhiXEWhQ1EAEVDbA8tRk=";
+    rev = "16244842674bdcd7c51742568961cad2010553d4";
+    hash = "sha256-hAL+GHWnCmKV2uZASoSubsR7k1ijl2Jh9VCzFpmLrAg=";
   };
 
   buildInputs = lib.remove vte-gtk4 old.buildInputs ++ [libghostty-gtk];

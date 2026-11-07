@@ -52,6 +52,15 @@ update-packages *PKGS:
       nix build ".#$p" --no-link
     }
 
+    # deb_tag_version <pkg> <command...>: runs the command, then rewrites the
+    # version it wrote, deb/0.1.0+git<...>-unstable-<date>, to
+    # 0.1.0-unstable-<date>.
+    deb_tag_version() {
+      local p=$1; shift
+      "$@" || return 1
+      sed -i -E 's|version = "deb/([0-9.]+)\+[^"]*(-unstable-[0-9-]+)"|version = "\1\2"|' "packages/$p/package.nix"
+    }
+
     updated=() current=() failed=()
     for p in "${pkgs[@]}"; do
       echo "==> $p"
@@ -77,11 +86,16 @@ update-packages *PKGS:
           sed -i "s|token = \"[^\"]*\"|token = \"$t\"|" "packages/$p/package.nix"
           cmd+=(--version "$v") ;;
         # Track the repo's default branch; there are no releases.
-        pantheon-global-menu | libghostty-gtk)
+        pantheon-global-menu)
           cmd+=(--version=branch) ;;
+        # Track a branch. Their only tags are CI's deb/<deb version> releases,
+        # which nix-update takes as the version prefix; deb_tag_version strips
+        # that back to the upstream version (0.1.0-unstable-<date>).
+        libghostty-gtk)
+          cmd=(deb_tag_version "$p" "${cmd[@]}" --version=branch) ;;
         # The port lives on the fork's libghostty-gtk branch, not its default branch.
         elementary-terminal-ghostty)
-          cmd+=(--version=branch=libghostty-gtk) ;;
+          cmd=(deb_tag_version "$p" "${cmd[@]}" --version=branch=libghostty-gtk) ;;
       esac
       if "${cmd[@]}"; then
         if git diff --quiet -- "packages/$p"; then current+=("$p"); else updated+=("$p"); fi

@@ -29,8 +29,8 @@ stdenv.mkDerivation {
   src = fetchFromGitHub {
     owner = "arsfeld";
     repo = "libghostty-gtk";
-    rev = "db51582872a49234b52e2454ff83ea6bb9d3c00e";
-    hash = "sha256-/rEADvRdWEx2jDhwcrfPmnFVSejTnbMGKlXIYOeWiTQ=";
+    rev = "46107641fc84cf706adbb1c38395ec2536b9e4fa";
+    hash = "sha256-YCckNLxkAJMDgl7eSu0PkDEGPRMLcv+prWKAyD7Y7qE=";
   };
 
   strictDeps = true;
