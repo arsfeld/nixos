@@ -28,8 +28,9 @@ test(
 # The widget tests draw with the cairo renderer, whose output is the same on
 # every machine, and with the fonts.conf monospace package.nix provides. The
 # sandbox has no session bus, so accessibility and portals, which want one,
-# are off.
-# selection-test flips the clipboard-read key, in a memory GSettings backend.
+# are off. Every terminal reads the clipboard-read key, so they all use a
+# memory GSettings backend (the sandbox has no writable home), in which
+# selection-test also flips it.
 foreach name : ['terminal-test', 'renderer-test', 'input-test', 'selection-test',
              'search-test']
   test(
@@ -43,7 +44,7 @@ foreach name : ['terminal-test', 'renderer-test', 'input-test', 'selection-test'
     ),
     args: ['--tap'],
     protocol: 'tap',
-    env: ['GSK_RENDERER=cairo', 'GTK_A11Y=none', 'GDK_DEBUG=no-portals']
-      + (name == 'selection-test' ? ['GSETTINGS_BACKEND=memory'] : []),
+    env: ['GSK_RENDERER=cairo', 'GTK_A11Y=none', 'GDK_DEBUG=no-portals',
+          'GSETTINGS_BACKEND=memory'],
   )
 endforeach
