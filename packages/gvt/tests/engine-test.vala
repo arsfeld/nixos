@@ -25,6 +25,23 @@ static void test_text () {
     assert_cmpint ((int) row, CompareOperator.EQ, 0);
 }
 
+// NixOS's default bash PS1: bold green, with an OSC 0 title inside it.
+const string NIXOS_PS1 = "\r\n\x1b[1;32m[\x1b]0;arosenfeld@machine: /home/arosenfeld\x07"
+    + "arosenfeld@machine:/home/arosenfeld]$\x1b[0m ";
+
+static void test_prompt_cursor () {
+    var engine = make ();
+    feed (engine, NIXOS_PS1);
+    long col, row;
+    engine.cursor (out col, out row);
+    // "[arosenfeld@machine:/home/arosenfeld]$ " is 39 cells; the OSC is not.
+    assert_cmpint ((int) col, CompareOperator.EQ, 39);
+    assert_cmpint ((int) row, CompareOperator.EQ, 1);
+    assert_cmpstr (engine.text_range (1, 0, 1, 39), CompareOperator.EQ,
+                   "[arosenfeld@machine:/home/arosenfeld]$");
+    assert_cmpstr (engine.title, CompareOperator.EQ, "arosenfeld@machine: /home/arosenfeld");
+}
+
 static void test_title () {
     var engine = make ();
     int fired = 0;
@@ -162,6 +179,7 @@ int main (string[] args) {
     Test.init (ref args);
     Test.add_func ("/engine/text", test_text);
     Test.add_func ("/engine/title", test_title);
+    Test.add_func ("/engine/prompt-cursor", test_prompt_cursor);
     Test.add_func ("/engine/pwd", test_pwd);
     Test.add_func ("/engine/bell", test_bell);
     Test.add_func ("/engine/osc52-write", test_osc52_write);
