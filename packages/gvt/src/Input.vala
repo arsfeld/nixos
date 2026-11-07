@@ -67,9 +67,11 @@ namespace Gvt {
         /* Pointer input that is not the program's: col is clamped to the
          * screen, row is absolute (viewport_top + viewport row, so it can be
          * above or below the viewport while dragging). n_press is the click
-         * count of the press (2 = double click); DRAG and RELEASE repeat it. */
+         * count of the press (2 = double click); DRAG and RELEASE repeat it.
+         * (x, y) is the pointer in widget pixels: where in its cell it is
+         * decides whether that cell is selected. */
         public signal void selection_event (PointerPhase phase, long col, long row, uint button,
-                                            Gdk.ModifierType state, int n_press);
+                                            Gdk.ModifierType state, int n_press, double x, double y);
 
         private int n_press = 1;
 
@@ -328,7 +330,7 @@ namespace Gvt {
                 long col, row;
                 cell_at (x, y, out col, out row);
                 selection_event (press ? PointerPhase.PRESS : PointerPhase.RELEASE, col, row, button,
-                                 state, n_press);
+                                 state, n_press, x, y);
             }
         }
 
@@ -339,7 +341,7 @@ namespace Gvt {
             long col, row;
             cell_at (x, y, out col, out row);
             if (pointer_owner == Owner.SELECTION) {
-                selection_event (PointerPhase.DRAG, col, row, held_button (), state, n_press);
+                selection_event (PointerPhase.DRAG, col, row, held_button (), state, n_press, x, y);
                 return;
             }
             if (!terminal.engine.mouse_tracking) {

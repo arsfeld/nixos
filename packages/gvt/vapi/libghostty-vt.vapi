@@ -93,7 +93,8 @@ namespace GhosttyVt {
         DEFAULT_CURSOR_STYLE,
         SCROLLBACK_MAX_BYTES,
         SCROLLBACK_MAX_LINES,
-        MODE
+        MODE,
+        SELECTION
     }
 
     [CCode (cname = "GhosttyColorRgb", has_type_id = false)]
@@ -128,7 +129,8 @@ namespace GhosttyVt {
         SCROLLBACK_ROWS,
         MODE,
         MOUSE_TRACKING,
-        ACTIVE_SCREEN
+        ACTIVE_SCREEN,
+        SELECTION
     }
 
     [CCode (cname = "GhosttyTerminalScreen", cprefix = "GHOSTTY_TERMINAL_SCREEN_", has_type_id = false)]
@@ -209,6 +211,91 @@ namespace GhosttyVt {
         public void vt_write ([CCode (array_length_type = "size_t")] uint8[] data);
         public Result scroll_viewport (TerminalScrollViewport behavior);
         public Result grid_ref (Point point, out GridRef out_ref);
+        /* A snapshot covering all selectable content; NO_VALUE if none. */
+        public Result select_all (out Selection out_selection);
+        /* out_equal: a C bool*, like the bools Terminal.get writes. */
+        public Result selection_equal (Selection a, Selection b, void* out_equal);
+    }
+
+    /* ---- Selection gestures (selection.h) ---- */
+
+    [CCode (cname = "GhosttySelectionGestureBehavior", cprefix = "GHOSTTY_SELECTION_GESTURE_BEHAVIOR_", has_type_id = false)]
+    public enum SelectionGestureBehavior {
+        CELL,
+        WORD,
+        LINE,
+        OUTPUT
+    }
+
+    [CCode (cname = "GhosttySelectionGestureBehaviors", has_type_id = false)]
+    public struct SelectionGestureBehaviors {
+        public SelectionGestureBehavior single_click;
+        public SelectionGestureBehavior double_click;
+        public SelectionGestureBehavior triple_click;
+    }
+
+    [CCode (cname = "GhosttySelectionGestureGeometry", has_type_id = false)]
+    public struct SelectionGestureGeometry {
+        public uint32 columns;
+        public uint32 cell_width;
+        public uint32 padding_left;
+        public uint32 screen_height;
+    }
+
+    [CCode (cname = "GhosttySurfacePosition", has_type_id = false)]
+    public struct SurfacePosition {
+        public double x;
+        public double y;
+    }
+
+    [CCode (cname = "GhosttySelectionGestureEventType", cprefix = "GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_", has_type_id = false)]
+    public enum SelectionGestureEventType {
+        PRESS,
+        RELEASE,
+        DRAG,
+        AUTOSCROLL_TICK,
+        DEEP_PRESS
+    }
+
+    [CCode (cname = "GhosttySelectionGestureEventOption", cprefix = "GHOSTTY_SELECTION_GESTURE_EVENT_OPT_", has_type_id = false)]
+    public enum SelectionGestureEventOption {
+        REF,
+        POSITION,
+        REPEAT_DISTANCE,
+        TIME_NS,
+        REPEAT_INTERVAL_NS,
+        WORD_BOUNDARY_CODEPOINTS,
+        BEHAVIORS,
+        RECTANGLE,
+        GEOMETRY,
+        VIEWPORT
+    }
+
+    [Compact]
+    [CCode (cname = "struct GhosttySelectionGestureEventImpl", free_function = "ghostty_selection_gesture_event_free", lower_case_cprefix = "ghostty_selection_gesture_event_")]
+    public class SelectionGestureEvent {
+        [CCode (cname = "ghostty_selection_gesture_event_new")]
+        public static Result create (void* allocator, out SelectionGestureEvent event, SelectionGestureEventType type);
+
+        /* value: a pointer to the option's value type; null clears it. */
+        public Result set (SelectionGestureEventOption option, void* value);
+    }
+
+    /* Freeing needs the terminal (ghostty_selection_gesture_free (g, t)), so
+     * the handle is held unowned and freed with destroy (). */
+    [Compact]
+    [CCode (cname = "struct GhosttySelectionGestureImpl", free_function = "", lower_case_cprefix = "ghostty_selection_gesture_")]
+    public class SelectionGesture {
+        [CCode (cname = "ghostty_selection_gesture_new")]
+        public static Result create (void* allocator, out unowned SelectionGesture gesture);
+
+        [CCode (cname = "ghostty_selection_gesture_free")]
+        public void destroy (Terminal? terminal);
+        public void reset (Terminal terminal);
+        /* out_selection: the resulting snapshot, not installed. NO_VALUE
+         * when the event produces no selection (a single press, a release). */
+        [CCode (cname = "ghostty_selection_gesture_event")]
+        public Result apply (Terminal terminal, SelectionGestureEvent event, Selection* out_selection);
     }
 
     /* ---- Clipboard effects ---- */

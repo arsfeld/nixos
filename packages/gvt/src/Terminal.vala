@@ -23,6 +23,8 @@ namespace Gvt {
         internal Engine engine;
         internal Renderer renderer;
         internal Input input;
+        internal Selection selection;
+        internal Clipboard clipboard;
 
         private Pty? pty = null;
         private bool exit_reported = false;
@@ -116,6 +118,34 @@ namespace Gvt {
         public virtual signal void window_title_changed () {
         }
 
+        public virtual signal void selection_changed () {
+        }
+
+        /* Copies the selection to the display clipboard. */
+        [Signal (action = true)]
+        public virtual signal void copy_clipboard () {
+            var text = selection.text ();
+            if (text != null && text != "") {
+                get_clipboard ().set_text (text);
+            }
+        }
+
+        /* Pastes the display clipboard's text, as paste_text () does. */
+        [Signal (action = true)]
+        public virtual signal void paste_clipboard () {
+            var display_clipboard = get_clipboard ();
+            display_clipboard.read_text_async.begin (null, (obj, res) => {
+                try {
+                    var text = display_clipboard.read_text_async.end (res);
+                    if (text != null) {
+                        paste_text (text);
+                    }
+                } catch (Error e) {
+                    // Nothing to paste.
+                }
+            });
+        }
+
         [Signal (action = true)]
         public virtual signal void increase_font_size () {
             font_scale = font_scale * 1.2;
@@ -140,6 +170,8 @@ namespace Gvt {
             apply_font ();
 
             input = new Input (this);
+            selection = new Selection (this);
+            clipboard = new Clipboard (this);
 
             focusable = true;
             overflow = Gtk.Overflow.HIDDEN;
@@ -229,6 +261,28 @@ namespace Gvt {
         public void feed_child (uint8[]? text) {
             if (pty != null && text != null) {
                 pty.write (text);
+            }
+        }
+
+        /* ---- selection ---- */
+
+        public void select_all () {
+            selection.select_all ();
+        }
+
+        public void unselect_all () {
+            selection.unselect_all ();
+        }
+
+        public bool get_has_selection () {
+            return engine.has_selection;
+        }
+
+        /* Copies the selection to the primary clipboard. */
+        public void copy_primary () {
+            var text = selection.text ();
+            if (text != null && text != "") {
+                get_primary_clipboard ().set_text (text);
             }
         }
 

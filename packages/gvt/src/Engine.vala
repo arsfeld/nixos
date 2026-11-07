@@ -40,6 +40,21 @@ namespace Gvt {
         UNDERLINE = 7 << 8
     }
 
+    /* A pointer event for selection, in the terminal's terms: (col, row)
+     * the cell under the pointer (row absolute), (x, y) its position in
+     * widget pixels, which decides whether the end cells are included.
+     * clicks 1, 2 and 3 select by cell, word and line. */
+    internal struct SelectionGestureEvent {
+        public PointerPhase phase;
+        public long col;
+        public long row;
+        public double x;
+        public double y;
+        public int clicks;
+        public uint32 cell_width;
+        public uint32 screen_height;
+    }
+
     internal class Engine : Object {
         private GhosttyVt.Terminal? terminal = null;
         private GhosttyVt.RenderState? state = null;
@@ -49,6 +64,11 @@ namespace Gvt {
         private GhosttyVt.KeyEvent? key_event = null;
         private GhosttyVt.MouseEncoder? mouse_encoder = null;
         private GhosttyVt.MouseEvent? mouse_event = null;
+        /* Freed in the destructor, with the terminal (see the vapi). */
+        private unowned GhosttyVt.SelectionGesture? selection_gesture = null;
+        private GhosttyVt.SelectionGestureEvent? gesture_press = null;
+        private GhosttyVt.SelectionGestureEvent? gesture_drag = null;
+        private GhosttyVt.SelectionGestureEvent? gesture_release = null;
 
         /* Guards against re-entering vt_write from a signal handler, which
          * libghostty does not support: such bytes are queued instead. */
@@ -104,6 +124,14 @@ namespace Gvt {
             set_option (GhosttyVt.TerminalOption.RESET, (void*) reset_fn);
             set_option (GhosttyVt.TerminalOption.CLIPBOARD_WRITE, (void*) clipboard_write_fn);
             set_option (GhosttyVt.TerminalOption.CLIPBOARD_READ, (void*) clipboard_read_fn);
+        }
+
+        ~Engine () {
+            // Runs before the fields, so the terminal is still alive.
+            if (selection_gesture != null) {
+                selection_gesture.destroy (terminal);
+                selection_gesture = null;
+            }
         }
 
         /* Feeds output from the child into the terminal. */
@@ -219,7 +247,12 @@ namespace Gvt {
                 || !grid_ref_at (end_row, end_col - 1, out selection.end)) {
                 return "";
             }
+            return format_plain (selection);
+        }
 
+        /* Plain text of a selection, as copying wants it: soft-wrapped rows
+         * joined, hard line breaks as "\n", trailing blanks trimmed. */
+        private string format_plain (GhosttyVt.Selection selection) {
             GhosttyVt.Formatter formatter;
             if (!check (GhosttyVt.Formatter.create (null, out formatter, terminal), "ghostty_formatter_terminal_new")) {
                 return "";
@@ -241,6 +274,160 @@ namespace Gvt {
             var text = buffer_to_string (buf, len);
             GhosttyVt.free (null, buf, len);
             return text;
+        }
+
+        /* ---- selection ----
+         *
+         * libghostty holds the selection (OPT_SELECTION), keeps it attached
+         * to the text as the screen scrolls, and reports it to the renderer
+         * per row. Setting or clearing it marks the screen dirty, so the next
+         * frame redraws every row.
+         */
+
+        public bool has_selection {
+            get {
+                GhosttyVt.Selection selection = {};
+                // NO_VALUE: nothing selected.
+                return terminal != null
+                       && terminal.get (GhosttyVt.TerminalData.SELECTION, &selection) == GhosttyVt.Result.SUCCESS;
+            }
+        }
+
+        /* Selects everything selectable; clears the selection if nothing is. */
+        public void select_all () {
+            if (terminal == null) {
+                return;
+            }
+            GhosttyVt.Selection selection = {};
+            if (terminal.select_all (out selection) == GhosttyVt.Result.SUCCESS) {
+                set_option (GhosttyVt.TerminalOption.SELECTION, &selection);
+            } else {
+                clear_selection ();
+            }
+        }
+
+        public void clear_selection () {
+            if (terminal != null) {
+                set_option (GhosttyVt.TerminalOption.SELECTION, null);
+            }
+        }
+
+        /* The selected text, as format_plain () gives it; null if nothing
+         * is selected. */
+        public string? selection_text () {
+            GhosttyVt.Selection selection = {};
+            if (!current_selection (out selection)) {
+                return null;
+            }
+            return format_plain (selection);
+        }
+
+        /*
+         * Feeds one pointer event to libghostty's selection gesture, which
+         * turns press, drag and release into a cell, word or line selection,
+         * and installs the result. A press that selects nothing (a single
+         * click) and a drag still inside its threshold clear the selection.
+         * True when the selection changed.
+         */
+        public bool gesture (SelectionGestureEvent ev) {
+            if (terminal == null || !ensure_gesture ()) {
+                return false;
+            }
+            GhosttyVt.GridRef cell;
+            var total = (long) get_size (GhosttyVt.TerminalData.TOTAL_ROWS);
+            if (!grid_ref_at (ev.row.clamp (0, total - 1), ev.col.clamp (0, (long) cols - 1), out cell)) {
+                return false;
+            }
+            GhosttyVt.SurfacePosition position = { ev.x, ev.y };
+
+            unowned GhosttyVt.SelectionGestureEvent event;
+            switch (ev.phase) {
+            case PointerPhase.PRESS:
+                event = gesture_press;
+                // GTK counts the clicks; libghostty would need event times
+                // to. Untimed, every press is its first click, and its
+                // behavior is the one for GTK's count.
+                GhosttyVt.SelectionGestureBehaviors behaviors = {};
+                behaviors.single_click = ev.clicks >= 3 ? GhosttyVt.SelectionGestureBehavior.LINE
+                    : ev.clicks == 2 ? GhosttyVt.SelectionGestureBehavior.WORD
+                    : GhosttyVt.SelectionGestureBehavior.CELL;
+                behaviors.double_click = GhosttyVt.SelectionGestureBehavior.WORD;
+                behaviors.triple_click = GhosttyVt.SelectionGestureBehavior.LINE;
+                check (event.set (GhosttyVt.SelectionGestureEventOption.BEHAVIORS, &behaviors), "gesture behaviors");
+                check (event.set (GhosttyVt.SelectionGestureEventOption.POSITION, &position), "gesture position");
+                break;
+            case PointerPhase.DRAG:
+                event = gesture_drag;
+                GhosttyVt.SelectionGestureGeometry geometry = {
+                    uint32.max (cols, 1), uint32.max (ev.cell_width, 1), 0, uint32.max (ev.screen_height, 1)
+                };
+                check (event.set (GhosttyVt.SelectionGestureEventOption.GEOMETRY, &geometry), "gesture geometry");
+                check (event.set (GhosttyVt.SelectionGestureEventOption.POSITION, &position), "gesture position");
+                break;
+            default:
+                event = gesture_release;
+                break;
+            }
+            check (event.set (GhosttyVt.SelectionGestureEventOption.REF, &cell), "gesture ref");
+
+            GhosttyVt.Selection before = {};
+            var had = current_selection (out before);
+            GhosttyVt.Selection after = {};
+            var result = selection_gesture.apply (terminal, event, &after);
+            if (result != GhosttyVt.Result.SUCCESS && result != GhosttyVt.Result.NO_VALUE) {
+                check (result, "ghostty_selection_gesture_event");
+                return false;
+            }
+            if (ev.phase == PointerPhase.RELEASE) {
+                return false;
+            }
+            if (result == GhosttyVt.Result.NO_VALUE) {
+                if (!had) {
+                    return false;
+                }
+                clear_selection ();
+                return true;
+            }
+            bool same = false;
+            if (had && terminal.selection_equal (before, after, (void*) (&same)) == GhosttyVt.Result.SUCCESS && same) {
+                return false;
+            }
+            set_option (GhosttyVt.TerminalOption.SELECTION, &after);
+            return true;
+        }
+
+        private bool current_selection (out GhosttyVt.Selection selection) {
+            selection = {};
+            return terminal != null
+                   && terminal.get (GhosttyVt.TerminalData.SELECTION, &selection) == GhosttyVt.Result.SUCCESS;
+        }
+
+        private bool ensure_gesture () {
+            if (selection_gesture != null) {
+                return true;
+            }
+            GhosttyVt.SelectionGestureEvent press, drag, release;
+            var type = GhosttyVt.SelectionGestureEventType.PRESS;
+            if (!check (GhosttyVt.SelectionGestureEvent.create (null, out press, type), "gesture press event")) {
+                return false;
+            }
+            type = GhosttyVt.SelectionGestureEventType.DRAG;
+            if (!check (GhosttyVt.SelectionGestureEvent.create (null, out drag, type), "gesture drag event")) {
+                return false;
+            }
+            type = GhosttyVt.SelectionGestureEventType.RELEASE;
+            if (!check (GhosttyVt.SelectionGestureEvent.create (null, out release, type), "gesture release event")) {
+                return false;
+            }
+            unowned GhosttyVt.SelectionGesture g;
+            if (!check (GhosttyVt.SelectionGesture.create (null, out g), "ghostty_selection_gesture_new")) {
+                return false;
+            }
+            gesture_press = (owned) press;
+            gesture_drag = (owned) drag;
+            gesture_release = (owned) release;
+            selection_gesture = g;
+            return true;
         }
 
         /*

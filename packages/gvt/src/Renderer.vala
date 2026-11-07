@@ -1,6 +1,8 @@
 /*
  * Renderer: draws the Engine's render state with GtkSnapshot and Pango.
  *
+ * Selected cells are drawn in reverse video (VTE's default).
+ *
  * Each row is drawn into its own render node and kept, keyed by libghostty's
  * row id, until the row is dirty or the font or colors change; a frame
  * re-uses every clean row and only rebuilds the rest. The cursor is drawn on
@@ -32,7 +34,6 @@ namespace Gvt {
 
         /* Applied to the default background only, as VTE does. */
         internal double background_alpha = 1.0;
-        internal Gdk.RGBA selection_color = { 0.21f, 0.52f, 0.89f, 1.0f };
 
         /* Frames drawn; tests count redraws with it. */
         internal uint frames = 0;
@@ -183,7 +184,12 @@ namespace Gvt {
                 if (!has_fg) {
                     fg = default_fg;
                 }
-                if ((flags & CellFlag.INVERSE) != 0) {
+                // A selected cell is drawn in reverse video, as VTE draws
+                // one when no highlight color is set: it follows the
+                // palette and the theme's colors, whatever they are. Inverse
+                // and selected cancel out.
+                var selected = has_selection && x >= sel_start && x <= sel_end;
+                if (((flags & CellFlag.INVERSE) != 0) != selected) {
                     var swap = has_bg ? bg : default_bg;
                     bg = fg;
                     fg = swap;
@@ -191,9 +197,7 @@ namespace Gvt {
                 }
 
                 Gdk.RGBA? cell_bg = null;
-                if (has_selection && x >= sel_start && x <= sel_end) {
-                    cell_bg = selection_color;
-                } else if (has_bg) {
+                if (has_bg) {
                     cell_bg = rgba (bg);
                 }
                 if (bg_start >= 0 && (cell_bg == null || !cell_bg.equal (bg_color))) {

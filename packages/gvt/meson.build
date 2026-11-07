@@ -24,12 +24,14 @@ gvt_deps = [glib_dep, gobject_dep, gio_dep, gtk_dep, pango_dep, ghostty_dep, m_d
 
 # Engine is the only file that may call the libghostty C API.
 gvt_sources = files(
+  'src/Clipboard.vala',
   'src/Engine.vala',
   'src/Enums.vala',
   'src/Input.vala',
   'src/Keymap.vala',
   'src/Pty.vala',
   'src/Renderer.vala',
+  'src/Selection.vala',
   'src/Terminal.vala',
   'vapi/posix-extra.vapi',
 )

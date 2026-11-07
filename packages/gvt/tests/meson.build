@@ -29,7 +29,8 @@ test(
 # every machine, and with the fonts.conf monospace package.nix provides. The
 # sandbox has no session bus, so accessibility and portals, which want one,
 # are off.
-foreach name : ['terminal-test', 'renderer-test', 'input-test']
+# selection-test flips the clipboard-read key, in a memory GSettings backend.
+foreach name : ['terminal-test', 'renderer-test', 'input-test', 'selection-test']
   test(
     name,
     executable(
@@ -41,6 +42,7 @@ foreach name : ['terminal-test', 'renderer-test', 'input-test']
     ),
     args: ['--tap'],
     protocol: 'tap',
-    env: ['GSK_RENDERER=cairo', 'GTK_A11Y=none', 'GDK_DEBUG=no-portals'],
+    env: ['GSK_RENDERER=cairo', 'GTK_A11Y=none', 'GDK_DEBUG=no-portals']
+      + (name == 'selection-test' ? ['GSETTINGS_BACKEND=memory'] : []),
   )
 endforeach
