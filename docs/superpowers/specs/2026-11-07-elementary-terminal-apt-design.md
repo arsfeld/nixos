@@ -1,7 +1,7 @@
 # elementary Terminal on libghostty-gtk: CI and a signed apt repo
 
 Date: 2026-11-07
-Status: approved
+Status: implemented
 
 ## Goal
 
@@ -72,9 +72,19 @@ personal repo, not for Debian proper.
   `.so` symlink. Depends on `libghostty-gtk-1-0 (= ${binary:Version})`,
   `libgtk-4-dev`, `libglib2.0-dev`, `libpango1.0-dev`.
 
-Version `0.1.0+git<YYYYMMDD>.<shortsha>-1`, written by CI into
-`debian/changelog` with `dch` before building, so each master build sorts
-after the previous one. The committed changelog holds a placeholder entry.
+Version `0.1.0+git<YYYYMMDDhhmmss>.<shortsha>` (commit time in UTC, to the
+second, so two builds on one day never sort by hash), written by CI into
+`debian/changelog` with `dch` before building. The committed changelog holds
+a placeholder entry. The source format is `3.0 (native)`, hence no Debian
+revision.
+
+The static link also carries libghostty-vt's own static dependencies
+(Highway, simdutf, uucode); `debian/copyright` reproduces their notices.
+
+The meson option cannot simply ask for `dependency('libghostty-vt-static')`:
+Meson passes a pkg-config dependency's name to valac as `--pkg`, and there is
+no binding by that name. It builds the dependency from that `.pc`'s
+`includedir` and `libdir` instead, and passes `--pkg libghostty-vt` itself.
 
 `dh_auto_test` runs the meson tests under a headless weston, as the nixos
 package does (fonts pinned through `FONTCONFIG_FILE`, `GSETTINGS_BACKEND`
@@ -85,7 +95,8 @@ handled by the tests themselves).
 - `on: push` (all branches), `pull_request`, `workflow_dispatch`.
 - Job `build`: container `ghcr.io/elementary/docker:stable`; build
   libghostty-vt (cached by `actions/cache`, keyed on the pinned hashes);
-  install build deps with `apt-get build-dep ./`; `dpkg-buildpackage -b -us -uc`
+  install build deps with `mk-build-deps`; all of it in `ci/build-deb.sh`,
+  which runs the same locally under `docker run`; `dpkg-buildpackage -b -us -uc`
   (which runs the tests); `lintian` (reported, not fatal); the header check;
   upload the debs as a workflow artifact.
 - Job `release`: only on `push` to `master`, after `build`. Creates a GitHub
@@ -108,15 +119,16 @@ port commits themselves stay upstreamable. It:
   `release.yml` and `gettext.yml` are elementary's release and translation
   machinery. They are deleted and our `ci.yml` added.
 
-Version `8.1.0+ghostty.git<YYYYMMDD>.<shortsha>`, written by CI. The upstream
+Version `8.1.0+ghostty.git<YYYYMMDDhhmmss>.<shortsha>`, written by CI. The upstream
 part comes from `meson.build`'s project version, so a rebase onto 8.1.1
 raises it.
 
 **Workflow, `ci.yml`.** Same shape as libghostty-gtk's: `build` on every push
 and PR, `release` only on push to `libghostty-gtk`. `build` gets
 `libghostty-gtk-dev` and `libghostty-gtk-1-0` from libghostty-gtk's latest
-GitHub Release (public, no token) and `apt-get install`s them before
-`apt-get build-dep`. Upstream's single test (`UnsafePasteTest`) runs in the
+GitHub Release (public; the token only raises the API rate limit) and
+`apt-get install`s them before `mk-build-deps`. `LIBGHOSTTY_GTK_DEBS` points
+it at local debs instead, for a build before a release exists. Upstream's single test (`UnsafePasteTest`) runs in the
 build.
 
 **Lockstep.** An API change in libghostty-gtk breaks the fork's next build
@@ -130,8 +142,9 @@ fork build, not as a broken apt repo: nothing is published until both build.
 
 - `on: schedule` (hourly) and `workflow_dispatch`.
 - Reads the latest `deb/*` release of each source repo through the public
-  API, downloads any deb not already in the pool, `reprepro includedeb noble`,
-  signs, commits and pushes `gh-pages`. A run with nothing new pushes nothing.
+  API, downloads any deb not already in the pool, regenerates the indexes
+  with `apt-ftparchive`, signs, commits and pushes `gh-pages`. A run with
+  nothing new pushes nothing. A push to `master` re-signs regardless.
 - `concurrency: publish` so two runs never race on `gh-pages`.
 
 Polling, rather than a dispatch from each source repo, keeps every
@@ -140,11 +153,14 @@ lives in exactly one repo's secrets. The cost is up to an hour between a
 release and its appearance in apt, which `gh workflow run publish -R
 arsfeld/apt` skips.
 
-**Repo layout.** `reprepro` with `conf/distributions`: `Codename: noble`,
-`Components: main`, `Architectures: amd64 source`, `SignWith:` the key's
-fingerprint, `Limit: 3` (keep the last three versions of each package, so a
-bad build can be rolled back with `apt install pkg=<version>`). It writes
-`InRelease` and `Release.gpg`. The public key is served dearmored at
+**Repo layout.** `apt-ftparchive`, not reprepro: reprepro keeps a database
+between runs, and CI has nowhere to keep it. With `apt-ftparchive` the debs
+in `pool/main/<source repo>/` on `gh-pages` are the only state, and
+`publish.sh` regenerates `Packages` and `Release` from them on every change.
+Codename `noble`, component `main`, architecture `amd64`. It keeps the newest
+three versions of each package, so a bad build can be rolled back with
+`apt install pkg=<version>`, and signs `InRelease` and `Release.gpg` with
+SHA512. The public key is served dearmored at
 `/arsfeld.gpg`, and `index.html` / the README carry the install steps:
 
 ```sh

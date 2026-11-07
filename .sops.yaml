@@ -41,6 +41,14 @@ creation_rules:
       - age:
           - *user_arosenfeld
 
+  # The signing key of the apt repo at arsfeld.github.io/apt (arsfeld/apt),
+  # and its revocation certificate. A backup: CI signs with the copy in that
+  # repo's APT_SIGNING_KEY secret. No host reads it.
+  - path_regex: secrets/sops/apt\.yaml$
+    key_groups:
+      - age:
+          - *user_arosenfeld
+
   # cylon-link's SSH host key, kept so a reflash (`just flash-cylon-link`)
   # preserves the host's sops identity. Only the flash recipe reads it, from
   # a workstation, so no host key is a recipient.
