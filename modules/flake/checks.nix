@@ -42,6 +42,9 @@
         pantheon-tailscale-test = inputs.nixpkgs.legacyPackages.${system}.testers.nixosTest (
           import ../../tests/pantheon-tailscale-test.nix
         );
+        pantheon-terminal-test = inputs.nixpkgs.legacyPackages.${system}.testers.nixosTest (
+          import ../../tests/pantheon-terminal-test.nix {inherit self;}
+        );
         # cylon-link is cross-compiled from x86_64; its checks are too.
         cylon-link-boot = import ../hosts/cylon-link/boot/_test.nix {
           pkgs = inputs.nixpkgs.legacyPackages.${system};
