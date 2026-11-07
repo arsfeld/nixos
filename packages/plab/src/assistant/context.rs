@@ -141,9 +141,10 @@ pub async fn views(db: &Db, stash: &Stash, now: i64) -> (Vec<View>, bool) {
     (out, ok)
 }
 
-/// The releases on the Video and Indexers lists, as candidates' input.
-fn releases(db: &Db) -> anyhow::Result<Vec<ReleaseIn>> {
-    let added = db.added()?;
+/// The releases on the Video and Indexers lists, as candidates' input. A release counts
+/// as downloaded when plab has its scene, through it or another release (`same::Owned`).
+fn releases(db: &Db, noise: &[String]) -> anyhow::Result<Vec<ReleaseIn>> {
+    let owned = crate::same::Owned::new(&db.download_titles()?, noise);
     let externals = db.externals()?;
     Ok(advisable(db)?
         .into_iter()
@@ -153,7 +154,9 @@ fn releases(db: &Db) -> anyhow::Result<Vec<ReleaseIn>> {
                 id: row.id,
                 title: row.title.clone(),
                 studio: crate::labels::labels(&row.title, row.forum).studio,
-                downloaded: added.contains(&row.id),
+                downloaded: owned
+                    .of(row.id, crate::same::sig(&row.title, noise, &[]).as_ref())
+                    .is_some(),
                 album: externals
                     .get(&row.id)
                     .is_some_and(|e| e.kind == Kind::Album),
@@ -166,6 +169,7 @@ pub async fn gather(
     db: &Db,
     stash: &Stash,
     hide: &crate::filters::HideRule,
+    noise: &[String],
     now: i64,
 ) -> anyhow::Result<Context> {
     let (views, mut ok) = views(db, stash, now).await;
@@ -203,7 +207,7 @@ pub async fn gather(
             plays: s.play_count.unwrap_or(0),
         })
         .collect();
-    let candidates = candidates::candidates(&profile, &scenes, &releases(db)?);
+    let candidates = candidates::candidates(&profile, &scenes, &releases(db, noise)?);
     Ok(Context {
         profile,
         candidates,
@@ -219,5 +223,60 @@ mod tests {
     async fn a_stash_read_that_never_answers_is_a_failure() {
         let r: anyhow::Result<()> = bounded(std::future::pending()).await;
         assert!(r.unwrap_err().to_string().contains("no answer"));
+    }
+    fn listed(id: u64, title: &str) -> Listed {
+        Listed {
+            topic: crate::db::Topic {
+                row: crate::tracker::parse::Row {
+                    id,
+                    title: title.into(),
+                    forum: 1875,
+                    size: 1,
+                    seeders: 1,
+                    leechers: 0,
+                    completed: 0,
+                    added: 1000,
+                },
+                images: None,
+                production: None,
+            },
+            filters: vec![],
+            curated_reason: None,
+        }
+    }
+
+    #[test]
+    fn a_release_owned_through_another_source_is_downloaded() {
+        let db = Db::open_in_memory().unwrap();
+        db.save_listing(
+            Section::Video,
+            &[
+                listed(
+                    1,
+                    "[StudioB.com] Dana Lee, Cara Kim - Close To You [2026-10-30, 1080p]",
+                ),
+                listed(2, "[StudioB.com] Eve Ray - Rainy Day [2026-10-30, 1080p]"),
+            ],
+            &[],
+            1000,
+        )
+        .unwrap();
+        // A grab of the same scene from another indexer: no topic id to match by.
+        db.mark_added(crate::db::NewDownload {
+            source: "grab",
+            topic_id: None,
+            release_title: "Studio B 26 10 30 Cara Kim And Dana Lee Close To You 1080p MP4",
+            section: Section::Video,
+            download_dir: None,
+            torrent_hash: None,
+            now: 1000,
+        })
+        .unwrap();
+        let got: Vec<(u64, bool)> = releases(&db, &[])
+            .unwrap()
+            .into_iter()
+            .map(|r| (r.id, r.downloaded))
+            .collect();
+        assert_eq!(got, vec![(1, true), (2, false)]);
     }
 }

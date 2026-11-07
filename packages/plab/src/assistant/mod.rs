@@ -228,6 +228,8 @@ pub struct Assistant {
     /// could not be stored either, which would otherwise read as "not attempted today".
     last_attempt: Mutex<Option<String>>,
     hide: crate::filters::HideRule,
+    /// plab-sources, read per gather for its noise words, as the web reads it per request.
+    sources_file: Option<std::path::PathBuf>,
     /// The tracker and Prowlarr search, set once the web task that owns it exists.
     search: OnceLock<Arc<dyn search::ReleaseSearch>>,
 }
@@ -243,6 +245,7 @@ impl Assistant {
             daily_running: AtomicBool::new(false),
             last_attempt: Mutex::new(None),
             hide: crate::filters::HideRule::default(),
+            sources_file: None,
             search: OnceLock::new(),
         }
     }
@@ -250,6 +253,12 @@ impl Assistant {
     /// The exclude file's hide rule, applied to the Stash scenes the model sees.
     pub fn with_hide(mut self, hide: crate::filters::HideRule) -> Assistant {
         self.hide = hide;
+        self
+    }
+
+    /// plab-sources: its noise words are left out when releases are matched to downloads.
+    pub fn with_sources(mut self, path: Option<std::path::PathBuf>) -> Assistant {
+        self.sources_file = path;
         self
     }
 
@@ -370,7 +379,10 @@ impl Assistant {
         now: i64,
     ) -> Result<i64, TurnError> {
         self.ready()?;
-        let ctx = context::gather(db, &self.stash, &self.hide, now).await?;
+        let noise = crate::sources::load(self.sources_file.as_deref())
+            .map(|s| s.noise)
+            .unwrap_or_default();
+        let ctx = context::gather(db, &self.stash, &self.hide, &noise, now).await?;
         let mut content = format!(
             "{}\n\nPROFILE:\n{}\n\nCANDIDATES:\n{}",
             self.prompt,
