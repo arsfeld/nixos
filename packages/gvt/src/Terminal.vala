@@ -25,6 +25,8 @@ namespace Gvt {
         internal Input input;
         internal Selection selection;
         internal Clipboard clipboard;
+        internal Search search;
+        internal Matcher matcher;
 
         private Pty? pty = null;
         private bool exit_reported = false;
@@ -172,6 +174,8 @@ namespace Gvt {
             input = new Input (this);
             selection = new Selection (this);
             clipboard = new Clipboard (this);
+            search = new Search (this);
+            matcher = new Matcher (this);
 
             focusable = true;
             overflow = Gtk.Overflow.HIDDEN;
@@ -192,6 +196,9 @@ namespace Gvt {
             }
             remove_source (ref idle_id);
             remove_source (ref hold_timeout_id);
+            if (search != null) {
+                search.set_regex (null);
+            }
             if (vadj != null && vadj_handler != 0) {
                 vadj.disconnect (vadj_handler);
                 vadj_handler = 0;
@@ -284,6 +291,62 @@ namespace Gvt {
             if (text != null && text != "") {
                 get_primary_clipboard ().set_text (text);
             }
+        }
+
+        /* ---- search and matching ---- */
+
+        /* The find bar's pattern (Regex.for_search): literal, matched
+         * without case, scrollback included. Null stops searching. The
+         * flags are ignored. */
+        public void search_set_regex (Regex? regex, uint32 flags) {
+            search.set_regex (regex);
+        }
+
+        /* Whether a find past the last match starts over at the other end.
+         * Off by default. */
+        public void search_set_wrap_around (bool wrap_around) {
+            search.set_wrap_around (wrap_around);
+        }
+
+        /* Selects the next match down (from the top of the scrollback when
+         * none is selected yet) and scrolls it into view. False when there
+         * is none. */
+        public bool search_find_next () {
+            return search.find (false);
+        }
+
+        /* Selects the next match up (from the bottom when none is selected
+         * yet) and scrolls it into view. False when there is none. */
+        public bool search_find_previous () {
+            return search.find (true);
+        }
+
+        /* A match was selected, maybe off screen: libghostty scrolled to it. */
+        internal void search_selected () {
+            renderer_changed ();
+            selection_changed ();
+        }
+
+        /* Registers a pattern (Regex.for_match) to find under the pointer;
+         * returns its tag. The flags are ignored. */
+        public int match_add_regex (Regex regex, uint32 flags) {
+            return matcher.add (regex);
+        }
+
+        /* The cursor shown while the pointer is over a match of tag. */
+        public void match_set_cursor_name (int tag, string cursor_name) {
+            matcher.set_cursor_name (tag, cursor_name);
+        }
+
+        public void match_remove_all () {
+            matcher.remove_all ();
+        }
+
+        /* The text of the match under (x, y), widget pixels, trying the
+         * patterns in the order they were added; null for none. tag is the
+         * pattern's, -1 for none. A match does not span rows. */
+        public string? check_match_at (double x, double y, out int tag) {
+            return matcher.check (x, y, out tag);
         }
 
         /* Pastes text as the program wants it: bracketed under mode 2004,
@@ -398,6 +461,7 @@ namespace Gvt {
             }
             output_pending = false;
             renderer_changed ();
+            search.contents_changed ();
             contents_changed ();
         }
 

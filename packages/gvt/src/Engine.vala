@@ -69,6 +69,7 @@ namespace Gvt {
         private GhosttyVt.SelectionGestureEvent? gesture_press = null;
         private GhosttyVt.SelectionGestureEvent? gesture_drag = null;
         private GhosttyVt.SelectionGestureEvent? gesture_release = null;
+        private GhosttyVt.Search? search = null;
 
         /* Guards against re-entering vt_write from a signal handler, which
          * libghostty does not support: such bytes are queued instead. */
@@ -428,6 +429,190 @@ namespace Gvt {
             gesture_release = (owned) release;
             selection_gesture = g;
             return true;
+        }
+
+        /* ---- search ----
+         *
+         * One libghostty search over the whole terminal (both screens,
+         * scrollback included). The needle is literal; ASCII letters match
+         * without case. Matches are indexed newest (0, the bottom) to oldest.
+         * Selecting one moves the search's own pointer and scrolls the
+         * viewport to it if needed; it is not the terminal's selection
+         * until search_show_selected () installs it.
+         */
+
+        /* Sets the needle; null or "" stops searching. An unchanged needle
+         * keeps the results and the selected match. */
+        public void search_set_needle (string? needle) {
+            if (terminal == null || (search == null && (needle == null || needle == ""))) {
+                return;
+            }
+            if (search == null) {
+                GhosttyVt.Search s;
+                if (!check (GhosttyVt.Search.create (null, out s, terminal), "ghostty_search_new")) {
+                    return;
+                }
+                search = (owned) s;
+                var scroll = GhosttyVt.SearchScroll.IF_NEEDED;
+                check (search.set (GhosttyVt.SearchOption.SELECT_SCROLL, &scroll), "search scroll");
+            }
+            if (needle == null || needle == "") {
+                check (search.set (GhosttyVt.SearchOption.NEEDLE, null), "search needle");
+                return;
+            }
+            GhosttyVt.String value = { (uint8*) needle, needle.length };
+            check (search.set (GhosttyVt.SearchOption.NEEDLE, &value), "search needle");
+        }
+
+        /*
+         * Brings the search up to date with the terminal, a slice at a time:
+         * feeds it (always first when `changed`, since feeding is the only
+         * way it sees new output) and ticks it, until it is caught up or
+         * `budget_us` microseconds have passed. True when caught up.
+         */
+        public bool search_step (bool changed, int64 budget_us) {
+            if (search == null) {
+                return true;
+            }
+            if (changed && !check (search.feed (), "ghostty_search_feed")) {
+                return true;
+            }
+            var deadline = get_monotonic_time () + budget_us;
+            while (true) {
+                var status = GhosttyVt.SearchStatus.COMPLETE;
+                if (!check (search.get (GhosttyVt.SearchData.STATUS, &status), "search status")) {
+                    return true;
+                }
+                switch (status) {
+                case GhosttyVt.SearchStatus.COMPLETE:
+                    return true;
+                case GhosttyVt.SearchStatus.FEED_REQUIRED:
+                    if (!check (search.feed (), "ghostty_search_feed")) {
+                        return true;
+                    }
+                    break;
+                default:
+                    if (!check (search.tick (out status), "ghostty_search_tick")) {
+                        return true;
+                    }
+                    break;
+                }
+                if (get_monotonic_time () >= deadline) {
+                    return false;
+                }
+            }
+        }
+
+        /* Feeds and ticks until the search is caught up, however long the
+         * scrollback. */
+        public void search_finish () {
+            if (search != null) {
+                check (search.run (), "ghostty_search_run");
+            }
+        }
+
+        public size_t search_total {
+            get {
+                size_t total = 0;
+                if (search != null) {
+                    check (search.get (GhosttyVt.SearchData.TOTAL_MATCHES, &total), "search total");
+                }
+                return total;
+            }
+        }
+
+        /* The selected match's index (0 the newest); false if none. */
+        public bool search_selected_index (out size_t index) {
+            index = 0;
+            size_t value = 0;
+            if (search == null
+                || search.get (GhosttyVt.SearchData.SELECTED_INDEX, &value) != GhosttyVt.Result.SUCCESS) {
+                return false;
+            }
+            index = value;
+            return true;
+        }
+
+        /* Selects the next older match (or newer, with older false),
+         * wrapping, and scrolls it into view. False if there is none. */
+        public bool search_select (bool older) {
+            if (search == null) {
+                return false;
+            }
+            var result = older ? search.select_next () : search.select_prev ();
+            if (result == GhosttyVt.Result.NO_VALUE) {
+                return false;
+            }
+            return check (result, "ghostty_search_select");
+        }
+
+        /* Makes the selected match the terminal's selection, so it is drawn
+         * and copied as one. False if no match is selected. */
+        public bool search_show_selected () {
+            if (search == null) {
+                return false;
+            }
+            GhosttyVt.Selection match = {};
+            if (search.get (GhosttyVt.SearchData.SELECTED_MATCH, &match) != GhosttyVt.Result.SUCCESS) {
+                return false;
+            }
+            set_option (GhosttyVt.TerminalOption.SELECTION, &match);
+            return true;
+        }
+
+        /*
+         * The text of one absolute row, a grapheme per cell, empty cells as
+         * spaces, for matching against. offsets[col] is the byte offset in
+         * the text where column col starts (the second cell of a wide
+         * character points at the character), and offsets[cols] the length.
+         * An out-of-range row gives "" and no offsets.
+         */
+        public string row_text (long abs_row, out int[] offsets) {
+            offsets = {};
+            var total = (long) get_size (GhosttyVt.TerminalData.TOTAL_ROWS);
+            if (terminal == null || abs_row < 0 || abs_row >= total) {
+                return "";
+            }
+            var ncols = (int) cols;
+            var text = new StringBuilder.sized (ncols + 1);
+            var map = new int[ncols + 1];
+            var codepoints = new uint32[8];
+            for (var col = 0; col < ncols; col++) {
+                map[col] = (int) text.len;
+                GhosttyVt.GridRef cell_ref;
+                uint64 cell = 0;
+                if (!grid_ref_at (abs_row, col, out cell_ref)
+                    || GhosttyVt.grid_ref_cell (cell_ref, out cell) != GhosttyVt.Result.SUCCESS) {
+                    text.append_c (' ');
+                    continue;
+                }
+                var wide = GhosttyVt.CellWide.NARROW;
+                GhosttyVt.cell_get (cell, GhosttyVt.CellData.WIDE, &wide);
+                if (wide == GhosttyVt.CellWide.SPACER_TAIL) {
+                    map[col] = col > 0 ? map[col - 1] : 0;
+                    continue;
+                }
+                if (wide == GhosttyVt.CellWide.SPACER_HEAD) {
+                    continue;
+                }
+                size_t count = 0;
+                var result = GhosttyVt.grid_ref_graphemes (cell_ref, codepoints, codepoints.length, out count);
+                if (result == GhosttyVt.Result.OUT_OF_SPACE) {
+                    codepoints = new uint32[count];
+                    result = GhosttyVt.grid_ref_graphemes (cell_ref, codepoints, codepoints.length, out count);
+                }
+                if (result != GhosttyVt.Result.SUCCESS || count == 0) {
+                    text.append_c (' ');
+                    continue;
+                }
+                for (size_t i = 0; i < count; i++) {
+                    var c = (unichar) codepoints[i];
+                    text.append_unichar (c.validate () ? c : 0xFFFD);
+                }
+            }
+            map[ncols] = (int) text.len;
+            offsets = (owned) map;
+            return (owned) text.str;
         }
 
         /*

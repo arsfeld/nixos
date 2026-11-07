@@ -217,6 +217,70 @@ namespace GhosttyVt {
         public Result selection_equal (Selection a, Selection b, void* out_equal);
     }
 
+    /* ---- Grid references (grid_ref.h) ---- */
+
+    /* cell: a GhosttyCell (uint64_t), for cell_get. */
+    [CCode (cname = "ghostty_grid_ref_cell")]
+    public static Result grid_ref_cell (GridRef grid_ref, out uint64 cell);
+    /* buf_len and written count codepoints; OUT_OF_SPACE sets written to
+     * the count needed. */
+    [CCode (cname = "ghostty_grid_ref_graphemes")]
+    public static Result grid_ref_graphemes (GridRef grid_ref, [CCode (array_length = false)] uint32[]? buf,
+                                             size_t buf_len, out size_t written);
+
+    /* ---- Search (search.h) ---- */
+
+    [CCode (cname = "GhosttySearchStatus", cprefix = "GHOSTTY_SEARCH_STATUS_", has_type_id = false)]
+    public enum SearchStatus {
+        RUNNING,
+        FEED_REQUIRED,
+        COMPLETE
+    }
+
+    [CCode (cname = "GhosttySearchScroll", cprefix = "GHOSTTY_SEARCH_SCROLL_", has_type_id = false)]
+    public enum SearchScroll {
+        IF_NEEDED,
+        NONE
+    }
+
+    [CCode (cname = "GhosttySearchData", cprefix = "GHOSTTY_SEARCH_DATA_", has_type_id = false)]
+    public enum SearchData {
+        STATUS,
+        NEEDLE,
+        TOTAL_MATCHES,
+        SELECTED_INDEX,
+        SELECTED_MATCH,
+        MATCHES,
+        VIEWPORT_MATCHES,
+        SELECT_SCROLL
+    }
+
+    [CCode (cname = "GhosttySearchOption", cprefix = "GHOSTTY_SEARCH_OPT_", has_type_id = false)]
+    public enum SearchOption {
+        NEEDLE,
+        SELECT_SCROLL
+    }
+
+    /* Borrows the terminal; the two may be freed in either order. */
+    [Compact]
+    [CCode (cname = "struct GhosttySearchImpl", free_function = "ghostty_search_free", lower_case_cprefix = "ghostty_search_")]
+    public class Search {
+        [CCode (cname = "ghostty_search_new")]
+        public static Result create (void* allocator, out Search search, Terminal terminal);
+
+        public Result tick (out SearchStatus status);
+        public Result feed ();
+        public Result run ();
+        /* Toward older content (next) or newer (prev), wrapping; NO_VALUE
+         * when there is no match. Scrolls per SELECT_SCROLL. */
+        public Result select_next ();
+        public Result select_prev ();
+        /* value: a pointer to the option's value type; null clears it. */
+        public Result set (SearchOption option, void* value);
+        /* value: a pointer to the output type documented for `data`. */
+        public Result get (SearchData data, void* value);
+    }
+
     /* ---- Selection gestures (selection.h) ---- */
 
     [CCode (cname = "GhosttySelectionGestureBehavior", cprefix = "GHOSTTY_SELECTION_GESTURE_BEHAVIOR_", has_type_id = false)]

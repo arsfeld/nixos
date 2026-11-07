@@ -30,7 +30,8 @@ test(
 # sandbox has no session bus, so accessibility and portals, which want one,
 # are off.
 # selection-test flips the clipboard-read key, in a memory GSettings backend.
-foreach name : ['terminal-test', 'renderer-test', 'input-test', 'selection-test']
+foreach name : ['terminal-test', 'renderer-test', 'input-test', 'selection-test',
+             'search-test']
   test(
     name,
     executable(
