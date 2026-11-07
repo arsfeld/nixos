@@ -107,6 +107,26 @@ static void test_url () {
     assert_null (t.check_match_at (8 * cw + cw / 2, ch / 2, null));
 }
 
+/* A URL longer than the terminal is wide soft-wraps, and is still one
+ * match, from either of its rows. A hard line break still ends one. */
+static void test_url_wrapped () {
+    var t = TestUtil.new_terminal ();
+    try {
+        t.match_add_regex (new Gvt.Regex.for_match ("https?://[^ ]+", -1, 0), 0);
+    } catch (Error e) {
+        assert_no_error (e);
+    }
+    assert_cmpuint (t.engine.cols, CompareOperator.EQ, 80);
+    var url = "https://example.org/" + string.nfill (100, 'a');
+    t.process_output (("see " + url + " now\r\nhttps://y.org").data);
+    var cw = t.get_char_width ();
+    var ch = t.get_char_height ();
+    assert_cmpstr (t.check_match_at (10 * cw + cw / 2, ch / 2, null), CompareOperator.EQ, url);
+    assert_cmpstr (t.check_match_at (5 * cw + cw / 2, ch + ch / 2, null), CompareOperator.EQ, url);
+    assert_cmpstr (t.check_match_at (2 * cw + cw / 2, 2 * ch + ch / 2, null), CompareOperator.EQ, "https://y.org");
+    assert_null (t.check_match_at (46 * cw + cw / 2, ch + ch / 2, null));
+}
+
 static void test_bad_regex () {
     try {
         new Gvt.Regex.for_match ("(", -1, 0);
@@ -125,5 +145,6 @@ public static int main (string[] args) {
     Test.add_func ("/search/scrollback", test_scrollback);
     Test.add_func ("/match/url", test_url);
     Test.add_func ("/match/bad-regex", test_bad_regex);
+    Test.add_func ("/match/url-wrapped", test_url_wrapped);
     return Test.run ();
 }

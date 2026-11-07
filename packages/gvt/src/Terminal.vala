@@ -351,7 +351,8 @@ namespace Gvt {
 
         /* The text of the match under (x, y), widget pixels, trying the
          * patterns in the order they were added; null for none. tag is the
-         * pattern's, -1 for none. A match does not span rows. */
+         * pattern's, -1 for none. A match may span soft-wrapped rows, not
+         * a hard line break. */
         public string? check_match_at (double x, double y, out int tag) {
             return matcher.check (x, y, out tag);
         }

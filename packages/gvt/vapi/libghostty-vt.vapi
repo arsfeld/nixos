@@ -233,6 +233,21 @@ namespace GhosttyVt {
     /* cell: a GhosttyCell (uint64_t), for cell_get. */
     [CCode (cname = "ghostty_grid_ref_cell")]
     public static Result grid_ref_cell (GridRef grid_ref, out uint64 cell);
+    /* row: a GhosttyRow (uint64_t), for row_get. */
+    [CCode (cname = "ghostty_grid_ref_row")]
+    public static Result grid_ref_row (GridRef grid_ref, out uint64 row);
+
+    [CCode (cname = "GhosttyRowData", cprefix = "GHOSTTY_ROW_DATA_", has_type_id = false)]
+    public enum RowData {
+        INVALID,
+        WRAP,
+        WRAP_CONTINUATION
+    }
+
+    /* out: a pointer to the type documented for `data` (bool for WRAP). */
+    [CCode (cname = "ghostty_row_get")]
+    public static Result row_get (uint64 row, RowData data, void* out);
+
     /* buf_len and written count codepoints; OUT_OF_SPACE sets written to
      * the count needed. */
     [CCode (cname = "ghostty_grid_ref_graphemes")]

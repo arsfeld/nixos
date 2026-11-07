@@ -704,6 +704,24 @@ namespace Gvt {
             return (owned) text.str;
         }
 
+        /* Whether an absolute row is soft-wrapped: its text goes on in the
+         * next row. False out of range. */
+        public bool row_wrapped (long abs_row) {
+            var total = (long) get_size (GhosttyVt.TerminalData.TOTAL_ROWS);
+            if (terminal == null || abs_row < 0 || abs_row >= total) {
+                return false;
+            }
+            GhosttyVt.GridRef cell_ref;
+            uint64 row = 0;
+            if (!grid_ref_at (abs_row, 0, out cell_ref)
+                || GhosttyVt.grid_ref_row (cell_ref, out row) != GhosttyVt.Result.SUCCESS) {
+                return false;
+            }
+            bool wrapped = false;
+            GhosttyVt.row_get (row, GhosttyVt.RowData.WRAP, &wrapped);
+            return wrapped;
+        }
+
         /*
          * With clear_history, a full reset (RIS): modes, screen and
          * scrollback. Without it, a soft reset (DECSTR), which resets modes,

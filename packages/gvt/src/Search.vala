@@ -108,8 +108,9 @@ namespace Gvt {
 
     /*
      * The patterns registered with match_add_regex (), tried in the order
-     * they were added, over the text of the row under the pointer. A match
-     * does not continue onto the next row.
+     * they were added, over the text of the line under the pointer: its
+     * row and the rows soft-wrapped onto it, so a long URL is one match. A
+     * hard line break ends a line.
      */
     internal class Matcher : Object {
         private class Entry {
@@ -117,6 +118,9 @@ namespace Gvt {
             public GLib.Regex regex;
             public string? cursor_name = null;
         }
+
+        /* How far a soft-wrapped line is followed either way. */
+        private const int MAX_WRAPPED_ROWS = 64;
 
         private unowned Terminal terminal;
         private List<Entry> entries = new List<Entry> ();
@@ -185,12 +189,34 @@ namespace Gvt {
             if (col < 0 || col >= engine.cols || row < 0 || row >= engine.rows) {
                 return null;
             }
-            int[] offsets;
-            var text = engine.row_text (engine.viewport_top + row, out offsets);
-            if (offsets.length <= col) {
+            // The whole soft-wrapped line the cell is in, so a URL longer
+            // than the terminal is wide is still one match.
+            var abs_row = engine.viewport_top + row;
+            var first = abs_row;
+            while (first > abs_row - MAX_WRAPPED_ROWS && engine.row_wrapped (first - 1)) {
+                first--;
+            }
+            var last = abs_row;
+            while (last < abs_row + MAX_WRAPPED_ROWS && engine.row_wrapped (last)) {
+                last++;
+            }
+            var line = new StringBuilder ();
+            var at = -1;
+            for (var r = first; r <= last; r++) {
+                int[] offsets;
+                var text = engine.row_text (r, out offsets);
+                if (r == abs_row) {
+                    if (offsets.length <= col) {
+                        return null;
+                    }
+                    at = (int) line.len + offsets[col];
+                }
+                line.append (text);
+            }
+            if (at < 0) {
                 return null;
             }
-            var at = offsets[col];
+            var text = line.str;
             foreach (unowned Entry entry in entries) {
                 MatchInfo info;
                 if (!entry.regex.match (text, 0, out info)) {
