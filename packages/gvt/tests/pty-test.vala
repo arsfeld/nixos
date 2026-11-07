@@ -133,6 +133,42 @@ static void test_exec_fail () {
     assert_true (threw);
 }
 
+/* Once closed, write and set_size leave the old fd number alone, even after
+ * another PTY's master has taken it. */
+static void test_closed_is_inert () {
+    try {
+        Pid pid;
+        var pty = Gvt.Pty.spawn (null, { "sleep", "100" }, null, SpawnFlags.SEARCH_PATH, null, out pid);
+        var old_fd = pty.fd;
+        pty.close ();
+
+        int master, slave;
+        assert_cmpint (GvtPosix.openpty (out master, out slave, null, null, null), CompareOperator.EQ, 0);
+        var size = GvtPosix.WinSize () { ws_row = 3, ws_col = 7 };
+        GvtPosix.ioctl_winsize (master, GvtPosix.TIOCSWINSZ, ref size);
+        if (master != old_fd) {
+            assert_cmpint (Posix.dup2 (master, old_fd), CompareOperator.EQ, old_fd);
+            Posix.close (master);
+        }
+        Posix.fcntl (slave, Posix.F_SETFL, Posix.fcntl (slave, Posix.F_GETFL) | Posix.O_NONBLOCK);
+
+        pty.write ("leak\n".data);
+        pty.set_size (10, 4, 100, 80);
+
+        var buf = new uint8[64];
+        assert_cmpint ((int) Posix.read (slave, buf, buf.length), CompareOperator.EQ, -1);
+        assert_cmpint (Posix.errno, CompareOperator.EQ, Posix.EAGAIN);
+        var now = GvtPosix.WinSize ();
+        GvtPosix.ioctl_winsize (slave, GvtPosix.TIOCGWINSZ, ref now);
+        assert_cmpuint (now.ws_col, CompareOperator.EQ, 7);
+        assert_cmpuint (now.ws_row, CompareOperator.EQ, 3);
+        Posix.close (old_fd);
+        Posix.close (slave);
+    } catch (Error e) {
+        error ("%s", e.message);
+    }
+}
+
 static void test_close () {
     try {
         Pid pid;
@@ -190,6 +226,7 @@ static int main (string[] args) {
     Test.add_func ("/pty/read-cap", test_read_cap);
     Test.add_func ("/pty/exec-fail", test_exec_fail);
     Test.add_func ("/pty/close", test_close);
+    Test.add_func ("/pty/closed-is-inert", test_closed_is_inert);
     Test.add_func ("/pty/runtime-argv", test_runtime_argv);
     return Test.run ();
 }

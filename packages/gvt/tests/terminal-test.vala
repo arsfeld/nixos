@@ -148,6 +148,47 @@ static void test_engine_failed () {
     window.destroy ();
 }
 
+/* After a failure the old PTY fd number may be reused (here by another
+ * PTY's master, as another tab's would be): nothing may reach it. */
+static void test_engine_failed_drops_pty () {
+    var t = TestUtil.new_terminal ();
+    var window = TestUtil.present (t);
+    TestUtil.spawn (t, { "sleep", "100" });
+    var old_fd = t.get_pty ().fd;
+    t.engine.failed ();
+    assert_true (t.get_pty () == null);
+
+    int master, slave;
+    assert_cmpint (GvtPosix.openpty (out master, out slave, null, null, null), CompareOperator.EQ, 0);
+    var size = GvtPosix.WinSize () { ws_row = 3, ws_col = 7 };
+    GvtPosix.ioctl_winsize (master, GvtPosix.TIOCSWINSZ, ref size);
+    if (master != old_fd) {
+        assert_cmpint (Posix.dup2 (master, old_fd), CompareOperator.EQ, old_fd);
+        Posix.close (master);
+    }
+    Posix.fcntl (slave, Posix.F_SETFL, Posix.fcntl (slave, Posix.F_GETFL) | Posix.O_NONBLOCK);
+
+    t.feed_child ("leak\n".data);
+    t.engine.write ("\x1b[c".data); // a device-attributes reply goes to the PTY
+    TestUtil.measure (t);
+    t.allocate ((int) t.get_char_width () * 10, (int) t.get_char_height () * 4, -1, null);
+    assert_cmpuint (t.engine.cols, CompareOperator.EQ, 10);
+    TestUtil.run_for (100);
+
+    var buf = new uint8[64];
+    var n = Posix.read (slave, buf, buf.length);
+    assert_cmpint ((int) n, CompareOperator.EQ, -1);
+    assert_cmpint (Posix.errno, CompareOperator.EQ, Posix.EAGAIN);
+    var now = GvtPosix.WinSize ();
+    GvtPosix.ioctl_winsize (slave, GvtPosix.TIOCGWINSZ, ref now);
+    assert_cmpuint (now.ws_col, CompareOperator.EQ, 7);
+    assert_cmpuint (now.ws_row, CompareOperator.EQ, 3);
+
+    Posix.close (old_fd);
+    Posix.close (slave);
+    window.destroy ();
+}
+
 static void test_one_draw_per_tick () {
     var t = TestUtil.new_terminal ();
     var window = TestUtil.present (t);
@@ -177,6 +218,7 @@ int main (string[] args) {
     Test.add_func ("/terminal/font-scale", test_font_scale);
     Test.add_func ("/terminal/vadjustment", test_vadjustment);
     Test.add_func ("/terminal/engine-failed", test_engine_failed);
+    Test.add_func ("/terminal/engine-failed-drops-pty", test_engine_failed_drops_pty);
     Test.add_func ("/terminal/one-draw-per-tick", test_one_draw_per_tick);
     return Test.run ();
 }

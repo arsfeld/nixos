@@ -197,8 +197,9 @@ namespace Gvt {
             child_source = ChildWatch.add (pid, on_child);
         }
 
+        /* No-op once closed: the fd number may belong to someone else by then. */
         internal void write (uint8[] bytes) {
-            if (bytes.length == 0) {
+            if (closed || bytes.length == 0) {
                 return;
             }
             out_queue.append (bytes);
@@ -276,7 +277,11 @@ namespace Gvt {
             }
         }
 
+        /* No-op once closed, like write (). */
         internal void set_size (uint16 cols, uint16 rows, uint16 px_w, uint16 px_h) {
+            if (closed) {
+                return;
+            }
             var ws = GvtPosix.WinSize () {
                 ws_row = rows, ws_col = cols, ws_xpixel = px_w, ws_ypixel = px_h
             };

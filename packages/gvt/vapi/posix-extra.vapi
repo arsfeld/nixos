@@ -13,6 +13,8 @@ namespace GvtPosix {
     public const ulong TIOCSCTTY;
     [CCode (cname = "TIOCSWINSZ")]
     public const ulong TIOCSWINSZ;
+    [CCode (cname = "TIOCGWINSZ")]
+    public const ulong TIOCGWINSZ;
 
     [CCode (cname = "openpty")]
     public int openpty (out int amaster, out int aslave, void* name, void* termp, void* winp);

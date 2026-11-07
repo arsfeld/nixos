@@ -256,6 +256,7 @@ namespace Gvt {
         private void on_engine_failed () {
             if (pty != null) {
                 pty.close ();
+                pty = null;
             }
             report_exit (-1);
         }
