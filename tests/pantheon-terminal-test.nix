@@ -35,15 +35,12 @@
     # the test names the gvt build through this link.
     environment.etc."gvt-terminal".source = "${pkgs.elementary-terminal-ghostty}/bin/io.elementary.terminal";
 
-    environment.etc."gvt-e2e.sh" = {
+    environment.etc."osc-check.sh" = {
       mode = "0755";
       text = ''
         #!${pkgs.runtimeShell}
-        printf '\033]2;gvt-e2e\007'
+        printf '\033]2;TITLEOK\007'
         printf '\033[31mRED\033[0m\n'
-        # A Wayland compositor only accepts a clipboard write that follows
-        # input to the window, so wait for a keypress before the OSC 52.
-        read -r _
         printf '\033]52;c;%s\007' "$(printf e2e-ok | base64)"
         exec sleep infinity
       '';
@@ -52,8 +49,10 @@
 
   testScript = {nodes, ...}: let
     uid = toString nodes.machine.users.users.arosenfeld.uid;
-    env = "XDG_RUNTIME_DIR=/run/user/${uid} WAYLAND_DISPLAY=wayland-0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${uid}/bus";
+    env = "XDG_CURRENT_DESKTOP=Pantheon XDG_RUNTIME_DIR=/run/user/${uid} WAYLAND_DISPLAY=wayland-0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${uid}/bus";
   in ''
+    import subprocess
+
     machine.wait_for_unit("display-manager.service")
     machine.wait_for_file("/run/user/${uid}/wayland-0")
     machine.wait_until_succeeds("pgrep -f '(^|/)io\\.elementary\\.wingpanel$'")
@@ -61,26 +60,35 @@
     machine.wait_for_text("Applications")
 
     machine.succeed(
-        "su - arosenfeld -c '${env} nohup /etc/gvt-terminal -e /etc/gvt-e2e.sh >/tmp/terminal.log 2>&1 &'"
+        "su - arosenfeld -c '${env} nohup /etc/gvt-terminal -e /etc/osc-check.sh >/tmp/terminal.log 2>&1 &'"
     )
 
-    with subtest("OSC 2 title and the coloured text are on screen"):
-        try:
-            machine.wait_for_text("RED", timeout=60)
-            # A lone tab shows no tab bar; a second tab brings it up with
-            # each tab labelled by its OSC 2 title.
-            machine.send_key("ctrl-shift-t")
-            machine.wait_for_text("gvt-e2e", timeout=30)
-        except Exception:
-            print(machine.execute("pgrep -af terminal; cat /tmp/terminal.log")[1])
-            raise
+    def header_text():
+        # The driver's OCR does not read the bold header bar title, so crop
+        # the bar, scale it up and OCR just that.
+        machine.send_monitor_command("screendump /tmp/header.ppm")
+        subprocess.run(
+            ["magick", "/tmp/header.ppm", "-crop", "700x36+290+64", "+repage",
+             "-colorspace", "Gray", "-resize", "400%", "-negate", "/tmp/header.png"],
+            check=True,
+        )
+        return subprocess.run(
+            ["tesseract", "/tmp/header.png", "-", "--psm", "7"], check=True, capture_output=True
+        ).stdout.decode().strip()
+
+    with subtest("The script's output and OSC 2 title are on screen"):
+        machine.wait_for_text("RED", timeout=60)
         machine.screenshot("pantheon-terminal")
+        # Only the header bar can show this: the command line says
+        # osc-check.sh, and the tab labels show the user name.
+        for _ in range(15):
+            if header_text() == "TITLEOK":
+                break
+            machine.sleep(2)
+        else:
+            raise Exception("header bar title is %r, not TITLEOK" % header_text())
 
     with subtest("OSC 52 write reaches the Wayland clipboard"):
-        # Close the second tab to land back on the script's.
-        machine.send_key("ctrl-shift-w")
-        machine.wait_for_text("RED")
-        machine.send_chars("\n")
         machine.wait_until_succeeds(
             "su - arosenfeld -c '${env} wl-paste -n' | grep -x e2e-ok", timeout=60
         )
