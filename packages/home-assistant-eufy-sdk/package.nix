@@ -8,13 +8,13 @@
 pkgs.buildHomeAssistantComponent rec {
   owner = "mega-yfue";
   domain = "eufy_sdk";
-  version = "0.2.1";
+  version = "0.7.0";
 
   src = pkgs.fetchFromGitHub {
     owner = "mega-yfue";
     repo = "ha-eufy-sdk";
     tag = version;
-    hash = "sha256-j9rGcsvnTZXkRHl1TNlmBi5Ad7eO2GZ8xrG264m4ZLQ=";
+    hash = "sha256-IgGWLo+ZqZhAYWuO/I2tkw9ePqy4CXf/5NOG+CzSfSc=";
   };
 
   meta = {

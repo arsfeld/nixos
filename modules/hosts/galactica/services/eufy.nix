@@ -27,7 +27,7 @@
       # DAC_OVERRIDE: writes /config owned by media (reasoned, not observed).
       # FOWNER: precautionary alongside DAC_OVERRIDE.
       container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
-      image = "ghcr.io/mega-yfue/ha-eufy-sdk-bridge:0.2.0";
+      image = "ghcr.io/mega-yfue/ha-eufy-sdk-bridge:0.7.2";
       container = {
         configDir = "/app/data";
         environmentFiles = [config.sops.secrets."eufy-sdk-bridge-env".path]; # EUFY_EMAIL, EUFY_PASSWORD

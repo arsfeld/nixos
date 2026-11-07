@@ -217,6 +217,46 @@
             }
           ];
 
+          # The front door lock's own auto-lock does not work, so a nightly
+          # check stands in for it. The lock is the "Front Door" T85F1, which
+          # eufy_sdk exposes as a lock only since 0.7 (state is the device's
+          # param 6000: 4 locked, 3 unlocked). Anything but "locked" alerts,
+          # so an unreachable lock is reported too, not silently skipped.
+          "automation front_door" = [
+            {
+              alias = "Front door - Unlocked at night";
+              description = "Tell the phone at 22:00 if the front door is not locked";
+              triggers = [
+                {
+                  trigger = "time";
+                  at = "22:00:00";
+                }
+              ];
+              conditions = [
+                {
+                  condition = "not";
+                  conditions = [
+                    {
+                      condition = "state";
+                      entity_id = "lock.front_door";
+                      state = "locked";
+                    }
+                  ];
+                }
+              ];
+              actions = [
+                {
+                  action = "notify.mobile_app_alexandres_iphone";
+                  data = {
+                    title = "Front door";
+                    message = "{{ 'The front door is unlocked.' if is_state('lock.front_door', 'unlocked') else 'Could not confirm the front door is locked (lock is ' ~ states('lock.front_door') ~ ').' }}";
+                  };
+                }
+              ];
+              mode = "single";
+            }
+          ];
+
           # Allow UI-managed configuration files
           # These files will be created and managed by the Home Assistant UI
           "automation ui" = "!include automations.yaml";
