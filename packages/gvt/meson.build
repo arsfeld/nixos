@@ -6,7 +6,7 @@ gvt_name = 'gvt-' + api_version
 add_project_arguments('-DG_LOG_DOMAIN="Gvt"', language: 'c')
 
 vapi_dir = meson.current_source_dir() / 'vapi'
-add_project_arguments(['--vapidir', vapi_dir], language: 'vala')
+add_project_arguments(['--vapidir', vapi_dir, '--pkg', 'posix'], language: 'vala')
 
 glib_dep = dependency('glib-2.0')
 gobject_dep = dependency('gobject-2.0')
@@ -22,6 +22,8 @@ gvt_deps = [glib_dep, gobject_dep, gio_dep, gtk_dep, pango_dep, ghostty_dep]
 # Engine is the only file that may call the libghostty C API.
 gvt_sources = files(
   'src/Engine.vala',
+  'src/Pty.vala',
+  'vapi/posix-extra.vapi',
 )
 
 gvt_lib = library(
