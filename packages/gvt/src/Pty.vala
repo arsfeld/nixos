@@ -189,7 +189,11 @@ namespace Gvt {
             var flags = Posix.fcntl (fd, Posix.F_GETFL);
             Posix.fcntl (fd, Posix.F_SETFL, flags | Posix.O_NONBLOCK);
 
-            read_source = watch (IOCondition.IN | IOCondition.HUP | IOCondition.ERR, on_readable);
+            /* Below the frame clock (GDK_PRIORITY_REDRAW) and input events, as
+             * VTE reads its child: a child that never stops writing still
+             * lets the window redraw and take keys between reads. */
+            read_source = watch (IOCondition.IN | IOCondition.HUP | IOCondition.ERR, on_readable,
+                                 Priority.DEFAULT_IDLE);
             child_source = ChildWatch.add (pid, on_child);
         }
 
@@ -226,10 +230,10 @@ namespace Gvt {
 
         /* The channel is only a way to watch the fd: all I/O goes through
          * read () and write (), and the fd stays open when it goes away. */
-        private uint watch (IOCondition condition, IOFunc func) {
+        private uint watch (IOCondition condition, owned IOFunc func, int priority = Priority.DEFAULT) {
             var channel = new IOChannel.unix_new (fd);
             channel.set_close_on_unref (false);
-            return channel.add_watch (condition, func);
+            return channel.add_watch_full (priority, condition, (owned) func);
         }
 
         private bool on_writable (IOChannel source, IOCondition condition) {

@@ -14,6 +14,8 @@
   pango,
   libghostty-vt,
   weston,
+  makeFontsConf,
+  dejavu_fonts,
 }:
 stdenv.mkDerivation {
   pname = "gvt";
@@ -47,6 +49,9 @@ stdenv.mkDerivation {
   preCheck = ''
     export XDG_RUNTIME_DIR=$TMPDIR
     chmod 0700 "$XDG_RUNTIME_DIR"
+    # One known monospace font, so the widget tests' cell metrics are stable.
+    export FONTCONFIG_FILE=${makeFontsConf {fontDirectories = [dejavu_fonts];}}
+    export XDG_CACHE_HOME=$TMPDIR/cache
     weston --backend=headless --socket=gvt-test --idle-time=0 &
     westonPid=$!
     export WAYLAND_DISPLAY=gvt-test

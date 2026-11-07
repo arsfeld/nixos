@@ -16,9 +16,35 @@ namespace Gvt {
      * takes the answer synchronously, and a later call is ignored. */
     internal delegate void ClipboardReply (string? text);
 
+    /* How much of the frame changed since the last render_clean (). */
+    internal enum RenderDirty { CLEAN, PARTIAL, FULL }
+
+    /* The cursor shape to draw, which a program may have chosen (DECSCUSR). */
+    internal enum RenderCursor { BLOCK, BAR, UNDERLINE, BLOCK_HOLLOW }
+
+    /* NARROW takes one cell, WIDE two; a SPACER is the cell a WIDE one
+     * covers (or reserves at a line end) and draws no text. */
+    internal enum CellWidth { NARROW, WIDE, SPACER }
+
+    /* Engine.cell_flags () bits (GHOSTTY_STYLE_FLAG_*). */
+    [Flags]
+    internal enum CellFlag {
+        BOLD = 1 << 0,
+        ITALIC = 1 << 1,
+        FAINT = 1 << 2,
+        BLINK = 1 << 3,
+        INVERSE = 1 << 4,
+        INVISIBLE = 1 << 5,
+        STRIKETHROUGH = 1 << 6,
+        OVERLINE = 1 << 7,
+        UNDERLINE = 7 << 8
+    }
+
     internal class Engine : Object {
         private GhosttyVt.Terminal? terminal = null;
         private GhosttyVt.RenderState? state = null;
+        private GhosttyVt.RenderStateRowIterator? row_iter = null;
+        private GhosttyVt.RenderStateRowCells? cell_iter = null;
 
         /* Guards against re-entering vt_write from a signal handler, which
          * libghostty does not support: such bytes are queued instead. */
@@ -263,23 +289,310 @@ namespace Gvt {
             return config.value;
         }
 
-        /* The render state, brought up to date with the terminal. Owned by
-         * the Engine and reused by every call. Null only after failed (). */
-        public unowned GhosttyVt.RenderState? render_state () {
+        /* ---- options ---- */
+
+        /* Default colors as 0xRRGGBB; a negative value restores libghostty's. */
+        public void set_foreground (int rgb) {
+            set_color_option (GhosttyVt.TerminalOption.COLOR_FOREGROUND, rgb);
+        }
+
+        public void set_background (int rgb) {
+            set_color_option (GhosttyVt.TerminalOption.COLOR_BACKGROUND, rgb);
+        }
+
+        public void set_cursor_color (int rgb) {
+            set_color_option (GhosttyVt.TerminalOption.COLOR_CURSOR, rgb);
+        }
+
+        /* The first colors.length palette entries (0xRRGGBB); the rest, or
+         * all of them for null, are libghostty's built-in palette. */
+        public void set_palette (uint32[]? colors) {
             if (terminal == null) {
+                return;
+            }
+            var palette = new GhosttyVt.ColorRgb[256];
+            GhosttyVt.color_palette_default (palette);
+            for (var i = 0; colors != null && i < colors.length && i < 256; i++) {
+                palette[i] = to_rgb (colors[i]);
+            }
+            set_option (GhosttyVt.TerminalOption.COLOR_PALETTE, (void*) palette);
+        }
+
+        /* The cursor shape a program gets until it sets its own (DECSCUSR),
+         * and again after it resets it. Applies at once to a default cursor. */
+        public void set_cursor_shape (CursorShape shape) {
+            if (terminal == null) {
+                return;
+            }
+            GhosttyVt.CursorStyle style;
+            switch (shape) {
+            case CursorShape.IBEAM:
+                style = GhosttyVt.CursorStyle.BAR;
+                break;
+            case CursorShape.UNDERLINE:
+                style = GhosttyVt.CursorStyle.UNDERLINE;
+                break;
+            default:
+                style = GhosttyVt.CursorStyle.BLOCK;
+                break;
+            }
+            set_option (GhosttyVt.TerminalOption.DEFAULT_CURSOR_STYLE, &style);
+        }
+
+        /* Scrollback limited by lines only, as VTE's is: libghostty's
+         * default byte limit (about one page) is lifted. size_t.MAX means
+         * unlimited. */
+        public void set_scrollback_lines (size_t lines) {
+            if (terminal == null) {
+                return;
+            }
+            size_t unlimited = size_t.MAX;
+            set_option (GhosttyVt.TerminalOption.SCROLLBACK_MAX_BYTES, &unlimited);
+            set_option (GhosttyVt.TerminalOption.SCROLLBACK_MAX_LINES, &lines);
+        }
+
+        /* ---- rendering ----
+         *
+         * A frame is read in this order: render_begin (), render_colors (),
+         * render_cursor (), then rows_begin () and, for each rows_next (),
+         * the row_* accessors; row_cells () positions the cell accessors on
+         * that row. render_clean () ends a frame that was drawn completely.
+         * Everything read is valid only until the next render_begin ().
+         */
+
+        /* Synchronized output (mode 2026). While held, render_begin () keeps
+         * the frame captured when the hold started. */
+        public bool held { get; private set; default = false; }
+
+        /* Brings the render state up to date, unless a render hold is on.
+         * False only after failed (). */
+        public bool render_begin (out RenderDirty dirty) {
+            dirty = RenderDirty.FULL;
+            if (!ensure_render_state ()) {
+                return false;
+            }
+            if (!held && !check (state.update (terminal), "ghostty_render_state_update")) {
+                return false;
+            }
+            var d = GhosttyVt.RenderStateDirty.FULL;
+            check (state.get (GhosttyVt.RenderStateData.DIRTY, &d), "render dirty");
+            switch (d) {
+            case GhosttyVt.RenderStateDirty.FALSE:
+                dirty = RenderDirty.CLEAN;
+                break;
+            case GhosttyVt.RenderStateDirty.PARTIAL:
+                dirty = RenderDirty.PARTIAL;
+                break;
+            default:
+                dirty = RenderDirty.FULL;
+                break;
+            }
+            return true;
+        }
+
+        /* The default colors in effect (set_* or OSC 10/11/12), 0xRRGGBB.
+         * has_cursor is false when no cursor color is set. */
+        public void render_colors (out uint32 foreground, out uint32 background,
+                                   out bool has_cursor, out uint32 cursor) {
+            GhosttyVt.RenderStateColors colors = {};
+            colors.size = sizeof (GhosttyVt.RenderStateColors);
+            check (state.get (GhosttyVt.RenderStateData.COLORS, &colors), "render colors");
+            foreground = from_rgb (colors.foreground);
+            background = from_rgb (colors.background);
+            has_cursor = colors.cursor_has_value;
+            cursor = has_cursor ? from_rgb (colors.cursor) : 0;
+        }
+
+        /* The cursor's viewport cell and shape; false when it is hidden or
+         * outside the viewport. x is moved off a wide character's tail. */
+        public bool render_cursor (out uint16 x, out uint16 y, out RenderCursor style) {
+            x = 0;
+            y = 0;
+            style = RenderCursor.BLOCK;
+            GhosttyVt.RenderStateCursor cursor = {};
+            cursor.size = sizeof (GhosttyVt.RenderStateCursor);
+            if (!check (state.get (GhosttyVt.RenderStateData.CURSOR, &cursor), "render cursor")
+                || !cursor.visible || !cursor.viewport_has_value) {
+                return false;
+            }
+            x = cursor.viewport_x;
+            if (cursor.wide_tail && x > 0) {
+                x--;
+            }
+            y = cursor.viewport_y;
+            switch (cursor.visual_style) {
+            case GhosttyVt.CursorStyle.BAR:
+                style = RenderCursor.BAR;
+                break;
+            case GhosttyVt.CursorStyle.UNDERLINE:
+                style = RenderCursor.UNDERLINE;
+                break;
+            case GhosttyVt.CursorStyle.BLOCK_HOLLOW:
+                style = RenderCursor.BLOCK_HOLLOW;
+                break;
+            default:
+                style = RenderCursor.BLOCK;
+                break;
+            }
+            return true;
+        }
+
+        /* Marks the frame drawn: clears the global and per-row dirty flags. */
+        public void render_clean () {
+            if (state != null) {
+                check (state.clean (), "ghostty_render_state_clean");
+            }
+        }
+
+        /* Starts walking the viewport's rows, top to bottom. */
+        public bool rows_begin () {
+            if (state == null) {
+                return false;
+            }
+            if (row_iter == null) {
+                GhosttyVt.RenderStateRowIterator it;
+                if (!check (GhosttyVt.RenderStateRowIterator.create (null, out it), "row iterator")) {
+                    return false;
+                }
+                row_iter = (owned) it;
+            }
+            return check (state.get (GhosttyVt.RenderStateData.ROW_ITERATOR, &row_iter), "row iterator");
+        }
+
+        /* Moves to the next row; y is its viewport row. */
+        public bool rows_next (out int y) {
+            y = 0;
+            if (row_iter == null || !row_iter.next ()) {
+                return false;
+            }
+            int32 viewport_y = 0;
+            check (row_iter.get (GhosttyVt.RenderStateRowData.VIEWPORT_Y, &viewport_y), "row y");
+            y = viewport_y;
+            return true;
+        }
+
+        /* The row's identity across frames, as a hash key. */
+        public string row_key () {
+            GhosttyVt.RenderStateRowId id = {};
+            check (row_iter.get (GhosttyVt.RenderStateRowData.ID, &id), "row id");
+            return "%s.%s".printf (id.bits[0].to_string (), id.bits[1].to_string ());
+        }
+
+        /* Whether the row changed since the last render_clean (). */
+        public bool row_dirty () {
+            bool dirty = true;
+            check (row_iter.get (GhosttyVt.RenderStateRowData.DIRTY, &dirty), "row dirty");
+            return dirty;
+        }
+
+        /* The selected columns of this row, inclusive; false if none. */
+        public bool row_selection (out uint16 start, out uint16 end) {
+            GhosttyVt.RenderStateRowSelection sel = {};
+            sel.size = sizeof (GhosttyVt.RenderStateRowSelection);
+            var result = row_iter.get (GhosttyVt.RenderStateRowData.SELECTION, &sel);
+            start = sel.start_x;
+            end = sel.end_x;
+            return result == GhosttyVt.Result.SUCCESS;
+        }
+
+        /* Positions the cell accessors before this row's first cell. */
+        public bool row_cells () {
+            if (cell_iter == null) {
+                GhosttyVt.RenderStateRowCells c;
+                if (!check (GhosttyVt.RenderStateRowCells.create (null, out c), "row cells")) {
+                    return false;
+                }
+                cell_iter = (owned) c;
+            }
+            return check (row_iter.get (GhosttyVt.RenderStateRowData.CELLS, &cell_iter), "row cells");
+        }
+
+        public bool cells_next () {
+            return cell_iter.next ();
+        }
+
+        public bool cells_select (uint16 x) {
+            return cell_iter.select (x) == GhosttyVt.Result.SUCCESS;
+        }
+
+        /* The cell's grapheme cluster as UTF-8; null for an empty cell. */
+        public string? cell_text () {
+            uint8 small[32];
+            GhosttyVt.Buffer buf = { small, small.length, 0 };
+            var result = cell_iter.get (GhosttyVt.RenderStateRowCellsData.GRAPHEMES_UTF8, &buf);
+            uint8[]? large = null;
+            if (result == GhosttyVt.Result.OUT_OF_SPACE) {
+                large = new uint8[buf.len];
+                buf = { large, large.length, 0 };
+                result = cell_iter.get (GhosttyVt.RenderStateRowCellsData.GRAPHEMES_UTF8, &buf);
+            }
+            if (result != GhosttyVt.Result.SUCCESS || buf.len == 0) {
                 return null;
+            }
+            return buffer_to_string (buf.ptr, buf.len).make_valid ();
+        }
+
+        /* GHOSTTY_STYLE_FLAG_* bits, see CellFlag. */
+        public uint16 cell_flags () {
+            GhosttyVt.Style style = {};
+            check (cell_iter.get (GhosttyVt.RenderStateRowCellsData.STYLE, &style), "cell style");
+            return style.flags;
+        }
+
+        /* The cell's own resolved colors; false means the default. */
+        public bool cell_foreground (out uint32 rgb) {
+            return cell_color (GhosttyVt.RenderStateRowCellsData.FG_COLOR, out rgb);
+        }
+
+        public bool cell_background (out uint32 rgb) {
+            return cell_color (GhosttyVt.RenderStateRowCellsData.BG_COLOR, out rgb);
+        }
+
+        public CellWidth cell_width () {
+            uint64 raw = 0;
+            check (cell_iter.get (GhosttyVt.RenderStateRowCellsData.RAW, &raw), "cell raw");
+            var wide = GhosttyVt.CellWide.NARROW;
+            check (GhosttyVt.cell_get (raw, GhosttyVt.CellData.WIDE, &wide), "cell wide");
+            switch (wide) {
+            case GhosttyVt.CellWide.WIDE:
+                return CellWidth.WIDE;
+            case GhosttyVt.CellWide.SPACER_TAIL:
+            case GhosttyVt.CellWide.SPACER_HEAD:
+                return CellWidth.SPACER;
+            default:
+                return CellWidth.NARROW;
+            }
+        }
+
+        private bool cell_color (GhosttyVt.RenderStateRowCellsData which, out uint32 rgb) {
+            GhosttyVt.ColorRgb color = {};
+            var result = cell_iter.get (which, &color);
+            rgb = from_rgb (color);
+            return result == GhosttyVt.Result.SUCCESS;
+        }
+
+        private bool ensure_render_state () {
+            if (terminal == null) {
+                return false;
             }
             if (state == null) {
                 GhosttyVt.RenderState s;
                 if (!check (GhosttyVt.RenderState.create (null, out s), "ghostty_render_state_new")) {
-                    return null;
+                    return false;
                 }
                 state = (owned) s;
             }
-            if (!check (state.update (terminal), "ghostty_render_state_update")) {
-                return null;
+            return true;
+        }
+
+        /* Ends a hold the program has kept too long, by turning mode 2026
+         * off; libghostty does not report that, so held is cleared here. */
+        public void release_hold () {
+            if (terminal != null && held) {
+                GhosttyVt.TerminalModeConfig config = { 2026, false };
+                check (terminal.set (GhosttyVt.TerminalOption.MODE, &config), "release hold");
             }
-            return state;
+            held = false;
         }
 
         /* ---- libghostty callbacks; userdata is the Engine ---- */
@@ -314,8 +627,16 @@ namespace Gvt {
             pwd_changed ();
         }
 
+        /* A hold starts with the screen exactly as the program wants it left,
+         * so that frame is captured now (libghostty allows a render state
+         * update from inside vt_write), and kept until the hold ends. */
         private static void on_render_hold (GhosttyVt.Terminal t, void* userdata, [CCode (type = "bool")] bool held) {
-            ((Engine) userdata).render_hold (held);
+            var self = (Engine) userdata;
+            if (held && self.ensure_render_state ()) {
+                self.check (self.state.update (t), "ghostty_render_state_update");
+            }
+            self.held = held;
+            self.render_hold (held);
         }
 
         /* Emits the first text representation; replies before returning, as
@@ -393,6 +714,26 @@ namespace Gvt {
 
         private void set_option (GhosttyVt.TerminalOption option, void* value) {
             check (terminal.set (option, value), "ghostty_terminal_set");
+        }
+
+        private void set_color_option (GhosttyVt.TerminalOption option, int rgb) {
+            if (terminal == null) {
+                return;
+            }
+            if (rgb < 0) {
+                set_option (option, null);
+                return;
+            }
+            var color = to_rgb ((uint32) rgb);
+            set_option (option, &color);
+        }
+
+        private static GhosttyVt.ColorRgb to_rgb (uint32 rgb) {
+            return { (uint8) (rgb >> 16), (uint8) (rgb >> 8), (uint8) rgb };
+        }
+
+        private static uint32 from_rgb (GhosttyVt.ColorRgb c) {
+            return ((uint32) c.r << 16) | ((uint32) c.g << 8) | c.b;
         }
 
         private uint16 get_uint16 (GhosttyVt.TerminalData data) {

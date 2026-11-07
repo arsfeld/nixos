@@ -85,7 +85,34 @@ namespace GhosttyVt {
         CLIPBOARD_WRITE,
         CLIPBOARD_READ,
         RENDER_HOLD,
-        RESET
+        RESET,
+        COLOR_FOREGROUND,
+        COLOR_BACKGROUND,
+        COLOR_CURSOR,
+        COLOR_PALETTE,
+        DEFAULT_CURSOR_STYLE,
+        SCROLLBACK_MAX_BYTES,
+        SCROLLBACK_MAX_LINES,
+        MODE
+    }
+
+    [CCode (cname = "GhosttyColorRgb", has_type_id = false)]
+    public struct ColorRgb {
+        public uint8 r;
+        public uint8 g;
+        public uint8 b;
+    }
+
+    /* Fills out[256] with the built-in palette. */
+    [CCode (cname = "ghostty_color_palette_default")]
+    public static void color_palette_default ([CCode (array_length = false)] ColorRgb[] out_palette);
+
+    [CCode (cname = "GhosttyCursorStyle", cprefix = "GHOSTTY_CURSOR_STYLE_", has_type_id = false)]
+    public enum CursorStyle {
+        BAR,
+        BLOCK,
+        UNDERLINE,
+        BLOCK_HOLLOW
     }
 
     [CCode (cname = "GhosttyTerminalData", cprefix = "GHOSTTY_TERMINAL_DATA_", has_type_id = false)]
@@ -295,7 +322,111 @@ namespace GhosttyVt {
         public Result format_alloc (void* allocator, out uint8* out_ptr, out size_t out_len);
     }
 
-    /* ---- Render state ---- */
+    /* ---- Render state (render.h) ----
+     * Only the struct fields gvt reads are bound; the C header defines the
+     * real layout, so sizeof () is right. */
+
+    [CCode (cname = "GhosttyRenderStateDirty", cprefix = "GHOSTTY_RENDER_STATE_DIRTY_", has_type_id = false)]
+    public enum RenderStateDirty {
+        FALSE,
+        PARTIAL,
+        FULL
+    }
+
+    [CCode (cname = "GhosttyRenderStateData", cprefix = "GHOSTTY_RENDER_STATE_DATA_", has_type_id = false)]
+    public enum RenderStateData {
+        DIRTY,
+        ROW_ITERATOR,
+        CURSOR,
+        COLORS
+    }
+
+    /* A sized struct: set size = sizeof (RenderStateCursor). The viewport
+     * fields are undefined unless viewport_has_value. */
+    [CCode (cname = "GhosttyRenderStateCursor", has_type_id = false)]
+    public struct RenderStateCursor {
+        public size_t size;
+        public bool viewport_has_value;
+        public uint16 viewport_x;
+        public uint16 viewport_y;
+        public bool wide_tail;
+        public bool visible;
+        public CursorStyle visual_style;
+    }
+
+    /* A sized struct: set size = sizeof (RenderStateColors). */
+    [CCode (cname = "GhosttyRenderStateColors", has_type_id = false)]
+    public struct RenderStateColors {
+        public size_t size;
+        public ColorRgb background;
+        public ColorRgb foreground;
+        public ColorRgb cursor;
+        public bool cursor_has_value;
+    }
+
+    [CCode (cname = "GhosttyRenderStateRowData", cprefix = "GHOSTTY_RENDER_STATE_ROW_DATA_", has_type_id = false)]
+    public enum RenderStateRowData {
+        DIRTY,
+        CELLS,
+        SELECTION,
+        VIEWPORT_Y,
+        ID
+    }
+
+    /* Opaque; two ids are the same row when both words are equal. */
+    [CCode (cname = "GhosttyRenderStateRowId", has_type_id = false)]
+    public struct RenderStateRowId {
+        public uint64 bits[2];
+    }
+
+    /* A sized struct: set size = sizeof (RenderStateRowSelection). Ends inclusive. */
+    [CCode (cname = "GhosttyRenderStateRowSelection", has_type_id = false)]
+    public struct RenderStateRowSelection {
+        public size_t size;
+        public uint16 start_x;
+        public uint16 end_x;
+    }
+
+    [CCode (cname = "GhosttyRenderStateRowCellsData", cprefix = "GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_", has_type_id = false)]
+    public enum RenderStateRowCellsData {
+        RAW,
+        STYLE,
+        BG_COLOR,
+        FG_COLOR,
+        GRAPHEMES_UTF8
+    }
+
+    /* A caller-owned byte buffer: len is the bytes written, or the size
+     * needed on OUT_OF_SPACE. */
+    [CCode (cname = "GhosttyBuffer", has_type_id = false)]
+    public struct Buffer {
+        public uint8* ptr;
+        public size_t cap;
+        public size_t len;
+    }
+
+    [CCode (cname = "GhosttyStyle", has_type_id = false)]
+    public struct Style {
+        /* GHOSTTY_STYLE_FLAG_* bits; the underline kind in bits 8-10. */
+        public uint16 flags;
+    }
+
+    [CCode (cname = "GhosttyCellData", cprefix = "GHOSTTY_CELL_DATA_", has_type_id = false)]
+    public enum CellData {
+        WIDE
+    }
+
+    [CCode (cname = "GhosttyCellWide", cprefix = "GHOSTTY_CELL_WIDE_", has_type_id = false)]
+    public enum CellWide {
+        NARROW,
+        WIDE,
+        SPACER_TAIL,
+        SPACER_HEAD
+    }
+
+    /* cell is a GhosttyCell (uint64_t) from RenderStateRowCellsData.RAW. */
+    [CCode (cname = "ghostty_cell_get")]
+    public static Result cell_get (uint64 cell, CellData data, void* out);
 
     [Compact]
     [CCode (cname = "struct GhosttyRenderStateImpl", free_function = "ghostty_render_state_free", lower_case_cprefix = "ghostty_render_state_")]
@@ -304,5 +435,35 @@ namespace GhosttyVt {
         public static Result create (void* allocator, out RenderState state);
 
         public Result update (Terminal terminal);
+        /* out: a pointer to the output type documented for `data`. */
+        public Result get (RenderStateData data, void* out);
+        /* Clears the global and every per-row dirty flag; updates never do. */
+        public Result clean ();
+    }
+
+    /* Filled by RenderState.get (ROW_ITERATOR, &iterator); valid until the
+     * next update. */
+    [Compact]
+    [CCode (cname = "struct GhosttyRenderStateRowIteratorImpl", free_function = "ghostty_render_state_row_iterator_free", lower_case_cprefix = "ghostty_render_state_row_iterator_")]
+    public class RenderStateRowIterator {
+        [CCode (cname = "ghostty_render_state_row_iterator_new")]
+        public static Result create (void* allocator, out RenderStateRowIterator iterator);
+
+        public bool next ();
+        [CCode (cname = "ghostty_render_state_row_get")]
+        public Result get (RenderStateRowData data, void* out);
+    }
+
+    /* Filled by RenderStateRowIterator.get (CELLS, &cells); valid until the
+     * next update. */
+    [Compact]
+    [CCode (cname = "struct GhosttyRenderStateRowCellsImpl", free_function = "ghostty_render_state_row_cells_free", lower_case_cprefix = "ghostty_render_state_row_cells_")]
+    public class RenderStateRowCells {
+        [CCode (cname = "ghostty_render_state_row_cells_new")]
+        public static Result create (void* allocator, out RenderStateRowCells cells);
+
+        public bool next ();
+        public Result select (uint16 x);
+        public Result get (RenderStateRowCellsData data, void* out);
     }
 }

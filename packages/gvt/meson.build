@@ -17,12 +17,18 @@ pango_dep = dependency('pango')
 # binding vapi/libghostty-vt.vapi through --vapidir.
 ghostty_dep = dependency('libghostty-vt')
 
-gvt_deps = [glib_dep, gobject_dep, gio_dep, gtk_dep, pango_dep, ghostty_dep]
+# Math.round () and friends.
+m_dep = meson.get_compiler('c').find_library('m', required: false)
+
+gvt_deps = [glib_dep, gobject_dep, gio_dep, gtk_dep, pango_dep, ghostty_dep, m_dep]
 
 # Engine is the only file that may call the libghostty C API.
 gvt_sources = files(
   'src/Engine.vala',
+  'src/Enums.vala',
   'src/Pty.vala',
+  'src/Renderer.vala',
+  'src/Terminal.vala',
   'vapi/posix-extra.vapi',
 )
 
