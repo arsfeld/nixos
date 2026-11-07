@@ -156,6 +156,38 @@ static void test_paste () {
     window.destroy ();
 }
 
+/* Collects every byte Input sends the child. */
+class Sent : Object {
+    public StringBuilder bytes = new StringBuilder ();
+
+    public Sent (Gvt.Terminal t) {
+        t.input.sent.connect ((b) => bytes.append_len ((string) b, b.length));
+    }
+}
+
+static void test_middle_paste () {
+    var t = sized (20, 5);
+    t.get_primary_clipboard ().set_text ("mid");
+    var sent = new Sent (t);
+    t.input.button (true, 2, 5, 5, 0, 1);
+    t.input.button (false, 2, 5, 5, 0, 1);
+    assert_true (TestUtil.wait_until (() => "mid" in sent.bytes.str, 5));
+    assert_cmpstr (sent.bytes.str, CompareOperator.EQ, "mid");
+}
+
+static void test_middle_tracking () {
+    var t = sized (20, 5);
+    t.get_primary_clipboard ().set_text ("mid");
+    t.process_output ("\x1b[?1000h".data);
+    var sent = new Sent (t);
+    t.input.button (true, 2, 5, 5, 0, 1);
+    t.input.button (false, 2, 5, 5, 0, 1);
+    TestUtil.run_for (200);
+    // The program gets the click as a mouse report, and nothing is pasted.
+    assert_true (sent.bytes.str.has_prefix ("\x1b[M"));
+    assert_false ("mid" in sent.bytes.str);
+}
+
 public static int main (string[] args) {
     Test.init (ref args);
     Gtk.init ();
@@ -167,5 +199,7 @@ public static int main (string[] args) {
     Test.add_func ("/clipboard/osc52-read-off", test_osc52_read_off);
     Test.add_func ("/clipboard/osc52-read-on", test_osc52_read_on);
     Test.add_func ("/clipboard/paste", test_paste);
+    Test.add_func ("/clipboard/middle-paste", test_middle_paste);
+    Test.add_func ("/clipboard/middle-tracking", test_middle_tracking);
     return Test.run ();
 }

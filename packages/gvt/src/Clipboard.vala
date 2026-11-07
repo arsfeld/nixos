@@ -16,6 +16,7 @@
 namespace Gvt {
     internal class Clipboard : Object {
         private const string SCHEMA = "io.github.arsfeld.gvt";
+        private const string KEY = "clipboard-read";
 
         private Gdk.Clipboard display_clipboard;
         /* Bumped per refresh, so a slow read never overwrites a newer one. */
@@ -49,12 +50,15 @@ namespace Gvt {
         private bool read_allowed () {
             if (!settings_looked_up) {
                 settings_looked_up = true;
+                // A missing schema, or a stale compiled one without the key,
+                // would abort the process in GSettings: refuse reads instead.
                 var source = SettingsSchemaSource.get_default ();
-                if (source != null && source.lookup (SCHEMA, true) != null) {
+                var schema = source != null ? source.lookup (SCHEMA, true) : null;
+                if (schema != null && schema.has_key (KEY)) {
                     settings = new GLib.Settings (SCHEMA);
                 }
             }
-            return settings != null && settings.get_boolean ("clipboard-read");
+            return settings != null && settings.get_boolean (KEY);
         }
 
         private void refresh () {
