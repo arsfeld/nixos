@@ -253,7 +253,20 @@
     options.constellation.rustic = {
       package = lib.mkOption {
         type = lib.types.package;
-        default = pkgs.unstable.rustic;
+        # nixpkgs' cargoUseSystemLibs hook exports AWS_LC_SYS_USE_SYSTEM=1 for
+        # every Rust package, but rustic 0.11.4's package does not add aws-lc
+        # (or the other system libraries the hook assumes) to its buildInputs,
+        # so aws-lc-sys panics instead of using its bundled copy:
+        #
+        #   AWS_LC_SYS_USE_SYSTEM=1 requires a system-installed AWS-LC, but
+        #   none was found.
+        #
+        # Opt out of the hook and give the bundled build its cmake. Drop both
+        # once nixpkgs' rustic wires the system libraries (or drops aws-lc).
+        default = pkgs.unstable.rustic.overrideAttrs (old: {
+          dontCargoUseSystemLibs = true;
+          nativeBuildInputs = (old.nativeBuildInputs or []) ++ [pkgs.unstable.cmake];
+        });
         description = ''
           rustic package. Defaults to pkgs.unstable: stable is 0.11.2, and the
           cold-storage design was verified against 0.11.3.
