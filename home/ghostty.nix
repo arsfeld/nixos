@@ -63,6 +63,11 @@
       background-blur-radius = 20
       unfocused-split-opacity = 0.9
 
+      # Read hex colours as Display P3 rather than sRGB (macOS only; ignored
+      # on Linux). Prompt themes such as Starship's Pastel Powerline are
+      # designed and screenshotted this way, and look washed out under sRGB.
+      window-colorspace = display-p3
+
       # Color readability
       minimum-contrast = 1.1
       bold-is-bright = true
