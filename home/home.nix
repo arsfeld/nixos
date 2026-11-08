@@ -744,6 +744,10 @@ in {
       pane_frames = false;
       scroll_buffer_size = 50000;
       session_serialization = false;
+      # SSH and zellij don't forward COLORTERM, so with only
+      # TERM=xterm-256color, Node TUIs (Claude Code) round 24-bit colours to
+      # the 256-colour palette. Every terminal we attach from is truecolor.
+      env.COLORTERM = "truecolor";
     };
   };
 
