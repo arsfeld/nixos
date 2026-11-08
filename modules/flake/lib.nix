@@ -22,6 +22,9 @@
       (import ../../overlays/glances.nix)
       (import ../../overlays/libcap-ng-static.nix)
       (import ../../overlays/cloudflared.nix)
+      (import ../../overlays/stash-go-1.27.nix)
+      (import ../../overlays/topgrade-aws-lc.nix)
+      (import ../../overlays/vscode-ripgrep-universal.nix)
       # nixpkgs-unstable as `pkgs.unstable`, one instance per package set.
       # It inherits the host's nixpkgs config (allowUnfree, …) and no overlays:
       # what we take from it is plain upstream packages, and our overlays
