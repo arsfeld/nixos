@@ -24,9 +24,9 @@
 # (Kanion, IR-only) heats the living and dining rooms and, through them, the
 # bedrooms, so it stays on all the time (2026-11-07: every rule that let it
 # switch off left the house cold), except during a Hilo reduction.
-# Its setpoint is 21 whenever the target is 20 or
-# more or it is below 5°C outside: it never gets the room to 21, and 21 is
-# how it pushes heat through the house. Otherwise it is 19. On frosty
+# Its setpoint is always 21: it never gets the room to 21, and 21 is how
+# it pushes heat through the house (at 19 its own sensor, which reads warm
+# near the unit, idles it). On frosty
 # mornings it shows "dF" and stops blowing for 5-10 minutes while it
 # defrosts; the room drops ~1°C and recovers, which is why the backup waits
 # 30 minutes.
@@ -264,7 +264,7 @@
         [
           {
             alias = "Heating - Heat pump";
-            description = "Keep the heat pump on, except during a Hilo reduction; setpoint 21 whenever the target is 20 or more or it is below 5°C outside, else 19";
+            description = "Keep the heat pump on, except during a Hilo reduction, at setpoint 21";
             triggers = [
               {
                 trigger = "homeassistant";
@@ -302,7 +302,7 @@
               # restored or assumed; on start, and when the IR hub comes back,
               # send the wanted state even if HA thinks the unit is already there.
               resend = "{{ trigger.id in ['start', 'ir_back'] }}";
-              setpoint = "{{ 21 if states('${living}') | float(0) >= 20 or states('sensor.outdoor_weather_hilo') | float(99) < 5 else 19 }}";
+              setpoint = "{{ 21 }}";
               want = ''
                 {%- if ${tpl.hiloReduction} %}off{% else %}heat{% endif %}
               '';

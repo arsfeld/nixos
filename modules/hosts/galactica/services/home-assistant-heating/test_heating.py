@@ -282,9 +282,9 @@ class HeatPump(unittest.TestCase):
         v = heat_pump("19.2", "20")
         self.assertEqual((v["want"], v["setpoint"]), ("heat", 21))
 
-    def test_eco_mild_weather_setpoint_19(self):
+    def test_eco_mild_weather_still_21(self):
         v = heat_pump("18.8", "19")
-        self.assertEqual((v["want"], v["setpoint"]), ("heat", 19))
+        self.assertEqual((v["want"], v["setpoint"]), ("heat", 21))
 
     def test_eco_cold_weather_setpoint_21(self):
         self.assertEqual(heat_pump("18.8", "19", outdoor="2")["setpoint"], 21)
