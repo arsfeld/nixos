@@ -53,7 +53,8 @@
       # default (13px); 10pt renders 13.3px, which rounds to the same 13px.
       # Do not derive this from Terminal.app's SF Mono 11 -- that lands at 9pt,
       # a quarter smaller than the Ghostty we actually compare against.
-      font-size = 10
+      # Linux only: on the Mac 10pt is 10px, and the default is what we want.
+      ${lib.optionalString pkgs.stdenv.hostPlatform.isLinux "font-size = 10"}
       theme = Catppuccin Mocha
       cursor-style = block
       cursor-style-blink = true
