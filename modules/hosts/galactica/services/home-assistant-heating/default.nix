@@ -22,15 +22,9 @@
 # Pre-heat starts (target - temp) / rate before a window; a zone that owns a
 # rate helper learns it from its own unassisted pre-heats. The heat pump
 # (Kanion, IR-only) heats the living and dining rooms and, through them, the
-# bedrooms, so it runs long: always on in comfort hours (a target of 20 or
-# more; 2026-11-07, idling at 20.0 felt cold), otherwise on below the target
-# - 0.5. Either way it goes off once the room
-# has stayed above the target + 1 for 15 minutes (binary_sensor.living_area_
-# warm). The wait matters: the median moves in 0.5 steps and one reading can
-# spike for a minute (2026-11-07: 21.4 for a minute at 16:28 switched it off,
-# and the house then drifted to 19.5 before it could come back on).
-# Its own thermostat reads far colder than the room, so it is driven from
-# the living area sensor. Its setpoint is 21 whenever the target is 20 or
+# bedrooms, so it stays on all the time (2026-11-07: every rule that let it
+# switch off left the house cold), except during a Hilo reduction.
+# Its setpoint is 21 whenever the target is 20 or
 # more or it is below 5°C outside: it never gets the room to 21, and 21 is
 # how it pushes heat through the house. Otherwise it is 19. On frosty
 # mornings it shows "dF" and stops blowing for 5-10 minutes while it
@@ -223,17 +217,6 @@
             ];
           binary_sensor = [
             {
-              # The heat pump's off condition; see the header for the delay.
-              name = "Living area warm";
-              unique_id = "living_area_warm";
-              delay_on.minutes = 15;
-              state = ''
-                {%- set t = states('sensor.living_area_temperature') | float(none) %}
-                {%- set target = states('${living}') | float(none) %}
-                {{ t is not none and target is not none and t > target + 1 }}
-              '';
-            }
-            {
               name = "Living area needs backup";
               unique_id = "living_area_needs_backup";
               delay_on.minutes = 30;
@@ -281,7 +264,7 @@
         [
           {
             alias = "Heating - Heat pump";
-            description = "Run the heat pump whenever the living area's target is 20°C or more, else below the target - 0.5°C, until it has been above the target + 1°C for 15 minutes; setpoint 21 whenever the target is 20 or more or it is below 5°C outside, else 19";
+            description = "Keep the heat pump on, except during a Hilo reduction; setpoint 21 whenever the target is 20 or more or it is below 5°C outside, else 19";
             triggers = [
               {
                 trigger = "homeassistant";
@@ -297,7 +280,7 @@
                 # attribute tick of the living target (pre-heat minutes); the
                 # timer above covers anything else.
                 trigger = "state";
-                entity_id = ["sensor.defi_hilo" "sensor.living_area_temperature" "binary_sensor.living_area_warm" living];
+                entity_id = ["sensor.defi_hilo" "sensor.living_area_temperature" living];
                 not_to = ["unknown" "unavailable"];
               }
               {
@@ -321,15 +304,7 @@
               resend = "{{ trigger.id in ['start', 'ir_back'] }}";
               setpoint = "{{ 21 if states('${living}') | float(0) >= 20 or states('sensor.outdoor_weather_hilo') | float(99) < 5 else 19 }}";
               want = ''
-                {%- set temp = states('sensor.living_area_temperature') | float(none) %}
-                {%- set target = states('${living}') | float(none) %}
-                {%- if ${tpl.hiloReduction} %}off
-                {%- elif temp is none or target is none %}{{ current }}
-                {%- elif temp < target - 0.5 %}heat
-                {%- elif is_state('binary_sensor.living_area_warm', 'on') %}off
-                {%- elif target >= 20 %}heat
-                {%- else %}{{ current }}
-                {%- endif %}
+                {%- if ${tpl.hiloReduction} %}off{% else %}heat{% endif %}
               '';
             };
             actions = [

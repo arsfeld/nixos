@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from harness import MONDAY, SATURDAY, Hass, at, automation, render_entity, render_variables, template_entity
+from harness import MONDAY, SATURDAY, Hass, at, automation, render_entity, render_variables
 
 LIVING = "sensor.heating_living_area_target"
 OFFICE = "sensor.heating_office_target"
@@ -237,23 +237,6 @@ class Shortfall(unittest.TestCase):
                 self.assertEqual(living_binary("living_area_shortfall", temp, tgt, reason, minutes, this), want)
 
 
-class Warm(unittest.TestCase):
-    def test_cases(self):
-        cases = [
-            ("21.0", "20", False),
-            ("21.5", "20", True),
-            ("20.5", "19", True),   # eco: off above 20
-            ("21.5", "21", False),  # boosted: runs to 22
-            ("unavailable", "20", False),
-        ]
-        for temp, tgt, want in cases:
-            with self.subTest((temp, tgt)):
-                self.assertEqual(living_binary("living_area_warm", temp, tgt, "schedule"), want)
-
-    def test_waits_15_minutes(self):
-        self.assertEqual(template_entity("binary_sensor", "living_area_warm")["delay_on"], {"minutes": 15})
-
-
 class Backup(unittest.TestCase):
     def test_cases(self):
         cases = [
@@ -283,13 +266,12 @@ class LivingBaseboardsTarget(unittest.TestCase):
         self.assertEqual(self.render("off", "off", "schedule"), 5)
 
 
-def heat_pump(temp, target, current="off", outdoor="8", warm="off", defi="off", trigger_id="1"):
+def heat_pump(temp, target, current="off", outdoor="8", defi="off", trigger_id="1"):
     hass = Hass(at(MONDAY, "06:30"), {
         "sensor.living_area_temperature": temp,
         LIVING: target,
         "climate.living_room_heat_pump": current,
         "sensor.outdoor_weather_hilo": outdoor,
-        "binary_sensor.living_area_warm": warm,
         "sensor.defi_hilo": defi,
     })
     return render_variables(hass, "Heating - Heat pump", {"id": trigger_id})
@@ -302,35 +284,20 @@ class HeatPump(unittest.TestCase):
 
     def test_eco_mild_weather_setpoint_19(self):
         v = heat_pump("18.8", "19")
-        self.assertEqual((v["want"], v["setpoint"]), ("off", 19))
+        self.assertEqual((v["want"], v["setpoint"]), ("heat", 19))
 
     def test_eco_cold_weather_setpoint_21(self):
         self.assertEqual(heat_pump("18.8", "19", outdoor="2")["setpoint"], 21)
 
-    def test_turns_on_below_target_minus_half(self):
-        self.assertEqual(heat_pump("18.3", "19")["want"], "heat")
-
-    def test_runs_until_the_room_stays_warm(self):
-        self.assertEqual(heat_pump("21.5", "20", current="heat")["want"], "heat")
-        self.assertEqual(heat_pump("21.5", "20", current="heat", warm="on")["want"], "off")
-
-    def test_eco_stays_off_down_to_target_minus_half(self):
-        self.assertEqual(heat_pump("18.5", "19")["want"], "off")
-        self.assertEqual(heat_pump("18.0", "19")["want"], "heat")
-
-    def test_comfort_runs_until_warm(self):
-        self.assertEqual(heat_pump("20.5", "20")["want"], "heat")
-        self.assertEqual(heat_pump("21.5", "20", warm="on")["want"], "off")
-
-    def test_cold_room_beats_a_stale_warm(self):
-        # A boost raises the target; heat at once even if warm has not caught up.
-        self.assertEqual(heat_pump("20.0", "21", warm="on")["want"], "heat")
+    def test_stays_on_however_warm(self):
+        self.assertEqual(heat_pump("23.0", "20", current="heat")["want"], "heat")
+        self.assertEqual(heat_pump("23.0", "18")["want"], "heat")
 
     def test_off_during_hilo_reduction(self):
         self.assertEqual(heat_pump("19.0", "20", defi="reduction")["want"], "off")
 
-    def test_holds_when_temperature_unknown(self):
-        self.assertEqual(heat_pump("unavailable", "20", current="heat")["want"], "heat")
+    def test_on_when_temperature_unknown(self):
+        self.assertEqual(heat_pump("unavailable", "20")["want"], "heat")
 
     def test_resends_on_start(self):
         self.assertTrue(heat_pump("19.0", "20", trigger_id="start")["resend"])
