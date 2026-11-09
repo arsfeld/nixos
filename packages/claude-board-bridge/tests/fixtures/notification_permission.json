@@ -1,0 +1,8 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "cwd": "/home/arosenfeld/Code/nixos",
+  "prompt_id": "9d131286-4c29-4972-83d4-5fc74ac83548",
+  "hook_event_name": "Notification",
+  "message": "Claude needs your permission",
+  "notification_type": "permission_prompt"
+}

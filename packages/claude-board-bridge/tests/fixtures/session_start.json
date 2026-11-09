@@ -1,0 +1,7 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "cwd": "/home/arosenfeld/Code/nixos",
+  "hook_event_name": "SessionStart",
+  "source": "startup",
+  "model": "claude-sonnet-5-5"
+}

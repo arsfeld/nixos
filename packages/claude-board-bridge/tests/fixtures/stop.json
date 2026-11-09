@@ -1,0 +1,14 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "cwd": "/home/arosenfeld/Code/nixos",
+  "prompt_id": "23f4bd0e-3f43-4ce5-99dd-e9a798ec1277",
+  "permission_mode": "auto",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "Stop",
+  "stop_hook_active": false,
+  "last_assistant_message": "You picked Blue.",
+  "background_tasks": [],
+  "session_crons": []
+}

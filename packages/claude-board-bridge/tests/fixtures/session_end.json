@@ -1,0 +1,7 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "cwd": "/home/arosenfeld/Code/nixos",
+  "prompt_id": "efeeccf9-65d2-4394-a3c4-fb3d087ffe6f",
+  "hook_event_name": "SessionEnd",
+  "reason": "prompt_input_exit"
+}

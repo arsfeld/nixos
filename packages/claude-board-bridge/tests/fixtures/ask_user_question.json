@@ -1,0 +1,30 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "cwd": "/home/arosenfeld/Code/nixos",
+  "prompt_id": "23f4bd0e-3f43-4ce5-99dd-e9a798ec1277",
+  "permission_mode": "auto",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "AskUserQuestion",
+  "tool_input": {
+    "questions": [
+      {
+        "question": "Which colour?",
+        "header": "Colour",
+        "options": [
+          {
+            "label": "Red",
+            "description": "Pick red"
+          },
+          {
+            "label": "Blue",
+            "description": "Pick blue"
+          }
+        ],
+        "multiSelect": false
+      }
+    ]
+  }
+}

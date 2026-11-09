@@ -1,0 +1,8 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "cwd": "/home/arosenfeld/Code/nixos",
+  "prompt_id": "23f4bd0e-3f43-4ce5-99dd-e9a798ec1277",
+  "permission_mode": "auto",
+  "hook_event_name": "UserPromptSubmit",
+  "prompt": "hello"
+}

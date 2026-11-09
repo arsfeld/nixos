@@ -1,0 +1,10 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "cwd": "/home/arosenfeld/Code/nixos",
+  "hook_event_name": "SessionStart",
+  "source": "resume",
+  "seconds_since_last_response": 52,
+  "context_tokens": 55413,
+  "prompt_cache_likely_expired": false,
+  "estimated_cache_write_usd": 0.2217
+}
