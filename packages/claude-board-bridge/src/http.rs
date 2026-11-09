@@ -29,6 +29,8 @@ pub struct AppState {
     pub fail_delay: Duration,
     /// Live board sockets; a question is only held open when this is non-zero.
     pub board_connected: Arc<AtomicUsize>,
+    /// How often the board socket is pinged, so Cloudflare's idle timeout never closes it.
+    pub ping_every: Duration,
 }
 
 impl AppState {
@@ -41,7 +43,13 @@ impl AppState {
             ask_timeout,
             fail_delay,
             board_connected: Arc::new(AtomicUsize::new(0)),
+            ping_every: Duration::from_secs(30),
         }
+    }
+
+    pub fn with_ping_every(mut self, every: Duration) -> AppState {
+        self.ping_every = every;
+        self
     }
 
     pub fn publish(&self, c: Change) {
