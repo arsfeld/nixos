@@ -225,3 +225,12 @@ fn session_json_uses_lowercase_state() {
     assert_eq!(v["state"], "waiting");
     assert_eq!(v["project"], "nixos");
 }
+
+#[test]
+fn set_working_marks_the_session_working() {
+    let mut r = Registry::new(21600);
+    r.set_waiting("raider", "s1", CWD, 100);
+    let s = upserted(r.set_working("raider", "s1", CWD, 130));
+    assert_eq!(s.state, State::Working);
+    assert_eq!(s.since, 130);
+}

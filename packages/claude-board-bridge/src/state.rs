@@ -21,7 +21,7 @@ pub struct Registry {
 }
 
 /// The last path component of `cwd`, ignoring trailing slashes.
-fn project_of(cwd: &str) -> String {
+pub fn project_of(cwd: &str) -> String {
     let name = cwd.trim_end_matches('/').rsplit('/').next().unwrap_or("");
     if name.is_empty() { "unknown".into() } else { name.into() }
 }
@@ -55,6 +55,11 @@ impl Registry {
     /// A held question request marks its session as waiting on the user.
     pub fn set_waiting(&mut self, host: &str, session: &str, cwd: &str, ts: i64) -> Option<Change> {
         self.transition(host, session, cwd, State::Waiting, ts)
+    }
+
+    /// A held question was answered: Claude carries on.
+    pub fn set_working(&mut self, host: &str, session: &str, cwd: &str, ts: i64) -> Option<Change> {
+        self.transition(host, session, cwd, State::Working, ts)
     }
 
     fn transition(&mut self, host: &str, session: &str, cwd: &str, state: State, ts: i64) -> Option<Change> {
