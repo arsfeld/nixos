@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# claude-board-hook <event>: forwards a Claude Code hook to the claude-board bridge.
+# Events: session_start user_prompt_submit notification stop stop_failure session_end ask
+#
+# Reads the hook's JSON from stdin. For `ask` (a PermissionRequest hook on the question
+# tool) it prints the bridge's decision, if there is one, so Claude Code takes the answer
+# from the board; printing nothing leaves the normal terminal prompt.
+#
+# It never blocks or breaks a session: every failure is silent and exits 0. A failed
+# connection also pauses further attempts for a minute, so an unreachable bridge costs one
+# short delay and not one per prompt.
+#
+# Environment (all optional): CLAUDE_BOARD_URL, CLAUDE_BOARD_TOKEN_FILE,
+# CLAUDE_BOARD_HOST, CLAUDE_BOARD_STATE_DIR.
+set -uo pipefail
+
+url="${CLAUDE_BOARD_URL:-https://claude-board.arsfeld.one}"
+token_file="${CLAUDE_BOARD_TOKEN_FILE:-/run/secrets/claude-board-host-token}"
+state_dir="${CLAUDE_BOARD_STATE_DIR:-${XDG_RUNTIME_DIR:-/tmp}/claude-board-hook-$(id -u)}"
+host="${CLAUDE_BOARD_HOST:-$(uname -n)}"
+
+main() {
+  local event="${1:-}" token payload session cwd kind body marker resp status
+  case "$event" in
+    session_start | user_prompt_submit | notification | stop | stop_failure | session_end | ask) ;;
+    *) return 0 ;;
+  esac
+
+  [ -r "$token_file" ] || return 0
+  token="$(tr -d '\r\n' <"$token_file")"
+  [ -n "$token" ] || return 0
+
+  payload="$(cat)"
+  jq -e . <<<"$payload" >/dev/null 2>&1 || return 0
+  session="$(jq -r '.session_id // empty' <<<"$payload")"
+  [ -n "$session" ] || return 0
+  # Real StopFailure payloads carry no cwd.
+  cwd="$(jq -r '.cwd // empty' <<<"$payload")"
+  [ -n "$cwd" ] || cwd="$PWD"
+
+  mkdir -p "$state_dir" 2>/dev/null || return 0
+  marker="$state_dir/down"
+  if [ -e "$marker" ] && [ -z "$(find "$marker" -mmin +1 2>/dev/null)" ]; then
+    return 0
+  fi
+
+  if [ "$event" = ask ]; then
+    body="$(jq -cn --arg host "$host" --arg session "$session" --arg cwd "$cwd" \
+      --argjson tool_input "$(jq -c '.tool_input // {}' <<<"$payload")" \
+      '{host: $host, session: $session, cwd: $cwd, tool_input: $tool_input}')"
+    resp="$(curl -sS --connect-timeout 2 --max-time 80 -X POST \
+      -H @<(printf 'Authorization: Bearer %s\n' "$token") \
+      -H 'Content-Type: application/json' --data-binary "$body" \
+      -w '\n%{http_code}' "$url/v1/ask" 2>/dev/null)" || {
+      touch "$marker"
+      return 0
+    }
+    status="${resp##*$'\n'}"
+    body="${resp%$'\n'*}"
+    if [ "$status" = 200 ] && jq -e . >/dev/null 2>&1 <<<"$body"; then
+      printf '%s\n' "$body"
+    fi
+    return 0
+  fi
+
+  kind=""
+  [ "$event" = notification ] && kind="$(jq -r '.notification_type // empty' <<<"$payload")"
+  body="$(jq -cn --arg host "$host" --arg session "$session" --arg cwd "$cwd" \
+    --arg event "$event" --arg kind "$kind" --argjson ts "$(date +%s)" \
+    '{host: $host, session: $session, cwd: $cwd, event: $event, ts: $ts}
+     + (if $kind != "" then {kind: $kind} else {} end)')"
+  curl -sS -o /dev/null --connect-timeout 2 --max-time 3 -X POST \
+    -H @<(printf 'Authorization: Bearer %s\n' "$token") \
+    -H 'Content-Type: application/json' --data-binary "$body" \
+    "$url/v1/event" 2>/dev/null || touch "$marker"
+  return 0
+}
+
+main "$@" || true
+exit 0

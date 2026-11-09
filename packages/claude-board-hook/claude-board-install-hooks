@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# claude-board-install-hooks: idempotently merges the claude-board hooks into Claude Code's
+# settings.json (~/.claude/settings.json, or $CLAUDE_SETTINGS). That file is user state that
+# Claude Code also writes, so nix does not manage it: this merges into it and touches nothing
+# else. Existing hooks and keys are preserved; any earlier claude-board entry is replaced.
+# A file that is not a JSON object is refused and left untouched.
+set -uo pipefail
+
+settings="${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}"
+mkdir -p "$(dirname "$settings")" || exit 1
+[ -e "$settings" ] || printf '{}\n' >"$settings" || exit 1
+
+if ! jq -e 'type == "object"' "$settings" >/dev/null 2>&1; then
+  echo "claude-board-install-hooks: $settings is not valid JSON (or not an object); leaving it untouched" >&2
+  exit 1
+fi
+
+tmp="$(mktemp "$settings.XXXXXX")" || exit 1
+trap 'rm -f "$tmp"' EXIT
+
+jq '
+  def ours: ((.hooks // []) | any((.command // "") | startswith("claude-board-hook ")));
+  def plain($arg): {hooks: [{type: "command", command: ("claude-board-hook " + $arg)}]};
+  def add($event; $entry): .hooks[$event] = ((.hooks[$event] // []) + [$entry]);
+  .hooks = (.hooks // {})
+  | .hooks |= with_entries(.value |= map(select(ours | not)))
+  | .hooks |= with_entries(select(.value | length > 0))
+  | add("SessionStart"; plain("session_start"))
+  | add("UserPromptSubmit"; plain("user_prompt_submit"))
+  | add("Notification"; plain("notification"))
+  | add("Stop"; plain("stop"))
+  | add("StopFailure"; plain("stop_failure"))
+  | add("SessionEnd"; plain("session_end"))
+  | add("PermissionRequest"; {matcher: "AskUserQuestion",
+      hooks: [{type: "command", command: "claude-board-hook ask", timeout: 90}]})
+' "$settings" >"$tmp" || exit 1
+
+if cmp -s "$tmp" "$settings"; then
+  exit 0
+fi
+chmod --reference="$settings" "$tmp" 2>/dev/null || true
+mv "$tmp" "$settings"
+trap - EXIT
