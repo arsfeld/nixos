@@ -15,7 +15,10 @@
     port = 8590;
     secrets = config.sops.secrets;
   in {
-    # The host token is declared for every host in modules/base/claude-board.nix.
+    # The host token is declared for every host in modules/base/claude-board.nix; only this host
+    # has the unit to restart (a restartUnits entry for a unit that does not exist fails the
+    # whole activation, which is what happened on raider). The bridge reads its tokens at start.
+    sops.secrets.claude-board-host-token.restartUnits = ["claude-board.service"];
     sops.secrets.claude-board-device-token.restartUnits = ["claude-board.service"];
 
     media.services.claude-board = {
