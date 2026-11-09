@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Hooks never block or break a session: any failure exits 0 with no output.
-- Bridge reachable on LAN and tailnet only; no public route and not behind Cloudflare. Tokens come from sops.
+- The bridge is served over HTTPS at `https://claude-board.arsfeld.one` and is reachable from any network, so the board works anywhere. Authentication is the only gate: 256-bit random tokens from sops, constant-time comparison, a delay on failed auth. The board validates the server certificate (CA bundle, correct clock) and never falls back to an unverified connection.
 - A question id is unique and single-use; a late or replayed answer is ignored.
 - Questions are answered by returning `allow` with `updatedInput` = the original `questions` array plus `answers` keyed by exact question text; multi-select labels are joined with commas. A bare `allow` leaves the question open.
 - Wi-Fi SSID and password compiled into the firmware from a sops secret at build time; no on-device provisioning.
@@ -28,18 +28,22 @@
 - Question text with unicode, emoji or very long strings: the answer key must round-trip byte-exact; only the display truncates. Tasks 3 and 9.
 - A session id reused after `SessionEnd`, `/resume` or restart: the card is revived, never duplicated. Task 2.
 - Bridge down, slow or returning 5xx when a hook runs: the hook exits 0 quickly and a held ask returns nothing. Task 7.
+- Wrong or missing token on the public endpoint, and a flood of them: always 401, delayed, and the bridge stays responsive for valid clients. Task 4.
+- A connection idle for over 100 s through Cloudflare: the WebSocket stays up (bridge pings every 30 s) and a held ask returns before Cloudflare's 100 s limit. Tasks 4 and 5.
+- A board with a wrong clock, or on a network that blocks NTP: it refuses to connect rather than skip certificate checks. Task 10.
 
 ## Decisions the spec left open
 
-- Ask timeout: bridge `BRIDGE_ASK_TIMEOUT_SECS=90`; the hook's own `timeout` in settings is 120.
+- Ask timeout: bridge `BRIDGE_ASK_TIMEOUT_SECS=60`, kept well under Cloudflare's 100 s proxy limit; the hook's `curl --max-time` is 80 and its `timeout` in settings is 90.
+- Failed-auth delay: `BRIDGE_AUTH_FAIL_DELAY_MS=500`.
 - `Stop` sets `done` (turn finished); `SessionStart` sets `idle`; `idle_prompt` notifications set `idle`.
 - Cards expire after `BRIDGE_EXPIRE_SECS=21600` (6 h) with no event.
-- Hooks reach the bridge at `https://claude-board.bat-boa.ts.net` (tailnet, every host); the board at `https://claude-board.arsfeld.one` (LAN DNS to galactica). The bridge rejects any request carrying a `Cf-*` header, because the `*.arsfeld.one` wildcard is also routed through Cloudflare.
+- Hooks and the board both use `https://claude-board.arsfeld.one`: through Cloudflare from outside, straight to galactica's Caddy on the LAN. Decided by the user: HTTPS is enough, and a tailnet-only rule was never a requirement. Tailscale and iroh clients for the board were considered and not needed.
 - Firmware is built in a nix dev shell, not as a pure derivation: ESP-IDF's component manager needs network. `dependencies.lock` pins the components.
 
 ## File Structure
 
-- `packages/claude-board-bridge/` — Rust crate and `package.nix`. Files: `src/protocol.rs` (wire types), `src/state.rs` (session registry), `src/asks.rs` (pending questions), `src/auth.rs` (tokens and the `Cf-*` guard), `src/http.rs` (hook endpoints), `src/board.rs` (WebSocket), `src/main.rs` (config, wiring). Tests in `tests/`, fixtures in `tests/fixtures/`.
+- `packages/claude-board-bridge/` — Rust crate and `package.nix`. Files: `src/protocol.rs` (wire types), `src/state.rs` (session registry), `src/asks.rs` (pending questions), `src/auth.rs` (bearer-token check with failed-auth delay), `src/http.rs` (hook endpoints), `src/board.rs` (WebSocket), `src/main.rs` (config, wiring). Tests in `tests/`, fixtures in `tests/fixtures/`.
 - `modules/hosts/galactica/services/claude-board.nix` — service, secrets, gateway entry.
 - `packages/claude-board-hook/` — `package.nix` plus `claude-board-hook` and `claude-board-install-hooks` scripts.
 - `home/home.nix` — install the hook package and merge hooks into `~/.claude/settings.json`.
@@ -112,9 +116,9 @@ This needs an interactive Claude Code 2.1.319 session in auto mode (`defaultMode
 
 **Interfaces:**
 - Consumes: `Registry`, `Asks`, `build_decision`, a broadcast channel `tokio::sync::broadcast::Sender<BoardMsg>` (type defined in `protocol.rs` in this task: `enum BoardMsg { State(Vec<Session>), Upsert(Session), Remove{host,session}, Question(PendingAsk), QuestionClear{id} }`).
-- Produces: `struct Tokens { host: String, device: String }`; `fn check_bearer(headers: &HeaderMap, want: &str) -> Result<(), StatusCode>` using constant-time comparison; `fn reject_cloudflare(headers: &HeaderMap) -> Result<(), StatusCode>` (403 if any header name starts with `cf-`); `struct AppState { registry, asks, tx: Sender<BoardMsg>, tokens: Tokens, ask_timeout: Duration, board_connected: Arc<AtomicUsize> }`; `fn hook_router(state: AppState) -> axum::Router` with `POST /v1/event` (204) and `POST /v1/ask` (200 with decision JSON, or 204 for no decision).
+- Produces: `struct Tokens { host: String, device: String }`; `async fn check_bearer(headers: &HeaderMap, want: &str, fail_delay: Duration) -> Result<(), StatusCode>` using constant-time comparison; on failure it sleeps `fail_delay` before returning 401; `struct AppState { registry, asks, tx: Sender<BoardMsg>, tokens: Tokens, ask_timeout: Duration, board_connected: Arc<AtomicUsize> }`; `fn hook_router(state: AppState) -> axum::Router` with `POST /v1/event` (204) and `POST /v1/ask` (200 with decision JSON, or 204 for no decision).
 
-- [ ] **Step 1: Write failing tests** (axum `oneshot` requests): `event_requires_host_token` (401 without, 401 wrong); `event_with_cloudflare_header_is_403` (`Cf-Ray` present, valid token); `event_updates_registry_and_broadcasts_upsert`; `ask_with_no_board_connected_returns_204_immediately`; `ask_returns_decision_when_answered` (spawn the request, wait for the `Question` broadcast, `answer` through `Asks`, expect 200 and the decision body); `ask_declined_returns_204`; `ask_times_out_with_204_and_broadcasts_question_clear` (short timeout); `ask_marks_session_waiting`; `a_later_event_for_the_session_clears_its_pending_ask` (broadcasts `QuestionClear`); `two_concurrent_asks_get_their_own_answers`.
+- [ ] **Step 1: Write failing tests** (axum `oneshot` requests): `event_requires_host_token` (401 without, 401 wrong); `failed_auth_is_delayed_and_valid_requests_stay_fast` (many concurrent bad requests do not slow a valid one beyond the delay); `device_token_does_not_authorise_hook_endpoints` and the reverse; `event_updates_registry_and_broadcasts_upsert`; `ask_with_no_board_connected_returns_204_immediately`; `ask_returns_decision_when_answered` (spawn the request, wait for the `Question` broadcast, `answer` through `Asks`, expect 200 and the decision body); `ask_declined_returns_204`; `ask_times_out_with_204_and_broadcasts_question_clear` (short timeout); `ask_marks_session_waiting`; `a_later_event_for_the_session_clears_its_pending_ask` (broadcasts `QuestionClear`); `two_concurrent_asks_get_their_own_answers`.
 - [ ] **Step 2: Run** `cargo test --test http` — Expected: FAIL.
 - [ ] **Step 3: Implement** `/v1/ask` as: guard, register, broadcast `Question`, `tokio::time::timeout(ask_timeout, rx)`, on timeout or `Declined` cancel and broadcast `QuestionClear`, return 204.
 - [ ] **Step 4: Run** `cargo test --test http` — Expected: PASS.
@@ -128,10 +132,10 @@ This needs an interactive Claude Code 2.1.319 session in auto mode (`defaultMode
 - Create: `packages/claude-board-bridge/src/board.rs`, `src/main.rs`, `tests/board.rs`
 
 **Interfaces:**
-- Consumes: `AppState`, `BoardMsg`, `check_bearer`, `reject_cloudflare`.
-- Produces: `fn board_router(state: AppState) -> axum::Router` with `GET /v1/board` (WebSocket, device token, `Cf-*` guard). Server to board JSON: `{"t":"state","sessions":[Session]}` on connect, then `{"t":"upsert","session":Session}`, `{"t":"remove","host":..,"session":..}`, `{"t":"question","id":..,"host":..,"session":..,"project":..,"questions":[Question]}` (all pending asks are re-sent on connect), `{"t":"question_clear","id":..}`. Board to server: `{"t":"answer","id":..,"answers":{"<question text>":"<label or comma-joined labels>"}}` and `{"t":"decline","id":..}`. `main.rs` reads env `BRIDGE_LISTEN`, `BRIDGE_HOST_TOKEN_FILE`, `BRIDGE_DEVICE_TOKEN_FILE`, `BRIDGE_ASK_TIMEOUT_SECS` (default 90), `BRIDGE_EXPIRE_SECS` (default 21600) and runs an expiry sweep every 60 s.
+- Consumes: `AppState`, `BoardMsg`, `check_bearer`.
+- Produces: `fn board_router(state: AppState) -> axum::Router` with `GET /v1/board` (WebSocket, device token; the server sends a WebSocket ping every 30 s so Cloudflare's idle timeout never closes it). Server to board JSON: `{"t":"state","sessions":[Session]}` on connect, then `{"t":"upsert","session":Session}`, `{"t":"remove","host":..,"session":..}`, `{"t":"question","id":..,"host":..,"session":..,"project":..,"questions":[Question]}` (all pending asks are re-sent on connect), `{"t":"question_clear","id":..}`. Board to server: `{"t":"answer","id":..,"answers":{"<question text>":"<label or comma-joined labels>"}}` and `{"t":"decline","id":..}`. `main.rs` reads env `BRIDGE_LISTEN`, `BRIDGE_HOST_TOKEN_FILE`, `BRIDGE_DEVICE_TOKEN_FILE`, `BRIDGE_ASK_TIMEOUT_SECS` (default 60), `BRIDGE_AUTH_FAIL_DELAY_MS` (default 500), `BRIDGE_EXPIRE_SECS` (default 21600) and runs an expiry sweep every 60 s.
 
-- [ ] **Step 1: Write failing tests** using a simulated board client (`tokio-tungstenite`) against a real listener on an ephemeral port: `connect_without_device_token_is_rejected`; `connect_with_cloudflare_header_is_rejected`; `new_board_gets_state_snapshot_and_pending_questions`; `event_is_pushed_as_upsert`; `answer_over_websocket_completes_the_hook_request` (end to end: POST `/v1/ask`, receive `question`, send `answer`, expect the hook response body); `decline_returns_no_decision`; `board_disconnect_mid_ask_returns_204_when_it_times_out_and_clears` (drop the socket, expect 204 after the timeout, not a hang); `answer_for_expired_id_is_ignored_and_connection_stays_open`; `board_count_drops_on_disconnect` (a new ask then returns 204 at once).
+- [ ] **Step 1: Write failing tests** using a simulated board client (`tokio-tungstenite`) against a real listener on an ephemeral port: `connect_without_device_token_is_rejected`; `host_token_cannot_open_the_board_socket`; `server_pings_idle_connection` (paused clock, a ping within 30 s); `new_board_gets_state_snapshot_and_pending_questions`; `event_is_pushed_as_upsert`; `answer_over_websocket_completes_the_hook_request` (end to end: POST `/v1/ask`, receive `question`, send `answer`, expect the hook response body); `decline_returns_no_decision`; `board_disconnect_mid_ask_returns_204_when_it_times_out_and_clears` (drop the socket, expect 204 after the timeout, not a hang); `answer_for_expired_id_is_ignored_and_connection_stays_open`; `board_count_drops_on_disconnect` (a new ask then returns 204 at once).
 - [ ] **Step 2: Run** `cargo test --test board` — Expected: FAIL.
 - [ ] **Step 3: Implement** `board_router` and `main`; `board_connected` increments per live socket.
 - [ ] **Step 4: Run** `cargo test` — Expected: all tests PASS.
@@ -146,12 +150,12 @@ This needs an interactive Claude Code 2.1.319 session in auto mode (`defaultMode
 - Modify: `secrets/sops/galactica.yaml` (add `claude-board-device-token`), `secrets/sops/common.yaml` (add `claude-board-host-token`)
 
 **Interfaces:**
-- Produces: package `claude-board-bridge` (`rustPlatform.buildRustPackage`, `doCheck = true`, mirror `packages/plab/package.nix`'s `lib.fileset` source); a service listening on `127.0.0.1:8590` declared with `media.services.claude-board = { port = 8590; host = "127.0.0.1"; bypassAuth = true; tailscaleExposed = true; }` (the bridge enforces its own tokens and the `Cf-*` guard); a hardened `systemd.services.claude-board` (DynamicUser, `ProtectSystem=strict`, `NoNewPrivileges`) loading both token files through `LoadCredential`.
+- Produces: package `claude-board-bridge` (`rustPlatform.buildRustPackage`, `doCheck = true`, mirror `packages/plab/package.nix`'s `lib.fileset` source); a service listening on `127.0.0.1:8590` declared with `media.services.claude-board = { port = 8590; host = "127.0.0.1"; bypassAuth = true; }` (Authelia is bypassed because the board and hooks cannot log in; the bridge enforces its own tokens); a hardened `systemd.services.claude-board` (DynamicUser, `ProtectSystem=strict`, `NoNewPrivileges`) loading both token files through `LoadCredential`.
 
 - [ ] **Step 1: Generate tokens non-interactively** (`openssl rand -hex 32`) and add them with `sops` without printing them.
 - [ ] **Step 2: Write `package.nix`** and `git add -N` the new files; Run `nix build .#claude-board-bridge` — Expected: builds and runs `cargo test`.
 - [ ] **Step 3: Write the service module**, then `just fmt`; Run `nix build .#nixosConfigurations.galactica.config.system.build.toplevel` (niced, alone) — Expected: builds.
-- [ ] **Step 4: Commit, push, `just deploy galactica`**; Run `curl -s -o /dev/null -w '%{http_code}' -X POST https://claude-board.bat-boa.ts.net/v1/event` — Expected: `401`; the same with `-H 'Cf-Ray: x'` and a valid host token — Expected: `403`; `systemctl status claude-board` on galactica — Expected: active.
+- [ ] **Step 4: Commit, push, `just deploy galactica`**; Run `curl -s -o /dev/null -w '%{http_code}' -X POST https://claude-board.arsfeld.one/v1/event` from raider and again from a phone hotspot (the Cloudflare path) — Expected: `401` both times, after about half a second; with a valid host token and a minimal body — Expected: `204`; `systemctl status claude-board` on galactica — Expected: active.
 - [ ] **Step 5: Commit** `feat(galactica): add claude board bridge service`
 
 ---
@@ -163,7 +167,7 @@ This needs an interactive Claude Code 2.1.319 session in auto mode (`defaultMode
 - Modify: `home/home.nix` (add the package to `home.packages`; add a `home.activation` entry that runs `claude-board-install-hooks`)
 
 **Interfaces:**
-- Produces: `claude-board-hook <event>` reads Claude Code's hook JSON from stdin and POSTs `{host: <hostname>, session: session_id, cwd, event, kind (notification type), ts}` to `https://claude-board.bat-boa.ts.net/v1/event`; with `ask` it POSTs `{host, session, cwd, tool_input}` to `/v1/ask`, prints the response body only on HTTP 200, and always exits 0. Token from `/run/secrets/claude-board-host-token`; missing file means a silent exit 0. `curl --max-time 3` for events, `--max-time 100` for ask. `claude-board-install-hooks` idempotently merges into `~/.claude/settings.json` (jq, atomic temp file and rename), preserving existing hooks (`claude-notify question …`, `codegraph prompt-hook`) and all other keys: entries for `SessionStart`, `UserPromptSubmit`, `Notification`, `Stop`, `StopFailure` (only if Task 1 found it), `SessionEnd` calling `claude-board-hook <event>`, plus `PermissionRequest` matcher `AskUserQuestion` calling `claude-board-hook ask` with `timeout: 120`. Add the secret `claude-board-host-token` to every host's sops declaration so `/run/secrets/` has it.
+- Produces: `claude-board-hook <event>` reads Claude Code's hook JSON from stdin and POSTs `{host: <hostname>, session: session_id, cwd, event, kind (notification type), ts}` to `https://claude-board.arsfeld.one/v1/event`; with `ask` it POSTs `{host, session, cwd, tool_input}` to `/v1/ask`, prints the response body only on HTTP 200, and always exits 0. Token from `/run/secrets/claude-board-host-token`; missing file means a silent exit 0. `curl --max-time 3` for events, `--max-time 80` for ask. `claude-board-install-hooks` idempotently merges into `~/.claude/settings.json` (jq, atomic temp file and rename), preserving existing hooks (`claude-notify question …`, `codegraph prompt-hook`) and all other keys: entries for `SessionStart`, `UserPromptSubmit`, `Notification`, `Stop`, `StopFailure` (only if Task 1 found it), `SessionEnd` calling `claude-board-hook <event>`, plus `PermissionRequest` matcher `AskUserQuestion` calling `claude-board-hook ask` with `timeout: 90`. Add the secret `claude-board-host-token` to every host's sops declaration so `/run/secrets/` has it.
 
 - [ ] **Step 1: Write `test.sh`** (runs a throwaway local `nc`/python HTTP stub): `event_posts_normalised_json`; `bridge_down_exits_0_quickly_with_no_output` (under 5 s); `bridge_500_exits_0_with_no_output`; `ask_204_prints_nothing`; `ask_200_prints_the_body_verbatim`; `missing_token_file_exits_0_silently`; `installer_is_idempotent` (run twice, diff empty); `installer_preserves_existing_hooks_and_keys`; `installer_survives_missing_settings_file`.
 - [ ] **Step 2: Run** `bash packages/claude-board-hook/test.sh` — Expected: FAIL.
@@ -218,13 +222,14 @@ This needs an interactive Claude Code 2.1.319 session in auto mode (`defaultMode
 
 **Interfaces:**
 - Consumes: `bp_apply`.
-- Produces: `void net_start(void (*on_message)(const char *json, size_t len), void (*on_status)(bool connected));` `bool net_send(const char *json);` The task connects to Wi-Fi (credentials from `CONFIG_CLAUDE_BOARD_WIFI_SSID` and `_PASS`), opens `wss://claude-board.arsfeld.one/v1/board` with `Authorization: Bearer` (the certificate bundle for TLS validation), reconnects with capped exponential backoff, and forwards each text frame to `on_message`. `just board creds` decrypts the three secrets into `sdkconfig.defaults.local` without printing them.
+- Produces: `void net_start(void (*on_message)(const char *json, size_t len), void (*on_status)(bool connected));` `bool net_send(const char *json);` The task connects to Wi-Fi (credentials from `CONFIG_CLAUDE_BOARD_WIFI_SSID` and `_PASS`), syncs the clock over SNTP first (no connection attempt until the clock is valid), opens `wss://claude-board.arsfeld.one/v1/board` with `Authorization: Bearer`, always validating the server certificate against the ESP-IDF certificate bundle and never offering an insecure mode, reconnects with capped exponential backoff, and forwards each text frame to `on_message`. `just board creds` decrypts the three secrets into `sdkconfig.defaults.local` without printing them.
 
 - [ ] **Step 1: Add the three secrets** non-interactively; Run `just board creds && git status --short` — Expected: `sdkconfig.defaults.local` is ignored and not listed.
 - [ ] **Step 2: Implement `net.c`** with `esp_wifi`, `esp_websocket_client` and `esp_crt_bundle`; log connection state only, never the credentials.
 - [ ] **Step 3: Flash and watch** `just board monitor` — Expected: joins BaconsHouse, connects the WebSocket, logs the received `state` snapshot (non-empty while a session is running on raider).
 - [ ] **Step 4: Kill the bridge** (`systemctl stop claude-board` on galactica) — Expected: the board logs reconnect attempts with growing delay; restart it and the board reconnects.
-- [ ] **Step 5: Commit** `feat(raider): add claude board firmware networking`
+- [ ] **Step 5: Untrusted-network checks.** Move the board onto a phone hotspot (outside the home LAN): Expected: same snapshot arrives through Cloudflare and the socket survives 5 minutes idle. Build once with a deliberately wrong `CONFIG_` clock source or block UDP 123 on the hotspot: Expected: no connection attempt and a log line saying the clock is not set, never a connection without validation. Point the firmware at a host with a bad certificate: Expected: the TLS handshake fails.
+- [ ] **Step 6: Commit** `feat(raider): add claude board firmware networking`
 
 ---
 
@@ -248,7 +253,7 @@ This needs an interactive Claude Code 2.1.319 session in auto mode (`defaultMode
 ### Task 12: Docs and wrap-up
 
 **Files:**
-- Modify: `CLAUDE.md` (a short "Claude Board" section: what it is, the hosts, `just board …`, the factory-restore command, the token and secret names, the `Cf-*` guard, the phase-2 pointer)
+- Modify: `CLAUDE.md` (a short "Claude Board" section: what it is, the hosts, `just board …`, the factory-restore command, the token and secret names, a note that the endpoint is public and token-gated, the phase-2 pointer)
 - Modify: the spec (record the decisions listed above under "Decisions the spec left open")
 
 - [ ] **Step 1: Write the CLAUDE.md section** and amend the spec; `just fmt`.

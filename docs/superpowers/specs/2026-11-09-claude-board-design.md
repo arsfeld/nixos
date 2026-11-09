@@ -49,6 +49,10 @@ Rejected approaches), cloud/web sessions, Wi-Fi provisioning UI on the board.
   in https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-1.75) restores the
   demo at any time.
 - **Arduino or ESPHome.** Weaker fit for a custom round UI with live updates.
+- **Tailscale or iroh on the board.** Researched: MicroLink is a
+  Tailscale-compatible ESP32 client of unverified maturity, and iroh on ESP32
+  needs a patched std build with limited hole punching. Neither is needed once
+  HTTPS to a public hostname is accepted.
 - **Injecting Wi-Fi credentials into the demo's NVS.** Tried on 2026-11-09:
   the key names match, but the board never connected, and the Wi-Fi library's
   stored-config layout is closed. Reverted; original NVS restored.
@@ -124,12 +128,22 @@ handle:
 
 ### Reachability and secrets
 
-- The bridge is reachable on the LAN and the tailnet only; there is no public
-  route and it is not behind Cloudflare. The board connects over the LAN.
-- All tokens (per-host, device) come from sops.
-- Approval and spawn are remote code execution authority. The bridge enforces
-  single-use question ids, authenticated clients, and a short timeout. Whether a
-  tool allowlist is needed for approvals is decided when approvals are built.
+- The bridge is served over HTTPS at `claude-board.arsfeld.one` and is
+  reachable from any network, including untrusted ones, through Cloudflare from
+  outside and straight to Caddy on the LAN. HTTPS is sufficient transport; a
+  Tailscale or iroh client on the board is not required (decided with the user,
+  2026-11-09; an earlier tailnet-only rule was an assumption, not a requirement).
+- All tokens (per-host, device) come from sops: 256-bit random, compared in
+  constant time, with a delay on failed authentication. Authelia is bypassed for
+  this service because the board and hooks cannot log in.
+- The board validates the server certificate against the ESP-IDF certificate
+  bundle, syncs its clock before connecting, and has no insecure mode.
+- Cloudflare limits: the bridge pings the WebSocket every 30 s, and a held ask
+  returns within 60 s, both under the 100 s proxy timeout.
+- Approval and spawn are remote code execution authority, and with a public
+  endpoint the tokens are the only gate. The bridge enforces single-use question
+  ids and authenticated clients. Whether a tool allowlist is needed for approvals
+  is decided when approvals are built.
 
 ## Board firmware
 
@@ -138,6 +152,7 @@ handle:
   touch and power. Built reproducibly with nix.
 - **Wi-Fi:** SSID and password compiled in from a sops secret at build time.
   Changing network means reflashing. No on-device provisioning in phase 1.
+  Captive-portal networks are out of scope.
 - **Screens:**
   - *Idle:* near-black and dimmed (AMOLED burn-in), showing only the count of
     waiting sessions and a faint ring. A chime plays when something needs the
