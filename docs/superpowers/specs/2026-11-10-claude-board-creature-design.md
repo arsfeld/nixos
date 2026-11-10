@@ -220,7 +220,26 @@ backends, per-utterance pipeline), the configuration and its all-or-nothing enab
 reader/writer/voice tasks; the UI's hold gesture, moods and reply card, and the playback queue; the firmware's
 microphone capture, uplink and playback code, and the galactica service definitions.
 
-Pending: on-device verification (microphone, gain, I2S switching, heap during a hold, audible reply, stop on tap,
-chime pitch, large-frame reassembly, volume), deployment to galactica, and the acceptance run: median
-release-to-first-word of at most 5 s, a tap stopping speech within 1 s, the offline note with Hermes down while
-approvals keep working, and reconnect after a bridge restart. No latency has been measured yet.
+Deployed to galactica on 2026-11-10 (`just deploy galactica`, no rollback; `systemctl --failed` was empty afterwards).
+Server-side acceptance, run with a synthetic board client against the real public bridge
+(`wss://claude-board.arsfeld.one/v1/board`, speech from Piper resampled to 16 kHz):
+
+- Five utterances on one connection each produced the full sequence (creature thinking, transcript, reply text,
+  creature speaking, `speak_start` at 22 050 Hz, audio frames of at most 32 768 bytes, `speak_end`, creature idle),
+  with transcripts matching the questions and the reply audio transcribing back to its own `reply_text`.
+- Release to first audio frame: median 2.37 s (range 2.26 to 2.56 s; target 5 s). All audio arrives in one burst
+  after the first sentence (about 0.03 s to the end), so the board must buffer a whole reply: the playback queue is
+  1 MiB, about 23 s of speech, which is plenty for the persona's one or two sentences.
+- Cancel after the first audio frame: `speak_end` followed 10 ms later by creature idle, with nothing after it. A
+  second connection saw none of the first connection's voice messages.
+- Hermes is tool-less on the live unit: `/v1/toolsets` lists 26 toolsets, none enabled, and it refused both to run
+  a command and to read a file. Run with a throwaway session id, not the creature's.
+- Peak memory: whisper 417 MB (limit 2G), Piper 675 MB (limit 1G, the tightest), Hermes 545 MB (limit 2G).
+- The journal carries `voice:` timing lines only (lengths and timings, no text); an unauthenticated `POST /v1/event`
+  returns 401.
+
+Not verified (the board was not flashed by the automated implementation; flashing was left to the user): on-device
+microphone (ES7210 ACK and samples, gain, channel order), I2S rate switching between the 16 kHz capture and the
+22 050 Hz playback, heap during a hold, an audible reply, stopping within 1 s on a tap, chime pitch after a reply,
+reassembly of 32 KiB frames, and volume. The offline note with Hermes down and reconnect after a bridge restart
+were not exercised either. Run `just board backup` first, then build, flash and watch the log.
