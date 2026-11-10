@@ -3,7 +3,7 @@
 //! and is kept on disk so a bridge restart continues the same conversation.
 //! The id itself is never logged.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 pub struct SessionId {
@@ -35,10 +35,22 @@ impl SessionId {
         let mut cur = self.current.lock().unwrap_or_else(|e| e.into_inner());
         *cur = id.clone();
         if let Some(p) = &self.path {
-            if let Err(e) = std::fs::write(p, &id) {
+            if let Err(e) = write_atomically(p, &id) {
                 eprintln!("voice: session id not saved: {:?}", e.kind());
             }
         }
         id
     }
+}
+
+/// Write `text` to a temporary file beside `path` and rename it over `path`, so a crash mid-write never leaves a
+/// torn id behind: the file holds the old id or the new one.
+fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
+    let mut tmp = path.as_os_str().to_owned();
+    tmp.push(".tmp");
+    let tmp = PathBuf::from(tmp);
+    std::fs::write(&tmp, text)?;
+    std::fs::rename(&tmp, path).inspect_err(|_| {
+        let _ = std::fs::remove_file(&tmp);
+    })
 }

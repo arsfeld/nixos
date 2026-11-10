@@ -698,5 +698,7 @@ async fn new_session_with_failing_tts_still_acks() {
     let rest = r.drain();
     assert_eq!(speak_starts(&rest), 0);
     assert_eq!(speak_ends(&rest), 0);
+    // The board shows thinking from the purge: the failed confirmation ends it with idle.
+    assert_eq!(rest.last(), Some(&Out::Json(BoardMsg::Creature { mood: Mood::Idle })), "{rest:?}");
     assert_eq!(r.brain.resets.load(Ordering::SeqCst), 1);
 }

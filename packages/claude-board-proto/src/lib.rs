@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 /// so a newer bridge can add messages without breaking older boards. Version 2 adds the per-session
 /// activity feed (`history`, `entry`, and the board's `watch`/`unwatch`). Version 3 adds the creature's voice messages.
 /// Version 4 adds `reminder`, which the board shows when a timer or reminder is due.
+/// Version 5 adds `new_session` / `session_reset`.
 pub const PROTOCOL_VERSION: u32 = 5;
 
 /// Sample rate of the 16-bit mono PCM the board uploads.
@@ -202,11 +203,17 @@ mod tests {
         assert_eq!(serde_json::to_value(&msg).unwrap(), serde_json::from_str::<Value>(&text).unwrap());
     }
 
+    /// Fixtures of what the board sends, among the bridge-to-board ones.
+    const CLIENT_FIXTURES: &[&str] = &["new_session.json"];
+
     #[test]
     fn every_board_fixture_round_trips_through_boardmsg() {
         let mut n = 0;
         for entry in std::fs::read_dir(fixture_dir()).unwrap() {
             let path = entry.unwrap().path();
+            if path.file_name().and_then(|f| f.to_str()).is_some_and(|f| CLIENT_FIXTURES.contains(&f)) {
+                continue;
+            }
             let text = std::fs::read_to_string(&path).unwrap();
             let want: Value = serde_json::from_str(&text).unwrap();
             let msg: BoardMsg = serde_json::from_str(&text).unwrap();
@@ -286,6 +293,15 @@ mod tests {
         ] {
             assert_eq!(serde_json::to_value(&msg).unwrap(), serde_json::json!({"t": t, "utterance": 3}));
         }
+    }
+
+    #[test]
+    fn new_session_fixture_round_trips() {
+        let text = std::fs::read_to_string(format!("{}/new_session.json", fixture_dir())).unwrap();
+        let msg: ClientMsg = serde_json::from_str(&text).unwrap();
+        assert_eq!(msg, ClientMsg::NewSession { utterance: 3 });
+        assert_eq!(serde_json::to_value(&msg).unwrap(), serde_json::from_str::<Value>(&text).unwrap());
+        assert_eq!(serde_json::to_string(&msg).unwrap(), text.trim_end());
     }
 
     #[test]
