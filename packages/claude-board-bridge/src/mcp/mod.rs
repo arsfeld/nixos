@@ -1,6 +1,6 @@
 //! A minimal MCP server (JSON-RPC 2.0 over HTTP POST, tools only) for the creature's Hermes.
-//! It listens on loopback on its own port. Logs carry tool names and timings, never arguments
-//! or results.
+//! It listens on loopback on its own port. Besides its own tools it serves Home Assistant's, proxied
+//! (`ha`). Logs carry tool names and timings, never arguments or results.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -15,6 +15,7 @@ use serde_json::{Value, json};
 
 use crate::auth::check_bearer;
 
+pub mod ha;
 pub mod timers;
 pub mod weather;
 
@@ -25,10 +26,19 @@ const VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
 /// `s` unchanged if it fits `TOOL_TEXT_MAX`, else cut on a char boundary with a marker appended.
 pub fn cap_text(s: &str) -> String {
-    if s.len() <= TOOL_TEXT_MAX {
+    cap_text_to(s, TOOL_TEXT_MAX)
+}
+
+/// `s` unchanged if it fits `max` bytes, else cut on a char boundary with a marker appended, the
+/// whole within `max`.
+pub fn cap_text_to(s: &str, max: usize) -> String {
+    if s.len() <= max {
         return s.to_string();
     }
-    let mut end = TOOL_TEXT_MAX - TRUNCATED.len();
+    if max < TRUNCATED.len() {
+        return String::new();
+    }
+    let mut end = max - TRUNCATED.len();
     while !s.is_char_boundary(end) {
         end -= 1;
     }
@@ -54,6 +64,8 @@ pub trait Tool: Send + Sync {
 
 pub struct Mcp {
     pub tools: Vec<Arc<dyn Tool>>,
+    /// Home Assistant's MCP server, whose tools are listed after `tools` and forwarded.
+    pub upstream: Option<Arc<ha::HaMcp>>,
     /// Required as a bearer token when set.
     pub token: Option<String>,
     pub fail_delay: Duration,
@@ -103,7 +115,7 @@ async fn handle(State(mcp): State<Arc<Mcp>>, headers: HeaderMap, body: String) -
         }
         "ping" => reply(id, json!({})),
         "tools/list" => {
-            let tools: Vec<Value> = mcp
+            let mut tools: Vec<Value> = mcp
                 .tools
                 .iter()
                 .map(|t| {
@@ -111,19 +123,32 @@ async fn handle(State(mcp): State<Arc<Mcp>>, headers: HeaderMap, body: String) -
                     json!({"name": d.name, "description": d.description, "inputSchema": d.input_schema})
                 })
                 .collect();
+            if let Some(ha) = &mcp.upstream {
+                // A local tool wins over an upstream one of the same name.
+                for t in ha.tools().await {
+                    if !mcp.tools.iter().any(|l| t["name"] == l.def().name) {
+                        tools.push(t);
+                    }
+                }
+            }
             reply(id, json!({"tools": tools}))
         }
         "tools/call" => {
             let name = params.get("name").and_then(Value::as_str).unwrap_or("");
-            let Some(tool) = mcp.tools.iter().find(|t| t.def().name == name) else {
-                return fail(id, -32602, "unknown tool");
-            };
             let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
             let started = Instant::now();
-            let outcome = tool.call(args).await;
-            let (text, is_error) = match outcome {
-                ToolOutcome::Text(t) => (cap_text(&t), false),
-                ToolOutcome::Error(t) => (cap_text(&t), true),
+            let (text, is_error) = match mcp.tools.iter().find(|t| t.def().name == name) {
+                Some(tool) => match tool.call(args).await {
+                    ToolOutcome::Text(t) => (cap_text(&t), false),
+                    ToolOutcome::Error(t) => (cap_text(&t), true),
+                },
+                None => {
+                    let Some(ha) = &mcp.upstream else { return fail(id, -32602, "unknown tool") };
+                    match ha.call(name, args).await {
+                        ha::Forwarded::Result { text, is_error } => (text, is_error),
+                        ha::Forwarded::Unknown => return fail(id, -32602, "unknown tool"),
+                    }
+                }
             };
             eprintln!("mcp: tool={name} ms={} error={is_error}", started.elapsed().as_millis());
             reply(id, json!({"content": [{"type": "text", "text": text}], "isError": is_error}))

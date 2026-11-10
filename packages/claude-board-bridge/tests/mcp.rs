@@ -38,6 +38,7 @@ impl Tool for Big {
 fn app(token: Option<&str>) -> Router {
     mcp_router(Arc::new(Mcp {
         tools: vec![Arc::new(Echo), Arc::new(Big)],
+        upstream: None,
         token: token.map(String::from),
         fail_delay: Duration::from_millis(1),
     }))
