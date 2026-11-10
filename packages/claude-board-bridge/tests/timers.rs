@@ -246,3 +246,30 @@ async fn tool_list_timers_empty() {
         _ => panic!(),
     }
 }
+
+#[test]
+fn drop_expired_removes_only_timers_past_grace() {
+    let (now, t) = mem(NOW);
+    let old = t.set("old", When::In(60)).unwrap();
+    let recent = t.set("recent", When::In(600)).unwrap();
+    let future = t.set("future", When::In(3 * 3600)).unwrap();
+    // `old` is past the grace, `recent` is due but within it, `future` is not due.
+    now.store(old.due + REMINDER_GRACE_SECS + 1, Ordering::SeqCst);
+    assert!(recent.due + REMINDER_GRACE_SECS >= t.now());
+    assert_eq!(t.drop_expired(), 1);
+    let ids: Vec<String> = t.list().into_iter().map(|x| x.id).collect();
+    assert_eq!(ids, [recent.id, future.id]);
+    assert_eq!(t.drop_expired(), 0);
+}
+
+#[test]
+fn drop_expired_is_persisted() {
+    let (d, f) = dir();
+    let (now, c) = clock(NOW);
+    let t = Timers::open(Some(f.clone()), c.clone());
+    let old = t.set("old", When::In(60)).unwrap();
+    now.store(old.due + REMINDER_GRACE_SECS + 1, Ordering::SeqCst);
+    assert_eq!(t.drop_expired(), 1);
+    assert!(Timers::open(Some(f), c).list().is_empty());
+    let _ = std::fs::remove_dir_all(&d);
+}

@@ -315,3 +315,11 @@ async fn reminder_speech_waits_for_a_refused_hold_to_end() {
     assert_eq!(start["t"], "speak_start");
     assert!(start["utterance"].as_u64().unwrap() as u32 >= REMINDER_ID_BASE);
 }
+
+#[tokio::test]
+async fn scheduler_drops_a_timer_past_grace_with_no_board() {
+    let (clock, timers) = timers(None);
+    let _addr = serve(state(1000).with_timers(timers.clone())).await;
+    make_due(&clock, &timers, "tea", REMINDER_GRACE_SECS + 2);
+    wait_for("the scheduler dropped it", || timers.list().is_empty()).await;
+}

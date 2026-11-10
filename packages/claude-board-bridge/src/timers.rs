@@ -240,6 +240,24 @@ impl Timers {
         out
     }
 
+    /// Removes every timer more than `REMINDER_GRACE_SECS` past due (logged by id, never label), so
+    /// one nobody claimed (no board connected) does not linger; returns how many.
+    pub fn drop_expired(&self) -> usize {
+        let now = self.now();
+        let mut inner = self.inner.lock().unwrap();
+        let (expired, keep): (Vec<Timer>, Vec<Timer>) =
+            inner.timers.drain(..).partition(|t| now - t.due > REMINDER_GRACE_SECS);
+        inner.timers = keep;
+        if expired.is_empty() {
+            return 0;
+        }
+        self.commit(&inner);
+        for t in &expired {
+            eprintln!("timer: dropped id={} late_s={}", t.id, now - t.due);
+        }
+        expired.len()
+    }
+
     pub fn next_due(&self) -> Option<i64> {
         self.inner.lock().unwrap().timers.iter().map(|t| t.due).min()
     }
@@ -295,7 +313,8 @@ const SCHEDULER_MAX_SLEEP: std::time::Duration = std::time::Duration::from_secs(
 /// Watches the store and bumps the returned watch whenever a timer is due. It sleeps until the next
 /// due time (at most `SCHEDULER_MAX_SLEEP`) or until the store changes, so a claim, a new timer or a
 /// cancel re-arms it at once. A due timer nobody claims (no board connected) is announced again on
-/// the next store change or after `SCHEDULER_MAX_SLEEP`; a board also claims on connect. The task ends
+/// the next store change or after `SCHEDULER_MAX_SLEEP`; a board also claims on connect. Each pass first
+/// drops timers past `REMINDER_GRACE_SECS`, so an unclaimed one does not linger. The task ends
 /// once every receiver is gone.
 pub fn spawn_scheduler(timers: Arc<Timers>) -> watch::Receiver<u64> {
     let (tx, rx) = watch::channel(0u64);
@@ -303,6 +322,8 @@ pub fn spawn_scheduler(timers: Arc<Timers>) -> watch::Receiver<u64> {
     tokio::spawn(async move {
         loop {
             changed.borrow_and_update();
+            // Its commit bumps `changed`; the next pass sees that and finds nothing more to drop.
+            timers.drop_expired();
             let now = timers.now();
             let sleep = match timers.next_due() {
                 Some(due) if due <= now => {
