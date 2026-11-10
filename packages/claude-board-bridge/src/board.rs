@@ -1,6 +1,6 @@
 //! The board's WebSocket: state and questions out, answers in.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use axum::Router;
@@ -13,11 +13,15 @@ use axum::routing::get;
 use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::broadcast::error::RecvError;
+use tokio::sync::mpsc::{self, Receiver, UnboundedReceiver, UnboundedSender};
+use tokio::sync::{Notify, broadcast};
+
+use crate::voice::{Conn, Out};
 
 use crate::asks::Answered;
 use crate::auth::check_bearer;
 use crate::http::AppState;
-use crate::protocol::{BoardMsg, ClientMsg, PROTOCOL_VERSION};
+use crate::protocol::{BoardMsg, ClientMsg, Mood, PROTOCOL_VERSION};
 
 pub fn board_router(state: AppState) -> Router {
     Router::new().route("/v1/board", get(board)).with_state(state)
@@ -81,10 +85,18 @@ async fn send_history(s: &AppState, sink: &mut Sink, host: &str, session: &str) 
     send(sink, &history_msg(s, host, session)).await
 }
 
-/// The session whose feed this socket follows, if any.
-type Watching = Option<(String, String)>;
+/// The session whose feed this socket follows, if any. Set by the reader, read by the writer.
+type Watching = Arc<Mutex<Option<(String, String)>>>;
 
-async fn handle(s: &AppState, sink: &mut Sink, watching: &mut Watching, text: &str) -> Result<(), axum::Error> {
+/// What the reader hands to the voice task. Unbounded so the reader never waits on the voice side.
+enum Voice {
+    Client(ClientMsg),
+    Audio(Vec<u8>),
+}
+
+/// Handles one incoming text frame. Never waits on the writer: a `watch` only records the session and
+/// wakes the writer, which sends the history.
+fn handle(s: &AppState, watching: &Watching, history: &Notify, voice: &UnboundedSender<Voice>, text: &str) {
     // A stale or replayed id is simply Unknown; nothing to tell the board.
     match serde_json::from_str::<ClientMsg>(text) {
         Ok(ClientMsg::Answer { id, answers }) => {
@@ -96,56 +108,111 @@ async fn handle(s: &AppState, sink: &mut Sink, watching: &mut Watching, text: &s
         Ok(ClientMsg::Watch { host, session }) => {
             // Already subscribed to the broadcast, so an entry appended while the history is read
             // arrives twice at worst; the board dedupes by `n`.
-            send_history(s, sink, &host, &session).await?;
-            *watching = Some((host, session));
+            *watching.lock().unwrap() = Some((host, session));
+            history.notify_one();
         }
-        Ok(ClientMsg::Unwatch) => *watching = None,
-        // The voice pipeline arrives in a later task; until then these are ignored like any unknown message.
-        Ok(ClientMsg::VoiceStart { .. } | ClientMsg::VoiceEnd { .. } | ClientMsg::Cancel { .. }) => {}
+        Ok(ClientMsg::Unwatch) => *watching.lock().unwrap() = None,
+        Ok(msg @ (ClientMsg::VoiceStart { .. } | ClientMsg::VoiceEnd { .. } | ClientMsg::Cancel { .. })) => {
+            let _ = voice.send(Voice::Client(msg));
+        }
         Err(_) => {}
     }
-    Ok(())
+}
+
+/// Owns the voice pipeline for one socket. Ends when the reader drops its sender.
+async fn voice_task(mut conn: Conn, mut rx: UnboundedReceiver<Voice>) {
+    while let Some(m) = rx.recv().await {
+        match m {
+            Voice::Client(msg) => conn.on_client(&msg).await,
+            Voice::Audio(frame) => conn.on_audio(&frame),
+        }
+    }
+}
+
+/// The socket's only writer: the greeting, then broadcasts, voice output, histories and pings until a
+/// send fails. Nothing here is awaited by the reader, so a board that stops draining stalls this task
+/// and nothing else.
+async fn writer(
+    s: AppState,
+    mut sink: Sink,
+    mut rx: broadcast::Receiver<BoardMsg>,
+    mut out: Receiver<Out>,
+    watching: Watching,
+    history: Arc<Notify>,
+) {
+    if send_snapshot(&s, &mut sink).await.is_err() {
+        return;
+    }
+    let mood = if s.voice.is_some() { Mood::Idle } else { Mood::Offline };
+    if send(&mut sink, &BoardMsg::Creature { mood }).await.is_err() {
+        return;
+    }
+    let mut ping = tokio::time::interval(s.ping_every);
+    ping.tick().await;
+    loop {
+        let sent = tokio::select! {
+            m = rx.recv() => match m {
+                Ok(BoardMsg::Entry { host, session, entry }) => {
+                    let watched = watching.lock().unwrap().as_ref().is_some_and(|(h, w)| *h == host && *w == session);
+                    if watched { send(&mut sink, &BoardMsg::Entry { host, session, entry }).await } else { Ok(()) }
+                }
+                Ok(msg) => send(&mut sink, &msg).await,
+                // Too slow to keep up: start over from a fresh snapshot, and the watched feed too.
+                Err(RecvError::Lagged(_)) => {
+                    let mut r = send_snapshot(&s, &mut sink).await;
+                    let w = watching.lock().unwrap().clone();
+                    if let (Ok(()), Some((h, w))) = (&r, w) {
+                        r = send_history(&s, &mut sink, &h, &w).await;
+                    }
+                    r
+                }
+                Err(RecvError::Closed) => return,
+            },
+            Some(o) = out.recv() => match o {
+                Out::Json(msg) => send(&mut sink, &msg).await,
+                Out::Audio(frame) => sink.send(Message::Binary(frame.into())).await,
+            },
+            _ = history.notified() => {
+                let w = watching.lock().unwrap().clone();
+                match w {
+                    Some((h, w)) => send_history(&s, &mut sink, &h, &w).await,
+                    None => Ok(()),
+                }
+            }
+            _ = ping.tick() => sink.send(Message::Ping(Bytes::new())).await,
+        };
+        if sent.is_err() {
+            return;
+        }
+    }
 }
 
 async fn serve(s: AppState, socket: WebSocket) {
     let _connected = Connected::new(&s.board_connected);
     // Subscribe first so nothing between the snapshot and the loop is missed.
-    let mut rx = s.tx.subscribe();
-    let (mut sink, mut stream) = socket.split();
-    if send_snapshot(&s, &mut sink).await.is_err() {
-        return;
-    }
-    let mut watching: Watching = None;
-    let mut ping = tokio::time::interval(s.ping_every);
-    ping.tick().await;
+    let rx = s.tx.subscribe();
+    let (sink, mut stream) = socket.split();
+    let watching: Watching = Arc::default();
+    let history = Arc::new(Notify::new());
+    let (out_tx, out_rx) = mpsc::channel::<Out>(64);
+    let (voice_tx, voice_rx) = mpsc::unbounded_channel::<Voice>();
+    let conn = Conn::new(s.voice.clone(), s.voice_cfg, out_tx);
+    let mut voice = tokio::spawn(voice_task(conn, voice_rx));
+    let mut writer = tokio::spawn(writer(s.clone(), sink, rx, out_rx, watching.clone(), history.clone()));
     loop {
         tokio::select! {
-            m = rx.recv() => match m {
-                Ok(BoardMsg::Entry { host, session, entry }) => {
-                    if watching.as_ref().is_some_and(|(h, w)| *h == host && *w == session)
-                        && send(&mut sink, &BoardMsg::Entry { host, session, entry }).await.is_err()
-                    {
-                        break;
-                    }
-                }
-                Ok(msg) => if send(&mut sink, &msg).await.is_err() { break },
-                // Too slow to keep up: start over from a fresh snapshot, and the watched feed too.
-                Err(RecvError::Lagged(_)) => {
-                    if send_snapshot(&s, &mut sink).await.is_err() { break }
-                    if let Some((h, w)) = &watching {
-                        if send_history(&s, &mut sink, h, w).await.is_err() { break }
-                    }
-                }
-                Err(RecvError::Closed) => break,
-            },
-            _ = ping.tick() => {
-                if sink.send(Message::Ping(Bytes::new())).await.is_err() { break }
-            }
+            // The writer ending means a failed send: the socket is gone.
+            _ = &mut writer => break,
             incoming = stream.next() => match incoming {
-                Some(Ok(Message::Text(t))) => if handle(&s, &mut sink, &mut watching, t.as_str()).await.is_err() { break },
+                Some(Ok(Message::Text(t))) => handle(&s, &watching, &history, &voice_tx, t.as_str()),
+                Some(Ok(Message::Binary(b))) => { let _ = voice_tx.send(Voice::Audio(b.to_vec())); }
                 Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
                 Some(Ok(_)) => {}
             }
         }
     }
+    // Dropping the aborted voice task drops its `Conn`, which stops any run still going.
+    voice.abort();
+    writer.abort();
+    let _ = (&mut voice).await;
 }

@@ -20,6 +20,8 @@ use crate::auth::{Tokens, check_bearer};
 use crate::feed::Feed;
 use crate::protocol::{BoardMsg, Event, EventKind, FeedKind};
 use crate::state::{Change, Registry, project_of};
+use crate::voice::VoiceConfig;
+use crate::voice::backends::Backends;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -34,6 +36,9 @@ pub struct AppState {
     pub board_connected: Arc<AtomicUsize>,
     /// How often the board socket is pinged, so Cloudflare's idle timeout never closes it.
     pub ping_every: Duration,
+    /// The speech and brain backends; `None` leaves the creature offline.
+    pub voice: Option<Arc<Backends>>,
+    pub voice_cfg: VoiceConfig,
 }
 
 impl AppState {
@@ -48,7 +53,15 @@ impl AppState {
             fail_delay,
             board_connected: Arc::new(AtomicUsize::new(0)),
             ping_every: Duration::from_secs(30),
+            voice: None,
+            voice_cfg: VoiceConfig::default(),
         }
+    }
+
+    pub fn with_voice(mut self, backends: Backends, cfg: VoiceConfig) -> AppState {
+        self.voice = Some(Arc::new(backends));
+        self.voice_cfg = cfg;
+        self
     }
 
     pub fn with_ping_every(mut self, every: Duration) -> AppState {

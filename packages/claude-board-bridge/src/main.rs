@@ -6,12 +6,21 @@
 //!   BRIDGE_ASK_TIMEOUT_SECS     how long a question is held (default 60)
 //!   BRIDGE_AUTH_FAIL_DELAY_MS   delay before a 401 (default 500)
 //!   BRIDGE_EXPIRE_SECS          drop a session with no event for this long (default 21600)
+//!   BRIDGE_STT_URL              base URL of the speech-to-text server (voice needs all four of these)
+//!   BRIDGE_TTS_URL              base URL of the text-to-speech server
+//!   BRIDGE_HERMES_URL           base URL of the Hermes API server
+//!   BRIDGE_HERMES_KEY_FILE      file holding the Hermes API key
+//!   BRIDGE_HERMES_SESSION       Hermes session the creature talks in (default creature)
+//!   BRIDGE_REPLY_TIMEOUT_SECS   bounds the brain and speech phase of one utterance (default 60)
+//! With any of the four voice settings missing, voice is off and the board sees the creature offline.
 
 use std::time::Duration;
 
 use claude_board_bridge::app;
 use claude_board_bridge::auth::Tokens;
 use claude_board_bridge::http::{AppState, now_secs};
+use claude_board_bridge::voice::VoiceConfig;
+use claude_board_bridge::voice::backends::{Backends, HermesHttp, PiperHttp, WhisperHttp};
 
 fn env_num(name: &str, default: u64) -> u64 {
     std::env::var(name).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
@@ -27,6 +36,21 @@ fn token(var: &str) -> String {
     tok
 }
 
+/// Voice is on only when the speech servers and Hermes are all configured.
+fn voice() -> Option<(Backends, VoiceConfig)> {
+    let url = |var: &str| std::env::var(var).ok().filter(|v| !v.trim().is_empty());
+    let (stt, tts, hermes) = (url("BRIDGE_STT_URL")?, url("BRIDGE_TTS_URL")?, url("BRIDGE_HERMES_URL")?);
+    let key = token("BRIDGE_HERMES_KEY_FILE");
+    let session = url("BRIDGE_HERMES_SESSION").unwrap_or_else(|| "creature".into());
+    let backends = Backends {
+        stt: std::sync::Arc::new(WhisperHttp::new(stt)),
+        tts: std::sync::Arc::new(PiperHttp::new(tts)),
+        brain: std::sync::Arc::new(HermesHttp::new(hermes, key, session)),
+    };
+    let cfg = VoiceConfig { reply_timeout: Duration::from_secs(env_num("BRIDGE_REPLY_TIMEOUT_SECS", 60)), ..VoiceConfig::default() };
+    Some((backends, cfg))
+}
+
 fn fatal(msg: &str) -> ! {
     eprintln!("claude-board-bridge: {msg}");
     std::process::exit(1)
@@ -36,12 +60,19 @@ fn fatal(msg: &str) -> ! {
 async fn main() {
     let listen = std::env::var("BRIDGE_LISTEN").unwrap_or_else(|_| "127.0.0.1:8590".into());
     let tokens = Tokens { host: token("BRIDGE_HOST_TOKEN_FILE"), device: token("BRIDGE_DEVICE_TOKEN_FILE") };
-    let state = AppState::new(
+    let mut state = AppState::new(
         tokens,
         Duration::from_secs(env_num("BRIDGE_ASK_TIMEOUT_SECS", 60)),
         Duration::from_millis(env_num("BRIDGE_AUTH_FAIL_DELAY_MS", 500)),
         env_num("BRIDGE_EXPIRE_SECS", 21600) as i64,
     );
+    match voice() {
+        Some((backends, cfg)) => {
+            eprintln!("claude-board-bridge: voice on");
+            state = state.with_voice(backends, cfg);
+        }
+        None => eprintln!("claude-board-bridge: voice off"),
+    }
 
     let sweep = state.clone();
     tokio::spawn(async move {

@@ -25,6 +25,7 @@ pub enum Out {
     Audio(Vec<u8>),
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct VoiceConfig {
     /// Bounds the whole brain-and-speech phase of one utterance.
     pub reply_timeout: Duration,

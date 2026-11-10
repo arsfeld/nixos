@@ -6,63 +6,15 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use claude_board_bridge::app;
 use claude_board_bridge::asks::{Answered, build_decision};
-use claude_board_bridge::auth::Tokens;
 use claude_board_bridge::http::AppState;
 use futures::{SinkExt, StreamExt};
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
-use tokio::net::TcpStream;
-use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::{Error as WsError, Message};
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
 use tower::ServiceExt;
 
-type Ws = WebSocketStream<MaybeTlsStream<TcpStream>>;
-
-const HOST_TOKEN: &str = "host-token";
-const DEVICE_TOKEN: &str = "device-token";
-
-fn state(ask_timeout_ms: u64) -> AppState {
-    AppState::new(
-        Tokens { host: HOST_TOKEN.into(), device: DEVICE_TOKEN.into() },
-        Duration::from_millis(ask_timeout_ms),
-        Duration::from_millis(0),
-        21600,
-    )
-}
-
-async fn serve(st: AppState) -> std::net::SocketAddr {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
-    let router = app(st);
-    tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
-    addr
-}
-
-async fn try_connect(addr: std::net::SocketAddr, token: Option<&str>) -> Result<Ws, WsError> {
-    let mut r = format!("ws://{addr}/v1/board").into_client_request().unwrap();
-    if let Some(t) = token {
-        r.headers_mut().insert("authorization", format!("Bearer {t}").parse().unwrap());
-    }
-    connect_async(r).await.map(|(ws, _)| ws)
-}
-
-/// Connects and consumes the greeting, so tests see the state snapshot first.
-async fn connect(addr: std::net::SocketAddr) -> Ws {
-    let mut ws = try_connect(addr, Some(DEVICE_TOKEN)).await.unwrap();
-    assert_eq!(next_json(&mut ws).await["t"], "hello");
-    ws
-}
-
-/// Next JSON text frame, skipping pings.
-async fn next_json(ws: &mut Ws) -> Value {
-    loop {
-        let m = tokio::time::timeout(Duration::from_secs(3), ws.next()).await.expect("frame").unwrap().unwrap();
-        if let Message::Text(t) = m {
-            return serde_json::from_str(t.as_str()).unwrap();
-        }
-    }
-}
+mod common;
+use common::{DEVICE_TOKEN, HOST_TOKEN, Ws, connect, next_json, serve, state, try_connect};
 
 async fn next_of(ws: &mut Ws, tag: &str) -> Value {
     loop {
