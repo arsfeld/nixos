@@ -43,6 +43,8 @@
       serviceConfig = {
         ExecStart = "${pkgs.claude-board-bridge}/bin/claude-board-bridge";
         DynamicUser = true;
+        # Persistent timers ($STATE_DIRECTORY/timers.json) survive a restart.
+        StateDirectory = "claude-board";
         LoadCredential = [
           "host-token:${secrets.claude-board-host-token.path}"
           "device-token:${secrets.claude-board-device-token.path}"

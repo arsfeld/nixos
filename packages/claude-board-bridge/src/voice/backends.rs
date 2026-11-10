@@ -6,6 +6,7 @@ use futures_util::future::BoxFuture;
 use futures_util::stream::BoxStream;
 use futures_util::{StreamExt, TryStreamExt};
 use serde_json::Value;
+use super::session::SessionId;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -36,6 +37,8 @@ pub trait Tts: Send + Sync {
 
 pub trait Brain: Send + Sync {
     fn ask(&self, text: String) -> BoxFuture<'static, Result<Reply, VoiceError>>;
+    /// Start a fresh conversation. Fakes that keep no session ignore it.
+    fn new_session(&self) {}
 }
 
 pub struct Backends {
@@ -203,14 +206,14 @@ const MAX_EVENT_BYTES: usize = 1 << 20;
 pub struct HermesHttp {
     base: String,
     key: String,
-    session: String,
+    session: Arc<SessionId>,
     client: reqwest::Client,
     post_timeout: Duration,
     idle_timeout: Duration,
 }
 
 impl HermesHttp {
-    pub fn new(base_url: String, api_key: String, session_id: String) -> Self {
+    pub fn new(base_url: String, api_key: String, session: Arc<SessionId>) -> Self {
         // No overall timeout: the event stream lives as long as the reply.
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(15))
@@ -219,7 +222,7 @@ impl HermesHttp {
         Self {
             base: trim_base(base_url),
             key: api_key,
-            session: session_id,
+            session,
             client,
             post_timeout: HERMES_POST_TIMEOUT,
             idle_timeout: HERMES_IDLE_TIMEOUT,
@@ -318,9 +321,17 @@ fn parse_frame(frame: &str) -> Frame {
 }
 
 impl Brain for HermesHttp {
+    fn new_session(&self) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        self.session.reset(now);
+    }
+
     fn ask(&self, text: String) -> BoxFuture<'static, Result<Reply, VoiceError>> {
         let (client, base, key, session) =
-            (self.client.clone(), self.base.clone(), self.key.clone(), self.session.clone());
+            (self.client.clone(), self.base.clone(), self.key.clone(), self.session.current());
         let (post_timeout, idle) = (self.post_timeout, self.idle_timeout);
         Box::pin(async move {
             let resp = client

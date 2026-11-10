@@ -28,6 +28,7 @@ use claude_board_bridge::timers::Timers;
 use claude_board_bridge::voice::VoiceConfig;
 use claude_board_bridge::voice::backends::{Backends, HermesHttp, PiperHttp, WhisperHttp};
 use claude_board_bridge::voice::cylon::Centurion;
+use claude_board_bridge::voice::session::SessionId;
 
 fn env_num(name: &str, default: u64) -> u64 {
     std::env::var(name).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
@@ -56,18 +57,27 @@ fn voice() -> Option<(Backends, VoiceConfig)> {
     let backends = Backends {
         stt: std::sync::Arc::new(WhisperHttp::new(s.stt_url)),
         tts: std::sync::Arc::new(Centurion(PiperHttp::new(s.tts_url))),
-        brain: std::sync::Arc::new(HermesHttp::new(s.hermes_url, s.hermes_key, s.session)),
+        brain: std::sync::Arc::new(HermesHttp::new(
+            s.hermes_url,
+            s.hermes_key,
+            std::sync::Arc::new(SessionId::load(s.session, state_file("hermes-session"))),
+        )),
     };
     let cfg = VoiceConfig { reply_timeout: Duration::from_secs(s.reply_timeout_secs), ..VoiceConfig::default() };
     Some((backends, cfg))
 }
 
-/// Timers live in `$STATE_DIRECTORY/timers.json` (systemd sets it from `StateDirectory`).
-fn open_timers() -> Timers {
-    let path = std::env::var("STATE_DIRECTORY")
+/// A file in `$STATE_DIRECTORY` (systemd sets it from `StateDirectory`; a list takes its first entry).
+fn state_file(name: &str) -> Option<std::path::PathBuf> {
+    std::env::var("STATE_DIRECTORY")
         .ok()
         .filter(|d| !d.is_empty())
-        .map(|d| std::path::PathBuf::from(d.split(':').next().unwrap_or("")).join("timers.json"));
+        .map(|d| std::path::PathBuf::from(d.split(':').next().unwrap_or("")).join(name))
+}
+
+/// Timers live in `$STATE_DIRECTORY/timers.json`.
+fn open_timers() -> Timers {
+    let path = state_file("timers.json");
     if path.is_none() {
         eprintln!("claude-board-bridge: timers in memory only");
     }

@@ -13,6 +13,10 @@ use futures_util::StreamExt;
 use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
 use std::time::Duration;
 
+fn sess(base: &str) -> Arc<claude_board_bridge::voice::session::SessionId> {
+    Arc::new(claude_board_bridge::voice::session::SessionId::load(base.into(), None))
+}
+
 async fn serve(app: Router) -> String {
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = l.local_addr().unwrap();
@@ -183,7 +187,7 @@ async fn hermes_app(h: Hermes) -> String {
 #[tokio::test]
 async fn hermes_streams_deltas_in_order() {
     let base = hermes_app(Hermes::default()).await;
-    let brain = HermesHttp::new(base, "k".into(), "creature".into());
+    let brain = HermesHttp::new(base, "k".into(), sess("creature"));
     let mut reply = brain.ask("hi".into()).await.unwrap();
     let mut got = vec![];
     while let Some(d) = reply.deltas.next().await {
@@ -196,7 +200,7 @@ async fn hermes_streams_deltas_in_order() {
 async fn hermes_sends_bearer_key_and_session_id() {
     let h = Hermes::default();
     let base = hermes_app(h.clone()).await;
-    let brain = HermesHttp::new(base, "secret-key".into(), "creature".into());
+    let brain = HermesHttp::new(base, "secret-key".into(), sess("creature"));
     let mut reply = brain.ask("what time".into()).await.unwrap();
     while reply.deltas.next().await.is_some() {}
     assert_eq!(h.auth.lock().unwrap().as_deref(), Some("Bearer secret-key"));
@@ -206,10 +210,24 @@ async fn hermes_sends_bearer_key_and_session_id() {
 }
 
 #[tokio::test]
+async fn hermes_uses_the_new_session_after_reset() {
+    let h = Hermes::default();
+    let base = hermes_app(h.clone()).await;
+    let brain = HermesHttp::new(base, "k".into(), sess("creature"));
+    brain.new_session();
+    let mut reply = brain.ask("hi".into()).await.unwrap();
+    while reply.deltas.next().await.is_some() {}
+    let body = h.body.lock().unwrap().clone().unwrap();
+    let id = body["session_id"].as_str().unwrap().to_string();
+    assert!(id.starts_with("creature-"), "{id}");
+    assert_ne!(id, "creature");
+}
+
+#[tokio::test]
 async fn dropping_a_reply_stops_the_run() {
     let h = Hermes { hang: true, ..Default::default() };
     let base = hermes_app(h.clone()).await;
-    let brain = HermesHttp::new(base, "k".into(), "creature".into());
+    let brain = HermesHttp::new(base, "k".into(), sess("creature"));
     let mut reply = brain.ask("hi".into()).await.unwrap();
     assert_eq!(reply.deltas.next().await.unwrap().unwrap(), "Hel");
     drop(reply);
@@ -221,7 +239,7 @@ async fn dropping_a_reply_stops_the_run() {
 async fn finished_reply_does_not_call_stop() {
     let h = Hermes::default();
     let base = hermes_app(h.clone()).await;
-    let brain = HermesHttp::new(base, "k".into(), "creature".into());
+    let brain = HermesHttp::new(base, "k".into(), sess("creature"));
     let mut reply = brain.ask("hi".into()).await.unwrap();
     while reply.deltas.next().await.is_some() {}
     drop(reply);
@@ -238,7 +256,7 @@ async fn unreachable_backend_is_unavailable_not_a_panic() {
     assert!(matches!(e, VoiceError::Unavailable(_)), "{e:?}");
     let e = PiperHttp::new(base.clone()).synthesize("x".into()).await.unwrap_err();
     assert!(matches!(e, VoiceError::Unavailable(_)), "{e:?}");
-    let e = HermesHttp::new(base, "k".into(), "s".into()).ask("x".into()).await.err().unwrap();
+    let e = HermesHttp::new(base, "k".into(), sess("s")).ask("x".into()).await.err().unwrap();
     assert!(matches!(e, VoiceError::Unavailable(_)), "{e:?}");
 }
 
@@ -252,7 +270,7 @@ fn chunked(chunks: Vec<(u64, &str)>, hang: bool) -> Hermes {
 
 async fn collect(h: Hermes) -> (Vec<Result<String, VoiceError>>, Hermes) {
     let base = hermes_app(h.clone()).await;
-    let brain = HermesHttp::new(base, "k".into(), "s".into());
+    let brain = HermesHttp::new(base, "k".into(), sess("s"));
     let mut reply = brain.ask("hi".into()).await.unwrap();
     let mut out = vec![];
     while let Some(d) = reply.deltas.next().await {
@@ -271,7 +289,7 @@ const DONE: &str = r#"data: {"event":"run.completed","output":"x","seq":9}"#;
 async fn hermes_post_that_never_answers_times_out() {
     let h = Hermes { post_hang: true, ..Default::default() };
     let base = hermes_app(h).await;
-    let brain = HermesHttp::new(base, "k".into(), "s".into())
+    let brain = HermesHttp::new(base, "k".into(), sess("s"))
         .with_timeouts(Duration::from_millis(150), Duration::from_secs(30));
     let e = brain.ask("hi".into()).await.err().unwrap();
     assert!(matches!(e, VoiceError::Timeout), "{e:?}");
@@ -281,7 +299,7 @@ async fn hermes_post_that_never_answers_times_out() {
 async fn hermes_stream_that_goes_silent_yields_a_timeout_error() {
     let h = chunked(vec![(0, "data: {\"event\":\"message.delta\",\"delta\":\"Hi\"}\n\n")], true);
     let base = hermes_app(h.clone()).await;
-    let brain = HermesHttp::new(base, "k".into(), "s".into())
+    let brain = HermesHttp::new(base, "k".into(), sess("s"))
         .with_timeouts(Duration::from_secs(30), Duration::from_millis(200));
     let mut reply = brain.ask("hi".into()).await.unwrap();
     assert_eq!(reply.deltas.next().await.unwrap().unwrap(), "Hi");
@@ -301,7 +319,7 @@ async fn slow_but_steady_stream_is_not_cut_off() {
     chunks.push((40, format!("{DONE}\n\n")));
     let h = chunked(chunks.iter().map(|(d, s)| (*d, s.as_str())).collect(), false);
     let base = hermes_app(h).await;
-    let brain = HermesHttp::new(base, "k".into(), "s".into())
+    let brain = HermesHttp::new(base, "k".into(), sess("s"))
         .with_timeouts(Duration::from_secs(30), Duration::from_millis(150));
     let mut reply = brain.ask("hi".into()).await.unwrap();
     let mut got = vec![];
@@ -385,7 +403,7 @@ async fn hermes_run_failed_event_ends_the_stream_and_stop_is_still_sent() {
         false,
     );
     let base = hermes_app(h.clone()).await;
-    let brain = HermesHttp::new(base, "k".into(), "s".into());
+    let brain = HermesHttp::new(base, "k".into(), sess("s"));
     let mut reply = brain.ask("hi".into()).await.unwrap();
     assert_eq!(reply.deltas.next().await.unwrap().unwrap(), "Hi");
     let e = reply.deltas.next().await.unwrap().unwrap_err();
