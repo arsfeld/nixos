@@ -287,3 +287,130 @@ async fn new_board_is_greeted_with_the_protocol_version_before_the_state() {
     assert_eq!(hello, serde_json::json!({"t": "hello", "version": claude_board_proto::PROTOCOL_VERSION}));
     assert_eq!(next_json(&mut ws).await["t"], "state");
 }
+
+fn feed_post(session: &str, kind: &str, text: &str) -> Request<Body> {
+    post("/v1/feed", json!({"host":"raider","session":session,"kind":kind,"text":text,"ts":5}))
+}
+
+async fn watch(ws: &mut Ws, session: &str) {
+    ws.send(Message::text(json!({"t":"watch","host":"raider","session":session}).to_string())).await.unwrap();
+}
+
+/// Asserts no frame of the given tag arrives for a short while.
+async fn quiet_of(ws: &mut Ws, tag: &str) {
+    let r = tokio::time::timeout(Duration::from_millis(400), async {
+        loop {
+            if let Some(Ok(Message::Text(t))) = ws.next().await {
+                let v: Value = serde_json::from_str(t.as_str()).unwrap();
+                if v["t"] == tag {
+                    return v;
+                }
+            }
+        }
+    })
+    .await;
+    assert!(r.is_err(), "unexpected {tag}: {r:?}");
+}
+
+#[tokio::test]
+async fn feed_entry_is_not_sent_to_a_board_that_is_not_watching() {
+    let st = state(1000);
+    let addr = serve(st.clone()).await;
+    let mut ws = connect(addr).await;
+    wait_boards(&st, 1).await;
+    app(st).oneshot(feed_post("s1", "tool", "Bash ls")).await.unwrap();
+    quiet_of(&mut ws, "entry").await;
+}
+
+#[tokio::test]
+async fn watch_replies_with_history_then_streams_entries() {
+    let st = state(1000);
+    let addr = serve(st.clone()).await;
+    let mut ws = connect(addr).await;
+    wait_boards(&st, 1).await;
+    let router = app(st.clone());
+    router.clone().oneshot(feed_post("s1", "prompt", "hello")).await.unwrap();
+    router.clone().oneshot(feed_post("s1", "reply", "hi there")).await.unwrap();
+    watch(&mut ws, "s1").await;
+    let h = next_of(&mut ws, "history").await;
+    assert_eq!(h["host"], "raider");
+    assert_eq!(h["session"], "s1");
+    assert_eq!(h["entries"].as_array().unwrap().len(), 2);
+    assert_eq!(h["entries"][0]["text"], "hello");
+    assert_eq!(h["entries"][1]["n"], 2);
+    router.oneshot(feed_post("s1", "tool", "Bash ls")).await.unwrap();
+    let e = next_of(&mut ws, "entry").await;
+    assert_eq!(e["session"], "s1");
+    assert_eq!(e["n"], 3);
+    assert_eq!(e["kind"], "tool");
+    assert_eq!(e["text"], "Bash ls");
+}
+
+#[tokio::test]
+async fn watch_other_session_receives_no_entries() {
+    let st = state(1000);
+    let addr = serve(st.clone()).await;
+    let mut ws = connect(addr).await;
+    wait_boards(&st, 1).await;
+    watch(&mut ws, "s1").await;
+    next_of(&mut ws, "history").await;
+    app(st).oneshot(feed_post("s2", "tool", "x")).await.unwrap();
+    quiet_of(&mut ws, "entry").await;
+}
+
+#[tokio::test]
+async fn unwatch_stops_entries() {
+    let st = state(1000);
+    let addr = serve(st.clone()).await;
+    let mut ws = connect(addr).await;
+    wait_boards(&st, 1).await;
+    watch(&mut ws, "s1").await;
+    next_of(&mut ws, "history").await;
+    ws.send(Message::text(json!({"t":"unwatch"}).to_string())).await.unwrap();
+    // The unwatch is processed in order with a later watch of another session.
+    watch(&mut ws, "s2").await;
+    next_of(&mut ws, "history").await;
+    app(st).oneshot(feed_post("s1", "tool", "x")).await.unwrap();
+    quiet_of(&mut ws, "entry").await;
+}
+
+#[tokio::test]
+async fn watch_unknown_session_gets_empty_history() {
+    let st = state(1000);
+    let addr = serve(st.clone()).await;
+    let mut ws = connect(addr).await;
+    watch(&mut ws, "nope").await;
+    let h = next_of(&mut ws, "history").await;
+    assert_eq!(h["entries"], json!([]));
+}
+
+#[tokio::test]
+async fn lagged_socket_resends_history_for_its_watched_session() {
+    let st = state(1000);
+    let addr = serve(st.clone()).await;
+    let mut ws = connect(addr).await;
+    wait_boards(&st, 1).await;
+    watch(&mut ws, "s1").await;
+    next_of(&mut ws, "history").await;
+    // Overflow the broadcast channel (256) faster than the socket drains it.
+    for i in 0..600 {
+        let e = st.feed.append("raider", "s1", claude_board_bridge::protocol::FeedKind::Tool, &format!("t{i}"), 1);
+        let _ = st.tx.send(claude_board_bridge::protocol::BoardMsg::Entry {
+            host: "raider".into(),
+            session: "s1".into(),
+            entry: e,
+        });
+    }
+    let got = tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            let v = next_json(&mut ws).await;
+            if v["t"] == "history" {
+                return v;
+            }
+        }
+    })
+    .await
+    .expect("history after lag");
+    assert_eq!(got["session"], "s1");
+    assert!(got["entries"].as_array().unwrap().len() == 50);
+}

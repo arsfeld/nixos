@@ -384,3 +384,78 @@ async fn ask_user_question_without_tool_name_still_works() {
     assert_eq!(resp.status(), StatusCode::OK);
     assert_eq!(body_json(resp).await, build_decision(&colour(), &answers));
 }
+
+fn feed_body(session: &str, kind: &str, text: &str) -> Value {
+    json!({"host":"raider","session":session,"kind":kind,"text":text,"ts":7})
+}
+
+#[tokio::test]
+async fn feed_requires_the_host_token() {
+    let app = hook_router(state(1000, 0));
+    for tok in [None, Some("wrong"), Some("device-token")] {
+        assert_eq!(status_of(&app, req("/v1/feed", tok, feed_body("s1", "tool", "x"))).await, StatusCode::UNAUTHORIZED);
+    }
+    assert_eq!(status_of(&app, req("/v1/feed", Some(HOST_TOKEN), feed_body("s1", "tool", "x"))).await, StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn feed_bad_kind_is_400() {
+    let st = state(1000, 0);
+    let app = hook_router(st.clone());
+    for kind in ["nonsense", "other"] {
+        assert_eq!(status_of(&app, req("/v1/feed", Some(HOST_TOKEN), feed_body("s1", kind, "x"))).await, StatusCode::BAD_REQUEST);
+    }
+    assert_eq!(status_of(&app, req("/v1/feed", Some(HOST_TOKEN), json!({"host":"raider"}))).await, StatusCode::BAD_REQUEST);
+    assert!(st.feed.history("raider", "s1", 50).is_empty());
+}
+
+#[tokio::test]
+async fn feed_never_cancels_a_held_question() {
+    let st = state(5000, 0);
+    let _board = st.board_connected.fetch_add(1, Ordering::SeqCst);
+    let app = hook_router(st.clone());
+    let hook = {
+        let app = app.clone();
+        tokio::spawn(async move { app.oneshot(req("/v1/ask", Some(HOST_TOKEN), ask_body("s1"))).await.unwrap() })
+    };
+    for _ in 0..100 {
+        if !st.asks.pending().is_empty() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(st.asks.pending().len(), 1);
+    assert_eq!(status_of(&app, req("/v1/feed", Some(HOST_TOKEN), feed_body("s1", "tool", "Bash ls"))).await, StatusCode::NO_CONTENT);
+    assert_eq!(st.asks.pending().len(), 1);
+    assert_eq!(st.registry.lock().unwrap().snapshot().iter().filter(|s| s.session == "s1").count(), 1);
+    hook.abort();
+}
+
+#[tokio::test]
+async fn feed_does_not_touch_the_registry() {
+    let st = state(1000, 0);
+    let app = hook_router(st.clone());
+    status_of(&app, req("/v1/feed", Some(HOST_TOKEN), feed_body("s1", "prompt", "hi"))).await;
+    assert!(st.registry.lock().unwrap().snapshot().is_empty());
+    assert_eq!(st.feed.history("raider", "s1", 50).len(), 1);
+}
+
+#[tokio::test]
+async fn session_end_drops_the_feed() {
+    let st = state(1000, 0);
+    let app = hook_router(st.clone());
+    status_of(&app, req("/v1/event", Some(HOST_TOKEN), event("s1", "user_prompt_submit"))).await;
+    status_of(&app, req("/v1/feed", Some(HOST_TOKEN), feed_body("s1", "prompt", "hi"))).await;
+    assert_eq!(st.feed.history("raider", "s1", 50).len(), 1);
+    status_of(&app, req("/v1/event", Some(HOST_TOKEN), event("s1", "session_end"))).await;
+    assert!(st.feed.history("raider", "s1", 50).is_empty());
+}
+
+#[tokio::test]
+async fn oversized_feed_body_is_rejected() {
+    let app = hook_router(state(1000, 0));
+    let big = "x".repeat(70 * 1024);
+    assert_eq!(status_of(&app, req("/v1/feed", Some(HOST_TOKEN), feed_body("s1", "reply", &big))).await, StatusCode::PAYLOAD_TOO_LARGE);
+    let ok = "x".repeat(40 * 1024);
+    assert_eq!(status_of(&app, req("/v1/feed", Some(HOST_TOKEN), feed_body("s1", "reply", &ok))).await, StatusCode::NO_CONTENT);
+}

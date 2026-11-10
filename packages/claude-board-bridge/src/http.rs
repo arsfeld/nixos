@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use axum::body::Bytes;
-use axum::extract::State;
+use axum::extract::{DefaultBodyLimit, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;
@@ -16,13 +16,15 @@ use tokio::sync::broadcast;
 
 use crate::asks::{Answered, Asks, build_approval_decision, build_decision};
 use crate::auth::{Tokens, check_bearer};
-use crate::protocol::{BoardMsg, Event, EventKind};
+use crate::feed::Feed;
+use crate::protocol::{BoardMsg, Event, EventKind, FeedKind};
 use crate::state::{Change, Registry, project_of};
 
 #[derive(Clone)]
 pub struct AppState {
     pub registry: Arc<Mutex<Registry>>,
     pub asks: Arc<Asks>,
+    pub feed: Arc<Feed>,
     pub tx: broadcast::Sender<BoardMsg>,
     pub tokens: Arc<Tokens>,
     pub ask_timeout: Duration,
@@ -38,6 +40,7 @@ impl AppState {
         AppState {
             registry: Arc::new(Mutex::new(Registry::new(expire_secs))),
             asks: Arc::new(Asks::new()),
+            feed: Arc::new(Feed::new()),
             tx: broadcast::channel(256).0,
             tokens: Arc::new(tokens),
             ask_timeout,
@@ -66,7 +69,36 @@ pub fn now_secs() -> i64 {
 }
 
 pub fn hook_router(state: AppState) -> Router {
-    Router::new().route("/v1/event", post(event)).route("/v1/ask", post(ask)).with_state(state)
+    Router::new()
+        .route("/v1/event", post(event))
+        .route("/v1/ask", post(ask))
+        // Room for a 4096-character reply of 4-byte characters, JSON-escaped, with headroom.
+        .route("/v1/feed", post(feed).layer(DefaultBodyLimit::max(FEED_BODY_LIMIT)))
+        .with_state(state)
+}
+
+const FEED_BODY_LIMIT: usize = 64 * 1024;
+
+#[derive(Deserialize)]
+struct FeedReq {
+    host: String,
+    session: String,
+    kind: FeedKind,
+    text: String,
+    ts: i64,
+}
+
+/// One activity line for a session. Deliberately separate from `/v1/event`: it never touches the
+/// registry and never cancels a held question.
+async fn feed(State(s): State<AppState>, headers: HeaderMap, body: Bytes) -> Result<StatusCode, StatusCode> {
+    check_bearer(&headers, &s.tokens.host, s.fail_delay).await?;
+    let r: FeedReq = serde_json::from_slice(&body).map_err(|_| StatusCode::BAD_REQUEST)?;
+    if r.kind == FeedKind::Other {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let entry = s.feed.append(&r.host, &r.session, r.kind, &r.text, r.ts);
+    let _ = s.tx.send(BoardMsg::Entry { host: r.host, session: r.session, entry });
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn event(State(s): State<AppState>, headers: HeaderMap, body: Bytes) -> Result<StatusCode, StatusCode> {
@@ -77,6 +109,9 @@ async fn event(State(s): State<AppState>, headers: HeaderMap, body: Bytes) -> Re
     // A notification while a question is held (the 60 s idle prompt, say) is
     // not news: the card stays waiting.
     if !(is_note && has_pending) {
+        if matches!(e.event, EventKind::SessionEnd) {
+            s.feed.drop_session(&e.host, &e.session);
+        }
         let change = s.registry.lock().unwrap().apply(&e);
         if let Some(c) = change {
             s.publish(c);

@@ -62,7 +62,17 @@ async fn send_snapshot(s: &AppState, sink: &mut Sink) -> Result<(), axum::Error>
     Ok(())
 }
 
-fn handle(s: &AppState, text: &str) {
+const HISTORY_LIMIT: usize = 50;
+
+async fn send_history(s: &AppState, sink: &mut Sink, host: &str, session: &str) -> Result<(), axum::Error> {
+    let entries = s.feed.history(host, session, HISTORY_LIMIT);
+    send(sink, &BoardMsg::History { host: host.into(), session: session.into(), entries }).await
+}
+
+/// The session whose feed this socket follows, if any.
+type Watching = Option<(String, String)>;
+
+async fn handle(s: &AppState, sink: &mut Sink, watching: &mut Watching, text: &str) -> Result<(), axum::Error> {
     // A stale or replayed id is simply Unknown; nothing to tell the board.
     match serde_json::from_str::<ClientMsg>(text) {
         Ok(ClientMsg::Answer { id, answers }) => {
@@ -71,10 +81,16 @@ fn handle(s: &AppState, text: &str) {
         Ok(ClientMsg::Decline { id }) => {
             let _ = s.asks.answer(&id, Answered::Declined);
         }
-        // Watching is handled by the endpoint in the plan's later feed tasks.
-        Ok(ClientMsg::Watch { .. } | ClientMsg::Unwatch) => {}
+        Ok(ClientMsg::Watch { host, session }) => {
+            // Already subscribed to the broadcast, so an entry appended while the history is read
+            // arrives twice at worst; the board dedupes by `n`.
+            send_history(s, sink, &host, &session).await?;
+            *watching = Some((host, session));
+        }
+        Ok(ClientMsg::Unwatch) => *watching = None,
         Err(_) => {}
     }
+    Ok(())
 }
 
 async fn serve(s: AppState, socket: WebSocket) {
@@ -85,21 +101,34 @@ async fn serve(s: AppState, socket: WebSocket) {
     if send_snapshot(&s, &mut sink).await.is_err() {
         return;
     }
+    let mut watching: Watching = None;
     let mut ping = tokio::time::interval(s.ping_every);
     ping.tick().await;
     loop {
         tokio::select! {
             m = rx.recv() => match m {
+                Ok(BoardMsg::Entry { host, session, entry }) => {
+                    if watching.as_ref().is_some_and(|(h, w)| *h == host && *w == session)
+                        && send(&mut sink, &BoardMsg::Entry { host, session, entry }).await.is_err()
+                    {
+                        break;
+                    }
+                }
                 Ok(msg) => if send(&mut sink, &msg).await.is_err() { break },
-                // Too slow to keep up: start over from a fresh snapshot.
-                Err(RecvError::Lagged(_)) => if send_snapshot(&s, &mut sink).await.is_err() { break },
+                // Too slow to keep up: start over from a fresh snapshot, and the watched feed too.
+                Err(RecvError::Lagged(_)) => {
+                    if send_snapshot(&s, &mut sink).await.is_err() { break }
+                    if let Some((h, w)) = &watching {
+                        if send_history(&s, &mut sink, h, w).await.is_err() { break }
+                    }
+                }
                 Err(RecvError::Closed) => break,
             },
             _ = ping.tick() => {
                 if sink.send(Message::Ping(Bytes::new())).await.is_err() { break }
             }
             incoming = stream.next() => match incoming {
-                Some(Ok(Message::Text(t))) => handle(&s, t.as_str()),
+                Some(Ok(Message::Text(t))) => if handle(&s, &mut sink, &mut watching, t.as_str()).await.is_err() { break },
                 Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
                 Some(Ok(_)) => {}
             }
