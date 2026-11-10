@@ -280,10 +280,9 @@ impl<O: Outbox + 'static> Controller<O> {
             }
             Ok(BoardMsg::SessionReset { utterance }) => {
                 if s.purge_wait.is_some_and(|(id, _)| id == utterance) {
+                    // Only the wait ends here: the bridge's own mood follows (speaking the confirmation, idle when
+                    // it could not, offline when its voice is down) and takes over from the thinking.
                     s.purge_wait = None;
-                    // The bridge sends no mood of its own if it cannot speak the confirmation; when it can, its
-                    // speaking mood follows and takes over.
-                    s.set_mood(Mood::Idle);
                     s.refresh();
                 }
                 return;
@@ -674,7 +673,10 @@ impl<O: Outbox> Inner<O> {
         let utterance = self.last_utterance;
         self.send(&ClientMsg::NewSession { utterance });
         self.purge_wait = Some((utterance, self.time_ms));
-        self.set_mood(Mood::Thinking);
+        // Offline stays offline: the bridge has no voice to confirm with, and the home screen should keep saying so.
+        if self.mood != Mood::Offline {
+            self.set_mood(Mood::Thinking);
+        }
         self.set_nav(Nav::Home);
         self.refresh();
     }
@@ -691,6 +693,8 @@ impl<O: Outbox> Inner<O> {
             return false;
         }
         self.menu_open = false;
+        // A purge still waiting gives up: its 10 s fallback must not drop this question's thinking to idle.
+        self.purge_wait = None;
         self.last_utterance += 1;
         self.utterance = Some(self.last_utterance);
         self.holding = true;
@@ -740,6 +744,7 @@ impl<O: Outbox> Inner<O> {
         sync(&self.models.rim_pulsing, pulsing);
         win.set_menu_open(self.menu_open);
         win.set_link(self.link);
+        win.set_purge_pending(self.purge_wait.is_some());
 
         if self.mood == Mood::Thinking && self.time_ms.saturating_sub(self.mood_since_ms) >= THINKING_WATCHDOG_MS {
             self.mood = Mood::Idle;

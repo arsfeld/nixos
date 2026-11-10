@@ -13,7 +13,9 @@ component CommandArc inherits Rectangle {
     width: seg.width;
     height: seg.height;
     // Slint fits the viewbox into the element shrunk by the stroke width (half on each side), so each Path is grown
-    // by its stroke to map the viewbox onto the segment's box one to one.
+    // by its stroke to map the viewbox onto the segment's box one to one. Their element boxes are therefore larger
+    // than the segment's box (by the stroke), and a Path with an animated property repaints its whole box every
+    // frame: keep both static. Never animate their stroke or geometry.
     Path {
         x: -25px;
         y: -25px;

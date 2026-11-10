@@ -165,8 +165,9 @@ export component LinkPage inherits Rectangle {
         Value {
             y: 78px;
             height: 22px;
-            text: root.voice-available ? "ONLINE" : "OFFLINE";
-            color: root.voice-available ? Theme.done : Theme.muted;
+            // The voice goes through the bridge: with the bridge down it is offline whatever the last mood said.
+            text: root.link && root.voice-available ? "ONLINE" : "OFFLINE";
+            color: root.link && root.voice-available ? Theme.done : Theme.muted;
         }
         Label {
             y: 104px;

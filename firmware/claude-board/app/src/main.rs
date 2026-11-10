@@ -172,8 +172,9 @@ fn run<O: Outbox + 'static>(
             ui.invoke_back_tapped();
         }
         let press = platform::take_press();
-        // A tap anywhere but home cancels the creature's speech (on home the avatar's own handler does).
-        if press.is_some() && ui.get_page() != Page::Home {
+        // A tap anywhere but home cancels the creature's speech (on home the avatar's own handler does). Not on the
+        // volume page: its - and + are there to adjust a reply while it plays.
+        if press.is_some() && !matches!(ui.get_page(), Page::Home | Page::Volume) {
             controller.tap_cancels_speech();
         }
         // A finger on the avatar may become a hold: start the microphone now, so the words said before the hold

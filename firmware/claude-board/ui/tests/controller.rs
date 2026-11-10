@@ -1172,17 +1172,49 @@ fn session_reset_clears_the_wait() {
 }
 
 #[test]
-fn session_reset_sets_idle() {
+fn session_reset_clears_the_wait_and_keeps_thinking() {
     let f = fixture();
     f.open_purge();
     f.ui.invoke_purge_confirmed();
+    assert!(f.ui.get_purge_pending());
     f.c.on_message(r#"{"t":"session_reset","utterance":99}"#);
     assert_eq!(f.ui.get_presence_state(), PresenceState::Thinking, "another id changes nothing");
+    assert!(f.ui.get_purge_pending());
     f.c.on_message(r#"{"t":"session_reset","utterance":1}"#);
-    assert_eq!(f.ui.get_presence_state(), PresenceState::Idle);
-    // When speech works, the bridge's speaking mood follows and takes over.
+    assert!(!f.ui.get_purge_pending(), "the wait is over");
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Thinking, "the bridge's own mood follows");
+    // When speech works, the bridge's speaking mood follows and takes over; when it fails, its idle does.
     mood(&f, "speaking");
     assert_eq!(f.ui.get_presence_state(), PresenceState::Speaking);
+    mood(&f, "idle");
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Idle);
+}
+
+#[test]
+fn purge_while_offline_keeps_offline() {
+    let f = fixture();
+    f.open_purge();
+    mood(&f, "offline");
+    f.ui.invoke_purge_confirmed();
+    assert_eq!(f.new_sessions(), [1], "the link is up: the purge is still sent");
+    assert!(!f.ui.get_voice_available(), "offline is not overwritten by thinking");
+    assert_ne!(f.ui.get_presence_state(), PresenceState::Thinking);
+}
+
+#[test]
+fn a_voice_hold_ends_the_purge_wait() {
+    let f = fixture();
+    f.c.tick_at(Some(NOW), 100_000);
+    f.open_purge();
+    f.ui.invoke_purge_confirmed();
+    assert!(f.c.hold_started(233, 233));
+    assert!(!f.ui.get_purge_pending(), "the hold took over from the purge");
+    f.c.tick_at(Some(NOW), 101_000);
+    f.c.hold_ended();
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Thinking);
+    // Past the purge's 10 s fallback: the question's thinking stays.
+    f.c.tick_at(Some(NOW), 110_500);
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Thinking);
 }
 
 #[test]

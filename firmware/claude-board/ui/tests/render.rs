@@ -633,6 +633,7 @@ mod purge {
         assert_eq!(b.ui.get_page(), Page::Home);
         b.release();
         assert_eq!(b.wire.new_sessions(), 1, "once");
+        assert_eq!(b.ui.get_page(), Page::Home, "the lift on home is not a tap on the avatar");
     }
 
     #[test]
@@ -646,6 +647,26 @@ mod purge {
         b.release();
         b.hold_for(1550);
         assert_eq!(b.wire.new_sessions(), 1);
+    }
+
+    #[test]
+    fn the_purge_button_is_inert_while_a_purge_is_pending() {
+        let mut b = Board::on_purge();
+        b.hold_for(1550);
+        b.release();
+        assert_eq!(b.wire.new_sessions(), 1);
+        // Back to the page before the bridge has answered.
+        b.c.open_menu();
+        b.ui.invoke_rim_tapped(44.0);
+        assert_eq!(b.ui.get_page(), Page::Purge);
+        b.hold_for(2000);
+        assert_eq!(b.red_ticks(), 0, "the button does nothing");
+        assert_eq!(b.wire.new_sessions(), 1);
+        b.release();
+        // The bridge answers: the button works again.
+        b.c.on_message(r#"{"t":"session_reset","utterance":1}"#);
+        b.hold_for(1550);
+        assert_eq!(b.wire.new_sessions(), 2);
     }
 
     #[test]
@@ -769,4 +790,15 @@ fn the_link_page_lights_its_arcs_from_the_inside_and_colours_the_bridge() {
     assert!(green(&h.render()));
     ui.set_link(false);
     assert!(!green(&h.render()));
+    // VOICE's value (y 342..364) goes through the bridge: never green while it is down, whatever the mood says.
+    let voice_green = |buf: &[Rgb565Pixel]| (198..260).flat_map(|x| (342..364).map(move |y| (x, y))).any(|(x, y)| {
+        let (r, g, b) = px(buf, x, y);
+        g > 150 && r < 100 && b < 140
+    });
+    ui.set_voice_available(true);
+    assert!(!voice_green(&h.render()), "bridge down: VOICE is offline");
+    ui.set_link(true);
+    assert!(voice_green(&h.render()), "bridge up with a voice: VOICE is online");
+    ui.set_voice_available(false);
+    assert!(!voice_green(&h.render()));
 }

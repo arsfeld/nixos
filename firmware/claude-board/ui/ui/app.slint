@@ -43,6 +43,8 @@ export component AppWindow inherits Window {
     // How long the purge button must be held (the controller sets it from PURGE_HOLD_MS), and how far a hold has got.
     in property <duration> purge-hold: 1500ms;
     in-out property <float> purge-progress: 0;
+    // A purge sent and not yet answered by the bridge: the purge button waits.
+    in property <bool> purge-pending: false;
     // The link page's Wi-Fi reading, uptime included (the app sets it every 2 s while the page is open).
     in property <LinkInfo> link-info: { rssi: 0, bars: 0, ssid: "--", address: "--", uptime: "--" };
     // List.
@@ -189,6 +191,7 @@ export component AppWindow inherits Window {
         if root.page == Page.purge: PurgePage {
             ticks: root.ring-ticks;
             link: root.link;
+            pending: root.purge-pending;
             hold-time: root.purge-hold;
             progress <=> root.purge-progress;
             purge-confirmed => {

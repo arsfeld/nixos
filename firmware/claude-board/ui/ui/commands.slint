@@ -168,6 +168,9 @@ export component PurgePage inherits Rectangle {
     in property <[Tick]> ticks;
     // Purging needs the bridge: while it is down the button is dimmed and does nothing.
     in property <bool> link;
+    // A purge sent and not yet answered: the button is dimmed and does nothing until it is.
+    in property <bool> pending;
+    property <bool> armed: root.link && !root.pending;
     // How long the button has to be held.
     in property <duration> hold-time: 1500ms;
     // 0 to 1: how far the hold has got. Back to 0 when the finger lifts.
@@ -230,11 +233,11 @@ export component PurgePage inherits Rectangle {
         border-bottom-left-radius: 29px;
         border-bottom-right-radius: 29px;
         border-width: 1px;
-        border-color: root.link ? #ff2a1a : #ff2a1a50;
-        background: !root.link ? #120807 : (area.pressed ? #3d120d : #2a0c09);
+        border-color: root.armed ? #ff2a1a : #ff2a1a50;
+        background: !root.armed ? #120807 : (area.pressed ? #3d120d : #2a0c09);
         Text {
             text: root.progress > 0 ? "HOLD · " + Math.round(root.progress * 100) + "%" : "HOLD";
-            color: root.link ? Theme.text : #f9fafb50;
+            color: root.armed ? Theme.text : #f9fafb50;
             font-family: "JetBrains Mono";
             font-size: 13px;
             letter-spacing: 3px;
@@ -244,7 +247,7 @@ export component PurgePage inherits Rectangle {
         // The hold is timed here, not by the touch tracker: a hold off the avatar is never taken as one, so the
         // pointer stays pressed for as long as the finger is down.
         area := TouchArea {
-            enabled: root.link;
+            enabled: root.armed;
             pointer-event(event) => {
                 if (event.kind == PointerEventKind.down) {
                     root.pressed-at = animation-tick();
@@ -274,6 +277,6 @@ export component PurgePage inherits Rectangle {
 
     Caption {
         y: 404px;
-        text: root.link ? "RELEASE TO ABORT" : "OFFLINE";
+        text: !root.link ? "OFFLINE" : root.pending ? "PURGING" : "RELEASE TO ABORT";
     }
 }
