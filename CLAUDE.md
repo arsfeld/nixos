@@ -491,14 +491,20 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
   - **Bridge behaviour.** Voice is on only when all four of `BRIDGE_STT_URL`, `BRIDGE_TTS_URL`, `BRIDGE_HERMES_URL`,
     `BRIDGE_HERMES_KEY_FILE` are set; otherwise the bridge greets the board with the `offline` mood (also what a failed backend shows) and approvals are unaffected. With
     them set, an unreadable or empty key file is a startup error. Optional: `BRIDGE_HERMES_SESSION` (default
-    `creature`) and `BRIDGE_REPLY_TIMEOUT_SECS` (default 60). `speak_end` always follows `speak_start`. The uplink
+    `creature`) and `BRIDGE_REPLY_TIMEOUT_SECS` (default 60). `speak_end` follows `speak_start`, best effort: the
+    bridge gives it up after a 5 s `CONTROL_WAIT` if the board stops reading. The uplink
     is bounded (256 KiB of queued audio, 64 control messages; excess is dropped and logged as `voice: uplink dropped
-    N frames`) and `on_client` never blocks the reader, so a slow backend cannot stall approvals or pings. The
+    N frames`, at most one line per second, counts only; one websocket message is capped at 128 KiB) and `on_client` never blocks the reader, so a slow backend cannot stall approvals or pings. The
     bridge synthesizes faster than real time, so `speak_end` and the `idle` mood arrive before the speaker has
     finished; the firmware holds the idle mood back while audio drains (`idle_deferred` in the controller). Replies
-    go only to the socket that spoke. At most 10 utterances a minute. Logs carry lengths and timings only, never
-    speech or reply text: `voice: utt=<id> bytes=<n> stt_ms=.. first_delta_ms=.. first_audio_ms=.. total_ms=..`
-    (`journalctl -u claude-board`).
+    go only to the socket that spoke. At most 10 utterances a minute **per websocket connection**: a second socket
+    or a reconnect gets a fresh budget, and a bridge-wide limiter is not implemented, so a leaked device token can
+    open many sockets. A refused `voice_start` (no backends, or over the limit) is answered again on that
+    utterance's `voice_end` (or `cancel`) with the refused mood (`offline` or `idle`), since the board shows
+    thinking from its release; the firmware also refuses to start a hold while the creature is `offline`. Logs carry lengths and timings only, never
+    speech or reply text: `voice: utt=<id> bytes=<n> stt_ms=.. first_delta_ms=.. first_audio_ms=.. total_ms=..`,
+    plus one `voice: utt=<id> stage=<stt|brain|tts> error=<unavailable|timeout|rejected>` line per backend
+    failure (`journalctl -u claude-board`).
   - **Services** (`modules/hosts/galactica/services/claude-board-voice.nix`, all loopback, no firewall change):
     `whisper-server` (whisper.cpp, `ggml-base.en`, port 18081, 8 threads), `piper-server` (Piper
     `en_US-lessac-medium`, 18082), `hermes-agent` (the `hermes-agent` flake input's NixOS module, 18642). All three
