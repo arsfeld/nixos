@@ -38,6 +38,23 @@ restore FILE="":
       run esptool --port "{{ PORT }}" --baud 921600 write-flash 0 "'"$f"'"
     '
 
+# Host tests for the firmware's protocol core (plain C and cJSON, built with ASan and UBSan).
+# The fixtures are the bridge's wire format; the Rust side pins the same files.
+test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    nix develop .#firmware -c bash -c '
+      set -euo pipefail
+      cd "{{ FW }}/components/board_proto"
+      out="$(mktemp -d)"
+      trap "rm -rf $out" EXIT
+      cc -std=c11 -Wall -Wextra -Werror -g -fsanitize=address,undefined -fno-sanitize-recover=all \
+        -DFIX_DIR=\"{{ justfile_directory() }}/packages/claude-board-bridge/tests/fixtures/board\" \
+        -I. $(pkg-config --cflags libcjson) board_proto.c test/test_board_proto.c \
+        $(pkg-config --libs libcjson) -o "$out/test"
+      "$out/test"
+    '
+
 # Build the firmware.
 #
 # The first configure is seeded with kconfig-seed.json. The IDF component manager (2.2.2 in IDF

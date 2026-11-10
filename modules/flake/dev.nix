@@ -153,6 +153,7 @@
         pkgs.just
         pkgs.esptool
         pkgs.cjson
+        pkgs.pkg-config
         pkgs.gcc
         pkgs.jq
         pkgs.sops

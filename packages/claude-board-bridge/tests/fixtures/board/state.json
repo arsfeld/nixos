@@ -1,0 +1,4 @@
+{"t":"state","sessions":[
+ {"host":"raider","session":"s-1","project":"nixos","cwd":"/home/arosenfeld/Code/nixos","state":"working","since":1000},
+ {"host":"galactica","session":"s-2","project":"plab","cwd":"/srv/plab","state":"waiting","since":900},
+ {"host":"basestar","session":"s-3","project":"blog","cwd":"/srv/blog","state":"done","since":1200}]}

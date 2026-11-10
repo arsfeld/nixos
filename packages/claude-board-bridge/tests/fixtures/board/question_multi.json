@@ -1,0 +1,4 @@
+{"t":"question","id":"00000000000000000000000000000002","host":"raider","session":"s-1","project":"nixos",
+ "questions":[
+  {"question":"Which fruit?","header":null,"options":[{"label":"Apple","description":null},{"label":"Pear","description":null}],"multiSelect":false},
+  {"question":"Which toppings?","header":"Toppings","options":[{"label":"Nuts","description":null},{"label":"Cream","description":null},{"label":"Honey","description":null}],"multiSelect":true}]}

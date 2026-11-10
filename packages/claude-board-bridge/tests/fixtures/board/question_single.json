@@ -1,0 +1,3 @@
+{"t":"question","id":"00000000000000000000000000000001","host":"galactica","session":"s-2","project":"plab",
+ "questions":[{"question":"Which colour?","header":"Colour",
+   "options":[{"label":"Red","description":"Pick red"},{"label":"Blue","description":null}],"multiSelect":false}]}
