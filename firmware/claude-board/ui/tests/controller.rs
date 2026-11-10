@@ -816,6 +816,28 @@ fn tapping_the_reminder_card_while_it_is_spoken_cancels_its_speech() {
     assert!(!f.c.is_speaking());
 }
 
+/// The reminder's card arrives while the previous reply still drains on the board (the bridge already sent its
+/// `speak_end` and `idle`). Dismissing the card must not cancel the reply, nor change the mood.
+#[test]
+fn tapping_the_reminder_card_while_a_reply_drains_cancels_nothing() {
+    let f = fixture();
+    f.c.set_link(true);
+    let id = own_utterance(&f);
+    f.c.on_message(&format!(r#"{{"t":"speak_start","utterance":{id},"sample_rate":22050}}"#));
+    mood(&f, "speaking");
+    f.c.set_audio_playing(true);
+    f.c.on_message(&format!(r#"{{"t":"speak_end","utterance":{id}}}"#));
+    mood(&f, "idle"); // deferred: the audio still plays
+    assert!(f.c.is_speaking());
+    f.c.on_message(REMINDER);
+    let before = f.sent().len();
+    f.ui.invoke_reply_tapped();
+    assert_eq!(f.ui.get_reply_text(), "");
+    assert_eq!(f.sent().len(), before, "sent {:?}", &f.sent()[before..]);
+    assert!(f.c.is_speaking(), "the mood changed");
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Speaking);
+}
+
 #[test]
 fn tapping_the_reminder_card_before_its_speech_sends_nothing() {
     let f = fixture();

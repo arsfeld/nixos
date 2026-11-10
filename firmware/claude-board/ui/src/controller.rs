@@ -17,6 +17,10 @@ use crate::view::{
 use crate::rim::ticks;
 use crate::{AppWindow, FeedRow, OptionRow, Page, PresenceState, RimSegment, SessionRow};
 
+/// Utterance ids the bridge owns (its spoken reminders) have this bit set; the board's own stay below it. Mirrors
+/// `REMINDER_ID_BASE` in `packages/claude-board-bridge/src/voice/pipeline.rs`.
+pub const REMINDER_ID_BASE: u32 = 0x8000_0000;
+
 /// How long the reply card stays up, in `tick_at` time.
 const REPLY_CARD_MS: u64 = 20_000;
 /// Thinking with no word from the bridge for this long goes back to idle (the bridge gives up on a reply at 60 s).
@@ -657,14 +661,18 @@ impl<O: Outbox> Inner<O> {
         self.mood_since_ms = self.time_ms;
     }
 
-    /// A tap on the card. Dismissing a reminder also stops its speech if it is being spoken (a reminder not yet
-    /// spoken needs nothing more here); an ordinary reply card only goes away.
+    /// A tap on the card. Dismissing a reminder also stops its speech, but only while the bridge is speaking a
+    /// bridge-owned (reminder) utterance: the card can arrive while the previous reply still drains, after its
+    /// `speak_end`, and that reply must not be cut off. A reminder not yet spoken needs nothing more here; an ordinary
+    /// reply card only goes away.
     fn dismiss_reply(&mut self) {
         let reminder = self.reminder_heading.is_some();
         self.reply.clear();
         self.reminder_heading = None;
-        if reminder && self.tap_cancels_speech() {
-            return; // it refreshed
+        if let Some(utterance) = self.speaking.filter(|id| reminder && id & REMINDER_ID_BASE != 0) {
+            self.send(&ClientMsg::Cancel { utterance });
+            self.idle_deferred = false;
+            self.set_mood(Mood::Idle);
         }
         self.refresh();
     }
