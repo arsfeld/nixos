@@ -329,8 +329,7 @@ impl Brain for HermesHttp {
                                 st.done = true;
                             }
                             Frame::Failed => {
-                                // st (and its guard) drops here, disarmed first.
-                                st.guard.armed = false;
+                                // The guard drops armed; a stop on a failed run is harmless.
                                 return Err(VoiceError::Unavailable("hermes run failed".into()));
                             }
                             Frame::Ignore => {}
