@@ -29,6 +29,7 @@
   configurations.nixos.galactica.module = {
     config,
     lib,
+    options,
     pkgs,
     ...
   }: let
@@ -166,6 +167,11 @@
     services.hermes-agent = {
       enable = true;
       inherit stateDir;
+      # Hermes builds against its own nixpkgs pin, whose curl links brotli 1.2.0 (CVE-2026-111497),
+      # and puts that git (and its curl) on the agent's PATH. Swap in ours. Following our
+      # nixpkgs-unstable instead is not an option: Hermes patches patchelf for 0.19.2 and
+      # unstable's is 0.15.2. Delete once `just cve-2026-111497-check galactica` passes without it.
+      package = options.services.hermes-agent.package.default.override {inherit (pkgs) git;};
       settings = {
         model = {
           default = "deepseek-v4-flash";
