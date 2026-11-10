@@ -298,3 +298,102 @@ fn an_answer_sent_while_offline_is_still_consumed() {
     assert_eq!(f.sent().len(), 1);
     assert_ne!(f.ui.get_page(), Page::Question);
 }
+
+fn kinds(v: &[Value]) -> Vec<String> {
+    v.iter().map(|m| m["t"].as_str().unwrap().to_owned()).collect()
+}
+
+fn open_raider(f: &Fixture) {
+    f.feed("state");
+    f.ui.invoke_avatar_tapped();
+    f.ui.invoke_row_tapped(2); // raider s-1
+}
+
+#[test]
+fn opening_a_detail_sends_watch() {
+    let f = fixture();
+    open_raider(&f);
+    let sent = f.sent();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0]["t"], "watch");
+    assert_eq!((sent[0]["host"].as_str(), sent[0]["session"].as_str()), (Some("raider"), Some("s-1")));
+}
+
+#[test]
+fn going_back_sends_unwatch() {
+    let f = fixture();
+    open_raider(&f);
+    f.ui.invoke_back_tapped();
+    assert_eq!(kinds(&f.sent()), ["watch", "unwatch"]);
+    f.ui.invoke_back_tapped();
+    assert_eq!(f.sent().len(), 2);
+}
+
+#[test]
+fn opening_another_session_unwatches_the_first_then_watches_the_second() {
+    let f = fixture();
+    open_raider(&f);
+    f.ui.invoke_rim_tapped(60.0); // galactica
+    assert_eq!(kinds(&f.sent()), ["watch", "unwatch", "watch"]);
+    assert_eq!(f.sent()[2]["host"], "galactica");
+}
+
+#[test]
+fn link_coming_back_up_on_a_detail_resends_watch() {
+    let f = fixture();
+    f.c.set_link(false);
+    open_raider(&f);
+    f.c.set_link(true);
+    let sent = f.sent();
+    assert_eq!(kinds(&sent), ["watch", "watch"]);
+    assert_eq!(sent[1]["session"], "s-1");
+}
+
+#[test]
+fn link_up_on_the_list_sends_nothing() {
+    let f = fixture();
+    f.feed("state");
+    f.ui.invoke_avatar_tapped();
+    f.c.set_link(false);
+    f.c.set_link(true);
+    assert!(f.sent().is_empty());
+}
+
+#[test]
+fn session_removed_while_watched_sends_unwatch() {
+    let f = fixture();
+    open_raider(&f);
+    f.feed("remove");
+    assert_eq!(f.ui.get_page(), Page::List);
+    assert_eq!(kinds(&f.sent()), ["watch", "unwatch"]);
+}
+
+#[test]
+fn history_then_a_duplicate_entry_shows_each_row_once() {
+    let f = fixture();
+    open_raider(&f);
+    assert!(f.ui.get_feed_empty());
+    f.feed("history");
+    // prompt, tool (marked failed by the result), reply
+    assert_eq!(f.ui.get_feed().row_count(), 3);
+    assert!(!f.ui.get_feed_empty());
+    assert!(f.ui.get_feed().row_data(1).unwrap().failed);
+    f.feed("entry"); // n = 5: new
+    f.feed("entry"); // the same n again: dropped
+    assert_eq!(f.ui.get_feed().row_count(), 4);
+}
+
+#[test]
+fn tapping_a_row_expands_its_full_text_and_back_closes_it() {
+    let f = fixture();
+    open_raider(&f);
+    f.feed("history");
+    f.ui.invoke_entry_tapped(2);
+    assert_eq!(f.ui.get_expanded_text(), "The build failed: missing input.");
+    f.ui.invoke_expanded_closed();
+    assert_eq!(f.ui.get_expanded_text(), "");
+    f.ui.invoke_entry_tapped(0);
+    assert_eq!(f.ui.get_expanded_text(), "fix the build");
+    f.ui.invoke_back_tapped();
+    assert_eq!(f.ui.get_expanded_text(), "");
+}

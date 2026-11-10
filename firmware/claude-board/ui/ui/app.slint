@@ -1,12 +1,12 @@
 // The whole screen: the rim around whichever page is up.
-import { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow } from "theme.slint";
+import { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow, FeedKind, FeedRow } from "theme.slint";
 import { Rim } from "rim.slint";
 import { HomePage } from "home.slint";
 import { SessionsPage } from "sessions.slint";
 import { QuestionPage } from "question.slint";
 import { DetailPage } from "detail.slint";
 import { GlyphCoverage } from "glyphs.slint";
-export { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow }
+export { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow, FeedKind, FeedRow }
 
 export component AppWindow inherits Window {
     width: 466px;
@@ -42,8 +42,10 @@ export component AppWindow inherits Window {
     in property <SessionState> detail-state;
     in property <string> detail-state-text;
     in property <string> detail-since;
-    in property <string> detail-summary;
-    in property <[string]> detail-recent;
+    in property <[FeedRow]> feed;
+    in property <bool> feed-empty: true;
+    // The full text of the tapped feed row; empty when none is open.
+    in property <string> expanded-text;
 
     callback option-tapped(int);
     callback done-tapped();
@@ -54,6 +56,8 @@ export component AppWindow inherits Window {
     // Swiped right (the firmware calls this): up one level, from detail to the list and from the list to home.
     callback back-tapped();
     callback avatar-tapped();
+    callback entry-tapped(int);
+    callback expanded-closed();
 
     // Everything moves together by a few pixels now and then, so an AMOLED panel never shows the same bright
     // pixels in the same place for days (see power::drift_px).
@@ -131,8 +135,15 @@ export component AppWindow inherits Window {
             state: root.detail-state;
             state-text: root.detail-state-text;
             since-text: root.detail-since;
-            summary: root.detail-summary;
-            recent: root.detail-recent;
+            feed: root.feed;
+            feed-empty: root.feed-empty;
+            expanded-text: root.expanded-text;
+            entry-tapped(i) => {
+                root.entry-tapped(i);
+            }
+            expanded-closed => {
+                root.expanded-closed();
+            }
         }
     }
 }

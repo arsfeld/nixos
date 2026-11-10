@@ -1,10 +1,10 @@
 //! Pure logic behind the screens: where each arc of the rim goes, what a row says, which mood the avatar
 //! is in. No Slint event loop and no clock of its own, so it is tested on the host.
 
-use claude_board_proto::{fit, Model, Session, State};
+use claude_board_proto::{fit, FeedEntry, FeedKind as ProtoKind, Model, Session, State};
 
 use crate::rim::arc_segment;
-use crate::{RimSegment, SessionRow, SessionState};
+use crate::{FeedKind, RimSegment, SessionRow, SessionState};
 
 /// At most this many arcs; further sessions share the last one.
 pub const MAX_RIM_SEGMENTS: usize = 12;
@@ -135,11 +135,70 @@ pub fn session_rows(sessions: &[Session], now: Option<i64>) -> Vec<SessionRow> {
         .collect()
 }
 
+/// One row of the watched feed, before it becomes Slint's `FeedRow`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FeedRowData {
+    pub kind: FeedKind,
+    pub text: String,
+    pub failed: bool,
+}
+
+/// The rows a feed shows. A `failed` result marks the nearest preceding tool row not already marked; an `ok`
+/// result and kinds this version does not know produce no row.
+pub fn feed_rows(entries: &[FeedEntry]) -> Vec<FeedRowData> {
+    let mut rows: Vec<FeedRowData> = Vec::new();
+    for e in entries {
+        let kind = match e.kind {
+            ProtoKind::Prompt => FeedKind::Prompt,
+            ProtoKind::Tool => FeedKind::Tool,
+            ProtoKind::Reply => FeedKind::Reply,
+            ProtoKind::Result => {
+                if e.text == "failed" {
+                    if let Some(r) = rows.iter_mut().rev().find(|r| r.kind == FeedKind::Tool && !r.failed) {
+                        r.failed = true;
+                    }
+                }
+                continue;
+            }
+            ProtoKind::Other => continue,
+        };
+        rows.push(FeedRowData { kind, text: e.text.clone(), failed: false });
+    }
+    rows
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use claude_board_proto::{Model, Session, State};
+    use claude_board_proto::{FeedEntry, FeedKind as K, Model, Session, State};
+
+    fn entry(n: u64, kind: K, text: &str) -> FeedEntry {
+        FeedEntry { n, ts: n as i64, kind, text: text.into() }
+    }
+
+    #[test]
+    fn feed_rows_drops_ok_results() {
+        let rows = feed_rows(&[entry(1, K::Tool, "Bash: ls"), entry(2, K::Result, "ok"), entry(3, K::Reply, "done")]);
+        assert_eq!(rows.len(), 2);
+        assert!(rows.iter().all(|r| !r.failed));
+    }
+
+    #[test]
+    fn feed_rows_marks_the_nearest_unmarked_tool_failed() {
+        let t = |n, x: &str| entry(n, K::Tool, x);
+        let r = |n| entry(n, K::Result, "failed");
+        let rows = feed_rows(&[t(1, "a"), t(2, "b"), r(3)]);
+        assert_eq!(rows.iter().map(|r| r.failed).collect::<Vec<_>>(), [false, true]);
+        let rows = feed_rows(&[t(1, "a"), t(2, "b"), r(3), r(4)]);
+        assert_eq!(rows.iter().map(|r| r.failed).collect::<Vec<_>>(), [true, true]);
+    }
+
+    #[test]
+    fn feed_rows_ignores_unknown_kinds() {
+        let rows = feed_rows(&[entry(1, K::Other, "?"), entry(2, K::Prompt, "hi")]);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].text, "hi");
+    }
 
     fn session(n: usize, state: State, since: i64) -> Session {
         Session { host: "raider".into(), session: format!("s{n}"), project: format!("p{n}"), cwd: String::new(), state, since }

@@ -25,6 +25,19 @@ export struct OptionRow {
     selected: bool,
 }
 
+// One line of a watched session's activity feed.
+export enum FeedKind {
+    prompt,
+    tool,
+    reply,
+}
+
+export struct FeedRow {
+    kind: FeedKind,
+    text: string,
+    failed: bool,
+}
+
 // One arc of the rim, with its own tight bounding box: a Path repaints its whole box whenever it
 // changes, so a full-screen box would repaint the whole panel every frame. Built by `rim::arc_segment`.
 // Static arcs and pulsing arcs live in separate models, so only the pulsing ones depend on the animation.

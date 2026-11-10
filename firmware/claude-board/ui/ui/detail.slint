@@ -1,5 +1,5 @@
 // One session: where it runs, what state it is in, and (later) what it has been doing.
-import { Theme, SessionState } from "theme.slint";
+import { Theme, SessionState, FeedRow } from "theme.slint";
 
 export component DetailPage inherits Rectangle {
     in property <string> host;
@@ -7,9 +7,11 @@ export component DetailPage inherits Rectangle {
     in property <SessionState> state;
     in property <string> state-text;
     in property <string> since-text;
-    // Filled in by a later sub-project; empty until then.
-    in property <string> summary;
-    in property <[string]> recent;
+    in property <[FeedRow]> feed;
+    in property <bool> feed-empty;
+    in property <string> expanded-text;
+    callback entry-tapped(int);
+    callback expanded-closed();
 
     Text {
         y: 58px;
@@ -50,29 +52,15 @@ export component DetailPage inherits Rectangle {
         }
     }
 
-    Flickable {
+    // Placeholder until the feed is drawn.
+    Text {
         x: 83px;
         y: 170px;
         width: 300px;
-        height: 190px;
-        content-height: summary-text.preferred-height + root.recent.length * 22px + 8px;
-        summary-text := Text {
-            width: 300px;
-            text: root.summary;
-            color: Theme.text;
-            font-family: "Sora";
-            font-size: 16px;
-            wrap: word-wrap;
-            horizontal-alignment: center;
-        }
-        for line[i] in root.recent: Text {
-            y: summary-text.preferred-height + 8px + i * 22px;
-            width: 300px;
-            text: line;
-            color: Theme.muted;
-            font-family: "JetBrains Mono";
-            font-size: 12px;
-            overflow: elide;
-        }
+        text: root.feed-empty ? "No activity yet" : root.expanded-text;
+        color: Theme.muted;
+        font-family: "Sora";
+        font-size: 16px;
+        horizontal-alignment: center;
     }
 }

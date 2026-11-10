@@ -8,10 +8,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use claude_board_proto::{join_labels, AnswerOutcome, Applied, AskId, ClientMsg, Model, Session, State};
-use slint::{ComponentHandle, Model as _, ModelRc, SharedString, VecModel, Weak};
+use slint::{ComponentHandle, Model as _, ModelRc, VecModel, Weak};
 
-use crate::view::{arc_index_at, fmt_ago, presence_for, rim_models, session_rows, shorten, PresenceKind, MAX_RIM_SEGMENTS};
-use crate::{AppWindow, OptionRow, Page, PresenceState, RimSegment, SessionRow};
+use crate::view::{arc_index_at, feed_rows, fmt_ago, presence_for, rim_models, session_rows, shorten, PresenceKind, MAX_RIM_SEGMENTS};
+use crate::{AppWindow, FeedRow, OptionRow, Page, PresenceState, RimSegment, SessionRow};
 
 /// Taps this soon after an answer are ignored (a double tap is two taps well under this apart).
 const ANSWER_GUARD_MS: u64 = 400;
@@ -44,7 +44,7 @@ struct Models {
     rim_pulsing: Rc<VecModel<RimSegment>>,
     rows: Rc<VecModel<SessionRow>>,
     options: Rc<VecModel<OptionRow>>,
-    recent: Rc<VecModel<SharedString>>,
+    feed: Rc<VecModel<FeedRow>>,
 }
 
 /// Make `model` hold exactly `new`, touching only what differs.
@@ -92,13 +92,13 @@ impl<O: Outbox + 'static> Controller<O> {
             rim_pulsing: Rc::new(VecModel::default()),
             rows: Rc::new(VecModel::default()),
             options: Rc::new(VecModel::default()),
-            recent: Rc::new(VecModel::default()),
+            feed: Rc::new(VecModel::default()),
         };
         window.set_rim(ModelRc::from(models.rim.clone()));
         window.set_rim_pulsing(ModelRc::from(models.rim_pulsing.clone()));
         window.set_rows(ModelRc::from(models.rows.clone()));
         window.set_options(ModelRc::from(models.options.clone()));
-        window.set_detail_recent(ModelRc::from(models.recent.clone()));
+        window.set_feed(ModelRc::from(models.feed.clone()));
         let inner = Rc::new(RefCell::new(Inner {
             models,
             model: Model::new(),
@@ -131,6 +131,8 @@ impl<O: Outbox + 'static> Controller<O> {
         wire!(on_rim_tapped, |s, deg: f32| s.rim_tapped(deg));
         wire!(on_back_tapped, |s| s.back_tapped());
         wire!(on_avatar_tapped, |s| s.avatar_tapped());
+        wire!(on_entry_tapped, |s, i: i32| s.entry_tapped(i as usize));
+        wire!(on_expanded_closed, |s| s.close_expanded());
         inner.borrow_mut().refresh();
         Controller { inner }
     }
@@ -154,7 +156,14 @@ impl<O: Outbox + 'static> Controller<O> {
     /// The bridge connection came up or went down.
     pub fn set_link(&self, up: bool) {
         let mut s = self.inner.borrow_mut();
+        let came_up = up && !s.link;
         s.link = up;
+        // The bridge forgets what a board watches when the socket drops: ask again.
+        if came_up && matches!(s.nav, Nav::Detail { .. }) {
+            if let Some(msg) = s.model.rewatch_msg() {
+                s.send(&msg);
+            }
+        }
         s.refresh();
     }
 
@@ -270,7 +279,8 @@ impl<O: Outbox> Inner<O> {
 
     fn open_detail_at(&mut self, i: usize) {
         if let Some(s) = self.model.sessions().get(i) {
-            self.nav = Nav::Detail { host: s.host.clone(), session: s.session.clone() };
+            let nav = Nav::Detail { host: s.host.clone(), session: s.session.clone() };
+            self.set_nav(nav);
             self.refresh();
         }
     }
@@ -280,7 +290,7 @@ impl<O: Outbox> Inner<O> {
         if let Some(win) = self.window.upgrade() {
             win.set_list_scroll(0.0);
         }
-        self.nav = Nav::List;
+        self.set_nav(Nav::List);
         self.refresh();
     }
 
@@ -295,11 +305,47 @@ impl<O: Outbox> Inner<O> {
     }
 
     fn back_tapped(&mut self) {
-        self.nav = match self.nav {
+        let nav = match self.nav {
             Nav::Detail { .. } => Nav::List,
             _ => Nav::Home,
         };
+        self.set_nav(nav);
+        self.close_expanded();
         self.refresh();
+    }
+
+    fn close_expanded(&mut self) {
+        if let Some(win) = self.window.upgrade() {
+            win.set_expanded_text("".into());
+        }
+    }
+
+    fn entry_tapped(&mut self, i: usize) {
+        let rows = feed_rows(self.model.feed());
+        if let (Some(row), Some(win)) = (rows.get(i), self.window.upgrade()) {
+            win.set_expanded_text(row.text.as_str().into());
+        }
+    }
+
+    /// The one place navigation changes. Moving to a different detail target (or off one) stops watching the old
+    /// session and starts watching the new, so the bridge only ever streams the feed the board is showing.
+    fn set_nav(&mut self, nav: Nav) {
+        let target = |n: &Nav| match n {
+            Nav::Detail { host, session } => Some((host.clone(), session.clone())),
+            _ => None,
+        };
+        let (old, new) = (target(&self.nav), target(&nav));
+        if old != new {
+            if let Some(msg) = self.model.unwatch() {
+                self.send(&msg);
+            }
+            if let Some((host, session)) = &new {
+                let msg = self.model.watch(host, session);
+                self.send(&msg);
+            }
+            self.close_expanded();
+        }
+        self.nav = nav;
     }
 
     fn avatar_tapped(&mut self) {
@@ -314,7 +360,7 @@ impl<O: Outbox> Inner<O> {
     /// Push everything the screen shows from the model, the navigation and the clock.
     fn refresh(&mut self) {
         if matches!(self.nav, Nav::Detail { .. }) && self.detail_session().is_none() {
-            self.nav = Nav::List; // the session went away
+            self.set_nav(Nav::List); // the session went away
         }
         let Some(win) = self.window.upgrade() else { return };
 
@@ -353,8 +399,12 @@ impl<O: Outbox> Inner<O> {
             win.set_detail_state_text(state_name(s.state).into());
             win.set_detail_since(fmt_ago(self.now, s.since).into());
         }
-        win.set_detail_summary("".into());
-        sync(&self.models.recent, Vec::new());
+        let rows: Vec<FeedRow> = feed_rows(self.model.feed())
+            .into_iter()
+            .map(|r| FeedRow { kind: r.kind, text: shorten(&r.text, 200).into(), failed: r.failed })
+            .collect();
+        win.set_feed_empty(rows.is_empty());
+        sync(&self.models.feed, rows);
 
         match self.model.current_ask() {
             Some(ask) => {
