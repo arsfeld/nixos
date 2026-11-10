@@ -10,19 +10,21 @@
 # left out because the module deep-merges `settings` into an existing config.yaml, so a key left
 # out keeps whatever value is already on disk.
 #
-# Besides its core tools, Hermes reaches two MCP servers. The bridge's (`mcp_servers.claude-board`,
-# http://127.0.0.1:8591/mcp, token-gated) has the timer tools and, with BRIDGE_HA_URL and
+# Besides its core tools, Hermes reaches one MCP server, the bridge's (`mcp_servers.claude-board`,
+# http://127.0.0.1:8591/mcp, token-gated). It has the timer tools and, with BRIDGE_HA_URL and
 # BRIDGE_HA_TOKEN_FILE set below, `weather_forecast` (the bridge reads Home Assistant's daily forecast
-# itself). Home Assistant's own (`mcp_servers.homeassistant`, http://127.0.0.1:8123/api/mcp, the
-# mcp_server integration in home-assistant.nix) serves the Assist tools for the entities exposed to
-# Assist, as the non-admin `creature` user whose token is hermes-creature-ha-token. Its
-# `HassCancelAllTimers` is excluded: it acts on Home Assistant's timers, not the board's, and hiding it
-# keeps "cancel my timers" on the bridge's `cancel_timer`. Hermes adds each
-# MCP server as toolset `mcp-<name>` next to the platform bundles on its own, so `platform_toolsets`
-# must NOT name one: that would turn the list into an allowlist. After any bump of the hermes-agent
-# input, check that `GET /v1/toolsets` still lists the MCP toolsets (and nothing else enabled that
-# should not be). A server that is down at start is retried and re-probed every 300 s, so there is
-# no unit ordering between hermes-agent and claude-board.
+# itself) and Home Assistant's own Assist tools, which the bridge proxies from HA's MCP server
+# (http://127.0.0.1:8123/api/mcp, the mcp_server integration in home-assistant.nix) as the non-admin
+# `creature` user whose token is hermes-creature-ha-token, minus `HassCancelAllTimers` (it acts on
+# HA's timers, not the board's). Hermes reaches HA only through the bridge, and the HA token lives
+# only in the bridge's DynamicUser credentials, because Hermes has a terminal: holding the token, a
+# prompt injection could curl HA's REST API and call any service (HA has no per-entity permissions;
+# Assist exposure limits only the Assist and MCP APIs). Hermes adds each MCP server as toolset
+# `mcp-<name>` next to the platform bundles on its own, so `platform_toolsets` must NOT name one:
+# that would turn the list into an allowlist. After any bump of the hermes-agent input, check that
+# `GET /v1/toolsets` still lists the MCP toolset (and nothing else enabled that should not be). A
+# server that is down at start is retried and re-probed every 300 s, so there is no unit ordering
+# between hermes-agent and claude-board.
 {
   configurations.nixos.galactica.module = {
     config,
@@ -110,9 +112,9 @@
     sops.secrets.claude-board-mcp-token.restartUnits = ["claude-board.service" "hermes-agent.service"];
     # hermes-env is declared in hermes.nix; this unit takes only its DEEPSEEK_API_KEY.
     sops.secrets."hermes-env".restartUnits = ["hermes-agent.service"];
-    # A long-lived token of Home Assistant's non-admin `creature` user: Hermes sends it to HA's MCP
-    # server (as HA_MCP_TOKEN), the bridge to HA's REST API for the forecast.
-    sops.secrets.hermes-creature-ha-token.restartUnits = ["hermes-agent.service" "claude-board.service"];
+    # A long-lived token of Home Assistant's non-admin `creature` user. Only the bridge reads it: for
+    # the forecast (REST) and for the HA tools it proxies (MCP). Never give it to hermes-agent.
+    sops.secrets.hermes-creature-ha-token.restartUnits = ["claude-board.service"];
 
     systemd.services.whisper-server = {
       description = "whisper.cpp speech to text for the board's creature";
@@ -181,18 +183,17 @@
         # turn, about 5,900 more prompt tokens, which DeepSeek's prompt cache absorbs (~98% hit rate
         # measured). The module deep-merges settings into config.yaml, so an explicit value is required.
         tools.tool_search.enabled = "off";
-        # The bridge's timer tools. Hermes interpolates `${VAR}` from its own environment at start
-        # (and fails closed if it is unset), so config.yaml carries the placeholder, never the token.
+        # The bridge's tools, Home Assistant's included. Hermes interpolates `${VAR}` from its own
+        # environment at start (and fails closed if it is unset), so config.yaml carries the
+        # placeholder, never the token.
         mcp_servers.claude-board = {
           url = "http://127.0.0.1:${toString mcpPort}/mcp";
           headers.Authorization = "Bearer \${CLAUDE_BOARD_MCP_TOKEN}";
         };
-        # Home Assistant's Assist tools, for the entities exposed to Assist; same `${VAR}` rule.
-        mcp_servers.homeassistant = {
-          url = "http://127.0.0.1:8123/api/mcp";
-          headers.Authorization = "Bearer \${HA_MCP_TOKEN}";
-          tools.exclude = ["HassCancelAllTimers"];
-        };
+        # Hermes used to reach HA's MCP server directly. The merge into config.yaml cannot delete a
+        # key, so the old entry stays on disk; this switches it off. Remove this once galactica's
+        # /var/lib/hermes-creature config.yaml no longer has a `homeassistant` server.
+        mcp_servers.homeassistant.enabled = false;
       };
       # Not secret. The key and the DeepSeek key come from the unit's EnvironmentFile below.
       environment = {
@@ -215,7 +216,6 @@
             "hermes-env:${secrets."hermes-env".path}"
             "api-key:${secrets.hermes-api-key.path}"
             "mcp-token:${secrets.claude-board-mcp-token.path}"
-            "ha-token:${secrets.hermes-creature-ha-token.path}"
           ];
           RuntimeDirectory = "hermes-creature";
           RuntimeDirectoryMode = "0700";
@@ -229,7 +229,6 @@
                 ${pkgs.gnugrep}/bin/grep -E '^DEEPSEEK_API_KEY=' "$CREDENTIALS_DIRECTORY/hermes-env"
                 printf 'API_SERVER_KEY=%s\n' "$(${pkgs.coreutils}/bin/tr -d '\n' < "$CREDENTIALS_DIRECTORY/api-key")"
                 printf 'CLAUDE_BOARD_MCP_TOKEN=%s\n' "$(${pkgs.coreutils}/bin/tr -d '\n' < "$CREDENTIALS_DIRECTORY/mcp-token")"
-                printf 'HA_MCP_TOKEN=%s\n' "$(${pkgs.coreutils}/bin/tr -d '\n' < "$CREDENTIALS_DIRECTORY/ha-token")"
               } > "$RUNTIME_DIRECTORY/env"
             '')
           ];
@@ -260,7 +259,8 @@
         # $STATE_DIRECTORY/timers.json, see claude-board.nix).
         BRIDGE_MCP_LISTEN = "127.0.0.1:${toString mcpPort}";
         BRIDGE_MCP_TOKEN_FILE = "%d/mcp-token";
-        # Home Assistant, for the weather_forecast tool (entity defaults to weather.forecast_home).
+        # Home Assistant: the weather_forecast tool (entity defaults to weather.forecast_home) and
+        # HA's own MCP tools, proxied. The token is the bridge's alone.
         BRIDGE_HA_URL = "http://127.0.0.1:8123";
         BRIDGE_HA_TOKEN_FILE = "%d/ha-token";
       };
