@@ -113,6 +113,12 @@ struct Inner<O: Outbox> {
     transcript: String,
     reply: String,
     reply_until_ms: u64,
+    /// The heading of a reminder on the card. A reminder does not expire with `REPLY_CARD_MS`: it stays until it
+    /// is tapped or a reply replaces it.
+    reminder_heading: Option<String>,
+    /// The utterance the bridge is speaking, from its `speak_start` to its `speak_end`: a reminder's speech is not
+    /// one of ours, and a tap has to name its id to stop it.
+    speaking: Option<u32>,
 }
 
 pub struct Controller<O: Outbox> {
@@ -159,6 +165,8 @@ impl<O: Outbox + 'static> Controller<O> {
             transcript: String::new(),
             reply: String::new(),
             reply_until_ms: 0,
+            reminder_heading: None,
+            speaking: None,
         }));
         macro_rules! wire {
             ($on:ident, |$s:ident $(, $a:ident : $t:ty)*| $body:expr) => {{
@@ -204,8 +212,29 @@ impl<O: Outbox + 'static> Controller<O> {
             }
             Ok(BoardMsg::ReplyText { text, .. }) => {
                 s.reply = text;
+                s.reminder_heading = None;
                 s.reply_until_ms = s.time_ms + REPLY_CARD_MS;
                 s.refresh();
+                return;
+            }
+            Ok(BoardMsg::Reminder { label, due, .. }) => {
+                // `due` is RFC 3339 with the user's offset: characters 11..16 are the local HH:MM.
+                s.reminder_heading = Some(format!("Reminder {}", due.get(11..16).unwrap_or("")).trim_end().to_string());
+                s.reply = label;
+                s.chime = true;
+                // The card lives on home; a waiting question keeps the screen and the card is there after it.
+                if !matches!(s.nav, Nav::Home) {
+                    s.set_nav(Nav::Home);
+                }
+                s.refresh();
+                return;
+            }
+            Ok(BoardMsg::SpeakStart { utterance, .. }) => {
+                s.speaking = Some(utterance);
+                return;
+            }
+            Ok(BoardMsg::SpeakEnd { .. }) => {
+                s.speaking = None;
                 return;
             }
             _ => {}
@@ -232,6 +261,7 @@ impl<O: Outbox + 'static> Controller<O> {
             // Whatever the voice path was doing died with the socket: nothing will end it.
             s.holding = false;
             s.utterance = None;
+            s.speaking = None;
             s.mic_level = 0.0;
             s.idle_deferred = false;
             s.set_mood(Mood::Idle);
@@ -500,7 +530,7 @@ impl<O: Outbox> Inner<O> {
         if self.mood != Mood::Speaking {
             return false;
         }
-        if let Some(utterance) = self.utterance {
+        if let Some(utterance) = self.speaking.or(self.utterance) {
             self.send(&ClientMsg::Cancel { utterance });
         }
         self.idle_deferred = false;
@@ -516,6 +546,7 @@ impl<O: Outbox> Inner<O> {
 
     fn dismiss_reply(&mut self) {
         self.reply.clear();
+        self.reminder_heading = None;
         self.refresh();
     }
 
@@ -576,11 +607,11 @@ impl<O: Outbox> Inner<O> {
             self.mood = Mood::Idle;
             self.mood_since_ms = self.time_ms;
         }
-        if !self.reply.is_empty() && self.time_ms >= self.reply_until_ms {
+        if !self.reply.is_empty() && self.reminder_heading.is_none() && self.time_ms >= self.reply_until_ms {
             self.reply.clear();
         }
         win.set_reply_text(shorten(&self.reply, 110).into());
-        win.set_reply_heading(shorten(&self.transcript, 40).into());
+        win.set_reply_heading(shorten(self.reminder_heading.as_deref().unwrap_or(&self.transcript), 40).into());
         win.set_voice_available(self.mood != Mood::Offline);
         let from_sessions = || match presence_for(&self.model) {
             PresenceKind::Idle => PresenceState::Idle,

@@ -769,3 +769,125 @@ fn speech_events_are_parsed_for_the_app() {
     assert_eq!(speech_event(r#"{"t":"sessions","sessions":[]}"#), None);
     assert_eq!(speech_event("not json"), None);
 }
+
+// ---- Reminders: a sticky card on home, and bridge-owned speech ----
+
+const REMINDER: &str = r#"{"t":"reminder","id":"tmr_01","label":"check the oven","due":"2026-11-10T18:42:00-05:00"}"#;
+
+#[test]
+fn reminder_shows_a_sticky_card_with_local_time() {
+    let f = fixture();
+    f.c.on_message(REMINDER);
+    assert_eq!(f.ui.get_reply_heading(), "Reminder 18:42");
+    assert_eq!(f.ui.get_reply_text(), "check the oven");
+    for _ in 0..80 {
+        f.c.tick(Some(NOW)); // 40 s, well past REPLY_CARD_MS
+    }
+    assert_eq!(f.ui.get_reply_text(), "check the oven");
+    assert_eq!(f.ui.get_reply_heading(), "Reminder 18:42");
+}
+
+#[test]
+fn reminder_sets_the_chime() {
+    let f = fixture();
+    assert!(!f.c.wants_chime());
+    f.c.on_message(REMINDER);
+    assert!(f.c.wants_chime());
+}
+
+#[test]
+fn tapping_the_reminder_card_dismisses_it() {
+    let f = fixture();
+    f.c.on_message(REMINDER);
+    f.ui.invoke_reply_tapped();
+    assert_eq!(f.ui.get_reply_text(), "");
+}
+
+#[test]
+fn reply_text_replaces_a_reminder_card() {
+    let f = fixture();
+    f.c.on_message(REMINDER);
+    f.c.on_message(r#"{"t":"transcript","utterance":1,"text":"what is up"}"#);
+    f.c.on_message(r#"{"t":"reply_text","utterance":1,"text":"All good."}"#);
+    assert_eq!(f.ui.get_reply_text(), "All good.");
+    assert_eq!(f.ui.get_reply_heading(), "what is up");
+    for _ in 0..42 {
+        f.c.tick(Some(NOW)); // past 20 s: the reply expires as replies do
+    }
+    assert_eq!(f.ui.get_reply_text(), "");
+}
+
+#[test]
+fn reminder_returns_from_the_session_list_to_home() {
+    let f = fixture();
+    f.feed("state");
+    f.ui.invoke_avatar_tapped();
+    assert_eq!(f.ui.get_page(), Page::List);
+    f.c.on_message(REMINDER);
+    assert_eq!(f.ui.get_page(), Page::Home);
+    assert_eq!(f.ui.get_reply_text(), "check the oven");
+}
+
+#[test]
+fn reminder_returns_from_a_session_detail_to_home() {
+    let f = fixture();
+    f.feed("state");
+    f.ui.invoke_row_tapped(0);
+    assert_eq!(f.ui.get_page(), Page::Detail);
+    f.c.on_message(REMINDER);
+    assert_eq!(f.ui.get_page(), Page::Home);
+}
+
+#[test]
+fn reminder_does_not_cover_a_waiting_question() {
+    let f = fixture();
+    f.ask("question_single");
+    f.c.on_message(REMINDER);
+    assert_eq!(f.ui.get_page(), Page::Question);
+    f.ui.invoke_option_tapped(1);
+    assert_eq!(f.ui.get_page(), Page::Home);
+    assert_eq!(f.ui.get_reply_text(), "check the oven", "the card is there once the question is answered");
+}
+
+#[test]
+fn tap_during_bridge_speech_cancels_the_bridge_id() {
+    let f = fixture();
+    f.c.on_message(r#"{"t":"creature","mood":"speaking"}"#);
+    f.c.on_message(r#"{"t":"speak_start","utterance":2147483649,"sample_rate":22050}"#);
+    f.ui.invoke_avatar_tapped();
+    assert_eq!(f.sent().last().unwrap(), &serde_json::json!({"t": "cancel", "utterance": 2147483649u32}));
+    assert_eq!(f.ui.get_page(), Page::Home);
+}
+
+#[test]
+fn tap_after_bridge_speech_ended_does_not_cancel_its_id() {
+    let f = fixture();
+    f.c.on_message(r#"{"t":"speak_start","utterance":2147483649,"sample_rate":22050}"#);
+    f.c.on_message(r#"{"t":"speak_end","utterance":2147483649}"#);
+    f.c.on_message(r#"{"t":"creature","mood":"speaking"}"#);
+    f.ui.invoke_avatar_tapped();
+    assert!(f.sent().iter().all(|v| v["utterance"] != 2147483649u32));
+}
+
+#[test]
+fn tap_during_own_reply_still_cancels_own_id() {
+    let f = fixture();
+    f.c.hold_started(233, 233);
+    let id = f.c.utterance().unwrap();
+    f.c.hold_ended();
+    f.c.on_message(&format!(r#"{{"t":"speak_start","utterance":{id},"sample_rate":22050}}"#));
+    mood(&f, "speaking");
+    f.ui.invoke_avatar_tapped();
+    assert_eq!(f.sent().last().unwrap(), &serde_json::json!({"t": "cancel", "utterance": id}));
+}
+
+#[test]
+fn link_drop_forgets_the_bridge_speech() {
+    let f = fixture();
+    f.c.on_message(r#"{"t":"speak_start","utterance":2147483649,"sample_rate":22050}"#);
+    f.c.set_link(false);
+    f.c.set_link(true);
+    mood(&f, "speaking");
+    f.ui.invoke_avatar_tapped();
+    assert!(f.sent().iter().all(|v| v["utterance"] != 2147483649u32));
+}

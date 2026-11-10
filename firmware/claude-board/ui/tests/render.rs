@@ -479,3 +479,12 @@ fn the_reply_card_draws_under_the_avatar_and_takes_the_summarys_place() {
     ui.set_reply_text("".into());
     assert!(lit(&h.render(), 100..366, 352..380) > 50, "the summary is back once the card is gone");
 }
+
+#[test]
+fn reminder_card_renders_over_home() {
+    let (h, ui) = show();
+    ui.set_summary("All quiet".into());
+    ui.set_reply_heading("Reminder 18:42".into());
+    ui.set_reply_text("check the oven".into());
+    assert!(lit(&h.render(), 100..366, 340..400) > 1500, "the reminder card is drawn");
+}
