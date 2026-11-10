@@ -18,10 +18,7 @@
     overlays = [
       (import ../../overlays/cve-2026-111497.nix)
       (import ../../overlays/python-packages.nix)
-      (import ../../overlays/openldap.nix)
       (import ../../overlays/glances.nix)
-      (import ../../overlays/libcap-ng-static.nix)
-      (import ../../overlays/cloudflared.nix)
       (import ../../overlays/stash-go-1.27.nix)
       (import ../../overlays/topgrade-aws-lc.nix)
       (import ../../overlays/vscode-ripgrep-universal.nix)

@@ -3,12 +3,6 @@ final: prev: {
     prev.pythonPackagesExtensions
     ++ [
       (python-final: python-prev: {
-        # patool 4.0.4 archive/mime tests fail on current nixpkgs (bzip2/xz
-        # helpers missing); the package itself works. Disables the check phase.
-        patool = python-prev.patool.overridePythonAttrs (_: {
-          doCheck = false;
-        });
-
         mrml = python-final.buildPythonPackage rec {
           pname = "mrml";
           version = "0.1.15";

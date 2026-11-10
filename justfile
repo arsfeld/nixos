@@ -306,7 +306,7 @@ dry-run +TARGETS:
 
 # CVE-2026-111497: fail if a host closure still holds a vulnerable Brotli,
 # brotlicffi or Bun. Judges libraries, not package names: grafted paths keep
-# their old names. Delete with modules/base/brotli-cve-2026-111497.nix.
+# their old names. Delete with overlays/cve-2026-111497.nix.
 cve-2026-111497-check +TARGETS:
     #!/usr/bin/env bash
     set -euo pipefail
