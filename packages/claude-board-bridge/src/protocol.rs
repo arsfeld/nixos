@@ -1,18 +1,6 @@
-//! Wire types shared by the hook endpoints and the board.
+//! Wire types for the hook endpoints. The types the board shares live in `claude-board-proto`.
 
 use serde::{Deserialize, Serialize};
-
-use crate::asks::{AskId, PendingAsk};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum State {
-    Idle,
-    Working,
-    Waiting,
-    Done,
-    Error,
-}
 
 /// What a hook reports. `kind` is Claude Code's `notification_type`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -39,26 +27,4 @@ pub struct Event {
     pub ts: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Session {
-    pub host: String,
-    pub session: String,
-    pub project: String,
-    pub cwd: String,
-    pub state: State,
-    pub since: i64,
-}
-
-/// What the bridge pushes to a board over its WebSocket (`t` is the tag).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(tag = "t", rename_all = "snake_case")]
-pub enum BoardMsg {
-    State { sessions: Vec<Session> },
-    Upsert { session: Session },
-    Remove { host: String, session: String },
-    Question {
-        #[serde(flatten)]
-        ask: PendingAsk,
-    },
-    QuestionClear { id: AskId },
-}
+pub use claude_board_proto::{BoardMsg, ClientMsg, PROTOCOL_VERSION, Session, State};

@@ -6,14 +6,17 @@ rustPlatform.buildRustPackage {
   pname = "claude-board-bridge";
   version = "0.1.0";
   src = lib.fileset.toSource {
-    root = ./.;
+    root = ./..;
     fileset = lib.fileset.unions [
       ./Cargo.toml
       ./Cargo.lock
       ./src
       ./tests
+      ../claude-board-proto/Cargo.toml
+      ../claude-board-proto/src
     ];
   };
+  sourceRoot = "source/claude-board-bridge";
   cargoLock.lockFile = ./Cargo.lock;
   # cargo test runs in checkPhase (the default): a failing test fails the galactica build.
   meta = {

@@ -1,6 +1,5 @@
 //! The board's WebSocket: state and questions out, answers in.
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -13,13 +12,12 @@ use axum::response::Response;
 use axum::routing::get;
 use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
-use serde::Deserialize;
 use tokio::sync::broadcast::error::RecvError;
 
-use crate::asks::{Answered, AskId};
+use crate::asks::Answered;
 use crate::auth::check_bearer;
 use crate::http::AppState;
-use crate::protocol::BoardMsg;
+use crate::protocol::{BoardMsg, ClientMsg, PROTOCOL_VERSION};
 
 pub fn board_router(state: AppState) -> Router {
     Router::new().route("/v1/board", get(board)).with_state(state)
@@ -46,22 +44,16 @@ impl Drop for Connected {
     }
 }
 
-/// What a board may send. Anything else is ignored.
-#[derive(Deserialize)]
-#[serde(tag = "t", rename_all = "snake_case")]
-enum ClientMsg {
-    Answer { id: AskId, answers: BTreeMap<String, String> },
-    Decline { id: AskId },
-}
-
 type Sink = SplitSink<WebSocket, Message>;
 
 async fn send(sink: &mut Sink, msg: &BoardMsg) -> Result<(), axum::Error> {
     sink.send(Message::text(serde_json::to_string(msg).expect("BoardMsg serialises"))).await
 }
 
-/// The full session list, then every question still waiting.
+/// The protocol version, then the full session list, then every question still waiting. Boards ignore
+/// messages they do not know, so the greeting is safe to send to firmware that predates it.
 async fn send_snapshot(s: &AppState, sink: &mut Sink) -> Result<(), axum::Error> {
+    send(sink, &BoardMsg::Hello { version: PROTOCOL_VERSION }).await?;
     let sessions = s.registry.lock().unwrap().snapshot();
     send(sink, &BoardMsg::State { sessions }).await?;
     for ask in s.asks.pending() {

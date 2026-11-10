@@ -3,34 +3,10 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Mutex;
 
-use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use tokio::sync::oneshot;
 
-/// A single-use, unguessable question id (128 random bits, hex).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct AskId(pub String);
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct QuestionOption {
-    pub label: String,
-    #[serde(default)]
-    pub description: Option<String>,
-}
-
-/// One entry of the question tool's input; field names follow the tool.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Question {
-    pub question: String,
-    #[serde(default)]
-    pub header: Option<String>,
-    #[serde(default)]
-    pub options: Vec<QuestionOption>,
-    #[serde(default)]
-    pub multi_select: bool,
-}
+pub use claude_board_proto::{AskId, PendingAsk, Question, QuestionOption};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Answered {
@@ -44,15 +20,6 @@ pub enum Answered {
 pub enum AnswerError {
     /// Never issued, expired, cancelled, already answered, or nobody is waiting.
     Unknown,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct PendingAsk {
-    pub id: AskId,
-    pub host: String,
-    pub session: String,
-    pub project: String,
-    pub questions: Vec<Question>,
 }
 
 struct Entry {

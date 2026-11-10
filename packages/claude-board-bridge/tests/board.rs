@@ -47,8 +47,11 @@ async fn try_connect(addr: std::net::SocketAddr, token: Option<&str>) -> Result<
     connect_async(r).await.map(|(ws, _)| ws)
 }
 
+/// Connects and consumes the greeting, so tests see the state snapshot first.
 async fn connect(addr: std::net::SocketAddr) -> Ws {
-    try_connect(addr, Some(DEVICE_TOKEN)).await.unwrap()
+    let mut ws = try_connect(addr, Some(DEVICE_TOKEN)).await.unwrap();
+    assert_eq!(next_json(&mut ws).await["t"], "hello");
+    ws
 }
 
 /// Next JSON text frame, skipping pings.
@@ -274,4 +277,13 @@ async fn every_connected_board_sees_the_question_and_its_clear() {
     st.asks.answer(&claude_board_bridge::asks::AskId(qa["id"].as_str().unwrap().into()), Answered::Declined).unwrap();
     hook.await.unwrap();
     assert_eq!(next_of(&mut b, "question_clear").await["id"], qb["id"]);
+}
+
+#[tokio::test]
+async fn new_board_is_greeted_with_the_protocol_version_before_the_state() {
+    let addr = serve(state(1000)).await;
+    let mut ws = try_connect(addr, Some(DEVICE_TOKEN)).await.unwrap();
+    let hello = next_json(&mut ws).await;
+    assert_eq!(hello, serde_json::json!({"t": "hello", "version": claude_board_proto::PROTOCOL_VERSION}));
+    assert_eq!(next_json(&mut ws).await["t"], "state");
 }

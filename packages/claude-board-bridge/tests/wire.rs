@@ -90,3 +90,9 @@ fn question_clear_matches_the_firmware_fixture() {
     let m = BoardMsg::QuestionClear { id: AskId("00000000000000000000000000000001".into()) };
     assert_eq!(wire(&m), fixture("question_clear"));
 }
+
+#[test]
+fn hello_matches_the_firmware_fixture() {
+    let m = BoardMsg::Hello { version: claude_board_proto::PROTOCOL_VERSION };
+    assert_eq!(wire(&m), fixture("hello"));
+}

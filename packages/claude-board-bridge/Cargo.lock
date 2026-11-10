@@ -95,6 +95,7 @@ name = "claude-board-bridge"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "claude-board-proto",
  "futures",
  "futures-util",
  "getrandom",
@@ -104,6 +105,14 @@ dependencies = [
  "tokio",
  "tokio-tungstenite 0.26.2",
  "tower",
+]
+
+[[package]]
+name = "claude-board-proto"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
