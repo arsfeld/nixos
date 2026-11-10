@@ -340,7 +340,7 @@ Code session across the fleet and answers Claude's multiple-choice questions wit
 `docs/superpowers/plans/2026-11-09-claude-board.md`; hook behaviour measured on Claude Code 2.1.319:
 `docs/superpowers/specs/2026-11-09-claude-board-hook-findings.md`. Phase 1 (status + answering) is
 built; phase 2 is being built in steps: step 1 of 3, the creature's voice (hold the avatar and talk, a spoken
-reply), is coded and tested but not yet deployed or verified on the board (see "The creature's voice path"); delegation
+reply), is deployed and working on the board, with a few checks left (see "The creature's voice path"); delegation
 to sessions and check-ins are later plans. The firmware
 was rewritten from C and LVGL to Rust and Slint (spec `docs/superpowers/specs/2026-11-09-claude-board-rust-design.md`,
 plan `docs/superpowers/plans/2026-11-09-claude-board-rust.md`, what the board measured before committing to it
@@ -474,7 +474,7 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
 - **The creature's voice path** (step 1 of 3; spec `docs/superpowers/specs/2026-11-10-claude-board-creature-design.md`,
   plan `docs/superpowers/plans/2026-11-10-claude-board-creature-voice.md`). Hold the avatar to talk; the reply is
   spoken by a persistent Hermes assistant (DeepSeek) and the avatar shows moods (`listening`, `thinking`,
-  `speaking`, `alert`, `offline`, `idle`). **Built and tested on the host; never flashed, deployed or heard**: see
+  `speaking`, `alert`, `offline`, `idle`). **Deployed and flashed; speech is transcribed exactly end to end**: see
   the unverified list at the end of this bullet.
   - **Flow.** board mic --PCM--> bridge --whisper.cpp (STT)--> Hermes (`/v1/runs`, streamed) --sentences--> Piper
     (TTS) --PCM--> board speaker. Code: `packages/claude-board-bridge/src/voice/{speech,backends,pipeline}.rs`
@@ -530,16 +530,23 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     GPIO 10); MIC1 and MIC2 are both selected and averaged in software, and the 24 dB gain is set after the
     codec opens (open re-applies the stored 0 dB). The ES8311 speaker and the ES7210 share one I2S clock, so
     capture, playback and the chimes are strictly sequential behind a mutex in `board_display.c`, and a rate change
-    (16 kHz capture and chime, 22 050 Hz reply) reopens the channel. The Waveshare schematic lists MCLK on
-    GPIO 16 but this firmware, like the BSP, uses 42. A long press (450 ms, within 20 px) is only a hold if the
-    app accepts it: `controller.hold_started` returning true leads to `TouchTracker::accept_hold`; otherwise the
+    (16 kHz capture and chime, 22 050 Hz reply) reopens the channel. **MCLK is GPIO 16** (the 1.75C BSP
+    `waveshare/esp32_s3_touch_amoled_1_75c`, its Arduino `pin_config.h` and the schematic agree); 42 is the
+    non-C 1.75 board's pin, and on it the ES7210 still ACKs, logs "Unmuted" and streams pure zeros (whisper hears
+    `[BLANK_AUDIO]`), while the speaker keeps working. The rest of `board_display.c`'s pin map came from the
+    non-C BSP too (LCD reset 39 and touch reset 40, against 1 and 2 in the 1.75C BSP) and works as it is.
+    **The uplink is sent from its own thread** (`mic-up` in `app/src/mic.rs`): a websocket write measured
+    230-340 ms, the I2S DMA buffer holds about 90 ms, and sending from the capture loop dropped up to half the
+    audio, which whisper turned into garbled text. Each capture logs `signal: min max rms zeros max_send_ms`
+    (levels only). Speech at 24 dB gain measured RMS 100-1500, which whisper transcribes exactly.
+    A long press (450 ms, within 20 px) is only a hold if the app accepts it: `controller.hold_started` returning true leads to `TouchTracker::accept_hold`; otherwise the
     lift still clicks, so a slow tap on Allow is never swallowed. The playback queue holds 1 MiB and drops the
     excess.
-  - **Unverified on hardware** (the implementation could not flash the board): the ES7210 ACK and real samples, the
-    gain, which MIC channel is which, I2S rate switching, the heap margin during a hold, an audible reply, a tap
-    stopping speech within 1 s, chime pitch after a reply, reassembly of 32 KiB frames, and volume. The target is
-    a median of 5 s from release to first spoken word. Check them by `just board backup`, then `build`, `flash`,
-    `monitor`, and the acceptance run in plan Task 10 (after `just deploy galactica`).
+  - **Verified on the board (2026-11-10):** live samples on both mics (L/R correlation 0.88), the gain, I2S rate
+    switching between capture and the spoken reply, an audible reply, and exact transcripts end to end.
+    **Still unverified:** which MIC channel is which, the heap margin during a hold (78 KB internal free just
+    after one), a tap stopping speech within 1 s, chime pitch after a reply, reassembly of 32 KiB frames, and volume. The target is
+    a median of 5 s from release to first spoken word. Check them with `just board monitor`.
 - **Debugging a board you cannot see.** Render the screens with `just board preview`, or write a host test: the `ui`
   tests render the real scene headlessly and send real pointer events at real coordinates. The bridge URL, NTP
   server and a DNS override are `CB_URL`, `CB_NTP`, `CB_DNS` lines in `app/credentials.env` (that is how the

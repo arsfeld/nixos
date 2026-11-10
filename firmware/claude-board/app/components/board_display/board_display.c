@@ -32,7 +32,7 @@ static const char *TAG = "board_display";
 #define PIN_I2C_SCL GPIO_NUM_14
 #define PIN_I2C_SDA GPIO_NUM_15
 #define PIN_I2S_SCLK GPIO_NUM_9
-#define PIN_I2S_MCLK GPIO_NUM_42
+#define PIN_I2S_MCLK GPIO_NUM_16
 #define PIN_I2S_LCLK GPIO_NUM_45
 #define PIN_I2S_DOUT GPIO_NUM_8
 #define PIN_I2S_DSIN GPIO_NUM_10

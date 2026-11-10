@@ -168,12 +168,12 @@ From documentation only, not tested:
 Full workings are in the implementation plan's gate reports; the decisions that matter:
 
 - **Mic (G1, read-only, not yet flashed):** ES7210 on the shared I2C bus (SDA 15, SCL 14), 7-bit
-  address 0x40; it shares BCLK 9, WS 45 and MCLK 42 with the ES8311; data-in is GPIO 10, which is the
+  address 0x40; it shares BCLK 9, WS 45 and MCLK with the ES8311; data-in is GPIO 10, which is the
   existing I2S RX channel's DSIN. Two analog mics (MIC1+MIC2, downmixed in software), gain 24 dB set
   after open. TX and RX share one clock on the port, so capture at 16 kHz and playback at 22 050 Hz
-  must be strictly sequential. Waveshare's schematic and Arduino sample put MCLK on GPIO 16; this
-  firmware and the BSP use 42, and the schematic looks like an older revision. Still to verify on the
-  flashed board: that samples are live, and the gain.
+  must be strictly sequential. MCLK is GPIO 16 (the 1.75C BSP, schematic and Arduino sample).
+  The gate first read 42 from the non-C 1.75 BSP; on the board that streamed pure zeros, and moving it to
+  16 gave live samples (corrected 2026-11-10, after flashing).
 - **Hermes tool-less (G2):** proven with `platform_toolsets: {api_server: [], cron: []}` in the
   Hermes `config.yaml`, plus `API_SERVER_ENABLED=true`, `API_SERVER_KEY`, `API_SERVER_PORT` and
   `API_SERVER_HOST=127.0.0.1` in its `.env`. **Both lists matter:** with only `api_server: []`, a job

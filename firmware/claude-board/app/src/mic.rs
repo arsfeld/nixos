@@ -1,7 +1,8 @@
-//! Press-to-talk capture: a thread that reads the microphone in 100 ms chunks and streams each to the bridge.
+//! Press-to-talk capture: a thread that reads the microphone in 100 ms chunks, and a second one that streams them
+//! to the bridge, so a slow websocket write never stalls the reads (the I2S DMA buffer holds only about 90 ms).
 //!
-//! Memory: one 1600-sample chunk buffer (3.2 KB) reused for the whole utterance, and one frame `Vec` per chunk
-//! that is freed after the send; nothing grows. Capture and the chime share an I2S clock, handled inside the C
+//! Memory: one 1600-sample chunk buffer (3.2 KB) reused for the whole utterance, and a queue of at most
+//! `UPLINK_QUEUE_CHUNKS` frames (PSRAM) between the two threads; each frame is freed after its send. Capture and the chime share an I2S clock, handled inside the C
 //! component (`bd_mic_open` waits for a chime in progress, and the chime skips itself while the mic is open).
 //!
 //! The thread ends on its own after `MAX_UTTERANCE_BYTES` or when the microphone or a send fails; the app
@@ -21,6 +22,9 @@ use crate::net::Net;
 
 /// 100 ms at the uplink rate.
 const CHUNK_SAMPLES: usize = 1600;
+
+/// Chunks the uplink may lag behind the microphone: 5 s of audio, 160 KB, all in PSRAM (frames are > 512 bytes).
+const UPLINK_QUEUE_CHUNKS: usize = 50;
 
 /// How a capture ended. `Running` until it has.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -90,8 +94,38 @@ fn run(utterance: u32, net: &Net, levels: &mpsc::Sender<f32>, stop: &AtomicBool)
         log::warn!("{e:#}");
         return Outcome::Failed;
     }
+    let (frames, queued) = mpsc::sync_channel::<Vec<u8>>(UPLINK_QUEUE_CHUNKS);
+    let send_failed = Arc::new(AtomicBool::new(false));
+    let sender = {
+        let (net, failed) = (net.clone(), send_failed.clone());
+        std::thread::Builder::new().name("mic-up".into()).stack_size(8 * 1024).spawn(move || {
+            // The TLS write runs on this stack, hence the same size as the capture thread.
+            let mut max_ms = 0u64;
+            for frame in queued {
+                if failed.load(Ordering::SeqCst) {
+                    continue; // drain without sending: the utterance is being cancelled
+                }
+                let t = std::time::Instant::now();
+                if !net.send_bin(frame) {
+                    failed.store(true, Ordering::SeqCst);
+                }
+                max_ms = max_ms.max(t.elapsed().as_millis() as u64);
+            }
+            max_ms
+        })
+    };
+    let sender = match sender {
+        Ok(h) => h,
+        Err(e) => {
+            log::error!("uplink thread did not start: {e}");
+            display::mic_close();
+            return Outcome::Failed;
+        }
+    };
     let mut chunk = vec![0i16; CHUNK_SAMPLES];
     let (mut sent_bytes, mut chunks) = (0usize, 0u32);
+    // Signal diagnostics for the whole utterance: levels only, never the audio itself.
+    let (mut lo, mut hi, mut zeros, mut sq) = (i16::MAX, i16::MIN, 0usize, 0f64);
     let result = loop {
         if stop.load(Ordering::SeqCst) {
             break Outcome::Stopped;
@@ -104,10 +138,26 @@ fn run(utterance: u32, net: &Net, levels: &mpsc::Sender<f32>, stop: &AtomicBool)
         if stop.load(Ordering::SeqCst) {
             break Outcome::Stopped;
         }
+        for &v in &chunk {
+            lo = lo.min(v);
+            hi = hi.max(v);
+            zeros += (v == 0) as usize;
+            sq += (v as f64) * (v as f64);
+        }
         let _ = levels.send(rms_level(&chunk));
-        if !net.send_bin(chunk_to_frame(utterance, &chunk)) {
+        if send_failed.load(Ordering::SeqCst) {
             log::warn!("uplink send failed after {chunks} chunks");
             break Outcome::Failed;
+        }
+        // Never send from this thread: a websocket write can block far longer than the I2S DMA buffer lasts
+        // (about 90 ms), and every sample the codec delivers meanwhile is lost.
+        match frames.try_send(chunk_to_frame(utterance, &chunk)) {
+            Ok(()) => {}
+            Err(mpsc::TrySendError::Full(_)) => {
+                log::warn!("uplink queue full after {chunks} chunks");
+                break Outcome::Failed;
+            }
+            Err(mpsc::TrySendError::Disconnected(_)) => break Outcome::Failed,
         }
         chunks += 1;
         sent_bytes += CHUNK_SAMPLES * 2;
@@ -117,6 +167,14 @@ fn run(utterance: u32, net: &Net, levels: &mpsc::Sender<f32>, stop: &AtomicBool)
         }
     };
     display::mic_close();
+    // Let the sender finish what is queued before the app sends voice_end, so the end never overtakes the audio.
+    drop(frames);
+    let max_send_ms = sender.join().unwrap_or(0);
+    let n = chunks as usize * CHUNK_SAMPLES;
+    let rms = if n > 0 { (sq / n as f64).sqrt() } else { 0.0 };
     log::info!("capture of utterance {utterance} ended: {result:?}, {chunks} chunks, {sent_bytes} bytes");
+    log::info!(
+        "capture of utterance {utterance} signal: min={lo} max={hi} rms={rms:.0} zeros={zeros}/{n} max_send_ms={max_send_ms}"
+    );
     result
 }
