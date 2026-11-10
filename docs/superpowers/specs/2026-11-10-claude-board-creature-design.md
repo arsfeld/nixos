@@ -147,11 +147,23 @@ From documentation only, not tested:
 
 ## Unverified assumptions to check first
 
-1. The board's mic works through the ES8311. The codec is currently configured DAC-only, and an I2S
-   receive channel on GPIO10 already exists.
-2. Hermes can be limited to a delegation-only toolset.
-3. whisper.cpp and Piper latency on galactica, end to end from release to first spoken word.
-4. Whether Claude sessions started by Hermes show up on the board through the existing hooks.
+1. **Mic path.** Waveshare lists a dual-microphone array behind an **ES7210 audio ADC** on the 1.75C,
+   with the ES8311 on the playback side. So capture probably goes through the ES7210, not the ES8311
+   the firmware drives today. Its pins, I2C address (commonly 0x40, unverified) and whether the
+   mics are analog are not on Waveshare's wiki pages. They are in the schematic and the example repo
+   (`waveshareteam/ESP32-S3-Touch-AMOLED-1.75C`), which the first plan task reads. The existing I2S
+   receive channel on GPIO10 may or may not be the mic's data line. No official 16 kHz record example exists.
+2. **Hermes delegate-only.** Hermes has a `delegation` toolset containing only `delegate_task`, but
+   its children inherit the parent's toolsets and keep `execute_code`, and the docs give no way to
+   give the API server its own toolset list (the config keys conflict). Delegate-only is therefore
+   **not guaranteed by configuration**. The plan treats it as a risk to retire first. The fallback,
+   which also fits better, is a small MCP server in the bridge exposing exactly "start, steer, read
+   session" tools, with Hermes' terminal and file toolsets disabled. This also keeps the authority
+   boundary in our code and not in Hermes' config.
+3. whisper.cpp (1.9.5) and Piper (1.8.0) exist in nixpkgs. Their latency on galactica (i5-1340P,
+   12 cores, no GPU) is still to be measured, release to first spoken word.
+4. Claude sessions started by Hermes inherit `~/.claude/settings.json` hooks, so they should appear
+   on the board. This is untested.
 
 ## Delivery in three steps
 
