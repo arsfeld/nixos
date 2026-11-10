@@ -287,3 +287,31 @@ async fn claimed_reminder_is_gone_from_the_file() {
     assert!(!text.contains(&id), "still in the file: {text}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A refused `voice_start` (here: the per-minute limit is zero) leaves the user still holding, with
+/// nothing recording. The reminder's card arrives, but its speech waits for that hold's `voice_end`.
+#[tokio::test]
+async fn reminder_speech_waits_for_a_refused_hold_to_end() {
+    let (clock, timers) = timers(None);
+    let backends = Backends {
+        stt: FakeStt::new("hello"),
+        tts: Arc::new(FakeTts { bytes: 2000, hang: false }),
+        brain: FakeBrain::new(&[], false),
+    };
+    let cfg = VoiceConfig { max_per_minute: 0, ..VoiceConfig::default() };
+    let addr = serve(state(1000).with_voice(backends, cfg).with_timers(timers.clone())).await;
+    let (mut ws, _) = connect_board(addr).await;
+    send_json(&mut ws, json!({"t":"voice_start","utterance":5})).await;
+    assert_eq!(next_json(&mut ws).await, json!({"t":"creature","mood":"idle"}), "refused");
+    make_due(&clock, &timers, "tea", 1);
+    assert_eq!(next_json(&mut ws).await["t"], "reminder");
+    // Longer than two reminder ticks.
+    let held = quiet_for(&mut ws, 1200).await;
+    assert!(held.is_empty(), "something was sent mid-hold: {}", held.len());
+    send_json(&mut ws, json!({"t":"voice_end","utterance":5})).await;
+    assert_eq!(next_json(&mut ws).await, json!({"t":"creature","mood":"idle"}), "the refusal answered again");
+    assert_eq!(next_json(&mut ws).await, json!({"t":"creature","mood":"speaking"}));
+    let start = next_json(&mut ws).await;
+    assert_eq!(start["t"], "speak_start");
+    assert!(start["utterance"].as_u64().unwrap() as u32 >= REMINDER_ID_BASE);
+}

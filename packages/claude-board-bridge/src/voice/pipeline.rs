@@ -238,9 +238,13 @@ impl Conn {
         self.tick();
     }
 
-    /// Starts the next queued reminder when nothing is recording or running.
+    /// Starts the next queued reminder when no hold is in progress (recording, or refused and not yet
+    /// released) and nothing is running.
     pub fn tick(&mut self) {
-        if self.recording.is_some() || self.running.as_ref().is_some_and(|(_, t)| !t.is_finished()) {
+        if self.recording.is_some()
+            || self.refused.is_some()
+            || self.running.as_ref().is_some_and(|(_, t)| !t.is_finished())
+        {
             return;
         }
         let Some(backends) = self.backends.clone() else { return };
