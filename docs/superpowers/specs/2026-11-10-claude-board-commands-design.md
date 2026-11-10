@@ -74,7 +74,7 @@ or simple `Path`s, so opening the menu repaints only those boxes. Tapping a segm
 ### Volume page
 
 - 24 ticks around the rim over 240° (a gap at the bottom), lit up to the level, the last one brighter. The ticks
-  are a model of tight-box `Path`s rebuilt only when the level changes.
+  are a model of tight-box `Path`s built once (`rim::ticks`); which are lit is worked out in Slint from the level.
 - The level in large type, "AUDIO LEVEL" above it.
 - − and + buttons step by `VOLUME_STEP` through the same code path as the swipe shortcut, so they share its NVS
   write and preview chime.
@@ -95,8 +95,9 @@ The head small at the top, "PURGE MEMORY", one line of explanation, a HOLD butto
 Holding the button for 1.5 s fills a red ring around the edge; letting go early resets it. The timing lives in
 Slint: the button's `TouchArea.pressed` drives a timer-advanced progress, and completion fires a callback. No new
 gesture code is needed: `TouchTracker`'s 450 ms hold is only a hold if the app accepts it, and the controller
-accepts holds on the avatar only, so on this page the pointer stays pressed. The ring is four quarter arcs, each
-with its own box, so only the quarter that is filling repaints.
+accepts holds on the avatar only, so on this page the pointer stays pressed. The ring is 36 radial ticks round the
+edge (`rim::ticks`, the same helper as the volume page's), each a static `Path` with its own tight box, lit from
+the progress in Slint, so a step of the fill repaints only the tick that lights.
 
 On completion the board sends `new_session` with a fresh utterance id, shows the `thinking` mood and returns to
 home. The bridge's spoken line then plays through the normal speaking path. If no `session_reset` arrives within

@@ -524,3 +524,217 @@ fn the_command_menu_draws_metal_arcs_with_a_red_purge_edge_only_while_open() {
     let dim = px(&buf, purge_edge.0, purge_edge.1);
     assert!(dim.0 < lit.0 / 2, "offline, purge is dimmed: {dim:?} against {lit:?}");
 }
+
+// ---- The purge page: hold the button for 1.5 s ----
+
+mod purge {
+    use super::*;
+    use claude_board_ui::controller::{Controller, Outbox};
+    use claude_board_ui::touch::{Gesture, TouchTracker};
+    use claude_board_ui::Page;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    #[derive(Clone, Default)]
+    struct Wire(Rc<RefCell<Vec<String>>>);
+    impl Outbox for Wire {
+        fn send(&self, json: String) -> bool {
+            self.0.borrow_mut().push(json);
+            true
+        }
+    }
+    impl Wire {
+        fn new_sessions(&self) -> usize {
+            self.0.borrow().iter().filter(|s| s.contains(r#""t":"new_session""#)).count()
+        }
+    }
+
+    /// The HOLD button's centre.
+    const BUTTON: (i16, i16) = (233, 363);
+
+    struct Board {
+        h: Headless,
+        ui: AppWindow,
+        c: Controller<Wire>,
+        wire: Wire,
+        touch: TouchTracker,
+        ms: u64,
+    }
+
+    impl Board {
+        fn on_purge() -> Board {
+            let (h, ui) = show();
+            let wire = Wire::default();
+            let c = Controller::new(&ui, wire.clone());
+            c.set_link(true);
+            c.open_menu();
+            ui.invoke_rim_tapped(44.0);
+            assert_eq!(ui.get_page(), Page::Purge);
+            h.render();
+            Board { h, ui, c, wire, touch: TouchTracker::new(), ms: 0 }
+        }
+
+        /// One touch sample through the tracker and the controller, as the app runs them.
+        fn sample(&mut self, pressed: bool) {
+            let (x, y) = BUTTON;
+            let u = self.touch.update_at(x, y, pressed, self.ms);
+            for e in u.events {
+                self.h.window.dispatch_event(e);
+            }
+            if let Some(Gesture::HoldStart(x, y)) = u.gesture {
+                if self.c.hold_started(x, y) {
+                    for e in self.touch.accept_hold() {
+                        self.h.window.dispatch_event(e);
+                    }
+                }
+            }
+        }
+
+        /// Keep the finger on the button for `ms`, sampling every 33 ms.
+        fn hold_for(&mut self, ms: u64) {
+            self.sample(true);
+            let end = self.ms + ms;
+            while self.ms < end {
+                self.ms += 33;
+                self.h.step(33);
+                self.sample(true);
+            }
+        }
+
+        fn release(&mut self) {
+            self.sample(false);
+            self.ms += 33;
+            self.h.step(33);
+        }
+
+        /// Red ticks on the ring.
+        fn red_ticks(&self) -> usize {
+            let buf = self.h.render();
+            (0..36)
+                .filter(|i| {
+                    let a = (*i as f32 * 10.0).to_radians();
+                    let (x, y) = ((233.0 + 211.0 * a.sin()).round() as usize, (233.0 - 211.0 * a.cos()).round() as usize);
+                    is_red(px(&buf, x, y)) || near(px(&buf, x, y), (0xff, 0xb4, 0xa0), 24)
+                })
+                .count()
+        }
+    }
+
+    #[test]
+    fn holding_purge_for_1_5_s_confirms() {
+        let mut b = Board::on_purge();
+        assert_eq!(b.red_ticks(), 0, "the ring starts empty");
+        b.hold_for(990);
+        let filling = b.red_ticks();
+        assert!((20..=27).contains(&filling), "two thirds of the way the ring is two thirds lit: {filling}");
+        assert_eq!(b.wire.new_sessions(), 0);
+        b.hold_for(560);
+        assert_eq!(b.wire.new_sessions(), 1, "a hold off the avatar is not taken: the button stays pressed");
+        assert_eq!(b.ui.get_page(), Page::Home);
+        b.release();
+        assert_eq!(b.wire.new_sessions(), 1, "once");
+    }
+
+    #[test]
+    fn releasing_purge_early_restarts_the_ring() {
+        let mut b = Board::on_purge();
+        b.hold_for(1400);
+        b.release();
+        assert_eq!(b.red_ticks(), 0, "letting go empties the ring");
+        b.hold_for(1400);
+        assert_eq!(b.wire.new_sessions(), 0, "1.4 s twice is not 1.5 s");
+        b.release();
+        b.hold_for(1550);
+        assert_eq!(b.wire.new_sessions(), 1);
+    }
+
+    #[test]
+    fn the_purge_button_is_inert_while_unlinked() {
+        let mut b = Board::on_purge();
+        b.c.set_link(false);
+        b.hold_for(2000);
+        assert_eq!(b.red_ticks(), 0);
+        assert_eq!(b.wire.new_sessions(), 0);
+    }
+}
+
+// ---- The volume page ----
+
+#[test]
+fn the_volume_page_lights_ticks_up_to_the_level() {
+    use claude_board_ui::controller::{Controller, Outbox};
+    struct Mute;
+    impl Outbox for Mute {
+        fn send(&self, _: String) -> bool {
+            true
+        }
+    }
+    let (h, ui) = show();
+    let _c = Controller::new(&ui, Mute);
+    ui.set_page(claude_board_ui::Page::Volume);
+    let lit_ticks = |buf: &[Rgb565Pixel]| {
+        (0..24)
+            .filter(|i| {
+                let a = (-120.0 + 240.0 * *i as f32 / 23.0f32).to_radians();
+                let (x, y) = ((233.0 + 208.0 * a.sin()).round() as usize, (233.0 - 208.0 * a.cos()).round() as usize);
+                let c = px(buf, x, y);
+                is_red(c) || near(c, (0xff, 0xb4, 0xa0), 24)
+            })
+            .count()
+    };
+    ui.set_volume(50);
+    assert_eq!(lit_ticks(&h.render()), 12);
+    ui.set_volume(100);
+    assert_eq!(lit_ticks(&h.render()), 24);
+    ui.set_volume(10);
+    let buf = h.render();
+    assert_eq!(lit_ticks(&buf), 2);
+    // The last lit tick is the bright one.
+    let a = (-120.0 + 240.0 / 23.0f32).to_radians();
+    let tip = px(&buf, (233.0 + 208.0 * a.sin()).round() as usize, (233.0 - 208.0 * a.cos()).round() as usize);
+    assert!(near(tip, (0xff, 0xb4, 0xa0), 24), "{tip:?}");
+}
+
+#[test]
+fn the_volume_buttons_step_through_real_taps() {
+    use claude_board_ui::controller::{Controller, Outbox};
+    struct Mute;
+    impl Outbox for Mute {
+        fn send(&self, _: String) -> bool {
+            true
+        }
+    }
+    use slint::platform::{PointerEventButton, WindowEvent};
+    use slint::LogicalPosition;
+    let (h, ui) = show();
+    let c = Controller::new(&ui, Mute);
+    ui.set_page(claude_board_ui::Page::Volume);
+    h.render();
+    let tap = |x: f32, y: f32| {
+        let position = LogicalPosition::new(x, y);
+        h.window.dispatch_event(WindowEvent::PointerPressed { position, button: PointerEventButton::Left });
+        h.window.dispatch_event(WindowEvent::PointerReleased { position, button: PointerEventButton::Left });
+        h.window.dispatch_event(WindowEvent::PointerExited);
+    };
+    tap(144.0, 350.0);
+    assert_eq!(c.take_volume_step(), Some(false));
+    tap(322.0, 350.0);
+    assert_eq!(c.take_volume_step(), Some(true));
+}
+
+#[test]
+fn the_volume_pill_on_home_is_a_row_of_red_ticks() {
+    let (h, ui) = show();
+    ui.set_volume(70);
+    ui.set_volume_shown(true);
+    let buf = h.render();
+    // Ten ticks, 9 px apart, from x 219 (the pill at 143 plus 76), centred on y 64.
+    let lit: Vec<bool> = (0..10)
+        .map(|i| {
+            let c = px(&buf, 219 + 9 * i + 2, 64);
+            is_red(c) || near(c, (0xff, 0xb4, 0xa0), 24)
+        })
+        .collect();
+    assert_eq!(lit, [true, true, true, true, true, true, true, false, false, false]);
+    assert!(near(px(&buf, 219 + 9 * 6 + 2, 64), (0xff, 0xb4, 0xa0), 24), "the last lit tick is the bright one");
+}

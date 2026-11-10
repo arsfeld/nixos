@@ -1,5 +1,5 @@
 // The whole screen: the rim around whichever page is up.
-import { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow, FeedKind, FeedRow } from "theme.slint";
+import { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow, FeedKind, FeedRow, Tick } from "theme.slint";
 import { Rim } from "rim.slint";
 import { HomePage } from "home.slint";
 import { SessionsPage } from "sessions.slint";
@@ -7,7 +7,7 @@ import { QuestionPage } from "question.slint";
 import { DetailPage } from "detail.slint";
 import { VolumePage, LinkPage, PurgePage } from "commands.slint";
 import { GlyphCoverage } from "glyphs.slint";
-export { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow, FeedKind, FeedRow }
+export { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow, FeedKind, FeedRow, Tick }
 
 export component AppWindow inherits Window {
     width: 466px;
@@ -36,6 +36,12 @@ export component AppWindow inherits Window {
     // The command menu (a swipe down from the top edge opens it): its three arcs, Volume, Link and Purge, built once.
     in property <bool> menu-open: false;
     in property <[RimSegment]> commands;
+    // The volume page's 24 ticks and the purge page's ring of 36, built once (`rim::ticks`).
+    in property <[Tick]> volume-ticks;
+    in property <[Tick]> ring-ticks;
+    // How long the purge button must be held (the controller sets it from PURGE_HOLD_MS), and how far a hold has got.
+    in property <duration> purge-hold: 1500ms;
+    in-out property <float> purge-progress: 0;
     // List.
     in property <[SessionRow]> rows;
     in property <float> list-wheel-radius: 233;
@@ -71,13 +77,18 @@ export component AppWindow inherits Window {
     callback reply-tapped();
     callback entry-tapped(int);
     callback expanded-closed();
+    // The volume page's - (false) or + (true).
+    callback volume-step(bool);
+    // The purge button was held to the end.
+    callback purge-confirmed();
 
     // Everything moves together by a few pixels now and then, so an AMOLED panel never shows the same bright
     // pixels in the same place for days (see power::drift_px).
     in property <length> drift-x: 0px;
     in property <length> drift-y: 0px;
-    // Where the ring's touch area begins, from the centre.
-    property <float> ring-inner: root.menu-open ? 172 : 190;
+    // Where the ring's touch area begins, from the centre. While the menu is open it reaches in to 150, past the
+    // command labels (about 160) to just outside the avatar's circle (140), so a tap on a label opens its command.
+    property <float> ring-inner: root.menu-open ? 150 : 190;
 
     Rectangle {
         x: root.drift-x;
@@ -87,7 +98,8 @@ export component AppWindow inherits Window {
 
         GlyphCoverage {}
 
-        Rim {
+        // The volume and purge pages draw their own ticks round the edge, where the session arcs would be.
+        if root.page != Page.volume && root.page != Page.purge: Rim {
             width: 466px;
             height: 466px;
             segments: root.rim;
@@ -95,7 +107,7 @@ export component AppWindow inherits Window {
         }
 
         // Taps on the ring itself (outside radius 190) open the session that arc stands for. While the menu is open
-        // its arcs reach in to radius 175, so the ring does too.
+        // the ring reaches in to its labels (see ring-inner).
         ring := TouchArea {
             width: 466px;
             height: 466px;
@@ -159,9 +171,23 @@ export component AppWindow inherits Window {
                 root.decline-tapped();
             }
         }
-        if root.page == Page.volume: VolumePage {}
+        if root.page == Page.volume: VolumePage {
+            ticks: root.volume-ticks;
+            volume: root.volume;
+            volume-step(louder) => {
+                root.volume-step(louder);
+            }
+        }
         if root.page == Page.link: LinkPage {}
-        if root.page == Page.purge: PurgePage {}
+        if root.page == Page.purge: PurgePage {
+            ticks: root.ring-ticks;
+            link: root.link;
+            hold-time: root.purge-hold;
+            progress <=> root.purge-progress;
+            purge-confirmed => {
+                root.purge-confirmed();
+            }
+        }
         if root.page == Page.detail: DetailPage {
             host: root.detail-host;
             project: root.detail-project;

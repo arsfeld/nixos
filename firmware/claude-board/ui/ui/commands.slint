@@ -1,5 +1,167 @@
-// The pages the command menu on home opens. Placeholders for now: each shows its title.
-import { Theme } from "theme.slint";
+// The pages the command menu on home opens: Volume, Link and Purge.
+import { Theme, Tick } from "theme.slint";
+
+// Radial ticks round the edge (`rim::ticks`), lit up to `fraction` of them, the last lit one brighter. Each is a
+// static Path in its own tight box: lighting one repaints only that box.
+component TickRing inherits Rectangle {
+    in property <[Tick]> ticks;
+    in property <float> fraction;
+    property <int> lit: Math.round(root.ticks.length * root.fraction);
+    x: 0px;
+    y: 0px;
+    width: 466px;
+    height: 466px;
+    for t[i] in root.ticks: Path {
+        x: t.x;
+        y: t.y;
+        width: t.width;
+        height: t.height;
+        // Slint fits the viewbox into the element less the stroke width, offset by half of it: a viewbox that is
+        // the box shrunk by half the stroke on each side draws the line one to one, inside its own box.
+        viewbox-x: t.x / 1px + 4;
+        viewbox-y: t.y / 1px + 4;
+        viewbox-width: t.width / 1px - 8;
+        viewbox-height: t.height / 1px - 8;
+        commands: t.commands;
+        stroke: i >= root.lit ? #1f2128 : (i == root.lit - 1 ? #ffb4a0 : #ff2a1a);
+        stroke-width: 8px;
+    }
+}
+
+component Caption inherits Text {
+    x: 0px;
+    width: 466px;
+    color: #6b7280;
+    font-family: "JetBrains Mono";
+    font-size: 10px;
+    letter-spacing: 3px;
+    horizontal-alignment: center;
+}
+
+// A metal key: a dark face with a bright top edge, flat at the top and rounded at the bottom like the rim.
+component MetalButton inherits Rectangle {
+    callback tapped();
+    width: 96px;
+    height: 64px;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    border-bottom-left-radius: 24px;
+    border-bottom-right-radius: 24px;
+    border-width: 1px;
+    border-color: #3a3f4a;
+    background: area.pressed ? #23262e : #15171c;
+    Rectangle {
+        x: 5px;
+        y: 0px;
+        width: parent.width - 10px;
+        height: 2px;
+        background: #b8bec9;
+    }
+    @children
+    area := TouchArea {
+        clicked => {
+            root.tapped();
+        }
+    }
+}
+
+export component VolumePage inherits Rectangle {
+    // 24 ticks over 240 degrees and the level, 10 to 100.
+    in property <[Tick]> ticks;
+    in property <int> volume: 80;
+    // A - (false) or + (true) tap; the app steps the level as a swipe on home does.
+    callback volume-step(bool);
+
+    TickRing {
+        ticks: root.ticks;
+        fraction: root.volume / 100;
+    }
+    Text {
+        x: 0px;
+        y: 112px;
+        width: 466px;
+        text: "AUDIO LEVEL";
+        color: Theme.muted;
+        font-family: "JetBrains Mono";
+        font-size: 11px;
+        letter-spacing: 4px;
+        horizontal-alignment: center;
+    }
+    Text {
+        x: 0px;
+        y: 130px;
+        width: 466px;
+        text: root.volume;
+        color: Theme.text;
+        font-family: "Sora";
+        font-size: 96px;
+        font-weight: 600;
+        letter-spacing: -2px;
+        horizontal-alignment: center;
+    }
+    // The visor: an eye that grows and brightens with the level.
+    Rectangle {
+        x: 167px;
+        y: 262px;
+        width: 132px;
+        height: 22px;
+        border-radius: 4px;
+        border-width: 1px;
+        border-color: #3a3f4a;
+        background: #08090b;
+        Rectangle {
+            property <length> w: 20px + 60px * root.volume / 100;
+            x: (parent.width - self.w) / 2;
+            y: 5px;
+            width: self.w;
+            height: 12px;
+            border-radius: 6px;
+            background: #ff2a1a.with-alpha(0.3 + 0.7 * root.volume / 100);
+        }
+    }
+    MetalButton {
+        x: 96px;
+        y: 318px;
+        tapped => {
+            root.volume-step(false);
+        }
+        Rectangle {
+            x: 40px;
+            y: 30px;
+            width: 16px;
+            height: 3px;
+            border-radius: 1.5px;
+            background: #ff2a1a;
+        }
+    }
+    MetalButton {
+        x: 274px;
+        y: 318px;
+        tapped => {
+            root.volume-step(true);
+        }
+        Rectangle {
+            x: 40px;
+            y: 30px;
+            width: 16px;
+            height: 3px;
+            border-radius: 1.5px;
+            background: #ff2a1a;
+        }
+        Rectangle {
+            x: 46.5px;
+            y: 23.5px;
+            width: 3px;
+            height: 16px;
+            border-radius: 1.5px;
+            background: #ff2a1a;
+        }
+    }
+    Caption {
+        y: 400px;
+        text: "SWIPE UP / DOWN ON HOME";
+    }
+}
 
 component CommandTitle inherits Rectangle {
     in property <string> title;
@@ -15,12 +177,6 @@ component CommandTitle inherits Rectangle {
     }
 }
 
-export component VolumePage inherits Rectangle {
-    CommandTitle {
-        title: "AUDIO LEVEL";
-    }
-}
-
 export component LinkPage inherits Rectangle {
     CommandTitle {
         title: "LINK";
@@ -28,7 +184,116 @@ export component LinkPage inherits Rectangle {
 }
 
 export component PurgePage inherits Rectangle {
-    CommandTitle {
-        title: "PURGE";
+    // 36 ticks round the edge, filled as the button is held.
+    in property <[Tick]> ticks;
+    // Purging needs the bridge: while it is down the button is dimmed and does nothing.
+    in property <bool> link;
+    // How long the button has to be held.
+    in property <duration> hold-time: 1500ms;
+    // 0 to 1: how far the hold has got. Back to 0 when the finger lifts.
+    in-out property <float> progress: 0;
+    callback purge-confirmed();
+
+    property <duration> pressed-at;
+    property <bool> fired;
+
+    TickRing {
+        ticks: root.ticks;
+        fraction: root.progress;
+    }
+
+    // The head, small and still, from a sprite at its native size; its eye a dim bar parked in the visor.
+    Image {
+        x: 143px;
+        y: 62px;
+        source: @image-url("images/centurion-180.png");
+    }
+    Rectangle {
+        x: 194px;
+        y: 143px;
+        width: 78px;
+        height: 10px;
+        border-radius: 5px;
+        background: #ff2a1a80;
+    }
+
+    Text {
+        x: 0px;
+        y: 252px;
+        width: 466px;
+        text: "PURGE MEMORY";
+        color: Theme.text;
+        font-family: "JetBrains Mono";
+        font-size: 15px;
+        letter-spacing: 4px;
+        horizontal-alignment: center;
+    }
+    Text {
+        x: 103px;
+        y: 278px;
+        width: 260px;
+        text: "The creature forgets this conversation and starts a new one.";
+        color: Theme.muted;
+        font-family: "Sora";
+        font-size: 14px;
+        wrap: word-wrap;
+        horizontal-alignment: center;
+    }
+
+    Rectangle {
+        x: 133px;
+        y: 334px;
+        width: 200px;
+        height: 58px;
+        border-top-left-radius: 6px;
+        border-top-right-radius: 6px;
+        border-bottom-left-radius: 29px;
+        border-bottom-right-radius: 29px;
+        border-width: 1px;
+        border-color: root.link ? #ff2a1a : #ff2a1a50;
+        background: !root.link ? #120807 : (area.pressed ? #3d120d : #2a0c09);
+        Text {
+            text: root.progress > 0 ? "HOLD · " + Math.round(root.progress * 100) + "%" : "HOLD";
+            color: root.link ? Theme.text : #f9fafb50;
+            font-family: "JetBrains Mono";
+            font-size: 13px;
+            letter-spacing: 3px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        // The hold is timed here, not by the touch tracker: a hold off the avatar is never taken as one, so the
+        // pointer stays pressed for as long as the finger is down.
+        area := TouchArea {
+            enabled: root.link;
+            pointer-event(event) => {
+                if (event.kind == PointerEventKind.down) {
+                    root.pressed-at = animation-tick();
+                    root.progress = 0;
+                    root.fired = false;
+                }
+            }
+            // A lift, or a cancel (a swipe), empties the ring.
+            changed pressed => {
+                if (!self.pressed) {
+                    root.progress = 0;
+                }
+            }
+        }
+        Timer {
+            interval: 33ms;
+            running: area.pressed && !root.fired;
+            triggered => {
+                root.progress = Math.min(1, (animation-tick() - root.pressed-at) / root.hold-time);
+                if (root.progress >= 1) {
+                    root.fired = true;
+                    root.purge-confirmed();
+                }
+            }
+        }
+    }
+
+    Caption {
+        y: 404px;
+        text: root.link ? "RELEASE TO ABORT" : "OFFLINE";
     }
 }

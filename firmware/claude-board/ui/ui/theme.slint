@@ -51,6 +51,16 @@ export struct RimSegment {
     state: SessionState,
 }
 
+// One radial tick of the volume page's level or the purge page's ring, in its own tight box, like a rim arc. Built
+// by `rim::ticks`; whether it is lit is worked out in Slint from its index.
+export struct Tick {
+    x: length,
+    y: length,
+    width: length,
+    height: length,
+    commands: string,
+}
+
 export global Theme {
     out property <color> bg: #000000;
     out property <color> card: #111827;

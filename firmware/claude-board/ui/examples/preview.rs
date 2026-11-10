@@ -5,6 +5,7 @@ use std::path::Path;
 
 use claude_board_ui::headless::{headless, rgb, Headless, HEIGHT, WIDTH};
 use claude_board_proto::{Model, Session, State};
+use claude_board_ui::rim::ticks;
 use claude_board_ui::view::{command_segments, rim_models, session_rows};
 use claude_board_ui::{AppWindow, OptionRow, Page, PresenceState, RimSegment, SessionState};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
@@ -143,6 +144,23 @@ fn main() {
     ui.set_link(true);
     ui.set_menu_open(false);
     show_rim(&ui, &sessions);
+
+    // The pages the menu opens. Their ticks stand where the session arcs would be, so the rim is not drawn.
+    ui.set_volume_ticks(ModelRc::new(VecModel::from(ticks(-120.0, 120.0, 24, 195.0, 221.0))));
+    ui.set_ring_ticks(ModelRc::new(VecModel::from(ticks(0.0, 350.0, 36, 200.0, 222.0))));
+    ui.set_page(Page::Volume);
+    ui.set_volume(80);
+    settle(&h);
+    write_png(dir, "volume", &h);
+    ui.set_page(Page::Purge);
+    ui.set_purge_progress(0.65);
+    settle(&h);
+    write_png(dir, "purge", &h);
+    ui.set_link(false);
+    ui.set_purge_progress(0.0);
+    write_png(dir, "purge-offline", &h);
+    ui.set_link(true);
+    ui.set_page(Page::Home);
 
     ui.set_page(Page::List);
     ui.set_rows(ModelRc::new(VecModel::from(session_rows(&sessions, Some(NOW)))));

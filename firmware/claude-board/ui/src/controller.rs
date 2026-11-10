@@ -14,6 +14,7 @@ use crate::view::{
     arc_index_at, command_at, command_segments, feed_rows, fmt_ago, presence_for, rim_models, session_rows, shorten, Command,
     PresenceKind, MAX_RIM_SEGMENTS,
 };
+use crate::rim::ticks;
 use crate::{AppWindow, FeedRow, OptionRow, Page, PresenceState, RimSegment, SessionRow};
 
 /// How long the reply card stays up, in `tick_at` time.
@@ -31,6 +32,10 @@ const ANSWER_GUARD_MS: u64 = 400;
 const NEW_ASK_GUARD_MS: u64 = 500;
 /// The command menu closes after this long with no touch.
 const MENU_IDLE_MS: u64 = 10_000;
+/// How long the purge button must be held.
+pub const PURGE_HOLD_MS: u64 = 1_500;
+/// A purge with no `session_reset` from the bridge after this long gives up waiting: the creature goes back to idle.
+const RESET_WAIT_MS: u64 = 10_000;
 
 /// Where answers go: the websocket to the bridge.
 pub trait Outbox {
@@ -138,6 +143,10 @@ struct Inner<O: Outbox> {
     /// The utterance the bridge is speaking, from its `speak_start` to its `speak_end`: a reminder's speech is not
     /// one of ours, and a tap has to name its id to stop it.
     speaking: Option<u32>,
+    /// A - or + tap on the volume page, waiting for the app (`take_volume_step`).
+    volume_step: Option<bool>,
+    /// A purge sent and not yet answered: its utterance id and when it was sent, in `tick_at` time.
+    purge_wait: Option<(u32, u64)>,
 }
 
 pub struct Controller<O: Outbox> {
@@ -161,6 +170,10 @@ impl<O: Outbox + 'static> Controller<O> {
         window.set_rows(ModelRc::from(models.rows.clone()));
         window.set_options(ModelRc::from(models.options.clone()));
         window.set_feed(ModelRc::from(models.feed.clone()));
+        // Fixed geometry, built once: the volume page's level (a gap at the bottom) and the purge page's full ring.
+        window.set_volume_ticks(ModelRc::new(VecModel::from(ticks(-120.0, 120.0, 24, 195.0, 221.0))));
+        window.set_ring_ticks(ModelRc::new(VecModel::from(ticks(0.0, 350.0, 36, 200.0, 222.0))));
+        window.set_purge_hold(PURGE_HOLD_MS as i64);
         let inner = Rc::new(RefCell::new(Inner {
             models,
             model: Model::new(),
@@ -191,6 +204,8 @@ impl<O: Outbox + 'static> Controller<O> {
             reply_until_ms: 0,
             reminder_heading: None,
             speaking: None,
+            volume_step: None,
+            purge_wait: None,
         }));
         macro_rules! wire {
             ($on:ident, |$s:ident $(, $a:ident : $t:ty)*| $body:expr) => {{
@@ -211,6 +226,8 @@ impl<O: Outbox + 'static> Controller<O> {
         wire!(on_reply_tapped, |s| s.dismiss_reply());
         wire!(on_entry_tapped, |s, i: i32| s.entry_tapped(i as usize));
         wire!(on_expanded_closed, |s| s.close_expanded());
+        wire!(on_volume_step, |s, louder: bool| s.volume_step = Some(louder));
+        wire!(on_purge_confirmed, |s| s.purge_confirmed());
         inner.borrow_mut().refresh();
         Controller { inner }
     }
@@ -261,6 +278,16 @@ impl<O: Outbox + 'static> Controller<O> {
                 s.speaking = None;
                 return;
             }
+            Ok(BoardMsg::SessionReset { utterance }) => {
+                if s.purge_wait.is_some_and(|(id, _)| id == utterance) {
+                    s.purge_wait = None;
+                    // The bridge sends no mood of its own if it cannot speak the confirmation; when it can, its
+                    // speaking mood follows and takes over.
+                    s.set_mood(Mood::Idle);
+                    s.refresh();
+                }
+                return;
+            }
             _ => {}
         }
         if s.model.apply(json) != Applied::Changed {
@@ -288,6 +315,7 @@ impl<O: Outbox + 'static> Controller<O> {
             s.speaking = None;
             s.mic_level = 0.0;
             s.idle_deferred = false;
+            s.purge_wait = None;
             s.set_mood(Mood::Idle);
         }
         // The bridge forgets what a board watches when the socket drops: ask again.
@@ -312,6 +340,13 @@ impl<O: Outbox + 'static> Controller<O> {
         s.now = now;
         if s.menu_open && ms.saturating_sub(s.menu_touched_ms) >= MENU_IDLE_MS {
             s.menu_open = false;
+        }
+        if s.purge_wait.is_some_and(|(_, at)| ms.saturating_sub(at) >= RESET_WAIT_MS) {
+            s.purge_wait = None;
+            // Only the thinking the purge put up: a mood the bridge has sent since is its own.
+            if s.mood == Mood::Thinking {
+                s.set_mood(Mood::Idle);
+            }
         }
         s.refresh();
     }
@@ -396,6 +431,12 @@ impl<O: Outbox + 'static> Controller<O> {
             s.set_mood(Mood::Idle);
             s.refresh();
         }
+    }
+
+    /// A - (false) or + (true) tap on the volume page since the last call: the app steps the level, saves it and
+    /// plays the preview chime, as for a swipe on home.
+    pub fn take_volume_step(&self) -> Option<bool> {
+        self.inner.borrow_mut().volume_step.take()
     }
 
     /// True once after something started needing the user.
@@ -582,6 +623,12 @@ impl<O: Outbox> Inner<O> {
             }
             self.close_expanded();
         }
+        // A page left mid-hold (a purge confirmed, a question taking over) cannot empty its own ring.
+        if !matches!(nav, Nav::Purge) {
+            if let Some(win) = self.window.upgrade() {
+                win.set_purge_progress(0.0);
+            }
+        }
         self.nav = nav;
     }
 
@@ -614,6 +661,21 @@ impl<O: Outbox> Inner<O> {
     fn dismiss_reply(&mut self) {
         self.reply.clear();
         self.reminder_heading = None;
+        self.refresh();
+    }
+
+    /// The purge button was held to the end: start the creature's conversation afresh, named by the next utterance
+    /// id, and wait on home for the bridge's `session_reset`. Needs the link, and one purge at a time.
+    fn purge_confirmed(&mut self) {
+        if !self.link || self.purge_wait.is_some() {
+            return;
+        }
+        self.last_utterance += 1;
+        let utterance = self.last_utterance;
+        self.send(&ClientMsg::NewSession { utterance });
+        self.purge_wait = Some((utterance, self.time_ms));
+        self.set_mood(Mood::Thinking);
+        self.set_nav(Nav::Home);
         self.refresh();
     }
 

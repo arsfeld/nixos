@@ -1070,3 +1070,133 @@ fn a_tap_on_a_menu_arc_over_the_avatars_box_opens_the_command() {
     f.tap(233.0, 233.0);
     assert_eq!(f.ui.get_page(), Page::List);
 }
+
+#[test]
+fn tapping_a_command_label_opens_its_page() {
+    // The labels sit at radius about 160, between the avatar's circle (140) and the arcs: a tap on one is a tap on
+    // its command.
+    let f = fixture();
+    f.c.set_link(true);
+    for ((x, y), page) in [((122.0, 119.0), Page::Volume), ((233.0, 73.0), Page::Link), ((344.0, 119.0), Page::Purge)] {
+        f.c.open_menu();
+        f.tap(x, y);
+        assert_eq!(f.ui.get_page(), page, "label at ({x}, {y})");
+        f.ui.invoke_back_tapped();
+    }
+    // The avatar itself still opens the list with the menu open.
+    f.c.open_menu();
+    f.tap(233.0, 233.0);
+    assert_eq!(f.ui.get_page(), Page::List);
+}
+
+// The volume and purge pages.
+
+#[test]
+fn volume_buttons_queue_steps() {
+    let f = fixture();
+    assert_eq!(f.c.take_volume_step(), None);
+    f.ui.invoke_volume_step(true);
+    assert_eq!(f.c.take_volume_step(), Some(true));
+    assert_eq!(f.c.take_volume_step(), None);
+    f.ui.invoke_volume_step(false);
+    assert_eq!(f.c.take_volume_step(), Some(false));
+    assert_eq!(f.c.take_volume_step(), None);
+}
+
+#[test]
+fn the_ticks_are_built_once() {
+    let f = fixture();
+    assert_eq!(f.ui.get_volume_ticks().row_count(), 24);
+    assert_eq!(f.ui.get_ring_ticks().row_count(), 36);
+}
+
+impl Fixture {
+    fn open_purge(&self) {
+        self.c.set_link(true);
+        self.c.open_menu();
+        self.ui.invoke_rim_tapped(44.0);
+        assert_eq!(self.ui.get_page(), Page::Purge);
+    }
+    fn new_sessions(&self) -> Vec<u64> {
+        self.sent().iter().filter(|v| v["t"] == "new_session").map(|v| v["utterance"].as_u64().unwrap()).collect()
+    }
+}
+
+#[test]
+fn purge_sends_new_session_once_and_goes_home() {
+    let f = fixture();
+    f.open_purge();
+    f.ui.invoke_purge_confirmed();
+    assert_eq!(f.new_sessions(), [1]);
+    assert_eq!(f.ui.get_page(), Page::Home);
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Thinking);
+    // Again while the bridge has not answered: nothing more is sent.
+    f.open_purge();
+    f.ui.invoke_purge_confirmed();
+    assert_eq!(f.new_sessions(), [1]);
+}
+
+#[test]
+fn purge_takes_the_next_utterance_id() {
+    let f = fixture();
+    let spoken = own_utterance(&f);
+    f.open_purge();
+    f.ui.invoke_purge_confirmed();
+    assert_eq!(f.new_sessions(), [spoken as u64 + 1]);
+    assert!(f.c.hold_started(233, 233));
+    assert_eq!(f.c.utterance(), Some(spoken + 2), "and the next hold takes the one after");
+}
+
+#[test]
+fn purge_is_ignored_while_unlinked() {
+    let f = fixture();
+    f.open_purge();
+    f.c.set_link(false);
+    f.ui.invoke_purge_confirmed();
+    assert!(f.new_sessions().is_empty());
+    assert_eq!(f.ui.get_page(), Page::Purge);
+}
+
+#[test]
+fn session_reset_clears_the_wait() {
+    let f = fixture();
+    f.open_purge();
+    f.ui.invoke_purge_confirmed();
+    f.c.on_message(r#"{"t":"session_reset","utterance":99}"#); // not ours
+    f.open_purge();
+    f.ui.invoke_purge_confirmed();
+    assert_eq!(f.new_sessions(), [1]);
+    f.c.on_message(r#"{"t":"session_reset","utterance":1}"#);
+    f.ui.invoke_purge_confirmed();
+    assert_eq!(f.new_sessions(), [1, 2]);
+}
+
+#[test]
+fn session_reset_sets_idle() {
+    let f = fixture();
+    f.open_purge();
+    f.ui.invoke_purge_confirmed();
+    f.c.on_message(r#"{"t":"session_reset","utterance":99}"#);
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Thinking, "another id changes nothing");
+    f.c.on_message(r#"{"t":"session_reset","utterance":1}"#);
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Idle);
+    // When speech works, the bridge's speaking mood follows and takes over.
+    mood(&f, "speaking");
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Speaking);
+}
+
+#[test]
+fn no_session_reset_drops_to_idle_after_ten_seconds() {
+    let f = fixture();
+    f.c.tick_at(Some(NOW), 100_000);
+    f.open_purge();
+    f.ui.invoke_purge_confirmed();
+    f.c.tick_at(Some(NOW), 109_999);
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Thinking);
+    f.c.tick_at(Some(NOW), 110_000);
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Idle);
+    // The wait is over: a purge can be tried again.
+    f.open_purge();
+    f.ui.invoke_purge_confirmed();
+    assert_eq!(f.new_sessions(), [1, 2]);
+}
