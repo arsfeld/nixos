@@ -97,11 +97,71 @@ const MAX_QUEUED_AUDIO: usize = 256 * 1024;
 /// Control messages allowed in that queue.
 const MAX_QUEUED_CONTROL: usize = 64;
 
-/// What the reader has queued for the voice task, which decrements as it processes.
+/// What the reader has queued for the voice task, which marks it done as it processes. Tracks the
+/// bounds for one socket; when it has `stats` it mirrors the totals there for observation.
 #[derive(Default)]
-struct Queued {
+pub struct Queued {
     audio: AtomicUsize,
     control: AtomicUsize,
+    stats: Option<Arc<UplinkStats>>,
+}
+
+fn sub_saturating(n: &AtomicUsize, by: usize) -> usize {
+    let prev = n.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| Some(v.saturating_sub(by))).unwrap_or(0);
+    prev.min(by)
+}
+
+impl Queued {
+    pub fn with_stats(stats: Arc<UplinkStats>) -> Queued {
+        Queued { stats: Some(stats), ..Queued::default() }
+    }
+
+    /// Reserves room for `len` audio bytes; false (reserving nothing) if that would exceed the bound.
+    pub fn try_audio(&self, len: usize) -> bool {
+        let reserved =
+            self.audio.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| (v + len <= MAX_QUEUED_AUDIO).then_some(v + len));
+        let Ok(prev) = reserved else { return false };
+        if let Some(s) = &self.stats {
+            s.queued_audio.fetch_add(len, Ordering::SeqCst);
+            s.peak_queued_bytes.fetch_max(prev + len, Ordering::SeqCst);
+        }
+        true
+    }
+
+    pub fn audio_done(&self, len: usize) {
+        let took = sub_saturating(&self.audio, len);
+        if let Some(s) = &self.stats {
+            sub_saturating(&s.queued_audio, took);
+        }
+    }
+
+    /// Reserves a slot for one control message; false if the queue is at its bound.
+    pub fn try_control(&self) -> bool {
+        let reserved =
+            self.control.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| (v < MAX_QUEUED_CONTROL).then_some(v + 1));
+        if reserved.is_err() {
+            return false;
+        }
+        if let Some(s) = &self.stats {
+            s.queued_control.fetch_add(1, Ordering::SeqCst);
+        }
+        true
+    }
+
+    pub fn control_done(&self) {
+        let took = sub_saturating(&self.control, 1);
+        if let Some(s) = &self.stats {
+            sub_saturating(&s.queued_control, took);
+        }
+    }
+
+    pub fn audio_queued(&self) -> usize {
+        self.audio.load(Ordering::SeqCst)
+    }
+
+    pub fn control_queued(&self) -> usize {
+        self.control.load(Ordering::SeqCst)
+    }
 }
 
 /// What the reader hands to the voice task. The channel is unbounded so the reader never waits on
@@ -141,11 +201,11 @@ async fn voice_task(mut conn: Conn, mut rx: UnboundedReceiver<Voice>, queued: Ar
     while let Some(m) = rx.recv().await {
         match m {
             Voice::Client(msg) => {
-                queued.control.fetch_sub(1, Ordering::SeqCst);
+                queued.control_done();
                 conn.on_client(&msg).await
             }
             Voice::Audio(frame) => {
-                queued.audio.fetch_sub(frame.len(), Ordering::SeqCst);
+                queued.audio_done(frame.len());
                 conn.on_audio(&frame)
             }
         }
@@ -182,20 +242,16 @@ impl Uplink {
     }
 
     fn control(&mut self, msg: ClientMsg) {
-        if self.queued.control.load(Ordering::SeqCst) >= MAX_QUEUED_CONTROL {
+        if !self.queued.try_control() {
             return self.drop_one();
         }
-        self.queued.control.fetch_add(1, Ordering::SeqCst);
         let _ = self.tx.send(Voice::Client(msg));
     }
 
     fn audio(&mut self, frame: Vec<u8>) {
-        let now = self.queued.audio.load(Ordering::SeqCst) + frame.len();
-        if now > MAX_QUEUED_AUDIO {
+        if !self.queued.try_audio(frame.len()) {
             return self.drop_one();
         }
-        self.queued.audio.fetch_add(frame.len(), Ordering::SeqCst);
-        self.stats.peak_queued_bytes.fetch_max(now, Ordering::SeqCst);
         let _ = self.tx.send(Voice::Audio(frame));
     }
 }
@@ -268,7 +324,7 @@ async fn serve(s: AppState, socket: WebSocket) {
     let (out_tx, out_rx) = mpsc::channel::<Out>(64);
     let (voice_tx, voice_rx) = mpsc::unbounded_channel::<Voice>();
     let conn = Conn::new(s.voice.clone(), s.voice_cfg, out_tx);
-    let queued = Arc::new(Queued::default());
+    let queued = Arc::new(Queued::with_stats(s.uplink.clone()));
     let mut voice = AbortOnDrop(tokio::spawn(voice_task(conn, voice_rx, queued.clone())));
     let mut writer = AbortOnDrop(tokio::spawn(writer(s.clone(), sink, rx, out_rx, watching.clone(), history.clone())));
     let mut uplink =

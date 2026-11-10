@@ -31,7 +31,11 @@ fn rig(brain: Arc<FakeBrain>, tts_bytes: usize, cfg: VoiceConfig) -> Rig {
 }
 
 fn rig_with(stt: Arc<FakeStt>, brain: Arc<FakeBrain>, tts_bytes: usize, cfg: VoiceConfig) -> Rig {
-    let (tx, rx) = mpsc::channel(256);
+    rig_cap(256, stt, brain, tts_bytes, cfg)
+}
+
+fn rig_cap(cap: usize, stt: Arc<FakeStt>, brain: Arc<FakeBrain>, tts_bytes: usize, cfg: VoiceConfig) -> Rig {
+    let (tx, rx) = mpsc::channel(cap);
     let backends = Arc::new(Backends {
         stt: stt.clone(),
         tts: Arc::new(FakeTts { bytes: tts_bytes, hang: false }),
@@ -438,4 +442,58 @@ async fn eleventh_utterance_in_a_minute_is_refused() {
     let got = r.until_terminal().await;
     assert_eq!(got[0], mood(Mood::Thinking));
     assert_eq!(r.stt.calls.load(Ordering::SeqCst), 11);
+}
+
+/// A rig whose Out channel holds 4 messages, with a reply that is mid-speech and whose audio has
+/// filled the channel: SpeakStart has been received, nothing since.
+async fn full_channel_rig() -> Rig {
+    let brain = FakeBrain::new(&[(0, "Hello there friend. ")], true);
+    let mut r = rig_cap(4, FakeStt::new("hi"), brain, 32 * 1024 * 40, VoiceConfig::default());
+    r.speak(1, 3200).await;
+    loop {
+        if let Out::Json(BoardMsg::SpeakStart { .. }) = r.next().await {
+            break;
+        }
+    }
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    r
+}
+
+#[tokio::test(start_paused = true)]
+async fn speakend_is_delivered_when_the_out_channel_is_full_but_drains() {
+    let mut r = full_channel_rig().await;
+    r.conn.on_client(&ClientMsg::Cancel { utterance: 1 }).await;
+    // The board is reading, only slowly.
+    let mut got = Vec::new();
+    for _ in 0..200 {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        while let Ok(m) = r.rx.try_recv() {
+            got.push(m);
+        }
+        if got.contains(&mood(Mood::Idle)) {
+            break;
+        }
+    }
+    tokio::time::sleep(Duration::from_secs(10)).await;
+    while let Ok(m) = r.rx.try_recv() {
+        got.push(m);
+    }
+    let ends: Vec<usize> =
+        got.iter().enumerate().filter(|(_, m)| **m == Out::Json(BoardMsg::SpeakEnd { utterance: 1 })).map(|(i, _)| i).collect();
+    let idles: Vec<usize> = got.iter().enumerate().filter(|(_, m)| **m == mood(Mood::Idle)).map(|(i, _)| i).collect();
+    assert_eq!((ends.len(), idles.len()), (1, 1), "{} messages", got.len());
+    assert!(ends[0] < idles[0]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn on_client_does_not_block_when_the_out_channel_stays_full() {
+    let mut r = full_channel_rig().await;
+    tokio::time::timeout(Duration::from_millis(100), r.conn.on_client(&ClientMsg::Cancel { utterance: 1 }))
+        .await
+        .expect("on_client blocked on the full channel");
+    // The board never reads: the pair is given up after the bound, and nothing was queued past it.
+    tokio::time::sleep(Duration::from_secs(30)).await;
+    while let Ok(m) = r.rx.try_recv() {
+        assert_ne!(m, Out::Json(BoardMsg::SpeakEnd { utterance: 1 }));
+    }
 }

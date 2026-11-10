@@ -14,6 +14,7 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::error::TrySendError;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
@@ -61,11 +62,19 @@ pub struct Conn {
     running: Option<(u32, JoinHandle<()>)>,
     starts: VecDeque<Instant>,
     speaking: Speaking,
+    /// The task delivering control messages that did not fit the channel; see `control`.
+    pending: Option<JoinHandle<()>>,
 }
+
+/// How long one control message waits for room in the channel before it is given up.
+const CONTROL_WAIT: Duration = Duration::from_secs(5);
 
 impl Drop for Conn {
     fn drop(&mut self) {
         if let Some((_, task)) = self.running.take() {
+            task.abort();
+        }
+        if let Some(task) = self.pending.take() {
             task.abort();
         }
         // Best effort: close a speaking turn if the receiver is still there.
@@ -78,14 +87,49 @@ impl Drop for Conn {
 
 impl Conn {
     pub fn new(backends: Option<Arc<Backends>>, cfg: VoiceConfig, out: Sender<Out>) -> Conn {
-        Conn { backends, cfg, out, recording: None, running: None, starts: VecDeque::new(), speaking: Arc::default() }
+        Conn { backends, cfg, out, recording: None, running: None, starts: VecDeque::new(), speaking: Arc::default(), pending: None }
     }
 
-    /// Sends from `on_client` never wait: when the channel is full the board is not reading, so it
-    /// could not act on the message anyway, and waiting would stall the reader that calls us (and
-    /// with it every later `Cancel`). The utterance task keeps its awaited sends; cancel aborts it.
-    fn mood(&self, mood: Mood) {
-        let _ = self.out.try_send(Out::Json(BoardMsg::Creature { mood }));
+    fn mood(&mut self, mood: Mood) {
+        self.control(vec![BoardMsg::Creature { mood }]);
+    }
+
+    /// Sends what `on_client` originates, in order, without ever making the caller wait: waiting would
+    /// stall the reader that calls us (and with it every later `Cancel`). A full channel does not
+    /// mean the board is not reading, only that it is behind, and a `SpeakStart` must still get its
+    /// `SpeakEnd`, so what does not fit goes to a task that waits for room, up to `CONTROL_WAIT`
+    /// per message, then gives up: by then the board is evidently not reading. Later control messages
+    /// queue behind that task, and so does the next utterance. The utterance task itself keeps its
+    /// awaited sends; cancel aborts it.
+    fn control(&mut self, msgs: Vec<BoardMsg>) {
+        let mut rest = VecDeque::from(msgs);
+        if !self.pending.as_ref().is_some_and(|h| !h.is_finished()) {
+            while let Some(m) = rest.pop_front() {
+                match self.out.try_send(Out::Json(m)) {
+                    Ok(()) => {}
+                    Err(TrySendError::Full(Out::Json(m))) => {
+                        rest.push_front(m);
+                        break;
+                    }
+                    Err(_) => return,
+                }
+            }
+            if rest.is_empty() {
+                return;
+            }
+        }
+        let prev = self.pending.take();
+        let out = self.out.clone();
+        self.pending = Some(tokio::spawn(async move {
+            if let Some(prev) = prev {
+                let _ = prev.await;
+            }
+            for m in rest {
+                if !matches!(tokio::time::timeout(CONTROL_WAIT, out.send(Out::Json(m))).await, Ok(Ok(()))) {
+                    return;
+                }
+            }
+        }));
     }
 
     /// Stops whatever is recording or running; true if something was live.
@@ -100,7 +144,7 @@ impl Conn {
         }
         if let Some(utterance) = take_speaking(&self.speaking) {
             live = true;
-            let _ = self.out.try_send(Out::Json(BoardMsg::SpeakEnd { utterance }));
+            self.control(vec![BoardMsg::SpeakEnd { utterance }]);
         }
         live
     }
@@ -142,6 +186,7 @@ impl Conn {
                     rec.id,
                     rec.buf,
                     self.speaking.clone(),
+                    self.pending.take(),
                 ));
                 self.running = Some((rec.id, task));
             }
@@ -199,7 +244,12 @@ async fn run_utterance(
     id: u32,
     pcm: Vec<u8>,
     speaking: Speaking,
+    after: Option<JoinHandle<()>>,
 ) {
+    // Control messages still waiting for room go first.
+    if let Some(after) = after {
+        let _ = after.await;
+    }
     let start = Instant::now();
     let bytes = pcm.len();
     let mut timing = Timing::default();

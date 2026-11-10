@@ -30,6 +30,9 @@ pub struct UplinkStats {
     pub peak_queued_bytes: AtomicUsize,
     /// Uplink frames dropped because the voice side was not keeping up.
     pub dropped_frames: AtomicUsize,
+    /// Audio bytes and control messages currently queued for voice tasks, summed over sockets.
+    pub queued_audio: AtomicUsize,
+    pub queued_control: AtomicUsize,
 }
 
 #[derive(Clone)]
