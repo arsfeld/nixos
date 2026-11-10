@@ -455,6 +455,7 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     created with `if` or kept in a separate model. A rounded rectangle cannot hold a gradient and a gradient `Path`
     fill renders flat, so the avatar's glow is a pre-rendered sprite tinted with `colorize`, used at its native size
     (scaling costs about 20 ms a frame). Fades use colour alpha, not `opacity`.
+  - **Every Slint font size embeds the full glyph set**, so a new large size costs a lot of flash: the 96 px volume number cost ~3.5 MB and pushed the image past the old 6 MiB partition (the factory partition is now 12M in `app/partitions.csv`). Prefer an existing size.
   - **Glyphs.** The compiler embeds only ASCII and the characters it can see in `.slint` string literals, for the
     sizes used. `ui/glyphs.slint` lists Latin-1 and Latin Extended-A so accented names render; Sora has no Greek, CJK
     or emoji, which draw as blanks (the answer key is still the exact text). The font family must be a literal.

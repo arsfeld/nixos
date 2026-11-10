@@ -2,4 +2,5 @@
 # phy_init stays at 0xf000, as the ESP-IDF Kconfig default expects.
 nvs,      data, nvs,     0x9000,  0x6000,
 phy_init, data, phy,     0xf000,  0x1000,
-factory,  app,  factory, 0x10000, 6M,
+# Slint embeds every glyph per font size; the 96 px volume number alone costs ~3.5 MB.
+factory,  app,  factory, 0x10000, 12M,
