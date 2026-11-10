@@ -1,3 +1,5 @@
+mod slint_probe;
+
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -30,14 +32,28 @@ fn main() -> anyhow::Result<()> {
     esp_idf_svc::sys::link_patches();
     esp_idf_svc::log::EspLogger::initialize_default();
     log::info!("probe alive");
+    let err = unsafe { esp_idf_svc::sys::board_display::bd_init() };
+    anyhow::ensure!(err == 0, "bd_init failed: {err}");
+    log::info!("display and touch up");
+    heap_line();
+
+    let peripherals = Peripherals::take()?;
+    let modem = peripherals.modem;
+    std::thread::Builder::new().stack_size(16 * 1024).spawn(move || {
+        if let Err(e) = net_probe(modem) {
+            log::error!("net probe ended: {e:#}");
+        }
+    })?;
+    slint_probe::run()
+}
+
+fn net_probe(modem: esp_idf_svc::hal::modem::Modem<'static>) -> anyhow::Result<()> {
     if SSID.is_empty() || TOKEN.is_empty() {
         anyhow::bail!("no credentials: run `just board creds`, then rebuild");
     }
-
-    let peripherals = Peripherals::take()?;
     let sysloop = EspSystemEventLoop::take()?;
     let nvs = EspDefaultNvsPartition::take()?;
-    let mut wifi = BlockingWifi::wrap(EspWifi::new(peripherals.modem, sysloop.clone(), Some(nvs))?, sysloop)?;
+    let mut wifi = BlockingWifi::wrap(EspWifi::new(modem, sysloop.clone(), Some(nvs))?, sysloop)?;
     wifi.set_configuration(&Configuration::Client(ClientConfiguration {
         ssid: SSID.try_into().map_err(|_| anyhow::anyhow!("ssid too long"))?,
         password: PASS.try_into().map_err(|_| anyhow::anyhow!("password too long"))?,

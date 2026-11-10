@@ -16,9 +16,20 @@ opt-level = "z"
 log = "0.4"
 anyhow = "1"
 esp-idf-svc = "0.53"
+slint = { version = "1.18.1", default-features = false, features = ["compat-1-2", "renderer-software", "unsafe-single-threaded", "libm", "software-renderer-path"] }
 
 [build-dependencies]
 embuild = "0.33"
+slint-build = "1.18.1"
 
 [[package.metadata.esp-idf-sys.extra_components]]
 remote_component = { name = "espressif/esp_websocket_client", version = "^1.2.0" }
+
+[[package.metadata.esp-idf-sys.extra_components]]
+component_dirs = ["components/board_display"]
+bindings_header = "components/board_display/board_display.h"
+bindings_module = "board_display"
+
+# Local patch, applied by scripts/vendor-slint-core.sh (run it once after checkout).
+[patch.crates-io]
+i-slint-core = { path = "vendor/i-slint-core" }

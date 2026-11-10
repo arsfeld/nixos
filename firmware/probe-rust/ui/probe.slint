@@ -1,0 +1,153 @@
+// THROWAWAY probe scene: rim arcs (Path), breathing orb (radial gradient), level ring, colour bars.
+import "fonts/Sora-Regular.ttf";
+export component Probe inherits Window {
+    width: 466px;
+    height: 466px;
+    background: #000000;
+    default-font-family: "Sora";
+    in property <int> mode: 1;      // 0 = colour bars, 1 = animated scene
+    in property <string> fps-text: "";
+    in property <float> level: 0.5;
+    in property <bool> rim-on: true;
+    in property <bool> center-on: true;
+    property <float> t: 0;
+
+    Timer {
+        interval: 16ms;
+        running: true;
+        triggered => { root.t += 0.016; }
+    }
+
+    if root.mode == 0 : Rectangle {
+        width: 100%;
+        height: 100%;
+        HorizontalLayout {
+            Rectangle { background: #ff0000; Text { text: "R"; color: white; font-size: 40px; } }
+            Rectangle { background: #00ff00; Text { text: "G"; color: black; font-size: 40px; } }
+            Rectangle { background: #0000ff; Text { text: "B"; color: white; font-size: 40px; } }
+        }
+    }
+
+    if root.mode >= 1 : Rectangle {
+        width: 100%;
+        height: 100%;
+        if root.rim-on : Rectangle {
+            Path {
+                x: 238px;
+                y: 6px;
+                width: 208px;
+                height: 154px;
+                viewbox-x: 238;
+                viewbox-y: 6;
+                viewbox-width: 208;
+                viewbox-height: 154;
+                commands: "M 246.4 13.4 A 220 220 0 0 1 437.7 152.4";
+                stroke: #ffb020;
+                stroke-width: 10px;
+                stroke-line-cap: round;
+                opacity: 0.65 + 0.35 * Math.sin(root.t * 4rad);
+            }
+            Path {
+                x: 364px;
+                y: 170px;
+                width: 96px;
+                height: 240px;
+                viewbox-x: 364;
+                viewbox-y: 170;
+                viewbox-width: 96;
+                viewbox-height: 240;
+                commands: "M 446.0 177.9 A 220 220 0 0 1 372.9 402.8";
+                stroke: #4f8cff;
+                stroke-width: 10px;
+                stroke-line-cap: round;
+            }
+            Path {
+                x: 106px;
+                y: 410px;
+                width: 254px;
+                height: 50px;
+                viewbox-x: 106;
+                viewbox-y: 410;
+                viewbox-width: 254;
+                viewbox-height: 50;
+                commands: "M 351.2 418.5 A 220 220 0 0 1 114.8 418.5";
+                stroke: #35d07f;
+                stroke-width: 10px;
+                stroke-line-cap: round;
+            }
+            Path {
+                x: 6px;
+                y: 170px;
+                width: 96px;
+                height: 240px;
+                viewbox-x: 6;
+                viewbox-y: 170;
+                viewbox-width: 96;
+                viewbox-height: 240;
+                commands: "M 93.1 402.8 A 220 220 0 0 1 20.0 177.9";
+                stroke: #5b6475;
+                stroke-width: 10px;
+                stroke-line-cap: round;
+            }
+            Path {
+                x: 20px;
+                y: 6px;
+                width: 208px;
+                height: 154px;
+                viewbox-x: 20;
+                viewbox-y: 6;
+                viewbox-width: 208;
+                viewbox-height: 154;
+                commands: "M 28.3 152.4 A 220 220 0 0 1 219.6 13.4";
+                stroke: #ff5c5c;
+                stroke-width: 10px;
+                stroke-line-cap: round;
+            }
+        }
+        // Level ring: a circle whose size follows `level` and a slow sine.
+        Rectangle {
+            visible: root.center-on;
+            property <length> d: 190px + 40px * root.level * (0.5 + 0.5 * Math.sin(root.t * 3rad));
+            width: d;
+            height: d;
+            x: (parent.width - d) / 2;
+            y: (parent.height - d) / 2;
+            border-radius: d / 2;
+            border-width: 3px;
+            border-color: #4f8cff66;
+        }
+        // Orb with a radial gradient halo that breathes.
+        Rectangle {
+            visible: root.center-on;
+            property <length> d: 120px + 14px * Math.sin(root.t * 2rad);
+            width: d;
+            height: d;
+            x: (parent.width - d) / 2;
+            y: (parent.height - d) / 2;
+            border-radius: d / 2;
+            background: #ffb020;
+        }
+        Image { visible: root.center-on; width: 128px; height: self.width; x: (466px - self.width) / 2; y: (466px - self.width) / 2; source: @image-url("glow.png"); colorize: #4f8cff; }
+        // Variant B: pre-rendered white radial glow, tinted with colorize.
+        Image {
+            x: 20px;
+            y: 310px;
+            width: 120px;
+            height: 120px;
+            source: @image-url("glow.png");
+            colorize: #ffb020;
+        }
+        // Variant C: stacked translucent circles faking a gradient.
+        Rectangle { x: 346px; y: 330px; width: 80px; height: 80px; border-radius: 40px; background: #ffb02033; }
+        Rectangle { x: 356px; y: 340px; width: 60px; height: 60px; border-radius: 30px; background: #ffb02066; }
+        Rectangle { x: 366px; y: 350px; width: 40px; height: 40px; border-radius: 20px; background: #ffe2a8; }
+        Text {
+            y: 400px;
+            width: 100%;
+            horizontal-alignment: center;
+            text: root.fps-text;
+            color: #9aa4bb;
+            font-size: 18px;
+        }
+    }
+}

@@ -29,3 +29,7 @@ CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=512
 # CONFIG_ESP_WIFI_RX_IRAM_OPT is not set
 # CONFIG_LWIP_IRAM_OPTIMIZATION is not set
 
+
+
+# esp-idf-hal links the legacy I2C driver; this code uses the new one and never starts the legacy one.
+CONFIG_I2C_SKIP_LEGACY_CONFLICT_CHECK=y
