@@ -55,6 +55,11 @@
       mkdir -p $out/bin
       sed 's/piper.__main__ import main/piper.http_server import main/' \
         ${pkgs.unstable.piper-tts}/bin/.piper-wrapped > $out/bin/piper-http
+      # A piper-tts bump that moves the entry point must fail the build, not the deploy.
+      grep -q 'piper.http_server import main' $out/bin/piper-http || {
+        echo "piper-http: the rewrite of .piper-wrapped did not apply; piper-tts changed its entry point" >&2
+        exit 1
+      }
       chmod +x $out/bin/piper-http
     '';
 
