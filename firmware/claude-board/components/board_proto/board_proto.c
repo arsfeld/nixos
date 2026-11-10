@@ -329,11 +329,19 @@ size_t bp_ask_count(const bp_model_t *m) { return m->n_asks; }
 
 size_t bp_ask_next_question(const bp_ask_t *a) { return a->n_answered; }
 
+static bool waiting_for_answer(const bp_ask_t *a) { return !a->dismissed && a->n_answered < a->n_questions; }
+
 const bp_ask_t *bp_current_ask(const bp_model_t *m)
 {
     for (size_t i = 0; i < m->n_asks; i++)
-        if (m->asks[i]->n_answered < m->asks[i]->n_questions) return m->asks[i];
+        if (waiting_for_answer(m->asks[i])) return m->asks[i];
     return NULL;
+}
+
+void bp_ask_dismiss(bp_model_t *m, const char *id)
+{
+    for (size_t i = 0; i < m->n_asks; i++)
+        if (!strcmp(m->asks[i]->id, id)) m->asks[i]->dismissed = true;
 }
 
 // ---- answers ----------------------------------------------------------------------------
@@ -355,7 +363,7 @@ int bp_answer(bp_model_t *m, const char *answer, char **out)
     *out = NULL;
     bp_ask_t *a = NULL;
     for (size_t i = 0; i < m->n_asks; i++)
-        if (m->asks[i]->n_answered < m->asks[i]->n_questions) {
+        if (waiting_for_answer(m->asks[i])) {
             a = m->asks[i];
             break;
         }

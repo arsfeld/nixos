@@ -57,6 +57,7 @@ typedef struct {
     size_t n_questions;
     char **answers; // one per question, NULL until answered
     size_t n_answered;
+    bool dismissed; // the user chose "answer on computer"; held only until the bridge clears it
 } bp_ask_t;
 
 typedef struct bp_model bp_model_t;
@@ -74,10 +75,13 @@ int bp_apply(bp_model_t *m, const char *json, size_t len);
 size_t bp_sessions(const bp_model_t *m, const bp_session_t **out);
 size_t bp_waiting_count(const bp_model_t *m);
 
-// The oldest question still waiting for an answer, or NULL.
+// The oldest question still waiting for an answer and not dismissed, or NULL.
 const bp_ask_t *bp_current_ask(const bp_model_t *m);
 // Questions held, including fully answered ones awaiting the bridge's question_clear.
 size_t bp_ask_count(const bp_model_t *m);
+// Stop showing the question with this id (the user declined it). It is still held, and still
+// counted, until the bridge's question_clear removes it. Unknown ids are ignored.
+void bp_ask_dismiss(bp_model_t *m, const char *id);
 // Index of the question of `a` that is waiting for an answer.
 size_t bp_ask_next_question(const bp_ask_t *a);
 

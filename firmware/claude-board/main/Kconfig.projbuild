@@ -34,4 +34,17 @@ menu "Claude board"
         help
             For networks whose DNS cannot be trusted or resolves the bridge's name to a LAN address.
 
+    config CLAUDE_BOARD_SNAPSHOT
+        bool "Debug: log a downscaled screenshot over serial after each UI change"
+        default n
+        help
+            Lets the screens be inspected without looking at the board. Off in real builds.
+
+    config CLAUDE_BOARD_SELFTEST
+        bool "Debug: click the UI's own buttons (questions, cards, back) every few seconds"
+        default n
+        help
+            Drives the real button handlers without a finger, to test the answer path end to end.
+            Off in real builds.
+
 endmenu

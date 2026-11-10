@@ -298,6 +298,23 @@ static void decline_json_names_the_ask(void)
     bp_model_free(m);
 }
 
+static void dismissed_question_is_not_current_but_is_held_until_cleared(void)
+{
+    bp_model_t *m = bp_model_new();
+    apply_fixture(m, "question_single");
+    apply_fixture(m, "question_multi");
+    bp_ask_dismiss(m, "00000000000000000000000000000001");
+    CHECK(bp_ask_count(m) == 2);
+    CHECK(!strcmp(bp_current_ask(m)->id, "00000000000000000000000000000002")); // moves on to the next
+    bp_ask_dismiss(m, "no-such-id");                                          // harmless
+    CHECK(bp_ask_count(m) == 2);
+    char *out = NULL;
+    CHECK(bp_answer(m, "Pear", &out) == 0); // answers go to the question being shown, not the dismissed one
+    apply_fixture(m, "question_clear");     // the bridge clears ...01
+    CHECK(bp_ask_count(m) == 1);
+    bp_model_free(m);
+}
+
 static void fit_never_splits_a_utf8_sequence(void)
 {
     const char *s = "a\xc3\xa9\xe6\x97\xa5\xf0\x9f\x99\x82" "b"; // a é 日 🙂 b : 11 bytes
@@ -360,6 +377,7 @@ int main(void)
     RUN(answer_with_no_pending_ask_is_an_error);
     RUN(multi_select_labels_join_with_commas);
     RUN(decline_json_names_the_ask);
+    RUN(dismissed_question_is_not_current_but_is_held_until_cleared);
     RUN(fit_never_splits_a_utf8_sequence);
     RUN(long_fields_are_truncated_on_a_character_boundary);
     printf("---- %d passed, %d failed\n", passes, failures);
