@@ -11,6 +11,7 @@ in {
     tier = "tier1";
     module.imports = [
       inputs.disko.nixosModules.disko
+      inputs.hermes-agent.nixosModules.default # services.hermes-agent, used by claude-board-voice.nix
       features.backrest
       features.backup-summary
       features.check-stock
