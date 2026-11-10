@@ -67,6 +67,12 @@
           "speedtestdotnet" # Internet speed; polled only by "automation network"
           "wake_on_lan" # Wake on LAN
 
+          # Serves Assist over MCP to the board creature's Hermes (claude-board-voice.nix). Only
+          # entities exposed to Assist are reachable. NEVER expose locks, Alarmo, the Eufy cameras
+          # and their switches, or the heat pump's master switch. The token belongs to the
+          # non-admin `creature` user.
+          "mcp_server"
+
           # Found by default_config's discovery; without their deps every
           # discovery round logs a failed flow.
           "hue" # Philips Hue bridge

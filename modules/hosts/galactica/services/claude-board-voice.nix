@@ -9,6 +9,14 @@
 # jobs and those run with the cron toolsets, not the API's. They are written explicitly rather than
 # left out because the module deep-merges `settings` into an existing config.yaml, so a key left
 # out keeps whatever value is already on disk.
+#
+# Besides its core tools, Hermes reaches the bridge's timer tools over MCP (`mcp_servers.claude-board`,
+# http://127.0.0.1:8591/mcp, token-gated); Home Assistant's Assist tools come next. Hermes adds each
+# MCP server as toolset `mcp-<name>` next to the platform bundles on its own, so `platform_toolsets`
+# must NOT name one: that would turn the list into an allowlist. After any bump of the hermes-agent
+# input, check that `GET /v1/toolsets` still lists the MCP toolsets (and nothing else enabled that
+# should not be). A server that is down at start is retried and re-probed every 300 s, so there is
+# no unit ordering between hermes-agent and claude-board.
 {
   configurations.nixos.galactica.module = {
     config,
@@ -19,6 +27,7 @@
     sttPort = 18081;
     ttsPort = 18082;
     hermesPort = 18642;
+    mcpPort = 8591;
     stateDir = "/var/lib/hermes-creature";
     secrets = config.sops.secrets;
 
@@ -91,6 +100,8 @@
   in {
     # Read by the bridge (LoadCredential) and by Hermes (as API_SERVER_KEY).
     sops.secrets.hermes-api-key.restartUnits = ["claude-board.service" "hermes-agent.service"];
+    # The bridge's MCP bearer token: the bridge checks it, Hermes sends it (as CLAUDE_BOARD_MCP_TOKEN).
+    sops.secrets.claude-board-mcp-token.restartUnits = ["claude-board.service" "hermes-agent.service"];
     # hermes-env is declared in hermes.nix; this unit takes only its DEEPSEEK_API_KEY.
     sops.secrets."hermes-env".restartUnits = ["hermes-agent.service"];
 
@@ -156,6 +167,12 @@
           api_server = ["hermes-api-server"];
           cron = ["hermes-cron"];
         };
+        # The bridge's timer tools. Hermes interpolates `${VAR}` from its own environment at start
+        # (and fails closed if it is unset), so config.yaml carries the placeholder, never the token.
+        mcp_servers.claude-board = {
+          url = "http://127.0.0.1:${toString mcpPort}/mcp";
+          headers.Authorization = "Bearer \${CLAUDE_BOARD_MCP_TOKEN}";
+        };
       };
       # Not secret. The key and the DeepSeek key come from the unit's EnvironmentFile below.
       environment = {
@@ -177,6 +194,7 @@
           LoadCredential = [
             "hermes-env:${secrets."hermes-env".path}"
             "api-key:${secrets.hermes-api-key.path}"
+            "mcp-token:${secrets.claude-board-mcp-token.path}"
           ];
           RuntimeDirectory = "hermes-creature";
           RuntimeDirectoryMode = "0700";
@@ -189,6 +207,7 @@
               {
                 ${pkgs.gnugrep}/bin/grep -E '^DEEPSEEK_API_KEY=' "$CREDENTIALS_DIRECTORY/hermes-env"
                 printf 'API_SERVER_KEY=%s\n' "$(${pkgs.coreutils}/bin/tr -d '\n' < "$CREDENTIALS_DIRECTORY/api-key")"
+                printf 'CLAUDE_BOARD_MCP_TOKEN=%s\n' "$(${pkgs.coreutils}/bin/tr -d '\n' < "$CREDENTIALS_DIRECTORY/mcp-token")"
               } > "$RUNTIME_DIRECTORY/env"
             '')
           ];
@@ -215,8 +234,15 @@
         BRIDGE_HERMES_URL = "http://127.0.0.1:${toString hermesPort}";
         BRIDGE_HERMES_KEY_FILE = "%d/hermes-key";
         BRIDGE_REPLY_TIMEOUT_SECS = "60";
+        # The timer tools' MCP endpoint, for Hermes only (loopback; timers persist in
+        # $STATE_DIRECTORY/timers.json, see claude-board.nix).
+        BRIDGE_MCP_LISTEN = "127.0.0.1:${toString mcpPort}";
+        BRIDGE_MCP_TOKEN_FILE = "%d/mcp-token";
       };
-      serviceConfig.LoadCredential = ["hermes-key:${secrets.hermes-api-key.path}"];
+      serviceConfig.LoadCredential = [
+        "hermes-key:${secrets.hermes-api-key.path}"
+        "mcp-token:${secrets.claude-board-mcp-token.path}"
+      ];
     };
   };
 }
