@@ -136,6 +136,27 @@ fn main() {
     ui.set_detail_since("40s".into());
     write_png(dir, "detail", &h);
 
+    use claude_board_ui::{FeedKind, FeedRow};
+    let row = |kind, text: &str, failed| FeedRow { kind, text: text.into(), failed };
+    ui.set_feed_empty(false);
+    ui.set_feed(ModelRc::new(VecModel::from(vec![
+        row(FeedKind::Prompt, "Make the board show what each session is doing, newest at the bottom, and let me tap an entry to read all of it", false),
+        row(FeedKind::Tool, "Read ui/detail.slint", false),
+        row(FeedKind::Tool, "Bash cargo test -p claude-board-ui --test render", true),
+        row(FeedKind::Tool, "Edit ui/detail.slint", false),
+        row(FeedKind::Reply, "The feed is drawn now: prompts wrap to three lines, tool calls stay on one, and replies get five. A failed tool call carries a red marker.", false),
+    ])));
+    settle(&h);
+    write_png(dir, "detail-feed", &h);
+    ui.set_expanded_text("The feed is drawn now: prompts wrap to three lines, tool calls stay on one, and replies get five. A failed tool call carries a red marker.".into());
+    settle(&h);
+    write_png(dir, "detail-feed-expanded", &h);
+    ui.set_expanded_text("".into());
+    ui.set_feed_empty(true);
+    ui.set_feed(ModelRc::new(VecModel::from(Vec::<FeedRow>::new())));
+    settle(&h);
+    write_png(dir, "detail-feed-empty", &h);
+
     // The list at several wheel curvatures, side by side (scrolled so rows sit above and below the centre).
     let mut many8 = Model::new();
     let eight: Vec<Session> = (0..8)

@@ -153,3 +153,85 @@ fn drift_shifts_everything_by_the_given_pixels() {
     let buf = h.render();
     assert!(near(px(&buf, x + 4, y - 2), theme::ERROR, 24), "the arc should have moved by (4, -2)");
 }
+
+fn feed_row(kind: claude_board_ui::FeedKind, text: &str, failed: bool) -> claude_board_ui::FeedRow {
+    claude_board_ui::FeedRow { kind, text: text.into(), failed }
+}
+
+fn detail_page() -> (Headless, AppWindow) {
+    let (h, ui) = show();
+    ui.set_page(claude_board_ui::Page::Detail);
+    ui.set_detail_host("raider".into());
+    ui.set_detail_project("nixos".into());
+    (h, ui)
+}
+
+fn set_feed(h: &Headless, ui: &AppWindow, rows: Vec<claude_board_ui::FeedRow>, empty: bool) {
+    ui.set_feed(ModelRc::new(VecModel::from(rows)));
+    ui.set_feed_empty(empty);
+    for _ in 0..4 {
+        h.step(33);
+    }
+}
+
+/// Non-black pixels (and error-coloured ones) in the feed column, below the header.
+fn feed_ink(buf: &[Rgb565Pixel]) -> (usize, usize) {
+    let mut ink = 0;
+    let mut red = 0;
+    for y in 164..390 {
+        for x in 83..383 {
+            let p = px(buf, x, y);
+            if p != (0, 0, 0) {
+                ink += 1;
+            }
+            if near(p, theme::ERROR, 40) {
+                red += 1;
+            }
+        }
+    }
+    (ink, red)
+}
+
+#[test]
+fn feed_page_shows_the_empty_text() {
+    let (h, ui) = detail_page();
+    set_feed(&h, &ui, vec![], true);
+    assert!(feed_ink(&h.render()).0 > 50, "no empty-feed text drawn");
+    set_feed(&h, &ui, vec![], false);
+    assert_eq!(feed_ink(&h.render()).0, 0);
+}
+
+#[test]
+fn a_failed_tool_row_draws_the_error_colour() {
+    use claude_board_ui::FeedKind::Tool;
+    let (h, ui) = detail_page();
+    set_feed(&h, &ui, vec![feed_row(Tool, "Bash cargo test", true)], false);
+    assert!(feed_ink(&h.render()).1 > 3, "no error-coloured marker");
+    set_feed(&h, &ui, vec![feed_row(Tool, "Bash cargo test", false)], false);
+    assert_eq!(feed_ink(&h.render()).1, 0);
+}
+
+#[test]
+fn feed_follows_the_newest_row() {
+    use claude_board_ui::FeedKind::{Prompt, Tool};
+    let mut rows: Vec<_> = (0..29).map(|i| feed_row(Prompt, &format!("prompt number {i}"), false)).collect();
+    rows.push(feed_row(Tool, "Bash last", true));
+    let (h, ui) = detail_page();
+    set_feed(&h, &ui, rows, false);
+    assert!(feed_ink(&h.render()).1 > 3, "the newest (failed) row is not in view");
+}
+
+#[test]
+fn expanded_overlay_covers_the_feed() {
+    use claude_board_ui::FeedKind::Tool;
+    let (h, ui) = detail_page();
+    set_feed(&h, &ui, vec![feed_row(Tool, "Bash cargo test", true)], false);
+    assert!(feed_ink(&h.render()).1 > 3);
+    ui.set_expanded_text("the full text of the entry".into());
+    h.step(33);
+    let buf = h.render();
+    assert_eq!(feed_ink(&buf).1, 0, "feed row still visible under the overlay");
+    // The overlay's text starts higher than the feed does, over where the header was.
+    let top = (60..164).flat_map(|y| (83..383).map(move |x| (x, y))).filter(|&(x, y)| px(&buf, x, y) != (0, 0, 0)).count();
+    assert!(top > 50, "no overlay text");
+}

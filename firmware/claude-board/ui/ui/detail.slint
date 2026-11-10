@@ -1,5 +1,5 @@
 // One session: where it runs, what state it is in, and (later) what it has been doing.
-import { Theme, SessionState, FeedRow } from "theme.slint";
+import { Theme, SessionState, FeedKind, FeedRow } from "theme.slint";
 
 export component DetailPage inherits Rectangle {
     in property <string> host;
@@ -52,15 +52,123 @@ export component DetailPage inherits Rectangle {
         }
     }
 
-    // Placeholder until the feed is drawn.
-    Text {
+    // True while the feed sticks to its newest (bottom) row; a flick up lets go, and flicking back to the
+    // bottom takes hold again.
+    property <bool> follow: true;
+
+    if root.feed-empty: Text {
         x: 83px;
-        y: 170px;
+        y: 200px;
         width: 300px;
-        text: root.feed-empty ? "No activity yet" : root.expanded-text;
+        text: "No activity yet";
         color: Theme.muted;
         font-family: "Sora";
         font-size: 16px;
         horizontal-alignment: center;
+    }
+
+    // The column is 300 px wide and ends at y 390, where the round edge is still 160 px from the centre line.
+    feed-view := Flickable {
+        x: 83px;
+        y: 164px;
+        width: 300px;
+        height: 226px;
+        content-width: 300px;
+        content-height: column.preferred-height;
+        flicked => {
+            root.follow = self.content-y <= self.height - self.content-height + 4px;
+        }
+        changed content-height => {
+            if root.follow {
+                self.content-y = min(0px, self.height - self.content-height);
+            }
+        }
+
+        column := VerticalLayout {
+            y: 0px;
+            width: 300px;
+            padding-top: 4px;
+            padding-bottom: 4px;
+            spacing: 8px;
+
+            for row[i] in root.feed: Rectangle {
+                // A Rectangle has no height of its own, so it takes its text's (a wrapped Text's preferred
+                // height already honours max-lines).
+                height: row.kind == FeedKind.prompt ? prompt-text.preferred-height : row.kind == FeedKind.tool ? 16px : reply-text.preferred-height;
+                TouchArea {
+                    clicked => {
+                        root.entry-tapped(i);
+                    }
+                }
+
+                prompt-text := Text {
+                    visible: row.kind == FeedKind.prompt;
+                    width: 100%;
+                    text: row.text;
+                    color: Theme.text;
+                    font-family: "Sora";
+                    font-weight: 600;
+                    font-size: 15px;
+                    wrap: word-wrap;
+                    max-lines: 3;
+                    overflow: elide;
+                }
+                HorizontalLayout {
+                    visible: row.kind == FeedKind.tool;
+                    spacing: 6px;
+                    Rectangle {
+                        width: 3px;
+                        background: row.failed ? Theme.error : transparent;
+                        border-radius: 1.5px;
+                    }
+                    Text {
+                        text: row.text;
+                        color: Theme.muted;
+                        font-family: "JetBrains Mono";
+                        font-size: 12px;
+                        overflow: elide;
+                    }
+                }
+                reply-text := Text {
+                    visible: row.kind == FeedKind.reply;
+                    width: 100%;
+                    text: row.text;
+                    color: Theme.text.with-alpha(0.85);
+                    font-family: "Sora";
+                    font-size: 14px;
+                    wrap: word-wrap;
+                    max-lines: 5;
+                    overflow: elide;
+                }
+            }
+        }
+    }
+
+    // The whole text of one entry, over everything; a tap anywhere closes it.
+    if root.expanded-text != "": Rectangle {
+        width: 466px;
+        height: 466px;
+        background: Theme.bg;
+        Flickable {
+            x: 83px;
+            y: 70px;
+            width: 300px;
+            height: 320px;
+            content-width: 300px;
+            content-height: full.preferred-height;
+            full := Text {
+                width: 300px;
+                text: root.expanded-text;
+                color: Theme.text;
+                font-family: "Sora";
+                font-size: 15px;
+                wrap: word-wrap;
+            }
+        }
+        TouchArea {
+            clicked => {
+                root.expanded-closed();
+            }
+        }
     }
 }
