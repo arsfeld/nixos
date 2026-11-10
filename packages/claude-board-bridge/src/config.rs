@@ -45,3 +45,33 @@ pub fn voice_settings_from_env(get: impl Fn(&str) -> Option<String>) -> Result<V
         reply_timeout_secs: set("BRIDGE_REPLY_TIMEOUT_SECS").and_then(|v| v.parse().ok()).unwrap_or(60),
     }))
 }
+
+/// The MCP endpoint's settings.
+pub struct McpSettings {
+    pub listen: String,
+    /// The contents of `BRIDGE_MCP_TOKEN_FILE`, trimmed. Never print it.
+    pub token: Option<String>,
+}
+
+/// The MCP endpoint is on only when `BRIDGE_MCP_LISTEN` is set. `BRIDGE_MCP_TOKEN_FILE`, when set,
+/// must be readable and non-empty (the message names the variable and path, never the token).
+pub fn mcp_settings_from_env(get: impl Fn(&str) -> Option<String>) -> Result<Option<McpSettings>, String> {
+    let set = |name: &str| get(name).map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+    let Some(listen) = set("BRIDGE_MCP_LISTEN") else {
+        return Ok(None);
+    };
+    let token = match set("BRIDGE_MCP_TOKEN_FILE") {
+        None => None,
+        Some(path) => {
+            let t = std::fs::read_to_string(&path)
+                .map_err(|e| format!("BRIDGE_MCP_TOKEN_FILE: cannot read {path}: {e}"))?
+                .trim()
+                .to_string();
+            if t.is_empty() {
+                return Err(format!("BRIDGE_MCP_TOKEN_FILE: {path} is empty"));
+            }
+            Some(t)
+        }
+    };
+    Ok(Some(McpSettings { listen, token }))
+}

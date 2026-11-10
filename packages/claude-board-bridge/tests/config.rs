@@ -75,3 +75,41 @@ fn unreadable_or_empty_key_file_is_an_error() {
     let e = run(&all(&empty)).err().expect("empty");
     assert!(e.contains("BRIDGE_HERMES_KEY_FILE") && e.contains("empty"), "{e}");
 }
+
+#[test]
+fn mcp_off_without_listen() {
+    use claude_board_bridge::config::mcp_settings_from_env;
+    assert!(mcp_settings_from_env(env(&[])).unwrap().is_none());
+    assert!(mcp_settings_from_env(env(&[("BRIDGE_MCP_LISTEN", "  ")])).unwrap().is_none());
+}
+
+#[test]
+fn mcp_listen_without_token_file_has_no_token() {
+    use claude_board_bridge::config::mcp_settings_from_env;
+    let s = mcp_settings_from_env(env(&[("BRIDGE_MCP_LISTEN", "127.0.0.1:8591")])).unwrap().unwrap();
+    assert_eq!(s.listen, "127.0.0.1:8591");
+    assert!(s.token.is_none());
+}
+
+#[test]
+fn mcp_token_file_is_read_and_trimmed() {
+    use claude_board_bridge::config::mcp_settings_from_env;
+    let p = key_file("mcp-ok", "tok\n");
+    let s = mcp_settings_from_env(env(&[("BRIDGE_MCP_LISTEN", "127.0.0.1:1"), ("BRIDGE_MCP_TOKEN_FILE", &p)])).unwrap().unwrap();
+    assert_eq!(s.token.as_deref(), Some("tok"));
+}
+
+#[test]
+fn mcp_token_file_set_but_empty_is_an_error() {
+    use claude_board_bridge::config::mcp_settings_from_env;
+    let p = key_file("mcp-empty", "\n");
+    let e = mcp_settings_from_env(env(&[("BRIDGE_MCP_LISTEN", "127.0.0.1:1"), ("BRIDGE_MCP_TOKEN_FILE", &p)])).err().unwrap();
+    assert!(e.contains("BRIDGE_MCP_TOKEN_FILE") && e.contains(&p));
+}
+
+#[test]
+fn mcp_token_file_unreadable_is_an_error() {
+    use claude_board_bridge::config::mcp_settings_from_env;
+    let e = mcp_settings_from_env(env(&[("BRIDGE_MCP_LISTEN", "127.0.0.1:1"), ("BRIDGE_MCP_TOKEN_FILE", "/nonexistent/tok")])).err().unwrap();
+    assert!(e.contains("BRIDGE_MCP_TOKEN_FILE") && e.contains("/nonexistent/tok"));
+}
