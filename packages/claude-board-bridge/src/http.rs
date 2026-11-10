@@ -13,13 +13,14 @@ use axum::{Json, Router};
 use claude_board_proto::APPROVAL_TEXT_MAX;
 use serde::Deserialize;
 use serde_json::Value;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, watch};
 
 use crate::asks::{Answered, Asks, build_approval_decision, build_decision};
 use crate::auth::{Tokens, check_bearer};
 use crate::feed::Feed;
 use crate::protocol::{BoardMsg, Event, EventKind, FeedKind};
 use crate::state::{Change, Registry, project_of};
+use crate::timers::{Timers, spawn_scheduler};
 use crate::voice::VoiceConfig;
 use crate::voice::backends::Backends;
 
@@ -52,6 +53,11 @@ pub struct AppState {
     pub voice: Option<Arc<Backends>>,
     pub voice_cfg: VoiceConfig,
     pub uplink: Arc<UplinkStats>,
+    /// The creature's timers; every board socket claims the due ones.
+    pub timers: Arc<Timers>,
+    /// Bumped by the scheduler whenever a timer is due. The default has no scheduler (its sender is
+    /// dropped), so only a board connecting claims.
+    pub due: watch::Receiver<u64>,
 }
 
 impl AppState {
@@ -69,7 +75,16 @@ impl AppState {
             voice: None,
             voice_cfg: VoiceConfig::default(),
             uplink: Arc::default(),
+            timers: Arc::new(Timers::open(None, Arc::new(now_secs))),
+            due: watch::channel(0).1,
         }
+    }
+
+    /// Uses `timers` and starts its scheduler; needs a tokio runtime.
+    pub fn with_timers(mut self, timers: Arc<Timers>) -> AppState {
+        self.due = spawn_scheduler(timers.clone());
+        self.timers = timers;
+        self
     }
 
     pub fn with_voice(mut self, backends: Backends, cfg: VoiceConfig) -> AppState {

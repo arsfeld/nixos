@@ -26,6 +26,7 @@ use crate::asks::Answered;
 use crate::auth::check_bearer;
 use crate::http::{AppState, UplinkStats};
 use crate::protocol::{BoardMsg, ClientMsg, Mood, PROTOCOL_VERSION};
+use crate::timers::Due;
 
 pub fn board_router(state: AppState) -> Router {
     Router::new().route("/v1/board", get(board)).with_state(state)
@@ -174,6 +175,8 @@ impl Queued {
 enum Voice {
     Client(ClientMsg),
     Audio(Vec<u8>),
+    /// A due timer this socket claimed.
+    Reminder(Due),
 }
 
 /// Handles one incoming text frame. Never waits on the writer: a `watch` only records the session and
@@ -201,19 +204,38 @@ fn handle(s: &AppState, watching: &Watching, history: &Notify, voice: &mut Uplin
     }
 }
 
+/// How often the voice task checks whether a queued reminder can start speaking.
+const REMINDER_TICK: Duration = Duration::from_millis(500);
+
 /// Owns the voice pipeline for one socket. Ends when the reader drops its sender.
 async fn voice_task(mut conn: Conn, mut rx: UnboundedReceiver<Voice>, queued: Arc<Queued>) {
-    while let Some(m) = rx.recv().await {
-        match m {
-            Voice::Client(msg) => {
-                queued.control_done();
-                conn.on_client(&msg).await
-            }
-            Voice::Audio(frame) => {
-                queued.audio_done(frame.len());
-                conn.on_audio(&frame)
-            }
+    let mut tick = tokio::time::interval(REMINDER_TICK);
+    tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    loop {
+        tokio::select! {
+            m = rx.recv() => match m {
+                Some(Voice::Client(msg)) => {
+                    queued.control_done();
+                    conn.on_client(&msg).await
+                }
+                Some(Voice::Audio(frame)) => {
+                    queued.audio_done(frame.len());
+                    conn.on_audio(&frame)
+                }
+                Some(Voice::Reminder(due)) => conn.on_reminder(due),
+                None => return,
+            },
+            _ = tick.tick() => conn.tick(),
         }
+    }
+}
+
+/// Claims every due timer for this socket. `claim_due` removes them under the store's lock, so no
+/// other socket can get the same one.
+fn claim_reminders(s: &AppState, tx: &UnboundedSender<Voice>) {
+    for due in s.timers.claim_due() {
+        eprintln!("timer: fired id={} late_s={}", due.timer.id, due.late_secs);
+        let _ = tx.send(Voice::Reminder(due));
     }
 }
 
@@ -334,10 +356,20 @@ async fn serve(s: AppState, socket: WebSocket) {
     let mut writer = AbortOnDrop(tokio::spawn(writer(s.clone(), sink, rx, out_rx, watching.clone(), history.clone())));
     let mut uplink =
         Uplink { tx: voice_tx, queued, stats: s.uplink.clone(), dropped_since_log: 0, last_log: Instant::now() };
+    // Marked seen before the first claim, so a timer falling due in between is claimed on the change.
+    let mut due = s.due.clone();
+    due.borrow_and_update();
+    let mut scheduled = true;
+    claim_reminders(&s, &uplink.tx);
     loop {
         tokio::select! {
             // The writer ending means a failed send: the socket is gone.
             _ = &mut writer.0 => break,
+            r = due.changed(), if scheduled => match r {
+                Ok(()) => claim_reminders(&s, &uplink.tx),
+                // No scheduler: only the claim on connect.
+                Err(_) => scheduled = false,
+            },
             incoming = stream.next() => match incoming {
                 Some(Ok(Message::Text(t))) => handle(&s, &watching, &history, &mut uplink, t.as_str()),
                 Some(Ok(Message::Binary(b))) => uplink.audio(b.to_vec()),

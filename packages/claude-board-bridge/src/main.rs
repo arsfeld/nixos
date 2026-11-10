@@ -96,10 +96,12 @@ async fn main() {
         }
         None => {}
     }
+    // One store, shared by the MCP timer tools and the board sockets that deliver due reminders.
+    let timers = std::sync::Arc::new(open_timers());
+    state = state.with_timers(timers.clone());
 
     match mcp_settings_from_env(|k| std::env::var(k).ok()) {
         Ok(Some(s)) => {
-            let timers = std::sync::Arc::new(open_timers());
             let mcp = std::sync::Arc::new(Mcp {
                 tools: claude_board_bridge::mcp::timers::tools(timers),
                 token: s.token,

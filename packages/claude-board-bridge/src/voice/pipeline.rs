@@ -4,6 +4,7 @@
 
 use super::backends::{Backends, VoiceError};
 use super::speech::{SentenceSplitter, chunk_pcm};
+use crate::timers::{Due, rfc3339_local, spoken_reminder};
 use crate::protocol::{
     AUDIO_HEADER_LEN, BoardMsg, ClientMsg, DOWNLINK_CHUNK_MAX, MAX_UTTERANCE_BYTES, Mood, decode_audio,
     encode_audio,
@@ -40,6 +41,10 @@ impl Default for VoiceConfig {
     }
 }
 
+/// Utterance ids the bridge owns (spoken reminders) are `REMINDER_ID_BASE | n`, `n` counting from 1 per
+/// connection; the board's own ids stay below it.
+pub const REMINDER_ID_BASE: u32 = 0x8000_0000;
+
 struct Recording {
     id: u32,
     buf: Vec<u8>,
@@ -67,6 +72,9 @@ pub struct Conn {
     speaking: Speaking,
     /// The task delivering control messages that did not fit the channel; see `control`.
     pending: Option<JoinHandle<()>>,
+    /// Reminders whose card is sent and whose speech waits for the board to be free, with their ids.
+    reminders: VecDeque<(u32, Due)>,
+    next_reminder: u32,
 }
 
 /// How long one control message waits for room in the channel before it is given up.
@@ -90,7 +98,7 @@ impl Drop for Conn {
 
 impl Conn {
     pub fn new(backends: Option<Arc<Backends>>, cfg: VoiceConfig, out: Sender<Out>) -> Conn {
-        Conn { backends, cfg, out, recording: None, refused: None, running: None, starts: VecDeque::new(), speaking: Arc::default(), pending: None }
+        Conn { backends, cfg, out, recording: None, refused: None, running: None, starts: VecDeque::new(), speaking: Arc::default(), pending: None, reminders: VecDeque::new(), next_reminder: 0 }
     }
 
     fn mood(&mut self, mood: Mood) {
@@ -215,6 +223,40 @@ impl Conn {
         }
     }
 
+    /// Sends the reminder's card at once, then queues its speech (with voice on) for `tick`.
+    pub fn on_reminder(&mut self, due: Due) {
+        self.control(vec![BoardMsg::Reminder {
+            id: due.timer.id.clone(),
+            label: due.timer.label.clone(),
+            due: rfc3339_local(due.timer.due),
+        }]);
+        if self.backends.is_none() {
+            return;
+        }
+        self.next_reminder = (self.next_reminder + 1) & !REMINDER_ID_BASE;
+        self.reminders.push_back((REMINDER_ID_BASE | self.next_reminder, due));
+        self.tick();
+    }
+
+    /// Starts the next queued reminder when nothing is recording or running.
+    pub fn tick(&mut self) {
+        if self.recording.is_some() || self.running.as_ref().is_some_and(|(_, t)| !t.is_finished()) {
+            return;
+        }
+        let Some(backends) = self.backends.clone() else { return };
+        let Some((id, due)) = self.reminders.pop_front() else { return };
+        let task = tokio::spawn(run_reminder(
+            backends,
+            self.out.clone(),
+            self.cfg.reply_timeout,
+            id,
+            due,
+            self.speaking.clone(),
+            self.pending.take(),
+        ));
+        self.running = Some((id, task));
+    }
+
     pub fn on_audio(&mut self, frame: &[u8]) {
         let Some(rec) = self.recording.as_mut() else { return };
         let Some((id, pcm)) = decode_audio(frame) else { return };
@@ -246,12 +288,15 @@ enum Failure {
 /// The log line for a failed backend call: the stage and the error kind only, never the error's
 /// message (it can carry a response body) and never transcript or reply text.
 pub fn failure_line(id: u32, stage: &str, err: &VoiceError) -> String {
-    let kind = match err {
+    format!("voice: utt={id} stage={stage} error={}", error_kind(err))
+}
+
+fn error_kind(err: &VoiceError) -> &'static str {
+    match err {
         VoiceError::Unavailable(_) => "unavailable",
         VoiceError::Timeout => "timeout",
         VoiceError::Rejected(_) => "rejected",
-    };
-    format!("voice: utt={id} stage={stage} error={kind}")
+    }
 }
 
 fn backend_failed(id: u32, stage: &str) -> impl FnOnce(VoiceError) -> Failure + '_ {
@@ -406,4 +451,46 @@ async fn reply(
         }
     }
     Ok(())
+}
+
+/// Speaks one reminder: the creature speaks, then `SpeakStart`, the audio and `SpeakEnd`, then idle. It
+/// shares `speaking` with the connection so a cancel, a new `VoiceStart` or the socket closing ends
+/// the turn with `SpeakEnd` as for a reply. A failed synthesis sends nothing more.
+async fn run_reminder(
+    backends: Arc<Backends>,
+    out: Sender<Out>,
+    timeout: Duration,
+    id: u32,
+    due: Due,
+    speaking: Speaking,
+    after: Option<JoinHandle<()>>,
+) {
+    if let Some(after) = after {
+        let _ = after.await;
+    }
+    let speech = match tokio::time::timeout(timeout, backends.tts.synthesize(spoken_reminder(&due))).await {
+        Ok(Ok(s)) => s,
+        Ok(Err(e)) => return eprintln!("timer: speech error={}", error_kind(&e)),
+        Err(_) => return eprintln!("timer: speech error={}", error_kind(&VoiceError::Timeout)),
+    };
+    let spoken = async {
+        put_json(&out, BoardMsg::Creature { mood: Mood::Speaking }).await?;
+        put_json(&out, BoardMsg::SpeakStart { utterance: id, sample_rate: speech.sample_rate }).await?;
+        if let Ok(mut g) = speaking.lock() {
+            *g = Some(id);
+        }
+        for part in chunk_pcm(&speech.pcm, DOWNLINK_CHUNK_MAX - AUDIO_HEADER_LEN) {
+            put(&out, Out::Audio(encode_audio(id, part))).await?;
+        }
+        Ok::<(), Failure>(())
+    };
+    if spoken.await.is_err() {
+        return;
+    }
+    if let Some(utterance) = take_speaking(&speaking) {
+        if put_json(&out, BoardMsg::SpeakEnd { utterance }).await.is_err() {
+            return;
+        }
+    }
+    let _ = put_json(&out, BoardMsg::Creature { mood: Mood::Idle }).await;
 }

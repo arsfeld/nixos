@@ -288,3 +288,36 @@ pub fn spoken_reminder(d: &Due) -> String {
         format!("This was due at {}. {}.", local(d.timer.due).strftime("%H:%M"), d.timer.label)
     }
 }
+
+/// The longest the scheduler sleeps at once, so a wall-clock jump is noticed within this.
+const SCHEDULER_MAX_SLEEP: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Watches the store and bumps the returned watch whenever a timer is due. It sleeps until the next
+/// due time (at most `SCHEDULER_MAX_SLEEP`) or until the store changes, so a claim, a new timer or a
+/// cancel re-arms it at once. A due timer nobody claims (no board connected) is announced again on
+/// the next store change or after `SCHEDULER_MAX_SLEEP`; a board also claims on connect. The task ends
+/// once every receiver is gone.
+pub fn spawn_scheduler(timers: Arc<Timers>) -> watch::Receiver<u64> {
+    let (tx, rx) = watch::channel(0u64);
+    let mut changed = timers.subscribe();
+    tokio::spawn(async move {
+        loop {
+            changed.borrow_and_update();
+            let now = timers.now();
+            let sleep = match timers.next_due() {
+                Some(due) if due <= now => {
+                    tx.send_modify(|n| *n += 1);
+                    SCHEDULER_MAX_SLEEP
+                }
+                Some(due) => std::time::Duration::from_secs((due - now) as u64).min(SCHEDULER_MAX_SLEEP),
+                None => SCHEDULER_MAX_SLEEP,
+            };
+            tokio::select! {
+                r = changed.changed() => if r.is_err() { return },
+                _ = tokio::time::sleep(sleep) => {}
+                _ = tx.closed() => return,
+            }
+        }
+    });
+    rx
+}
