@@ -11,7 +11,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use claude_board_ui::controller::{Controller, Outbox};
 use claude_board_ui::link;
 use claude_board_ui::power::{drift_px, Power};
-use claude_board_ui::AppWindow;
+use claude_board_ui::{AppWindow, Page};
 use esp_idf_svc::sys::{heap_caps_get_free_size, heap_caps_get_largest_free_block, MALLOC_CAP_DMA, MALLOC_CAP_INTERNAL, MALLOC_CAP_SPIRAM};
 use esp_idf_svc::hal::peripherals::Peripherals;
 use slint::ComponentHandle;
@@ -89,6 +89,10 @@ fn run<O: Outbox + 'static>(
     platform::run(window, || {
         if platform::take_touch() {
             power.touch(ms());
+        }
+        // Swipe right goes back a level (detail to list, list to home); a question on screen stays put.
+        if platform::take_swipe_right() && ui.get_page() != Page::Question {
+            ui.invoke_back_tapped();
         }
         while let Ok(event) = rx.try_recv() {
             match event {

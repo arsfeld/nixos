@@ -1,6 +1,5 @@
 // One session: where it runs, what state it is in, and (later) what it has been doing.
 import { Theme, SessionState } from "theme.slint";
-import { Pill } from "widgets.slint";
 
 export component DetailPage inherits Rectangle {
     in property <string> host;
@@ -11,7 +10,6 @@ export component DetailPage inherits Rectangle {
     // Filled in by a later sub-project; empty until then.
     in property <string> summary;
     in property <[string]> recent;
-    callback back-tapped();
 
     Text {
         y: 58px;
@@ -75,17 +73,6 @@ export component DetailPage inherits Rectangle {
             font-family: "JetBrains Mono";
             font-size: 12px;
             overflow: elide;
-        }
-    }
-
-    Pill {
-        x: (466px - 120px) / 2;
-        y: 376px;
-        width: 120px;
-        height: 40px;
-        text: "Back";
-        tapped => {
-            root.back-tapped();
         }
     }
 }

@@ -93,7 +93,7 @@ fn a_finger_stream_with_stale_release_coordinates_still_taps_the_avatar() {
     f.h.render();
     let mut tracker = TouchTracker::new();
     for (x, y, pressed) in [(258, 270, true), (258, 270, true), (259, 271, true), (0, 0, false), (0, 0, false)] {
-        for event in tracker.update(x, y, pressed) {
+        for event in tracker.update(x, y, pressed).events {
             f.h.window.dispatch_event(event);
         }
         f.h.render();
@@ -110,21 +110,58 @@ fn tapping_the_ring_opens_that_session() {
     assert_eq!((f.ui.get_page(), f.ui.get_detail_host().to_string()), (Page::Detail, "galactica".into()));
 }
 
+impl Fx {
+    /// A finger drag from (x0, y0) by (dx, dy) in four steps then lifted, run through the tracker into the
+    /// window; a recognised swipe right calls back, as the firmware does.
+    fn drag(&self, x0: i16, y0: i16, dx: i16, dy: i16) {
+        let mut tracker = TouchTracker::new();
+        let samples = (0..=4).map(|s| (x0 + dx * s / 4, y0 + dy * s / 4, true)).chain([(0, 0, false)]);
+        for (x, y, pressed) in samples {
+            let update = tracker.update(x, y, pressed);
+            for event in update.events {
+                self.h.window.dispatch_event(event);
+            }
+            if update.gesture == Some(claude_board_ui::touch::Gesture::SwipeRight) && self.ui.get_page() != Page::Question {
+                self.ui.invoke_back_tapped();
+            }
+            self.h.render();
+        }
+    }
+}
+
 #[test]
-fn list_row_and_back_buttons_work() {
+fn a_row_opens_its_detail_and_swiping_right_goes_back_a_level_at_a_time() {
     let f = fx();
     f.feed("state");
-    f.tap(233.0, 233.0); // list
+    f.tap(233.0, 233.0); // avatar: the list
     f.h.render();
-    f.tap(233.0, 129.0); // the first row, one slot above the centre
+    f.tap(233.0, 129.0); // the first row
     assert_eq!(f.ui.get_page(), Page::Detail);
-    f.h.render();
-    f.tap(233.0, 396.0); // Back, on the detail page
+    f.drag(100, 300, 150, 0);
+    assert_eq!(f.ui.get_page(), Page::List);
+    f.drag(100, 300, 150, 0);
+    assert_eq!(f.ui.get_page(), Page::Home);
+}
+
+#[test]
+fn swiping_across_a_row_goes_back_and_does_not_open_the_row() {
+    let f = fx();
+    f.feed("state");
+    f.tap(233.0, 233.0);
     assert_eq!(f.ui.get_page(), Page::List);
     f.h.render();
-    f.tap(233.0, 430.0); // Back, on the list
+    f.drag(120, 233, 140, 6); // starts on the centre row
+    assert_eq!(f.ui.get_page(), Page::Home, "the swipe went back");
+}
 
-    assert_eq!(f.ui.get_page(), Page::Home);
+#[test]
+fn dragging_up_and_down_scrolls_the_list_and_opens_nothing() {
+    let f = fx();
+    f.feed("state");
+    f.tap(233.0, 233.0);
+    f.h.render();
+    f.drag(233, 330, 0, -160);
+    assert_eq!(f.ui.get_page(), Page::List);
 }
 
 #[test]

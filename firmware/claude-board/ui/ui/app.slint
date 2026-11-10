@@ -51,6 +51,7 @@ export component AppWindow inherits Window {
     callback row-tapped(int);
     // The ring was tapped at this angle, in degrees clockwise from the top.
     callback rim-tapped(float);
+    // Swiped right (the firmware calls this): up one level, from detail to the list and from the list to home.
     callback back-tapped();
     callback avatar-tapped();
 
@@ -107,9 +108,6 @@ export component AppWindow inherits Window {
             row-tapped(i) => {
                 root.row-tapped(i);
             }
-            back-tapped => {
-                root.back-tapped();
-            }
         }
         if root.page == Page.question: QuestionPage {
             source: root.question-source;
@@ -135,9 +133,6 @@ export component AppWindow inherits Window {
             since-text: root.detail-since;
             summary: root.detail-summary;
             recent: root.detail-recent;
-            back-tapped => {
-                root.back-tapped();
-            }
         }
     }
 }

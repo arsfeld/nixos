@@ -8,13 +8,21 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use slint::platform::software_renderer::{LineBufferProvider, MinimalSoftwareWindow, RepaintBufferType, Rgb565Pixel};
-use claude_board_ui::touch::TouchTracker;
+use claude_board_ui::touch::{Gesture, TouchTracker};
 use slint::platform::{Platform, WindowAdapter};
 
 use crate::display::{self, Strips, HEIGHT, WIDTH};
 
 /// Set whenever a finger touches the glass; the app reads it to wake the screen.
 static TOUCHED: AtomicBool = AtomicBool::new(false);
+
+/// Set when a swipe right finishes; the app goes back a level.
+static SWIPED_RIGHT: AtomicBool = AtomicBool::new(false);
+
+/// True once after a swipe to the right (go back).
+pub fn take_swipe_right() -> bool {
+    SWIPED_RIGHT.swap(false, Ordering::SeqCst)
+}
 
 /// True once after the screen was touched.
 pub fn take_touch() -> bool {
@@ -93,7 +101,11 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, mut each_loop: impl FnMut()) -> a
                 if t.pressed {
                     TOUCHED.store(true, Ordering::SeqCst);
                 }
-                for event in tracker.update(t.x, t.y, t.pressed) {
+                let update = tracker.update(t.x, t.y, t.pressed);
+                if update.gesture == Some(Gesture::SwipeRight) {
+                    SWIPED_RIGHT.store(true, Ordering::SeqCst);
+                }
+                for event in update.events {
                     if let slint::platform::WindowEvent::PointerPressed { position, .. } = &event {
                         presses += 1;
                         log::info!("touch down at ({}, {})", position.x, position.y);

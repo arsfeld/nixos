@@ -150,6 +150,9 @@ fn main() {
     ui.set_page(Page::List);
     ui.set_list_scroll(0.0);
     write_png(dir, "list-wheel", &h);
+    ui.set_list_scroll(-104.0 - 40.0);
+    write_png(dir, "list-top-edge", &h);
+    ui.set_list_scroll(0.0);
 
     // A crowded rim: 13 sessions, two waiting.
     let mut many = Model::new();

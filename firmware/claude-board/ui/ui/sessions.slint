@@ -4,7 +4,6 @@
 //
 // The software renderer cannot rotate items, so rows slide along the curve but never tilt.
 import { Theme, SessionRow } from "theme.slint";
-import { Pill } from "widgets.slint";
 
 component RowView inherits Rectangle {
     in property <SessionRow> data;
@@ -18,7 +17,10 @@ component RowView inherits Rectangle {
 
     // `bow` is how far the circle has curved away from its widest point at this distance from the centre.
     property <float> dy: (root.cy - 233px) / 1px;
-    property <float> bow: root.wheel-r - Math.sqrt(Math.max(0, root.wheel-r * root.wheel-r - root.dy * root.dy));
+    // The curve stops at 160 px from the centre: a row leaving the screen carries on straight up or down instead
+    // of swinging off to the right (a plain circle would put it 128 px out by the time it is half hidden).
+    property <float> reach: Math.min(Math.abs(root.dy), 160);
+    property <float> bow: root.wheel-r - Math.sqrt(root.wheel-r * root.wheel-r - root.reach * root.reach);
     property <float> left: root.inset + root.bow;
 
     x: root.left * 1px;
@@ -82,7 +84,6 @@ export component SessionsPage inherits Rectangle {
     // list fills the screen from the top.
     in-out property <length> scroll <=> flick.content-y;
     callback row-tapped(int);
-    callback back-tapped();
 
     // The whole screen scrolls, so rows can reach the bezel. Rows are 96 px tall every 104 px; the first row's
     // centre is at 81 + 48 = 129, and the last row can be scrolled up to the screen centre (233).
@@ -102,17 +103,6 @@ export component SessionsPage inherits Rectangle {
             tapped => {
                 root.row-tapped(i);
             }
-        }
-    }
-
-    Pill {
-        x: (466px - 100px) / 2;
-        y: 414px;
-        width: 100px;
-        height: 34px;
-        text: "Back";
-        tapped => {
-            root.back-tapped();
         }
     }
 }
