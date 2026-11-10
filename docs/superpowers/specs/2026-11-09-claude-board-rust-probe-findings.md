@@ -60,3 +60,33 @@ board before the UI work depends on them.
 - **Fonts** (Task 7): check on the host how the software renderer embeds glyphs (static strings versus the
   accents and other characters that arrive at run time in session names), before committing to the font
   plan.
+
+## Parity run (Task 13)
+
+Run on the board against the live bridge, with the firmware as built from `firmware/claude-board/app`. "Host" means
+covered by the host test suites (`claude-board-ui`: 41 unit, 19 controller, 9 render, 10 touch with real pointer
+events through the real window, 6 wheel; `claude-board-proto`: 27; the bridge: 67), not tried on the glass.
+
+| Parity item | Result |
+|---|---|
+| TLS to the bridge with the certificate bundle | **Verified on the board.** Joins Wi-Fi in about 6 s, connects at about 8.5 s, receives the `state` frame. |
+| Server certificate always validated | **Verified.** Pointed at a host with a self-signed certificate (dummy token): "No matching trusted root certificate found", no connection, retries with backoff. |
+| No connection before the clock is set | **Verified.** With the clock cleared and an unreachable NTP server: "clock not set; not connecting", never connects. The positive path (clock set from real NTP after a cleared clock) was not proven: the clock survived resets in every other run. |
+| Session list and time in state | Seen on the board by the user (live sessions); time formatting and `--` for an unset clock: host. |
+| Takeover on a waiting question; single answer, multi-select with Done, decline | Host only, with real pointer events at every control. **Not tried live**: no question was sent to the board. |
+| Detail screen | Host; opened and navigated on the board by the user. |
+| Chime | **Not exercised** (never heard). |
+| Idle dim and wake | Dim verified in the log: brightness 70 at boot, 8 exactly 30 s after the last bridge message. Wake on touch: host (`Power`) only. |
+| Credentials from sops | **Verified**: `just board creds` writes `app/credentials.env`, which the build reads. |
+
+Not checked, and why:
+
+- **Wi-Fi off and on:** needs control of the access point. Reconnect logic is the C firmware's, ported; backoff is host-tested.
+- **Bridge restart with a question open:** needs a deploy of the bridge. The stale-selection case is covered on the host.
+- **Colour order and the 80 MHz pixel clock:** the panel runs at the 40 MHz default. Colours looked plausible in the user's photos (pale under a camera) but were never confirmed explicitly.
+- **30-minute soak: skipped at the user's request.** Internal RAM was steady at 100 to 111 KB free through every run
+  (about 25 minutes of one run on a build that could not connect, and several 30 to 50 s runs with Wi-Fi, TLS and the UI up).
+  That is evidence of no fast leak, not of no slow one.
+
+Bugs found by running on the board and fixed: SNTP started before the network was up; every touch release landed
+at (0, 0) so no tap registered; the wheel list's rows swung off to the right as they left the screen.
