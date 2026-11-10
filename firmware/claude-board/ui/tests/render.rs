@@ -41,22 +41,127 @@ fn rim_point(deg: f32) -> (usize, usize) {
     ((233.0 + 220.0 * r.sin()).round() as usize, (233.0 - 220.0 * r.cos()).round() as usize)
 }
 
-#[test]
-fn presence_alert_draws_amber_pixels_near_the_centre() {
-    let (h, ui) = show();
-    ui.set_presence_state(PresenceState::Alert);
-    let buf = h.render();
-    let amber = (193..273).flat_map(|y| (193..273).map(move |x| (x, y))).filter(|&(x, y)| is_amber(px(&buf, x, y))).count();
-    assert!(amber > 200, "only {amber} amber pixels in the 80 x 80 box around the centre");
+// ---- The avatar: a Centurion head whose red eye sweeps the visor ----
+
+/// The visor slot on screen: the avatar sits at (93, 93) and the slot is x 74..206, y 123..145 in it.
+const VISOR_X: std::ops::Range<usize> = 167..299;
+const VISOR_Y: std::ops::Range<usize> = 216..238;
+
+fn is_red((r, g, b): (u8, u8, u8)) -> bool {
+    r > 120 && (g as i32) < r as i32 / 2 && (b as i32) < r as i32 / 2
+}
+
+/// Red pixels in a box, and the mean x of them (None when there are none).
+fn red_in(buf: &[Rgb565Pixel], xs: std::ops::Range<usize>, ys: std::ops::Range<usize>) -> (usize, Option<f32>) {
+    let pts: Vec<usize> = ys.flat_map(|y| xs.clone().map(move |x| (x, y))).filter(|&(x, y)| is_red(px(buf, x, y))).map(|(x, _)| x).collect();
+    let n = pts.len();
+    (n, (n > 0).then(|| pts.iter().sum::<usize>() as f32 / n as f32))
+}
+
+/// The brightest red channel in the visor.
+fn visor_peak(buf: &[Rgb565Pixel]) -> u8 {
+    VISOR_Y.flat_map(|y| VISOR_X.map(move |x| (x, y))).map(|(x, y)| px(buf, x, y)).filter(|&c| is_red(c)).map(|c| c.0).max().unwrap_or(0)
 }
 
 #[test]
-fn presence_idle_draws_no_amber() {
+fn every_mood_draws_a_red_eye_in_the_visor() {
+    let (h, ui) = show();
+    for state in [PresenceState::Idle, PresenceState::Listening, PresenceState::Thinking, PresenceState::Speaking, PresenceState::Alert] {
+        ui.set_presence_state(state);
+        h.step(100);
+        let (n, _) = red_in(&h.render(), VISOR_X, VISOR_Y);
+        assert!(n > 40, "{state:?}: only {n} red pixels in the visor");
+    }
+}
+
+#[test]
+fn the_head_is_drawn_around_the_visor() {
     let (h, ui) = show();
     ui.set_presence_state(PresenceState::Idle);
     let buf = h.render();
-    let amber = (93..373).flat_map(|y| (93..373).map(move |x| (x, y))).filter(|&(x, y)| is_amber(px(&buf, x, y))).count();
-    assert_eq!(amber, 0);
+    assert!(lit(&buf, 160..306, 140..210) > 6000, "the dome is drawn above the visor");
+    assert!(lit(&buf, 180..286, 262..322) > 3000, "the grille is drawn below the visor");
+    assert!(lit(&buf, 100..366, 345..380) == 0, "the chin clears the summary line");
+}
+
+#[test]
+fn the_eye_sweeps_while_idle_and_faster_while_thinking() {
+    let (h, ui) = show();
+    let travel = |state: PresenceState| {
+        ui.set_presence_state(state);
+        let mut xs = Vec::new();
+        for _ in 0..12 {
+            h.step(100);
+            xs.push(red_in(&h.render(), VISOR_X, VISOR_Y).1.unwrap());
+        }
+        xs.windows(2).map(|w| (w[1] - w[0]).abs()).sum::<f32>()
+    };
+    let idle = travel(PresenceState::Idle);
+    let thinking = travel(PresenceState::Thinking);
+    assert!(idle > 20.0, "the idle eye moves ({idle} px)");
+    assert!(thinking > idle * 1.5, "thinking sweeps faster ({thinking} px against {idle} px idle)");
+}
+
+#[test]
+fn the_eye_holds_still_in_the_centre_while_listening_and_grows_with_the_level() {
+    let (h, ui) = show();
+    ui.set_presence_state(PresenceState::Listening);
+    ui.set_presence_level(0.0);
+    let mut quiet = 0;
+    for _ in 0..6 {
+        h.step(100);
+        let (n, x) = red_in(&h.render(), VISOR_X, VISOR_Y);
+        assert!((x.unwrap() - 233.0).abs() < 6.0, "the listening eye is centred, at {x:?}");
+        quiet = quiet.max(n);
+    }
+    ui.set_presence_level(1.0);
+    h.step(100);
+    let (loud, _) = red_in(&h.render(), VISOR_X, VISOR_Y);
+    assert!(loud > quiet, "a loud voice grows the eye ({loud} red pixels against {quiet})");
+}
+
+#[test]
+fn alert_lights_more_of_the_visor_than_idle() {
+    let (h, ui) = show();
+    ui.set_presence_state(PresenceState::Idle);
+    h.step(100);
+    let (idle, _) = red_in(&h.render(), VISOR_X, VISOR_Y);
+    ui.set_presence_state(PresenceState::Alert);
+    let alert = (0..10).map(|_| { h.step(50); red_in(&h.render(), VISOR_X, VISOR_Y).0 }).max().unwrap();
+    assert!(alert > idle * 2, "alert flashes the visor ({alert} red pixels against {idle})");
+}
+
+#[test]
+fn offline_dims_the_eye_and_parks_it() {
+    let (h, ui) = show();
+    ui.set_presence_state(PresenceState::Idle);
+    h.step(100);
+    let lit_peak = visor_peak(&h.render());
+    ui.set_voice_available(false);
+    let mut xs = Vec::new();
+    for _ in 0..5 {
+        h.step(200);
+        let buf = h.render();
+        assert!(visor_peak(&buf) + 60 < lit_peak, "offline is dimmer ({} against {lit_peak})", visor_peak(&buf));
+        xs.push(red_in(&buf, 0..W, 0..W).1.unwrap_or(233.0));
+    }
+    assert!(xs.iter().all(|x| (x - 233.0).abs() < 6.0), "the offline eye is parked in the centre: {xs:?}");
+}
+
+#[test]
+fn nothing_red_is_drawn_outside_the_head() {
+    let (h, ui) = show();
+    for state in [PresenceState::Alert, PresenceState::Thinking, PresenceState::Speaking] {
+        ui.set_presence_state(state);
+        ui.set_presence_level(1.0);
+        for _ in 0..5 {
+            h.step(70);
+            let buf = h.render();
+            let (all, _) = red_in(&buf, 0..W, 0..W);
+            let (inside, _) = red_in(&buf, 93..373, 93..373);
+            assert_eq!(all, inside, "{state:?} draws red outside the avatar box");
+        }
+    }
 }
 
 #[test]
@@ -353,20 +458,6 @@ fn expanded_overlay_scrolls_by_drag_and_closes_by_tap() {
 /// Pixels in the 466 x 466 frame that are not (nearly) the background.
 fn lit(buf: &[Rgb565Pixel], xs: std::ops::Range<usize>, ys: std::ops::Range<usize>) -> usize {
     ys.flat_map(|y| xs.clone().map(move |x| (x, y))).filter(|&(x, y)| !near(px(buf, x, y), (0, 0, 0), 24)).count()
-}
-
-#[test]
-fn listening_thinking_and_speaking_each_draw_their_own_colour_at_the_core() {
-    let (h, ui) = show();
-    let mut centres = Vec::new();
-    for state in [PresenceState::Listening, PresenceState::Thinking, PresenceState::Speaking] {
-        ui.set_presence_state(state);
-        let buf = h.render();
-        centres.push(px(&buf, 233, 233));
-    }
-    assert!(centres[0].1 > centres[0].2, "listening is green: {:?}", centres[0]);
-    assert!(centres[1].2 > centres[1].0 + 60, "thinking is blue: {:?}", centres[1]);
-    assert!(centres[2].0 > 150 && centres[2].1 > 150 && centres[2].2 > 200, "speaking is pale: {:?}", centres[2]);
 }
 
 #[test]

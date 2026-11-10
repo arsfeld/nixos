@@ -18,6 +18,7 @@ export component HomePage inherits Rectangle {
         y: 93px;
         state: root.presence-state;
         level: root.presence-level;
+        offline: !root.voice-available;
         TouchArea {
             clicked => {
                 root.avatar-tapped();

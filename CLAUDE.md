@@ -429,7 +429,9 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
   `nix develop .#firmware -c bash -c 'cd firmware/claude-board && cargo test -p claude-board-ui'`. The Wi-Fi password
   and token are compiled into the image in the clear (no flash encryption), so whoever holds the board can read them.
   The ESP32-S3 is 2.4 GHz only. Captive-portal networks are not supported.
-- **The screens.** Home is the avatar (`Presence`, drawn from circles and glow sprites) inside a ring of arcs, one
+- **The screens.** Home is the avatar (`Presence`: a Cylon Centurion head, one pre-rendered sprite from
+  `ui/ui/images/centurion.svg` via `scripts/render-centurion.sh`, whose red eye sweeps the visor; the eye is always
+  red and the mood is in its motion, and the eye's clip box must match the slot in the SVG) inside a ring of arcs, one
   per session in its state's colour, the waiting one pulsing. Tapping the avatar opens the session list, a wheel of
   big round rows whose badges follow the screen's curve; tapping a row (or an arc) opens the session. A waiting
   question takes over the screen: the question pinned at the top and its options on the same wheel (`wheel.slint`), with Done and "on computer" as the last rows. Swipe right goes back a level. The screen dims 30 s after the last touch or bridge

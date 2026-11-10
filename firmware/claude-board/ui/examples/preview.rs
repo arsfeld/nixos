@@ -87,8 +87,16 @@ fn main() {
     ] {
         ui.set_presence_state(state);
         ui.set_presence_level(level);
+        // Let the eye sweep off the centre, where it starts.
+        for _ in 0..10 {
+            h.step(33);
+        }
         write_png(dir, name, &h);
     }
+    ui.set_presence_state(PresenceState::Idle);
+    ui.set_voice_available(false);
+    write_png(dir, "presence-offline", &h);
+    ui.set_voice_available(true);
 
     let sessions = five();
     show_rim(&ui, &sessions);

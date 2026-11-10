@@ -1,84 +1,123 @@
-// The assistant's avatar: a glowing core with two rings, drawn from solid circles and pre-rendered glow
-// sprites at their native size (the software renderer cannot fill a rounded rectangle with a gradient,
-// and scaling a sprite costs about 20 ms a frame). Everything moves with `state` and `level`.
-import { PresenceState, Theme } from "theme.slint";
+// The assistant's avatar: a Cylon Centurion head whose red eye sweeps its visor. The head is one
+// pre-rendered sprite at its native size (images/centurion.svg, rendered by scripts/render-centurion.sh)
+// and never changes, so after the first frame it costs nothing; only the eye moves, and it is clipped to
+// the visor slot, so each frame repaints a 132 x 22 box. The eye is always red: the mood is in how it
+// moves.
+//   idle       a slow sweep           thinking  a fast sweep, longer trail
+//   listening  still in the centre, growing with the mic level
+//   speaking   a medium sweep, brightness follows the voice level
+//   alert      a rapid sweep and the whole visor flashing
+//   offline    a dim ember parked in the centre
+import { PresenceState } from "theme.slint";
 
 export component Presence inherits Rectangle {
     in property <PresenceState> state: PresenceState.idle;
     // Audio amplitude, 0 to 1.
     in property <float> level: 0;
+    // Voice is unavailable (no bridge, or the bridge has no voice backends).
+    in property <bool> offline: false;
     width: 280px;
     height: 280px;
 
-    property <float> t: 0;
-    property <float> speed: root.state == PresenceState.alert ? 5.0 : (root.state == PresenceState.thinking ? 3.0 : (root.state == PresenceState.speaking ? 4.0 : 1.6));
-    property <float> breath: 0.5 + 0.5 * Math.sin(root.t * 1rad);
-    property <color> accent: Theme.presence-color(root.state);
+    // The visor slot in the head sprite, just inside where centurion.svg draws it.
+    property <length> slot-x: 74px;
+    property <length> slot-y: 123px;
+    property <length> slot-w: 132px;
+    property <length> slot-h: 22px;
+
+    property <bool> parked: root.offline || root.state == PresenceState.listening;
+    property <float> speed: root.offline ? 0 : (root.state == PresenceState.alert ? 7.0 : (root.state == PresenceState.thinking ? 4.5 : (root.state == PresenceState.speaking ? 2.6 : (root.parked ? 0 : 1.4))));
+    // Sweep phase in radians. It advances by elapsed time times `speed`, so a mood change changes the
+    // pace without making the eye jump.
+    property <float> phase: 0;
+    // A free-running clock for the pulses (listening, alert), in seconds.
+    property <float> clock: 0;
+    property <duration> last-tick: 0ms;
+
+    property <length> travel: root.slot-w / 2 - 14px;
+    property <length> eye-x: root.parked ? 0px : root.travel * Math.sin(root.phase * 1rad);
+    property <float> pulse: 0.5 + 0.5 * Math.sin(root.clock * (root.state == PresenceState.alert ? 14 : 4) * 1rad);
+    property <color> red: #ff2a1a;
+    property <float> glow-alpha: root.offline ? 0 : (root.state == PresenceState.speaking ? 0.35 + 0.6 * root.level : (root.state == PresenceState.listening ? 0.4 + 0.3 * root.pulse : 0.7));
 
     Timer {
         interval: 33ms;
         running: true;
         triggered => {
-            root.t += 0.033 * root.speed;
+            // Elapsed time since the last tick, capped so waking from a stall does not jump the eye.
+            let dt = Math.min((animation-tick() - root.last-tick) / 1s, 0.25);
+            root.last-tick = animation-tick();
+            root.clock += dt;
+            root.phase += dt * root.speed;
         }
     }
 
-    // Halo.
     Image {
-        x: (parent.width - 256px) / 2;
-        y: (parent.height - 256px) / 2;
-        width: 256px;
-        height: 256px;
-        source: @image-url("images/glow-256.png");
-        colorize: root.accent;
-        opacity: 0.35 + 0.25 * root.breath + 0.3 * root.level;
+        source: @image-url("images/centurion-280.png");
     }
 
-    // Outer ring.
     Rectangle {
-        property <length> d: 196px + 18px * root.breath + 40px * root.level;
-        width: d;
-        height: d;
-        x: (parent.width - d) / 2;
-        y: (parent.height - d) / 2;
-        border-radius: d / 2;
-        border-width: 2px;
-        border-color: root.accent;
-        opacity: 0.3;
-    }
+        x: root.slot-x;
+        y: root.slot-y;
+        width: root.slot-w;
+        height: root.slot-h;
+        clip: true;
 
-    // Inner ring.
-    Rectangle {
-        property <length> d: 148px + 10px * root.breath + 24px * root.level;
-        width: d;
-        height: d;
-        x: (parent.width - d) / 2;
-        y: (parent.height - d) / 2;
-        border-radius: d / 2;
-        border-width: 2px;
-        border-color: root.accent;
-        opacity: 0.6;
-    }
+        // Alert: the whole slot flashes red.
+        if root.state == PresenceState.alert && !root.offline: Rectangle {
+            background: root.red.with-alpha(0.15 + 0.4 * root.pulse);
+        }
 
-    // Core.
-    Rectangle {
-        property <length> d: 96px + 6px * root.breath + 16px * root.level;
-        width: d;
-        height: d;
-        x: (parent.width - d) / 2;
-        y: (parent.height - d) / 2;
-        border-radius: d / 2;
-        background: root.accent;
-    }
+        // Glow around the eye, the shared sprite at its native size, cut to the slot.
+        if root.glow-alpha > 0: Image {
+            x: parent.width / 2 + root.eye-x - 64px;
+            y: parent.height / 2 - 64px;
+            width: 128px;
+            height: 128px;
+            source: @image-url("images/glow-128.png");
+            colorize: root.red.with-alpha(root.glow-alpha);
+        }
 
-    // Highlight.
-    Image {
-        x: (parent.width - 128px) / 2;
-        y: (parent.height - 128px) / 2;
-        width: 128px;
-        height: 128px;
-        source: @image-url("images/glow-128.png");
-        colorize: #ffffff;
-        opacity: 0.25;
+        // Trail: where the eye was a moment ago, fading.
+        if !root.parked: Rectangle {
+            property <length> w: 18px;
+            x: parent.width / 2 + root.travel * Math.sin((root.phase - 0.45) * 1rad) - w / 2;
+            y: parent.height / 2 - 4px;
+            width: w;
+            height: 8px;
+            border-radius: 4px;
+            background: root.red.with-alpha(0.25);
+        }
+        if !root.parked: Rectangle {
+            property <length> w: 20px;
+            x: parent.width / 2 + root.travel * Math.sin((root.phase - 0.22) * 1rad) - w / 2;
+            y: parent.height / 2 - 5px;
+            width: w;
+            height: 10px;
+            border-radius: 5px;
+            background: root.red.with-alpha(0.5);
+        }
+
+        // The eye.
+        Rectangle {
+            property <float> grow: root.state == PresenceState.listening && !root.offline ? root.level : 0;
+            property <length> w: 22px + 26px * grow;
+            property <length> h: 10px + 6px * grow;
+            x: parent.width / 2 + root.eye-x - w / 2;
+            y: parent.height / 2 - h / 2;
+            width: w;
+            height: h;
+            border-radius: h / 2;
+            background: root.offline ? #8c140a : root.red;
+            // The hot centre.
+            if !root.offline: Rectangle {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                width: parent.width * 0.4;
+                height: parent.height * 0.4;
+                border-radius: self.height / 2;
+                background: #ffb4a0;
+            }
+        }
     }
 }

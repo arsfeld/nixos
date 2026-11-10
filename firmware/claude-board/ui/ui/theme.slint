@@ -76,20 +76,4 @@ export global Theme {
         }
         return Theme.idle;
     }
-
-    pure public function presence-color(s: PresenceState) -> color {
-        if s == PresenceState.alert {
-            return Theme.waiting;
-        }
-        if s == PresenceState.listening {
-            return #35d07f;
-        }
-        if s == PresenceState.thinking {
-            return #4f8cff;
-        }
-        if s == PresenceState.speaking {
-            return #cfe0ff;
-        }
-        return #5b7cff;
-    }
 }
