@@ -93,13 +93,13 @@ fn rows_curve_away_from_the_centre_row() {
 }
 
 #[test]
-fn rows_leaving_the_screen_stop_bending_and_exit_straight() {
+fn rows_leaving_the_screen_straighten_out() {
     let f = fx();
     let buf = f.h.render(); // rows 0..3 at dy = -104, 0, 104, 208
     let left = |dy: f32| badge(&buf, CENTRE_Y + dy);
     let centre = left(0.0).expect("a badge").0;
     // The row at dy=104 has bent right by about 24 px. The one at dy=208 is leaving, and must not have
-    // swung much further than the curve's cap (about 64 px), where a plain circle would put it 128 px out.
+    // swung much further than the curve's limit (64 px), where a plain circle would put it 128 px out.
     let leaving = left(208.0).expect("the leaving row's badge").0;
     assert!(leaving <= centre + 70, "a row leaving the screen bent too far right: {leaving} vs centre {centre}");
 }

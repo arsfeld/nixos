@@ -11,15 +11,19 @@ export component WheelRow inherits Rectangle {
     in property <float> wheel-r: 233;
     in property <float> inset: 66;
 
-    // `bow` is how far the circle has curved away from its widest point at this distance from the centre.
-    property <float> dy: (root.cy - 233px) / 1px;
-    // The curve stops at 160 px from the centre: a row leaving the screen carries on straight up or down instead
-    // of swinging off to the right (a plain circle would put it 128 px out by the time it is half hidden).
-    property <float> reach: Math.min(Math.abs(root.dy), 160);
-    property <float> bow: root.wheel-r - Math.sqrt(root.wheel-r * root.wheel-r - root.reach * root.reach);
+    // The most a row ever bows to the right, however far from the centre it is.
+    in property <float> max-bow: 64;
+
+    // `bow` is how far the column has curved away from its widest point at this distance from the centre.
+    // It is a circle of the screen's radius near the centre (`dy^2 / 2R`, so the rows follow the bezel) that
+    // eases off toward `max-bow` and never overshoots it: the slope falls smoothly to zero, so a row leaving
+    // the screen straightens out gradually instead of swinging off to the right (a plain circle would put it
+    // 128 px out by the time it is half hidden) or kinking where a hard cap would start.
+    property <float> dy: (root.cy - root.wheel-r * 1px) / 1px;
+    property <float> bow: root.max-bow * (1 - Math.exp(-(root.dy * root.dy) / (2 * root.wheel-r * root.max-bow)));
     property <float> left: root.inset + root.bow;
 
     x: root.left * 1px;
-    width: Math.max(0, 466 - root.left - 14) * 1px;
+    width: Math.max(0, 2 * root.wheel-r - root.left - 14) * 1px;
     visible: root.width > 40px;
 }
