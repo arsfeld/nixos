@@ -20,6 +20,8 @@ static TOUCHED: AtomicBool = AtomicBool::new(false);
 static SWIPED_RIGHT: AtomicBool = AtomicBool::new(false);
 /// The app allows up and down swipes (home, which scrolls nothing).
 static VERTICAL_SWIPES: AtomicBool = AtomicBool::new(false);
+/// A swipe down from the top edge finished.
+static EDGE_DOWN: AtomicBool = AtomicBool::new(false);
 /// A swipe up (1) or down (2) finished, or 0.
 static SWIPED_VERTICAL: AtomicU8 = AtomicU8::new(0);
 
@@ -72,6 +74,11 @@ pub fn take_lift() -> bool {
 /// Let up and down drags be swipes (true on home) or leave them to scroll.
 pub fn set_vertical_swipes(on: bool) {
     VERTICAL_SWIPES.store(on, Ordering::SeqCst);
+}
+
+/// Once after a swipe down that began at the top edge (`take_swipe_vertical` never reports it).
+pub fn take_edge_down() -> bool {
+    EDGE_DOWN.swap(false, Ordering::SeqCst)
 }
 
 /// Once after a swipe up (`Some(true)`) or down (`Some(false)`).
@@ -182,6 +189,7 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, mut each_loop: impl FnMut()) -> a
                     Some(Gesture::SwipeRight) => SWIPED_RIGHT.store(true, Ordering::SeqCst),
                     Some(Gesture::SwipeUp) => SWIPED_VERTICAL.store(1, Ordering::SeqCst),
                     Some(Gesture::SwipeDown) => SWIPED_VERTICAL.store(2, Ordering::SeqCst),
+                    Some(Gesture::EdgeDown) => EDGE_DOWN.store(true, Ordering::SeqCst),
                     Some(Gesture::HoldStart(x, y)) => HOLD_START.store(pack(x, y), Ordering::SeqCst),
                     Some(Gesture::HoldEnd) => HOLD_END.store(true, Ordering::SeqCst),
                     None => {}

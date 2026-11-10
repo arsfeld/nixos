@@ -18,6 +18,9 @@ const SWIPE_MIN_DX: f32 = 70.0;
 /// ...and stay mostly horizontal: vertical travel at most this fraction of the sideways travel.
 const SWIPE_MAX_SLOPE: f32 = 0.5;
 
+/// A swipe down that starts above this y (the top of the round screen) is an edge swipe, not "quieter".
+pub const EDGE_BAND_PX: f32 = 60.0;
+
 /// A finger held this long, nearly still, is a hold (press to talk).
 pub const HOLD_MS: u64 = 450;
 /// "Nearly still": the finger stays within this many pixels of where it landed.
@@ -30,6 +33,8 @@ pub enum Gesture {
     /// A drag up or down, only while vertical swipes are on: louder, quieter.
     SwipeUp,
     SwipeDown,
+    /// Like `SwipeDown`, but it started in the top `EDGE_BAND_PX`: opens the command menu.
+    EdgeDown,
     /// The finger has been down, nearly still, for `HOLD_MS`; carries where it is. Nothing is cancelled yet: the
     /// pointer stays down, and the lift is an ordinary click unless the app accepts the hold. The app's call
     /// order is `HoldStart(x, y)` -> `controller.hold_started(x, y)` -> only if that returned true,
@@ -132,7 +137,13 @@ impl TouchTracker {
                 let swipe = if dx >= SWIPE_MIN_DX && dy.abs() <= dx * SWIPE_MAX_SLOPE {
                     Some(Gesture::SwipeRight)
                 } else if self.vertical && dy.abs() >= SWIPE_MIN_DX && dx.abs() <= dy.abs() * SWIPE_MAX_SLOPE {
-                    Some(if dy < 0.0 { Gesture::SwipeUp } else { Gesture::SwipeDown })
+                    Some(if dy < 0.0 {
+                        Gesture::SwipeUp
+                    } else if start.y < EDGE_BAND_PX {
+                        Gesture::EdgeDown
+                    } else {
+                        Gesture::SwipeDown
+                    })
                 } else {
                     None
                 };
@@ -367,6 +378,35 @@ mod tests {
         assert!(!ups.iter().flat_map(|u| u.events.iter()).any(|e| matches!(e, WindowEvent::PointerReleased { .. })), "no click under a swipe");
         let ups = drag_line(&mut t, (233, 150), (240, 300));
         assert_eq!(ups.last().unwrap().gesture, Some(Gesture::SwipeDown), "and the setting survives a touch");
+    }
+
+    #[test]
+    fn a_swipe_down_from_the_top_band_is_an_edge_swipe() {
+        let mut t = TouchTracker::new();
+        t.set_vertical_swipes(true);
+        let ups = drag_line(&mut t, (233, 30), (233, 200));
+        assert_eq!(ups.last().unwrap().gesture, Some(Gesture::EdgeDown));
+        assert!(!ups.iter().flat_map(|u| u.events.iter()).any(|e| matches!(e, WindowEvent::PointerReleased { .. })));
+    }
+
+    #[test]
+    fn a_swipe_down_from_lower_is_still_quieter() {
+        let mut t = TouchTracker::new();
+        t.set_vertical_swipes(true);
+        assert_eq!(drag_line(&mut t, (233, 120), (233, 300)).last().unwrap().gesture, Some(Gesture::SwipeDown));
+    }
+
+    #[test]
+    fn edge_swipes_need_vertical_swipes_on() {
+        let mut t = TouchTracker::new();
+        assert_eq!(drag_line(&mut t, (233, 30), (233, 200)).last().unwrap().gesture, None);
+    }
+
+    #[test]
+    fn a_diagonal_drag_from_the_band_is_nothing() {
+        let mut t = TouchTracker::new();
+        t.set_vertical_swipes(true);
+        assert_eq!(drag_line(&mut t, (200, 30), (330, 160)).last().unwrap().gesture, None);
     }
 
     #[test]
