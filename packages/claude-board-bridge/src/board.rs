@@ -64,9 +64,21 @@ async fn send_snapshot(s: &AppState, sink: &mut Sink) -> Result<(), axum::Error>
 
 const HISTORY_LIMIT: usize = 50;
 
+/// The most a `history` frame may take on the wire. The board drops any frame over 64 KiB (`MAX_FRAME` in
+/// the firmware's net.rs) without a word, so this leaves it room to spare; 50 full-size replies would not fit.
+const HISTORY_BYTES: usize = 48 * 1024;
+
+/// The `history` frame for a session: the newest entries that fit in `HISTORY_BYTES`, at most
+/// `HISTORY_LIMIT`. Shared by the reply to `watch` and the resend after a lag.
+fn history_msg(s: &AppState, host: &str, session: &str) -> BoardMsg {
+    let empty = BoardMsg::History { host: host.into(), session: session.into(), entries: Vec::new() };
+    let frame = serde_json::to_string(&empty).expect("BoardMsg serialises").len();
+    let entries = s.feed.history_within(host, session, HISTORY_LIMIT, HISTORY_BYTES.saturating_sub(frame));
+    BoardMsg::History { host: host.into(), session: session.into(), entries }
+}
+
 async fn send_history(s: &AppState, sink: &mut Sink, host: &str, session: &str) -> Result<(), axum::Error> {
-    let entries = s.feed.history(host, session, HISTORY_LIMIT);
-    send(sink, &BoardMsg::History { host: host.into(), session: session.into(), entries }).await
+    send(sink, &history_msg(s, host, session)).await
 }
 
 /// The session whose feed this socket follows, if any.

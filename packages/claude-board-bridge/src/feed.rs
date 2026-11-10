@@ -60,6 +60,23 @@ impl Feed {
         }
     }
 
+    /// The newest entries, oldest first: at most `limit` of them, and no more than fit in `budget` bytes of
+    /// JSON (each entry serialised, plus the comma between it and the next). Oldest entries are dropped first.
+    pub fn history_within(&self, host: &str, session: &str, limit: usize, budget: usize) -> Vec<FeedEntry> {
+        let mut newest_first = Vec::new();
+        let mut used = 0;
+        for e in self.history(host, session, limit).into_iter().rev() {
+            let size = serde_json::to_string(&e).expect("FeedEntry serialises").len() + 1;
+            if used + size > budget {
+                break;
+            }
+            used += size;
+            newest_first.push(e);
+        }
+        newest_first.reverse();
+        newest_first
+    }
+
     /// Keep only the logs whose (host, session) the predicate accepts.
     pub fn retain(&self, mut keep: impl FnMut(&str, &str) -> bool) {
         self.inner.lock().unwrap().retain(|(h, s), _| keep(h, s));

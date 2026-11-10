@@ -64,3 +64,16 @@ fn caps_per_kind() {
 fn unknown_session_history_is_empty() {
     assert!(Feed::new().history("h", "nope", 10).is_empty());
 }
+
+#[test]
+fn history_within_drops_the_oldest_until_the_json_fits() {
+    let f = Feed::new();
+    for i in 0..10 {
+        f.append("h", "s", FeedKind::Reply, &"\"".repeat(100), i);
+    }
+    let one = serde_json::to_string(&f.history("h", "s", 1)[0]).unwrap().len() + 1;
+    let ns: Vec<u64> = f.history_within("h", "s", 50, one * 3 + one / 2).iter().map(|e| e.n).collect();
+    assert_eq!(ns, vec![8, 9, 10]);
+    assert_eq!(f.history_within("h", "s", 2, usize::MAX).len(), 2);
+    assert!(f.history_within("h", "s", 50, 10).is_empty());
+}

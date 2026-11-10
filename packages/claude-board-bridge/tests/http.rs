@@ -471,3 +471,54 @@ async fn sweep_drops_feeds_without_a_session_and_keeps_live_ones() {
     assert_eq!(st.feed.history("raider", "live", 50).len(), 1);
     assert!(st.feed.history("raider", "orphan", 50).is_empty());
 }
+
+fn approval_with(tool: &str, summary: &str) -> Value {
+    json!({"host":"raider","session":"s1","cwd":"/home/arosenfeld/Code/nixos",
+        "tool_name":tool,"summary":summary,"tool_input":{}})
+}
+
+/// The approval falls straight through: 204 at once, nothing held, nothing broadcast, the session untouched.
+async fn falls_through(body: Value) {
+    let st = state(5000, 0);
+    st.board_connected.store(1, Ordering::SeqCst);
+    let mut rx = st.tx.subscribe();
+    let app = hook_router(st.clone());
+    let t = Instant::now();
+    assert_eq!(status_of(&app, req("/v1/ask", Some(HOST_TOKEN), body)).await, StatusCode::NO_CONTENT);
+    assert!(t.elapsed() < Duration::from_millis(500), "held for {:?}", t.elapsed());
+    assert!(st.asks.pending().is_empty());
+    assert!(rx.try_recv().is_err(), "something was broadcast");
+    assert!(st.registry.lock().unwrap().snapshot().is_empty(), "the session was marked waiting");
+}
+
+#[tokio::test]
+async fn approval_with_an_empty_summary_falls_through_to_the_terminal() {
+    falls_through(approval_with("Bash", "")).await;
+    falls_through(approval_with("mcp__thing__do", "")).await;
+}
+
+#[tokio::test]
+async fn approval_whose_text_does_not_fit_the_board_falls_through() {
+    // "Bash: " + summary is one byte over the board's limit.
+    let summary = "x".repeat(claude_board_proto::APPROVAL_TEXT_MAX - "Bash: ".len() + 1);
+    falls_through(approval_with("Bash", &summary)).await;
+}
+
+#[tokio::test]
+async fn approval_whose_text_exactly_fits_the_board_is_held() {
+    let summary = "é".repeat((claude_board_proto::APPROVAL_TEXT_MAX - "Bash: ".len()) / 2);
+    let summary = format!("{summary}{}", "x".repeat(claude_board_proto::APPROVAL_TEXT_MAX - "Bash: ".len() - summary.len()));
+    let st = state(5000, 0);
+    st.board_connected.store(1, Ordering::SeqCst);
+    let mut rx = st.tx.subscribe();
+    let app = hook_router(st.clone());
+    let body = approval_with("Bash", &summary);
+    let pending = tokio::spawn(async move { app.oneshot(req("/v1/ask", Some(HOST_TOKEN), body)).await.unwrap() });
+    let ask = next_question(&mut rx).await;
+    let text = format!("Bash: {summary}");
+    assert_eq!(text.len(), claude_board_proto::APPROVAL_TEXT_MAX);
+    assert_eq!(ask.questions[0].question, text);
+    let answers = std::collections::BTreeMap::from([(text, "Allow".to_string())]);
+    st.asks.answer(&ask.id, Answered::Answers(answers)).unwrap();
+    assert_eq!(pending.await.unwrap().status(), StatusCode::OK);
+}

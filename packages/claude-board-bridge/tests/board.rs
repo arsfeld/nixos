@@ -423,3 +423,95 @@ async fn lagged_socket_resends_history_for_its_watched_session() {
     assert_eq!(got["session"], "s1");
     assert_eq!(got["entries"].as_array().unwrap().len(), 50);
 }
+
+/// Next text frame as it arrived on the wire, skipping pings.
+async fn next_raw_of(ws: &mut Ws, tag: &str) -> String {
+    loop {
+        let m = tokio::time::timeout(Duration::from_secs(3), ws.next()).await.expect("frame").unwrap().unwrap();
+        if let Message::Text(t) = m {
+            let v: Value = serde_json::from_str(t.as_str()).unwrap();
+            if v["t"] == tag {
+                return t.as_str().to_string();
+            }
+        }
+    }
+}
+
+/// 4 KiB of reply text that grows when JSON-escaped (every other byte is a quote).
+fn big_reply(i: usize) -> String {
+    let mut s = format!("{i:04}");
+    while s.len() < 4096 {
+        s.push_str("x\"");
+    }
+    s.truncate(4096);
+    s
+}
+
+/// The ns of a history frame's entries, which must be the newest, consecutive and in order.
+fn assert_newest_in_order(frame: &Value, last: u64) -> usize {
+    let ns: Vec<u64> = frame["entries"].as_array().unwrap().iter().map(|e| e["n"].as_u64().unwrap()).collect();
+    assert!(!ns.is_empty(), "no entries at all");
+    assert!(ns.len() <= 50, "{} entries", ns.len());
+    let first = last + 1 - ns.len() as u64;
+    assert_eq!(ns, (first..=last).collect::<Vec<u64>>(), "not the newest entries in order");
+    ns.len()
+}
+
+#[tokio::test]
+async fn watch_history_of_big_replies_fits_the_board_frame_limit() {
+    let st = state(1000);
+    for i in 0..200 {
+        st.feed.append("raider", "s1", claude_board_bridge::protocol::FeedKind::Reply, &big_reply(i), 1);
+    }
+    let addr = serve(st.clone()).await;
+    let mut ws = connect(addr).await;
+    watch(&mut ws, "s1").await;
+    let raw = next_raw_of(&mut ws, "history").await;
+    assert!(raw.len() <= 48 * 1024, "history frame is {} bytes", raw.len());
+    let n = assert_newest_in_order(&serde_json::from_str(&raw).unwrap(), 200);
+    assert!(n >= 5, "only {n} entries fit");
+}
+
+#[tokio::test]
+async fn lagged_history_of_big_replies_fits_the_board_frame_limit() {
+    let st = state(1000);
+    let addr = serve(st.clone()).await;
+    let mut ws = connect(addr).await;
+    wait_boards(&st, 1).await;
+    watch(&mut ws, "s1").await;
+    next_of(&mut ws, "history").await;
+    for i in 0..600 {
+        let e = st.feed.append("raider", "s1", claude_board_bridge::protocol::FeedKind::Reply, &big_reply(i), 1);
+        let _ = st.tx.send(claude_board_bridge::protocol::BoardMsg::Entry {
+            host: "raider".into(),
+            session: "s1".into(),
+            entry: e,
+        });
+    }
+    let raw = tokio::time::timeout(Duration::from_secs(5), async {
+        let mut saw_state = false;
+        loop {
+            let raw = next_raw_any(&mut ws).await;
+            let v: Value = serde_json::from_str(&raw).unwrap();
+            if v["t"] == "state" {
+                saw_state = true;
+            }
+            if v["t"] == "history" && saw_state {
+                return raw;
+            }
+        }
+    })
+    .await
+    .expect("state snapshot then history after lag");
+    assert!(raw.len() <= 48 * 1024, "history frame is {} bytes", raw.len());
+    assert_newest_in_order(&serde_json::from_str(&raw).unwrap(), 600);
+}
+
+async fn next_raw_any(ws: &mut Ws) -> String {
+    loop {
+        let m = tokio::time::timeout(Duration::from_secs(3), ws.next()).await.expect("frame").unwrap().unwrap();
+        if let Message::Text(t) = m {
+            return t.as_str().to_string();
+        }
+    }
+}

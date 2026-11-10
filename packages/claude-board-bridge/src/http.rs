@@ -10,6 +10,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use axum::{Json, Router};
+use claude_board_proto::APPROVAL_TEXT_MAX;
 use serde::Deserialize;
 use serde_json::Value;
 use tokio::sync::broadcast;
@@ -186,6 +187,13 @@ async fn ask(State(s): State<AppState>, headers: HeaderMap, body: Bytes) -> Resu
     // The two paths differ only in how the ask is registered and how the
     // answer becomes a decision; holding, cancelling and timing out are shared.
     let is_question = r.tool_name == QUESTION_TOOL;
+    // An approval goes to the board only when the board can show all of it: nothing to read, or a command
+    // cut short, would make the tap a blind one. The terminal prompt handles those.
+    if !is_question
+        && (r.summary.is_empty() || r.tool_name.len() + ": ".len() + r.summary.len() > APPROVAL_TEXT_MAX)
+    {
+        return Ok(StatusCode::NO_CONTENT.into_response());
+    }
     let project = project_of(&r.cwd);
     let (id, rx) = if is_question {
         s.asks.register(&r.host, &r.session, &project, r.tool_input.clone())

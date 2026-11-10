@@ -15,6 +15,11 @@ use serde::{Deserialize, Serialize};
 /// activity feed (`history`, `entry`, and the board's `watch`/`unwatch`).
 pub const PROTOCOL_VERSION: u32 = 2;
 
+/// The most question text, in bytes, the board shows before it shortens it. A tool approval reaches the
+/// board only when its whole text ("<tool>: <summary>") fits, so nobody approves a command they could not
+/// read to the end; anything longer is left to the terminal prompt.
+pub const APPROVAL_TEXT_MAX: usize = 160;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum State {
