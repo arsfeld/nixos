@@ -23,3 +23,17 @@ firmware is viable on this board. Deleted in Task 14; findings live in
 Flash with `espflash flash --chip esp32s3 --flash-size 16mb --bootloader <bootloader.bin>
 --partition-table <partition-table.bin> --ignore-app-descriptor <elf>`, using the two `.bin` files that
 `esp-idf-sys` leaves under `target/.../esp-idf-sys-*/out/build/`.
+
+## Findings from Task 2 (Wi-Fi, TLS, websocket)
+
+- The websocket client is not in `esp-idf-svc` by default: add `espressif/esp_websocket_client` as an
+  `extra_components` remote component in `Cargo.toml`. After changing that metadata run
+  `cargo clean -p esp-idf-sys --release`, because `esp-idf-sys` does not rerun on its own.
+- `esp-idf-sys` ignores `CONFIG_PARTITION_TABLE_*` (its README says so). The app is built regardless and the
+  partition table is given at flash time: `espflash flash --partition-table partitions.csv`. Without it the
+  image does not fit the default 1 MB partition once Wi-Fi is linked.
+- Credentials: `just board creds` now also writes `credentials.env` (gitignored); `build.rs` turns it into
+  `env!` values.
+- Result on the board: Wi-Fi up in about 5 s (WPA3-SAE), clock set 1.8 s later, `Certificate validated`, and the
+  first frame from the live bridge was `{"t":"state","sessions":[...`. Internal RAM with Wi-Fi and TLS up and no
+  display: free 188,863 bytes, largest block 114,688, PSRAM free 7.1 MB.

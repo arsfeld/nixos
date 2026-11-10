@@ -14,7 +14,11 @@ opt-level = "z"
 
 [dependencies]
 log = "0.4"
+anyhow = "1"
 esp-idf-svc = "0.53"
 
 [build-dependencies]
 embuild = "0.33"
+
+[[package.metadata.esp-idf-sys.extra_components]]
+remote_component = { name = "espressif/esp_websocket_client", version = "^1.2.0" }

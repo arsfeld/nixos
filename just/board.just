@@ -82,6 +82,11 @@ creds:
       printf "CONFIG_CLAUDE_BOARD_WIFI_SSID=\"%s\"\n" "$ssid" >> "$out"
       printf "CONFIG_CLAUDE_BOARD_WIFI_PASS=\"%s\"\n" "$pass" >> "$out"
       printf "CONFIG_CLAUDE_BOARD_TOKEN=\"%s\"\n" "$token" >> "$out"
+      # The Rust firmware reads KEY=value lines (no quoting) from credentials.env at build time.
+      penv="{{ justfile_directory() }}/firmware/probe-rust/credentials.env"
+      : > "$penv"
+      chmod 600 "$penv"
+      printf "CB_WIFI_SSID=%s\nCB_WIFI_PASS=%s\nCB_TOKEN=%s\n" "$ssid" "$pass" "$token" >> "$penv"
     '
     rm -f '{{ FW }}/sdkconfig'
     echo "wrote {{ FW }}/sdkconfig.defaults.local; run just board build"
