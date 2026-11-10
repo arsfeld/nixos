@@ -1,13 +1,12 @@
-//! Slint's software renderer on the panel: a persistent RGB565 framebuffer in PSRAM that Slint paints
-//! line by line, the dirty rows pushed through `display::Strips`, and the touch controller turned into
-//! pointer events.
+//! Slint's software renderer on the panel: a persistent RGB565 framebuffer in PSRAM that Slint repaints
+//! where it changed (`claude_board_ui::frame::paint`, never `render_by_line`, which drops every `Path`), the
+//! dirty rows pushed through `display::Strips`, and the touch controller turned into pointer events.
 
-use std::ops::Range;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
 use std::time::{Duration, Instant};
 
-use slint::platform::software_renderer::{LineBufferProvider, MinimalSoftwareWindow, RepaintBufferType, Rgb565Pixel};
+use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType, Rgb565Pixel};
 use claude_board_ui::touch::{Gesture, TouchTracker};
 use slint::platform::{Platform, WindowAdapter};
 
@@ -123,27 +122,10 @@ pub fn install() -> anyhow::Result<Rc<MinimalSoftwareWindow>> {
     Ok(window)
 }
 
-/// Paints into the framebuffer and remembers which rows it touched.
-struct Frame<'a> {
-    px: &'a mut [Rgb565Pixel],
-    first: usize,
-    last: usize,
-}
-
-impl LineBufferProvider for &mut Frame<'_> {
-    type TargetPixel = Rgb565Pixel;
-    fn process_line(&mut self, line: usize, range: Range<usize>, render_fn: impl FnOnce(&mut [Rgb565Pixel])) {
-        render_fn(&mut self.px[line * WIDTH + range.start..line * WIDTH + range.end]);
-        self.first = self.first.min(line);
-        self.last = self.last.max(line);
-    }
-}
-
 /// Draw whatever changed and handle the touch screen, forever. `each_loop` runs once per pass (a few
 /// hundred times a second at most) for the app's own timers and message handling.
 pub fn run(window: &Rc<MinimalSoftwareWindow>, mut each_loop: impl FnMut()) -> anyhow::Result<()> {
     let mut pixels = vec![Rgb565Pixel(0); WIDTH * HEIGHT]; // PSRAM
-    let mut frame = Frame { px: &mut pixels, first: usize::MAX, last: 0 };
     let mut strips = Strips::new()?;
     let (mut tracker, mut last_touch) = (TouchTracker::new(), Instant::now());
     let boot = Instant::now(); // the hold threshold needs a real clock
@@ -156,13 +138,8 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, mut each_loop: impl FnMut()) -> a
         each_loop();
 
         window.draw_if_needed(|renderer| {
-            frame.first = usize::MAX;
-            frame.last = 0;
-            renderer.render_by_line(&mut frame);
-            if frame.first != usize::MAX {
-                // The panel takes windows with an even origin and size.
-                let (y0, y1) = (frame.first & !1, ((frame.last | 1) + 1).min(HEIGHT));
-                strips.push(frame.px, y0, y1);
+            if let Some((y0, y1)) = claude_board_ui::frame::paint(renderer, &mut pixels, WIDTH, HEIGHT) {
+                strips.push(&pixels, y0, y1);
             }
         });
 

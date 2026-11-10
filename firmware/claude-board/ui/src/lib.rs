@@ -5,6 +5,7 @@ slint::include_modules!();
 
 pub mod audio;
 pub mod controller;
+pub mod frame;
 pub mod headless;
 pub mod link;
 pub mod power;

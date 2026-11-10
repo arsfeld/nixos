@@ -450,6 +450,11 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     one-line local patch to `i-slint-core`, made by `firmware/claude-board/scripts/vendor-slint-core.sh` into the
     gitignored `vendor/` (`just board build` and `preview` run it). Re-check the patch at every Slint bump. Host
     tests do enable `std` (a dev-dependency) so parallel tests each get their own platform.
+  - **Never `render_by_line`.** In Slint 1.18 the line-by-line renderer silently skips every `Path` (its source says
+    so), and the previews and host tests render whole buffers, so they never showed it: until 2026-11-10 the board
+    drew no rim arcs, command arcs, icons or ticks at all, only text and images. The board repaints its PSRAM
+    framebuffer with `render` through `claude_board_ui::frame::paint`, and `ui/tests/partial.rs` runs that exact
+    path (reused buffer, partial repaints) on the host.
   - **Damage regions decide the frame rate.** A `Path` with an animated property repaints its whole box every frame,
     even when hidden: each rim arc has its own tight box (`rim::arc_segment`) and animated items that can be absent are
     created with `if` or kept in a separate model. A rounded rectangle cannot hold a gradient and a gradient `Path`
