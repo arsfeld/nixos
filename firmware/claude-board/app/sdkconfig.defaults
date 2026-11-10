@@ -3,7 +3,10 @@
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
+# The UI runs on the main task. Rasterizing one stroked Slint Path (zeno) takes about 37 KB of stack, two frames
+# of fixed on-stack arrays; at 16 KB the first arc overflowed into the heap and the next malloc hung until the
+# interrupt watchdog fired. 48 KB leaves ~11 KB of headroom; the heap line logs ui_stack_min_free.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=49152
 CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_OCT=y
 CONFIG_SPIRAM_FETCH_INSTRUCTIONS=y

@@ -33,14 +33,19 @@ impl Outbox for NoWire {
 
 /// Internal RAM is the scarce resource (see sdkconfig.defaults); a line every 30 s shows a leak or a
 /// squeeze long before something fails to allocate.
+/// The UI's task (ESP-IDF's main task), for its stack's low-water mark in the heap line.
+static UI_TASK: std::sync::atomic::AtomicPtr<core::ffi::c_void> = std::sync::atomic::AtomicPtr::new(core::ptr::null_mut());
+
 fn heap_line() {
     unsafe {
+        let ui = UI_TASK.load(std::sync::atomic::Ordering::Relaxed);
         log::info!(
-            "heap: internal free={} largest={} dma_largest={} psram free={}",
+            "heap: internal free={} largest={} dma_largest={} psram free={} ui_stack_min_free={}",
             heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
             heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
             heap_caps_get_largest_free_block(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL),
             heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+            if ui.is_null() { 0 } else { esp_idf_svc::sys::uxTaskGetStackHighWaterMark(ui as _) },
         );
     }
 }
@@ -102,6 +107,7 @@ fn unix_now() -> Option<i64> {
 
 fn main() -> anyhow::Result<()> {
     esp_idf_svc::sys::link_patches();
+    UI_TASK.store(unsafe { esp_idf_svc::sys::xTaskGetCurrentTaskHandle() } as _, std::sync::atomic::Ordering::Relaxed);
     esp_idf_svc::log::EspLogger::initialize_default();
 
     display::init()?;

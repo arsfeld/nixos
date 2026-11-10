@@ -455,6 +455,12 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     drew no rim arcs, command arcs, icons or ticks at all, only text and images. The board repaints its PSRAM
     framebuffer with `render` through `claude_board_ui::frame::paint`, and `ui/tests/partial.rs` runs that exact
     path (reused buffer, partial repaints) on the host.
+  - **Drawing a `Path` needs ~37 KB of stack.** zeno, Slint's rasterizer, keeps two large fixed arrays on the stack.
+    The UI runs on the main task, whose stack was 16 KB: the first arc overflowed into the heap and the next
+    `malloc` hung until the interrupt watchdog fired (`Interrupt wdt timeout on CPU0` in `xPortEnterCriticalTimeout`
+    under `multi_heap_malloc_impl`), so the board froze and rebooted. `CONFIG_ESP_MAIN_TASK_STACK_SIZE` is now 48 KB
+    (internal RAM, about 52 KB left free with everything up); the `heap:` line logs `ui_stack_min_free` (about
+    11.6 KB measured).
   - **Damage regions decide the frame rate.** A `Path` with an animated property repaints its whole box every frame,
     even when hidden: each rim arc has its own tight box (`rim::arc_segment`) and animated items that can be absent are
     created with `if` or kept in a separate model. A rounded rectangle cannot hold a gradient and a gradient `Path`
