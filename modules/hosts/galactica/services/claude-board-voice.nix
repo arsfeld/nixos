@@ -76,6 +76,13 @@
       LockPersonality = true;
       SystemCallArchitectures = "native";
     };
+    # Low priority and bounded memory, so a burst of voice work cannot starve the media stack on
+    # this box. No CPUQuota: it would only add latency while the machine is idle.
+    lowPriority = {
+      Nice = 10;
+      CPUWeight = 20;
+      IOWeight = 20;
+    };
   in {
     # Read by the bridge (LoadCredential) and by Hermes (as API_SERVER_KEY).
     sops.secrets.hermes-api-key.restartUnits = ["claude-board.service" "hermes-agent.service"];
@@ -87,7 +94,9 @@
       wantedBy = ["multi-user.target"];
       serviceConfig =
         hardening
+        // lowPriority
         // {
+          MemoryMax = "2G";
           # 8 threads measured 0.6 s for a 5 s utterance with base.en on this box.
           ExecStart = lib.escapeShellArgs [
             "${pkgs.unstable.whisper-cpp}/bin/whisper-server"
@@ -110,7 +119,9 @@
       wantedBy = ["multi-user.target"];
       serviceConfig =
         hardening
+        // lowPriority
         // {
+          MemoryMax = "1G";
           RestrictAddressFamilies = ["AF_INET"];
           # Always bind loopback: the server's own default is 0.0.0.0.
           ExecStart = lib.escapeShellArgs [
@@ -153,38 +164,41 @@
     users.users.hermes.linger = lib.mkForce false;
 
     systemd.services.hermes-agent = {
-      serviceConfig = {
-        # hermes-env also holds the old gateway's Telegram and dashboard variables, and a Telegram
-        # token would switch on a chat platform with its default toolsets. So the unit gets only the
-        # one line it needs from it, plus the API key, in a file only this service can read.
-        LoadCredential = [
-          "hermes-env:${secrets."hermes-env".path}"
-          "api-key:${secrets.hermes-api-key.path}"
-        ];
-        RuntimeDirectory = "hermes-creature";
-        RuntimeDirectoryMode = "0700";
-        # systemd reads EnvironmentFile just before each command, so ExecStartPre can write it.
-        EnvironmentFile = "-%t/hermes-creature/env";
-        ExecStartPre = [
-          (pkgs.writeShellScript "hermes-creature-env" ''
-            set -eu
-            umask 077
-            {
-              ${pkgs.gnugrep}/bin/grep -E '^DEEPSEEK_API_KEY=' "$CREDENTIALS_DIRECTORY/hermes-env"
-              printf 'API_SERVER_KEY=%s\n' "$(${pkgs.coreutils}/bin/tr -d '\n' < "$CREDENTIALS_DIRECTORY/api-key")"
-            } > "$RUNTIME_DIRECTORY/env"
-          '')
-        ];
-        ProtectHome = lib.mkForce true;
-        PrivateDevices = true;
-        ProtectKernelTunables = true;
-        ProtectKernelModules = true;
-        ProtectControlGroups = true;
-        RestrictAddressFamilies = ["AF_INET" "AF_INET6" "AF_UNIX"];
-        RestrictNamespaces = true;
-        LockPersonality = true;
-        SystemCallArchitectures = "native";
-      };
+      serviceConfig =
+        lowPriority
+        // {
+          MemoryMax = "2G";
+          # hermes-env also holds the old gateway's Telegram and dashboard variables, and a Telegram
+          # token would switch on a chat platform with its default toolsets. So the unit gets only the
+          # one line it needs from it, plus the API key, in a file only this service can read.
+          LoadCredential = [
+            "hermes-env:${secrets."hermes-env".path}"
+            "api-key:${secrets.hermes-api-key.path}"
+          ];
+          RuntimeDirectory = "hermes-creature";
+          RuntimeDirectoryMode = "0700";
+          # systemd reads EnvironmentFile just before each command, so ExecStartPre can write it.
+          EnvironmentFile = "-%t/hermes-creature/env";
+          ExecStartPre = [
+            (pkgs.writeShellScript "hermes-creature-env" ''
+              set -eu
+              umask 077
+              {
+                ${pkgs.gnugrep}/bin/grep -E '^DEEPSEEK_API_KEY=' "$CREDENTIALS_DIRECTORY/hermes-env"
+                printf 'API_SERVER_KEY=%s\n' "$(${pkgs.coreutils}/bin/tr -d '\n' < "$CREDENTIALS_DIRECTORY/api-key")"
+              } > "$RUNTIME_DIRECTORY/env"
+            '')
+          ];
+          ProtectHome = lib.mkForce true;
+          PrivateDevices = true;
+          ProtectKernelTunables = true;
+          ProtectKernelModules = true;
+          ProtectControlGroups = true;
+          RestrictAddressFamilies = ["AF_INET" "AF_INET6" "AF_UNIX"];
+          RestrictNamespaces = true;
+          LockPersonality = true;
+          SystemCallArchitectures = "native";
+        };
     };
 
     # The bridge starts and serves approvals whether or not a backend is up: ordered after, never
