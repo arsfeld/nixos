@@ -169,6 +169,21 @@ for the creature to be idle. Fixture `reminder.json` in
   `hermes-api-server`, whether a header can come from an environment variable, whether JSON-only (non-SSE)
   responses work, and what happens when a server is down at start. Prove `GET /v1/toolsets` lists the core
   bundle and both MCP toolsets as enabled and that a stub tool on each is called.
+- **G1 result (2026-11-10, from the pinned `hermes-agent` source, not a live run).** Servers go under a
+  top-level `mcp_servers:` map; a `url` key makes one remote, `headers:` gives its headers
+  (`tools/mcp_tool_transport.py:119,147`). Every value is `${VAR}`-interpolated from the process
+  environment, so `Authorization: "Bearer ${CLAUDE_BOARD_MCP_TOKEN}"` works, and an unset variable fails closed
+  with a named error instead of sending the literal (`tools/mcp_tool_config.py:159,564,592,729`). The Nix
+  string must emit a literal `${`. Transport is streamable HTTP by default and `application/json` replies are
+  accepted (`tools/mcp_tool.py:449`); no `Mcp-Session-Id` is needed; Hermes adds `mcp-protocol-version`. Each
+  server becomes toolset `mcp-<name>` and is enabled automatically next to `hermes-api-server` and
+  `hermes-cron` unless a platform list names an MCP server, which turns that list into an allowlist
+  (`hermes_cli/tools_config.py:734`), so `platform_toolsets` stays as `3abd1c01` set it. Servers connect at
+  gateway start; one that is down is retried 3 times, then parked and re-probed every 300 s, so no unit
+  ordering is required (`tools/mcp_tool.py:238-243`, `tools/mcp_tool_server_run.py:330,410`); an auth failure
+  parks until credentials change. Leave `trust` unset: `untrusted` gates write tools behind an approval that
+  API and cron runs fail closed on (`tools/mcp_tool_handlers.py:140`). To confirm at deploy: the live
+  `/v1/toolsets` and the `MCP server '...'` journal lines.
 - **G2: what HA 2026.5's MCP server offers.** Its transport (streamable HTTP or SSE only, and whether Hermes
   speaks it), its tool names, whether exposure limits both reading and acting, and whether weather
   forecasts are reachable. **Fallback** if Hermes cannot speak HA's transport: the bridge proxies HA's MCP
