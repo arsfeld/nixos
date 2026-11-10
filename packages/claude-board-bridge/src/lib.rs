@@ -5,6 +5,7 @@ pub mod board;
 pub mod auth;
 pub mod http;
 pub mod state;
+pub mod voice;
 
 use axum::Router;
 
