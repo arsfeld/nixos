@@ -11,7 +11,7 @@ use crate::protocol::{
 use futures_util::StreamExt;
 use futures_util::stream::FuturesOrdered;
 use std::collections::VecDeque;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tokio::task::JoinHandle;
@@ -44,6 +44,14 @@ struct Recording {
     overflow: bool,
 }
 
+/// The utterance a board has been sent `SpeakStart` for and not yet `SpeakEnd`.
+/// Shared with the utterance task so it survives the task being aborted.
+type Speaking = Arc<Mutex<Option<u32>>>;
+
+fn take_speaking(speaking: &Speaking) -> Option<u32> {
+    speaking.lock().ok().and_then(|mut g| g.take())
+}
+
 pub struct Conn {
     backends: Option<Arc<Backends>>,
     cfg: VoiceConfig,
@@ -51,6 +59,7 @@ pub struct Conn {
     recording: Option<Recording>,
     running: Option<(u32, JoinHandle<()>)>,
     starts: VecDeque<Instant>,
+    speaking: Speaking,
 }
 
 impl Drop for Conn {
@@ -58,12 +67,17 @@ impl Drop for Conn {
         if let Some((_, task)) = self.running.take() {
             task.abort();
         }
+        // Best effort: close a speaking turn if the receiver is still there.
+        if let Some(utterance) = take_speaking(&self.speaking) {
+            let _ = self.out.try_send(Out::Json(BoardMsg::SpeakEnd { utterance }));
+            let _ = self.out.try_send(Out::Json(BoardMsg::Creature { mood: Mood::Idle }));
+        }
     }
 }
 
 impl Conn {
     pub fn new(backends: Option<Arc<Backends>>, cfg: VoiceConfig, out: Sender<Out>) -> Conn {
-        Conn { backends, cfg, out, recording: None, running: None, starts: VecDeque::new() }
+        Conn { backends, cfg, out, recording: None, running: None, starts: VecDeque::new(), speaking: Arc::default() }
     }
 
     async fn mood(&self, mood: Mood) {
@@ -71,11 +85,18 @@ impl Conn {
     }
 
     /// Stops whatever is recording or running; true if something was live.
-    fn stop_all(&mut self) -> bool {
+    /// The aborted task is joined first, so it cannot enqueue anything after
+    /// the `SpeakEnd` sent here for a turn that was speaking.
+    async fn stop_all(&mut self) -> bool {
         let mut live = self.recording.take().is_some();
         if let Some((_, task)) = self.running.take() {
             live |= !task.is_finished();
             task.abort();
+            let _ = task.await;
+        }
+        if let Some(utterance) = take_speaking(&self.speaking) {
+            live = true;
+            let _ = self.out.send(Out::Json(BoardMsg::SpeakEnd { utterance })).await;
         }
         live
     }
@@ -83,7 +104,7 @@ impl Conn {
     pub async fn on_client(&mut self, msg: &ClientMsg) {
         match msg {
             ClientMsg::VoiceStart { utterance } => {
-                self.stop_all();
+                let was_live = self.stop_all().await;
                 if self.backends.is_none() {
                     self.mood(Mood::Offline).await;
                     return;
@@ -98,6 +119,10 @@ impl Conn {
                 }
                 self.starts.push_back(now);
                 self.recording = Some(Recording { id: *utterance, buf: Vec::new(), overflow: false });
+                if was_live {
+                    // The old turn is closed; the board is about to record.
+                    self.mood(Mood::Idle).await;
+                }
             }
             ClientMsg::VoiceEnd { utterance } => {
                 let Some(rec) = self.recording.take_if(|r| r.id == *utterance) else { return };
@@ -112,13 +137,14 @@ impl Conn {
                     self.cfg.reply_timeout,
                     rec.id,
                     rec.buf,
+                    self.speaking.clone(),
                 ));
                 self.running = Some((rec.id, task));
             }
             ClientMsg::Cancel { utterance } => {
                 let mine = self.recording.as_ref().is_some_and(|r| r.id == *utterance)
                     || self.running.as_ref().is_some_and(|(id, _)| id == utterance);
-                if mine && self.stop_all() {
+                if mine && self.stop_all().await {
                     self.mood(Mood::Idle).await;
                 }
             }
@@ -168,11 +194,12 @@ async fn run_utterance(
     reply_timeout: Duration,
     id: u32,
     pcm: Vec<u8>,
+    speaking: Speaking,
 ) {
     let start = Instant::now();
     let bytes = pcm.len();
     let mut timing = Timing::default();
-    let result = utterance(&backends, &out, reply_timeout, id, pcm, start, &mut timing).await;
+    let result = utterance(&backends, &out, &speaking, reply_timeout, id, pcm, start, &mut timing).await;
     eprintln!(
         "voice: utt={id} bytes={bytes} stt_ms={} first_delta_ms={} first_audio_ms={} total_ms={}",
         timing.stt_ms,
@@ -180,6 +207,15 @@ async fn run_utterance(
         timing.first_audio_ms,
         start.elapsed().as_millis()
     );
+    if matches!(result, Err(Failure::Closed)) {
+        return;
+    }
+    // Every exit path closes a speaking turn before the mood.
+    if let Some(utterance) = take_speaking(&speaking) {
+        if put_json(&out, BoardMsg::SpeakEnd { utterance }).await.is_err() {
+            return;
+        }
+    }
     let mood = match result {
         Ok(()) => Mood::Idle,
         Err(Failure::Backend) => Mood::Offline,
@@ -191,6 +227,7 @@ async fn run_utterance(
 async fn utterance(
     backends: &Backends,
     out: &Sender<Out>,
+    speaking: &Speaking,
     reply_timeout: Duration,
     id: u32,
     pcm: Vec<u8>,
@@ -204,7 +241,7 @@ async fn utterance(
         return Ok(());
     }
     put_json(out, BoardMsg::Transcript { utterance: id, text: text.clone() }).await?;
-    match tokio::time::timeout(reply_timeout, reply(backends, out, id, text, start, timing)).await {
+    match tokio::time::timeout(reply_timeout, reply(backends, out, speaking, id, text, start, timing)).await {
         Ok(r) => r,
         Err(_) => Err(Failure::Backend),
     }
@@ -214,6 +251,7 @@ async fn utterance(
 async fn reply(
     backends: &Backends,
     out: &Sender<Out>,
+    speaking: &Speaking,
     id: u32,
     text: String,
     start: Instant,
@@ -225,7 +263,7 @@ async fn reply(
     let mut full = String::new();
     let mut deltas_done = false;
     let mut tts_failed = false;
-    let mut speaking = false;
+    let mut started = false;
     let chunk = DOWNLINK_CHUNK_MAX - AUDIO_HEADER_LEN;
     while !(deltas_done && synths.is_empty()) {
         tokio::select! {
@@ -258,11 +296,15 @@ async fn reply(
             },
             Some(speech) = synths.next(), if !synths.is_empty() => match speech {
                 Ok(speech) => {
-                    if !speaking {
-                        speaking = true;
+                    if !started {
+                        started = true;
                         timing.first_audio_ms = start.elapsed().as_millis().max(1);
                         put_json(out, BoardMsg::Creature { mood: Mood::Speaking }).await?;
                         put_json(out, BoardMsg::SpeakStart { utterance: id, sample_rate: speech.sample_rate }).await?;
+                        // No await between the send completing and this, so an abort cannot split them.
+                        if let Ok(mut g) = speaking.lock() {
+                            *g = Some(id);
+                        }
                     }
                     for part in chunk_pcm(&speech.pcm, chunk) {
                         put(out, Out::Audio(encode_audio(id, part))).await?;
@@ -275,9 +317,6 @@ async fn reply(
                 }
             },
         }
-    }
-    if speaking {
-        put_json(out, BoardMsg::SpeakEnd { utterance: id }).await?;
     }
     Ok(())
 }

@@ -52,12 +52,19 @@ impl Stt for FakeStt {
 
 struct FakeTts {
     bytes: usize,
+    hang: bool,
 }
 
 impl Tts for FakeTts {
     fn synthesize(&self, _text: String) -> BoxFuture<'static, Result<Speech, VoiceError>> {
         let n = self.bytes;
-        Box::pin(async move { Ok(Speech { sample_rate: 22050, pcm: vec![1; n] }) })
+        let hang = self.hang;
+        Box::pin(async move {
+            if hang {
+                std::future::pending::<()>().await;
+            }
+            Ok(Speech { sample_rate: 22050, pcm: vec![1; n] })
+        })
     }
 }
 
@@ -79,6 +86,10 @@ struct FakeBrain {
     /// (delay before the delta, delta)
     script: Vec<(Duration, String)>,
     hang: bool,
+    /// After the script, fail the stream (after 10 ms) instead of ending it.
+    error: bool,
+    /// The first this-many asks hang after their script.
+    hang_first: AtomicUsize,
     asks: AtomicUsize,
     stops: Arc<AtomicUsize>,
     finished: Arc<AtomicBool>,
@@ -86,7 +97,21 @@ struct FakeBrain {
 
 impl FakeBrain {
     fn new(script: &[(u64, &str)], hang: bool) -> Arc<FakeBrain> {
+        Self::make(script, hang, false, 0)
+    }
+
+    fn failing(script: &[(u64, &str)]) -> Arc<FakeBrain> {
+        Self::make(script, false, true, 0)
+    }
+
+    fn hang_first(script: &[(u64, &str)], n: usize) -> Arc<FakeBrain> {
+        Self::make(script, false, false, n)
+    }
+
+    fn make(script: &[(u64, &str)], hang: bool, error: bool, hang_first: usize) -> Arc<FakeBrain> {
         Arc::new(FakeBrain {
+            error,
+            hang_first: AtomicUsize::new(hang_first),
             script: script.iter().map(|(ms, s)| (Duration::from_millis(*ms), s.to_string())).collect(),
             hang,
             asks: AtomicUsize::new(0),
@@ -100,7 +125,8 @@ impl Brain for FakeBrain {
     fn ask(&self, _text: String) -> BoxFuture<'static, Result<Reply, VoiceError>> {
         self.asks.fetch_add(1, Ordering::SeqCst);
         let script = self.script.clone();
-        let hang = self.hang;
+        let hang = self.hang || self.hang_first.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1)).is_ok();
+        let error = self.error;
         let guard = StopGuard { stops: self.stops.clone(), armed: true };
         let finished = self.finished.clone();
         Box::pin(async move {
@@ -115,6 +141,10 @@ impl Brain for FakeBrain {
                     }
                     if hang {
                         std::future::pending::<()>().await;
+                    }
+                    if error && i == script.len() {
+                        tokio::time::sleep(Duration::from_millis(10)).await;
+                        return Some((Err(VoiceError::Unavailable("boom".into())), (i + 1, guard)));
                     }
                     guard.armed = false;
                     drop(guard);
@@ -135,6 +165,8 @@ struct Rig {
     rx: mpsc::Receiver<Out>,
     stt: Arc<FakeStt>,
     brain: Arc<FakeBrain>,
+    /// Everything received so far, in order.
+    log: Vec<Out>,
 }
 
 fn rig(brain: Arc<FakeBrain>, tts_bytes: usize, cfg: VoiceConfig) -> Rig {
@@ -146,10 +178,10 @@ fn rig_with(stt: Arc<FakeStt>, brain: Arc<FakeBrain>, tts_bytes: usize, cfg: Voi
     let (tx, rx) = mpsc::channel(256);
     let backends = Arc::new(Backends {
         stt: stt.clone(),
-        tts: Arc::new(FakeTts { bytes: tts_bytes }),
+        tts: Arc::new(FakeTts { bytes: tts_bytes, hang: false }),
         brain: brain.clone(),
     });
-    Rig { conn: Conn::new(Some(backends), cfg, tx), rx, stt, brain }
+    Rig { conn: Conn::new(Some(backends), cfg, tx), rx, stt, brain, log: Vec::new() }
 }
 
 fn mood(m: Mood) -> Out {
@@ -165,10 +197,12 @@ impl Rig {
     }
 
     async fn next(&mut self) -> Out {
-        tokio::time::timeout(Duration::from_secs(120), self.rx.recv())
+        let m = tokio::time::timeout(Duration::from_secs(120), self.rx.recv())
             .await
             .expect("timed out waiting for output")
-            .expect("channel closed")
+            .expect("channel closed");
+        self.log.push(m.clone());
+        m
     }
 
     /// Messages up to and including the next Idle or Offline.
@@ -187,9 +221,28 @@ impl Rig {
     fn drain(&mut self) -> Vec<Out> {
         let mut v = Vec::new();
         while let Ok(m) = self.rx.try_recv() {
+            self.log.push(m.clone());
             v.push(m);
         }
         v
+    }
+}
+
+fn speak_starts(log: &[Out]) -> usize {
+    log.iter().filter(|m| matches!(m, Out::Json(BoardMsg::SpeakStart { .. }))).count()
+}
+
+fn speak_ends(log: &[Out]) -> usize {
+    log.iter().filter(|m| matches!(m, Out::Json(BoardMsg::SpeakEnd { .. }))).count()
+}
+
+/// Every SpeakStart is closed by exactly one SpeakEnd, directly followed by a mood.
+fn assert_balanced(log: &[Out]) {
+    assert_eq!(speak_starts(log), speak_ends(log), "unbalanced SpeakStart/SpeakEnd in {log:?}");
+    for (i, m) in log.iter().enumerate() {
+        if matches!(m, Out::Json(BoardMsg::SpeakEnd { .. })) {
+            assert!(matches!(log.get(i + 1), Some(Out::Json(BoardMsg::Creature { .. }))), "no mood after SpeakEnd in {log:?}");
+        }
     }
 }
 
@@ -279,7 +332,7 @@ async fn stt_failure_reports_offline_and_returns_to_idle_later() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn brain_timeout_stops_the_run_and_returns_to_idle() {
+async fn brain_timeout_reports_offline_and_stops_the_run() {
     let brain = FakeBrain::new(&[], true);
     let cfg = VoiceConfig { reply_timeout: Duration::from_millis(50), ..VoiceConfig::default() };
     let mut r = rig(brain, 1000, cfg);
@@ -287,9 +340,66 @@ async fn brain_timeout_stops_the_run_and_returns_to_idle() {
     let got = r.until_terminal().await;
     assert_eq!(got.last(), Some(&mood(Mood::Offline)));
     assert_eq!(r.brain.stops.load(Ordering::SeqCst), 1, "the run was not stopped");
-    // The next utterance works again (and ends Idle).
-    let brain2_ok = r.stt.calls.load(Ordering::SeqCst);
-    assert_eq!(brain2_ok, 1);
+}
+
+#[tokio::test(start_paused = true)]
+async fn brain_timeout_then_next_utterance_returns_to_idle() {
+    let brain = FakeBrain::hang_first(&[(0, "Hello there friend. ")], 1);
+    let cfg = VoiceConfig { reply_timeout: Duration::from_millis(50), ..VoiceConfig::default() };
+    let mut r = rig(brain, 1000, cfg);
+    r.speak(1, 3200).await;
+    assert_eq!(r.until_terminal().await.last(), Some(&mood(Mood::Offline)));
+    r.speak(2, 3200).await;
+    let got = r.until_terminal().await;
+    assert_eq!(got.last(), Some(&mood(Mood::Idle)));
+    assert!(!got.contains(&mood(Mood::Offline)));
+    assert_balanced(&r.log);
+}
+
+#[tokio::test(start_paused = true)]
+async fn timeout_mid_speech_sends_speakend_then_offline() {
+    let brain = FakeBrain::new(&[(0, "Hello there friend. ")], true);
+    let cfg = VoiceConfig { reply_timeout: Duration::from_millis(50), ..VoiceConfig::default() };
+    let mut r = rig(brain, 1000, cfg);
+    r.speak(1, 3200).await;
+    let got = r.until_terminal().await;
+    let n = got.len();
+    assert_eq!(got[n - 2], Out::Json(BoardMsg::SpeakEnd { utterance: 1 }));
+    assert_eq!(got[n - 1], mood(Mood::Offline));
+    assert_eq!(speak_starts(&got), 1);
+    assert_balanced(&r.log);
+}
+
+#[tokio::test(start_paused = true)]
+async fn brain_error_mid_speech_sends_speakend_then_offline() {
+    let brain = FakeBrain::failing(&[(0, "Hello there friend. ")]);
+    let mut r = rig(brain, 1000, VoiceConfig::default());
+    r.speak(1, 3200).await;
+    let got = r.until_terminal().await;
+    let n = got.len();
+    assert_eq!(speak_starts(&got), 1);
+    assert_eq!(got[n - 2], Out::Json(BoardMsg::SpeakEnd { utterance: 1 }));
+    assert_eq!(got[n - 1], mood(Mood::Offline));
+    assert_balanced(&r.log);
+}
+
+#[tokio::test(start_paused = true)]
+async fn hung_tts_is_bounded_by_the_reply_timeout() {
+    let (tx, rx) = mpsc::channel(256);
+    let stt = FakeStt::new("hi");
+    let brain = FakeBrain::new(&[(0, "Hello there friend. ")], false);
+    let backends = Arc::new(Backends {
+        stt: stt.clone(),
+        tts: Arc::new(FakeTts { bytes: 1000, hang: true }),
+        brain: brain.clone(),
+    });
+    let cfg = VoiceConfig { reply_timeout: Duration::from_millis(50), ..VoiceConfig::default() };
+    let conn = Conn::new(Some(backends), cfg, tx);
+    let mut r = Rig { conn, rx, stt, brain, log: Vec::new() };
+    r.speak(1, 3200).await;
+    let got = r.until_terminal().await;
+    assert_eq!(got.last(), Some(&mood(Mood::Offline)));
+    assert_eq!(speak_starts(&got), 0);
 }
 
 async fn mid_reply_rig() -> Rig {
@@ -310,8 +420,91 @@ async fn cancel_aborts_speech_and_stops_the_run() {
     let mut r = mid_reply_rig().await;
     r.conn.on_client(&ClientMsg::Cancel { utterance: 1 }).await;
     tokio::time::sleep(Duration::from_secs(1)).await;
-    assert_eq!(r.drain(), vec![mood(Mood::Idle)]);
     assert_eq!(r.brain.stops.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test(start_paused = true)]
+async fn cancel_mid_speech_sends_speakend_then_idle() {
+    let mut r = mid_reply_rig().await;
+    r.conn.on_client(&ClientMsg::Cancel { utterance: 1 }).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    assert_eq!(r.drain(), vec![Out::Json(BoardMsg::SpeakEnd { utterance: 1 }), mood(Mood::Idle)]);
+    assert_balanced(&r.log);
+}
+
+#[tokio::test(start_paused = true)]
+async fn replacing_voicestart_closes_the_old_turn_and_sends_idle() {
+    let mut r = mid_reply_rig().await;
+    r.conn.on_client(&ClientMsg::VoiceStart { utterance: 2 }).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    assert_eq!(r.drain(), vec![Out::Json(BoardMsg::SpeakEnd { utterance: 1 }), mood(Mood::Idle)]);
+    assert_eq!(r.brain.stops.load(Ordering::SeqCst), 1);
+    assert_balanced(&r.log);
+}
+
+#[tokio::test(start_paused = true)]
+async fn speakend_is_sent_exactly_once_per_speakstart() {
+    let mut r = mid_reply_rig().await;
+    r.conn.on_client(&ClientMsg::Cancel { utterance: 1 }).await;
+    r.conn.on_client(&ClientMsg::Cancel { utterance: 1 }).await;
+    r.conn.on_client(&ClientMsg::VoiceStart { utterance: 2 }).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    r.drain();
+    assert_eq!(speak_starts(&r.log), 1);
+    assert_eq!(speak_ends(&r.log), 1);
+    assert_balanced(&r.log);
+}
+
+#[tokio::test(start_paused = true)]
+async fn stale_id_cancel_leaves_the_current_run_alone() {
+    let mut r = mid_reply_rig().await;
+    r.conn.on_client(&ClientMsg::Cancel { utterance: 99 }).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    assert!(r.drain().is_empty());
+    assert_eq!(r.brain.stops.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test(start_paused = true)]
+async fn voiceend_with_the_wrong_id_leaves_the_recording_in_place() {
+    let mut r = rig(two_sentences(), 1000, VoiceConfig::default());
+    r.conn.on_client(&ClientMsg::VoiceStart { utterance: 1 }).await;
+    r.conn.on_audio(&encode_audio(1, &[0; 1600]));
+    r.conn.on_client(&ClientMsg::VoiceEnd { utterance: 2 }).await;
+    r.conn.on_audio(&encode_audio(1, &[0; 1600]));
+    r.conn.on_client(&ClientMsg::VoiceEnd { utterance: 1 }).await;
+    r.until_terminal().await;
+    assert_eq!(*r.stt.seen.lock().unwrap(), vec![3200]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn every_chunk_is_sample_aligned() {
+    let brain = FakeBrain::new(&[(0, "One long sentence here.")], false);
+    let mut r = rig(brain, 100_001, VoiceConfig::default());
+    r.speak(1, 3200).await;
+    let got = r.until_terminal().await;
+    let mut n = 0;
+    for m in &got {
+        if let Out::Audio(f) = m {
+            assert_eq!((f.len() - AUDIO_HEADER_LEN) % 2, 0);
+            n += 1;
+        }
+    }
+    assert!(n > 0);
+}
+
+#[tokio::test(start_paused = true)]
+async fn rate_limiter_frees_a_slot_at_exactly_60_seconds() {
+    let mut r = rig(FakeBrain::new(&[(0, "Fine thanks.")], false), 100, VoiceConfig::default());
+    for id in 1..=10 {
+        r.speak(id, 3200).await;
+        r.until_terminal().await;
+    }
+    tokio::time::sleep(Duration::from_millis(59_999)).await;
+    r.speak(11, 3200).await;
+    assert_eq!(r.until_terminal().await, vec![mood(Mood::Idle)]);
+    tokio::time::sleep(Duration::from_millis(1)).await;
+    r.speak(12, 3200).await;
+    assert_eq!(r.until_terminal().await[0], mood(Mood::Thinking));
 }
 
 #[tokio::test(start_paused = true)]
@@ -320,6 +513,9 @@ async fn dropping_conn_mid_reply_stops_the_run_and_sends_nothing_more() {
     drop(r.conn);
     tokio::time::sleep(Duration::from_secs(1)).await;
     assert_eq!(r.brain.stops.load(Ordering::SeqCst), 1);
+    // Best effort: the speaking turn is closed, then nothing more and the channel closes.
+    assert_eq!(r.rx.try_recv(), Ok(Out::Json(BoardMsg::SpeakEnd { utterance: 1 })));
+    assert_eq!(r.rx.try_recv(), Ok(mood(Mood::Idle)));
     assert!(matches!(r.rx.try_recv(), Err(mpsc::error::TryRecvError::Disconnected)));
 }
 
