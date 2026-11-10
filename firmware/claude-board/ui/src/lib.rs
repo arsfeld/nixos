@@ -9,4 +9,5 @@ pub mod link;
 pub mod power;
 pub mod rim;
 pub mod theme;
+pub mod touch;
 pub mod view;

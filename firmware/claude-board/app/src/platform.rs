@@ -8,8 +8,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use slint::platform::software_renderer::{LineBufferProvider, MinimalSoftwareWindow, RepaintBufferType, Rgb565Pixel};
-use slint::platform::{Platform, PointerEventButton, WindowAdapter, WindowEvent};
-use slint::LogicalPosition;
+use claude_board_ui::touch::TouchTracker;
+use slint::platform::{Platform, WindowAdapter};
 
 use crate::display::{self, Strips, HEIGHT, WIDTH};
 
@@ -66,7 +66,9 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, mut each_loop: impl FnMut()) -> a
     let mut pixels = vec![Rgb565Pixel(0); WIDTH * HEIGHT]; // PSRAM
     let mut frame = Frame { px: &mut pixels, first: usize::MAX, last: 0 };
     let mut strips = Strips::new()?;
-    let (mut was_pressed, mut last_touch) = (false, Instant::now());
+    let (mut tracker, mut last_touch) = (TouchTracker::new(), Instant::now());
+    // Touch diagnostics: polls that could be read, polls that could not, presses seen.
+    let (mut reads_ok, mut reads_failed, mut presses, mut last_report) = (0u32, 0u32, 0u32, Instant::now());
 
     loop {
         slint::platform::update_timers_and_animations();
@@ -85,21 +87,25 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, mut each_loop: impl FnMut()) -> a
 
         if last_touch.elapsed() >= Duration::from_millis(20) {
             last_touch = Instant::now();
-            if let Some(t) = display::touch() {
-                let position = LogicalPosition::new(t.x as f32, t.y as f32);
+            let polled = display::touch();
+            if polled.is_some() { reads_ok += 1 } else { reads_failed += 1 }
+            if let Some(t) = polled {
                 if t.pressed {
                     TOUCHED.store(true, Ordering::SeqCst);
                 }
-                if t.pressed && !was_pressed {
-                    window.dispatch_event(WindowEvent::PointerPressed { position, button: PointerEventButton::Left });
-                } else if t.pressed {
-                    window.dispatch_event(WindowEvent::PointerMoved { position });
-                } else if was_pressed {
-                    window.dispatch_event(WindowEvent::PointerReleased { position, button: PointerEventButton::Left });
-                    window.dispatch_event(WindowEvent::PointerExited);
+                for event in tracker.update(t.x, t.y, t.pressed) {
+                    if let slint::platform::WindowEvent::PointerPressed { position, .. } = &event {
+                        presses += 1;
+                        log::info!("touch down at ({}, {})", position.x, position.y);
+                    }
+                    window.dispatch_event(event);
                 }
-                was_pressed = t.pressed;
             }
+        }
+
+        if last_report.elapsed() >= Duration::from_secs(5) {
+            last_report = Instant::now();
+            log::info!("touch polls: {reads_ok} ok, {reads_failed} unreadable, {presses} presses");
         }
 
         std::thread::sleep(Duration::from_millis(1)); // yields to the idle task and the watchdog
