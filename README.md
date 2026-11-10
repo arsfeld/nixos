@@ -61,6 +61,45 @@ just deploy @tier1     # deploy all tier-1 hosts
 - **Declarative Everything** - Including disk partitioning (disko)
 - **CI/CD** - GitHub Actions builds all hosts, pushes to niks3, weekly flake updates
 
+## Cylon Bot
+
+A Waveshare ESP32-S3 AMOLED 1.75C (round 466×466 touch screen, speaker, microphone) that
+sits on the desk and shows every Claude Code session across the fleet.
+
+```
+hooks on every host --HTTPS--> cylon-bot-bridge (galactica) <--wss-- board (firmware/cylon-bot)
+```
+
+- **Session board** - Home is a Cylon Centurion head inside a ring of arcs, one per session,
+  coloured by state. Tap through to a session's live feed of prompts, tool calls and replies.
+- **Answering from the desk** - Claude's multiple-choice questions take over the screen and
+  are answered with a tap. Tool approvals can optionally be allowed or denied from the board too.
+  No board, no answer or a timeout fall through to the normal terminal prompt.
+- **Voice** - Hold the avatar to talk. Speech is transcribed by whisper.cpp, answered by a
+  persistent Hermes assistant, and spoken back through Piper with a Centurion voice effect.
+  The assistant can set timers, report the weather and control exposed Home Assistant devices.
+- **Commands** - Swipe down from the top for volume, link status and a purge of the
+  conversation's memory.
+
+| Part | Where |
+|------|-------|
+| Hooks (`cylon-bot-hook`, installed by home-manager) | `packages/cylon-bot-hook` |
+| Bridge (Rust, axum) and its voice services | `packages/cylon-bot-bridge`, `modules/hosts/galactica/services/cylon-bot*.nix` |
+| Shared wire types and board model | `packages/cylon-bot-proto` |
+| Firmware (Rust, `esp-idf-svc`, Slint) | `firmware/cylon-bot` |
+
+```bash
+just board backup    # save the full flash first
+just board creds     # write credentials from sops
+just board build
+just board flash
+just board monitor
+just board preview   # render every screen to PNG, no board needed
+```
+
+Details, traps and deploy order are in [CLAUDE.md](CLAUDE.md#cylon-bot-esp32-session-board) and
+the specs under `docs/superpowers/specs/`.
+
 ## Quick Start
 
 ```bash
@@ -106,6 +145,7 @@ modules/               # Every .nix file is a flake-parts module (paths with /_ 
   backup/ desktop/ ... #   Other features, flake.modules.nixos.<feature>
 home/                  # Home Manager configurations
 packages/              # Custom Nix derivations (packages/<name>/package.nix)
+firmware/cylon-bot/    # ESP32 session board firmware (Rust + Slint)
 secrets/               # Encrypted secrets (sops/*.yaml)
 ```
 
