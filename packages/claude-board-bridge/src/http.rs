@@ -49,6 +49,10 @@ pub struct AppState {
     pub board_connected: Arc<AtomicUsize>,
     /// How often the board socket is pinged, so Cloudflare's idle timeout never closes it.
     pub ping_every: Duration,
+    /// How long past two pings a board socket may go without a frame from its board and still claim
+    /// reminders. The board answers every ping, so a socket silent for longer has lost its board, even
+    /// if a proxy keeps the connection open.
+    pub heard_slack: Duration,
     /// The speech and brain backends; `None` leaves the creature offline.
     pub voice: Option<Arc<Backends>>,
     pub voice_cfg: VoiceConfig,
@@ -72,6 +76,7 @@ impl AppState {
             fail_delay,
             board_connected: Arc::new(AtomicUsize::new(0)),
             ping_every: Duration::from_secs(30),
+            heard_slack: Duration::from_secs(10),
             voice: None,
             voice_cfg: VoiceConfig::default(),
             uplink: Arc::default(),
@@ -95,6 +100,11 @@ impl AppState {
 
     pub fn with_ping_every(mut self, every: Duration) -> AppState {
         self.ping_every = every;
+        self
+    }
+
+    pub fn with_heard_slack(mut self, slack: Duration) -> AppState {
+        self.heard_slack = slack;
         self
     }
 

@@ -365,21 +365,37 @@ async fn serve(s: AppState, socket: WebSocket) {
     let mut due = s.due.clone();
     due.borrow_and_update();
     let mut scheduled = true;
+    // Behind Cloudflare, cloudflared and Caddy a socket whose board vanished stays open for minutes,
+    // its pings landing in buffers, so only a socket that heard from its board lately claims: the board
+    // answers every ping. A due timer it passes over stays in the store, announced again within a minute.
+    let heard_within = 2 * s.ping_every + s.heard_slack;
+    let mut heard = Instant::now();
     claim_reminders(&s, &uplink.tx);
     loop {
         tokio::select! {
             // The writer ending means a failed send: the socket is gone.
             _ = &mut writer.0 => break,
             r = due.changed(), if scheduled => match r {
-                Ok(()) => claim_reminders(&s, &uplink.tx),
-                // No scheduler: only the claim on connect.
+                Ok(()) if heard.elapsed() <= heard_within => claim_reminders(&s, &uplink.tx),
+                Ok(()) => {}
+                // No scheduler: only the claim on connect (and on being heard again).
                 Err(_) => scheduled = false,
             },
-            incoming = stream.next() => match incoming {
-                Some(Ok(Message::Text(t))) => handle(&s, &watching, &history, &mut uplink, t.as_str()),
-                Some(Ok(Message::Binary(b))) => uplink.audio(b.to_vec()),
-                Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
-                Some(Ok(_)) => {}
+            incoming = stream.next() => {
+                if let Some(Ok(_)) = &incoming {
+                    // Heard again after a silence: claim what was passed over meanwhile.
+                    if heard.elapsed() > heard_within {
+                        claim_reminders(&s, &uplink.tx);
+                    }
+                    heard = Instant::now();
+                }
+                match incoming {
+                    Some(Ok(Message::Text(t))) => handle(&s, &watching, &history, &mut uplink, t.as_str()),
+                    Some(Ok(Message::Binary(b))) => uplink.audio(b.to_vec()),
+                    Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
+                    // Pongs (and pings) count as hearing from the board, above.
+                    Some(Ok(_)) => {}
+                }
             }
         }
     }

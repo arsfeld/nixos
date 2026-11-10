@@ -323,3 +323,52 @@ async fn scheduler_drops_a_timer_past_grace_with_no_board() {
     make_due(&clock, &timers, "tea", REMINDER_GRACE_SECS + 2);
     wait_for("the scheduler dropped it", || timers.list().is_empty()).await;
 }
+
+/// Pinged every 100 ms with no slack: a socket that sends nothing for 200 ms is not heard from.
+fn quick_pings(timers: &Arc<Timers>) -> AppState {
+    state(1000).with_ping_every(Duration::from_millis(100)).with_heard_slack(Duration::ZERO).with_timers(timers.clone())
+}
+
+/// A socket whose board vanished behind a proxy stays open; it must not win the claim. `silent` is
+/// never polled, so its client never answers the bridge's pings.
+#[tokio::test]
+async fn a_silent_socket_does_not_claim_reminders() {
+    let (clock, timers) = timers(None);
+    let addr = serve(quick_pings(&timers)).await;
+    let (mut silent, _) = connect_board(addr).await;
+    let (mut live, _) = connect_board(addr).await;
+    quiet_for(&mut live, 600).await;
+    let mut labels = vec![];
+    for label in ["one", "two", "three", "four"] {
+        make_due(&clock, &timers, label, 1);
+        for g in quiet_for(&mut live, 300).await {
+            if let Got::Json(v) = g {
+                if v["t"] == "reminder" {
+                    labels.push(v["label"].as_str().unwrap().to_string());
+                }
+            }
+        }
+    }
+    assert_eq!(labels, ["one", "two", "three", "four"]);
+    assert_eq!(reminders(&quiet_for(&mut silent, 300).await), 0);
+}
+
+#[tokio::test]
+async fn a_lone_silent_socket_leaves_the_timer_until_it_is_heard_again() {
+    let (clock, timers) = timers(None);
+    let addr = serve(quick_pings(&timers)).await;
+    let (mut ws, _) = connect_board(addr).await;
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    let id = make_due(&clock, &timers, "tea", 1);
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(timers.list().len(), 1, "a silent socket claimed it");
+    // Reading again answers the pings; the socket is heard and claims.
+    let got = quiet_for(&mut ws, 600).await;
+    let ids: Vec<&Value> = got.iter().filter_map(|g| match g {
+        Got::Json(v) if v["t"] == "reminder" => Some(&v["id"]),
+        _ => None,
+    })
+    .collect();
+    assert_eq!(ids, [&json!(id)]);
+    assert!(timers.list().is_empty());
+}
