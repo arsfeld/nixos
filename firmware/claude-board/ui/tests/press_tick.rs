@@ -85,6 +85,7 @@ fn a_list_row_tap_survives_a_bridge_message_between_press_and_release() {
 fn an_option_tap_survives_a_tick_between_press_and_release() {
     let f = fx();
     f.c.on_message(&load("question_single"));
+    f.c.tick(Some(NOW)); // taps in the first 500 ms after a question appears are ignored
     f.h.render();
     f.press(233.0, 201.0); // the first option, Red
     f.c.tick(Some(NOW));
@@ -99,12 +100,13 @@ fn the_double_tap_guard_lasts_400_ms_across_a_tick_boundary() {
     let f = fx();
     f.c.set_time_ms(10_000);
     f.c.on_message(&load("question_multi"));
-    f.ui.invoke_option_tapped(1); // fruit: Pear, answered at t = 10 s
+    f.c.set_time_ms(10_500); // the question has been up for 500 ms: it can be tapped
+    f.ui.invoke_option_tapped(1); // fruit: Pear, answered at t = 10.5 s
     assert_eq!(f.ui.get_question_text(), "Which toppings?");
-    f.c.tick_at(Some(NOW), 10_250); // the app's refresh lands in between
+    f.c.tick_at(Some(NOW), 10_750); // the app's refresh lands in between
     f.ui.invoke_option_tapped(0); // 250 ms after the answer: still a double tap
     assert!(f.ui.get_options().iter().all(|o| !o.selected), "a tap 250 ms after an answer must be ignored");
-    f.c.set_time_ms(10_450);
+    f.c.set_time_ms(10_950);
     f.ui.invoke_option_tapped(0); // 450 ms: a deliberate tap
     assert!(f.ui.get_options().iter().any(|o| o.selected));
 }

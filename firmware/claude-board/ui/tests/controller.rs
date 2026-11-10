@@ -51,6 +51,12 @@ impl Fixture {
     fn feed(&self, name: &str) {
         self.c.on_message(&load(name));
     }
+    /// A question message, then half a second: the question has been up long enough to be tapped (taps in the
+    /// first 500 ms after one appears are ignored).
+    fn ask(&self, name: &str) {
+        self.feed(name);
+        self.c.tick(Some(NOW));
+    }
     fn sent(&self) -> Vec<Value> {
         self.wire.sent.borrow().iter().map(|s| serde_json::from_str(s).unwrap()).collect()
     }
@@ -84,7 +90,7 @@ fn home_summary_says_what_needs_attention() {
 #[test]
 fn single_select_option_sends_the_answer_once() {
     let f = fixture();
-    f.feed("question_single");
+    f.ask("question_single");
     f.ui.invoke_option_tapped(1);
     let sent = f.sent();
     assert_eq!(sent.len(), 1);
@@ -95,7 +101,7 @@ fn single_select_option_sends_the_answer_once() {
 #[test]
 fn double_tap_on_an_option_sends_one_answer() {
     let f = fixture();
-    f.feed("question_single");
+    f.ask("question_single");
     f.ui.invoke_option_tapped(1);
     f.ui.invoke_option_tapped(1);
     assert_eq!(f.sent().len(), 1);
@@ -106,7 +112,7 @@ fn double_tap_does_not_answer_the_next_question_of_the_same_ask() {
     // With several questions the second tap would answer the next one by mistake: it is ignored until the
     // next tick.
     let g = fixture();
-    g.feed("question_multi");
+    g.ask("question_multi");
     g.ui.invoke_option_tapped(1);
     g.ui.invoke_option_tapped(0);
     assert_eq!(g.ui.get_question_text(), "Which toppings?", "moved on to the second question");
@@ -120,7 +126,7 @@ fn double_tap_does_not_answer_the_next_question_of_the_same_ask() {
 #[test]
 fn multi_select_toggles_then_done_sends_joined_labels() {
     let f = fixture();
-    f.feed("question_multi");
+    f.ask("question_multi");
     f.ui.invoke_option_tapped(0); // fruit: Apple
     f.c.tick(Some(NOW));
     assert!(f.ui.get_multi());
@@ -140,7 +146,7 @@ fn multi_select_toggles_then_done_sends_joined_labels() {
 #[test]
 fn done_with_nothing_selected_sends_nothing() {
     let f = fixture();
-    f.feed("question_multi");
+    f.ask("question_multi");
     f.ui.invoke_option_tapped(1);
     f.c.tick(Some(NOW));
     assert!(!f.ui.get_can_done());
@@ -151,7 +157,7 @@ fn done_with_nothing_selected_sends_nothing() {
 #[test]
 fn decline_sends_decline_and_hides_the_question() {
     let f = fixture();
-    f.feed("question_single");
+    f.ask("question_single");
     f.ui.invoke_decline_tapped();
     assert_eq!(f.sent(), vec![serde_json::json!({"t":"decline","id":"00000000000000000000000000000001"})]);
     assert_ne!(f.ui.get_page(), Page::Question);
@@ -160,13 +166,13 @@ fn decline_sends_decline_and_hides_the_question() {
 #[test]
 fn stale_selection_is_cleared_when_a_snapshot_drops_and_the_same_ask_returns() {
     let f = fixture();
-    f.feed("question_multi");
+    f.ask("question_multi");
     f.ui.invoke_option_tapped(0);
     f.c.tick(Some(NOW));
     f.ui.invoke_option_tapped(1); // Cream selected
     assert!(f.options()[1].1);
     f.feed("state"); // the bridge restarted: snapshot, then the pending question again
-    f.feed("question_multi");
+    f.ask("question_multi");
     assert_eq!(f.ui.get_page(), Page::Question);
     assert_eq!(f.ui.get_question_text(), "Which fruit?", "back at the first question");
     f.ui.invoke_option_tapped(0);
@@ -293,7 +299,7 @@ fn an_answer_sent_while_offline_is_still_consumed() {
     // Parity with the C firmware: the question is not kept on screen; the bridge times it out.
     let f = fixture();
     f.wire.online.set(false);
-    f.feed("question_single");
+    f.ask("question_single");
     f.ui.invoke_option_tapped(0);
     assert_eq!(f.sent().len(), 1);
     assert_ne!(f.ui.get_page(), Page::Question);
@@ -384,6 +390,20 @@ fn history_then_a_duplicate_entry_shows_each_row_once() {
 }
 
 #[test]
+fn switching_the_watched_session_empties_the_feed_on_the_same_page() {
+    // detail.slint starts following the newest row again when the feed goes empty, so the controller must empty
+    // it whenever the watched session changes, also when the detail page stays on screen.
+    let f = fixture();
+    open_raider(&f);
+    f.feed("history");
+    assert!(!f.ui.get_feed_empty());
+    f.ui.invoke_rim_tapped(60.0); // galactica, straight from one detail to the next
+    assert_eq!((f.ui.get_page(), f.ui.get_detail_host().to_string()), (Page::Detail, "galactica".into()));
+    assert!(f.ui.get_feed_empty());
+    assert_eq!(f.ui.get_feed().row_count(), 0);
+}
+
+#[test]
 fn tapping_a_row_expands_its_full_text_and_back_closes_it() {
     let f = fixture();
     open_raider(&f);
@@ -396,4 +416,85 @@ fn tapping_a_row_expands_its_full_text_and_back_closes_it() {
     assert_eq!(f.ui.get_expanded_text(), "fix the build");
     f.ui.invoke_back_tapped();
     assert_eq!(f.ui.get_expanded_text(), "");
+}
+
+#[test]
+fn a_tap_right_after_a_new_question_appears_is_ignored() {
+    // A tap meant for the list or the feed must not answer a question that took over the screen under it.
+    let f = fixture();
+    f.c.set_time_ms(20_000);
+    f.feed("question_single");
+    f.ui.invoke_option_tapped(1);
+    f.ui.invoke_decline_tapped();
+    // Refreshes, and the same question sent again, do not start the window over.
+    f.c.tick_at(Some(NOW), 20_250);
+    f.feed("question_single");
+    f.c.set_time_ms(20_499);
+    f.ui.invoke_option_tapped(1);
+    assert!(f.sent().is_empty(), "a tap within 500 ms of the question appearing answered it: {:?}", f.sent());
+    assert_eq!(f.ui.get_page(), Page::Question);
+    f.c.set_time_ms(20_500);
+    f.ui.invoke_option_tapped(1);
+    assert_eq!(f.sent().len(), 1, "a tap after the window must answer");
+}
+
+#[test]
+fn a_decline_right_after_a_different_question_appears_is_ignored() {
+    // The window belongs to the new question, not to the last answer: here the answer is old enough (past the
+    // 400 ms answer guard) that only a guard on the new question can stop the tap.
+    let f = fixture();
+    f.c.set_time_ms(20_000);
+    f.feed("question_single");
+    f.c.set_time_ms(20_500);
+    f.ui.invoke_option_tapped(0); // answers the first ask
+    assert_eq!(f.sent().len(), 1);
+    f.c.set_time_ms(21_000);
+    f.feed("question_multi"); // a different ask takes over the screen
+    f.c.set_time_ms(21_100);
+    f.ui.invoke_decline_tapped();
+    assert_eq!(f.sent().len(), 1, "a decline 100 ms after a new ask appeared went through");
+    assert_eq!(f.ui.get_page(), Page::Question);
+    f.c.set_time_ms(21_500);
+    f.ui.invoke_decline_tapped();
+    assert_eq!(f.sent().len(), 2);
+}
+
+#[test]
+fn the_next_queued_ask_is_guarded_from_when_it_appears() {
+    let f = fixture();
+    f.c.set_time_ms(30_000);
+    f.feed("question_single");
+    f.feed("question_multi"); // queued behind the first
+    f.c.set_time_ms(30_600);
+    f.ui.invoke_option_tapped(0); // answers the first; the second takes over the screen now
+    assert_eq!(f.sent().len(), 1);
+    assert_eq!(f.ui.get_question_text(), "Which fruit?");
+    f.c.set_time_ms(31_050); // past the 400 ms answer guard, inside the new ask's 500 ms
+    f.ui.invoke_option_tapped(0);
+    assert_eq!(f.ui.get_question_text(), "Which fruit?", "the new ask was answered within 500 ms of appearing");
+    f.c.set_time_ms(31_100);
+    f.ui.invoke_option_tapped(0);
+    assert_eq!(f.ui.get_question_text(), "Which toppings?");
+}
+
+/// A one-question ask whose text is `text`, with Allow and Deny, as the bridge sends a tool approval.
+fn approval(id: &str, text: &str) -> String {
+    serde_json::json!({"t":"question","id":id,"host":"h","session":"s","project":"p",
+        "questions":[{"question":text,"header":"Approve","options":[{"label":"Allow"},{"label":"Deny"}],"multiSelect":false}]})
+    .to_string()
+}
+
+#[test]
+fn the_board_shows_exactly_the_approval_limit_of_a_question_and_shortens_the_rest() {
+    // The bridge sends an approval only when its whole text fits in APPROVAL_TEXT_MAX bytes, so that is what the
+    // board must show whole; a byte more is cut.
+    let f = fixture();
+    let fits = format!("Bash: {}", "x".repeat(claude_board_proto::APPROVAL_TEXT_MAX - "Bash: ".len()));
+    assert_eq!(fits.len(), claude_board_proto::APPROVAL_TEXT_MAX);
+    f.c.on_message(&approval("a1", &fits));
+    assert_eq!(f.ui.get_question_text(), fits.as_str());
+    f.c.on_message(r#"{"t":"question_clear","id":"a1"}"#);
+    let too_long = format!("{fits}y");
+    f.c.on_message(&approval("a2", &too_long));
+    assert_eq!(f.ui.get_question_text(), format!("{fits}...").as_str());
 }

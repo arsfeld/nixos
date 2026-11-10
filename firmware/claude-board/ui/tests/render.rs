@@ -192,6 +192,22 @@ fn feed_ink(buf: &[Rgb565Pixel]) -> (usize, usize) {
     (ink, red)
 }
 
+/// A finger down at (233, y0), dragged to (233, y1) in ten steps and lifted.
+fn drag_y(h: &Headless, y0: f32, y1: f32) {
+    use slint::platform::{PointerEventButton, WindowEvent};
+    use slint::LogicalPosition;
+    let at = |y: f32| LogicalPosition::new(233., y);
+    let w = &h.window;
+    w.dispatch_event(WindowEvent::PointerPressed { position: at(y0), button: PointerEventButton::Left });
+    for i in 1..=10 {
+        w.dispatch_event(WindowEvent::PointerMoved { position: at(y0 + (y1 - y0) * i as f32 / 10.) });
+        h.step(16);
+    }
+    w.dispatch_event(WindowEvent::PointerReleased { position: at(y1), button: PointerEventButton::Left });
+    w.dispatch_event(WindowEvent::PointerExited);
+    h.step(33);
+}
+
 #[test]
 fn feed_page_shows_the_empty_text() {
     let (h, ui) = detail_page();
@@ -219,6 +235,76 @@ fn feed_follows_the_newest_row() {
     let (h, ui) = detail_page();
     set_feed(&h, &ui, rows, false);
     assert!(feed_ink(&h.render()).1 > 3, "the newest (failed) row is not in view");
+}
+
+/// 30 rows whose newest is a failed tool row, so the red marker is in view exactly when the newest row is.
+fn thirty_rows(newest: &str) -> Vec<claude_board_ui::FeedRow> {
+    use claude_board_ui::FeedKind::{Prompt, Tool};
+    let mut rows: Vec<_> = (0..29).map(|i| feed_row(Prompt, &format!("prompt number {i}"), false)).collect();
+    rows.push(feed_row(Tool, newest, true));
+    rows
+}
+
+/// Flick the feed down (finger moving down) until its newest row is out of view.
+fn scroll_feed_up(h: &Headless) {
+    for _ in 0..6 {
+        drag_y(h, 200., 380.);
+    }
+    assert_eq!(feed_ink(&h.render()).1, 0, "the feed did not scroll up");
+}
+
+#[test]
+fn feed_follows_the_newest_row_again_once_the_feed_is_replaced() {
+    // Scrolled up in one session, then another session's feed arrives on the same page (the controller empties
+    // the feed when the watched session changes): it must start at its newest row, not where the first was left.
+    let (h, ui) = detail_page();
+    set_feed(&h, &ui, thirty_rows("Bash first"), false);
+    assert!(feed_ink(&h.render()).1 > 3, "the feed does not start at its newest row");
+    scroll_feed_up(&h);
+    set_feed(&h, &ui, vec![], true);
+    h.render(); // the app draws a frame every pass, so one shows the empty feed while the history is on its way
+    set_feed(&h, &ui, thirty_rows("Bash second"), false);
+    assert!(feed_ink(&h.render()).1 > 3, "the replaced feed does not start at its newest row");
+}
+
+#[test]
+fn feed_stays_where_the_user_scrolled_while_entries_arrive() {
+    let (h, ui) = detail_page();
+    set_feed(&h, &ui, thirty_rows("Bash first"), false);
+    scroll_feed_up(&h);
+    let mut more = thirty_rows("Bash first");
+    more.push(feed_row(claude_board_ui::FeedKind::Reply, "a new reply", false));
+    set_feed(&h, &ui, more, false);
+    assert_eq!(feed_ink(&h.render()).1, 0, "a new entry pulled the feed away from where the user had scrolled");
+}
+
+#[test]
+fn feed_opened_with_its_rows_already_there_starts_at_the_newest() {
+    // Back from a question that took over the screen: the page is built again over a feed that is already full.
+    let (h, ui) = show();
+    ui.set_detail_host("raider".into());
+    ui.set_detail_project("nixos".into());
+    ui.set_feed(ModelRc::new(VecModel::from(thirty_rows("Bash only"))));
+    ui.set_feed_empty(false);
+    ui.set_page(claude_board_ui::Page::Detail);
+    for _ in 0..4 {
+        h.step(33);
+    }
+    assert!(feed_ink(&h.render()).1 > 3, "the page opened at the oldest row");
+}
+
+#[test]
+fn feed_follows_again_when_the_page_is_left_and_opened_again() {
+    let (h, ui) = detail_page();
+    set_feed(&h, &ui, thirty_rows("Bash first"), false);
+    scroll_feed_up(&h);
+    ui.set_page(claude_board_ui::Page::List);
+    h.render(); // a frame is drawn between the two taps, which is what removes the detail page
+    ui.set_page(claude_board_ui::Page::Detail);
+    for _ in 0..4 {
+        h.step(33);
+    }
+    assert!(feed_ink(&h.render()).1 > 3, "the reopened page kept the old scroll position");
 }
 
 #[test]
@@ -250,19 +336,12 @@ fn expanded_overlay_scrolls_by_drag_and_closes_by_tap() {
     ui.set_expanded_text(long.into());
     h.step(33);
     let before = h.render().to_vec();
-    let at = |x: f32, y: f32| LogicalPosition::new(x, y);
-    let w = &h.window;
-    w.dispatch_event(WindowEvent::PointerPressed { position: at(233., 300.), button: PointerEventButton::Left });
-    for i in 1..=10 {
-        w.dispatch_event(WindowEvent::PointerMoved { position: at(233., 300. - 15. * i as f32) });
-        h.step(16);
-    }
-    w.dispatch_event(WindowEvent::PointerReleased { position: at(233., 150.), button: PointerEventButton::Left });
-    w.dispatch_event(WindowEvent::PointerExited);
-    h.step(33);
+    drag_y(&h, 300., 150.);
     let after = h.render().to_vec();
     assert_ne!(before, after, "dragging did not scroll the overlay");
     assert_eq!(closed.get(), 0, "a drag closed the overlay");
+    let at = |x: f32, y: f32| LogicalPosition::new(x, y);
+    let w = &h.window;
     w.dispatch_event(WindowEvent::PointerPressed { position: at(233., 300.), button: PointerEventButton::Left });
     w.dispatch_event(WindowEvent::PointerReleased { position: at(233., 300.), button: PointerEventButton::Left });
     w.dispatch_event(WindowEvent::PointerExited);

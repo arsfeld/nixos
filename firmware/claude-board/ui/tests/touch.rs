@@ -49,6 +49,12 @@ impl Fx {
         self.c.on_message(&load(name));
     }
 
+    /// A question message, then half a second: taps in the first 500 ms after a question appears are ignored.
+    fn ask(&self, name: &str) {
+        self.feed(name);
+        self.c.tick(Some(1_800_000_000));
+    }
+
     /// A finger down and up at (x, y), the way the firmware's touch loop reports it.
     fn tap(&self, x: f32, y: f32) {
         let position = LogicalPosition::new(x, y);
@@ -167,7 +173,7 @@ fn dragging_up_and_down_scrolls_the_list_and_opens_nothing() {
 #[test]
 fn tapping_an_option_answers_the_question() {
     let f = fx();
-    f.feed("question_single");
+    f.ask("question_single");
     f.h.render();
     f.tap(233.0, 201.0); // first option, Red
     let sent = f.wire.0.borrow().clone();
@@ -178,7 +184,7 @@ fn tapping_an_option_answers_the_question() {
 #[test]
 fn tapping_on_computer_declines() {
     let f = fx();
-    f.feed("question_single");
+    f.ask("question_single");
     f.h.render();
     f.tap(233.0, 338.0); // the last row of the wheel, after the two options
     let sent = f.wire.0.borrow().clone();
@@ -189,7 +195,7 @@ fn tapping_on_computer_declines() {
 #[test]
 fn multi_select_taps_and_done_work() {
     let f = fx();
-    f.feed("question_multi");
+    f.ask("question_multi");
     f.h.render();
     f.tap(233.0, 201.0); // fruit: Apple
     f.h.render();

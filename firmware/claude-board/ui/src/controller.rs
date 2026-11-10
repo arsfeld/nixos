@@ -7,7 +7,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use claude_board_proto::{join_labels, AnswerOutcome, Applied, AskId, ClientMsg, Model, Session, State};
+use claude_board_proto::{join_labels, AnswerOutcome, Applied, AskId, ClientMsg, Model, Session, State, APPROVAL_TEXT_MAX};
 use slint::{ComponentHandle, Model as _, ModelRc, VecModel, Weak};
 
 use crate::view::{arc_index_at, feed_rows, fmt_ago, presence_for, rim_models, session_rows, shorten, PresenceKind, MAX_RIM_SEGMENTS};
@@ -15,6 +15,9 @@ use crate::{AppWindow, FeedRow, OptionRow, Page, PresenceState, RimSegment, Sess
 
 /// Taps this soon after an answer are ignored (a double tap is two taps well under this apart).
 const ANSWER_GUARD_MS: u64 = 400;
+/// Taps this soon after a different question takes over the screen are ignored too: one meant for the list or the
+/// feed a moment ago must not answer (or, for a tool approval, allow) what just appeared under the finger.
+const NEW_ASK_GUARD_MS: u64 = 500;
 
 /// Where answers go: the websocket to the bridge.
 pub trait Outbox {
@@ -72,10 +75,11 @@ struct Inner<O: Outbox> {
     link: bool,
     now: Option<i64>,
     sel: Selection,
-    /// The app's monotonic clock in milliseconds (see `set_time_ms`), and when the last answer was given: taps
-    /// within `ANSWER_GUARD_MS` of it are ignored, so a double tap cannot answer the next question of the ask.
+    /// The app's monotonic clock in milliseconds (see `set_time_ms`), and the time until which taps on the question
+    /// are ignored: `ANSWER_GUARD_MS` after an answer, so a double tap cannot answer the next question of the ask,
+    /// and `NEW_ASK_GUARD_MS` after a different ask appears.
     time_ms: u64,
-    answered_at_ms: Option<u64>,
+    guard_until_ms: u64,
     prev_waiting: usize,
     chimed_ask: Option<AskId>,
     chime: bool,
@@ -110,7 +114,7 @@ impl<O: Outbox + 'static> Controller<O> {
             now: None,
             sel: Selection::default(),
             time_ms: 0,
-            answered_at_ms: None,
+            guard_until_ms: 0,
             prev_waiting: 0,
             chimed_ask: None,
             chime: false,
@@ -216,16 +220,21 @@ impl<O: Outbox> Inner<O> {
     }
 
     fn cooling_down(&self) -> bool {
-        self.answered_at_ms.is_some_and(|at| self.time_ms < at + ANSWER_GUARD_MS)
+        self.time_ms < self.guard_until_ms
+    }
+
+    /// Ignore taps on the question for the next `ms` (a later guard is never cut short by an earlier one).
+    fn guard(&mut self, ms: u64) {
+        self.guard_until_ms = self.guard_until_ms.max(self.time_ms + ms);
     }
 
     fn submit(&mut self, label: &str) {
         match self.model.answer(label) {
             AnswerOutcome::Complete(msg) => {
                 self.send(&msg);
-                self.answered_at_ms = Some(self.time_ms);
+                self.guard(ANSWER_GUARD_MS);
             }
-            AnswerOutcome::NextQuestion => self.answered_at_ms = Some(self.time_ms),
+            AnswerOutcome::NextQuestion => self.guard(ANSWER_GUARD_MS),
             AnswerOutcome::NoQuestion => {}
         }
         self.refresh();
@@ -273,7 +282,7 @@ impl<O: Outbox> Inner<O> {
         if let ClientMsg::Decline { id } = &msg {
             self.model.dismiss(id);
         }
-        self.answered_at_ms = Some(self.time_ms);
+        self.guard(ANSWER_GUARD_MS);
         self.refresh();
     }
 
@@ -406,17 +415,20 @@ impl<O: Outbox> Inner<O> {
         win.set_feed_empty(rows.is_empty());
         sync(&self.models.feed, rows);
 
+        let mut new_ask = false;
         match self.model.current_ask() {
             Some(ask) => {
                 let q = ask.current();
                 let key = (ask.ask.id.clone(), ask.next_question());
                 if self.sel.key.as_ref() != Some(&key) {
+                    // A different ask from the one on screen, as opposed to the next question of the same ask.
+                    new_ask = self.sel.key.as_ref().map(|(id, _)| id) != Some(&key.0);
                     self.sel = Selection { key: Some(key), picked: vec![false; q.options.len()] };
                 }
                 win.set_question_source(
                     format!("{} - {}", shorten(&ask.ask.host, 24), shorten(&ask.ask.project, 40)).to_uppercase().into(),
                 );
-                win.set_question_text(shorten(&q.question, 160).into());
+                win.set_question_text(shorten(&q.question, APPROVAL_TEXT_MAX).into());
                 win.set_multi(q.multi_select);
                 win.set_can_done(self.sel.picked.iter().any(|p| *p));
                 let rows: Vec<OptionRow> = q
@@ -436,6 +448,10 @@ impl<O: Outbox> Inner<O> {
                     Nav::Detail { .. } => Page::Detail,
                 });
             }
+        }
+        // It has just taken over the screen: a tap meant for what was there a moment ago must not answer it.
+        if new_ask {
+            self.guard(NEW_ASK_GUARD_MS);
         }
     }
 }

@@ -53,8 +53,14 @@ export component DetailPage inherits Rectangle {
     }
 
     // True while the feed sticks to its newest (bottom) row; a flick up lets go, and flicking back to the
-    // bottom takes hold again.
+    // bottom takes hold again. So does an empty feed: the controller empties it whenever the watched session
+    // changes, and the new session's entries must start at their newest row, not where the last one was left.
     property <bool> follow: true;
+    changed feed-empty => {
+        if root.feed-empty {
+            root.follow = true;
+        }
+    }
 
     if root.feed-empty: Text {
         x: 83px;
