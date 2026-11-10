@@ -21,7 +21,7 @@ use std::time::Duration;
 
 use claude_board_bridge::app;
 use claude_board_bridge::auth::Tokens;
-use claude_board_bridge::config::{VoiceEnv, mcp_settings_from_env, voice_settings_from_env};
+use claude_board_bridge::config::{VoiceEnv, ha_settings_from_env, mcp_settings_from_env, voice_settings_from_env};
 use claude_board_bridge::mcp::{Mcp, mcp_router};
 use claude_board_bridge::http::{AppState, now_secs};
 use claude_board_bridge::timers::Timers;
@@ -112,8 +112,18 @@ async fn main() {
 
     match mcp_settings_from_env(|k| std::env::var(k).ok()) {
         Ok(Some(s)) => {
+            let mut tools = claude_board_bridge::mcp::timers::tools(timers);
+            // The forecast tool only when both BRIDGE_HA_URL and BRIDGE_HA_TOKEN_FILE are set.
+            match ha_settings_from_env(|k| std::env::var(k).ok()) {
+                Ok(Some(ha)) => {
+                    eprintln!("claude-board-bridge: weather forecast from home assistant");
+                    tools.extend(claude_board_bridge::mcp::weather::tools(ha));
+                }
+                Ok(None) => eprintln!("claude-board-bridge: weather forecast off"),
+                Err(e) => fatal(&e),
+            }
             let mcp = std::sync::Arc::new(Mcp {
-                tools: claude_board_bridge::mcp::timers::tools(timers),
+                tools,
                 token: s.token,
                 fail_delay: Duration::from_millis(env_num("BRIDGE_AUTH_FAIL_DELAY_MS", 500)),
             });

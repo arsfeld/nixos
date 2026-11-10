@@ -75,3 +75,33 @@ pub fn mcp_settings_from_env(get: impl Fn(&str) -> Option<String>) -> Result<Opt
     };
     Ok(Some(McpSettings { listen, token }))
 }
+
+/// Home Assistant, for the weather forecast tool.
+pub struct HaSettings {
+    pub url: String,
+    /// The contents of `BRIDGE_HA_TOKEN_FILE`, trimmed. Never print it.
+    pub token: String,
+    pub weather_entity: String,
+}
+
+/// Home Assistant is used only when both `BRIDGE_HA_URL` and `BRIDGE_HA_TOKEN_FILE` are set; the
+/// token file must then be readable and non-empty (the message names the variable and path, never
+/// the token). `BRIDGE_HA_WEATHER_ENTITY` defaults to `weather.forecast_home`.
+pub fn ha_settings_from_env(get: impl Fn(&str) -> Option<String>) -> Result<Option<HaSettings>, String> {
+    let set = |name: &str| get(name).map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+    let (Some(url), Some(path)) = (set("BRIDGE_HA_URL"), set("BRIDGE_HA_TOKEN_FILE")) else {
+        return Ok(None);
+    };
+    let token = std::fs::read_to_string(&path)
+        .map_err(|e| format!("BRIDGE_HA_TOKEN_FILE: cannot read {path}: {e}"))?
+        .trim()
+        .to_string();
+    if token.is_empty() {
+        return Err(format!("BRIDGE_HA_TOKEN_FILE: {path} is empty"));
+    }
+    Ok(Some(HaSettings {
+        url,
+        token,
+        weather_entity: set("BRIDGE_HA_WEATHER_ENTITY").unwrap_or_else(|| "weather.forecast_home".into()),
+    }))
+}
