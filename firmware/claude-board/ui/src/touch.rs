@@ -1,4 +1,6 @@
-//! Turns the touch controller's samples into Slint pointer events, and recognises a swipe right (go back).
+//! Turns the touch controller's samples into Slint pointer events, and recognises a swipe right (go back) and,
+//! where the app allows it (`set_vertical_swipes`, the home page, which scrolls nothing), swipes up and down
+//! (volume).
 //!
 //! The controller reports coordinates only while a finger is down; once it is lifted the sample carries
 //! nothing usable. A release must therefore happen where the finger last was, or Slint sees it land outside
@@ -25,6 +27,9 @@ pub const HOLD_SLOP_PX: i16 = 20;
 pub enum Gesture {
     /// A drag to the right: go back.
     SwipeRight,
+    /// A drag up or down, only while vertical swipes are on: louder, quieter.
+    SwipeUp,
+    SwipeDown,
     /// The finger has been down, nearly still, for `HOLD_MS`; carries where it is. Nothing is cancelled yet: the
     /// pointer stays down, and the lift is an ordinary click unless the app accepts the hold. The app's call
     /// order is `HoldStart(x, y)` -> `controller.hold_started(x, y)` -> only if that returned true,
@@ -51,7 +56,9 @@ pub struct TouchTracker {
     /// Where the finger is, while it is down.
     down_at: Option<LogicalPosition>,
     /// The drag has been recognised as a swipe and the pointer cancelled; wait for the lift.
-    swiping: bool,
+    swiping: Option<Gesture>,
+    /// Up and down drags are swipes (off by default: elsewhere they scroll).
+    vertical: bool,
     /// When the finger landed, and whether it could still turn into a hold (it has not strayed).
     down_ms: u64,
     hold_possible: bool,
@@ -64,6 +71,11 @@ pub struct TouchTracker {
 impl TouchTracker {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Whether up and down drags count as swipes. Takes effect from the next touch-down.
+    pub fn set_vertical_swipes(&mut self, on: bool) {
+        self.vertical = on;
     }
 
     /// `update_at` for callers with no clock: time never advances, so nothing is ever a hold.
@@ -90,14 +102,14 @@ impl TouchTracker {
             (None, true) => {
                 self.start = Some(position);
                 self.down_at = Some(position);
-                self.swiping = false;
+                self.swiping = None;
                 self.holding = false;
                 self.hold_fired = false;
                 self.hold_possible = true;
                 self.down_ms = now_ms;
                 Update { events: vec![WindowEvent::PointerPressed { position, button: PointerEventButton::Left }], gesture: None }
             }
-            (Some(_), true) if self.swiping || self.holding => {
+            (Some(_), true) if self.swiping.is_some() || self.holding => {
                 self.down_at = Some(position);
                 Update::default()
             }
@@ -117,20 +129,27 @@ impl TouchTracker {
                     return Update::default();
                 }
                 self.down_at = Some(position);
-                if dx >= SWIPE_MIN_DX && dy.abs() <= dx * SWIPE_MAX_SLOPE {
-                    self.swiping = true;
+                let swipe = if dx >= SWIPE_MIN_DX && dy.abs() <= dx * SWIPE_MAX_SLOPE {
+                    Some(Gesture::SwipeRight)
+                } else if self.vertical && dy.abs() >= SWIPE_MIN_DX && dx.abs() <= dy.abs() * SWIPE_MAX_SLOPE {
+                    Some(if dy < 0.0 { Gesture::SwipeUp } else { Gesture::SwipeDown })
+                } else {
+                    None
+                };
+                if swipe.is_some() {
+                    self.swiping = swipe;
                     return Update { events: vec![WindowEvent::PointerExited], gesture: None };
                 }
                 Update { events: vec![WindowEvent::PointerMoved { position }], gesture: None }
             }
             (Some(last), false) => {
-                let (swiped, held) = (self.swiping, self.holding);
-                *self = Self::default();
+                let (swiped, held, vertical) = (self.swiping, self.holding, self.vertical);
+                *self = Self { vertical, ..Self::default() };
                 if held {
                     return Update { events: Vec::new(), gesture: Some(Gesture::HoldEnd) };
                 }
-                if swiped {
-                    return Update { events: Vec::new(), gesture: Some(Gesture::SwipeRight) };
+                if swiped.is_some() {
+                    return Update { events: Vec::new(), gesture: swiped };
                 }
                 Update {
                     events: vec![WindowEvent::PointerReleased { position: last, button: PointerEventButton::Left }, WindowEvent::PointerExited],
@@ -322,5 +341,39 @@ mod tests {
         }
         assert!(gestures.is_empty());
         assert_eq!(t.update_at(0, 0, false, 900).gesture, Some(Gesture::SwipeRight));
+    }
+
+    fn drag_line(t: &mut TouchTracker, from: (i16, i16), to: (i16, i16)) -> Vec<Update> {
+        let mut ups = vec![t.update(from.0, from.1, true)];
+        for k in 1..=10 {
+            let x = from.0 + (to.0 - from.0) * k / 10;
+            let y = from.1 + (to.1 - from.1) * k / 10;
+            ups.push(t.update(x, y, true));
+        }
+        ups.push(t.update(0, 0, false));
+        ups
+    }
+
+    #[test]
+    fn vertical_drags_are_swipes_only_when_turned_on() {
+        let mut t = TouchTracker::new();
+        let ups = drag_line(&mut t, (233, 300), (233, 150));
+        assert_eq!(ups.last().unwrap().gesture, None, "off by default: a vertical drag scrolls");
+        assert!(ups.iter().flat_map(|u| u.events.iter()).any(|e| matches!(e, WindowEvent::PointerMoved { .. })));
+
+        t.set_vertical_swipes(true);
+        let ups = drag_line(&mut t, (233, 300), (233, 150));
+        assert_eq!(ups.last().unwrap().gesture, Some(Gesture::SwipeUp));
+        assert!(!ups.iter().flat_map(|u| u.events.iter()).any(|e| matches!(e, WindowEvent::PointerReleased { .. })), "no click under a swipe");
+        let ups = drag_line(&mut t, (233, 150), (240, 300));
+        assert_eq!(ups.last().unwrap().gesture, Some(Gesture::SwipeDown), "and the setting survives a touch");
+    }
+
+    #[test]
+    fn a_diagonal_drag_is_no_vertical_swipe_and_right_still_wins() {
+        let mut t = TouchTracker::new();
+        t.set_vertical_swipes(true);
+        assert_eq!(drag_line(&mut t, (233, 300), (320, 180)).last().unwrap().gesture, None);
+        assert_eq!(drag_line(&mut t, (100, 233), (250, 240)).last().unwrap().gesture, Some(Gesture::SwipeRight));
     }
 }

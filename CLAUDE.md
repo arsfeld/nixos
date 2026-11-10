@@ -434,7 +434,9 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
   red and the mood is in its motion, and the eye's clip box must match the slot in the SVG) inside a ring of arcs, one
   per session in its state's colour, the waiting one pulsing. Tapping the avatar opens the session list, a wheel of
   big round rows whose badges follow the screen's curve; tapping a row (or an arc) opens the session. A waiting
-  question takes over the screen: the question pinned at the top and its options on the same wheel (`wheel.slint`), with Done and "on computer" as the last rows. Swipe right goes back a level. The screen dims 30 s after the last touch or bridge
+  question takes over the screen: the question pinned at the top and its options on the same wheel (`wheel.slint`), with Done and "on computer" as the last rows. Swipe right goes back a level. On home only, swipe up or down sets the speaker volume (chime and replies, 10 to
+  100 in steps of 10, default 80, kept in NVS under `board/volume`); elsewhere vertical drags scroll, so the touch
+  tracker takes them as swipes only while `set_vertical_swipes` is on. The screen dims 30 s after the last touch or bridge
   message and the picture shifts a few pixels each minute, against AMOLED burn-in.
 - **Firmware traps, nearly all hit during bring-up.**
   - Slint: the device build must not enable its `std` feature (it pulls in `memmap2`, which does not build for

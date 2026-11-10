@@ -230,6 +230,8 @@ static bool s_mic_open;
 static bool s_spk_open; // a speech stream is open (bd_speaker_begin .. bd_speaker_end), also under s_audio_lock
 static SemaphoreHandle_t s_chime_wake;
 static int64_t s_chime_last_us;
+// Speaker volume on the codec's 0-100 scale, for the chime and spoken replies alike (bd_set_volume).
+static volatile int s_volume = 80;
 
 static bool on_color_done(esp_lcd_panel_io_handle_t io, esp_lcd_panel_io_event_data_t *ev, void *ctx)
 {
@@ -265,7 +267,7 @@ static void chime_task(void *arg)
             if (esp_codec_dev_open(s_speaker, &fs) != ESP_CODEC_DEV_OK) {
                 ESP_LOGW(TAG, "speaker open failed");
             } else {
-                esp_codec_dev_set_out_vol(s_speaker, 55);
+                esp_codec_dev_set_out_vol(s_speaker, s_volume);
                 esp_codec_dev_write(s_speaker, buf, n * 2 * (int)sizeof *buf);
                 esp_codec_dev_close(s_speaker); // silent, and no idle hiss between chimes
             }
@@ -343,6 +345,23 @@ void bd_set_brightness(uint8_t percent)
     esp_lcd_panel_io_tx_param(s_io, (0x02u << 24) | (0x51u << 8), &param, 1); // CO5300 DCS: set brightness
 }
 
+void bd_set_volume(uint8_t percent)
+{
+    s_volume = percent > 100 ? 100 : percent;
+    // A reply playing now follows at once. Only if the lock is free: never wait on the UI thread.
+    if (s_speaker && s_audio_lock && xSemaphoreTake(s_audio_lock, 0) == pdTRUE) {
+        if (s_spk_open) esp_codec_dev_set_out_vol(s_speaker, s_volume);
+        xSemaphoreGive(s_audio_lock);
+    }
+}
+
+void bd_chime_now(void)
+{
+    if (!s_speaker || s_mic_open || s_spk_open) return;
+    s_chime_last_us = esp_timer_get_time();
+    xSemaphoreGive(s_chime_wake);
+}
+
 void bd_chime(void)
 {
     if (!s_speaker || s_mic_open || s_spk_open) return;
@@ -412,7 +431,6 @@ void bd_mic_close(void)
 // up to SPK_OPEN_WAIT_MS for a chime in progress. The lock is NOT held while writing: exactly one thread (the
 // player) calls begin, write and end, so they need no further guarding.
 #define SPK_OPEN_WAIT_MS 1000
-#define SPK_VOLUME 55 // as the chime
 
 esp_err_t bd_speaker_begin(uint32_t rate_hz)
 {
@@ -427,7 +445,7 @@ esp_err_t bd_speaker_begin(uint32_t rate_hz)
             err = ESP_FAIL;
         } else {
             s_spk_open = true;
-            if (esp_codec_dev_set_out_vol(s_speaker, SPK_VOLUME) != ESP_CODEC_DEV_OK) ESP_LOGW(TAG, "speaker volume not set");
+            if (esp_codec_dev_set_out_vol(s_speaker, s_volume) != ESP_CODEC_DEV_OK) ESP_LOGW(TAG, "speaker volume not set");
         }
     }
     xSemaphoreGive(s_audio_lock);

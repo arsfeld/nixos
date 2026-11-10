@@ -122,6 +122,10 @@ fn main() {
     ui.set_presence_state(PresenceState::Idle);
     write_png(dir, "home-voice-offline", &h);
     ui.set_voice_available(true);
+    ui.set_volume(70);
+    ui.set_volume_shown(true);
+    write_png(dir, "home-volume", &h);
+    ui.set_volume_shown(false);
 
     ui.set_page(Page::List);
     ui.set_rows(ModelRc::new(VecModel::from(session_rows(&sessions, Some(NOW)))));

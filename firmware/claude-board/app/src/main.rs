@@ -10,13 +10,14 @@ mod speaker;
 use std::sync::mpsc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use claude_board_ui::audio::{cancel_json, speech_event, SpeechEvent};
+use claude_board_ui::audio::{cancel_json, speech_event, volume_step, SpeechEvent, VOLUME_DEFAULT, VOLUME_MAX, VOLUME_MIN};
 use claude_board_ui::controller::{Controller, Outbox};
 use claude_board_ui::link;
 use claude_board_ui::power::{drift_px, Power};
 use claude_board_ui::{AppWindow, Page};
 use esp_idf_svc::sys::{heap_caps_get_free_size, heap_caps_get_largest_free_block, MALLOC_CAP_DMA, MALLOC_CAP_INTERNAL, MALLOC_CAP_SPIRAM};
 use esp_idf_svc::hal::peripherals::Peripherals;
+use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs, NvsDefault};
 use slint::ComponentHandle;
 
 /// Used when no credentials are compiled in: answers have nowhere to go.
@@ -42,6 +43,17 @@ fn heap_line() {
     }
 }
 
+/// The NVS key of the speaker volume, in the "board" namespace.
+const VOLUME_KEY: &str = "volume";
+/// How long the volume stays on screen after a swipe.
+const VOLUME_SHOWN: Duration = Duration::from_millis(1500);
+
+/// What the board keeps across reboots.
+struct Settings {
+    store: Option<EspNvs<NvsDefault>>,
+    volume: u8,
+}
+
 fn unix_now() -> Option<i64> {
     SystemTime::now().duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs() as i64)
 }
@@ -58,18 +70,26 @@ fn main() -> anyhow::Result<()> {
     let ui = AppWindow::new().map_err(|e| anyhow::anyhow!("{e}"))?;
     ui.show().map_err(|e| anyhow::anyhow!("{e}"))?;
 
+    // The speaker volume survives a reboot in NVS; the Wi-Fi driver gets the same partition.
+    let nvs = EspDefaultNvsPartition::take()?;
+    let store = EspNvs::new(nvs.clone(), "board", true).map_err(|e| log::warn!("settings not stored: {e}")).ok();
+    let volume = store.as_ref().and_then(|s| s.get_u8(VOLUME_KEY).ok().flatten()).unwrap_or(VOLUME_DEFAULT).clamp(VOLUME_MIN, VOLUME_MAX);
+    display::set_volume(volume);
+    ui.set_volume(volume as i32);
+    let settings_store = Settings { store, volume };
+
     let settings = link::settings(env!("CB_URL"), env!("CB_NTP"), env!("CB_DNS")).map_err(anyhow::Error::msg)?;
     let (tx, rx) = mpsc::channel::<net::Event>();
     let (ssid, pass, token) = (env!("CB_WIFI_SSID"), env!("CB_WIFI_PASS"), env!("CB_TOKEN"));
     // `Box<dyn Fn>`-free: the controller is generic over its outbox, so each case builds its own loop.
     if ssid.is_empty() || token.is_empty() {
         log::error!("no credentials compiled in: run `just board creds`, then rebuild");
-        return run(&window, &ui, Controller::new(&ui, NoWire), rx, None);
+        return run(&window, &ui, Controller::new(&ui, NoWire), rx, None, settings_store);
     }
     let modem = Peripherals::take()?.modem;
-    let wire = net::start(net::Credentials { ssid, pass, token }, settings, modem, tx)?;
+    let wire = net::start(net::Credentials { ssid, pass, token }, settings, modem, nvs, tx)?;
     let mic_net = wire.clone();
-    run(&window, &ui, Controller::new(&ui, wire), rx, Some(mic_net))
+    run(&window, &ui, Controller::new(&ui, wire), rx, Some(mic_net), settings_store)
 }
 
 fn run<O: Outbox + 'static>(
@@ -78,6 +98,7 @@ fn run<O: Outbox + 'static>(
     controller: Controller<O>,
     rx: mpsc::Receiver<net::Event>,
     net: Option<net::Net>,
+    mut saved: Settings,
 ) -> anyhow::Result<()> {
     std::thread::Builder::new().stack_size(3072).spawn(|| loop {
         std::thread::sleep(Duration::from_secs(30));
@@ -95,6 +116,7 @@ fn run<O: Outbox + 'static>(
     let mut abandoned: Option<mic::Abandoned> = None;
     // The creature's voice: its own thread plays what the UI loop feeds it (see speaker.rs).
     let player = speaker::Player::start()?;
+    let mut volume_hide: Option<Instant> = None;
     platform::run(window, || {
         controller.set_time_ms(ms() as u64); // precise timestamps for the double-tap guard
         if platform::take_touch() {
@@ -188,6 +210,32 @@ fn run<O: Outbox + 'static>(
             if let Some((cap, _)) = capture.take() {
                 abandoned = Some(cap.abandon());
             }
+        }
+        // Swipe up or down on home: louder or quieter, shown for a moment and played as a chime.
+        platform::set_vertical_swipes(ui.get_page() == Page::Home);
+        if let Some(louder) = platform::take_swipe_vertical() {
+            if ui.get_page() == Page::Home {
+                saved.volume = volume_step(saved.volume, louder);
+                display::set_volume(saved.volume);
+                ui.set_volume(saved.volume as i32);
+                ui.set_volume_shown(true);
+                volume_hide = Some(Instant::now() + VOLUME_SHOWN);
+                // The swipe began on the avatar, so a pre-roll may still be closing: the chime needs the clock.
+                if let Some(a) = abandoned.take() {
+                    a.wait();
+                }
+                display::chime_now();
+                if let Some(store) = saved.store.as_mut() {
+                    if let Err(e) = store.set_u8(VOLUME_KEY, saved.volume) {
+                        log::warn!("volume not saved: {e}");
+                    }
+                }
+                log::info!("volume {}", saved.volume);
+            }
+        }
+        if volume_hide.is_some_and(|t| Instant::now() >= t) {
+            volume_hide = None;
+            ui.set_volume_shown(false);
         }
         while let Ok(event) = rx.try_recv() {
             match event {

@@ -30,6 +30,10 @@ bool bd_touch_read(bd_touch_t *out);
 void bd_set_brightness(uint8_t percent);
 // Non-blocking two-tone chime, ignored if one played in the last few seconds.
 void bd_chime(void);
+// The same chime without the rate limit, to hear a new volume (does nothing while the mic or a reply has the clock).
+void bd_chime_now(void);
+// Speaker volume for the chime and replies, 0 to 100 on the codec's scale; a reply playing follows at once.
+void bd_set_volume(uint8_t percent);
 // Microphone (16-bit mono). Capture and the chime share one I2S clock and never overlap: bd_chime does nothing
 // while the microphone is open, and bd_mic_open waits for a chime in progress.
 // Open at rate_hz (16000 for the uplink); ESP_ERR_INVALID_STATE if already open, ESP_ERR_NOT_SUPPORTED if absent.

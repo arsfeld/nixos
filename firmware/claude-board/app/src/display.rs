@@ -24,6 +24,16 @@ pub fn chime() {
     unsafe { bd::bd_chime() }
 }
 
+/// The chime now, ignoring the rate limit: to hear a new volume.
+pub fn chime_now() {
+    unsafe { bd::bd_chime_now() }
+}
+
+/// Speaker volume, 0 to 100, for chimes and replies.
+pub fn set_volume(percent: u8) {
+    unsafe { bd::bd_set_volume(percent) }
+}
+
 /// Start capturing the microphone at the uplink rate (16 kHz mono). Waits for a chime in progress; fails if the
 /// microphone is absent or already open. Pair with `mic_close`.
 pub fn mic_open() -> anyhow::Result<()> {

@@ -29,6 +29,9 @@ export component AppWindow inherits Window {
     // The last reply Claude spoke (empty: no card) and the words that prompted it.
     in property <string> reply-text;
     in property <string> reply-heading;
+    // Speaker volume, 0 to 100, shown on home for a moment after a swipe up or down changes it.
+    in property <int> volume: 80;
+    in property <bool> volume-shown: false;
     // List.
     in property <[SessionRow]> rows;
     in property <float> list-wheel-radius: 233;
@@ -109,6 +112,8 @@ export component AppWindow inherits Window {
             voice-available: root.voice-available;
             reply-text: root.reply-text;
             reply-heading: root.reply-heading;
+            volume: root.volume;
+            volume-shown: root.volume-shown;
             avatar-tapped => {
                 root.avatar-tapped();
             }

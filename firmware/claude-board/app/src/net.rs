@@ -97,11 +97,11 @@ impl Net {
 }
 
 /// Start the net thread: it joins Wi-Fi, waits for the clock, connects and reconnects forever.
-pub fn start(creds: Credentials, settings: Settings, modem: Modem<'static>, tx: mpsc::Sender<Event>) -> anyhow::Result<Net> {
+pub fn start(creds: Credentials, settings: Settings, modem: Modem<'static>, nvs: EspDefaultNvsPartition, tx: mpsc::Sender<Event>) -> anyhow::Result<Net> {
     let shared = Arc::new(Shared { client: Mutex::new(None), up: AtomicBool::new(false) });
     let net = Net(shared.clone());
     std::thread::Builder::new().name("net".into()).stack_size(16 * 1024).spawn(move || {
-        if let Err(e) = task(creds, settings, modem, tx, shared) {
+        if let Err(e) = task(creds, settings, modem, nvs, tx, shared) {
             log::error!("net task ended: {e:#}");
         }
     })?;
@@ -112,9 +112,8 @@ fn unix_now() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
 }
 
-fn task(creds: Credentials, settings: Settings, modem: Modem<'static>, tx: mpsc::Sender<Event>, shared: Arc<Shared>) -> anyhow::Result<()> {
+fn task(creds: Credentials, settings: Settings, modem: Modem<'static>, nvs: EspDefaultNvsPartition, tx: mpsc::Sender<Event>, shared: Arc<Shared>) -> anyhow::Result<()> {
     let sysloop = EspSystemEventLoop::take()?;
-    let nvs = EspDefaultNvsPartition::take()?;
     let mut wifi = BlockingWifi::wrap(EspWifi::new(modem, sysloop.clone(), Some(nvs))?, sysloop)?;
     wifi.set_configuration(&Configuration::Client(ClientConfiguration {
         ssid: creds.ssid.try_into().map_err(|_| anyhow::anyhow!("Wi-Fi name too long"))?,

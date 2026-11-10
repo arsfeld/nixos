@@ -318,3 +318,31 @@ mod tests {
         assert_eq!(p.dropped_bytes(), 40 * 32 * 1024 - PLAYBACK_CAP);
     }
 }
+
+/// Speaker volume, 0 to 100 on the codec's scale (logarithmic, about 0.5 dB a step): the board starts here and a
+/// swipe on home moves it by `VOLUME_STEP`, within `VOLUME_MIN..=VOLUME_MAX`.
+pub const VOLUME_DEFAULT: u8 = 80;
+pub const VOLUME_MIN: u8 = 10;
+pub const VOLUME_MAX: u8 = 100;
+pub const VOLUME_STEP: u8 = 10;
+
+/// The volume one swipe up (`louder`) or down from `v`; a stored value out of range is brought back into it.
+pub fn volume_step(v: u8, louder: bool) -> u8 {
+    let v = v.clamp(VOLUME_MIN, VOLUME_MAX);
+    if louder { v.saturating_add(VOLUME_STEP).min(VOLUME_MAX) } else { v.saturating_sub(VOLUME_STEP).max(VOLUME_MIN) }
+}
+
+#[cfg(test)]
+mod volume_tests {
+    use super::*;
+
+    #[test]
+    fn volume_steps_stop_at_the_ends() {
+        assert_eq!(volume_step(VOLUME_DEFAULT, true), 90);
+        assert_eq!(volume_step(95, true), VOLUME_MAX);
+        assert_eq!(volume_step(VOLUME_MAX, true), VOLUME_MAX);
+        assert_eq!(volume_step(VOLUME_MIN, false), VOLUME_MIN);
+        assert_eq!(volume_step(15, false), VOLUME_MIN);
+        assert_eq!(volume_step(255, false), 90, "an out-of-range stored value is clamped first");
+    }
+}

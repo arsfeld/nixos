@@ -4,7 +4,7 @@
 
 use std::ops::Range;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
 use std::time::{Duration, Instant};
 
 use slint::platform::software_renderer::{LineBufferProvider, MinimalSoftwareWindow, RepaintBufferType, Rgb565Pixel};
@@ -18,6 +18,10 @@ static TOUCHED: AtomicBool = AtomicBool::new(false);
 
 /// Set when a swipe right finishes; the app goes back a level.
 static SWIPED_RIGHT: AtomicBool = AtomicBool::new(false);
+/// The app allows up and down swipes (home, which scrolls nothing).
+static VERTICAL_SWIPES: AtomicBool = AtomicBool::new(false);
+/// A swipe up (1) or down (2) finished, or 0.
+static SWIPED_VERTICAL: AtomicU8 = AtomicU8::new(0);
 
 /// Where a hold began, packed as `(x << 16) | y`, or `NO_HOLD`.
 const NO_HOLD: u32 = u32::MAX;
@@ -63,6 +67,20 @@ pub fn take_press() -> Option<(i16, i16)> {
 /// True once after a finger lifted, whether or not it was a hold.
 pub fn take_lift() -> bool {
     LIFTED.swap(false, Ordering::SeqCst)
+}
+
+/// Let up and down drags be swipes (true on home) or leave them to scroll.
+pub fn set_vertical_swipes(on: bool) {
+    VERTICAL_SWIPES.store(on, Ordering::SeqCst);
+}
+
+/// Once after a swipe up (`Some(true)`) or down (`Some(false)`).
+pub fn take_swipe_vertical() -> Option<bool> {
+    match SWIPED_VERTICAL.swap(0, Ordering::SeqCst) {
+        1 => Some(true),
+        2 => Some(false),
+        _ => None,
+    }
 }
 
 /// True once after a swipe to the right (go back).
@@ -158,9 +176,12 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, mut each_loop: impl FnMut()) -> a
                         window.dispatch_event(event);
                     }
                 }
+                tracker.set_vertical_swipes(VERTICAL_SWIPES.load(Ordering::SeqCst));
                 let update = tracker.update_at(t.x, t.y, t.pressed, boot.elapsed().as_millis() as u64);
                 match update.gesture {
                     Some(Gesture::SwipeRight) => SWIPED_RIGHT.store(true, Ordering::SeqCst),
+                    Some(Gesture::SwipeUp) => SWIPED_VERTICAL.store(1, Ordering::SeqCst),
+                    Some(Gesture::SwipeDown) => SWIPED_VERTICAL.store(2, Ordering::SeqCst),
                     Some(Gesture::HoldStart(x, y)) => HOLD_START.store(pack(x, y), Ordering::SeqCst),
                     Some(Gesture::HoldEnd) => HOLD_END.store(true, Ordering::SeqCst),
                     None => {}
