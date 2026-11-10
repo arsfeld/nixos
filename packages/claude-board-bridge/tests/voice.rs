@@ -183,3 +183,54 @@ async fn stalled_writer_does_not_block_cancel() {
     send_json(&mut ws, json!({"t":"cancel","utterance":9})).await;
     wait_for("the run was stopped by cancel", || brain.stops.load(Ordering::SeqCst) == 1).await;
 }
+
+/// A stalled writer, then a cancel, a second utterance and a second cancel: the reader keeps consuming
+/// and the voice side keeps working although it can no longer queue anything for the board.
+#[tokio::test]
+async fn reader_keeps_consuming_while_writer_is_stalled_after_cancel() {
+    let sentences: Vec<(u64, &str)> = (0..60).map(|_| (0, "This is one sentence of the reply. ")).collect();
+    let brain = FakeBrain::new(&sentences, false);
+    let st = voiced(brain.clone(), 4 << 20);
+    let addr = serve(st).await;
+    let (mut ws, _) = connect_voice(addr).await;
+    say(&mut ws, 1).await;
+    wait_for("the first ask", || brain.asks.load(Ordering::SeqCst) == 1).await;
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    send_json(&mut ws, json!({"t":"cancel","utterance":1})).await;
+    wait_for("the first stop", || brain.stops.load(Ordering::SeqCst) == 1).await;
+    // The board still is not reading, so the second run cannot even announce itself, let alone reach the
+    // brain. Its cancel must be processed anyway: once the board reads again, nothing of run 2 may show.
+    say(&mut ws, 2).await;
+    send_json(&mut ws, json!({"t":"cancel","utterance":2})).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    loop {
+        match tokio::time::timeout(Duration::from_millis(700), ws.next()).await {
+            Err(_) | Ok(None) => break,
+            Ok(Some(Ok(Message::Text(t)))) => {
+                let v: Value = serde_json::from_str(t.as_str()).unwrap();
+                assert!(v["utterance"] != 2, "run 2 survived its cancel: {v}");
+            }
+            Ok(Some(_)) => {}
+        }
+    }
+    assert_eq!(brain.asks.load(Ordering::SeqCst), 1, "run 2 reached the brain after its cancel");
+}
+
+#[tokio::test]
+async fn audio_uplink_is_bounded_while_the_voice_task_is_blocked() {
+    let sentences: Vec<(u64, &str)> = (0..60).map(|_| (0, "This is one sentence of the reply. ")).collect();
+    let brain = FakeBrain::new(&sentences, false);
+    let st = voiced(brain.clone(), 4 << 20);
+    let stats = st.uplink.clone();
+    let addr = serve(st).await;
+    let (mut ws, _) = connect_voice(addr).await;
+    send_json(&mut ws, json!({"t":"voice_start","utterance":5})).await;
+    let frame = encode_audio(5, &[0u8; 4000]);
+    for _ in 0..3000 {
+        ws.send(Message::binary(frame.clone())).await.unwrap();
+    }
+    send_json(&mut ws, json!({"t":"cancel","utterance":5})).await;
+    wait_for("the flood was consumed", || stats.dropped_frames.load(Ordering::SeqCst) > 0).await;
+    let peak = stats.peak_queued_bytes.load(Ordering::SeqCst);
+    assert!(peak <= 256 * 1024 + frame.len(), "queued {peak} bytes");
+}

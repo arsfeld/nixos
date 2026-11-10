@@ -81,8 +81,11 @@ impl Conn {
         Conn { backends, cfg, out, recording: None, running: None, starts: VecDeque::new(), speaking: Arc::default() }
     }
 
-    async fn mood(&self, mood: Mood) {
-        let _ = self.out.send(Out::Json(BoardMsg::Creature { mood })).await;
+    /// Sends from `on_client` never wait: when the channel is full the board is not reading, so it
+    /// could not act on the message anyway, and waiting would stall the reader that calls us (and
+    /// with it every later `Cancel`). The utterance task keeps its awaited sends; cancel aborts it.
+    fn mood(&self, mood: Mood) {
+        let _ = self.out.try_send(Out::Json(BoardMsg::Creature { mood }));
     }
 
     /// Stops whatever is recording or running; true if something was live.
@@ -97,7 +100,7 @@ impl Conn {
         }
         if let Some(utterance) = take_speaking(&self.speaking) {
             live = true;
-            let _ = self.out.send(Out::Json(BoardMsg::SpeakEnd { utterance })).await;
+            let _ = self.out.try_send(Out::Json(BoardMsg::SpeakEnd { utterance }));
         }
         live
     }
@@ -107,7 +110,7 @@ impl Conn {
             ClientMsg::VoiceStart { utterance } => {
                 let was_live = self.stop_all().await;
                 if self.backends.is_none() {
-                    self.mood(Mood::Offline).await;
+                    self.mood(Mood::Offline);
                     return;
                 }
                 let now = Instant::now();
@@ -115,21 +118,21 @@ impl Conn {
                     self.starts.pop_front();
                 }
                 if self.starts.len() >= self.cfg.max_per_minute as usize {
-                    self.mood(Mood::Idle).await;
+                    self.mood(Mood::Idle);
                     return;
                 }
                 self.starts.push_back(now);
                 self.recording = Some(Recording { id: *utterance, buf: Vec::new(), overflow: false });
                 if was_live {
                     // The old turn is closed; the board is about to record.
-                    self.mood(Mood::Idle).await;
+                    self.mood(Mood::Idle);
                 }
             }
             ClientMsg::VoiceEnd { utterance } => {
                 let Some(rec) = self.recording.take_if(|r| r.id == *utterance) else { return };
                 let Some(backends) = self.backends.clone() else { return };
                 if rec.overflow || rec.buf.is_empty() {
-                    self.mood(Mood::Idle).await;
+                    self.mood(Mood::Idle);
                     return;
                 }
                 let task = tokio::spawn(run_utterance(
@@ -146,7 +149,7 @@ impl Conn {
                 let mine = self.recording.as_ref().is_some_and(|r| r.id == *utterance)
                     || self.running.as_ref().is_some_and(|(id, _)| id == utterance);
                 if mine && self.stop_all().await {
-                    self.mood(Mood::Idle).await;
+                    self.mood(Mood::Idle);
                 }
             }
             _ => {}

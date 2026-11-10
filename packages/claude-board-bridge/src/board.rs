@@ -2,6 +2,10 @@
 
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
+
+use tokio::task::JoinHandle;
+use tokio::time::Instant;
 
 use axum::Router;
 use axum::body::Bytes;
@@ -20,7 +24,7 @@ use crate::voice::{Conn, Out};
 
 use crate::asks::Answered;
 use crate::auth::check_bearer;
-use crate::http::AppState;
+use crate::http::{AppState, UplinkStats};
 use crate::protocol::{BoardMsg, ClientMsg, Mood, PROTOCOL_VERSION};
 
 pub fn board_router(state: AppState) -> Router {
@@ -88,7 +92,20 @@ async fn send_history(s: &AppState, sink: &mut Sink, host: &str, session: &str) 
 /// The session whose feed this socket follows, if any. Set by the reader, read by the writer.
 type Watching = Arc<Mutex<Option<(String, String)>>>;
 
-/// What the reader hands to the voice task. Unbounded so the reader never waits on the voice side.
+/// Audio bytes allowed in the queue between the reader and the voice task.
+const MAX_QUEUED_AUDIO: usize = 256 * 1024;
+/// Control messages allowed in that queue.
+const MAX_QUEUED_CONTROL: usize = 64;
+
+/// What the reader has queued for the voice task, which decrements as it processes.
+#[derive(Default)]
+struct Queued {
+    audio: AtomicUsize,
+    control: AtomicUsize,
+}
+
+/// What the reader hands to the voice task. The channel is unbounded so the reader never waits on
+/// the voice side; `Queued` bounds it instead, and the reader drops what would exceed it.
 enum Voice {
     Client(ClientMsg),
     Audio(Vec<u8>),
@@ -96,7 +113,7 @@ enum Voice {
 
 /// Handles one incoming text frame. Never waits on the writer: a `watch` only records the session and
 /// wakes the writer, which sends the history.
-fn handle(s: &AppState, watching: &Watching, history: &Notify, voice: &UnboundedSender<Voice>, text: &str) {
+fn handle(s: &AppState, watching: &Watching, history: &Notify, voice: &mut Uplink, text: &str) {
     // A stale or replayed id is simply Unknown; nothing to tell the board.
     match serde_json::from_str::<ClientMsg>(text) {
         Ok(ClientMsg::Answer { id, answers }) => {
@@ -113,19 +130,73 @@ fn handle(s: &AppState, watching: &Watching, history: &Notify, voice: &Unbounded
         }
         Ok(ClientMsg::Unwatch) => *watching.lock().unwrap() = None,
         Ok(msg @ (ClientMsg::VoiceStart { .. } | ClientMsg::VoiceEnd { .. } | ClientMsg::Cancel { .. })) => {
-            let _ = voice.send(Voice::Client(msg));
+            voice.control(msg);
         }
         Err(_) => {}
     }
 }
 
 /// Owns the voice pipeline for one socket. Ends when the reader drops its sender.
-async fn voice_task(mut conn: Conn, mut rx: UnboundedReceiver<Voice>) {
+async fn voice_task(mut conn: Conn, mut rx: UnboundedReceiver<Voice>, queued: Arc<Queued>) {
     while let Some(m) = rx.recv().await {
         match m {
-            Voice::Client(msg) => conn.on_client(&msg).await,
-            Voice::Audio(frame) => conn.on_audio(&frame),
+            Voice::Client(msg) => {
+                queued.control.fetch_sub(1, Ordering::SeqCst);
+                conn.on_client(&msg).await
+            }
+            Voice::Audio(frame) => {
+                queued.audio.fetch_sub(frame.len(), Ordering::SeqCst);
+                conn.on_audio(&frame)
+            }
         }
+    }
+}
+
+/// Aborts its task when dropped, so a task cannot outlive `serve` even if its future is dropped.
+struct AbortOnDrop(JoinHandle<()>);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+/// The reader's side of the uplink bounds: queues for the voice task or drops, and counts the drops.
+struct Uplink {
+    tx: UnboundedSender<Voice>,
+    queued: Arc<Queued>,
+    stats: Arc<UplinkStats>,
+    dropped_since_log: usize,
+    last_log: Instant,
+}
+
+impl Uplink {
+    fn drop_one(&mut self) {
+        self.stats.dropped_frames.fetch_add(1, Ordering::SeqCst);
+        self.dropped_since_log += 1;
+        if self.last_log.elapsed() >= Duration::from_secs(1) {
+            eprintln!("voice: uplink dropped {} frames", self.dropped_since_log);
+            self.dropped_since_log = 0;
+            self.last_log = Instant::now();
+        }
+    }
+
+    fn control(&mut self, msg: ClientMsg) {
+        if self.queued.control.load(Ordering::SeqCst) >= MAX_QUEUED_CONTROL {
+            return self.drop_one();
+        }
+        self.queued.control.fetch_add(1, Ordering::SeqCst);
+        let _ = self.tx.send(Voice::Client(msg));
+    }
+
+    fn audio(&mut self, frame: Vec<u8>) {
+        let now = self.queued.audio.load(Ordering::SeqCst) + frame.len();
+        if now > MAX_QUEUED_AUDIO {
+            return self.drop_one();
+        }
+        self.queued.audio.fetch_add(frame.len(), Ordering::SeqCst);
+        self.stats.peak_queued_bytes.fetch_max(now, Ordering::SeqCst);
+        let _ = self.tx.send(Voice::Audio(frame));
     }
 }
 
@@ -197,22 +268,25 @@ async fn serve(s: AppState, socket: WebSocket) {
     let (out_tx, out_rx) = mpsc::channel::<Out>(64);
     let (voice_tx, voice_rx) = mpsc::unbounded_channel::<Voice>();
     let conn = Conn::new(s.voice.clone(), s.voice_cfg, out_tx);
-    let mut voice = tokio::spawn(voice_task(conn, voice_rx));
-    let mut writer = tokio::spawn(writer(s.clone(), sink, rx, out_rx, watching.clone(), history.clone()));
+    let queued = Arc::new(Queued::default());
+    let mut voice = AbortOnDrop(tokio::spawn(voice_task(conn, voice_rx, queued.clone())));
+    let mut writer = AbortOnDrop(tokio::spawn(writer(s.clone(), sink, rx, out_rx, watching.clone(), history.clone())));
+    let mut uplink =
+        Uplink { tx: voice_tx, queued, stats: s.uplink.clone(), dropped_since_log: 0, last_log: Instant::now() };
     loop {
         tokio::select! {
             // The writer ending means a failed send: the socket is gone.
-            _ = &mut writer => break,
+            _ = &mut writer.0 => break,
             incoming = stream.next() => match incoming {
-                Some(Ok(Message::Text(t))) => handle(&s, &watching, &history, &voice_tx, t.as_str()),
-                Some(Ok(Message::Binary(b))) => { let _ = voice_tx.send(Voice::Audio(b.to_vec())); }
+                Some(Ok(Message::Text(t))) => handle(&s, &watching, &history, &mut uplink, t.as_str()),
+                Some(Ok(Message::Binary(b))) => uplink.audio(b.to_vec()),
                 Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
                 Some(Ok(_)) => {}
             }
         }
     }
     // Dropping the aborted voice task drops its `Conn`, which stops any run still going.
-    voice.abort();
-    writer.abort();
-    let _ = (&mut voice).await;
+    voice.0.abort();
+    writer.0.abort();
+    let _ = (&mut voice.0).await;
 }

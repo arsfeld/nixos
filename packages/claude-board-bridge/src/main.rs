@@ -12,12 +12,14 @@
 //!   BRIDGE_HERMES_KEY_FILE      file holding the Hermes API key
 //!   BRIDGE_HERMES_SESSION       Hermes session the creature talks in (default creature)
 //!   BRIDGE_REPLY_TIMEOUT_SECS   bounds the brain and speech phase of one utterance (default 60)
-//! With any of the four voice settings missing, voice is off and the board sees the creature offline.
+//! With any of the four voice settings unset or empty, voice is off and the board sees the creature offline.
+//! With all four set but the Hermes key file unreadable or empty, the bridge refuses to start.
 
 use std::time::Duration;
 
 use claude_board_bridge::app;
 use claude_board_bridge::auth::Tokens;
+use claude_board_bridge::config::{VoiceEnv, voice_settings_from_env};
 use claude_board_bridge::http::{AppState, now_secs};
 use claude_board_bridge::voice::VoiceConfig;
 use claude_board_bridge::voice::backends::{Backends, HermesHttp, PiperHttp, WhisperHttp};
@@ -36,18 +38,22 @@ fn token(var: &str) -> String {
     tok
 }
 
-/// Voice is on only when the speech servers and Hermes are all configured.
+/// Voice settings from the environment; `None` (with a note naming what is unset) leaves it off.
 fn voice() -> Option<(Backends, VoiceConfig)> {
-    let url = |var: &str| std::env::var(var).ok().filter(|v| !v.trim().is_empty());
-    let (stt, tts, hermes) = (url("BRIDGE_STT_URL")?, url("BRIDGE_TTS_URL")?, url("BRIDGE_HERMES_URL")?);
-    let key = token("BRIDGE_HERMES_KEY_FILE");
-    let session = url("BRIDGE_HERMES_SESSION").unwrap_or_else(|| "creature".into());
-    let backends = Backends {
-        stt: std::sync::Arc::new(WhisperHttp::new(stt)),
-        tts: std::sync::Arc::new(PiperHttp::new(tts)),
-        brain: std::sync::Arc::new(HermesHttp::new(hermes, key, session)),
+    let s = match voice_settings_from_env(|k| std::env::var(k).ok()) {
+        Ok(VoiceEnv::On(s)) => s,
+        Ok(VoiceEnv::Off { missing }) => {
+            eprintln!("claude-board-bridge: voice off, not set: {}", missing.join(", "));
+            return None;
+        }
+        Err(e) => fatal(&e),
     };
-    let cfg = VoiceConfig { reply_timeout: Duration::from_secs(env_num("BRIDGE_REPLY_TIMEOUT_SECS", 60)), ..VoiceConfig::default() };
+    let backends = Backends {
+        stt: std::sync::Arc::new(WhisperHttp::new(s.stt_url)),
+        tts: std::sync::Arc::new(PiperHttp::new(s.tts_url)),
+        brain: std::sync::Arc::new(HermesHttp::new(s.hermes_url, s.hermes_key, s.session)),
+    };
+    let cfg = VoiceConfig { reply_timeout: Duration::from_secs(s.reply_timeout_secs), ..VoiceConfig::default() };
     Some((backends, cfg))
 }
 
@@ -71,7 +77,7 @@ async fn main() {
             eprintln!("claude-board-bridge: voice on");
             state = state.with_voice(backends, cfg);
         }
-        None => eprintln!("claude-board-bridge: voice off"),
+        None => {}
     }
 
     let sweep = state.clone();

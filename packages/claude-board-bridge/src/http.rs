@@ -23,6 +23,15 @@ use crate::state::{Change, Registry, project_of};
 use crate::voice::VoiceConfig;
 use crate::voice::backends::Backends;
 
+/// Counts for the board uplink's bounds, across every board socket.
+#[derive(Default)]
+pub struct UplinkStats {
+    /// The most audio bytes ever queued for one voice task.
+    pub peak_queued_bytes: AtomicUsize,
+    /// Uplink frames dropped because the voice side was not keeping up.
+    pub dropped_frames: AtomicUsize,
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub registry: Arc<Mutex<Registry>>,
@@ -39,6 +48,7 @@ pub struct AppState {
     /// The speech and brain backends; `None` leaves the creature offline.
     pub voice: Option<Arc<Backends>>,
     pub voice_cfg: VoiceConfig,
+    pub uplink: Arc<UplinkStats>,
 }
 
 impl AppState {
@@ -55,6 +65,7 @@ impl AppState {
             ping_every: Duration::from_secs(30),
             voice: None,
             voice_cfg: VoiceConfig::default(),
+            uplink: Arc::default(),
         }
     }
 

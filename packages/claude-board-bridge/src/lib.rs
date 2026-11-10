@@ -3,6 +3,7 @@ pub mod asks;
 pub mod feed;
 pub mod board;
 pub mod auth;
+pub mod config;
 pub mod http;
 pub mod state;
 pub mod voice;
