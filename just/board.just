@@ -94,8 +94,8 @@ creds:
       printf "CONFIG_CLAUDE_BOARD_WIFI_SSID=\"%s\"\n" "$ssid" >> "$out"
       printf "CONFIG_CLAUDE_BOARD_WIFI_PASS=\"%s\"\n" "$pass" >> "$out"
       printf "CONFIG_CLAUDE_BOARD_TOKEN=\"%s\"\n" "$token" >> "$out"
-      # The Rust firmware reads KEY=value lines (no quoting) from credentials.env at build time.
-      penv="{{ justfile_directory() }}/firmware/probe-rust/credentials.env"
+      # The Rust firmware reads KEY=value lines (no quoting) from app/credentials.env at build time.
+      penv="{{ FW }}/app/credentials.env"
       : > "$penv"
       chmod 600 "$penv"
       printf "CB_WIFI_SSID=%s\nCB_WIFI_PASS=%s\nCB_TOKEN=%s\n" "$ssid" "$pass" "$token" >> "$penv"
@@ -103,7 +103,7 @@ creds:
     rm -f '{{ FW }}/sdkconfig'
     echo "wrote {{ FW }}/sdkconfig.defaults.local; run just board build"
 
-# Build the firmware.
+# Build the OLD C firmware (kept until the Rust one has replaced it).
 #
 # The first configure is seeded with kconfig-seed.json. The IDF component manager (2.2.2 in IDF
 # 5.5.x) evaluates optional dependencies that are conditioned on Kconfig symbols (LVGL 9.6's
@@ -113,7 +113,7 @@ creds:
 # when that exists, so the first configure starts from a seed with those features off; the real
 # sdkconfig.json replaces it from then on. If a newer lvgl or adapter adds another conditional
 # dependency the same error names the symbol: add it to the seed. dependencies.lock pins versions.
-build:
+build-c:
     #!/usr/bin/env bash
     set -euo pipefail
     nix develop .#firmware -c bash -c '
@@ -128,8 +128,8 @@ build:
       idf.py build
     '
 
-# Flash the built firmware (bootloader, partition table, app) and reboot the board.
-flash:
+# Flash the old C firmware (bootloader, partition table, app) and reboot the board.
+flash-c:
     #!/usr/bin/env bash
     set -euo pipefail
     nix develop .#firmware -c bash -c '
@@ -139,6 +139,43 @@ flash:
       run esptool --chip esp32s3 --port "{{ PORT }}" --baud 921600 write-flash "@flash_args"
     '
 
-# Follow the board's log (needs a terminal; Ctrl-] quits).
-monitor:
+# Follow the old C firmware's log (needs a terminal; Ctrl-] quits).
+monitor-c:
     nix develop .#firmware -c bash -c 'cd "{{ FW }}" && idf.py -p "{{ PORT }}" monitor'
+
+# Build the Rust firmware (app/). esp-idf-sys does not notice changes to the C component, sdkconfig.defaults
+# or the Cargo metadata, so it is cleaned first when any of them is newer than the last build.
+build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    nix develop .#firmware -c bash -c '
+      set -euo pipefail
+      cd "{{ FW }}"
+      ./scripts/vendor-slint-core.sh >/dev/null
+      cd app
+      stamp=target/.inputs-stamp
+      if [ ! -f "$stamp" ] || [ -n "$(find components sdkconfig.defaults Cargo.toml partitions.csv -newer "$stamp" -print -quit)" ]; then
+        cargo clean -p esp-idf-sys --release 2>/dev/null || true
+      fi
+      cargo build --release
+      touch "$stamp"
+    '
+
+# Flash the Rust firmware and reboot the board. The partition table is given here, not in the build:
+# esp-idf-sys ignores CONFIG_PARTITION_TABLE_*.
+flash:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    nix develop .#firmware -c bash -c '
+      set -euo pipefail
+      cd "{{ FW }}/app"
+      out="$(ls -td target/xtensa-esp32s3-espidf/release/build/esp-idf-sys-*/out/build | head -n1)"
+      run() { if [ -w "{{ PORT }}" ]; then "$@"; else sudo env "PATH=$PATH" "$@"; fi; }
+      run espflash flash --chip esp32s3 --port "{{ PORT }}" --flash-size 16mb \
+        --bootloader "$out/bootloader/bootloader.bin" --partition-table partitions.csv \
+        --ignore-app-descriptor target/xtensa-esp32s3-espidf/release/claude-board
+    '
+
+# Follow the board's log (needs a terminal; Ctrl-C quits).
+monitor:
+    nix develop .#firmware -c bash -c 'cd "{{ FW }}/app" && espflash monitor --port "{{ PORT }}"'

@@ -3,6 +3,8 @@
 # needs the Xtensa toolchain.
 [workspace]
 members = ["ui"]
+# The firmware binary has its own ESP target, toolchain flags and lock file.
+exclude = ["app"]
 resolver = "2"
 
 # Local patch, made by scripts/vendor-slint-core.sh (run it once after checkout): Slint's Path support

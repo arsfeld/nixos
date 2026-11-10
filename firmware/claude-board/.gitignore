@@ -1,4 +1,5 @@
 build/
+credentials.env
 managed_components/
 preview/
 sdkconfig
