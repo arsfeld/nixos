@@ -538,7 +538,7 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     through the API's cron endpoint runs with the cron toolsets, not the API's. Set them explicitly, too: the module
     deep-merges `settings` into the config.yaml already on disk, so a key left out keeps its old value. After any
     bump of the `hermes-agent` input (the weekly update moves it) check `GET /v1/toolsets` still lists what you
-    expect. Run continuity is the `session_id` **body** field of
+    expect (MCP toolsets are not listed there; see "Creature tools"). Run continuity is the `session_id` **body** field of
     `/v1/runs`; `X-Hermes-Session-Id` works only on `/v1/chat/completions`. There is one gateway per host, and
     galactica's older container (`services/hermes.nix`) is `enable = false` since 2026-10-25 for a Brotli CVE in
     pages the agent browses: do not re-enable it expecting it to be the creature. The persona is
@@ -569,6 +569,46 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     **Still unverified:** which MIC channel is which, the heap margin during a hold (78 KB internal free just
     after one), a tap stopping speech within 1 s, chime pitch after a reply, reassembly of 32 KiB frames, and volume. The target is
     a median of 5 s from release to first spoken word. Check them with `just board monitor`.
+- **Creature tools** (spec `docs/superpowers/specs/2026-11-10-claude-board-creature-capabilities-design.md`; implemented
+  2026-11-10, board acceptance pending). Hermes keeps its core toolsets (`3abd1c01`: web, terminal, files, memory) and
+  gains two MCP servers declared under `mcp_servers` in its settings: the bridge's own, `claude-board`, for timers and
+  weather, and Home Assistant's, `homeassistant`, for the house.
+  - **Bridge endpoint.** `127.0.0.1:8591` (`BRIDGE_MCP_LISTEN`), JSON-RPC over HTTP, bearer token
+    `claude-board-mcp-token` (`BRIDGE_MCP_TOKEN_FILE`); results are capped at 3000 bytes. Tools: `set_timer`,
+    `list_timers`, `cancel_timer`, and `weather_forecast` (HA `weather.get_forecasts` for `weather.forecast_home`;
+    registered only when both `BRIDGE_HA_URL` and `BRIDGE_HA_TOKEN_FILE` are set). Code:
+    `packages/claude-board-bridge/src/mcp/{mod,timers,weather}.rs` and `src/timers.rs`.
+  - **Timers.** Persisted in `/var/lib/claude-board/timers.json` (`StateDirectory`): at most 20, at most 30 days
+    ahead, in America/Toronto; a time in the spring-forward gap is refused and a fall-back overlap takes the earlier
+    instant. When one is due the bridge itself speaks "Reminder. <label>." through Piper, with no Hermes call, and sends
+    `reminder {id,label,due}`. Its speech uses a bridge-owned utterance id >= 0x8000_0000 and waits while the creature is
+    busy (hold, refused hold, reply). With no board connected it waits and is delivered on connect up to 60 minutes
+    late; after that it is dropped and logged as `timer: dropped id=<id> late_s=<n>`. A reminder is removed from the
+    file before it is sent, so a socket that dies at that moment loses it. **Why not Hermes cron:** `api_server` is a
+    non-push origin, so cron output never reaches the board. The board shows a reminder on the reply card, sticky until
+    tapped, and returns home from the list or detail; a tap cancels the bridge's utterance id.
+  - **Hermes wiring.** The header tokens are `${CLAUDE_BOARD_MCP_TOKEN}` and `${HA_MCP_TOKEN}` placeholders that
+    Hermes interpolates from its env file (the `ExecStartPre` writer), never in the store. MCP toolsets are enabled
+    automatically next to `hermes-api-server`; naming one in `platform_toolsets` would turn that list into an
+    allowlist. **`GET /v1/toolsets` does not list MCP toolsets.** After a `hermes-agent` bump check
+    `/var/lib/hermes-creature/.hermes/logs/agent.log` for `MCP server '...' (HTTP): registered N tool(s)` for both. A
+    server that is down at start is retried and re-probed every 300 s. `tools.tool_search.enabled = "off"`: tool search
+    defers every MCP tool behind a search round trip, and measured, the creature then used curl for the weather and
+    needed 6 model calls for a house question; off costs about 5,900 prompt tokens a turn, mostly cached.
+  - **Home Assistant.** `mcp_server` is in `extraComponents` and the integration was added in the UI. The token belongs
+    to a non-admin `creature` user (`hermes-creature-ha-token` in `galactica.yaml`, used by both Hermes and the
+    bridge). What the creature can control is HA's Assist exposure list, and HA's default (expose new entities)
+    exposed climate, sensors, binary sensors, 2 lights, todo and 11 switches; the `switch` domain is being bulk
+    unexposed because it holds the Eufy camera "Enabled" switches and the water heater. **Never expose locks,
+    Alarmo, cameras or their switches, or the heat pump master switch.** HA's tools are HassTurnOn/Off,
+    HassLightSet, HassClimateSetTemperature, HassBroadcast, the list tools, GetDateTime and GetLiveContext (current
+    state only, no forecast; hence `weather_forecast`). `HassCancelAllTimers` is excluded (`tools.exclude`) because it
+    cancels HA's own timers.
+  - **Risk.** Page text from Hermes' own `web_extract` reaches an agent that can change exposed devices. If that
+    proves too loose, the fallback is an Allow/Deny board card for state-changing home calls. `3abd1c01` already gave
+    the same agent a terminal on galactica, a larger blast radius that is outside this work.
+  - **Deploy order:** galactica (the bridge) before flashing the board. An old board ignores `reminder`; a new board
+    against an old bridge never sees one.
 - **The command arcs** (spec `docs/superpowers/specs/2026-11-10-claude-board-commands-design.md`, plan
   `docs/superpowers/plans/2026-11-10-claude-board-commands.md`). A swipe down from the top 60 px of home opens three
   arcs in the top third of the rim, VOL / LINK / PURGE (the ring's inner radius drops to 150 while they are open);

@@ -1,6 +1,6 @@
 # Claude Board creature: everyday capabilities (home and timers)
 
-Date: 2026-11-10. Status: design, re-scoped 2026-11-10 after `3abd1c01`.
+Date: 2026-11-10. Status: implemented 2026-11-10; acceptance pending. Re-scoped 2026-11-10 after `3abd1c01`.
 
 **Re-scope.** While this spec was being planned, `3abd1c01` gave the creature's Hermes its full core
 toolsets (`hermes-api-server` and `hermes-cron`: `web_search`, `web_extract`, terminal, files, code
