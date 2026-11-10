@@ -13,8 +13,10 @@ use slint::{ComponentHandle, LogicalPosition};
 
 const W: usize = 466;
 /// Row pitch and the screen y of the first row's centre at scroll 0 (see sessions.slint).
-const PITCH: f32 = 56.0;
-const FIRST_ROW_Y: f32 = 231.0;
+const PITCH: f32 = 104.0;
+/// At scroll 0 the first row is one slot above the screen centre, so row 1 is centred.
+const FIRST_ROW_Y: f32 = 129.0;
+const CENTRE_Y: f32 = 233.0;
 
 #[derive(Clone, Default)]
 struct Wire(Rc<RefCell<Vec<String>>>);
@@ -84,42 +86,41 @@ fn badge(buf: &[Rgb565Pixel], yc: f32) -> Option<(usize, u8)> {
 #[test]
 fn rows_curve_away_from_the_centre_row() {
     let f = fx();
-    let buf = f.h.render();
-    let lefts: Vec<usize> = (0..3).map(|k| badge(&buf, FIRST_ROW_Y + k as f32 * PITCH).expect("a badge").0).collect();
-    assert!(lefts[0] < lefts[1] && lefts[1] < lefts[2], "badges should drift right away from the centre: {lefts:?}");
-    assert!(lefts[2] - lefts[0] >= 20, "the curve should be visible: {lefts:?}");
-}
-
-#[test]
-fn rows_fade_away_from_the_centre_row() {
-    let f = fx();
-    let buf = f.h.render();
-    let bright: Vec<u8> = (0..3).map(|k| badge(&buf, FIRST_ROW_Y + k as f32 * PITCH).expect("a badge").1).collect();
-    assert!(bright[0] > bright[2], "a row two steps off the centre should be dimmer: {bright:?}");
+    let buf = f.h.render(); // row 1 is at the centre, rows 0 and 2 above and below it
+    let left = |dy: f32| badge(&buf, CENTRE_Y + dy).expect("a badge").0;
+    let (above, centre, below) = (left(-PITCH), left(0.0), left(PITCH));
+    assert!(centre + 15 <= above && centre + 15 <= below, "badges should sweep right away from the centre: {above} {centre} {below}");
 }
 
 #[test]
 fn scrolling_brings_another_row_to_the_centre() {
     let f = fx();
-    let at_start = badge(&f.h.render(), FIRST_ROW_Y).expect("a badge").0;
-    f.ui.set_list_scroll(-3.0 * PITCH);
-    // Row 3 is now where row 0 was: its badge sits at the centre row's left edge.
-    let at_centre = badge(&f.h.render(), FIRST_ROW_Y).expect("a badge").0;
+    let at_start = badge(&f.h.render(), CENTRE_Y).expect("a badge").0;
+    f.ui.set_list_scroll(-3.0 * PITCH); // row 4 where row 1 was
+    let at_centre = badge(&f.h.render(), CENTRE_Y).expect("a badge").0;
     assert_eq!(at_centre, at_start);
 }
 
 #[test]
 fn tapping_the_centre_row_opens_it_at_any_scroll() {
     let f = fx();
-    for scroll_rows in [0, 3, 5] {
+    for scroll_rows in [0, 2, 4] {
         f.ui.set_list_scroll(-(scroll_rows as f32) * PITCH);
         f.h.render();
-        f.tap(233.0, FIRST_ROW_Y);
+        f.tap(233.0, CENTRE_Y);
         assert_eq!(f.ui.get_page(), Page::Detail, "scrolled {scroll_rows} rows");
-        assert_eq!(f.ui.get_detail_project(), format!("p{scroll_rows}"));
+        assert_eq!(f.ui.get_detail_project(), format!("p{}", scroll_rows + 1)); // row 1 is centred at scroll 0
         f.ui.invoke_back_tapped(); // back to the list, which keeps its scroll position
         assert_eq!(f.ui.get_page(), Page::List);
     }
+}
+
+#[test]
+fn the_first_row_starts_one_slot_above_the_centre_and_can_be_tapped() {
+    let f = fx();
+    f.h.render();
+    f.tap(233.0, FIRST_ROW_Y);
+    assert_eq!((f.ui.get_page(), f.ui.get_detail_project().to_string()), (Page::Detail, "p0".into()));
 }
 
 #[test]

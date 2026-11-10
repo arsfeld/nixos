@@ -107,7 +107,6 @@ fn main() {
 
     ui.set_page(Page::List);
     ui.set_rows(ModelRc::new(VecModel::from(session_rows(&sessions, Some(NOW)))));
-    ui.set_list_header("5 SESSIONS - 1 NEEDS YOU".into());
     write_png(dir, "list", &h);
 
     ui.set_page(Page::Question);
@@ -148,9 +147,8 @@ fn main() {
     many8.apply(&serde_json::to_string(&serde_json::json!({"t":"state","sessions":eight})).unwrap());
     show_rim(&ui, many8.sessions());
     ui.set_rows(ModelRc::new(VecModel::from(session_rows(many8.sessions(), Some(NOW)))));
-    ui.set_list_header("8 SESSIONS - 1 NEEDS YOU".into());
     ui.set_page(Page::List);
-    ui.set_list_scroll(-2.0 * 56.0);
+    ui.set_list_scroll(0.0);
     write_png(dir, "list-wheel", &h);
 
     // A crowded rim: 13 sessions, two waiting.

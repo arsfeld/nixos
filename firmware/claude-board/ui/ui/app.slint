@@ -26,9 +26,8 @@ export component AppWindow inherits Window {
     in property <string> summary;
     // List.
     in property <[SessionRow]> rows;
-    in property <string> list-header;
-    in property <float> list-wheel-radius: 150;
-    in property <float> list-inset: 28;
+    in property <float> list-wheel-radius: 233;
+    in property <float> list-inset: 66;
     // How far the list is scrolled; 0 shows the first row at the centre.
     in-out property <length> list-scroll: 0px;
     // Question.
@@ -79,7 +78,8 @@ export component AppWindow inherits Window {
         ring := TouchArea {
             width: 466px;
             height: 466px;
-            enabled: root.page == Page.home || root.page == Page.list;
+            // The list fills the screen and takes its own touches.
+        enabled: root.page == Page.home;
             // Offsets from the centre in pixels, y up.
             property <float> dx: (self.mouse-x - 233px) / 1px;
             property <float> dy: (233px - self.mouse-y) / 1px;
@@ -101,7 +101,6 @@ export component AppWindow inherits Window {
         }
         if root.page == Page.list: SessionsPage {
             rows: root.rows;
-            header: root.list-header;
             wheel-r: root.list-wheel-radius;
             inset: root.list-inset;
             scroll <=> root.list-scroll;

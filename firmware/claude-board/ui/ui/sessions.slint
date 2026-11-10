@@ -1,8 +1,8 @@
-// The session list as a fan-out wheel: the row at the vertical centre sits furthest left and brightest, and
-// rows above and below curve away to the right, narrow and fade, as on a round watch. Scrolled by touch.
+// The session list as a wheel, like a round watch's app list: big round badges down the left, each with
+// its name, and the column curving away to the right above and below the centre row, following the screen's
+// own curve. Rows at the top and bottom are half hidden by the bezel. Scrolled by touch.
 //
-// The software renderer cannot rotate items, so rows slide and fade along the curve but never tilt. Colours
-// carry the fade (with-alpha) instead of `opacity`, which would render each row through an off-screen layer.
+// The software renderer cannot rotate items, so rows slide along the curve but never tilt.
 import { Theme, SessionRow } from "theme.slint";
 import { Pill } from "widgets.slint";
 
@@ -10,74 +10,62 @@ component RowView inherits Rectangle {
     in property <SessionRow> data;
     // Where the row's centre is on the screen, supplied by the wheel.
     in property <length> cy;
-    // The wheel: its radius (a bigger wheel bends less) and how far in from the screen edge the badges start.
-    in property <float> wheel-r: 150;
-    in property <float> inset: 28;
+    // The wheel: its radius (the screen's own, so the column follows the bezel) and how far in from the screen
+    // edge the badges start on the centre row.
+    in property <float> wheel-r: 233;
+    in property <float> inset: 66;
     callback tapped();
 
-    // Distance from the screen centre. The row's left edge follows a circle of radius 190 (`bow` is how far
-    // that circle has curved away from its widest point), and the right edge mirrors it.
+    // `bow` is how far the circle has curved away from its widest point at this distance from the centre.
     property <float> dy: (root.cy - 233px) / 1px;
     property <float> bow: root.wheel-r - Math.sqrt(Math.max(0, root.wheel-r * root.wheel-r - root.dy * root.dy));
     property <float> left: root.inset + root.bow;
-    property <float> fade: Math.max(0, 1 - 0.7 * Math.min(1, Math.abs(root.dy) / 175));
-    property <bool> centred: Math.abs(root.dy) < 30;
 
     x: root.left * 1px;
-    width: Math.max(0, 466 - 2 * root.left) * 1px;
-    height: 52px;
-    visible: root.width > 60px;
-    border-radius: 26px;
-    background: root.data.waiting ? #1a1305.with-alpha(root.fade) : (root.centred ? #121a2e : #00000000);
+    width: Math.max(0, 466 - root.left - 14) * 1px;
+    height: 96px;
+    visible: root.width > 40px;
 
+    // The badge: the state's colour with the project's first letter.
     Rectangle {
-        x: 10px;
-        y: 8px;
-        width: 36px;
-        height: 36px;
-        border-radius: 18px;
-        background: Theme.session-color(root.data.state).with-alpha(root.fade);
+        x: 0px;
+        y: 6px;
+        width: 84px;
+        height: 84px;
+        border-radius: 42px;
+        background: Theme.session-color(root.data.state);
         Text {
             text: root.data.initial;
             color: #000000;
             font-family: "Sora";
             font-weight: 600;
-            font-size: 17px;
+            font-size: 26px;
             horizontal-alignment: center;
             vertical-alignment: center;
         }
     }
-    Text {
-        x: 56px;
-        y: 7px;
-        width: root.width - 56px - 58px;
-        text: root.data.project;
-        color: Theme.text.with-alpha(root.fade);
-        font-family: "Sora";
-        font-weight: 600;
-        font-size: root.centred ? 20px : 17px;
-        overflow: elide;
-    }
-    Text {
-        x: 56px;
-        y: 32px;
-        width: root.width - 56px - 58px;
-        text: root.data.host;
-        color: Theme.muted.with-alpha(root.fade);
-        font-family: "JetBrains Mono";
-        font-size: 11px;
-        overflow: elide;
-    }
-    Text {
-        x: root.width - 62px;
-        width: 50px;
+    VerticalLayout {
+        x: 98px;
+        width: root.width - 98px;
         height: parent.height;
-        text: root.data.ago;
-        color: Theme.muted.with-alpha(root.fade);
-        font-family: "JetBrains Mono";
-        font-size: 13px;
-        horizontal-alignment: right;
-        vertical-alignment: center;
+        alignment: center;
+        spacing: 2px;
+        Text {
+            text: root.data.project;
+            color: Theme.text;
+            font-family: "Sora";
+            font-weight: 600;
+            font-size: 22px;
+            wrap: word-wrap;
+            overflow: elide;
+        }
+        Text {
+            text: root.data.host + "  " + root.data.ago;
+            color: Theme.muted;
+            font-family: "JetBrains Mono";
+            font-size: 12px;
+            overflow: elide;
+        }
     }
     area := TouchArea {
         clicked => {
@@ -88,36 +76,26 @@ component RowView inherits Rectangle {
 
 export component SessionsPage inherits Rectangle {
     in property <[SessionRow]> rows;
-    in property <string> header;
-    in property <float> wheel-r: 150;
-    in property <float> inset: 28;
-    // How far the list is scrolled (0, or negative).
+    in property <float> wheel-r: 233;
+    in property <float> inset: 66;
+    // How far the list is scrolled (0, or negative). At 0 the first row is one slot above the centre, so the
+    // list fills the screen from the top.
     in-out property <length> scroll <=> flick.content-y;
     callback row-tapped(int);
     callback back-tapped();
 
-    Text {
-        y: 62px;
-        width: 466px;
-        text: root.header;
-        color: Theme.muted;
-        font-family: "JetBrains Mono";
-        font-size: 12px;
-        horizontal-alignment: center;
-    }
-
-    // Rows are 52 px tall every 56 px. 118 px of padding above and below lets the first and the last row
-    // reach the centre: with the window at y 87 and 292 px tall, the first row's centre is at y 231.
+    // The whole screen scrolls, so rows can reach the bezel. Rows are 96 px tall every 104 px; the first row's
+    // centre is at 81 + 48 = 129, and the last row can be scrolled up to the screen centre (233).
     flick := Flickable {
         x: 0px;
-        y: 87px;
+        y: 0px;
         width: 466px;
-        height: 292px;
+        height: 466px;
         content-width: 466px;
-        content-height: 2 * 118px + root.rows.length * 56px;
+        content-height: Math.max(466px, 258px + root.rows.length * 104px);
         for row[i] in root.rows: RowView {
-            y: 118px + i * 56px;
-            cy: 87px + flick.content-y + 118px + i * 56px + 26px;
+            y: 81px + i * 104px;
+            cy: flick.content-y + 81px + i * 104px + 48px;
             data: row;
             wheel-r: root.wheel-r;
             inset: root.inset;
@@ -128,10 +106,10 @@ export component SessionsPage inherits Rectangle {
     }
 
     Pill {
-        x: (466px - 120px) / 2;
-        y: 388px;
-        width: 120px;
-        height: 38px;
+        x: (466px - 100px) / 2;
+        y: 414px;
+        width: 100px;
+        height: 34px;
         text: "Back";
         tapped => {
             root.back-tapped();

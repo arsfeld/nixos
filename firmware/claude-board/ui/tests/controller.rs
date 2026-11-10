@@ -195,7 +195,6 @@ fn tap_on_a_row_opens_detail_and_back_returns_to_the_list() {
     f.ui.invoke_avatar_tapped();
     assert_eq!(f.ui.get_page(), Page::List);
     assert_eq!(f.ui.get_rows().row_count(), 3);
-    assert_eq!(f.ui.get_list_header(), "3 SESSIONS - 1 NEEDS YOU");
     f.ui.invoke_row_tapped(0); // the waiting one comes first
     assert_eq!(f.ui.get_page(), Page::Detail);
     assert_eq!(f.ui.get_detail_host(), "galactica");

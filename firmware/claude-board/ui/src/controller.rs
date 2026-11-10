@@ -289,12 +289,6 @@ impl<O: Outbox> Inner<O> {
         );
 
         win.set_rows(ModelRc::new(VecModel::from(session_rows(sessions, self.now))));
-        let mut header = plural(sessions.len(), "SESSION", "SESSIONS");
-        if waiting > 0 {
-            header += &format!(" - {}", plural(waiting, "NEEDS YOU", "NEED YOU"));
-        }
-        win.set_list_header(header.into());
-
         if let Some(s) = self.detail_session() {
             win.set_detail_host(shorten(&s.host, 24).into());
             win.set_detail_project(shorten(&s.project, 40).into());

@@ -116,13 +116,14 @@ fn list_row_and_back_buttons_work() {
     f.feed("state");
     f.tap(233.0, 233.0); // list
     f.h.render();
-    f.tap(233.0, 231.0); // first row, now at the centre of the wheel
+    f.tap(233.0, 129.0); // the first row, one slot above the centre
     assert_eq!(f.ui.get_page(), Page::Detail);
     f.h.render();
-    f.tap(233.0, 396.0); // Back
+    f.tap(233.0, 396.0); // Back, on the detail page
     assert_eq!(f.ui.get_page(), Page::List);
     f.h.render();
-    f.tap(233.0, 396.0); // Back again
+    f.tap(233.0, 430.0); // Back, on the list
+
     assert_eq!(f.ui.get_page(), Page::Home);
 }
 
