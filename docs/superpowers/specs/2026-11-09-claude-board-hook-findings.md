@@ -47,3 +47,34 @@ unknown ones.
   `idle` shortly after, as the plan's state table has it.
 - The user's existing `PreToolUse` hook on the question tool (an ntfy
   notification) still runs alongside; no conflict seen.
+
+## Tool-use payloads (session feed and remote approvals)
+
+Measured on Claude Code 2.1.321 with `claude -p ... --permission-mode default`
+and a logging hook on `PreToolUse`, `PostToolUse`, `PostToolUseFailure` and
+`PermissionRequest`; `-p` fires all of them, so every fixture below is a real
+capture (session id and paths replaced). The fixtures are
+`permission_request_bash`, `pre_tool_use_bash`, `post_tool_use_bash`,
+`post_tool_use_failure_bash` and `pre_tool_use_edit`. Payloads also carry
+`transcript_path` and `scratchpad_dir`, which the older fixtures lack.
+
+**(a) `PermissionRequest` has no `tool_use_id`.** Observed for Bash, Write and
+Edit: the payload holds `tool_name`, `tool_input` and `permission_suggestions`
+but no `tool_use_id`. `PreToolUse`, `PostToolUse` and `PostToolUseFailure` do
+carry it, so a request cannot be tied to its tool call by id; match on
+`session_id` plus `tool_name` plus `tool_input` (the `PreToolUse` for the same
+call fires just before the request). `echo hi` raised no `PermissionRequest`
+at all (read-only commands are auto-allowed), while `ls /nonexistent`, Write
+and Edit did.
+
+**(b) A failing Bash command fires `PostToolUseFailure`, not `PostToolUse`.**
+Payload: `tool_name`, `tool_input`, `tool_use_id`, `error` (a string such as
+"Exit code 2\nls: cannot access '/nonexistent': No such file or directory"),
+`is_interrupt` (false) and `duration_ms`. There is no `tool_response`. A
+succeeding command fires `PostToolUse` with `tool_response` (`stdout`,
+`stderr`, `interrupted`, ...) and `duration_ms`.
+
+**(c) Edited text fields.** `Edit` has `tool_input.new_string` (plus
+`old_string`, `file_path`, `replace_all`); `Write` has `tool_input.content`
+(plus `file_path`). Both observed. The Write payload is not a fixture; its
+shape is in this paragraph only.

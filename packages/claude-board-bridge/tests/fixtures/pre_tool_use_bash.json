@@ -1,0 +1,18 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "transcript_path": "/home/arosenfeld/.claude/projects/-home-arosenfeld-Code-nixos/00000000-0000-4000-8000-000000000001.jsonl",
+  "cwd": "/home/arosenfeld/Code/nixos",
+  "scratchpad_dir": "/tmp/claude-1000/-home-arosenfeld-Code-nixos/00000000-0000-4000-8000-000000000001/scratchpad",
+  "prompt_id": "1b8ba410-dae7-4271-8330-58e12eae9f7f",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "echo hi",
+    "description": "Print hi"
+  },
+  "tool_use_id": "toolu_016kgaPZmuLbsdQC9eWAp8gq"
+}
