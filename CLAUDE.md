@@ -365,8 +365,10 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
   `media.services.claude-board` with `bypassAuth`. **Public and token-gated:** the board and the hooks
   both use `https://claude-board.arsfeld.one`, reachable from any network, so the bearer tokens are
   the only gate (256-bit, constant-time compare, 500 ms delay on a failed attempt). Approving a
-  question is authority over a session, so treat the tokens as credentials. State is in memory: after a
-  bridge restart the board shows no sessions until each one next emits an event.
+  question is authority over a session, so treat the tokens as credentials. Sessions, questions and
+  feeds are in memory: after a bridge restart the board shows no sessions until each one next emits an event. What
+  must survive a restart is on disk: `StateDirectory = "claude-board"` (`/var/lib/claude-board`) holds `timers.json`
+  and `hermes-session`.
 - **Session feed and tool approvals** (spec `docs/superpowers/specs/2026-11-09-claude-board-feed-design.md`).
   The hook also sends `PreToolUse`, `PostToolUse` and `PostToolUseFailure` as feed entries, plus prompt
   and reply entries from `UserPromptSubmit` and `Stop`; `claude-board-install-hooks` registers them. Entries
@@ -439,6 +441,10 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
   tracker takes them as swipes only while `set_vertical_swipes` is on. The screen dims 30 s after the last touch or bridge
   message and the picture shifts a few pixels each minute, against AMOLED burn-in.
 - **Firmware traps, nearly all hit during bring-up.**
+  - **A stroked `Path` fits its viewbox inside the element minus the stroke width**, so a thickly stroked arc draws
+    shrunk unless its element is grown by the stroke. The command arcs do this, so their boxes are larger than the
+    segment and must stay static (see the comment in `ui/ui/home.slint`). A filling tick ring re-dirties all its ticks
+    each frame (bounded, about 36 boxes under 40x40), not only the one that lights; unmeasured on the board.
   - Slint: the device build must not enable its `std` feature (it pulls in `memmap2`, which does not build for
     ESP-IDF); the feature set is in `ui/Cargo.toml` and `app/Cargo.toml` and must match. `Path` support then needs a
     one-line local patch to `i-slint-core`, made by `firmware/claude-board/scripts/vendor-slint-core.sh` into the
@@ -487,9 +493,11 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     (sentence splitting, the three HTTP backends, the per-utterance pipeline), `src/config.rs` (env), and the
     reader/writer/voice tasks in `src/board.rs`; on the board `ui/src/audio.rs` (playback queue),
     `app/src/{mic,speaker}.rs` and the mic/speaker API in `app/components/board_display/board_display.c`.
-  - **Protocol (`PROTOCOL_VERSION` 3).** Board to bridge: `voice_start`, `voice_end`, `cancel` (each with
+  - **Protocol (`PROTOCOL_VERSION` 5).** Board to bridge: `voice_start`, `voice_end`, `cancel`, `new_session` (each with
     `utterance`). Bridge to board: `creature {mood}`, `transcript`, `reply_text`, `speak_start {utterance,
-    sample_rate}`, `speak_end` (fixtures `creature.json` etc. in `tests/fixtures/board/`). Audio is binary
+    sample_rate}`, `speak_end`, and since protocol 4 `reminder` (a due timer or reminder, spoken as its own line) and
+    since 5 `session_reset` (fixtures `creature.json` etc. in `tests/fixtures/board/`; `new_session.json` is
+    client to bridge, so the `BoardMsg` round-trip test skips it and a separate test round-trips it as `ClientMsg`). Audio is binary
     websocket frames: a 4-byte little-endian utterance id, then 16-bit mono PCM. Uplink is 16 kHz, at most 30 s
     (`MAX_UTTERANCE_BYTES` 960 000); downlink is at `speak_start.sample_rate` (22 050 Hz, Piper's voice) in frames
     of at most 32 KiB (`DOWNLINK_CHUNK_MAX`) because the board drops any frame over 64 KiB. An unknown mood parses
@@ -560,6 +568,22 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     **Still unverified:** which MIC channel is which, the heap margin during a hold (78 KB internal free just
     after one), a tap stopping speech within 1 s, chime pitch after a reply, reassembly of 32 KiB frames, and volume. The target is
     a median of 5 s from release to first spoken word. Check them with `just board monitor`.
+- **The command arcs** (spec `docs/superpowers/specs/2026-11-10-claude-board-commands-design.md`, plan
+  `docs/superpowers/plans/2026-11-10-claude-board-commands.md`). A swipe down from the top 60 px of home opens three
+  arcs in the top third of the rim, VOL / LINK / PURGE (the ring's inner radius drops to 150 while they are open);
+  swipes that start lower keep changing volume. Swipe up or right, a tap on the avatar, 10 s without touch, or a
+  question closes them; taps on the labels work. **Volume page:** 24 ticks, - / + go through the same path as the swipe
+  (stored in NVS, preview chime), and taps on it do not cancel speech. **Link page:** RSSI bars (lit at -55, -67, -75,
+  -85 dBm), SSID, IP, bridge, voice and uptime, read on the board with `esp_wifi_sta_get_ap_info` and the `WIFI_STA_DEF`
+  netif every 2 s. **Purge page:** hold 1.5 s (36-tick ring); inert while the bridge is unlinked or a purge is pending
+  (`PURGING`), and a voice hold ends the wait. It sends `new_session`; the bridge sets Hermes' session id to
+  `<base>-<unix secs>`, saved atomically in `$STATE_DIRECTORY/hermes-session` (a saved file wins over a changed
+  `BRIDGE_HERMES_SESSION`; delete it to go back), always acks `session_reset`, and speaks "Memory purged. By your
+  command." through the reminder line queue, so it is never interleaved with a reply (after a failed synthesis it
+  sends idle instead). A purge counts toward the 10 utterances a minute. Only the conversation is cleared, not
+  Hermes' long-term memory. Against an older bridge the board falls back to idle after 10 s. **Not yet checked on
+  the board:** the IP byte order, the readings, and the cost of the Wi-Fi read on the UI thread. **Deploy order:**
+  galactica (the bridge) before flashing; volume and link work against any bridge.
 - **Debugging a board you cannot see.** Render the screens with `just board preview`, or write a host test: the `ui`
   tests render the real scene headlessly and send real pointer events at real coordinates. The bridge URL, NTP
   server and a DNS override are `CB_URL`, `CB_NTP`, `CB_DNS` lines in `app/credentials.env` (that is how the
