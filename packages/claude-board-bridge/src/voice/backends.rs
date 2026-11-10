@@ -192,11 +192,21 @@ impl Tts for PiperHttp {
 
 // ---------- Hermes ----------
 
+/// Deadline for the `POST /v1/runs` call and for the event stream to open.
+pub const HERMES_POST_TIMEOUT: Duration = Duration::from_secs(30);
+/// Longest silence tolerated between two chunks of the event stream. There is
+/// deliberately no total deadline: the pipeline owns the overall reply timeout.
+pub const HERMES_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
+/// Longest pending SSE frame kept in memory.
+const MAX_EVENT_BYTES: usize = 1 << 20;
+
 pub struct HermesHttp {
     base: String,
     key: String,
     session: String,
     client: reqwest::Client,
+    post_timeout: Duration,
+    idle_timeout: Duration,
 }
 
 impl HermesHttp {
@@ -206,7 +216,20 @@ impl HermesHttp {
             .connect_timeout(Duration::from_secs(15))
             .build()
             .expect("reqwest client");
-        Self { base: trim_base(base_url), key: api_key, session: session_id, client }
+        Self {
+            base: trim_base(base_url),
+            key: api_key,
+            session: session_id,
+            client,
+            post_timeout: HERMES_POST_TIMEOUT,
+            idle_timeout: HERMES_IDLE_TIMEOUT,
+        }
+    }
+
+    pub fn with_timeouts(mut self, post: Duration, idle: Duration) -> Self {
+        self.post_timeout = post;
+        self.idle_timeout = idle;
+        self
     }
 }
 
@@ -240,15 +263,32 @@ impl Drop for StopGuard {
 
 struct RunState {
     bytes: BoxStream<'static, Result<bytes::Bytes, reqwest::Error>>,
+    /// Pending bytes, with `\r\n` and lone `\r` already normalised to `\n`.
     buf: Vec<u8>,
+    /// The last byte seen was a `\r` (so a `\n` starting the next chunk is its pair).
+    after_cr: bool,
     guard: StopGuard,
+    idle: Duration,
     done: bool,
+}
+
+impl RunState {
+    fn feed(&mut self, chunk: &[u8]) {
+        for &b in chunk {
+            if self.after_cr && b == b'\n' {
+                self.after_cr = false;
+                continue;
+            }
+            self.after_cr = b == b'\r';
+            self.buf.push(if b == b'\r' { b'\n' } else { b });
+        }
+    }
 }
 
 enum Frame {
     Delta(String),
     End,
-    Failed,
+    Failed(String),
     Ignore,
 }
 
@@ -269,7 +309,10 @@ fn parse_frame(frame: &str) -> Frame {
             _ => Frame::Ignore,
         },
         Some("run.completed") | Some("run.cancelled") => Frame::End,
-        Some("run.failed") => Frame::Failed,
+        Some("run.failed") => Frame::Failed(match v["error"].as_str() {
+            Some(e) if !e.is_empty() => format!("hermes run failed: {e}"),
+            _ => "hermes run failed".to_string(),
+        }),
         _ => Frame::Ignore,
     }
 }
@@ -278,11 +321,13 @@ impl Brain for HermesHttp {
     fn ask(&self, text: String) -> BoxFuture<'static, Result<Reply, VoiceError>> {
         let (client, base, key, session) =
             (self.client.clone(), self.base.clone(), self.key.clone(), self.session.clone());
+        let (post_timeout, idle) = (self.post_timeout, self.idle_timeout);
         Box::pin(async move {
             let resp = client
                 .post(format!("{base}/v1/runs"))
                 .bearer_auth(&key)
                 .json(&serde_json::json!({ "input": text, "session_id": session }))
+                .timeout(post_timeout)
                 .send()
                 .await
                 .map_err(map_err)?;
@@ -298,19 +343,22 @@ impl Brain for HermesHttp {
                 key: key.clone(),
                 armed: true,
             };
-            let resp = client
-                .get(format!("{base}/v1/runs/{run_id}/events"))
-                .bearer_auth(&key)
-                .send()
-                .await
-                .map_err(map_err);
+            // No request timeout here (it would cover the whole body); only the
+            // wait for the stream to open is bounded.
+            let resp = tokio::time::timeout(
+                post_timeout,
+                client.get(format!("{base}/v1/runs/{run_id}/events")).bearer_auth(&key).send(),
+            )
+            .await;
             // On failure here the guard drops armed and stops the run.
-            let resp = resp?;
+            let resp = resp.map_err(|_| VoiceError::Timeout)?.map_err(map_err)?;
             map_status(resp.status())?;
             let state = RunState {
                 bytes: resp.bytes_stream().boxed(),
                 buf: Vec::new(),
+                after_cr: false,
                 guard,
+                idle,
                 done: false,
             };
             let deltas = futures_util::stream::try_unfold(state, |mut st| async move {
@@ -321,23 +369,32 @@ impl Brain for HermesHttp {
                     // Complete frames are separated by a blank line.
                     if let Some(i) = st.buf.windows(2).position(|w| w == b"\n\n") {
                         let raw: Vec<u8> = st.buf.drain(..i + 2).collect();
-                        let frame = String::from_utf8_lossy(&raw).replace("\r\n", "\n");
+                        let frame = String::from_utf8_lossy(&raw);
                         match parse_frame(&frame) {
                             Frame::Delta(d) => return Ok(Some((d, st))),
                             Frame::End => {
                                 st.guard.armed = false;
                                 st.done = true;
                             }
-                            Frame::Failed => {
-                                // The guard drops armed; a stop on a failed run is harmless.
-                                return Err(VoiceError::Unavailable("hermes run failed".into()));
+                            Frame::Failed(msg) => {
+                                // Deliberate: the guard stays armed, so the run is stopped
+                                // when the Reply drops. A stop on a failed run is harmless
+                                // and covers a run that failed but is still winding down.
+                                return Err(VoiceError::Rejected(msg));
                             }
                             Frame::Ignore => {}
                         }
                         continue;
                     }
-                    match st.bytes.try_next().await.map_err(map_err)? {
-                        Some(chunk) => st.buf.extend_from_slice(&chunk),
+                    if st.buf.len() > MAX_EVENT_BYTES {
+                        return Err(VoiceError::Rejected("event too large".into()));
+                    }
+                    // Idle timeout between chunks; the guard stays armed on timeout.
+                    let next = tokio::time::timeout(st.idle, st.bytes.try_next())
+                        .await
+                        .map_err(|_| VoiceError::Timeout)?;
+                    match next.map_err(map_err)? {
+                        Some(chunk) => st.feed(&chunk),
                         None => {
                             // Stream closed: the run is over either way.
                             st.guard.armed = false;
