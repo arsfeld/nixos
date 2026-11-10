@@ -30,16 +30,17 @@ the menu has three slots now.
 
 ## Starting point
 
-Uncommitted work already in the tree, which this builds on:
+Swipe-to-change-volume landed in `2c1b5270` and this builds on it:
 
-- `ui/src/touch.rs`: `set_vertical_swipes`, `Gesture::SwipeUp` / `SwipeDown`, with tests.
+- `ui/src/touch.rs`: `set_vertical_swipes`, `Gesture::SwipeUp` / `SwipeDown`.
 - `ui/src/audio.rs`: `VOLUME_DEFAULT` (80), `VOLUME_MIN` (10), `VOLUME_MAX` (100), `VOLUME_STEP` (10),
-  `volume_step()`, with tests.
-- `ui/ui/home.slint`, `ui/ui/app.slint`: `volume` / `volume-shown` properties and a grey volume pill. Not wired to
-  the controller or the codec yet.
+  `volume_step()`.
+- `board_display.c`: `bd_set_volume()` (replacing `SPK_VOLUME`, applied on every speaker open and at once while a
+  reply plays) and an unthrottled preview chime; `display::set_volume` wraps it.
+- `app/src/main.rs`: the level is saved in NVS (namespace `board`, key `volume`) and read at boot.
+- `ui/ui/home.slint`: `volume` / `volume-shown` and a grey volume pill shown after a swipe.
 
-Today the speaker level is the compile-time `SPK_VOLUME` in `board_display.c`, and the bridge uses one fixed Hermes
-`session_id` (`BRIDGE_HERMES_SESSION`, default `creature`).
+The bridge uses one fixed Hermes `session_id` (`BRIDGE_HERMES_SESSION`, default `creature`).
 
 ## Board
 
@@ -75,16 +76,9 @@ or simple `Path`s, so opening the menu repaints only those boxes. Tapping a segm
 - 24 ticks around the rim over 240° (a gap at the bottom), lit up to the level, the last one brighter. The ticks
   are a model of tight-box `Path`s rebuilt only when the level changes.
 - The level in large type, "AUDIO LEVEL" above it.
-- − and + buttons step by `VOLUME_STEP` using `volume_step()`. Each step plays the short chime at the new level.
-- The swipe shortcut on home shows the existing pill, restyled as a short row of red ticks, for 1.5 s.
-
-**Storage.** The level is saved in NVS (namespace `board`, key `volume`) at most once every 2 s after the last
-change, to spare flash wear, and read at boot; a missing or out-of-range value falls back to `VOLUME_DEFAULT`
-through `volume_step`'s clamp. The controller sees this through a small `Settings` trait, so host tests use a fake.
-
-**Codec.** `board_display.c` replaces `SPK_VOLUME` with a stored level set by a new `bd_set_volume(uint8_t)`. That
-level is applied on every speaker open, because the I2S channel reopens on each sample-rate change, and immediately
-if the speaker is open.
+- − and + buttons step by `VOLUME_STEP` through the same code path as the swipe shortcut, so they share its NVS
+  write and preview chime.
+- The swipe shortcut on home keeps its pill, restyled as a short row of red ticks.
 
 ### Link page
 
@@ -145,15 +139,14 @@ and parsed by the `claude-board-proto` tests. An older board ignores `session_re
 | Bridge without voice backends | Reset applies (it is only a string), `session_reset` sent, no speech |
 | Piper fails | `session_reset` sent, no speech, `stage=tts` error logged |
 | State file not writable | Reset applies in memory, warning logged, no crash; a restart reverts to the old id |
-| NVS write fails | Level applies until reboot, warning logged |
 | Older bridge | `new_session` ignored; the board times out to `idle` after 10 s |
 
 ## Testing
 
 - **Touch** (`ui/src/touch.rs`): `EdgeDown` versus `SwipeDown` by start position; edge swipes off when vertical
   swipes are off.
-- **Controller**: menu open and close (each gesture, the 10 s timeout, a question taking over); volume steps write
-  through the fake `Settings` and debounce; purge completion sends `new_session` once; PURGE inert while unlinked.
+- **Controller**: menu open and close (each gesture, the 10 s timeout, a question taking over); the − and + buttons
+  reach the same volume path as the swipes; purge completion sends `new_session` once; PURGE inert while unlinked.
 - **Screens**: `just board preview` PNGs for home with the menu open and the volume, link and purge pages, plus
   headless tests that tap each segment at its real coordinates.
 - **Proto and bridge**: the two fixtures from both sides; a reset changes `session_id` in the next `/v1/runs` body;
