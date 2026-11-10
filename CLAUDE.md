@@ -334,12 +334,14 @@ Kubernetes upgrade should be a deliberate one-line commit.
 
 ### Claude Board (ESP32 session board)
 
-A Waveshare ESP32-S3 AMOLED 1.75C (SKU 33691, round 466×466, touch, speaker) that shows every Claude
+A Waveshare ESP32-S3 AMOLED 1.75C (SKU 33691, round 466×466, touch, speaker, microphone) that shows every Claude
 Code session across the fleet and answers Claude's multiple-choice questions with a tap. Design:
 `docs/superpowers/specs/2026-11-09-claude-board-design.md`; plan:
 `docs/superpowers/plans/2026-11-09-claude-board.md`; hook behaviour measured on Claude Code 2.1.319:
 `docs/superpowers/specs/2026-11-09-claude-board-hook-findings.md`. Phase 1 (status + answering) is
-built; phase 2 (voice, starting sessions in chosen projects) is not, and needs its own design. The firmware
+built; phase 2 is being built in steps: step 1 of 3, the creature's voice (hold the avatar and talk, a spoken
+reply), is coded and tested but not yet deployed or verified on the board (see "The creature's voice path"); delegation
+to sessions and check-ins are later plans. The firmware
 was rewritten from C and LVGL to Rust and Slint (spec `docs/superpowers/specs/2026-11-09-claude-board-rust-design.md`,
 plan `docs/superpowers/plans/2026-11-09-claude-board-rust.md`, what the board measured before committing to it
 and the parity run `docs/superpowers/specs/2026-11-09-claude-board-rust-probe-findings.md`).
@@ -469,6 +471,69 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     and the board keeps the previous values.
   - A new tracked dev-shell attribute means the weekly `nix flake update` also moves `nixpkgs-esp-dev` and
     `esp-rs-nix`; the IDF `rev`/`sha256` override in `modules/flake/dev.nix` may need re-hashing.
+- **The creature's voice path** (step 1 of 3; spec `docs/superpowers/specs/2026-11-10-claude-board-creature-design.md`,
+  plan `docs/superpowers/plans/2026-11-10-claude-board-creature-voice.md`). Hold the avatar to talk; the reply is
+  spoken by a persistent Hermes assistant (DeepSeek) and the avatar shows moods (`listening`, `thinking`,
+  `speaking`, `alert`, `offline`, `idle`). **Built and tested on the host; never flashed, deployed or heard**: see
+  the unverified list at the end of this bullet.
+  - **Flow.** board mic --PCM--> bridge --whisper.cpp (STT)--> Hermes (`/v1/runs`, streamed) --sentences--> Piper
+    (TTS) --PCM--> board speaker. Code: `packages/claude-board-bridge/src/voice/{speech,backends,pipeline}.rs`
+    (sentence splitting, the three HTTP backends, the per-utterance pipeline), `src/config.rs` (env), and the
+    reader/writer/voice tasks in `src/board.rs`; on the board `ui/src/audio.rs` (playback queue),
+    `app/src/{mic,speaker}.rs` and the mic/speaker API in `app/components/board_display/board_display.c`.
+  - **Protocol (`PROTOCOL_VERSION` 3).** Board to bridge: `voice_start`, `voice_end`, `cancel` (each with
+    `utterance`). Bridge to board: `creature {mood}`, `transcript`, `reply_text`, `speak_start {utterance,
+    sample_rate}`, `speak_end` (fixtures `creature.json` etc. in `tests/fixtures/board/`). Audio is binary
+    websocket frames: a 4-byte little-endian utterance id, then 16-bit mono PCM. Uplink is 16 kHz, at most 30 s
+    (`MAX_UTTERANCE_BYTES` 960 000); downlink is at `speak_start.sample_rate` (22 050 Hz, Piper's voice) in frames
+    of at most 32 KiB (`DOWNLINK_CHUNK_MAX`) because the board drops any frame over 64 KiB. An unknown mood parses
+    as `idle`.
+  - **Bridge behaviour.** Voice is on only when all four of `BRIDGE_STT_URL`, `BRIDGE_TTS_URL`, `BRIDGE_HERMES_URL`,
+    `BRIDGE_HERMES_KEY_FILE` are set; otherwise the bridge greets the board with the `offline` mood (also what a failed backend shows) and approvals are unaffected. With
+    them set, an unreadable or empty key file is a startup error. Optional: `BRIDGE_HERMES_SESSION` (default
+    `creature`) and `BRIDGE_REPLY_TIMEOUT_SECS` (default 60). `speak_end` always follows `speak_start`. The uplink
+    is bounded (256 KiB of queued audio, 64 control messages; excess is dropped and logged as `voice: uplink dropped
+    N frames`) and `on_client` never blocks the reader, so a slow backend cannot stall approvals or pings. The
+    bridge synthesizes faster than real time, so `speak_end` and the `idle` mood arrive before the speaker has
+    finished; the firmware holds the idle mood back while audio drains (`idle_deferred` in the controller). Replies
+    go only to the socket that spoke. At most 10 utterances a minute. Logs carry lengths and timings only, never
+    speech or reply text: `voice: utt=<id> bytes=<n> stt_ms=.. first_delta_ms=.. first_audio_ms=.. total_ms=..`
+    (`journalctl -u claude-board`).
+  - **Services** (`modules/hosts/galactica/services/claude-board-voice.nix`, all loopback, no firewall change):
+    `whisper-server` (whisper.cpp, `ggml-base.en`, port 18081, 8 threads), `piper-server` (Piper
+    `en_US-lessac-medium`, 18082), `hermes-agent` (the `hermes-agent` flake input's NixOS module, 18642). All three
+    run at Nice 10 and CPU/IO weight 20 with a `MemoryMax` (2G, 1G, 2G) so voice cannot starve the media stack; no
+    `CPUQuota`. `claude-board` is ordered after and `wants` them, never requires: approvals work with them down.
+    whisper and piper come from `pkgs.unstable` (stable's piper has no `/synthesize`); Piper's HTTP server has no
+    executable in nixpkgs, so `piperHttp` seds the entry point in `.piper-wrapped`, which the weekly update can
+    break. The model and voice are `fetchurl`s with pinned hashes.
+  - **Secrets.** `hermes-api-key` (new, `galactica.yaml`): the bridge reads it as a credential (`hermes-key`) and
+    Hermes gets it as `API_SERVER_KEY`. The DeepSeek key is reused from `hermes-env`, **only through a generated
+    env file** (`ExecStartPre` greps `DEEPSEEK_API_KEY` out of the credential into a 0700 runtime dir), because
+    `hermes-env` also holds `TELEGRAM_BOT_TOKEN`, and giving that to this Hermes would enable a Telegram platform
+    with its default toolsets.
+  - **Hermes traps (measured in the research gates).** Tool-less needs **both** `platform_toolsets = { api_server =
+    []; cron = []; }`: with only `api_server` emptied, a job created through the API's cron endpoint still ran a
+    real command. After any bump of the `hermes-agent` input (the weekly update moves it) check
+    `GET /v1/toolsets` still lists nothing enabled. Run continuity is the `session_id` **body** field of
+    `/v1/runs`; `X-Hermes-Session-Id` works only on `/v1/chat/completions`. There is one gateway per host, and
+    galactica's older container (`services/hermes.nix`) is `enable = false` since 2026-10-25 for a Brotli CVE in
+    pages the agent browses: do not re-enable it expecting it to be the creature (tool-less is also why this one
+    never browses). The persona is `services/_creature/SOUL.md`, installed as `SOUL.md` in Hermes's home.
+  - **Firmware traps.** The microphone is an ES7210 (I2C 0x40 on the shared bus with the touch and codec, data in
+    GPIO 10); MIC1 and MIC2 are both selected and averaged in software, and the 24 dB gain is set after the
+    codec opens (open re-applies the stored 0 dB). The ES8311 speaker and the ES7210 share one I2S clock, so
+    capture, playback and the chimes are strictly sequential behind a mutex in `board_display.c`, and a rate change
+    (16 kHz capture and chime, 22 050 Hz reply) reopens the channel. The Waveshare schematic lists MCLK on
+    GPIO 16 but this firmware, like the BSP, uses 42. A long press (450 ms, within 20 px) is only a hold if the
+    app accepts it: `controller.hold_started` returning true leads to `TouchTracker::accept_hold`; otherwise the
+    lift still clicks, so a slow tap on Allow is never swallowed. The playback queue holds 1 MiB and drops the
+    excess.
+  - **Unverified on hardware** (the implementation could not flash the board): the ES7210 ACK and real samples, the
+    gain, which MIC channel is which, I2S rate switching, the heap margin during a hold, an audible reply, a tap
+    stopping speech within 1 s, chime pitch after a reply, reassembly of 32 KiB frames, and volume. The target is
+    a median of 5 s from release to first spoken word. Check them by `just board backup`, then `build`, `flash`,
+    `monitor`, and the acceptance run in plan Task 10 (after `just deploy galactica`).
 - **Debugging a board you cannot see.** Render the screens with `just board preview`, or write a host test: the `ui`
   tests render the real scene headlessly and send real pointer events at real coordinates. The bridge URL, NTP
   server and a DNS override are `CB_URL`, `CB_NTP`, `CB_DNS` lines in `app/credentials.env` (that is how the
@@ -813,7 +878,7 @@ Opt-in modules that hosts compose by importing them; `nix eval --json .#nixosMod
 Host-local modules (see the rule above), under `modules/hosts/`: galactica —
 `backup/rustic.nix`, and under `services/` `pia`, `opencloud`, `home-assistant`,
 `tablet-sync`, `vpn-exit-nodes`, `immich-pixel-sync/`, `plab/` (plab is a Rust daemon in `packages/plab`, with its Svelte app in `packages/plab/ui`), `media-apps`, `media-automation`,
-`media-streaming`, `home-apps`, `network-tools`; basestar — `k3s.nix`, `sites/`, `tailscale-exit-node.nix`;
+`media-streaming`, `home-apps`, `network-tools`, `claude-board-voice`; basestar — `k3s.nix`, `sites/`, `tailscale-exit-node.nix`;
 raider — `docker.nix`, `project-vms.nix`; pegasus — `media-sync.nix`.
 
 ### Media Configuration Variables (`modules/media/config.nix`)

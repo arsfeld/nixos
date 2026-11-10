@@ -212,3 +212,15 @@ Each step ends with a working board.
 ## Out of scope
 
 Wake word, an on-screen keyboard, multiple creatures or users, and running Hermes on any other host.
+
+## Implementation status (step 1)
+
+Built and tested on the host: the bridge pipeline (`src/voice/`: speech splitting, the whisper, Hermes and Piper
+backends, per-utterance pipeline), the configuration and its all-or-nothing enablement, the bounded uplink and the
+reader/writer/voice tasks; the UI's hold gesture, moods and reply card, and the playback queue; the firmware's
+microphone capture, uplink and playback code, and the galactica service definitions.
+
+Pending: on-device verification (microphone, gain, I2S switching, heap during a hold, audible reply, stop on tap,
+chime pitch, large-frame reassembly, volume), deployment to galactica, and the acceptance run: median
+release-to-first-word of at most 5 s, a tap stopping speech within 1 s, the offline note with Hermes down while
+approvals keep working, and reconnect after a bridge restart. No latency has been measured yet.
