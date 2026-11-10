@@ -113,7 +113,7 @@ fn rust_theme_colours_match_the_slint_theme() {
     assert_eq!(c(t.get_error()), theme::ERROR);
 }
 
-/// Non-black pixels in the question's text box (away from the rim and the buttons) for `texts`, one
+/// Non-black pixels in the question's text box (away from the rim and the wheel) for `texts`, one
 /// render each on a single window.
 fn question_ink(texts: &[&str]) -> Vec<usize> {
     let (h, ui) = show();
@@ -123,7 +123,7 @@ fn question_ink(texts: &[&str]) -> Vec<usize> {
         .map(|t| {
             ui.set_question_text((*t).into());
             let buf = h.render();
-            (72..178).flat_map(|y| (83..383).map(move |x| (x, y))).filter(|&(x, y)| px(&buf, x, y) != (0, 0, 0)).count()
+            (64..150).flat_map(|y| (83..383).map(move |x| (x, y))).filter(|&(x, y)| px(&buf, x, y) != (0, 0, 0)).count()
         })
         .collect()
 }

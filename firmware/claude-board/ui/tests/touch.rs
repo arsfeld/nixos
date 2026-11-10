@@ -180,7 +180,7 @@ fn tapping_on_computer_declines() {
     let f = fx();
     f.feed("question_single");
     f.h.render();
-    f.tap(233.0, 428.0);
+    f.tap(233.0, 338.0); // the last row of the wheel, after the two options
     let sent = f.wire.0.borrow().clone();
     assert_eq!(sent.len(), 1);
     assert!(sent[0].contains(r#""t":"decline""#), "{}", sent[0]);

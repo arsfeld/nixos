@@ -388,7 +388,7 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
 - **The screens.** Home is the avatar (`Presence`, drawn from circles and glow sprites) inside a ring of arcs, one
   per session in its state's colour, the waiting one pulsing. Tapping the avatar opens the session list, a wheel of
   big round rows whose badges follow the screen's curve; tapping a row (or an arc) opens the session. A waiting
-  question takes over the screen. Swipe right goes back a level. The screen dims 30 s after the last touch or bridge
+  question takes over the screen: the question pinned at the top and its options on the same wheel (`wheel.slint`), with Done and "on computer" as the last rows. Swipe right goes back a level. The screen dims 30 s after the last touch or bridge
   message and the picture shifts a few pixels each minute, against AMOLED burn-in.
 - **Firmware traps, nearly all hit during bring-up.**
   - Slint: the device build must not enable its `std` feature (it pulls in `memmap2`, which does not build for
