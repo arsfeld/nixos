@@ -176,6 +176,11 @@
           api_server = ["hermes-api-server"];
           cron = ["hermes-cron"];
         };
+        # Tool search hides every MCP tool behind a search round trip (measured: the creature used
+        # curl for weather and needed 6 model calls for a house question). Off sends every tool each
+        # turn, about 5,900 more prompt tokens, which DeepSeek's prompt cache absorbs (~98% hit rate
+        # measured). The module deep-merges settings into config.yaml, so an explicit value is required.
+        tools.tool_search.enabled = "off";
         # The bridge's timer tools. Hermes interpolates `${VAR}` from its own environment at start
         # (and fails closed if it is unset), so config.yaml carries the placeholder, never the token.
         mcp_servers.claude-board = {
