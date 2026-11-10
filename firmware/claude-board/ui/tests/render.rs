@@ -141,3 +141,15 @@ fn accented_latin_letters_have_glyphs() {
 fn characters_outside_the_fonts_draw_blank_instead_of_failing() {
     assert_eq!(question_ink(&["日本語"]), vec![0]);
 }
+
+#[test]
+fn drift_shifts_everything_by_the_given_pixels() {
+    let (h, ui) = show();
+    set_rim(&ui, vec![arc_segment(3.5, 68.5, SessionState::Error)], vec![]);
+    let (x, y) = rim_point(36.0);
+    assert!(near(px(&h.render(), x, y), theme::ERROR, 24));
+    ui.set_drift_x(4.0);
+    ui.set_drift_y(-2.0);
+    let buf = h.render();
+    assert!(near(px(&buf, x + 4, y - 2), theme::ERROR, 24), "the arc should have moved by (4, -2)");
+}

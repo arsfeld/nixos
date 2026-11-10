@@ -51,75 +51,87 @@ export component AppWindow inherits Window {
     callback back-tapped();
     callback avatar-tapped();
 
-    GlyphCoverage {}
+    // Everything moves together by a few pixels now and then, so an AMOLED panel never shows the same bright
+    // pixels in the same place for days (see power::drift_px).
+    in property <length> drift-x: 0px;
+    in property <length> drift-y: 0px;
 
-    Rim {
+    Rectangle {
+        x: root.drift-x;
+        y: root.drift-y;
         width: 466px;
         height: 466px;
-        segments: root.rim;
-        pulsing: root.rim-pulsing;
-    }
 
-    // Taps on the ring itself (outside radius 190) open the session that arc stands for.
-    ring := TouchArea {
-        width: 466px;
-        height: 466px;
-        enabled: root.page == Page.home || root.page == Page.list;
-        // Offsets from the centre in pixels, y up.
-        property <float> dx: (self.mouse-x - 233px) / 1px;
-        property <float> dy: (233px - self.mouse-y) / 1px;
-        clicked => {
-            if (self.dx * self.dx + self.dy * self.dy > 190 * 190) {
-                root.rim-tapped(Math.atan2(self.dx, self.dy) / 1deg);
+        GlyphCoverage {}
+
+        Rim {
+            width: 466px;
+            height: 466px;
+            segments: root.rim;
+            pulsing: root.rim-pulsing;
+        }
+
+        // Taps on the ring itself (outside radius 190) open the session that arc stands for.
+        ring := TouchArea {
+            width: 466px;
+            height: 466px;
+            enabled: root.page == Page.home || root.page == Page.list;
+            // Offsets from the centre in pixels, y up.
+            property <float> dx: (self.mouse-x - 233px) / 1px;
+            property <float> dy: (233px - self.mouse-y) / 1px;
+            clicked => {
+                if (self.dx * self.dx + self.dy * self.dy > 190 * 190) {
+                    root.rim-tapped(Math.atan2(self.dx, self.dy) / 1deg);
+                }
             }
         }
-    }
 
-    if root.page == Page.home: HomePage {
-        presence-state: root.presence-state;
-        presence-level: root.presence-level;
-        summary: root.summary;
-        link: root.link;
-        avatar-tapped => {
-            root.avatar-tapped();
+        if root.page == Page.home: HomePage {
+            presence-state: root.presence-state;
+            presence-level: root.presence-level;
+            summary: root.summary;
+            link: root.link;
+            avatar-tapped => {
+                root.avatar-tapped();
+            }
         }
-    }
-    if root.page == Page.list: SessionsPage {
-        rows: root.rows;
-        header: root.list-header;
-        row-tapped(i) => {
-            root.row-tapped(i);
+        if root.page == Page.list: SessionsPage {
+            rows: root.rows;
+            header: root.list-header;
+            row-tapped(i) => {
+                root.row-tapped(i);
+            }
+            back-tapped => {
+                root.back-tapped();
+            }
         }
-        back-tapped => {
-            root.back-tapped();
+        if root.page == Page.question: QuestionPage {
+            source: root.question-source;
+            question: root.question-text;
+            options: root.options;
+            multi: root.multi;
+            can-done: root.can-done;
+            option-tapped(i) => {
+                root.option-tapped(i);
+            }
+            done-tapped => {
+                root.done-tapped();
+            }
+            decline-tapped => {
+                root.decline-tapped();
+            }
         }
-    }
-    if root.page == Page.question: QuestionPage {
-        source: root.question-source;
-        question: root.question-text;
-        options: root.options;
-        multi: root.multi;
-        can-done: root.can-done;
-        option-tapped(i) => {
-            root.option-tapped(i);
-        }
-        done-tapped => {
-            root.done-tapped();
-        }
-        decline-tapped => {
-            root.decline-tapped();
-        }
-    }
-    if root.page == Page.detail: DetailPage {
-        host: root.detail-host;
-        project: root.detail-project;
-        state: root.detail-state;
-        state-text: root.detail-state-text;
-        since-text: root.detail-since;
-        summary: root.detail-summary;
-        recent: root.detail-recent;
-        back-tapped => {
-            root.back-tapped();
+        if root.page == Page.detail: DetailPage {
+            host: root.detail-host;
+            project: root.detail-project;
+            state: root.detail-state;
+            state-text: root.detail-state-text;
+            since-text: root.detail-since;
+            summary: root.detail-summary;
+            recent: root.detail-recent;
+            back-tapped => {
+                root.back-tapped();
+            }
         }
     }
 }

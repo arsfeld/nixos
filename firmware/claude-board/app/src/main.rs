@@ -10,6 +10,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use claude_board_ui::controller::{Controller, Outbox};
 use claude_board_ui::link;
+use claude_board_ui::power::{drift_px, Power};
 use claude_board_ui::AppWindow;
 use esp_idf_svc::sys::{heap_caps_get_free_size, heap_caps_get_largest_free_block, MALLOC_CAP_DMA, MALLOC_CAP_INTERNAL, MALLOC_CAP_SPIRAM};
 use esp_idf_svc::hal::peripherals::Peripherals;
@@ -61,26 +62,39 @@ fn main() -> anyhow::Result<()> {
     if ssid.is_empty() || token.is_empty() {
         log::error!("no credentials compiled in: run `just board creds`, then rebuild");
         ui.set_link(false);
-        return run(&window, Controller::new(&ui, NoWire), rx);
+        return run(&window, &ui, Controller::new(&ui, NoWire), rx);
     }
     let modem = Peripherals::take()?.modem;
     let wire = net::start(net::Credentials { ssid, pass, token }, settings, modem, tx)?;
     ui.set_link(false);
-    run(&window, Controller::new(&ui, wire), rx)
+    run(&window, &ui, Controller::new(&ui, wire), rx)
 }
 
-fn run<O: Outbox + 'static>(window: &std::rc::Rc<slint::platform::software_renderer::MinimalSoftwareWindow>, controller: Controller<O>, rx: mpsc::Receiver<net::Event>) -> anyhow::Result<()> {
+fn run<O: Outbox + 'static>(
+    window: &std::rc::Rc<slint::platform::software_renderer::MinimalSoftwareWindow>,
+    ui: &AppWindow,
+    controller: Controller<O>,
+    rx: mpsc::Receiver<net::Event>,
+) -> anyhow::Result<()> {
     std::thread::Builder::new().stack_size(3072).spawn(|| loop {
         std::thread::sleep(Duration::from_secs(30));
         heap_line();
     })?;
 
+    let boot = Instant::now();
+    let ms = || boot.elapsed().as_millis() as i64;
+    let mut power = Power::new(ms());
+    let mut brightness = 0u8;
     let mut last_tick = Instant::now();
     platform::run(window, || {
+        if platform::take_touch() {
+            power.touch(ms());
+        }
         while let Ok(event) = rx.try_recv() {
             match event {
                 net::Event::Message(text) => {
                     log::info!("bridge message: {} bytes", text.len());
+                    power.model_changed(ms());
                     controller.on_message(&text);
                     if controller.wants_chime() {
                         display::chime();
@@ -92,6 +106,16 @@ fn run<O: Outbox + 'static>(window: &std::rc::Rc<slint::platform::software_rende
         if last_tick.elapsed() >= Duration::from_millis(250) {
             last_tick = Instant::now();
             controller.tick(unix_now());
+            // Dim after a quiet spell and nudge the picture a few pixels, against burn-in.
+            let wanted = power.brightness(ms());
+            if wanted != brightness {
+                brightness = wanted;
+                display::set_brightness(wanted);
+                log::info!("brightness {wanted}");
+            }
+            let (dx, dy) = drift_px(ms());
+            ui.set_drift_x(dx as f32);
+            ui.set_drift_y(dy as f32);
         }
     })
 }

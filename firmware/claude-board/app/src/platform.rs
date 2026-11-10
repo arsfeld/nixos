@@ -4,6 +4,7 @@
 
 use std::ops::Range;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use slint::platform::software_renderer::{LineBufferProvider, MinimalSoftwareWindow, RepaintBufferType, Rgb565Pixel};
@@ -11,6 +12,14 @@ use slint::platform::{Platform, PointerEventButton, WindowAdapter, WindowEvent};
 use slint::LogicalPosition;
 
 use crate::display::{self, Strips, HEIGHT, WIDTH};
+
+/// Set whenever a finger touches the glass; the app reads it to wake the screen.
+static TOUCHED: AtomicBool = AtomicBool::new(false);
+
+/// True once after the screen was touched.
+pub fn take_touch() -> bool {
+    TOUCHED.swap(false, Ordering::SeqCst)
+}
 
 struct Plat {
     window: Rc<MinimalSoftwareWindow>,
@@ -78,6 +87,9 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, mut each_loop: impl FnMut()) -> a
             last_touch = Instant::now();
             if let Some(t) = display::touch() {
                 let position = LogicalPosition::new(t.x as f32, t.y as f32);
+                if t.pressed {
+                    TOUCHED.store(true, Ordering::SeqCst);
+                }
                 if t.pressed && !was_pressed {
                     window.dispatch_event(WindowEvent::PointerPressed { position, button: PointerEventButton::Left });
                 } else if t.pressed {

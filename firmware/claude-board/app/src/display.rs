@@ -15,7 +15,6 @@ pub fn init() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[allow(dead_code)] // used by the idle dimming (Task 12)
 pub fn set_brightness(percent: u8) {
     unsafe { bd::bd_set_brightness(percent) }
 }
