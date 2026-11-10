@@ -27,4 +27,7 @@ pub struct Event {
     pub ts: i64,
 }
 
-pub use claude_board_proto::{BoardMsg, ClientMsg, FeedEntry, FeedKind, PROTOCOL_VERSION, Session, State};
+pub use claude_board_proto::{
+    AUDIO_HEADER_LEN, BoardMsg, ClientMsg, DOWNLINK_CHUNK_MAX, FeedEntry, FeedKind, MAX_UTTERANCE_BYTES, Mood,
+    PROTOCOL_VERSION, Session, State, UPLINK_RATE, decode_audio, encode_audio,
+};

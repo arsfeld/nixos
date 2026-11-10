@@ -83,7 +83,13 @@ impl Model {
             return Applied::Malformed;
         };
         match msg {
-            BoardMsg::Hello { .. } | BoardMsg::Unknown => return Applied::Ignored,
+            BoardMsg::Hello { .. }
+            | BoardMsg::Unknown
+            | BoardMsg::Creature { .. }
+            | BoardMsg::Transcript { .. }
+            | BoardMsg::ReplyText { .. }
+            | BoardMsg::SpeakStart { .. }
+            | BoardMsg::SpeakEnd { .. } => return Applied::Ignored,
             BoardMsg::History { host, session, mut entries } => {
                 if !self.is_watching(&host, &session) {
                     return Applied::Ignored;

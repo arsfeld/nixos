@@ -12,8 +12,31 @@ use serde::{Deserialize, Serialize};
 
 /// The protocol version the bridge announces in its `hello`. Boards ignore messages they do not know,
 /// so a newer bridge can add messages without breaking older boards. Version 2 adds the per-session
-/// activity feed (`history`, `entry`, and the board's `watch`/`unwatch`).
-pub const PROTOCOL_VERSION: u32 = 2;
+/// activity feed (`history`, `entry`, and the board's `watch`/`unwatch`). Version 3 adds the creature's voice messages.
+pub const PROTOCOL_VERSION: u32 = 3;
+
+/// Sample rate of the 16-bit mono PCM the board uploads.
+pub const UPLINK_RATE: u32 = 16_000;
+/// The most PCM bytes one utterance may carry (30 s at the uplink rate).
+pub const MAX_UTTERANCE_BYTES: usize = 960_000;
+/// Binary audio frames, both directions: a 4-byte little-endian utterance id, then PCM bytes.
+pub const AUDIO_HEADER_LEN: usize = 4;
+/// The most PCM bytes the bridge puts in one downlink frame.
+pub const DOWNLINK_CHUNK_MAX: usize = 32 * 1024;
+
+/// Build a binary audio frame.
+pub fn encode_audio(utterance: u32, pcm: &[u8]) -> Vec<u8> {
+    let mut frame = Vec::with_capacity(AUDIO_HEADER_LEN + pcm.len());
+    frame.extend_from_slice(&utterance.to_le_bytes());
+    frame.extend_from_slice(pcm);
+    frame
+}
+
+/// Split a binary audio frame; `None` only when it is shorter than the header (an empty payload is valid).
+pub fn decode_audio(frame: &[u8]) -> Option<(u32, &[u8])> {
+    let (head, pcm) = frame.split_at_checked(AUDIO_HEADER_LEN)?;
+    Some((u32::from_le_bytes(head.try_into().ok()?), pcm))
+}
 
 /// The most question text, in bytes, the board shows before it shortens it. A tool approval reaches the
 /// board only when its whole text ("<tool>: <summary>") fits, so nobody approves a command they could not
@@ -28,6 +51,20 @@ pub enum State {
     Done,
     Error,
     /// Also what a state this version does not know parses as (serde needs it last).
+    #[serde(other)]
+    Idle,
+}
+
+/// What the creature on the board is doing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Mood {
+    Listening,
+    Thinking,
+    Speaking,
+    Alert,
+    Offline,
+    /// Also what a mood this version does not know parses as (serde needs it last).
     #[serde(other)]
     Idle,
 }
@@ -119,6 +156,11 @@ pub enum BoardMsg {
         #[serde(flatten)]
         entry: FeedEntry,
     },
+    Creature { mood: Mood },
+    Transcript { utterance: u32, text: String },
+    ReplyText { utterance: u32, text: String },
+    SpeakStart { utterance: u32, sample_rate: u32 },
+    SpeakEnd { utterance: u32 },
     #[serde(other)]
     Unknown,
 }
@@ -131,6 +173,9 @@ pub enum ClientMsg {
     Decline { id: AskId },
     Watch { host: String, session: String },
     Unwatch,
+    VoiceStart { utterance: u32 },
+    VoiceEnd { utterance: u32 },
+    Cancel { utterance: u32 },
 }
 
 #[cfg(test)]
@@ -162,7 +207,7 @@ mod tests {
             assert_eq!(serde_json::to_value(&msg).unwrap(), want, "{path:?}");
             n += 1;
         }
-        assert!(n >= 10, "expected the fixtures, found {n}");
+        assert!(n >= 15, "expected the fixtures, found {n}");
     }
 
     #[test]
@@ -203,5 +248,41 @@ mod tests {
         );
         let d = ClientMsg::Decline { id: AskId("abc".into()) };
         assert_eq!(serde_json::to_value(&d).unwrap(), serde_json::json!({"t":"decline","id":"abc"}));
+    }
+
+    #[test]
+    fn audio_frame_round_trips() {
+        let frame = encode_audio(7, &[1, 2, 3, 4]);
+        assert_eq!(decode_audio(&frame), Some((7, &[1u8, 2, 3, 4][..])));
+    }
+
+    #[test]
+    fn audio_frame_shorter_than_header_is_none() {
+        assert_eq!(decode_audio(&[1, 2, 3]), None);
+        assert_eq!(decode_audio(&[]), None);
+    }
+
+    #[test]
+    fn empty_audio_payload_is_valid() {
+        let frame = encode_audio(9, &[]);
+        assert_eq!(frame.len(), AUDIO_HEADER_LEN);
+        assert_eq!(decode_audio(&frame), Some((9, &[][..])));
+    }
+
+    #[test]
+    fn voice_client_messages_serialise_to_the_firmware_shape() {
+        for (msg, t) in [
+            (ClientMsg::VoiceStart { utterance: 3 }, "voice_start"),
+            (ClientMsg::VoiceEnd { utterance: 3 }, "voice_end"),
+            (ClientMsg::Cancel { utterance: 3 }, "cancel"),
+        ] {
+            assert_eq!(serde_json::to_value(&msg).unwrap(), serde_json::json!({"t": t, "utterance": 3}));
+        }
+    }
+
+    #[test]
+    fn unknown_mood_parses_as_idle() {
+        let msg: BoardMsg = serde_json::from_str(r#"{"t":"creature","mood":"dancing"}"#).unwrap();
+        assert_eq!(msg, BoardMsg::Creature { mood: Mood::Idle });
     }
 }

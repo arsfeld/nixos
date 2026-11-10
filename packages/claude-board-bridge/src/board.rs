@@ -100,6 +100,8 @@ async fn handle(s: &AppState, sink: &mut Sink, watching: &mut Watching, text: &s
             *watching = Some((host, session));
         }
         Ok(ClientMsg::Unwatch) => *watching = None,
+        // The voice pipeline arrives in a later task; until then these are ignored like any unknown message.
+        Ok(ClientMsg::VoiceStart { .. } | ClientMsg::VoiceEnd { .. } | ClientMsg::Cancel { .. }) => {}
         Err(_) => {}
     }
     Ok(())
