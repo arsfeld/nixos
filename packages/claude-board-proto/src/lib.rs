@@ -3,6 +3,9 @@
 //! The JSON files in `packages/claude-board-bridge/tests/fixtures/board` are the contract: this crate
 //! parses every one of them, and the bridge's `tests/wire.rs` pins its output to them.
 
+pub mod model;
+pub use model::{Applied, AnswerOutcome, Ask, Model, fit, join_labels};
+
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -14,11 +17,13 @@ pub const PROTOCOL_VERSION: u32 = 1;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum State {
-    Idle,
     Working,
     Waiting,
     Done,
     Error,
+    /// Also what a state this version does not know parses as (serde needs it last).
+    #[serde(other)]
+    Idle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -26,6 +31,7 @@ pub struct Session {
     pub host: String,
     pub session: String,
     pub project: String,
+    #[serde(default)]
     pub cwd: String,
     pub state: State,
     pub since: i64,

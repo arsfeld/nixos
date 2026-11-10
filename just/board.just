@@ -38,9 +38,15 @@ restore FILE="":
       run esptool --port "{{ PORT }}" --baud 921600 write-flash 0 "'"$f"'"
     '
 
-# Host tests for the firmware's protocol core (plain C and cJSON, built with ASan and UBSan).
-# The fixtures are the bridge's wire format; the Rust side pins the same files.
+# Host tests for the board's protocol crate (wire types and model), against the bridge's fixtures.
 test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    nix develop .#firmware -c bash -c 'cd "{{ justfile_directory() }}/packages/claude-board-proto" && cargo test'
+
+# Host tests for the old C protocol core, kept until the C firmware is retired (plain C and cJSON, built with ASan and UBSan).
+# The fixtures are the bridge's wire format; the Rust side pins the same files.
+test-c:
     #!/usr/bin/env bash
     set -euo pipefail
     nix develop .#firmware -c bash -c '
