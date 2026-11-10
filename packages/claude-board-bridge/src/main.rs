@@ -12,7 +12,6 @@ use std::time::Duration;
 use claude_board_bridge::app;
 use claude_board_bridge::auth::Tokens;
 use claude_board_bridge::http::{AppState, now_secs};
-use claude_board_bridge::state::Change;
 
 fn env_num(name: &str, default: u64) -> u64 {
     std::env::var(name).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
@@ -49,13 +48,7 @@ async fn main() {
         let mut tick = tokio::time::interval(Duration::from_secs(60));
         loop {
             tick.tick().await;
-            let gone = sweep.registry.lock().unwrap().expire(now_secs());
-            for c in gone {
-                if let Change::Remove { host, session } = &c {
-                    sweep.feed.drop_session(host, session);
-                }
-                sweep.publish(c);
-            }
+            sweep.sweep(now_secs());
         }
     });
 

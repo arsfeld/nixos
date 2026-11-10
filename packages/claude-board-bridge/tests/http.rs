@@ -459,3 +459,15 @@ async fn oversized_feed_body_is_rejected() {
     let ok = "x".repeat(40 * 1024);
     assert_eq!(status_of(&app, req("/v1/feed", Some(HOST_TOKEN), feed_body("s1", "reply", &ok))).await, StatusCode::NO_CONTENT);
 }
+
+#[tokio::test]
+async fn sweep_drops_feeds_without_a_session_and_keeps_live_ones() {
+    let st = state(1000, 0);
+    let app = hook_router(st.clone());
+    status_of(&app, req("/v1/event", Some(HOST_TOKEN), event("live", "user_prompt_submit"))).await;
+    status_of(&app, req("/v1/feed", Some(HOST_TOKEN), feed_body("live", "prompt", "hi"))).await;
+    status_of(&app, req("/v1/feed", Some(HOST_TOKEN), feed_body("orphan", "reply", "late"))).await;
+    st.sweep(200);
+    assert_eq!(st.feed.history("raider", "live", 50).len(), 1);
+    assert!(st.feed.history("raider", "orphan", 50).is_empty());
+}

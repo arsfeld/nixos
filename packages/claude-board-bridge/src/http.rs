@@ -55,6 +55,19 @@ impl AppState {
         self
     }
 
+    /// Expire idle sessions, then drop every feed log whose session is not in the registry: that
+    /// covers the expired ones and orphans (a feed post that raced SessionEnd, or a session whose
+    /// events never registered).
+    pub fn sweep(&self, now: i64) {
+        let gone = self.registry.lock().unwrap().expire(now);
+        for c in gone {
+            self.publish(c);
+        }
+        let live: std::collections::HashSet<(String, String)> =
+            self.registry.lock().unwrap().snapshot().into_iter().map(|x| (x.host, x.session)).collect();
+        self.feed.retain(|h, s| live.contains(&(h.to_string(), s.to_string())));
+    }
+
     pub fn publish(&self, c: Change) {
         let msg = match c {
             Change::Upsert(session) => BoardMsg::Upsert { session },

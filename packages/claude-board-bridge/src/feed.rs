@@ -60,6 +60,11 @@ impl Feed {
         }
     }
 
+    /// Keep only the logs whose (host, session) the predicate accepts.
+    pub fn retain(&self, mut keep: impl FnMut(&str, &str) -> bool) {
+        self.inner.lock().unwrap().retain(|(h, s), _| keep(h, s));
+    }
+
     pub fn drop_session(&self, host: &str, session: &str) {
         self.inner.lock().unwrap().remove(&(host.to_string(), session.to_string()));
     }

@@ -339,9 +339,14 @@ async fn watch_replies_with_history_then_streams_entries() {
     assert_eq!(h["entries"][0]["text"], "hello");
     assert_eq!(h["entries"][1]["n"], 2);
     router.oneshot(feed_post("s1", "tool", "Bash ls")).await.unwrap();
-    let e = next_of(&mut ws, "entry").await;
+    // Entries 1 and 2 may be replayed from the broadcast queue (the board dedupes by `n`).
+    let e = loop {
+        let e = next_of(&mut ws, "entry").await;
+        if e["n"] == 3 {
+            break e;
+        }
+    };
     assert_eq!(e["session"], "s1");
-    assert_eq!(e["n"], 3);
     assert_eq!(e["kind"], "tool");
     assert_eq!(e["text"], "Bash ls");
 }
@@ -402,15 +407,19 @@ async fn lagged_socket_resends_history_for_its_watched_session() {
         });
     }
     let got = tokio::time::timeout(Duration::from_secs(3), async {
+        let mut saw_state = false;
         loop {
             let v = next_json(&mut ws).await;
-            if v["t"] == "history" {
+            if v["t"] == "state" {
+                saw_state = true;
+            }
+            if v["t"] == "history" && saw_state {
                 return v;
             }
         }
     })
     .await
-    .expect("history after lag");
+    .expect("state snapshot then history after lag");
     assert_eq!(got["session"], "s1");
-    assert!(got["entries"].as_array().unwrap().len() == 50);
+    assert_eq!(got["entries"].as_array().unwrap().len(), 50);
 }
