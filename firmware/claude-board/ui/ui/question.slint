@@ -1,0 +1,82 @@
+// A question from Claude, taking over the screen: the options are the buttons, Done confirms a
+// multi-select, and "on computer" declines so the terminal asks as usual.
+import { Theme, OptionRow } from "theme.slint";
+import { Pill } from "widgets.slint";
+
+export component QuestionPage inherits Rectangle {
+    in property <string> source;
+    in property <string> question;
+    in property <[OptionRow]> options;
+    in property <bool> multi;
+    in property <bool> can-done;
+    callback option-tapped(int);
+    callback done-tapped();
+    callback decline-tapped();
+
+    Text {
+        y: 46px;
+        width: 466px;
+        text: root.source;
+        color: Theme.waiting;
+        font-family: "JetBrains Mono";
+        font-size: 12px;
+        horizontal-alignment: center;
+        overflow: elide;
+    }
+    Text {
+        x: 83px;
+        y: 72px;
+        width: 300px;
+        height: 106px;
+        text: root.question;
+        color: Theme.text;
+        font-family: "Sora";
+        font-weight: 600;
+        font-size: 20px;
+        wrap: word-wrap;
+        overflow: elide;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    for opt[i] in root.options: Pill {
+        x: (466px - self.width) / 2;
+        y: 180px + i * 48px;
+        width: 300px - i * 14px;
+        height: 42px;
+        text: opt.label;
+        selected: opt.selected;
+        tapped => {
+            root.option-tapped(i);
+        }
+    }
+
+    if root.multi: Pill {
+        x: (466px - 120px) / 2;
+        y: 374px;
+        width: 120px;
+        height: 36px;
+        text: "Done";
+        selected: root.can-done;
+        accent: Theme.done;
+        tapped => {
+            root.done-tapped();
+        }
+    }
+
+    Text {
+        y: 418px;
+        width: 466px;
+        height: 20px;
+        text: "ON COMPUTER";
+        color: Theme.muted;
+        font-family: "JetBrains Mono";
+        font-size: 11px;
+        horizontal-alignment: center;
+        TouchArea {
+            clicked => {
+                root.decline-tapped();
+            }
+        }
+    }
+}

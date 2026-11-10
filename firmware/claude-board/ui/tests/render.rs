@@ -112,3 +112,32 @@ fn rust_theme_colours_match_the_slint_theme() {
     assert_eq!(c(t.get_working()), theme::WORKING);
     assert_eq!(c(t.get_error()), theme::ERROR);
 }
+
+/// Non-black pixels in the question's text box (away from the rim and the buttons) for `texts`, one
+/// render each on a single window.
+fn question_ink(texts: &[&str]) -> Vec<usize> {
+    let (h, ui) = show();
+    ui.set_page(claude_board_ui::Page::Question);
+    texts
+        .iter()
+        .map(|t| {
+            ui.set_question_text((*t).into());
+            let buf = h.render();
+            (72..178).flat_map(|y| (83..383).map(move |x| (x, y))).filter(|&(x, y)| px(&buf, x, y) != (0, 0, 0)).count()
+        })
+        .collect()
+}
+
+#[test]
+fn accented_latin_letters_have_glyphs() {
+    // Names and questions arrive at run time; Slint only embeds glyphs it sees in the sources, which
+    // ui/glyphs.slint extends to Latin-1 and Latin Extended-A.
+    let ink = question_ink(&[" ", "éàüçñ Œ"]);
+    assert_eq!(ink[0], 0);
+    assert!(ink[1] > 150, "accented letters drew (almost) nothing: {}", ink[1]);
+}
+
+#[test]
+fn characters_outside_the_fonts_draw_blank_instead_of_failing() {
+    assert_eq!(question_ink(&["日本語"]), vec![0]);
+}

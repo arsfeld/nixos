@@ -5,8 +5,10 @@ use std::path::Path;
 
 use claude_board_ui::headless::{headless, rgb, Headless, HEIGHT, WIDTH};
 use claude_board_ui::rim::arc_segment;
-use claude_board_ui::{AppWindow, PresenceState, RimSegment, SessionState};
-use slint::{ComponentHandle, ModelRc, VecModel};
+use claude_board_proto::{Model, Session, State};
+use claude_board_ui::view::{rim_models, session_rows};
+use claude_board_ui::{AppWindow, OptionRow, Page, PresenceState, RimSegment, SessionState};
+use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
 fn write_png(dir: &Path, name: &str, h: &Headless) {
     let buf = h.render();
@@ -34,13 +36,39 @@ fn model(v: Vec<RimSegment>) -> ModelRc<RimSegment> {
     ModelRc::new(VecModel::from(v))
 }
 
-/// Five sessions, one waiting: the waiting arc pulses.
-fn demo_rim(ui: &AppWindow) {
-    let states = [SessionState::Waiting, SessionState::Working, SessionState::Done, SessionState::Idle, SessionState::Error];
-    let arc = |i: usize| (i as f32 * 72.0 + 3.5, (i + 1) as f32 * 72.0 - 3.5);
-    let still = states.iter().enumerate().skip(1).map(|(i, s)| arc_segment(arc(i).0, arc(i).1, *s)).collect();
+fn sess(host: &str, project: &str, state: State, ago: i64) -> Session {
+    Session { host: host.into(), session: format!("{host}-{project}"), project: project.into(), cwd: String::new(), state, since: NOW - ago }
+}
+
+const NOW: i64 = 1_800_000_000;
+
+fn five() -> Vec<Session> {
+    let mut m = Model::new();
+    let all = [
+        sess("galactica", "claude-board", State::Waiting, 40),
+        sess("raider", "nixos", State::Working, 240),
+        sess("basestar", "k3s", State::Done, 720),
+        sess("pegasus", "media-sync", State::Idle, 7200),
+        sess("blackbird", "dotfiles", State::Error, 3600),
+    ];
+    m.apply(&serde_json::to_string(&serde_json::json!({"t":"state","sessions":all})).unwrap());
+    m.sessions().to_vec()
+}
+
+fn show_rim(ui: &AppWindow, sessions: &[Session]) {
+    let (still, pulsing) = rim_models(sessions);
     ui.set_rim(model(still));
-    ui.set_rim_pulsing(model(vec![arc_segment(arc(0).0, arc(0).1, states[0])]));
+    ui.set_rim_pulsing(model(pulsing));
+}
+
+fn options(labels: &[(&str, bool)]) -> ModelRc<OptionRow> {
+    ModelRc::new(VecModel::from(labels.iter().map(|(l, sel)| OptionRow { label: SharedString::from(*l), selected: *sel }).collect::<Vec<_>>()))
+}
+
+fn settle(h: &Headless) {
+    for _ in 0..8 {
+        h.step(33);
+    }
 }
 
 fn main() {
@@ -63,11 +91,61 @@ fn main() {
         write_png(dir, name, &h);
     }
 
-    demo_rim(&ui);
+    let sessions = five();
+    show_rim(&ui, &sessions);
+    ui.set_page(Page::Home);
     ui.set_presence_state(PresenceState::Alert);
     ui.set_presence_level(0.0);
-    for _ in 0..8 {
-        h.step(33);
-    }
+    ui.set_summary("1 needs you".into());
+    settle(&h);
     write_png(dir, "home-alert", &h);
+
+    ui.set_presence_state(PresenceState::Idle);
+    ui.set_summary("All quiet".into());
+    ui.set_link(false);
+    write_png(dir, "home-offline", &h);
+    ui.set_link(true);
+
+    ui.set_page(Page::List);
+    ui.set_rows(ModelRc::new(VecModel::from(session_rows(&sessions, Some(NOW)))));
+    ui.set_list_header("5 SESSIONS - 1 NEEDS YOU".into());
+    write_png(dir, "list", &h);
+
+    ui.set_page(Page::Question);
+    ui.set_question_source("GALACTICA - CLAUDE-BOARD".into());
+    ui.set_question_text("Which base should the Rust rewrite use?".into());
+    ui.set_multi(false);
+    ui.set_options(options(&[("esp-idf-svc + Slint", false), ("esp-hal bare-metal", false), ("Probe both first", false)]));
+    write_png(dir, "question-single", &h);
+
+    ui.set_multi(true);
+    ui.set_can_done(true);
+    ui.set_question_text("Which toppings?".into());
+    ui.set_options(options(&[("Nuts", true), ("Cream", false), ("Honey", true), ("Chocolate", false)]));
+    write_png(dir, "question-multi", &h);
+
+    ui.set_multi(false);
+    ui.set_question_source("RAIDER - NIXOS".into());
+    ui.set_question_text("🎨 Cuál es tu color favorito? Écoute ça: 日本語 Ωμέγα".into());
+    ui.set_options(options(&[("Α β ✓ café", false), ("日本語 テスト", false), ("Ünï cödé", false)]));
+    write_png(dir, "question-unicode", &h);
+
+    ui.set_page(Page::Detail);
+    ui.set_detail_host("galactica".into());
+    ui.set_detail_project("claude-board".into());
+    ui.set_detail_state(SessionState::Waiting);
+    ui.set_detail_state_text("waiting".into());
+    ui.set_detail_since("40s".into());
+    write_png(dir, "detail", &h);
+
+    // A crowded rim: 13 sessions, two waiting.
+    let mut many = Model::new();
+    let all: Vec<Session> = (0..13).map(|i| sess("h", &format!("p{i}"), if i < 2 { State::Waiting } else { State::Idle }, i)).collect();
+    many.apply(&serde_json::to_string(&serde_json::json!({"t":"state","sessions":all})).unwrap());
+    show_rim(&ui, many.sessions());
+    ui.set_page(Page::Home);
+    ui.set_summary("2 need you".into());
+    ui.set_presence_state(PresenceState::Alert);
+    settle(&h);
+    write_png(dir, "rim-13-sessions", &h);
 }

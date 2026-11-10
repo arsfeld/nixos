@@ -1,8 +1,12 @@
-// The whole screen. Task 7 holds the rim and the avatar; the pages come with the view logic.
-import { Theme, SessionState, PresenceState, RimSegment } from "theme.slint";
+// The whole screen: the rim around whichever page is up.
+import { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow } from "theme.slint";
 import { Rim } from "rim.slint";
-import { Presence } from "presence.slint";
-export { Theme, SessionState, PresenceState, RimSegment }
+import { HomePage } from "home.slint";
+import { SessionsPage } from "sessions.slint";
+import { QuestionPage } from "question.slint";
+import { DetailPage } from "detail.slint";
+import { GlyphCoverage } from "glyphs.slint";
+export { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow }
 
 export component AppWindow inherits Window {
     width: 466px;
@@ -11,10 +15,43 @@ export component AppWindow inherits Window {
     // A literal: the compiler embeds glyphs at build time and cannot resolve a property.
     default-font-family: "Sora";
 
+    in property <Page> page: Page.home;
+    in property <bool> link: true;
     in property <[RimSegment]> rim;
     in property <[RimSegment]> rim-pulsing;
+
+    // Home.
     in property <PresenceState> presence-state: PresenceState.idle;
     in property <float> presence-level: 0;
+    in property <string> summary;
+    // List.
+    in property <[SessionRow]> rows;
+    in property <string> list-header;
+    // Question.
+    in property <string> question-source;
+    in property <string> question-text;
+    in property <[OptionRow]> options;
+    in property <bool> multi;
+    in property <bool> can-done;
+    // Detail.
+    in property <string> detail-host;
+    in property <string> detail-project;
+    in property <SessionState> detail-state;
+    in property <string> detail-state-text;
+    in property <string> detail-since;
+    in property <string> detail-summary;
+    in property <[string]> detail-recent;
+
+    callback option-tapped(int);
+    callback done-tapped();
+    callback decline-tapped();
+    callback row-tapped(int);
+    // The ring was tapped at this angle, in degrees clockwise from the top.
+    callback rim-tapped(float);
+    callback back-tapped();
+    callback avatar-tapped();
+
+    GlyphCoverage {}
 
     Rim {
         width: 466px;
@@ -23,10 +60,66 @@ export component AppWindow inherits Window {
         pulsing: root.rim-pulsing;
     }
 
-    Presence {
-        x: 93px;
-        y: 93px;
-        state: root.presence-state;
-        level: root.presence-level;
+    // Taps on the ring itself (outside radius 190) open the session that arc stands for.
+    ring := TouchArea {
+        width: 466px;
+        height: 466px;
+        enabled: root.page == Page.home || root.page == Page.list;
+        // Offsets from the centre in pixels, y up.
+        property <float> dx: (self.mouse-x - 233px) / 1px;
+        property <float> dy: (233px - self.mouse-y) / 1px;
+        clicked => {
+            if (self.dx * self.dx + self.dy * self.dy > 190 * 190) {
+                root.rim-tapped(Math.atan2(self.dx, self.dy) / 1deg);
+            }
+        }
+    }
+
+    if root.page == Page.home: HomePage {
+        presence-state: root.presence-state;
+        presence-level: root.presence-level;
+        summary: root.summary;
+        link: root.link;
+        avatar-tapped => {
+            root.avatar-tapped();
+        }
+    }
+    if root.page == Page.list: SessionsPage {
+        rows: root.rows;
+        header: root.list-header;
+        row-tapped(i) => {
+            root.row-tapped(i);
+        }
+        back-tapped => {
+            root.back-tapped();
+        }
+    }
+    if root.page == Page.question: QuestionPage {
+        source: root.question-source;
+        question: root.question-text;
+        options: root.options;
+        multi: root.multi;
+        can-done: root.can-done;
+        option-tapped(i) => {
+            root.option-tapped(i);
+        }
+        done-tapped => {
+            root.done-tapped();
+        }
+        decline-tapped => {
+            root.decline-tapped();
+        }
+    }
+    if root.page == Page.detail: DetailPage {
+        host: root.detail-host;
+        project: root.detail-project;
+        state: root.detail-state;
+        state-text: root.detail-state-text;
+        since-text: root.detail-since;
+        summary: root.detail-summary;
+        recent: root.detail-recent;
+        back-tapped => {
+            root.back-tapped();
+        }
     }
 }

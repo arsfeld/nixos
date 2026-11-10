@@ -1,0 +1,9 @@
+// Slint embeds, for the software renderer, only the glyphs of characters it can see in the .slint
+// sources (plus ASCII). Names and questions arrive at run time, so this lists the rest of Latin-1 and
+// Latin Extended-A (accents) and common punctuation: it is never shown. Characters outside the fonts
+// (CJK, emoji, Greek in Sora) have no glyph and draw as blanks.
+export component GlyphCoverage inherits Text {
+    visible: false;
+    font-family: "Sora";
+    text: "¡¢£¤¥¦§¨©ª«¬®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿĀāĂăĄąĆćĈĉĊċČčĎďĐđĒēĔĕĖėĘęĚěĜĝĞğĠġĢģĤĥĦħĨĩĪīĬĭĮįİıĲĳĴĵĶķĸĹĺĻļĽľĿŀŁłŃńŅņŇňŉŊŋŌōŎŏŐőŒœŔŕŖŗŘřŚśŜŝŞşŠšŢţŤťŦŧŨũŪūŬŭŮůŰűŲųŴŵŶŷŸŹźŻżŽžſ–—‘’“”•€™·";
+}

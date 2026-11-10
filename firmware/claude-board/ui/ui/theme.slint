@@ -6,6 +6,22 @@ import "fonts/JetBrainsMono-Regular.ttf";
 
 export enum SessionState { idle, working, waiting, done, error }
 export enum PresenceState { idle, listening, thinking, speaking, alert }
+// Which screen is up. `home` is the avatar in the rim; a waiting question takes over with `question`.
+export enum Page { home, list, question, detail }
+
+export struct SessionRow {
+    host: string,
+    project: string,
+    state: SessionState,
+    // Time in the current state, "--" while the clock is not set.
+    ago: string,
+    waiting: bool,
+}
+
+export struct OptionRow {
+    label: string,
+    selected: bool,
+}
 
 // One arc of the rim, with its own tight bounding box: a Path repaints its whole box whenever it
 // changes, so a full-screen box would repaint the whole panel every frame. Built by `rim::arc_segment`.

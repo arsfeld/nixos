@@ -1,0 +1,43 @@
+// The home page: the avatar in the middle of the rim and one line saying what needs attention.
+import { Theme, PresenceState } from "theme.slint";
+import { Presence } from "presence.slint";
+
+export component HomePage inherits Rectangle {
+    in property <PresenceState> presence-state;
+    in property <float> presence-level;
+    in property <string> summary;
+    in property <bool> link;
+    callback avatar-tapped();
+
+    Presence {
+        x: 93px;
+        y: 93px;
+        state: root.presence-state;
+        level: root.presence-level;
+        TouchArea {
+            clicked => {
+                root.avatar-tapped();
+            }
+        }
+    }
+
+    Text {
+        y: 352px;
+        width: 466px;
+        text: root.summary;
+        color: Theme.text;
+        font-family: "Sora";
+        font-size: 22px;
+        horizontal-alignment: center;
+    }
+
+    if !root.link: Text {
+        y: 394px;
+        width: 466px;
+        text: "OFFLINE";
+        color: Theme.muted;
+        font-family: "JetBrains Mono";
+        font-size: 12px;
+        horizontal-alignment: center;
+    }
+}

@@ -1,0 +1,103 @@
+// The session list: one row per session, newest and waiting first, scrolled by touch.
+import { Theme, SessionRow } from "theme.slint";
+import { Pill } from "widgets.slint";
+
+component RowView inherits Rectangle {
+    in property <SessionRow> data;
+    callback tapped();
+    height: 52px;
+    border-radius: 14px;
+    background: root.data.waiting ? #1a1305 : (area.pressed ? #1a2033 : #0a0d16);
+    border-width: root.data.waiting ? 1px : 0px;
+    border-color: #4a3207;
+
+    Rectangle {
+        x: 14px;
+        y: (parent.height - 10px) / 2;
+        width: 10px;
+        height: 10px;
+        border-radius: 5px;
+        background: Theme.session-color(root.data.state);
+    }
+    Text {
+        x: 36px;
+        y: 8px;
+        width: 190px;
+        text: root.data.project;
+        color: Theme.text;
+        font-family: "Sora";
+        font-weight: 600;
+        font-size: 17px;
+        overflow: elide;
+    }
+    Text {
+        x: 36px;
+        y: 31px;
+        width: 190px;
+        text: root.data.host;
+        color: Theme.muted;
+        font-family: "JetBrains Mono";
+        font-size: 11px;
+        overflow: elide;
+    }
+    Text {
+        x: parent.width - 66px;
+        width: 52px;
+        height: parent.height;
+        text: root.data.ago;
+        color: Theme.muted;
+        font-family: "JetBrains Mono";
+        font-size: 13px;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+    }
+    area := TouchArea {
+        clicked => {
+            root.tapped();
+        }
+    }
+}
+
+export component SessionsPage inherits Rectangle {
+    in property <[SessionRow]> rows;
+    in property <string> header;
+    callback row-tapped(int);
+    callback back-tapped();
+
+    Text {
+        y: 62px;
+        width: 466px;
+        text: root.header;
+        color: Theme.muted;
+        font-family: "JetBrains Mono";
+        font-size: 12px;
+        horizontal-alignment: center;
+    }
+
+    Flickable {
+        x: 84px;
+        y: 90px;
+        width: 298px;
+        height: 262px;
+        content-height: root.rows.length * 60px;
+        for row[i] in root.rows: RowView {
+            y: i * 60px;
+            width: 298px;
+            data: row;
+            tapped => {
+                root.row-tapped(i);
+            }
+        }
+    }
+
+    Pill {
+        x: (466px - 120px) / 2;
+        y: 376px;
+        width: 120px;
+        height: 40px;
+        text: "Back";
+        tapped => {
+            root.back-tapped();
+        }
+    }
+}

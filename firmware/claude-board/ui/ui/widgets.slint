@@ -1,0 +1,35 @@
+// Small pieces shared by the pages.
+import { Theme } from "theme.slint";
+
+// A rounded button with a label: an answer, "Done", or a back control.
+export component Pill inherits Rectangle {
+    in property <string> text;
+    in property <bool> selected: false;
+    in property <color> accent: Theme.waiting;
+    callback tapped();
+
+    height: 44px;
+    border-radius: self.height / 2;
+    border-width: 1.5px;
+    border-color: root.selected ? root.accent : #2a3248;
+    background: root.selected ? root.accent.with-alpha(0.28) : (area.pressed ? #1a2033 : #0a0d16);
+
+    Text {
+        x: 18px;
+        width: parent.width - 36px;
+        height: parent.height;
+        text: root.text;
+        color: Theme.text;
+        font-family: "Sora";
+        font-size: 18px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    area := TouchArea {
+        clicked => {
+            root.tapped();
+        }
+    }
+}

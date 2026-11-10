@@ -1,0 +1,91 @@
+// One session: where it runs, what state it is in, and (later) what it has been doing.
+import { Theme, SessionState } from "theme.slint";
+import { Pill } from "widgets.slint";
+
+export component DetailPage inherits Rectangle {
+    in property <string> host;
+    in property <string> project;
+    in property <SessionState> state;
+    in property <string> state-text;
+    in property <string> since-text;
+    // Filled in by a later sub-project; empty until then.
+    in property <string> summary;
+    in property <[string]> recent;
+    callback back-tapped();
+
+    Text {
+        y: 58px;
+        width: 466px;
+        text: root.host;
+        color: Theme.muted;
+        font-family: "JetBrains Mono";
+        font-size: 12px;
+        horizontal-alignment: center;
+    }
+    Text {
+        x: 83px;
+        y: 78px;
+        width: 300px;
+        text: root.project;
+        color: Theme.text;
+        font-family: "Sora";
+        font-weight: 600;
+        font-size: 26px;
+        horizontal-alignment: center;
+        overflow: elide;
+    }
+
+    Rectangle {
+        x: (466px - 200px) / 2;
+        y: 124px;
+        width: 200px;
+        height: 30px;
+        border-radius: 15px;
+        background: Theme.session-color(root.state).with-alpha(0.2);
+        Text {
+            text: root.state-text + "  ·  " + root.since-text;
+            color: Theme.session-color(root.state);
+            font-family: "JetBrains Mono";
+            font-size: 13px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    Flickable {
+        x: 83px;
+        y: 170px;
+        width: 300px;
+        height: 190px;
+        content-height: summary-text.preferred-height + root.recent.length * 22px + 8px;
+        summary-text := Text {
+            width: 300px;
+            text: root.summary;
+            color: Theme.text;
+            font-family: "Sora";
+            font-size: 16px;
+            wrap: word-wrap;
+            horizontal-alignment: center;
+        }
+        for line[i] in root.recent: Text {
+            y: summary-text.preferred-height + 8px + i * 22px;
+            width: 300px;
+            text: line;
+            color: Theme.muted;
+            font-family: "JetBrains Mono";
+            font-size: 12px;
+            overflow: elide;
+        }
+    }
+
+    Pill {
+        x: (466px - 120px) / 2;
+        y: 376px;
+        width: 120px;
+        height: 40px;
+        text: "Back";
+        tapped => {
+            root.back-tapped();
+        }
+    }
+}
