@@ -25,9 +25,13 @@ pub const HOLD_SLOP_PX: i16 = 20;
 pub enum Gesture {
     /// A drag to the right: go back.
     SwipeRight,
-    /// The finger has been down, nearly still, for `HOLD_MS`; carries where it is.
+    /// The finger has been down, nearly still, for `HOLD_MS`; carries where it is. Nothing is cancelled yet: the
+    /// pointer stays down, and the lift is an ordinary click unless the app accepts the hold. The app's call
+    /// order is `HoldStart(x, y)` -> `controller.hold_started(x, y)` -> only if that returned true,
+    /// `tracker.accept_hold()` and dispatch the events it returns. A hold the controller refuses (off the
+    /// avatar, or on a page with controls) therefore behaves as a slow tap.
     HoldStart(i16, i16),
-    /// The finger that held has lifted.
+    /// The finger of an *accepted* hold has lifted (stop the microphone: `controller.hold_ended()`).
     HoldEnd,
 }
 
@@ -51,8 +55,10 @@ pub struct TouchTracker {
     /// When the finger landed, and whether it could still turn into a hold (it has not strayed).
     down_ms: u64,
     hold_possible: bool,
-    /// A hold has started and the pointer was cancelled; the lift ends it.
+    /// The hold was accepted (`accept_hold`) and the pointer cancelled; the lift ends it.
     holding: bool,
+    /// `HoldStart` has been emitted for this touch (accepted or not).
+    hold_fired: bool,
 }
 
 impl TouchTracker {
@@ -65,6 +71,17 @@ impl TouchTracker {
         self.update_at(x, y, pressed, 0)
     }
 
+    /// The app calls this when `controller.hold_started` accepted a `HoldStart`: it returns the events that cancel
+    /// the pointer (so no click follows) and makes the lift emit `Gesture::HoldEnd`. Empty when no hold is
+    /// pending.
+    pub fn accept_hold(&mut self) -> Vec<WindowEvent> {
+        if self.down_at.is_none() || !self.hold_fired || self.holding {
+            return Vec::new();
+        }
+        self.holding = true;
+        vec![WindowEvent::PointerExited]
+    }
+
     /// One sample from the controller: the coordinates (meaningful only when `pressed`), whether a finger is
     /// down, and the monotonic time in milliseconds.
     pub fn update_at(&mut self, x: i16, y: i16, pressed: bool, now_ms: u64) -> Update {
@@ -75,6 +92,7 @@ impl TouchTracker {
                 self.down_at = Some(position);
                 self.swiping = false;
                 self.holding = false;
+                self.hold_fired = false;
                 self.hold_possible = true;
                 self.down_ms = now_ms;
                 Update { events: vec![WindowEvent::PointerPressed { position, button: PointerEventButton::Left }], gesture: None }
@@ -90,9 +108,10 @@ impl TouchTracker {
                     self.hold_possible = false;
                 }
                 if self.hold_possible && now_ms.saturating_sub(self.down_ms) >= HOLD_MS {
-                    self.holding = true;
+                    self.hold_fired = true;
+                    self.hold_possible = false;
                     self.down_at = Some(position);
-                    return Update { events: vec![WindowEvent::PointerExited], gesture: Some(Gesture::HoldStart(x, y)) };
+                    return Update { events: Vec::new(), gesture: Some(Gesture::HoldStart(x, y)) };
                 }
                 if last == position {
                     return Update::default();
@@ -255,19 +274,28 @@ mod tests {
     }
 
     #[test]
-    fn a_long_touch_emits_holdstart_once_and_no_click() {
+    fn accepted_hold_cancels_pointer_and_emits_holdend() {
         let mut t = TouchTracker::new();
         let steps = long_press(&mut t, 233, 233, 600);
         let starts: Vec<Gesture> = steps.iter().filter_map(|u| u.gesture).collect();
-        assert_eq!(starts, [Gesture::HoldStart(233, 233)]);
-        let at_start = steps.iter().position(|u| u.gesture.is_some()).unwrap();
-        assert!(matches!(steps[at_start].events.as_slice(), [WindowEvent::PointerExited]));
-        assert!(steps[at_start].gesture.is_some() && steps[at_start - 1].gesture.is_none());
+        assert_eq!(starts, [Gesture::HoldStart(233, 233)], "exactly one HoldStart");
+        assert!(steps.iter().skip(1).all(|u| u.events.is_empty()), "nothing is cancelled before the app accepts");
+        assert!(matches!(t.accept_hold().as_slice(), [WindowEvent::PointerExited]));
         let up = t.update_at(0, 0, false, 700);
-        assert!(up.events.is_empty(), "the lift after a hold must not click: {:?}", up.events);
+        assert!(up.events.is_empty(), "the lift after an accepted hold must not click: {:?}", up.events);
         assert_eq!(up.gesture, Some(Gesture::HoldEnd));
-        // And the next touch is normal again.
         assert!(matches!(t.update_at(5, 5, true, 800).events.as_slice(), [WindowEvent::PointerPressed { .. }]));
+    }
+
+    #[test]
+    fn unaccepted_long_press_still_clicks() {
+        let mut t = TouchTracker::new();
+        let steps = long_press(&mut t, 233, 233, 600);
+        assert!(steps.iter().any(|u| matches!(u.gesture, Some(Gesture::HoldStart(..)))));
+        let up = t.update_at(0, 0, false, 700);
+        assert!(matches!(up.events.as_slice(), [WindowEvent::PointerReleased { .. }, WindowEvent::PointerExited]), "{:?}", up.events);
+        assert_eq!(up.gesture, None);
+        assert!(t.accept_hold().is_empty(), "nothing to accept once the finger is up");
     }
 
     #[test]

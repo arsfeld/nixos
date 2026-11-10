@@ -625,3 +625,58 @@ fn a_hold_during_a_waiting_question_is_ignored() {
     assert_eq!(f.c.utterance(), None);
     assert!(f.sent().is_empty());
 }
+
+// ---- Voice state does not outlive the link or a reply that never comes ----
+
+#[test]
+fn link_drop_while_listening_returns_to_idle() {
+    let f = fixture();
+    f.c.set_link(true);
+    assert!(f.c.hold_started(233, 233));
+    let sent_before = f.sent().len();
+    f.c.set_link(false);
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Idle);
+    assert_eq!(f.c.utterance(), None);
+    assert_eq!(f.c.hold_ended(), None, "the hold is over");
+    assert_eq!(f.sent().len(), sent_before, "nothing is sent on a dropped link");
+}
+
+#[test]
+fn link_drop_while_thinking_returns_to_idle() {
+    let f = fixture();
+    f.c.set_link(true);
+    f.c.hold_started(233, 233);
+    f.c.hold_ended();
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Thinking);
+    f.c.set_link(false);
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Idle);
+    assert_eq!(f.c.utterance(), None);
+}
+
+#[test]
+fn link_drop_while_speaking_returns_to_idle() {
+    let f = fixture();
+    f.c.set_link(true);
+    mood(&f, "speaking");
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Speaking);
+    let sent_before = f.sent().len();
+    f.c.set_link(false);
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Idle);
+    f.ui.invoke_avatar_tapped();
+    assert_eq!(f.sent().len(), sent_before, "no cancel for speech that is already gone");
+}
+
+#[test]
+fn thinking_returns_to_idle_after_90_seconds_without_a_reply() {
+    let f = fixture();
+    f.c.hold_started(233, 233);
+    f.c.hold_ended();
+    for _ in 0..178 {
+        f.c.tick(Some(NOW)); // 89 s
+    }
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Thinking);
+    for _ in 0..4 {
+        f.c.tick(Some(NOW));
+    }
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Idle);
+}

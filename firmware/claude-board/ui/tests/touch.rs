@@ -206,3 +206,34 @@ fn multi_select_taps_and_done_work() {
     assert_eq!(sent.len(), 1, "{sent:?}");
     assert!(sent[0].contains(r#""Which toppings?":"Nuts""#), "{}", sent[0]);
 }
+
+/// A slow press on an option (not on the avatar) is run through the tracker the way the app does: HoldStart goes
+/// to the controller, which refuses it off the avatar, so the tracker is never told to accept and the lift clicks.
+#[test]
+fn long_press_off_the_avatar_does_not_swallow_a_tap_on_an_option() {
+    use claude_board_ui::touch::Gesture;
+    let f = fx();
+    f.ask("question_single");
+    f.h.render();
+    let mut tracker = TouchTracker::new();
+    let mut samples = vec![(233, 201, true, 0u64)];
+    samples.extend((1..=7).map(|i| (233, 201, true, i * 100)));
+    samples.push((0, 0, false, 800));
+    for (x, y, pressed, ms) in samples {
+        let update = tracker.update_at(x, y, pressed, ms);
+        for event in update.events {
+            f.h.window.dispatch_event(event);
+        }
+        if let Some(Gesture::HoldStart(hx, hy)) = update.gesture {
+            if f.c.hold_started(hx, hy) {
+                for event in tracker.accept_hold() {
+                    f.h.window.dispatch_event(event);
+                }
+            }
+        }
+        f.h.render();
+    }
+    let sent = f.wire.0.borrow().clone();
+    assert_eq!(sent.len(), 1, "{sent:?}");
+    assert!(sent[0].contains(r#""Which colour?":"Red""#), "{}", sent[0]);
+}

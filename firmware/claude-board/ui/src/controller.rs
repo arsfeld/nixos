@@ -15,6 +15,8 @@ use crate::{AppWindow, FeedRow, OptionRow, Page, PresenceState, RimSegment, Sess
 
 /// How long the reply card stays up, in `tick_at` time.
 const REPLY_CARD_MS: u64 = 20_000;
+/// Thinking with no word from the bridge for this long goes back to idle (the bridge gives up on a reply at 60 s).
+const THINKING_WATCHDOG_MS: u64 = 90_000;
 /// Where the avatar is and how far a hold on it counts (the circle inscribed in its 280 px box).
 const AVATAR_CENTRE: i16 = 233;
 const AVATAR_RADIUS: i32 = 140;
@@ -101,6 +103,8 @@ struct Inner<O: Outbox> {
     utterance: Option<u32>,
     last_utterance: u32,
     mic_level: f32,
+    /// When the current mood began, in `tick_at` time (the thinking watchdog).
+    mood_since_ms: u64,
     /// The words of the last transcript, the reply on the card and the time it goes away.
     transcript: String,
     reply: String,
@@ -145,6 +149,7 @@ impl<O: Outbox + 'static> Controller<O> {
             utterance: None,
             last_utterance: 0,
             mic_level: 0.0,
+            mood_since_ms: 0,
             transcript: String::new(),
             reply: String::new(),
             reply_until_ms: 0,
@@ -178,7 +183,7 @@ impl<O: Outbox + 'static> Controller<O> {
         // The voice messages are not the model's business.
         match serde_json::from_str::<BoardMsg>(json) {
             Ok(BoardMsg::Creature { mood }) => {
-                s.mood = mood;
+                s.set_mood(mood);
                 s.refresh();
                 return;
             }
@@ -212,6 +217,13 @@ impl<O: Outbox + 'static> Controller<O> {
         let mut s = self.inner.borrow_mut();
         let came_up = up && !s.link;
         s.link = up;
+        if !up {
+            // Whatever the voice path was doing died with the socket: nothing will end it.
+            s.holding = false;
+            s.utterance = None;
+            s.mic_level = 0.0;
+            s.set_mood(Mood::Idle);
+        }
         // The bridge forgets what a board watches when the socket drops: ask again.
         if came_up && matches!(s.nav, Nav::Detail { .. }) {
             if let Some(msg) = s.model.rewatch_msg() {
@@ -457,9 +469,14 @@ impl<O: Outbox> Inner<O> {
         if let Some(utterance) = self.utterance {
             self.send(&ClientMsg::Cancel { utterance });
         }
-        self.mood = Mood::Idle;
+        self.set_mood(Mood::Idle);
         self.refresh();
         true
+    }
+
+    fn set_mood(&mut self, mood: Mood) {
+        self.mood = mood;
+        self.mood_since_ms = self.time_ms;
     }
 
     fn dismiss_reply(&mut self) {
@@ -489,7 +506,7 @@ impl<O: Outbox> Inner<O> {
         let utterance = self.utterance?;
         self.send(&ClientMsg::VoiceEnd { utterance });
         // The words are on their way: show it thinking until the bridge says otherwise.
-        self.mood = Mood::Thinking;
+        self.set_mood(Mood::Thinking);
         self.mic_level = 0.0;
         self.refresh();
         Some(utterance)
@@ -514,6 +531,10 @@ impl<O: Outbox> Inner<O> {
         sync(&self.models.rim_pulsing, pulsing);
         win.set_link(self.link);
 
+        if self.mood == Mood::Thinking && self.time_ms.saturating_sub(self.mood_since_ms) >= THINKING_WATCHDOG_MS {
+            self.mood = Mood::Idle;
+            self.mood_since_ms = self.time_ms;
+        }
         if !self.reply.is_empty() && self.time_ms >= self.reply_until_ms {
             self.reply.clear();
         }
