@@ -541,6 +541,9 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     230-340 ms, the I2S DMA buffer holds about 90 ms, and sending from the capture loop dropped up to half the
     audio, which whisper turned into garbled text. Each capture logs `signal: min max rms zeros max_send_ms`
     (levels only). Speech at 24 dB gain measured RMS 100-1500, which whisper transcribes exactly.
+    The microphone opens on touch-down on the avatar (`Capture::preroll`, a 1 s ring that sends nothing) and the
+    ring goes out first once the hold is accepted, so the 450 ms before recognition is kept; a tap discards it
+    without waiting (`abandon`). Not while the creature speaks: the speaker holds the clock until the hold stops it.
     A long press (450 ms, within 20 px) is only a hold if the app accepts it: `controller.hold_started` returning true leads to `TouchTracker::accept_hold`; otherwise the
     lift still clicks, so a slow tap on Allow is never swallowed. The playback queue holds 1 MiB and drops the
     excess.

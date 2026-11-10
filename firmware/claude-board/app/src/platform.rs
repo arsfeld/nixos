@@ -26,14 +26,23 @@ static HOLD_START: AtomicU32 = AtomicU32::new(NO_HOLD);
 static HOLD_END: AtomicBool = AtomicBool::new(false);
 /// The app accepted the pending hold; the touch loop tells the tracker on its next pass.
 static ACCEPT_HOLD: AtomicBool = AtomicBool::new(false);
-/// A finger just landed.
-static PRESSED: AtomicBool = AtomicBool::new(false);
+/// Where a finger just landed, packed like `HOLD_START`, or `NO_HOLD`.
+static PRESSED: AtomicU32 = AtomicU32::new(NO_HOLD);
+/// The finger lifted (after any touch, held or not).
+static LIFTED: AtomicBool = AtomicBool::new(false);
+
+fn pack(x: i16, y: i16) -> u32 {
+    ((x as u16 as u32) << 16) | y as u16 as u32
+}
+
+fn unpack(v: u32) -> Option<(i16, i16)> {
+    (v != NO_HOLD).then_some(((v >> 16) as i16, v as i16))
+}
 
 /// Where a hold began (the finger has been down, nearly still, long enough), once. The app asks the controller
 /// and, if it wants the hold, calls `accept_hold`.
 pub fn take_hold_start() -> Option<(i16, i16)> {
-    let v = HOLD_START.swap(NO_HOLD, Ordering::SeqCst);
-    (v != NO_HOLD).then_some(((v >> 16) as i16, v as i16))
+    unpack(HOLD_START.swap(NO_HOLD, Ordering::SeqCst))
 }
 
 /// Tell the touch loop that the controller took the hold: the pointer is cancelled (no click) and the lift ends it.
@@ -46,9 +55,14 @@ pub fn take_hold_end() -> bool {
     HOLD_END.swap(false, Ordering::SeqCst)
 }
 
-/// True once after a finger landed (for "a tap anywhere cancels speech").
-pub fn take_press() -> bool {
-    PRESSED.swap(false, Ordering::SeqCst)
+/// Where a finger landed, once (for "a tap anywhere cancels speech" and the microphone's pre-roll).
+pub fn take_press() -> Option<(i16, i16)> {
+    unpack(PRESSED.swap(NO_HOLD, Ordering::SeqCst))
+}
+
+/// True once after a finger lifted, whether or not it was a hold.
+pub fn take_lift() -> bool {
+    LIFTED.swap(false, Ordering::SeqCst)
 }
 
 /// True once after a swipe to the right (go back).
@@ -110,6 +124,7 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, mut each_loop: impl FnMut()) -> a
     let boot = Instant::now(); // the hold threshold needs a real clock
     // Touch diagnostics: polls that could be read, polls that could not, presses seen.
     let (mut reads_ok, mut reads_failed, mut presses, mut last_report) = (0u32, 0u32, 0u32, Instant::now());
+    let mut finger_down = false;
 
     loop {
         slint::platform::update_timers_and_animations();
@@ -133,7 +148,10 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, mut each_loop: impl FnMut()) -> a
             if let Some(t) = polled {
                 if t.pressed {
                     TOUCHED.store(true, Ordering::SeqCst);
+                } else if finger_down {
+                    LIFTED.store(true, Ordering::SeqCst);
                 }
+                finger_down = t.pressed;
                 // The app accepted the hold it was told about: cancel the pointer before the next sample.
                 if ACCEPT_HOLD.swap(false, Ordering::SeqCst) {
                     for event in tracker.accept_hold() {
@@ -143,14 +161,14 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, mut each_loop: impl FnMut()) -> a
                 let update = tracker.update_at(t.x, t.y, t.pressed, boot.elapsed().as_millis() as u64);
                 match update.gesture {
                     Some(Gesture::SwipeRight) => SWIPED_RIGHT.store(true, Ordering::SeqCst),
-                    Some(Gesture::HoldStart(x, y)) => HOLD_START.store(((x as u16 as u32) << 16) | y as u16 as u32, Ordering::SeqCst),
+                    Some(Gesture::HoldStart(x, y)) => HOLD_START.store(pack(x, y), Ordering::SeqCst),
                     Some(Gesture::HoldEnd) => HOLD_END.store(true, Ordering::SeqCst),
                     None => {}
                 }
                 for event in update.events {
                     if let slint::platform::WindowEvent::PointerPressed { position, .. } = &event {
                         presses += 1;
-                        PRESSED.store(true, Ordering::SeqCst);
+                        PRESSED.store(pack(position.x as i16, position.y as i16), Ordering::SeqCst);
                         log::info!("touch down at ({}, {})", position.x, position.y);
                     }
                     window.dispatch_event(event);

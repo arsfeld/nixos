@@ -547,6 +547,20 @@ fn release_sends_voice_end_with_the_same_utterance() {
 }
 
 #[test]
+fn can_hold_at_matches_hold_started_without_sending_anything() {
+    let f = fixture();
+    assert!(f.c.can_hold_at(233, 233));
+    assert!(!f.c.can_hold_at(20, 20));
+    assert!(f.sent().is_empty(), "asking opens no utterance");
+    assert_eq!(f.c.utterance(), None);
+    assert!(f.c.hold_started(233, 233));
+    assert!(!f.c.can_hold_at(233, 233), "not while a hold is open");
+    f.c.hold_ended();
+    mood(&f, "offline");
+    assert!(!f.c.can_hold_at(233, 233), "not while offline");
+}
+
+#[test]
 fn hold_is_refused_while_the_creature_is_offline() {
     let f = fixture();
     mood(&f, "offline");

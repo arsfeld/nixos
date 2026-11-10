@@ -271,6 +271,12 @@ impl<O: Outbox + 'static> Controller<O> {
         self.inner.borrow_mut().hold_started(x, y)
     }
 
+    /// Whether a hold at (x, y) would be taken now, with no effect: the app opens the microphone on touch-down
+    /// when it would, so the words spoken before the hold is recognised are kept.
+    pub fn can_hold_at(&self, x: i16, y: i16) -> bool {
+        self.inner.borrow().can_hold_at(x, y)
+    }
+
     /// The held finger lifted: the app stops the microphone. Returns the utterance that ended, if one was open.
     pub fn hold_ended(&self) -> Option<u32> {
         self.inner.borrow_mut().hold_ended()
@@ -513,11 +519,15 @@ impl<O: Outbox> Inner<O> {
         self.refresh();
     }
 
-    fn hold_started(&mut self, x: i16, y: i16) -> bool {
+    fn can_hold_at(&self, x: i16, y: i16) -> bool {
         let Some(win) = self.window.upgrade() else { return false };
         let (dx, dy) = ((x - AVATAR_CENTRE) as i32, (y - AVATAR_CENTRE) as i32);
         // Offline: the home screen already says so, and the bridge would discard what we upload.
-        if self.mood == Mood::Offline || win.get_page() != Page::Home || self.holding || dx * dx + dy * dy > AVATAR_RADIUS * AVATAR_RADIUS {
+        self.mood != Mood::Offline && win.get_page() == Page::Home && !self.holding && dx * dx + dy * dy <= AVATAR_RADIUS * AVATAR_RADIUS
+    }
+
+    fn hold_started(&mut self, x: i16, y: i16) -> bool {
+        if !self.can_hold_at(x, y) {
             return false;
         }
         self.last_utterance += 1;

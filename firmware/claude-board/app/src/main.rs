@@ -91,6 +91,8 @@ fn run<O: Outbox + 'static>(
     let mut last_tick = Instant::now();
     // Press to talk: the capture thread and the channel its levels arrive on, while a hold is being recorded.
     let mut capture: Option<(mic::Capture, mpsc::Receiver<f32>)> = None;
+    // A pre-roll let go on a tap, still closing the microphone: waited for before it is opened again.
+    let mut abandoned: Option<mic::Abandoned> = None;
     // The creature's voice: its own thread plays what the UI loop feeds it (see speaker.rs).
     let player = speaker::Player::start()?;
     platform::run(window, || {
@@ -102,13 +104,38 @@ fn run<O: Outbox + 'static>(
         if platform::take_swipe_right() && ui.get_page() != Page::Question {
             ui.invoke_back_tapped();
         }
+        let press = platform::take_press();
         // A tap anywhere but home cancels the creature's speech (on home the avatar's own handler does).
-        if platform::take_press() && ui.get_page() != Page::Home {
+        if press.is_some() && ui.get_page() != Page::Home {
             controller.tap_cancels_speech();
+        }
+        // A finger on the avatar may become a hold: start the microphone now, so the words said before the hold
+        // is recognised (450 ms) are kept. Not while it speaks: the speaker holds the shared clock until the hold
+        // stops it, and that hold starts its capture the old way.
+        if let (Some((x, y)), Some(net), None) = (press, &net, &capture) {
+            if net.is_up() && !controller.is_speaking() && controller.can_hold_at(x, y) {
+                if let Some(a) = abandoned.take() {
+                    a.wait();
+                }
+                let (levels_tx, levels_rx) = mpsc::channel();
+                capture = Some((mic::Capture::preroll(net.clone(), levels_tx), levels_rx));
+            }
         }
         // A hold on the avatar starts a voice question, if the link is up and nothing is recording.
         if let Some((x, y)) = platform::take_hold_start() {
-            if let (Some(net), None) = (&net, &capture) {
+            // A pre-roll waiting for this hold.
+            if matches!(&capture, Some((cap, _)) if !cap.is_live()) {
+                if controller.hold_started(x, y) {
+                    platform::accept_hold();
+                    let utterance = controller.utterance().unwrap_or(0);
+                    log::info!("voice: hold at ({x}, {y}), utterance {utterance} (pre-roll)");
+                    if let Some((cap, _)) = &capture {
+                        cap.begin(utterance); // after voice_start went out
+                    }
+                } else if let Some((cap, _)) = capture.take() {
+                    abandoned = Some(cap.abandon());
+                }
+            } else if let (Some(net), None) = (&net, &capture) {
                 // A hold while the creature speaks cancels the speech first: the speaker must be closed before the
                 // microphone can have the shared clock.
                 if net.is_up() && controller.is_speaking() {
@@ -121,8 +148,17 @@ fn run<O: Outbox + 'static>(
                     let (levels_tx, levels_rx) = mpsc::channel();
                     let utterance = controller.utterance().unwrap_or(0);
                     log::info!("voice: hold at ({x}, {y}), utterance {utterance}");
+                    if let Some(a) = abandoned.take() {
+                        a.wait(); // a discarded pre-roll may still hold the microphone
+                    }
                     capture = Some((mic::Capture::start(utterance, net.clone(), levels_tx), levels_rx));
                 }
+            }
+        }
+        // A pre-roll that died on its own (the microphone failed) is dropped quietly: no hold was announced.
+        if matches!(&capture, Some((cap, _)) if !cap.is_live() && cap.outcome() != mic::Outcome::Running) {
+            if let Some((cap, _)) = capture.take() {
+                abandoned = Some(cap.abandon());
             }
         }
         if let Some((cap, levels)) = &capture {
@@ -146,6 +182,12 @@ fn run<O: Outbox + 'static>(
                 cap.stop();
             }
             controller.hold_ended();
+        }
+        // The finger lifted before a hold was recognised: it was a tap, so the pre-roll goes.
+        if platform::take_lift() && matches!(&capture, Some((cap, _)) if !cap.is_live()) {
+            if let Some((cap, _)) = capture.take() {
+                abandoned = Some(cap.abandon());
+            }
         }
         while let Ok(event) = rx.try_recv() {
             match event {
