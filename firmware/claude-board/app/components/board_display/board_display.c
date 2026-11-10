@@ -193,7 +193,8 @@ static esp_codec_dev_handle_t speaker_init(void)
 
 // Microphone: the ES7210 ADC on the shared I2C bus, a slave on the same I2S clock as the ES8311. Its two real
 // microphones are MIC1 (left slot) and MIC2 (right slot); MIC3/4 carry the speaker reference and are not selected.
-#define MIC_GAIN_DB 24.0f
+// Speech peaked near -35 dBFS at 24 dB over a floor near -80 dBFS, so 36 dB (the ES7210 tops out at 37.5).
+#define MIC_GAIN_DB 36.0f
 #define MIC_STAGE_FRAMES 256 // stereo frames read from the codec at a time (2 KiB of stack)
 #define MIC_OPEN_WAIT_MS 1000
 

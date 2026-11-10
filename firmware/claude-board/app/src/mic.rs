@@ -37,6 +37,9 @@ const UPLINK_QUEUE_CHUNKS: usize = 50;
 /// Audio kept from before the hold was recognised: 1 s, more than the 450 ms threshold plus the touch latency.
 const PREROLL_CHUNKS: usize = 10;
 
+/// Chunks thrown away after the microphone opens, for its power-on click (200 ms).
+const POWER_ON_CHUNKS: usize = 2;
+
 /// `Capture::utterance` before `begin`.
 const NO_UTTERANCE: u32 = u32::MAX;
 
@@ -175,6 +178,13 @@ fn run(utterance: &AtomicU32, net: &Net, levels: &mpsc::Sender<f32>, stop: &Atom
         }
     };
     let mut chunk = vec![0i16; CHUNK_SAMPLES];
+    // The ES7210 clicks as it powers up (measured: chunk levels 493 and 7576, then 308, against a floor of 3 and
+    // speech of 100-500), right before the words. Read past it; the pre-roll starts early enough to lose nothing.
+    for _ in 0..POWER_ON_CHUNKS {
+        if display::mic_read(&mut chunk) != CHUNK_SAMPLES {
+            break;
+        }
+    }
     let mut preroll: VecDeque<Vec<i16>> = VecDeque::with_capacity(PREROLL_CHUNKS);
     let (mut sent_bytes, mut chunks) = (0usize, 0u32);
     // Signal diagnostics for the whole utterance: levels only, never the audio itself.
@@ -256,3 +266,4 @@ fn run(utterance: &AtomicU32, net: &Net, levels: &mpsc::Sender<f32>, stop: &Atom
     );
     result
 }
+

@@ -533,7 +533,7 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     pages the agent browses: do not re-enable it expecting it to be the creature. The persona is
     `services/_creature/SOUL.md`, installed as `SOUL.md` in Hermes's home.
   - **Firmware traps.** The microphone is an ES7210 (I2C 0x40 on the shared bus with the touch and codec, data in
-    GPIO 10); MIC1 and MIC2 are both selected and averaged in software, and the 24 dB gain is set after the
+    GPIO 10); MIC1 and MIC2 are both selected and averaged in software, and the 36 dB gain is set after the
     codec opens (open re-applies the stored 0 dB). The ES8311 speaker and the ES7210 share one I2S clock, so
     capture, playback and the chimes are strictly sequential behind a mutex in `board_display.c`, and a rate change
     (16 kHz capture and chime, 22 050 Hz reply) reopens the channel. **MCLK is GPIO 16** (the 1.75C BSP
@@ -544,7 +544,9 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     **The uplink is sent from its own thread** (`mic-up` in `app/src/mic.rs`): a websocket write measured
     230-340 ms, the I2S DMA buffer holds about 90 ms, and sending from the capture loop dropped up to half the
     audio, which whisper turned into garbled text. Each capture logs `signal: min max rms zeros max_send_ms`
-    (levels only). Speech at 24 dB gain measured RMS 100-1500, which whisper transcribes exactly.
+    (levels only). At 24 dB speech peaked near -35 dBFS over a floor near -80 dBFS and short phrases were misheard;
+    at 36 dB it measures RMS 250-330 with peaks near -20 dBFS. The codec also clicks as it powers up (one chunk at
+    up to 7576 RMS), so the first 200 ms after open are read and dropped (`POWER_ON_CHUNKS`).
     The microphone opens on touch-down on the avatar (`Capture::preroll`, a 1 s ring that sends nothing) and the
     ring goes out first once the hold is accepted, so the 450 ms before recognition is kept; a tap discards it
     without waiting (`abandon`). Not while the creature speaks: the speaker holds the clock until the hold stops it.
