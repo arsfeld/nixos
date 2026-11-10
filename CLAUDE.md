@@ -353,9 +353,12 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
   `PermissionRequest` hook on the question tool (`AskUserQuestion`) holds the request open until the
   board answers. `claude-board-install-hooks` merges them into `~/.claude/settings.json` from
   home-manager (Linux only; that file is user state Claude Code also writes, so nix does not own it).
-  Hooks never block a session: any failure exits 0 with no output, and a failed connection pauses
-  attempts for a minute. No board, no answer, or a timeout all fall through to the normal terminal
-  prompt.
+  Hooks never block a session, with one exception: while a board is connected, the held
+  `PermissionRequest` hook (`claude-board-hook ask`) waits on the bridge for up to 60 s
+  (`BRIDGE_ASK_TIMEOUT_SECS`) for a tap, and what the terminal shows during that wait has not been
+  measured (see the approvals bullet below). Every other failure exits 0 with no output, and a failed
+  connection pauses attempts for a minute. No board, no answer, or a timeout all fall through to the
+  normal terminal prompt.
 - **Bridge.** `packages/claude-board-bridge` (Rust, axum), `modules/hosts/galactica/services/claude-board.nix`,
   `media.services.claude-board` with `bypassAuth`. **Public and token-gated:** the board and the hooks
   both use `https://claude-board.arsfeld.one`, reachable from any network, so the bearer tokens are
@@ -364,19 +367,43 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
   bridge restart the board shows no sessions until each one next emits an event.
 - **Session feed and tool approvals** (spec `docs/superpowers/specs/2026-11-09-claude-board-feed-design.md`).
   The hook also sends `PreToolUse`, `PostToolUse` and `PostToolUseFailure` as feed entries, plus prompt
-  and reply entries from `UserPromptSubmit` and `Stop`; `claude-board-install-hooks` registers them, and
-  a catch-all `PermissionRequest` hook holds every tool approval, not just questions. Entries go to
-  `/v1/feed` (host token; its own endpoint, never touches the registry or held questions; 64 KiB body
-  limit). The board sends `watch`/`unwatch` for one session; the bridge replies with `history`, then
-  streams `entry` (protocol version 2). Each session has an in-memory ring buffer of 200 entries, the newest
-  50 are sent, and a sweep every 60 s drops feeds whose session is gone. An approval reuses the question
-  wire format (one question, labels `Allow`/`Deny`): only an exact `Allow` allows, only an exact `Deny`
-  denies, anything else falls through to the terminal. Tool **output is never sent**. Scrubbing of
-  commands and prompts is best-effort, not a guarantee: it covers `Authorization` headers, `Bearer`
-  tokens and `NAME=value` where NAME contains TOKEN, SECRET, PASSWORD, PASSWD or KEY (quoted values
-  too). Known gaps: `--password x`, `curl -u user:pass`, credentials embedded in URLs, JSON-style
-  `"api_key": "…"`, escaped quotes inside quoted values. The detail page shows the feed (at most 50
-  entries on the board, newest at the bottom, tap a row to expand, auto-follows).
+  and reply entries from `UserPromptSubmit` and `Stop`; `claude-board-install-hooks` registers them. Entries
+  go to `/v1/feed` (host token; its own endpoint, never touches the registry or held questions; 64 KiB body
+  limit). The board sends `watch`/`unwatch` for one session; the bridge replies with `history`, then streams
+  `entry` (protocol version 2). Each session has an in-memory ring buffer of 200 entries; a `history` holds
+  the newest 50 that fit in 48 KiB of JSON, oldest dropped first, because the board silently discards any
+  frame over 64 KiB. A sweep every 60 s drops feeds whose session is gone. Tool **output is never sent**.
+  The detail page shows the feed (at most 50 entries on the board, newest at the bottom, tap a row to
+  expand, auto-follows).
+  - **Scrubbing is partial.** Prompts (cut to 2 KB) and replies (4 KB) reach the bridge and the board exactly
+    as typed or written, **unscrubbed**: anything sensitive in a prompt or in Claude's reply goes out in the
+    clear. Only tool-call text (the feed's tool lines and the approval summaries) is scrubbed, best-effort:
+    `Authorization` headers, `Bearer` tokens, and `NAME=value` or JSON/YAML `"name": value` pairs where the
+    name contains TOKEN, SECRET, PASSWORD, PASSWD or KEY (quoted values too; the value is redacted and the
+    key kept). Known gaps: `--password x`, `curl -u user:pass`, credentials embedded in URLs, escaped quotes
+    inside quoted values, list values.
+  - **Tool approvals are opt-in.** By default the installer registers the `PermissionRequest` hook for the
+    question tool only (matcher `AskUserQuestion`). `CLAUDE_BOARD_APPROVALS=1 claude-board-install-hooks`
+    registers it for every tool (no matcher), so the board can also allow or deny tool calls; re-running with
+    or without the variable swaps one form for the other and leaves other hooks alone. They are off because,
+    while a board is connected, a held approval can keep the terminal prompt waiting for up to the 60 s bridge
+    hold (`BRIDGE_ASK_TIMEOUT_SECS`) unless the board answers it, and whether the terminal dialog is visible
+    during the hold has not been measured. The home-manager activation (`home/home.nix`) runs the installer
+    with no variable, so each switch puts the question-only form back: for approvals to survive one, the
+    variable has to reach that activation, and nothing sets it today.
+  - **What reaches the board as an approval.** An approval reuses the question wire format (one question,
+    labels `Allow`/`Deny`): only an exact `Allow` allows, only an exact `Deny` denies, anything else falls
+    through to the terminal. It is sent only when its whole text, `<tool>: <summary>`, fits the 160 bytes the
+    board displays (`APPROVAL_TEXT_MAX` in `claude-board-proto`, used by the bridge and the firmware). A longer
+    command, or a tool with no summary (MCP tools, say), gets an immediate 204 from the bridge and is approved
+    at the terminal, so nobody taps Allow on something they could not read to the end. For Edit, MultiEdit,
+    Write and NotebookEdit the summary is the file path and nothing of the content. The bridge holds an
+    approval for 60 s, then falls through to the terminal prompt. The board ignores taps on a question for
+    500 ms after a different one takes over the screen (400 ms after an answer), so a tap meant for the list
+    or the feed cannot answer what just appeared.
+  - **Deploy order: galactica (the bridge) before any host's hooks.** An older bridge has no `/v1/feed`, and
+    (with approvals on, while a board is connected) reads an approval for a tool as a question with no
+    questions and holds it for the full 60 s.
 - **Secrets.** `claude-board-host-token` in `common.yaml` (declared for every host in
   `modules/base/claude-board.nix`, 0400 for arosenfeld, read by the hooks from `/run/secrets`);
   `claude-board-device-token` in `galactica.yaml` and `raider.yaml` (same value: the bridge checks it,
