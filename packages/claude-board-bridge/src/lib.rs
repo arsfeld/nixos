@@ -8,6 +8,7 @@ pub mod http;
 pub mod state;
 pub mod voice;
 pub mod mcp;
+pub mod timers;
 
 use axum::Router;
 

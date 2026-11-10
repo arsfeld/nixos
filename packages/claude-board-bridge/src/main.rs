@@ -24,6 +24,7 @@ use claude_board_bridge::auth::Tokens;
 use claude_board_bridge::config::{VoiceEnv, mcp_settings_from_env, voice_settings_from_env};
 use claude_board_bridge::mcp::{Mcp, mcp_router};
 use claude_board_bridge::http::{AppState, now_secs};
+use claude_board_bridge::timers::Timers;
 use claude_board_bridge::voice::VoiceConfig;
 use claude_board_bridge::voice::backends::{Backends, HermesHttp, PiperHttp, WhisperHttp};
 use claude_board_bridge::voice::cylon::Centurion;
@@ -61,6 +62,18 @@ fn voice() -> Option<(Backends, VoiceConfig)> {
     Some((backends, cfg))
 }
 
+/// Timers live in `$STATE_DIRECTORY/timers.json` (systemd sets it from `StateDirectory`).
+fn open_timers() -> Timers {
+    let path = std::env::var("STATE_DIRECTORY")
+        .ok()
+        .filter(|d| !d.is_empty())
+        .map(|d| std::path::PathBuf::from(d.split(':').next().unwrap_or("")).join("timers.json"));
+    if path.is_none() {
+        eprintln!("claude-board-bridge: timers in memory only");
+    }
+    Timers::open(path, std::sync::Arc::new(now_secs))
+}
+
 fn fatal(msg: &str) -> ! {
     eprintln!("claude-board-bridge: {msg}");
     std::process::exit(1)
@@ -86,9 +99,9 @@ async fn main() {
 
     match mcp_settings_from_env(|k| std::env::var(k).ok()) {
         Ok(Some(s)) => {
-            // Tools are added by later tasks.
+            let timers = std::sync::Arc::new(open_timers());
             let mcp = std::sync::Arc::new(Mcp {
-                tools: vec![],
+                tools: claude_board_bridge::mcp::timers::tools(timers),
                 token: s.token,
                 fail_delay: Duration::from_millis(env_num("BRIDGE_AUTH_FAIL_DELAY_MS", 500)),
             });

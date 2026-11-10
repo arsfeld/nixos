@@ -15,6 +15,8 @@ use serde_json::{Value, json};
 
 use crate::auth::check_bearer;
 
+pub mod timers;
+
 /// The longest tool result text, in bytes.
 pub const TOOL_TEXT_MAX: usize = 3000;
 const TRUNCATED: &str = "\n[truncated]";
