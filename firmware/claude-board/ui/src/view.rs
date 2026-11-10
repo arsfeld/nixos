@@ -84,7 +84,7 @@ pub fn fmt_ago(now: Option<i64>, since: i64) -> String {
     let Some(now) = now.filter(|n| crate::link::clock_is_set(*n)) else {
         return "--".into();
     };
-    let d = (now - since).max(0);
+    let d = now.saturating_sub(since).max(0);
     match d {
         0..=59 => format!("{d}s"),
         60..=3599 => format!("{}m", d / 60),

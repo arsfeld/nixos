@@ -61,12 +61,10 @@ fn main() -> anyhow::Result<()> {
     // `Box<dyn Fn>`-free: the controller is generic over its outbox, so each case builds its own loop.
     if ssid.is_empty() || token.is_empty() {
         log::error!("no credentials compiled in: run `just board creds`, then rebuild");
-        ui.set_link(false);
         return run(&window, &ui, Controller::new(&ui, NoWire), rx);
     }
     let modem = Peripherals::take()?.modem;
     let wire = net::start(net::Credentials { ssid, pass, token }, settings, modem, tx)?;
-    ui.set_link(false);
     run(&window, &ui, Controller::new(&ui, wire), rx)
 }
 
@@ -87,6 +85,7 @@ fn run<O: Outbox + 'static>(
     let mut brightness = 0u8;
     let mut last_tick = Instant::now();
     platform::run(window, || {
+        controller.set_time_ms(ms() as u64); // precise timestamps for the double-tap guard
         if platform::take_touch() {
             power.touch(ms());
         }
@@ -109,7 +108,7 @@ fn run<O: Outbox + 'static>(
         }
         if last_tick.elapsed() >= Duration::from_millis(250) {
             last_tick = Instant::now();
-            controller.tick(unix_now());
+            controller.tick_at(unix_now(), ms() as u64);
             // Dim after a quiet spell and nudge the picture a few pixels, against burn-in.
             let wanted = power.brightness(ms());
             if wanted != brightness {

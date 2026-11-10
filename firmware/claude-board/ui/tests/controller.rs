@@ -270,12 +270,12 @@ fn tick_with_unset_clock_shows_dashes() {
 fn offline_link_flag_is_set_on_the_window_and_sessions_stay_visible() {
     let f = fixture();
     f.feed("state");
-    assert!(f.ui.get_link() == true);
+    assert!(!f.ui.get_link(), "offline until the bridge connects");
+    f.c.set_link(true);
+    assert!(f.ui.get_link());
     f.c.set_link(false);
     assert!(!f.ui.get_link());
     assert_eq!(f.ui.get_summary(), "1 needs you", "sessions already known stay on screen");
-    f.c.set_link(true);
-    assert!(f.ui.get_link());
 }
 
 #[test]

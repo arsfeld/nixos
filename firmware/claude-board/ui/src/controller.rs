@@ -8,10 +8,13 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use claude_board_proto::{join_labels, AnswerOutcome, Applied, AskId, ClientMsg, Model, Session, State};
-use slint::{ComponentHandle, ModelRc, SharedString, VecModel, Weak};
+use slint::{ComponentHandle, Model as _, ModelRc, SharedString, VecModel, Weak};
 
 use crate::view::{arc_index_at, fmt_ago, presence_for, rim_models, session_rows, shorten, PresenceKind, MAX_RIM_SEGMENTS};
-use crate::{AppWindow, OptionRow, Page, PresenceState};
+use crate::{AppWindow, OptionRow, Page, PresenceState, RimSegment, SessionRow};
+
+/// Taps this soon after an answer are ignored (a double tap is two taps well under this apart).
+const ANSWER_GUARD_MS: u64 = 400;
 
 /// Where answers go: the websocket to the bridge.
 pub trait Outbox {
@@ -33,7 +36,35 @@ struct Selection {
     picked: Vec<bool>,
 }
 
+/// The list models the window shows. Each is created once and updated in place: handing the window a new model
+/// makes Slint destroy and rebuild every row, so a touch area that has seen the press would be gone before the
+/// release and the tap lost (a refresh lands four times a second, and on every bridge message).
+struct Models {
+    rim: Rc<VecModel<RimSegment>>,
+    rim_pulsing: Rc<VecModel<RimSegment>>,
+    rows: Rc<VecModel<SessionRow>>,
+    options: Rc<VecModel<OptionRow>>,
+    recent: Rc<VecModel<SharedString>>,
+}
+
+/// Make `model` hold exactly `new`, touching only what differs.
+fn sync<T: Clone + PartialEq + 'static>(model: &VecModel<T>, new: Vec<T>) {
+    for (i, item) in new.iter().enumerate() {
+        if i < model.row_count() {
+            if model.row_data(i).as_ref() != Some(item) {
+                model.set_row_data(i, item.clone());
+            }
+        } else {
+            model.push(item.clone());
+        }
+    }
+    while model.row_count() > new.len() {
+        model.remove(model.row_count() - 1);
+    }
+}
+
 struct Inner<O: Outbox> {
+    models: Models,
     model: Model,
     outbox: O,
     window: Weak<AppWindow>,
@@ -41,10 +72,10 @@ struct Inner<O: Outbox> {
     link: bool,
     now: Option<i64>,
     sel: Selection,
-    /// Counts `tick`s; an answer ignores further taps until the next one (a double tap must not answer the
-    /// next question of the same ask).
-    ticks: u64,
-    answered_at_tick: Option<u64>,
+    /// The app's monotonic clock in milliseconds (see `set_time_ms`), and when the last answer was given: taps
+    /// within `ANSWER_GUARD_MS` of it are ignored, so a double tap cannot answer the next question of the ask.
+    time_ms: u64,
+    answered_at_ms: Option<u64>,
     prev_waiting: usize,
     chimed_ask: Option<AskId>,
     chime: bool,
@@ -56,16 +87,30 @@ pub struct Controller<O: Outbox> {
 
 impl<O: Outbox + 'static> Controller<O> {
     pub fn new(window: &AppWindow, outbox: O) -> Self {
+        let models = Models {
+            rim: Rc::new(VecModel::default()),
+            rim_pulsing: Rc::new(VecModel::default()),
+            rows: Rc::new(VecModel::default()),
+            options: Rc::new(VecModel::default()),
+            recent: Rc::new(VecModel::default()),
+        };
+        window.set_rim(ModelRc::from(models.rim.clone()));
+        window.set_rim_pulsing(ModelRc::from(models.rim_pulsing.clone()));
+        window.set_rows(ModelRc::from(models.rows.clone()));
+        window.set_options(ModelRc::from(models.options.clone()));
+        window.set_detail_recent(ModelRc::from(models.recent.clone()));
         let inner = Rc::new(RefCell::new(Inner {
+            models,
             model: Model::new(),
             outbox,
             window: window.as_weak(),
             nav: Nav::Home,
-            link: true,
+            // Offline until the bridge connection comes up: the home screen says so.
+            link: false,
             now: None,
             sel: Selection::default(),
-            ticks: 0,
-            answered_at_tick: None,
+            time_ms: 0,
+            answered_at_ms: None,
             prev_waiting: 0,
             chimed_ask: None,
             chime: false,
@@ -113,12 +158,24 @@ impl<O: Outbox + 'static> Controller<O> {
         s.refresh();
     }
 
-    /// The clock moved on (`None` while it is not set); refreshes "time in state".
-    pub fn tick(&self, now: Option<i64>) {
+    /// Tell the controller the time (a monotonic clock in milliseconds); the app calls this every pass of its loop
+    /// so an answer is timestamped to the millisecond.
+    pub fn set_time_ms(&self, ms: u64) {
+        self.inner.borrow_mut().time_ms = ms;
+    }
+
+    /// The wall clock moved on (`None` while it is not set) at monotonic time `ms`; refreshes "time in state".
+    pub fn tick_at(&self, now: Option<i64>, ms: u64) {
         let mut s = self.inner.borrow_mut();
-        s.ticks += 1;
+        s.time_ms = ms;
         s.now = now;
         s.refresh();
+    }
+
+    /// `tick_at` for callers with no clock of their own (the tests): half a second passes.
+    pub fn tick(&self, now: Option<i64>) {
+        let ms = self.inner.borrow().time_ms + 500;
+        self.tick_at(now, ms);
     }
 
     /// True once after something started needing the user.
@@ -150,16 +207,16 @@ impl<O: Outbox> Inner<O> {
     }
 
     fn cooling_down(&self) -> bool {
-        self.answered_at_tick == Some(self.ticks)
+        self.answered_at_ms.is_some_and(|at| self.time_ms < at + ANSWER_GUARD_MS)
     }
 
     fn submit(&mut self, label: &str) {
         match self.model.answer(label) {
             AnswerOutcome::Complete(msg) => {
                 self.send(&msg);
-                self.answered_at_tick = Some(self.ticks);
+                self.answered_at_ms = Some(self.time_ms);
             }
-            AnswerOutcome::NextQuestion => self.answered_at_tick = Some(self.ticks),
+            AnswerOutcome::NextQuestion => self.answered_at_ms = Some(self.time_ms),
             AnswerOutcome::NoQuestion => {}
         }
         self.refresh();
@@ -207,7 +264,7 @@ impl<O: Outbox> Inner<O> {
         if let ClientMsg::Decline { id } = &msg {
             self.model.dismiss(id);
         }
-        self.answered_at_tick = Some(self.ticks);
+        self.answered_at_ms = Some(self.time_ms);
         self.refresh();
     }
 
@@ -264,8 +321,8 @@ impl<O: Outbox> Inner<O> {
         let sessions = self.model.sessions();
         let waiting = self.model.waiting_count();
         let (still, pulsing) = rim_models(sessions);
-        win.set_rim(ModelRc::new(VecModel::from(still)));
-        win.set_rim_pulsing(ModelRc::new(VecModel::from(pulsing)));
+        sync(&self.models.rim, still);
+        sync(&self.models.rim_pulsing, pulsing);
         win.set_link(self.link);
 
         win.set_presence_state(match presence_for(&self.model) {
@@ -288,7 +345,7 @@ impl<O: Outbox> Inner<O> {
             .into(),
         );
 
-        win.set_rows(ModelRc::new(VecModel::from(session_rows(sessions, self.now))));
+        sync(&self.models.rows, session_rows(sessions, self.now));
         if let Some(s) = self.detail_session() {
             win.set_detail_host(shorten(&s.host, 24).into());
             win.set_detail_project(shorten(&s.project, 40).into());
@@ -297,7 +354,7 @@ impl<O: Outbox> Inner<O> {
             win.set_detail_since(fmt_ago(self.now, s.since).into());
         }
         win.set_detail_summary("".into());
-        win.set_detail_recent(ModelRc::new(VecModel::<SharedString>::default()));
+        sync(&self.models.recent, Vec::new());
 
         match self.model.current_ask() {
             Some(ask) => {
@@ -318,7 +375,7 @@ impl<O: Outbox> Inner<O> {
                     .zip(&self.sel.picked)
                     .map(|(o, on)| OptionRow { label: shorten(&o.label, 60).into(), selected: *on })
                     .collect();
-                win.set_options(ModelRc::new(VecModel::from(rows)));
+                sync(&self.models.options, rows);
                 win.set_page(Page::Question);
             }
             None => {

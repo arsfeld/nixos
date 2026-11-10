@@ -277,7 +277,10 @@ unsafe fn handle_data(ctx: &mut WsCtx, e: &esp_websocket_event_data_t) {
     if ctx.skipping {
         return;
     }
-    ctx.frame.extend_from_slice(std::slice::from_raw_parts(e.data_ptr as *const u8, len));
+    if len > 0 {
+        // (An empty frame may come with a null pointer, which from_raw_parts must not be given.)
+        ctx.frame.extend_from_slice(std::slice::from_raw_parts(e.data_ptr as *const u8, len));
+    }
     if offset + len >= total {
         match String::from_utf8(std::mem::take(&mut ctx.frame)) {
             Ok(text) => {

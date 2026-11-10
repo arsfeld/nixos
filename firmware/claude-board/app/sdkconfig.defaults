@@ -1,4 +1,5 @@
-# Copied from firmware/claude-board/sdkconfig.defaults, minus LVGL. The comments there explain each line.
+# Settings for the ESP-IDF build that esp-idf-sys runs (the C firmware's version of this file, with its LVGL
+# lines, is gone). Internal RAM and DMA are the scarce things; see CLAUDE.md.
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
