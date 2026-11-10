@@ -137,6 +137,22 @@ fn main() {
     ui.set_detail_since("40s".into());
     write_png(dir, "detail", &h);
 
+    // The list at several wheel curvatures, side by side (scrolled so rows sit above and below the centre).
+    let mut many8 = Model::new();
+    let eight: Vec<Session> = (0..8)
+        .map(|i| {
+            let (name, st) = [("claude-board", State::Waiting), ("nixos", State::Working), ("k3s", State::Done), ("media-sync", State::Idle), ("dotfiles", State::Error), ("plab", State::Working), ("blog", State::Done), ("immich", State::Idle)][i];
+            sess(["galactica", "raider", "basestar", "pegasus", "blackbird", "galactica", "basestar", "galactica"][i], name, st, 40 + 300 * i as i64)
+        })
+        .collect();
+    many8.apply(&serde_json::to_string(&serde_json::json!({"t":"state","sessions":eight})).unwrap());
+    show_rim(&ui, many8.sessions());
+    ui.set_rows(ModelRc::new(VecModel::from(session_rows(many8.sessions(), Some(NOW)))));
+    ui.set_list_header("8 SESSIONS - 1 NEEDS YOU".into());
+    ui.set_page(Page::List);
+    ui.set_list_scroll(-2.0 * 56.0);
+    write_png(dir, "list-wheel", &h);
+
     // A crowded rim: 13 sessions, two waiting.
     let mut many = Model::new();
     let all: Vec<Session> = (0..13).map(|i| sess("h", &format!("p{i}"), if i < 2 { State::Waiting } else { State::Idle }, i)).collect();

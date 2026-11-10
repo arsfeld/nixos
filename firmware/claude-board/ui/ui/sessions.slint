@@ -10,13 +10,16 @@ component RowView inherits Rectangle {
     in property <SessionRow> data;
     // Where the row's centre is on the screen, supplied by the wheel.
     in property <length> cy;
+    // The wheel: its radius (a bigger wheel bends less) and how far in from the screen edge the badges start.
+    in property <float> wheel-r: 150;
+    in property <float> inset: 28;
     callback tapped();
 
     // Distance from the screen centre. The row's left edge follows a circle of radius 190 (`bow` is how far
     // that circle has curved away from its widest point), and the right edge mirrors it.
     property <float> dy: (root.cy - 233px) / 1px;
-    property <float> bow: 190 - Math.sqrt(Math.max(0, 190 * 190 - root.dy * root.dy));
-    property <float> left: 58 + root.bow;
+    property <float> bow: root.wheel-r - Math.sqrt(Math.max(0, root.wheel-r * root.wheel-r - root.dy * root.dy));
+    property <float> left: root.inset + root.bow;
     property <float> fade: Math.max(0, 1 - 0.7 * Math.min(1, Math.abs(root.dy) / 175));
     property <bool> centred: Math.abs(root.dy) < 30;
 
@@ -86,6 +89,8 @@ component RowView inherits Rectangle {
 export component SessionsPage inherits Rectangle {
     in property <[SessionRow]> rows;
     in property <string> header;
+    in property <float> wheel-r: 150;
+    in property <float> inset: 28;
     // How far the list is scrolled (0, or negative).
     in-out property <length> scroll <=> flick.content-y;
     callback row-tapped(int);
@@ -114,6 +119,8 @@ export component SessionsPage inherits Rectangle {
             y: 118px + i * 56px;
             cy: 87px + flick.content-y + 118px + i * 56px + 26px;
             data: row;
+            wheel-r: root.wheel-r;
+            inset: root.inset;
             tapped => {
                 root.row-tapped(i);
             }
