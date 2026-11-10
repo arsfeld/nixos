@@ -16,10 +16,19 @@ const SWIPE_MIN_DX: f32 = 70.0;
 /// ...and stay mostly horizontal: vertical travel at most this fraction of the sideways travel.
 const SWIPE_MAX_SLOPE: f32 = 0.5;
 
+/// A finger held this long, nearly still, is a hold (press to talk).
+pub const HOLD_MS: u64 = 450;
+/// "Nearly still": the finger stays within this many pixels of where it landed.
+pub const HOLD_SLOP_PX: i16 = 20;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Gesture {
     /// A drag to the right: go back.
     SwipeRight,
+    /// The finger has been down, nearly still, for `HOLD_MS`; carries where it is.
+    HoldStart(i16, i16),
+    /// The finger that held has lifted.
+    HoldEnd,
 }
 
 /// What one sample produced.
@@ -27,7 +36,7 @@ pub enum Gesture {
 pub struct Update {
     /// Pointer events to dispatch to the window, in order.
     pub events: Vec<WindowEvent>,
-    /// A gesture that just finished.
+    /// A gesture that just finished (or, for `HoldStart`, just began).
     pub gesture: Option<Gesture>,
 }
 
@@ -39,6 +48,11 @@ pub struct TouchTracker {
     down_at: Option<LogicalPosition>,
     /// The drag has been recognised as a swipe and the pointer cancelled; wait for the lift.
     swiping: bool,
+    /// When the finger landed, and whether it could still turn into a hold (it has not strayed).
+    down_ms: u64,
+    hold_possible: bool,
+    /// A hold has started and the pointer was cancelled; the lift ends it.
+    holding: bool,
 }
 
 impl TouchTracker {
@@ -46,25 +60,44 @@ impl TouchTracker {
         Self::default()
     }
 
-    /// One sample from the controller: the coordinates (meaningful only when `pressed`) and whether a
-    /// finger is down.
+    /// `update_at` for callers with no clock: time never advances, so nothing is ever a hold.
     pub fn update(&mut self, x: i16, y: i16, pressed: bool) -> Update {
+        self.update_at(x, y, pressed, 0)
+    }
+
+    /// One sample from the controller: the coordinates (meaningful only when `pressed`), whether a finger is
+    /// down, and the monotonic time in milliseconds.
+    pub fn update_at(&mut self, x: i16, y: i16, pressed: bool, now_ms: u64) -> Update {
         let position = LogicalPosition::new(x as f32, y as f32);
         match (self.down_at, pressed) {
             (None, true) => {
                 self.start = Some(position);
                 self.down_at = Some(position);
                 self.swiping = false;
+                self.holding = false;
+                self.hold_possible = true;
+                self.down_ms = now_ms;
                 Update { events: vec![WindowEvent::PointerPressed { position, button: PointerEventButton::Left }], gesture: None }
             }
-            (Some(_), true) if self.swiping => {
+            (Some(_), true) if self.swiping || self.holding => {
                 self.down_at = Some(position);
                 Update::default()
             }
-            (Some(last), true) if last != position => {
-                self.down_at = Some(position);
+            (Some(last), true) => {
                 let start = self.start.unwrap_or(position);
                 let (dx, dy) = (position.x - start.x, position.y - start.y);
+                if dx.abs() > HOLD_SLOP_PX as f32 || dy.abs() > HOLD_SLOP_PX as f32 {
+                    self.hold_possible = false;
+                }
+                if self.hold_possible && now_ms.saturating_sub(self.down_ms) >= HOLD_MS {
+                    self.holding = true;
+                    self.down_at = Some(position);
+                    return Update { events: vec![WindowEvent::PointerExited], gesture: Some(Gesture::HoldStart(x, y)) };
+                }
+                if last == position {
+                    return Update::default();
+                }
+                self.down_at = Some(position);
                 if dx >= SWIPE_MIN_DX && dy.abs() <= dx * SWIPE_MAX_SLOPE {
                     self.swiping = true;
                     return Update { events: vec![WindowEvent::PointerExited], gesture: None };
@@ -72,8 +105,11 @@ impl TouchTracker {
                 Update { events: vec![WindowEvent::PointerMoved { position }], gesture: None }
             }
             (Some(last), false) => {
-                let swiped = self.swiping;
+                let (swiped, held) = (self.swiping, self.holding);
                 *self = Self::default();
+                if held {
+                    return Update { events: Vec::new(), gesture: Some(Gesture::HoldEnd) };
+                }
                 if swiped {
                     return Update { events: Vec::new(), gesture: Some(Gesture::SwipeRight) };
                 }
@@ -195,5 +231,68 @@ mod tests {
         drag(&mut t, 100, 200, 120, 0);
         let down = t.update(50, 60, true).events;
         assert!(matches!(down.as_slice(), [WindowEvent::PointerPressed { position, .. }] if *position == at(50.0, 60.0)));
+    }
+
+    fn long_press(t: &mut TouchTracker, x: i16, y: i16, until_ms: u64) -> Vec<Update> {
+        let mut out = vec![t.update_at(x, y, true, 0)];
+        let mut ms = 100;
+        while ms <= until_ms {
+            out.push(t.update_at(x, y, true, ms));
+            ms += 100;
+        }
+        out
+    }
+
+    #[test]
+    fn a_short_touch_is_still_a_tap() {
+        let mut t = TouchTracker::new();
+        let down = t.update_at(10, 20, true, 0);
+        assert!(matches!(down.events.as_slice(), [WindowEvent::PointerPressed { .. }]));
+        assert!(t.update_at(10, 20, true, 100).events.is_empty());
+        let up = t.update_at(0, 0, false, 200);
+        assert!(matches!(up.events.as_slice(), [WindowEvent::PointerReleased { .. }, WindowEvent::PointerExited]));
+        assert_eq!(up.gesture, None);
+    }
+
+    #[test]
+    fn a_long_touch_emits_holdstart_once_and_no_click() {
+        let mut t = TouchTracker::new();
+        let steps = long_press(&mut t, 233, 233, 600);
+        let starts: Vec<Gesture> = steps.iter().filter_map(|u| u.gesture).collect();
+        assert_eq!(starts, [Gesture::HoldStart(233, 233)]);
+        let at_start = steps.iter().position(|u| u.gesture.is_some()).unwrap();
+        assert!(matches!(steps[at_start].events.as_slice(), [WindowEvent::PointerExited]));
+        assert!(steps[at_start].gesture.is_some() && steps[at_start - 1].gesture.is_none());
+        let up = t.update_at(0, 0, false, 700);
+        assert!(up.events.is_empty(), "the lift after a hold must not click: {:?}", up.events);
+        assert_eq!(up.gesture, Some(Gesture::HoldEnd));
+        // And the next touch is normal again.
+        assert!(matches!(t.update_at(5, 5, true, 800).events.as_slice(), [WindowEvent::PointerPressed { .. }]));
+    }
+
+    #[test]
+    fn moving_before_the_threshold_is_not_a_hold() {
+        let mut t = TouchTracker::new();
+        t.update_at(100, 100, true, 0);
+        t.update_at(100 + 2 * HOLD_SLOP_PX, 100, true, 100); // slid away, then stayed there
+        let mut gestures = Vec::new();
+        for ms in (200..=800).step_by(100) {
+            gestures.extend(t.update_at(100 + 2 * HOLD_SLOP_PX, 100, true, ms).gesture);
+        }
+        assert!(gestures.is_empty());
+        assert_eq!(t.update_at(0, 0, false, 900).gesture, None);
+    }
+
+    #[test]
+    fn a_swipe_is_not_a_hold() {
+        let mut t = TouchTracker::new();
+        t.update_at(100, 200, true, 0);
+        t.update_at(220, 205, true, 100);
+        let mut gestures = Vec::new();
+        for ms in (200..=800).step_by(100) {
+            gestures.extend(t.update_at(220, 205, true, ms).gesture);
+        }
+        assert!(gestures.is_empty());
+        assert_eq!(t.update_at(0, 0, false, 900).gesture, Some(Gesture::SwipeRight));
     }
 }

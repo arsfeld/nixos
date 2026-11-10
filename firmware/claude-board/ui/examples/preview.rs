@@ -105,6 +105,16 @@ fn main() {
     write_png(dir, "home-offline", &h);
     ui.set_link(true);
 
+    ui.set_presence_state(PresenceState::Speaking);
+    ui.set_reply_heading("what is on my calendar".into());
+    ui.set_reply_text("You have a dentist appointment at three. Nothing else is on today.".into());
+    write_png(dir, "home-reply", &h);
+    ui.set_reply_text("".into());
+    ui.set_voice_available(false);
+    ui.set_presence_state(PresenceState::Idle);
+    write_png(dir, "home-voice-offline", &h);
+    ui.set_voice_available(true);
+
     ui.set_page(Page::List);
     ui.set_rows(ModelRc::new(VecModel::from(session_rows(&sessions, Some(NOW)))));
     write_png(dir, "list", &h);

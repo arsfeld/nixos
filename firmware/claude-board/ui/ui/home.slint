@@ -7,7 +7,11 @@ export component HomePage inherits Rectangle {
     in property <float> presence-level;
     in property <string> summary;
     in property <bool> link;
+    in property <bool> voice-available: true;
+    in property <string> reply-text;
+    in property <string> reply-heading;
     callback avatar-tapped();
+    callback reply-tapped();
 
     Presence {
         x: 93px;
@@ -24,6 +28,8 @@ export component HomePage inherits Rectangle {
     Text {
         y: 352px;
         width: 466px;
+        // The reply card takes this place while it is up.
+        visible: root.reply-text == "";
         text: root.summary;
         color: Theme.text;
         font-family: "Sora";
@@ -39,5 +45,58 @@ export component HomePage inherits Rectangle {
         font-family: "JetBrains Mono";
         font-size: 12px;
         horizontal-alignment: center;
+    }
+
+    if !root.voice-available: Text {
+        y: 412px;
+        width: 466px;
+        text: "VOICE OFFLINE";
+        color: Theme.muted;
+        font-family: "JetBrains Mono";
+        font-size: 12px;
+        horizontal-alignment: center;
+    }
+
+    // The last reply, under the avatar. It sits inside the round screen: 246 px wide at y 310 to 402, clear of the rim.
+    if root.reply-text != "": Rectangle {
+        x: 110px;
+        y: 310px;
+        width: 246px;
+        height: 92px;
+        border-radius: 20px;
+        background: #141a2b;
+        border-width: 1px;
+        border-color: #2a3350;
+        clip: true;
+        TouchArea {
+            clicked => {
+                root.reply-tapped();
+            }
+        }
+        Text {
+            x: 12px;
+            y: 7px;
+            width: 222px;
+            text: root.reply-heading;
+            color: Theme.muted;
+            font-family: "JetBrains Mono";
+            font-size: 11px;
+            overflow: elide;
+            horizontal-alignment: center;
+        }
+        Text {
+            x: 12px;
+            y: 24px;
+            width: 222px;
+            height: 64px;
+            text: root.reply-text;
+            color: Theme.text;
+            font-family: "Sora";
+            font-size: 15px;
+            wrap: word-wrap;
+            overflow: elide;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
     }
 }

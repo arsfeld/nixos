@@ -347,3 +347,44 @@ fn expanded_overlay_scrolls_by_drag_and_closes_by_tap() {
     w.dispatch_event(WindowEvent::PointerExited);
     assert_eq!(closed.get(), 1, "a tap did not close the overlay");
 }
+
+// ---- Voice: presence moods and the reply card ----
+
+/// Pixels in the 466 x 466 frame that are not (nearly) the background.
+fn lit(buf: &[Rgb565Pixel], xs: std::ops::Range<usize>, ys: std::ops::Range<usize>) -> usize {
+    ys.flat_map(|y| xs.clone().map(move |x| (x, y))).filter(|&(x, y)| !near(px(buf, x, y), (0, 0, 0), 24)).count()
+}
+
+#[test]
+fn listening_thinking_and_speaking_each_draw_their_own_colour_at_the_core() {
+    let (h, ui) = show();
+    let mut centres = Vec::new();
+    for state in [PresenceState::Listening, PresenceState::Thinking, PresenceState::Speaking] {
+        ui.set_presence_state(state);
+        let buf = h.render();
+        centres.push(px(&buf, 233, 233));
+    }
+    assert!(centres[0].1 > centres[0].2, "listening is green: {:?}", centres[0]);
+    assert!(centres[1].2 > centres[1].0 + 60, "thinking is blue: {:?}", centres[1]);
+    assert!(centres[2].0 > 150 && centres[2].1 > 150 && centres[2].2 > 200, "speaking is pale: {:?}", centres[2]);
+}
+
+#[test]
+fn the_reply_card_draws_under_the_avatar_and_takes_the_summarys_place() {
+    let (h, ui) = show();
+    ui.set_summary("All quiet".into());
+    let before = h.render();
+    let summary_ink = lit(&before, 100..366, 352..380);
+    assert!(summary_ink > 50, "the summary is drawn when there is no reply ({summary_ink})");
+    ui.set_reply_heading("what is on my calendar".into());
+    ui.set_reply_text("You have a dentist appointment at three. Nothing else is on today.".into());
+    let after = h.render();
+    // The card's body is lit, and its corners stay inside the round screen.
+    assert!(lit(&after, 100..366, 340..400) > 2000, "the card body is drawn");
+    for (x, y) in [(110usize, 402usize), (355, 402), (110, 310), (355, 310)] {
+        let (dx, dy) = (x as f32 - 233.0, y as f32 - 233.0);
+        assert!((dx * dx + dy * dy).sqrt() < 210.0, "card corner ({x}, {y}) is on the rim");
+    }
+    ui.set_reply_text("".into());
+    assert!(lit(&h.render(), 100..366, 352..380) > 50, "the summary is back once the card is gone");
+}

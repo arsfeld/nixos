@@ -498,3 +498,130 @@ fn the_board_shows_exactly_the_approval_limit_of_a_question_and_shortens_the_res
     f.c.on_message(&approval("a2", &too_long));
     assert_eq!(f.ui.get_question_text(), format!("{fits}...").as_str());
 }
+
+// ---- Voice: hold to talk, the creature's moods, the reply card ----
+
+use claude_board_ui::PresenceState;
+
+fn mood(f: &Fixture, m: &str) {
+    f.c.on_message(&format!(r#"{{"t":"creature","mood":"{m}"}}"#));
+}
+
+fn sent_types(f: &Fixture) -> Vec<String> {
+    f.sent().iter().map(|v| v["t"].as_str().unwrap().to_string()).collect()
+}
+
+#[test]
+fn hold_on_the_avatar_sends_voice_start_and_shows_listening() {
+    let f = fixture();
+    assert!(f.c.hold_started(233, 233));
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Listening);
+    let id = f.c.utterance().expect("an utterance is open");
+    assert_eq!(f.sent(), [serde_json::json!({"t": "voice_start", "utterance": id})]);
+}
+
+#[test]
+fn hold_off_the_avatar_does_nothing() {
+    let f = fixture();
+    assert!(!f.c.hold_started(20, 20));
+    assert_eq!(f.c.utterance(), None);
+    assert!(f.sent().is_empty());
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Idle);
+}
+
+#[test]
+fn release_sends_voice_end_with_the_same_utterance() {
+    let f = fixture();
+    assert!(f.c.hold_started(233, 233));
+    let id = f.c.utterance().unwrap();
+    assert_eq!(f.c.hold_ended(), Some(id));
+    assert_eq!(f.sent()[1], serde_json::json!({"t": "voice_end", "utterance": id}));
+    assert_ne!(f.ui.get_presence_state(), PresenceState::Listening);
+    // A second hold gets a new id.
+    assert!(f.c.hold_started(233, 233));
+    assert_ne!(f.c.utterance(), Some(id));
+    // A release with no hold open sends nothing.
+    f.c.hold_ended();
+    assert_eq!(f.c.hold_ended(), None);
+    assert_eq!(sent_types(&f), ["voice_start", "voice_end", "voice_start", "voice_end"]);
+}
+
+#[test]
+fn mic_level_drives_the_presence_while_listening() {
+    let f = fixture();
+    f.c.hold_started(233, 233);
+    f.c.set_mic_level(0.6);
+    assert!((f.ui.get_presence_level() - 0.6).abs() < 1e-6);
+}
+
+#[test]
+fn creature_thinking_and_speaking_set_the_presence_state() {
+    let f = fixture();
+    mood(&f, "thinking");
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Thinking);
+    mood(&f, "speaking");
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Speaking);
+    mood(&f, "alert");
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Alert);
+    mood(&f, "idle");
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Idle);
+}
+
+#[test]
+fn offline_mood_sets_voice_unavailable() {
+    let f = fixture();
+    assert!(f.ui.get_voice_available());
+    mood(&f, "offline");
+    assert!(!f.ui.get_voice_available());
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Idle);
+    mood(&f, "idle");
+    assert!(f.ui.get_voice_available());
+}
+
+#[test]
+fn reply_text_shows_the_card_and_it_expires_after_20_seconds() {
+    let f = fixture();
+    assert_eq!(f.ui.get_reply_text(), "");
+    f.c.on_message(r#"{"t":"transcript","utterance":1,"text":"what is up"}"#);
+    f.c.on_message(r#"{"t":"reply_text","utterance":1,"text":"All good. Nothing is on fire."}"#);
+    assert_eq!(f.ui.get_reply_text(), "All good. Nothing is on fire.");
+    assert_eq!(f.ui.get_reply_heading(), "what is up");
+    for _ in 0..38 {
+        f.c.tick(Some(NOW)); // 19 s
+    }
+    assert_eq!(f.ui.get_reply_text(), "All good. Nothing is on fire.");
+    for _ in 0..3 {
+        f.c.tick(Some(NOW)); // past 20 s
+    }
+    assert_eq!(f.ui.get_reply_text(), "");
+}
+
+#[test]
+fn tapping_the_reply_card_dismisses_it() {
+    let f = fixture();
+    f.c.on_message(r#"{"t":"reply_text","utterance":1,"text":"Hello."}"#);
+    f.ui.invoke_reply_tapped();
+    assert_eq!(f.ui.get_reply_text(), "");
+}
+
+#[test]
+fn tapping_while_speaking_sends_cancel() {
+    let f = fixture();
+    f.c.hold_started(233, 233);
+    let id = f.c.utterance().unwrap();
+    f.c.hold_ended();
+    mood(&f, "speaking");
+    f.ui.invoke_avatar_tapped();
+    assert_eq!(f.sent().last().unwrap(), &serde_json::json!({"t": "cancel", "utterance": id}));
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Idle);
+    assert_eq!(f.ui.get_page(), Page::Home, "the cancelling tap does not also open the list");
+}
+
+#[test]
+fn a_hold_during_a_waiting_question_is_ignored() {
+    let f = fixture();
+    f.ask("question_single");
+    assert!(!f.c.hold_started(233, 233));
+    assert_eq!(f.c.utterance(), None);
+    assert!(f.sent().is_empty());
+}

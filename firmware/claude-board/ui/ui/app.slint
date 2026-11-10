@@ -24,6 +24,11 @@ export component AppWindow inherits Window {
     in property <PresenceState> presence-state: PresenceState.idle;
     in property <float> presence-level: 0;
     in property <string> summary;
+    // False while the bridge says it has no voice pipeline.
+    in property <bool> voice-available: true;
+    // The last reply Claude spoke (empty: no card) and the words that prompted it.
+    in property <string> reply-text;
+    in property <string> reply-heading;
     // List.
     in property <[SessionRow]> rows;
     in property <float> list-wheel-radius: 233;
@@ -56,6 +61,7 @@ export component AppWindow inherits Window {
     // Swiped right (the firmware calls this): up one level, from detail to the list and from the list to home.
     callback back-tapped();
     callback avatar-tapped();
+    callback reply-tapped();
     callback entry-tapped(int);
     callback expanded-closed();
 
@@ -100,8 +106,14 @@ export component AppWindow inherits Window {
             presence-level: root.presence-level;
             summary: root.summary;
             link: root.link;
+            voice-available: root.voice-available;
+            reply-text: root.reply-text;
+            reply-heading: root.reply-heading;
             avatar-tapped => {
                 root.avatar-tapped();
+            }
+            reply-tapped => {
+                root.reply-tapped();
             }
         }
         if root.page == Page.list: SessionsPage {

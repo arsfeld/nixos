@@ -7,11 +7,17 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use claude_board_proto::{join_labels, AnswerOutcome, Applied, AskId, ClientMsg, Model, Session, State, APPROVAL_TEXT_MAX};
+use claude_board_proto::{join_labels, AnswerOutcome, Applied, AskId, BoardMsg, ClientMsg, Model, Mood, Session, State, APPROVAL_TEXT_MAX};
 use slint::{ComponentHandle, Model as _, ModelRc, VecModel, Weak};
 
 use crate::view::{arc_index_at, feed_rows, fmt_ago, presence_for, rim_models, session_rows, shorten, PresenceKind, MAX_RIM_SEGMENTS};
 use crate::{AppWindow, FeedRow, OptionRow, Page, PresenceState, RimSegment, SessionRow};
+
+/// How long the reply card stays up, in `tick_at` time.
+const REPLY_CARD_MS: u64 = 20_000;
+/// Where the avatar is and how far a hold on it counts (the circle inscribed in its 280 px box).
+const AVATAR_CENTRE: i16 = 233;
+const AVATAR_RADIUS: i32 = 140;
 
 /// Taps this soon after an answer are ignored (a double tap is two taps well under this apart).
 const ANSWER_GUARD_MS: u64 = 400;
@@ -23,6 +29,11 @@ const NEW_ASK_GUARD_MS: u64 = 500;
 pub trait Outbox {
     /// Send one text frame. False when not connected.
     fn send(&self, json: String) -> bool;
+    /// Send one binary frame (microphone audio). False when not connected or not supported.
+    fn send_bin(&self, bytes: Vec<u8>) -> bool {
+        let _ = bytes;
+        false
+    }
 }
 
 /// Where the user has navigated; a waiting question overrides it until it is answered.
@@ -83,6 +94,17 @@ struct Inner<O: Outbox> {
     prev_waiting: usize,
     chimed_ask: Option<AskId>,
     chime: bool,
+    /// The voice path: the bridge's mood for the creature, the finger holding the avatar, the utterance in
+    /// progress (kept after the release so a cancel can name it), the last one numbered, the microphone level.
+    mood: Mood,
+    holding: bool,
+    utterance: Option<u32>,
+    last_utterance: u32,
+    mic_level: f32,
+    /// The words of the last transcript, the reply on the card and the time it goes away.
+    transcript: String,
+    reply: String,
+    reply_until_ms: u64,
 }
 
 pub struct Controller<O: Outbox> {
@@ -118,6 +140,14 @@ impl<O: Outbox + 'static> Controller<O> {
             prev_waiting: 0,
             chimed_ask: None,
             chime: false,
+            mood: Mood::Idle,
+            holding: false,
+            utterance: None,
+            last_utterance: 0,
+            mic_level: 0.0,
+            transcript: String::new(),
+            reply: String::new(),
+            reply_until_ms: 0,
         }));
         macro_rules! wire {
             ($on:ident, |$s:ident $(, $a:ident : $t:ty)*| $body:expr) => {{
@@ -135,6 +165,7 @@ impl<O: Outbox + 'static> Controller<O> {
         wire!(on_rim_tapped, |s, deg: f32| s.rim_tapped(deg));
         wire!(on_back_tapped, |s| s.back_tapped());
         wire!(on_avatar_tapped, |s| s.avatar_tapped());
+        wire!(on_reply_tapped, |s| s.dismiss_reply());
         wire!(on_entry_tapped, |s, i: i32| s.entry_tapped(i as usize));
         wire!(on_expanded_closed, |s| s.close_expanded());
         inner.borrow_mut().refresh();
@@ -144,6 +175,25 @@ impl<O: Outbox + 'static> Controller<O> {
     /// One text frame from the bridge.
     pub fn on_message(&self, json: &str) {
         let mut s = self.inner.borrow_mut();
+        // The voice messages are not the model's business.
+        match serde_json::from_str::<BoardMsg>(json) {
+            Ok(BoardMsg::Creature { mood }) => {
+                s.mood = mood;
+                s.refresh();
+                return;
+            }
+            Ok(BoardMsg::Transcript { text, .. }) => {
+                s.transcript = text;
+                return;
+            }
+            Ok(BoardMsg::ReplyText { text, .. }) => {
+                s.reply = text;
+                s.reply_until_ms = s.time_ms + REPLY_CARD_MS;
+                s.refresh();
+                return;
+            }
+            _ => {}
+        }
         if s.model.apply(json) != Applied::Changed {
             return;
         }
@@ -189,6 +239,39 @@ impl<O: Outbox + 'static> Controller<O> {
     pub fn tick(&self, now: Option<i64>) {
         let ms = self.inner.borrow().time_ms + 500;
         self.tick_at(now, ms);
+    }
+
+    /// A finger has been held at (x, y): true when that starts a voice question (home page, on the avatar), and
+    /// then the app starts the microphone.
+    pub fn hold_started(&self, x: i16, y: i16) -> bool {
+        self.inner.borrow_mut().hold_started(x, y)
+    }
+
+    /// The held finger lifted: the app stops the microphone. Returns the utterance that ended, if one was open.
+    pub fn hold_ended(&self) -> Option<u32> {
+        self.inner.borrow_mut().hold_ended()
+    }
+
+    /// The utterance in progress or most recently ended.
+    pub fn utterance(&self) -> Option<u32> {
+        self.inner.borrow().utterance
+    }
+
+    /// The microphone level, 0 to 1, while listening.
+    pub fn set_mic_level(&self, level: f32) {
+        let mut s = self.inner.borrow_mut();
+        s.mic_level = level.clamp(0.0, 1.0);
+        if s.holding {
+            if let Some(win) = s.window.upgrade() {
+                win.set_presence_level(s.mic_level);
+            }
+        }
+    }
+
+    /// A tap that is not on a control (the app calls this for taps on other pages): while the creature is
+    /// speaking it cancels the speech. True when it did, and the tap should go no further.
+    pub fn tap_cancels_speech(&self) -> bool {
+        self.inner.borrow_mut().tap_cancels_speech()
     }
 
     /// True once after something started needing the user.
@@ -304,6 +387,9 @@ impl<O: Outbox> Inner<O> {
     }
 
     fn rim_tapped(&mut self, deg: f32) {
+        if self.tap_cancels_speech() {
+            return;
+        }
         let n = self.model.sessions().len();
         match arc_index_at(deg, n) {
             // With more than 12 sessions the last arc stands for the rest: show the list.
@@ -358,7 +444,55 @@ impl<O: Outbox> Inner<O> {
     }
 
     fn avatar_tapped(&mut self) {
+        if self.tap_cancels_speech() {
+            return;
+        }
         self.open_list();
+    }
+
+    fn tap_cancels_speech(&mut self) -> bool {
+        if self.mood != Mood::Speaking {
+            return false;
+        }
+        if let Some(utterance) = self.utterance {
+            self.send(&ClientMsg::Cancel { utterance });
+        }
+        self.mood = Mood::Idle;
+        self.refresh();
+        true
+    }
+
+    fn dismiss_reply(&mut self) {
+        self.reply.clear();
+        self.refresh();
+    }
+
+    fn hold_started(&mut self, x: i16, y: i16) -> bool {
+        let Some(win) = self.window.upgrade() else { return false };
+        let (dx, dy) = ((x - AVATAR_CENTRE) as i32, (y - AVATAR_CENTRE) as i32);
+        if win.get_page() != Page::Home || self.holding || dx * dx + dy * dy > AVATAR_RADIUS * AVATAR_RADIUS {
+            return false;
+        }
+        self.last_utterance += 1;
+        self.utterance = Some(self.last_utterance);
+        self.holding = true;
+        self.mic_level = 0.0;
+        self.send(&ClientMsg::VoiceStart { utterance: self.last_utterance });
+        self.refresh();
+        true
+    }
+
+    fn hold_ended(&mut self) -> Option<u32> {
+        if !std::mem::take(&mut self.holding) {
+            return None;
+        }
+        let utterance = self.utterance?;
+        self.send(&ClientMsg::VoiceEnd { utterance });
+        // The words are on their way: show it thinking until the bridge says otherwise.
+        self.mood = Mood::Thinking;
+        self.mic_level = 0.0;
+        self.refresh();
+        Some(utterance)
     }
 
     fn detail_session(&self) -> Option<&Session> {
@@ -380,12 +514,29 @@ impl<O: Outbox> Inner<O> {
         sync(&self.models.rim_pulsing, pulsing);
         win.set_link(self.link);
 
-        win.set_presence_state(match presence_for(&self.model) {
+        if !self.reply.is_empty() && self.time_ms >= self.reply_until_ms {
+            self.reply.clear();
+        }
+        win.set_reply_text(shorten(&self.reply, 110).into());
+        win.set_reply_heading(shorten(&self.transcript, 40).into());
+        win.set_voice_available(self.mood != Mood::Offline);
+        let from_sessions = || match presence_for(&self.model) {
             PresenceKind::Idle => PresenceState::Idle,
             PresenceKind::Thinking => PresenceState::Thinking,
             PresenceKind::Alert => PresenceState::Alert,
+        };
+        win.set_presence_state(if self.holding {
+            PresenceState::Listening
+        } else {
+            match self.mood {
+                Mood::Listening => PresenceState::Listening,
+                Mood::Thinking => PresenceState::Thinking,
+                Mood::Speaking => PresenceState::Speaking,
+                Mood::Alert => PresenceState::Alert,
+                Mood::Idle | Mood::Offline => from_sessions(),
+            }
         });
-        win.set_presence_level(0.0);
+        win.set_presence_level(if self.holding { self.mic_level } else { 0.0 });
         let working = sessions.iter().filter(|s| s.state == State::Working).count();
         win.set_summary(
             if waiting > 0 {
