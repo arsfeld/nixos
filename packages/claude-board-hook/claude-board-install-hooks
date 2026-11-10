@@ -31,8 +31,10 @@ jq '
   | add("Stop"; plain("stop"))
   | add("StopFailure"; plain("stop_failure"))
   | add("SessionEnd"; plain("session_end"))
-  | add("PermissionRequest"; {matcher: "AskUserQuestion",
-      hooks: [{type: "command", command: "claude-board-hook ask", timeout: 90}]})
+  | add("PreToolUse"; plain("pre_tool_use"))
+  | add("PostToolUse"; plain("post_tool_use"))
+  | add("PostToolUseFailure"; plain("post_tool_use_failure"))
+  | add("PermissionRequest"; {hooks: [{type: "command", command: "claude-board-hook ask", timeout: 90}]})
 ' "$settings" >"$tmp" || exit 1
 
 if cmp -s "$tmp" "$settings"; then

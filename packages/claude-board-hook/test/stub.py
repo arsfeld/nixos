@@ -2,7 +2,7 @@
 import http.server, json, os, sys, time
 
 LOG = sys.argv[1]
-BEHAVIOUR = sys.argv[2]  # file holding JSON: {"event": [status, body], "ask": [status, body, delay]}
+BEHAVIOUR = sys.argv[2]  # file holding JSON: {"event": [status, body], "ask": [status, body, delay], "feed": [status, body, delay]}
 
 
 class H(http.server.BaseHTTPRequestHandler):
@@ -14,7 +14,8 @@ class H(http.server.BaseHTTPRequestHandler):
         body = self.rfile.read(n).decode()
         with open(LOG, "a") as f:
             f.write(json.dumps({"path": self.path, "auth": self.headers.get("authorization"), "body": body}) + "\n")
-        b = json.load(open(BEHAVIOUR))["ask" if self.path == "/v1/ask" else "event"]
+        key = {"/v1/ask": "ask", "/v1/feed": "feed"}.get(self.path, "event")
+        b = json.load(open(BEHAVIOUR)).get(key, [204, ""])
         if len(b) > 2:
             time.sleep(b[2])
         self.send_response(b[0])

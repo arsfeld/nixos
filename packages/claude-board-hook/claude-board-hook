@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # claude-board-hook <event>: forwards a Claude Code hook to the claude-board bridge.
-# Events: session_start user_prompt_submit notification stop stop_failure session_end ask
+# Events: session_start user_prompt_submit notification stop stop_failure session_end
+#         pre_tool_use post_tool_use post_tool_use_failure ask
 #
-# Reads the hook's JSON from stdin. For `ask` (a PermissionRequest hook on the question
-# tool) it prints the bridge's decision, if there is one, so Claude Code takes the answer
-# from the board; printing nothing leaves the normal terminal prompt.
+# Reads the hook's JSON from stdin. `user_prompt_submit` and `stop` post their /v1/event and
+# also a feed entry (the prompt, the final reply); the three tool events post only a feed
+# entry (tool call text scrubbed of Authorization/Bearer/secret assignments). Feed posts run
+# in the background so the hook returns at once. For `ask` (a PermissionRequest hook on any
+# tool; only the question tool's input is forwarded, other tools send a scrubbed summary) it
+# prints the bridge's decision, if there is one, so Claude Code takes the answer from the
+# board; printing nothing leaves the normal terminal prompt.
 #
 # It never blocks or breaks a session: every failure is silent and exits 0. A failed
 # connection also pauses further attempts for a minute, so an unreachable bridge costs one
@@ -19,10 +24,52 @@ token_file="${CLAUDE_BOARD_TOKEN_FILE:-/run/secrets/claude-board-host-token}"
 state_dir="${CLAUDE_BOARD_STATE_DIR:-${XDG_RUNTIME_DIR:-/tmp}/claude-board-hook-$(id -u)}"
 host="${CLAUDE_BOARD_HOST:-$(uname -n)}"
 
+# tool_summary <payload> <rich>: one scrubbed line describing a tool call's input, at most 300
+# chars. rich=1 appends the first 80 chars of an Edit/Write body to the path. Shared by the
+# feed and the approval request so both scrub the same way.
+tool_summary() {
+  jq -r --argjson rich "$2" '
+    def flat: gsub("\\s+"; " ");
+    (.tool_input // {}) as $i | (.tool_name // "") as $n
+    | (if $n == "Bash" then $i.command
+       elif $n | IN("Edit", "MultiEdit", "Write", "Read", "NotebookEdit") then ($i.file_path // $i.notebook_path)
+       elif $n | IN("Grep", "Glob") then $i.pattern
+       elif $n == "WebFetch" then $i.url
+       else "" end // "" | tostring) as $s
+    | (if $rich == 1 and ($n | IN("Edit", "Write")) then
+         (($i.new_string // $i.content // "") | tostring | flat | .[0:80]) as $b
+         | if $b != "" then $s + " - " + $b else $s end
+       else $s end)
+    | flat' <<<"$1" 2>/dev/null \
+    | sed -E \
+      -e 's/(Authorization:)[^"'"'"']*/\1 [redacted]/Ig' \
+      -e 's/(Bearer )[^[:space:]"'"'"']+/\1[redacted]/Ig' \
+      -e 's/([A-Za-z0-9_]*(TOKEN|SECRET|PASSWORD|PASSWD|KEY)[A-Za-z0-9_]*)=[^[:space:]"'"'"']+/\1=[redacted]/Ig' \
+    | jq -Rr '.[0:300]' 2>/dev/null
+}
+
+# post_feed <kind> <text>: fire-and-forget POST /v1/feed from a background subshell, so a slow
+# bridge never delays the session. A failure still starts the back-off.
+post_feed() {
+  local kind="$1" text="$2" fbody
+  [ -n "$text" ] || return 0
+  fbody="$(jq -cn --arg host "$host" --arg session "$session" --arg kind "$kind" \
+    --arg text "$text" --argjson ts "$(date +%s)" \
+    '{host: $host, session: $session, kind: $kind, text: $text, ts: $ts}')" || return 0
+  (
+    curl -sS -o /dev/null --connect-timeout 2 --max-time 3 -X POST \
+      -H @<(printf 'Authorization: Bearer %s\n' "$token") \
+      -H 'Content-Type: application/json' --data-binary "$fbody" \
+      "$url/v1/feed" 2>/dev/null || touch "$marker"
+  ) >/dev/null 2>&1 </dev/null &
+  disown 2>/dev/null || true
+  return 0
+}
+
 main() {
-  local event="${1:-}" token payload session cwd kind body marker resp status
+  local event="${1:-}" token payload session cwd kind body resp status summary name
   case "$event" in
-    session_start | user_prompt_submit | notification | stop | stop_failure | session_end | ask) ;;
+    session_start | user_prompt_submit | notification | stop | stop_failure | session_end | pre_tool_use | post_tool_use | post_tool_use_failure | ask) ;;
     *) return 0 ;;
   esac
 
@@ -45,9 +92,13 @@ main() {
   fi
 
   if [ "$event" = ask ]; then
+    name="$(jq -r '.tool_name // "AskUserQuestion"' <<<"$payload")"
+    summary="$(tool_summary "$payload" 1)"
     body="$(jq -cn --arg host "$host" --arg session "$session" --arg cwd "$cwd" \
-      --argjson tool_input "$(jq -c '.tool_input // {}' <<<"$payload")" \
-      '{host: $host, session: $session, cwd: $cwd, tool_input: $tool_input}')"
+      --arg tool_name "$name" --arg summary "$summary" \
+      --argjson tool_input "$(jq -c 'if (.tool_name // "AskUserQuestion") == "AskUserQuestion" then .tool_input // {} else {} end' <<<"$payload")" \
+      '{host: $host, session: $session, cwd: $cwd, tool_name: $tool_name, summary: $summary,
+        tool_input: $tool_input}')"
     resp="$(curl -sS --connect-timeout 2 --max-time 80 -X POST \
       -H @<(printf 'Authorization: Bearer %s\n' "$token") \
       -H 'Content-Type: application/json' --data-binary "$body" \
@@ -63,6 +114,21 @@ main() {
     return 0
   fi
 
+  case "$event" in
+    pre_tool_use | post_tool_use | post_tool_use_failure)
+      name="$(jq -r '.tool_name // empty' <<<"$payload")"
+      [ -n "$name" ] || return 0
+      case "$event" in
+        pre_tool_use)
+          summary="$(tool_summary "$payload" 0)"
+          post_feed tool "$(jq -rn --arg n "$name" --arg s "$summary" '"\($n): \($s)" | .[0:300]')" ;;
+        post_tool_use) post_feed result ok ;;
+        *) post_feed result failed ;;
+      esac
+      return 0
+      ;;
+  esac
+
   kind=""
   [ "$event" = notification ] && kind="$(jq -r '.notification_type // empty' <<<"$payload")"
   body="$(jq -cn --arg host "$host" --arg session "$session" --arg cwd "$cwd" \
@@ -73,6 +139,10 @@ main() {
     -H @<(printf 'Authorization: Bearer %s\n' "$token") \
     -H 'Content-Type: application/json' --data-binary "$body" \
     "$url/v1/event" 2>/dev/null || touch "$marker"
+  case "$event" in
+    user_prompt_submit) post_feed prompt "$(jq -r '(.prompt // "") | .[0:2048]' <<<"$payload")" ;;
+    stop) post_feed reply "$(jq -r '(.last_assistant_message // "") | .[0:4096]' <<<"$payload")" ;;
+  esac
   return 0
 }
 
