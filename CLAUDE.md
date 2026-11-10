@@ -479,7 +479,9 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
   `speaking`, `alert`, `offline`, `idle`). **Deployed and flashed; speech is transcribed exactly end to end**: see
   the unverified list at the end of this bullet.
   - **Flow.** board mic --PCM--> bridge --whisper.cpp (STT)--> Hermes (`/v1/runs`, streamed) --sentences--> Piper
-    (TTS) --PCM--> board speaker. Code: `packages/claude-board-bridge/src/voice/{speech,backends,pipeline}.rs`
+    (TTS) --Centurion effect--> board speaker. The effect (`src/voice/cylon.rs`, wrapping Piper in `main.rs`) stretches
+    each sentence 1.15x, ring-modulates it at 70 Hz and flanges it; tune its constants by ear with
+    `cargo run --example cylon-wav in.wav out.wav`. The persona in `SOUL.md` talks like a Centurion too. Code: `packages/claude-board-bridge/src/voice/{speech,backends,pipeline}.rs`
     (sentence splitting, the three HTTP backends, the per-utterance pipeline), `src/config.rs` (env), and the
     reader/writer/voice tasks in `src/board.rs`; on the board `ui/src/audio.rs` (playback queue),
     `app/src/{mic,speaker}.rs` and the mic/speaker API in `app/components/board_display/board_display.c`.

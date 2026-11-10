@@ -1,4 +1,5 @@
 pub mod backends;
+pub mod cylon;
 pub mod pipeline;
 pub mod speech;
 

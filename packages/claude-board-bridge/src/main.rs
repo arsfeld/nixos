@@ -23,6 +23,7 @@ use claude_board_bridge::config::{VoiceEnv, voice_settings_from_env};
 use claude_board_bridge::http::{AppState, now_secs};
 use claude_board_bridge::voice::VoiceConfig;
 use claude_board_bridge::voice::backends::{Backends, HermesHttp, PiperHttp, WhisperHttp};
+use claude_board_bridge::voice::cylon::Centurion;
 
 fn env_num(name: &str, default: u64) -> u64 {
     std::env::var(name).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
@@ -50,7 +51,7 @@ fn voice() -> Option<(Backends, VoiceConfig)> {
     };
     let backends = Backends {
         stt: std::sync::Arc::new(WhisperHttp::new(s.stt_url)),
-        tts: std::sync::Arc::new(PiperHttp::new(s.tts_url)),
+        tts: std::sync::Arc::new(Centurion(PiperHttp::new(s.tts_url))),
         brain: std::sync::Arc::new(HermesHttp::new(s.hermes_url, s.hermes_key, s.session)),
     };
     let cfg = VoiceConfig { reply_timeout: Duration::from_secs(s.reply_timeout_secs), ..VoiceConfig::default() };
