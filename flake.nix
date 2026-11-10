@@ -34,7 +34,7 @@
     apple-fonts.url = "github:Lyndeno/apple-fonts.nix"; # Apple fonts (SF Pro, SF Compact, SF Mono, New York)
     niks3.url = "github:Mic92/niks3"; # S3-backed binary cache coordinator (nixosModules not in nixpkgs)
     niks3.inputs.nixpkgs.follows = "nixpkgs";
-    # Tool-less Hermes for the board's creature (claude-board-voice.nix). A fast-moving project whose
+    # Hermes for the board's creature (claude-board-voice.nix). A fast-moving project whose
     # toolset semantics have changed between releases: the weekly `nix flake update` moves it, so
     # re-check `GET /v1/toolsets` after every bump. Does not follow our nixpkgs: it builds its own
     # python closure against its own lock.

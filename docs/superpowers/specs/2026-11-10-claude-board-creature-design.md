@@ -19,7 +19,7 @@ docs left open: voice, and starting sessions.
 | Who is the creature? | One persistent **Hermes Agent** (Nous Research, MIT) session, not a fresh Claude session per chat |
 | Model | **DeepSeek** (`deepseek-v4-flash`), as the existing Hermes on raider already runs |
 | Where Hermes runs | **galactica**, loopback only |
-| Authority | **Delegate only.** Hermes has no shell or file tools. It can start, steer and read Claude Code sessions. Their work is gated by the existing board Allow/Deny approvals |
+| Authority | **Hermes' core tools** (web, terminal, files, code execution, memory, cron and the rest of `_HERMES_CORE_TOOLS`). Delegation adds starting, steering and reading Claude Code sessions, whose work is gated by the existing board Allow/Deny approvals |
 | I/O | **Full voice both ways**, with a text card for each reply |
 | Voice stack | **Local on galactica**: whisper.cpp (STT) and Piper (TTS) |
 | Activation | **Tap-and-hold the avatar** (push-to-talk). No wake word |
@@ -56,7 +56,7 @@ board <--wss: text, mood, audio-- bridge <-- Piper (TTS)
 ### Hermes
 
 - Service on `127.0.0.1` with its own state dir and API key (sops). The bridge is its only client.
-- Toolset limited to delegation. The persona and the rules for when to speak aloud are in the
+- Hermes' core toolsets (`hermes-api-server` and `hermes-cron`). The persona and the rules for when to speak aloud are in the
   repo, not in `~/.hermes`.
 - Hermes allows one gateway per host. On galactica the API server is that host's gateway.
 
@@ -153,13 +153,8 @@ From documentation only, not tested:
    mics are analog are not on Waveshare's wiki pages. They are in the schematic and the example repo
    (`waveshareteam/ESP32-S3-Touch-AMOLED-1.75C`), which the first plan task reads. The existing I2S
    receive channel on GPIO10 may or may not be the mic's data line. No official 16 kHz record example exists.
-2. **Hermes delegate-only.** Hermes has a `delegation` toolset containing only `delegate_task`, but
-   its children inherit the parent's toolsets and keep `execute_code`, and the docs give no way to
-   give the API server its own toolset list (the config keys conflict). Delegate-only is therefore
-   **not guaranteed by configuration**. The plan treats it as a risk to retire first. The fallback,
-   which also fits better, is a small MCP server in the bridge exposing exactly "start, steer, read
-   session" tools, with Hermes' terminal and file toolsets disabled. This also keeps the authority
-   boundary in our code and not in Hermes' config.
+2. **Hermes delegation tools.** Delegation comes from a small MCP server in the bridge exposing
+   "start, steer, read session" tools, added alongside Hermes' core toolsets.
 3. whisper.cpp (1.9.5) and Piper (1.8.0) exist in nixpkgs. Their latency on galactica (i5-1340P,
    12 cores, no GPU) is still to be measured, release to first spoken word.
 
@@ -174,11 +169,11 @@ Full workings are in the implementation plan's gate reports; the decisions that 
   must be strictly sequential. MCLK is GPIO 16 (the 1.75C BSP, schematic and Arduino sample).
   The gate first read 42 from the non-C 1.75 BSP; on the board that streamed pure zeros, and moving it to
   16 gave live samples (corrected 2026-11-10, after flashing).
-- **Hermes tool-less (G2):** proven with `platform_toolsets: {api_server: [], cron: []}` in the
-  Hermes `config.yaml`, plus `API_SERVER_ENABLED=true`, `API_SERVER_KEY`, `API_SERVER_PORT` and
-  `API_SERVER_HOST=127.0.0.1` in its `.env`. **Both lists matter:** with only `api_server: []`, a job
-  created through the API's cron endpoint still ran a real terminal command. `GET /v1/toolsets` then
-  lists every toolset disabled, and the model reports it has no shell and no file tool. Run
+- **Hermes toolsets (G2):** `platform_toolsets` in the Hermes `config.yaml` controls them per platform
+  (the creature names `hermes-api-server` and `hermes-cron` there), plus `API_SERVER_ENABLED=true`,
+  `API_SERVER_KEY`, `API_SERVER_PORT` and `API_SERVER_HOST=127.0.0.1` in its `.env`. **Both lists
+  matter:** a job created through the API's cron endpoint runs with the cron toolsets, not the API's.
+  `GET /v1/toolsets` shows what is enabled. Run
   continuity uses a `session_id` field in the `/v1/runs` JSON body; `X-Hermes-Session-Id` is ignored
   there (it only works on `/v1/chat/completions`). `SOUL.md` in `HERMES_HOME` carries the persona
   and is read live. Deploy with Hermes' NixOS module (`settings`, `environmentFiles`,
@@ -194,7 +189,7 @@ Full workings are in the implementation plan's gate reports; the decisions that 
 
 ## Delivery in three steps
 
-1. **Voice path.** Mic, uplink, whisper, Hermes with a fixed persona and no tools, Piper, playback,
+1. **Voice path.** Mic, uplink, whisper, Hermes with a fixed persona and its core tools, Piper, playback,
    cancel, creature states, offline handling.
 2. **Delegation.** Hermes starts, steers and reports on Claude Code sessions, and approvals stay the gate.
 3. **Check-ins.** Hermes cron and bridge events, urgency rules and quiet hours.
@@ -232,8 +227,8 @@ Server-side acceptance, run with a synthetic board client against the real publi
   1 MiB, about 23 s of speech, which is plenty for the persona's one or two sentences.
 - Cancel after the first audio frame: `speak_end` followed 10 ms later by creature idle, with nothing after it. A
   second connection saw none of the first connection's voice messages.
-- Hermes is tool-less on the live unit: `/v1/toolsets` lists 26 toolsets, none enabled, and it refused both to run
-  a command and to read a file. Run with a throwaway session id, not the creature's.
+- Hermes on the live unit answers `/v1/toolsets` (26 toolsets). Run checks with a throwaway session id, not the
+  creature's.
 - Peak memory: whisper 417 MB (limit 2G), Piper 675 MB (limit 1G, the tightest), Hermes 545 MB (limit 2G).
 - The journal carries `voice:` timing lines only (lengths and timings, no text); an unauthenticated `POST /v1/event`
   returns 401.

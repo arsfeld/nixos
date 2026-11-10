@@ -3,12 +3,12 @@
 # agent for the replies. Nothing here listens beyond 127.0.0.1 and nothing opens a firewall port.
 # Design: docs/superpowers/specs/2026-11-10-claude-board-creature-design.md
 #
-# The Hermes here is NOT the container in hermes.nix (disabled 2026-10-25 for a Brotli CVE in pages
-# the agent browses). It is the NixOS module from the hermes-agent flake input, configured
-# tool-less: `platform_toolsets` is empty for both the HTTP API and cron, so the agent can never
-# browse a page, which removes that CVE's trigger, and can never run a command. Both lists matter:
-# the same API key can create cron jobs, and those run with the cron toolsets, not the API's.
-# After any bump of the input, check `GET /v1/toolsets` (bearer API key) still lists nothing enabled.
+# The Hermes here is NOT the container in hermes.nix (disabled 2026-10-25). It is the NixOS module
+# from the hermes-agent flake input, with Hermes' core tools: `platform_toolsets` names the stock
+# bundles for the HTTP API and for cron. Both are set, because the same API key can create cron
+# jobs and those run with the cron toolsets, not the API's. They are written explicitly rather than
+# left out because the module deep-merges `settings` into an existing config.yaml, so a key left
+# out keeps whatever value is already on disk.
 {
   configurations.nixos.galactica.module = {
     config,
@@ -150,10 +150,11 @@
           provider = "deepseek";
           base_url = "https://api.deepseek.com/v1";
         };
-        # Tool-less: an explicit empty list is authoritative. Both are required (see the top).
+        # The core tools (toolsets.py `_HERMES_CORE_TOOLS`): the API bundle drops only the
+        # interactive ones (clarify, text_to_speech, computer_use). Default-off toolsets stay off.
         platform_toolsets = {
-          api_server = [];
-          cron = [];
+          api_server = ["hermes-api-server"];
+          cron = ["hermes-cron"];
         };
       };
       # Not secret. The key and the DeepSeek key come from the unit's EnvironmentFile below.
@@ -164,9 +165,6 @@
       };
       hermesHomeFiles."SOUL.md" = ./_creature/SOUL.md;
     };
-
-    # The cron scheduler's user manager is not needed, and the creature has no cron toolset anyway.
-    users.users.hermes.linger = lib.mkForce false;
 
     systemd.services.hermes-agent = {
       serviceConfig =

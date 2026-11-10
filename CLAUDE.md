@@ -522,14 +522,16 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     env file** (`ExecStartPre` greps `DEEPSEEK_API_KEY` out of the credential into a 0700 runtime dir), because
     `hermes-env` also holds `TELEGRAM_BOT_TOKEN`, and giving that to this Hermes would enable a Telegram platform
     with its default toolsets.
-  - **Hermes traps (measured in the research gates).** Tool-less needs **both** `platform_toolsets = { api_server =
-    []; cron = []; }`: with only `api_server` emptied, a job created through the API's cron endpoint still ran a
-    real command. After any bump of the `hermes-agent` input (the weekly update moves it) check
-    `GET /v1/toolsets` still lists nothing enabled. Run continuity is the `session_id` **body** field of
+  - **Hermes traps (measured in the research gates).** The creature has Hermes' core tools:
+    `platform_toolsets = { api_server = ["hermes-api-server"]; cron = ["hermes-cron"]; }`. Set both: a job created
+    through the API's cron endpoint runs with the cron toolsets, not the API's. Set them explicitly, too: the module
+    deep-merges `settings` into the config.yaml already on disk, so a key left out keeps its old value. After any
+    bump of the `hermes-agent` input (the weekly update moves it) check `GET /v1/toolsets` still lists what you
+    expect. Run continuity is the `session_id` **body** field of
     `/v1/runs`; `X-Hermes-Session-Id` works only on `/v1/chat/completions`. There is one gateway per host, and
     galactica's older container (`services/hermes.nix`) is `enable = false` since 2026-10-25 for a Brotli CVE in
-    pages the agent browses: do not re-enable it expecting it to be the creature (tool-less is also why this one
-    never browses). The persona is `services/_creature/SOUL.md`, installed as `SOUL.md` in Hermes's home.
+    pages the agent browses: do not re-enable it expecting it to be the creature. The persona is
+    `services/_creature/SOUL.md`, installed as `SOUL.md` in Hermes's home.
   - **Firmware traps.** The microphone is an ES7210 (I2C 0x40 on the shared bus with the touch and codec, data in
     GPIO 10); MIC1 and MIC2 are both selected and averaged in software, and the 24 dB gain is set after the
     codec opens (open re-applies the stored 0 dB). The ES8311 speaker and the ES7210 share one I2S clock, so
