@@ -144,21 +144,35 @@
     # LVGL's Kconfig-conditional dependencies (MissingKconfigError: LV_USE_FREETYPE). Not a
     # pure derivation: the component manager downloads components (dependencies.lock pins
     # them), so the build needs network.
-    devShells.firmware = pkgs.mkShell {
-      packages = pkgs.lib.optionals (system == "x86_64-linux") [
-        (inputs.nixpkgs-esp-dev.packages.${system}.esp-idf-xtensa.override {
-          rev = "v5.5.4";
-          sha256 = "sha256-rItbBrwItkfJf8tKImAQsiXDR95sr0LqaM51gDZG/nI=";
-        })
-        pkgs.just
-        pkgs.esptool
-        pkgs.cjson
-        pkgs.pkg-config
-        pkgs.gcc
-        pkgs.jq
-        pkgs.sops
-      ];
-    };
+    devShells.firmware = let
+      esp-rs = pkgs.callPackage "${inputs.esp-rs-nix}/package.nix" {};
+    in
+      pkgs.mkShell {
+        # The Xtensa Rust toolchain is selected through RUSTUP_TOOLCHAIN (a store path, no ~/.rustup
+        # copy). esp-idf-sys must use the ESP-IDF below instead of downloading its own.
+        shellHook = ''
+          export RUSTUP_TOOLCHAIN=${esp-rs}
+          export ESP_IDF_TOOLS_INSTALL_DIR=fromenv
+          export LIBCLANG_PATH=${pkgs.llvmPackages.libclang.lib}/lib
+        '';
+        packages = pkgs.lib.optionals (system == "x86_64-linux") [
+          (inputs.nixpkgs-esp-dev.packages.${system}.esp-idf-xtensa.override {
+            rev = "v5.5.4";
+            sha256 = "sha256-rItbBrwItkfJf8tKImAQsiXDR95sr0LqaM51gDZG/nI=";
+          })
+          pkgs.just
+          pkgs.esptool
+          pkgs.espflash
+          pkgs.ldproxy
+          pkgs.rustup
+          esp-rs
+          pkgs.cjson
+          pkgs.pkg-config
+          pkgs.gcc
+          pkgs.jq
+          pkgs.sops
+        ];
+      };
 
     packages = self.lib.loadPackages pkgs;
 

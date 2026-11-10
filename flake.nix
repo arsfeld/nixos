@@ -39,6 +39,12 @@
     # ESP-IDF toolchain for firmware/claude-board (nixpkgs has none). Does NOT follow our nixpkgs:
     # its IDF build is pinned against its own lock.
     nixpkgs-esp-dev.url = "github:mirrexagon/nixpkgs-esp-dev";
+    # Espressif's Rust (Xtensa) toolchain for the board firmware, fetched by fixed hash. Not a flake
+    # input on purpose: its own flake points at itself with a path: input, so only package.nix is used.
+    esp-rs-nix = {
+      url = "github:leighleighleigh/esp-rs-nix";
+      flake = false;
+    };
   };
 
   # Every .nix file under modules/ is a flake-parts module, except paths with a

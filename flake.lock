@@ -333,6 +333,22 @@
         "type": "github"
       }
     },
+    "esp-rs-nix": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1793585796,
+        "narHash": "sha256-nB3AKxYG6CJPww63j+xmLde6O6u/UJONTUMqA0is6zU=",
+        "owner": "leighleighleigh",
+        "repo": "esp-rs-nix",
+        "rev": "7ad7c9a0283ea83b0c0a7a39b0c4dfe26c50f491",
+        "type": "github"
+      },
+      "original": {
+        "owner": "leighleighleigh",
+        "repo": "esp-rs-nix",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -1237,6 +1253,7 @@
         "determinate": "determinate",
         "disko": "disko",
         "eh5": "eh5",
+        "esp-rs-nix": "esp-rs-nix",
         "flake-parts": "flake-parts_3",
         "git-hooks": "git-hooks",
         "harmonia": "harmonia",
