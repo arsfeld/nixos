@@ -121,3 +121,9 @@ fn entry_matches_the_firmware_fixture() {
     let m = BoardMsg::Entry { host: "raider".into(), session: "s-1".into(), entry: fe(5, 1004, FeedKind::Tool, "Edit: modules/x.nix") };
     assert_eq!(wire(&m), fixture("entry"));
 }
+
+#[test]
+fn reminder_matches_the_firmware_fixture() {
+    let m = BoardMsg::Reminder { id: "tmr_01".into(), label: "check the oven".into(), due: "2026-11-10T18:42:00-05:00".into() };
+    assert_eq!(wire(&m), fixture("reminder"));
+}

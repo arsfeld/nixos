@@ -89,7 +89,8 @@ impl Model {
             | BoardMsg::Transcript { .. }
             | BoardMsg::ReplyText { .. }
             | BoardMsg::SpeakStart { .. }
-            | BoardMsg::SpeakEnd { .. } => return Applied::Ignored,
+            | BoardMsg::SpeakEnd { .. }
+            | BoardMsg::Reminder { .. } => return Applied::Ignored,
             BoardMsg::History { host, session, mut entries } => {
                 if !self.is_watching(&host, &session) {
                     return Applied::Ignored;

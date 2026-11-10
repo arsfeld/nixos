@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 /// The protocol version the bridge announces in its `hello`. Boards ignore messages they do not know,
 /// so a newer bridge can add messages without breaking older boards. Version 2 adds the per-session
 /// activity feed (`history`, `entry`, and the board's `watch`/`unwatch`). Version 3 adds the creature's voice messages.
-pub const PROTOCOL_VERSION: u32 = 3;
+/// Version 4 adds `reminder`, which the board shows when a timer or reminder is due.
+pub const PROTOCOL_VERSION: u32 = 4;
 
 /// Sample rate of the 16-bit mono PCM the board uploads.
 pub const UPLINK_RATE: u32 = 16_000;
@@ -161,6 +162,8 @@ pub enum BoardMsg {
     ReplyText { utterance: u32, text: String },
     SpeakStart { utterance: u32, sample_rate: u32 },
     SpeakEnd { utterance: u32 },
+    /// A reminder or timer came due. `due` is RFC 3339 with the local offset.
+    Reminder { id: String, label: String, due: String },
     #[serde(other)]
     Unknown,
 }
@@ -207,7 +210,7 @@ mod tests {
             assert_eq!(serde_json::to_value(&msg).unwrap(), want, "{path:?}");
             n += 1;
         }
-        assert!(n >= 15, "expected the fixtures, found {n}");
+        assert!(n >= 16, "expected the fixtures, found {n}");
     }
 
     #[test]
@@ -278,6 +281,21 @@ mod tests {
         ] {
             assert_eq!(serde_json::to_value(&msg).unwrap(), serde_json::json!({"t": t, "utterance": 3}));
         }
+    }
+
+    #[test]
+    fn reminder_fixture_round_trips() {
+        let text = std::fs::read_to_string(format!("{}/reminder.json", fixture_dir())).unwrap();
+        let msg: BoardMsg = serde_json::from_str(&text).unwrap();
+        assert_eq!(
+            msg,
+            BoardMsg::Reminder {
+                id: "tmr_01".into(),
+                label: "check the oven".into(),
+                due: "2026-11-10T18:42:00-05:00".into(),
+            }
+        );
+        assert_eq!(serde_json::to_value(&msg).unwrap(), serde_json::from_str::<Value>(&text).unwrap());
     }
 
     #[test]
