@@ -116,7 +116,7 @@ fn list_row_and_back_buttons_work() {
     f.feed("state");
     f.tap(233.0, 233.0); // list
     f.h.render();
-    f.tap(233.0, 116.0); // first row
+    f.tap(233.0, 231.0); // first row, now at the centre of the wheel
     assert_eq!(f.ui.get_page(), Page::Detail);
     f.h.render();
     f.tap(233.0, 396.0); // Back

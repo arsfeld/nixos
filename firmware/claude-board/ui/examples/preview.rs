@@ -4,7 +4,6 @@
 use std::path::Path;
 
 use claude_board_ui::headless::{headless, rgb, Headless, HEIGHT, WIDTH};
-use claude_board_ui::rim::arc_segment;
 use claude_board_proto::{Model, Session, State};
 use claude_board_ui::view::{rim_models, session_rows};
 use claude_board_ui::{AppWindow, OptionRow, Page, PresenceState, RimSegment, SessionState};

@@ -11,6 +11,8 @@ export enum Page { home, list, question, detail }
 
 export struct SessionRow {
     host: string,
+    // The project's first letter, shown in the row's badge.
+    initial: string,
     project: string,
     state: SessionState,
     // Time in the current state, "--" while the clock is not set.

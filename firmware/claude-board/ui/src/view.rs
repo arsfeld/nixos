@@ -126,6 +126,7 @@ pub fn session_rows(sessions: &[Session], now: Option<i64>) -> Vec<SessionRow> {
         .iter()
         .map(|s| SessionRow {
             host: shorten(&s.host, 24).into(),
+            initial: s.project.chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_default().into(),
             project: shorten(&s.project, 40).into(),
             state: session_state(s.state),
             ago: fmt_ago(now, s.since).into(),
@@ -273,6 +274,7 @@ mod tests {
         assert!(rows[0].waiting && !rows[1].waiting);
         assert_eq!(rows[0].ago.as_str(), "1m");
         assert_eq!(rows[0].project.as_str(), "p0");
+        assert_eq!(rows[0].initial.as_str(), "P");
         let unset = session_rows(&sessions(1, 0), None);
         assert_eq!(unset[0].ago.as_str(), "--");
     }

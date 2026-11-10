@@ -218,14 +218,20 @@ impl<O: Outbox> Inner<O> {
         }
     }
 
+    /// Show the list from its first row.
+    fn open_list(&mut self) {
+        if let Some(win) = self.window.upgrade() {
+            win.set_list_scroll(0.0);
+        }
+        self.nav = Nav::List;
+        self.refresh();
+    }
+
     fn rim_tapped(&mut self, deg: f32) {
         let n = self.model.sessions().len();
         match arc_index_at(deg, n) {
             // With more than 12 sessions the last arc stands for the rest: show the list.
-            Some(i) if n > MAX_RIM_SEGMENTS && i == MAX_RIM_SEGMENTS - 1 => {
-                self.nav = Nav::List;
-                self.refresh();
-            }
+            Some(i) if n > MAX_RIM_SEGMENTS && i == MAX_RIM_SEGMENTS - 1 => self.open_list(),
             Some(i) => self.open_detail_at(i),
             None => {}
         }
@@ -240,8 +246,7 @@ impl<O: Outbox> Inner<O> {
     }
 
     fn avatar_tapped(&mut self) {
-        self.nav = Nav::List;
-        self.refresh();
+        self.open_list();
     }
 
     fn detail_session(&self) -> Option<&Session> {
