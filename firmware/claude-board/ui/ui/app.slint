@@ -5,6 +5,7 @@ import { HomePage } from "home.slint";
 import { SessionsPage } from "sessions.slint";
 import { QuestionPage } from "question.slint";
 import { DetailPage } from "detail.slint";
+import { VolumePage, LinkPage, PurgePage } from "commands.slint";
 import { GlyphCoverage } from "glyphs.slint";
 export { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow, FeedKind, FeedRow }
 
@@ -32,6 +33,9 @@ export component AppWindow inherits Window {
     // Speaker volume, 0 to 100, shown on home for a moment after a swipe up or down changes it.
     in property <int> volume: 80;
     in property <bool> volume-shown: false;
+    // The command menu (a swipe down from the top edge opens it): its three arcs, Volume, Link and Purge, built once.
+    in property <bool> menu-open: false;
+    in property <[RimSegment]> commands;
     // List.
     in property <[SessionRow]> rows;
     in property <float> list-wheel-radius: 233;
@@ -72,6 +76,8 @@ export component AppWindow inherits Window {
     // pixels in the same place for days (see power::drift_px).
     in property <length> drift-x: 0px;
     in property <length> drift-y: 0px;
+    // Where the ring's touch area begins, from the centre.
+    property <float> ring-inner: root.menu-open ? 172 : 190;
 
     Rectangle {
         x: root.drift-x;
@@ -88,7 +94,8 @@ export component AppWindow inherits Window {
             pulsing: root.rim-pulsing;
         }
 
-        // Taps on the ring itself (outside radius 190) open the session that arc stands for.
+        // Taps on the ring itself (outside radius 190) open the session that arc stands for. While the menu is open
+        // its arcs reach in to radius 175, so the ring does too.
         ring := TouchArea {
             width: 466px;
             height: 466px;
@@ -98,7 +105,7 @@ export component AppWindow inherits Window {
             property <float> dx: (self.mouse-x - 233px) / 1px;
             property <float> dy: (233px - self.mouse-y) / 1px;
             clicked => {
-                if (self.dx * self.dx + self.dy * self.dy > 190 * 190) {
+                if (self.dx * self.dx + self.dy * self.dy > root.ring-inner * root.ring-inner) {
                     root.rim-tapped(Math.atan2(self.dx, self.dy) / 1deg);
                 }
             }
@@ -114,6 +121,12 @@ export component AppWindow inherits Window {
             reply-heading: root.reply-heading;
             volume: root.volume;
             volume-shown: root.volume-shown;
+            menu-open: root.menu-open;
+            commands: root.commands;
+            ring-inner: root.ring-inner;
+            rim-tapped(deg) => {
+                root.rim-tapped(deg);
+            }
             avatar-tapped => {
                 root.avatar-tapped();
             }
@@ -146,6 +159,9 @@ export component AppWindow inherits Window {
                 root.decline-tapped();
             }
         }
+        if root.page == Page.volume: VolumePage {}
+        if root.page == Page.link: LinkPage {}
+        if root.page == Page.purge: PurgePage {}
         if root.page == Page.detail: DetailPage {
             host: root.detail-host;
             project: root.detail-project;

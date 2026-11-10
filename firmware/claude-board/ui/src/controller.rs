@@ -10,7 +10,10 @@ use std::rc::Rc;
 use claude_board_proto::{join_labels, AnswerOutcome, Applied, AskId, BoardMsg, ClientMsg, Model, Mood, Session, State, APPROVAL_TEXT_MAX};
 use slint::{ComponentHandle, Model as _, ModelRc, VecModel, Weak};
 
-use crate::view::{arc_index_at, feed_rows, fmt_ago, presence_for, rim_models, session_rows, shorten, PresenceKind, MAX_RIM_SEGMENTS};
+use crate::view::{
+    arc_index_at, command_at, command_segments, feed_rows, fmt_ago, presence_for, rim_models, session_rows, shorten, Command,
+    PresenceKind, MAX_RIM_SEGMENTS,
+};
 use crate::{AppWindow, FeedRow, OptionRow, Page, PresenceState, RimSegment, SessionRow};
 
 /// How long the reply card stays up, in `tick_at` time.
@@ -26,6 +29,8 @@ const ANSWER_GUARD_MS: u64 = 400;
 /// Taps this soon after a different question takes over the screen are ignored too: one meant for the list or the
 /// feed a moment ago must not answer (or, for a tool approval, allow) what just appeared under the finger.
 const NEW_ASK_GUARD_MS: u64 = 500;
+/// The command menu closes after this long with no touch.
+const MENU_IDLE_MS: u64 = 10_000;
 
 /// Where answers go: the websocket to the bridge.
 pub trait Outbox {
@@ -43,6 +48,16 @@ enum Nav {
     Home,
     List,
     Detail { host: String, session: String },
+    /// The pages the command menu opens.
+    Volume,
+    Link,
+    Purge,
+}
+
+impl Nav {
+    fn is_command(&self) -> bool {
+        matches!(self, Nav::Volume | Nav::Link | Nav::Purge)
+    }
 }
 
 /// Multi-select state for the question on screen, keyed so it can never outlive that question.
@@ -58,6 +73,7 @@ struct Selection {
 struct Models {
     rim: Rc<VecModel<RimSegment>>,
     rim_pulsing: Rc<VecModel<RimSegment>>,
+    commands: Rc<VecModel<RimSegment>>,
     rows: Rc<VecModel<SessionRow>>,
     options: Rc<VecModel<OptionRow>>,
     feed: Rc<VecModel<FeedRow>>,
@@ -85,6 +101,9 @@ struct Inner<O: Outbox> {
     outbox: O,
     window: Weak<AppWindow>,
     nav: Nav,
+    /// The command menu is up on home, and when it was last touched (or opened), in `tick_at` time.
+    menu_open: bool,
+    menu_touched_ms: u64,
     link: bool,
     now: Option<i64>,
     sel: Selection,
@@ -130,12 +149,15 @@ impl<O: Outbox + 'static> Controller<O> {
         let models = Models {
             rim: Rc::new(VecModel::default()),
             rim_pulsing: Rc::new(VecModel::default()),
+            // The menu's arcs never change: built here once.
+            commands: Rc::new(VecModel::from(command_segments())),
             rows: Rc::new(VecModel::default()),
             options: Rc::new(VecModel::default()),
             feed: Rc::new(VecModel::default()),
         };
         window.set_rim(ModelRc::from(models.rim.clone()));
         window.set_rim_pulsing(ModelRc::from(models.rim_pulsing.clone()));
+        window.set_commands(ModelRc::from(models.commands.clone()));
         window.set_rows(ModelRc::from(models.rows.clone()));
         window.set_options(ModelRc::from(models.options.clone()));
         window.set_feed(ModelRc::from(models.feed.clone()));
@@ -145,6 +167,8 @@ impl<O: Outbox + 'static> Controller<O> {
             outbox,
             window: window.as_weak(),
             nav: Nav::Home,
+            menu_open: false,
+            menu_touched_ms: 0,
             // Offline until the bridge connection comes up: the home screen says so.
             link: false,
             now: None,
@@ -286,7 +310,31 @@ impl<O: Outbox + 'static> Controller<O> {
         let mut s = self.inner.borrow_mut();
         s.time_ms = ms;
         s.now = now;
+        if s.menu_open && ms.saturating_sub(s.menu_touched_ms) >= MENU_IDLE_MS {
+            s.menu_open = false;
+        }
         s.refresh();
+    }
+
+    /// Open the command menu (a swipe down from the top edge). Only home has one.
+    pub fn open_menu(&self) {
+        let mut s = self.inner.borrow_mut();
+        if s.model.current_ask().is_some() || !matches!(s.nav, Nav::Home) {
+            return;
+        }
+        s.menu_open = true;
+        s.menu_touched_ms = s.time_ms;
+        s.refresh();
+    }
+
+    pub fn menu_open(&self) -> bool {
+        self.inner.borrow().menu_open
+    }
+
+    /// The screen was touched: the menu's idle clock starts again.
+    pub fn note_touch(&self) {
+        let mut s = self.inner.borrow_mut();
+        s.menu_touched_ms = s.time_ms;
     }
 
     /// `tick_at` for callers with no clock of their own (the tests): half a second passes.
@@ -466,6 +514,23 @@ impl<O: Outbox> Inner<O> {
         if self.tap_cancels_speech() {
             return;
         }
+        if self.menu_open {
+            match command_at(deg) {
+                // Purging needs the bridge: while the link is down the arc is dimmed and does nothing.
+                Some(Command::Purge) if !self.link => {}
+                Some(c) => {
+                    self.menu_open = false;
+                    self.set_nav(match c {
+                        Command::Volume => Nav::Volume,
+                        Command::Link => Nav::Link,
+                        Command::Purge => Nav::Purge,
+                    });
+                    self.refresh();
+                }
+                None => {}
+            }
+            return;
+        }
         let n = self.model.sessions().len();
         match arc_index_at(deg, n) {
             // With more than 12 sessions the last arc stands for the rest: show the list.
@@ -480,6 +545,7 @@ impl<O: Outbox> Inner<O> {
             Nav::Detail { .. } => Nav::List,
             _ => Nav::Home,
         };
+        self.menu_open = false;
         self.set_nav(nav);
         self.close_expanded();
         self.refresh();
@@ -520,6 +586,7 @@ impl<O: Outbox> Inner<O> {
     }
 
     fn avatar_tapped(&mut self) {
+        self.menu_open = false;
         if self.tap_cancels_speech() {
             return;
         }
@@ -561,6 +628,7 @@ impl<O: Outbox> Inner<O> {
         if !self.can_hold_at(x, y) {
             return false;
         }
+        self.menu_open = false;
         self.last_utterance += 1;
         self.utterance = Some(self.last_utterance);
         self.holding = true;
@@ -594,13 +662,21 @@ impl<O: Outbox> Inner<O> {
         if matches!(self.nav, Nav::Detail { .. }) && self.detail_session().is_none() {
             self.set_nav(Nav::List); // the session went away
         }
+        // A question takes over from the menu and its pages; once answered, the board is back on a plain home.
+        if self.model.current_ask().is_some() {
+            self.menu_open = false;
+            if self.nav.is_command() {
+                self.set_nav(Nav::Home);
+            }
+        }
         let Some(win) = self.window.upgrade() else { return };
 
         let sessions = self.model.sessions();
         let waiting = self.model.waiting_count();
-        let (still, pulsing) = rim_models(sessions);
+        let (still, pulsing) = rim_models(sessions, self.menu_open);
         sync(&self.models.rim, still);
         sync(&self.models.rim_pulsing, pulsing);
+        win.set_menu_open(self.menu_open);
         win.set_link(self.link);
 
         if self.mood == Mood::Thinking && self.time_ms.saturating_sub(self.mood_since_ms) >= THINKING_WATCHDOG_MS {
@@ -690,6 +766,9 @@ impl<O: Outbox> Inner<O> {
                     Nav::Home => Page::Home,
                     Nav::List => Page::List,
                     Nav::Detail { .. } => Page::Detail,
+                    Nav::Volume => Page::Volume,
+                    Nav::Link => Page::Link,
+                    Nav::Purge => Page::Purge,
                 });
             }
         }

@@ -8,7 +8,8 @@ use claude_board_ui::controller::{Controller, Outbox};
 use claude_board_ui::headless::{headless, Headless};
 use claude_board_ui::{AppWindow, Page};
 use serde_json::Value;
-use slint::{ComponentHandle, Model as _};
+use slint::platform::{PointerEventButton, WindowEvent};
+use slint::{ComponentHandle, LogicalPosition, Model as _};
 
 const NOW: i64 = 1_800_000_000;
 
@@ -903,4 +904,169 @@ fn link_drop_forgets_the_bridge_speech() {
     f.ui.invoke_avatar_tapped();
     assert_eq!(f.sent().last().unwrap(), &serde_json::json!({"t": "cancel", "utterance": id}));
     assert!(f.sent().iter().all(|v| v["utterance"] != 2147483649u32));
+}
+
+// The command menu, opened by a swipe down from the top edge of home.
+
+#[test]
+fn edge_menu_opens_and_a_rim_tap_opens_its_page() {
+    let f = fixture();
+    f.feed("state"); // three arcs, midpoints 60, 180 and 300 degrees
+    assert_eq!(f.ui.get_rim().row_count() + f.ui.get_rim_pulsing().row_count(), 3);
+    f.c.open_menu();
+    assert!(f.c.menu_open());
+    assert!(f.ui.get_menu_open());
+    assert_eq!(f.ui.get_commands().row_count(), 3);
+    assert_eq!(f.ui.get_rim().row_count() + f.ui.get_rim_pulsing().row_count(), 1, "the top arcs make way for the menu");
+    f.ui.invoke_rim_tapped(60.0); // a session arc's angle, but no command there: nothing
+    assert_eq!(f.ui.get_page(), Page::Home);
+    assert!(f.c.menu_open());
+    f.ui.invoke_rim_tapped(2.0); // Link
+    assert_eq!(f.ui.get_page(), Page::Link);
+    assert!(!f.c.menu_open());
+    assert!(!f.ui.get_menu_open());
+    assert_eq!(f.ui.get_rim().row_count() + f.ui.get_rim_pulsing().row_count(), 3);
+    f.ui.invoke_back_tapped();
+    f.c.open_menu();
+    f.ui.invoke_rim_tapped(-44.0);
+    assert_eq!(f.ui.get_page(), Page::Volume);
+}
+
+#[test]
+fn purge_does_nothing_while_the_link_is_down() {
+    let f = fixture();
+    f.c.open_menu();
+    f.ui.invoke_rim_tapped(44.0);
+    assert_eq!(f.ui.get_page(), Page::Home);
+    assert!(f.c.menu_open());
+    f.c.set_link(true);
+    f.ui.invoke_rim_tapped(44.0);
+    assert_eq!(f.ui.get_page(), Page::Purge);
+}
+
+#[test]
+fn the_menu_opens_only_on_home() {
+    let f = fixture();
+    f.feed("state");
+    f.ui.invoke_avatar_tapped();
+    assert_eq!(f.ui.get_page(), Page::List);
+    f.c.open_menu();
+    assert!(!f.c.menu_open());
+}
+
+#[test]
+fn the_menu_closes_after_ten_idle_seconds() {
+    let f = fixture();
+    f.c.tick_at(Some(NOW), 100_000);
+    f.c.open_menu();
+    f.c.tick_at(Some(NOW), 109_999);
+    assert!(f.c.menu_open());
+    f.c.tick_at(Some(NOW), 110_000);
+    assert!(!f.c.menu_open());
+    assert!(!f.ui.get_menu_open());
+}
+
+#[test]
+fn a_touch_keeps_the_menu_open() {
+    let f = fixture();
+    f.c.tick_at(Some(NOW), 100_000);
+    f.c.open_menu();
+    f.c.tick_at(Some(NOW), 108_000);
+    f.c.note_touch();
+    f.c.tick_at(Some(NOW), 117_999);
+    assert!(f.c.menu_open(), "ten seconds count from the last touch");
+    f.c.tick_at(Some(NOW), 118_000);
+    assert!(!f.c.menu_open());
+}
+
+#[test]
+fn the_avatar_closes_the_menu() {
+    let f = fixture();
+    f.c.open_menu();
+    f.ui.invoke_avatar_tapped();
+    assert!(!f.c.menu_open());
+    assert_eq!(f.ui.get_page(), Page::List, "and opens the list, as it does with the menu closed");
+    f.ui.invoke_back_tapped();
+    f.c.open_menu();
+    assert!(f.c.hold_started(233, 233), "holding the avatar still talks");
+    assert!(!f.c.menu_open());
+}
+
+#[test]
+fn back_on_home_closes_the_menu() {
+    let f = fixture();
+    f.c.open_menu();
+    f.ui.invoke_back_tapped();
+    assert!(!f.c.menu_open());
+    assert_eq!(f.ui.get_page(), Page::Home);
+}
+
+#[test]
+fn back_from_a_command_page_returns_home() {
+    let f = fixture();
+    f.c.set_link(true);
+    for (deg, page) in [(-44.0, Page::Volume), (0.0, Page::Link), (44.0, Page::Purge)] {
+        f.c.open_menu();
+        f.ui.invoke_rim_tapped(deg);
+        assert_eq!(f.ui.get_page(), page);
+        f.ui.invoke_back_tapped();
+        assert_eq!(f.ui.get_page(), Page::Home);
+        assert!(!f.c.menu_open());
+    }
+}
+
+#[test]
+fn a_question_closes_the_menu_and_answering_returns_home() {
+    let f = fixture();
+    f.c.open_menu();
+    f.ask("question_single");
+    assert_eq!(f.ui.get_page(), Page::Question);
+    assert!(!f.c.menu_open());
+    f.ui.invoke_option_tapped(0);
+    assert_eq!(f.ui.get_page(), Page::Home);
+    assert!(!f.c.menu_open());
+}
+
+#[test]
+fn a_question_over_a_command_page_returns_home_once_answered() {
+    let g = fixture();
+    g.c.open_menu();
+    g.ui.invoke_rim_tapped(0.0);
+    assert_eq!(g.ui.get_page(), Page::Link);
+    g.ask("question_single");
+    assert_eq!(g.ui.get_page(), Page::Question);
+    g.ui.invoke_option_tapped(0);
+    assert_eq!(g.ui.get_page(), Page::Home);
+    assert!(!g.c.menu_open());
+}
+
+impl Fixture {
+    /// A real tap at screen (x, y), through Slint's touch areas.
+    fn tap(&self, x: f32, y: f32) {
+        let position = LogicalPosition::new(x, y);
+        let w = &self._h.window;
+        w.dispatch_event(WindowEvent::PointerPressed { position, button: PointerEventButton::Left });
+        w.dispatch_event(WindowEvent::PointerReleased { position, button: PointerEventButton::Left });
+        w.dispatch_event(WindowEvent::PointerExited);
+    }
+}
+
+#[test]
+fn a_tap_on_a_menu_arc_over_the_avatars_box_opens_the_command() {
+    let f = fixture();
+    f.c.open_menu();
+    // The Volume arc at -44 degrees, radius 180: inside the avatar's 280 px box but outside its circle.
+    let (x, y) = (233.0 - 180.0 * 44f32.to_radians().sin(), 233.0 - 180.0 * 44f32.to_radians().cos());
+    assert!(x > 93.0 && y > 93.0, "the point is in the avatar's box");
+    f.tap(x, y);
+    assert_eq!(f.ui.get_page(), Page::Volume);
+    // The Link arc's middle, through the window's ring.
+    f.ui.invoke_back_tapped();
+    f.c.open_menu();
+    f.tap(233.0, 33.0);
+    assert_eq!(f.ui.get_page(), Page::Link);
+    // With the menu closed, the avatar still opens the list.
+    f.ui.invoke_back_tapped();
+    f.tap(233.0, 233.0);
+    assert_eq!(f.ui.get_page(), Page::List);
 }

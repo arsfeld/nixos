@@ -9,9 +9,9 @@ pub const RADIUS: f32 = 220.0;
 /// Half the stroke width (5) plus anti-aliasing slack.
 const PAD: f32 = 7.0;
 
-fn point(deg: f32) -> (f32, f32) {
+fn point(deg: f32, radius: f32) -> (f32, f32) {
     let r = deg.to_radians();
-    (CENTRE + RADIUS * r.sin(), CENTRE - RADIUS * r.cos())
+    (CENTRE + radius * r.sin(), CENTRE - radius * r.cos())
 }
 
 fn round_down_even(v: f32) -> f32 {
@@ -22,9 +22,15 @@ fn round_up_even(v: f32) -> f32 {
     (((v.ceil() as i32) + 1) & !1) as f32
 }
 
-/// The arc from `start_deg` to `end_deg` (clockwise from the top). Drawn as two halves, so any sweep up to
-/// 359 degrees is a valid SVG arc.
+/// The arc from `start_deg` to `end_deg` (clockwise from the top) on the rim. Drawn as two halves, so any sweep up
+/// to 359 degrees is a valid SVG arc.
 pub fn arc_segment(start_deg: f32, end_deg: f32, state: SessionState) -> RimSegment {
+    arc_segment_at(start_deg, end_deg, RADIUS, PAD, state)
+}
+
+/// `arc_segment` on a circle of `radius`, for a stroke of up to `2 * half_stroke` (the box is padded by it).
+pub fn arc_segment_at(start_deg: f32, end_deg: f32, radius: f32, half_stroke: f32, state: SessionState) -> RimSegment {
+    let point = |deg| point(deg, radius);
     let mid = (start_deg + end_deg) / 2.0;
     let (p0, pm, p1) = (point(start_deg), point(mid), point(end_deg));
     let (mut min_x, mut max_x, mut min_y, mut max_y) = (f32::MAX, f32::MIN, f32::MAX, f32::MIN);
@@ -35,8 +41,8 @@ pub fn arc_segment(start_deg: f32, end_deg: f32, state: SessionState) -> RimSegm
         min_y = min_y.min(y);
         max_y = max_y.max(y);
     }
-    let (x0, y0) = (round_down_even(min_x - PAD), round_down_even(min_y - PAD));
-    let (x1, y1) = (round_up_even(max_x + PAD), round_up_even(max_y + PAD));
+    let (x0, y0) = (round_down_even(min_x - half_stroke), round_down_even(min_y - half_stroke));
+    let (x1, y1) = (round_up_even(max_x + half_stroke), round_up_even(max_y + half_stroke));
     RimSegment {
         x: x0,
         y: y0,
@@ -50,7 +56,7 @@ pub fn arc_segment(start_deg: f32, end_deg: f32, state: SessionState) -> RimSegm
             pm.1,
             p1.0,
             p1.1,
-            r = RADIUS
+            r = radius
         )
         .into(),
         state,

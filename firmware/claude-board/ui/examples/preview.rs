@@ -5,7 +5,7 @@ use std::path::Path;
 
 use claude_board_ui::headless::{headless, rgb, Headless, HEIGHT, WIDTH};
 use claude_board_proto::{Model, Session, State};
-use claude_board_ui::view::{rim_models, session_rows};
+use claude_board_ui::view::{command_segments, rim_models, session_rows};
 use claude_board_ui::{AppWindow, OptionRow, Page, PresenceState, RimSegment, SessionState};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
@@ -55,7 +55,11 @@ fn five() -> Vec<Session> {
 }
 
 fn show_rim(ui: &AppWindow, sessions: &[Session]) {
-    let (still, pulsing) = rim_models(sessions);
+    show_rim_menu(ui, sessions, false);
+}
+
+fn show_rim_menu(ui: &AppWindow, sessions: &[Session], menu_open: bool) {
+    let (still, pulsing) = rim_models(sessions, menu_open);
     ui.set_rim(model(still));
     ui.set_rim_pulsing(model(pulsing));
 }
@@ -126,6 +130,19 @@ fn main() {
     ui.set_volume_shown(true);
     write_png(dir, "home-volume", &h);
     ui.set_volume_shown(false);
+
+    // The command menu, opened by a swipe down from the top edge: the top session arcs make way for it.
+    ui.set_commands(model(command_segments()));
+    show_rim_menu(&ui, &sessions, true);
+    ui.set_menu_open(true);
+    ui.set_volume(80);
+    settle(&h);
+    write_png(dir, "home-menu", &h);
+    ui.set_link(false);
+    write_png(dir, "home-menu-offline", &h);
+    ui.set_link(true);
+    ui.set_menu_open(false);
+    show_rim(&ui, &sessions);
 
     ui.set_page(Page::List);
     ui.set_rows(ModelRc::new(VecModel::from(session_rows(&sessions, Some(NOW)))));

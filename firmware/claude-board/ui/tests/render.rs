@@ -499,3 +499,28 @@ fn reminder_card_renders_over_home() {
     ui.invoke_reply_tapped();
     assert!(lit(&h.render(), 100..366, 340..400) < lit(&after, 100..366, 340..400), "tapping it takes the card away");
 }
+
+#[test]
+fn the_command_menu_draws_metal_arcs_with_a_red_purge_edge_only_while_open() {
+    let (h, ui) = show();
+    ui.set_commands(ModelRc::new(VecModel::from(claude_board_ui::view::command_segments())));
+    ui.set_link(true);
+    // Points on the Link arc (12 degrees right of the top) and on Purge's outer edge (44 degrees).
+    let at = |deg: f32, r: f32| {
+        let a = deg.to_radians();
+        ((233.0 + r * a.sin()).round() as usize, (233.0 - r * a.cos()).round() as usize)
+    };
+    let (fill, edge, purge_edge) = (at(12.0, 200.0), at(12.0, 224.0), at(44.0, 224.0));
+    let buf = h.render();
+    assert_eq!(px(&buf, fill.0, fill.1), (0, 0, 0), "closed: nothing there");
+    ui.set_menu_open(true);
+    let buf = h.render();
+    assert!(near(px(&buf, fill.0, fill.1), (0x15, 0x17, 0x1c), 10), "{:?}", px(&buf, fill.0, fill.1));
+    assert!(near(px(&buf, edge.0, edge.1), (0x5b, 0x60, 0x6b), 10), "{:?}", px(&buf, edge.0, edge.1));
+    let lit = px(&buf, purge_edge.0, purge_edge.1);
+    assert!(is_red(lit), "{lit:?}");
+    ui.set_link(false);
+    let buf = h.render();
+    let dim = px(&buf, purge_edge.0, purge_edge.1);
+    assert!(dim.0 < lit.0 / 2, "offline, purge is dimmed: {dim:?} against {lit:?}");
+}

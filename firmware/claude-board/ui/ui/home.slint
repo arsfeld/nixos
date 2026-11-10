@@ -1,6 +1,68 @@
 // The home page: the avatar in the middle of the rim and one line saying what needs attention.
-import { Theme, PresenceState } from "theme.slint";
+import { Theme, PresenceState, RimSegment, SessionState } from "theme.slint";
 import { Presence } from "presence.slint";
+
+// One arc of the command menu: a metal band, a 50 px outline under a 46 px fill, in the arc's own tight box. The
+// purge arc (its segment carries the error state) has a red edge, and is dimmed while it cannot be used.
+component CommandArc inherits Rectangle {
+    in property <RimSegment> seg;
+    in property <bool> dim;
+    property <bool> purge: seg.state == SessionState.error;
+    x: seg.x;
+    y: seg.y;
+    width: seg.width;
+    height: seg.height;
+    // Slint fits the viewbox into the element shrunk by the stroke width (half on each side), so each Path is grown
+    // by its stroke to map the viewbox onto the segment's box one to one.
+    Path {
+        x: -25px;
+        y: -25px;
+        width: parent.width + 50px;
+        height: parent.height + 50px;
+        viewbox-x: seg.x / 1px;
+        viewbox-y: seg.y / 1px;
+        viewbox-width: seg.width / 1px;
+        viewbox-height: seg.height / 1px;
+        commands: seg.commands;
+        stroke: !root.purge ? #5b606b : root.dim ? #ff2a1a50 : #ff2a1a;
+        stroke-width: 50px;
+    }
+    Path {
+        x: -23px;
+        y: -23px;
+        width: parent.width + 46px;
+        height: parent.height + 46px;
+        viewbox-x: seg.x / 1px;
+        viewbox-y: seg.y / 1px;
+        viewbox-width: seg.width / 1px;
+        viewbox-height: seg.height / 1px;
+        commands: seg.commands;
+        stroke: root.purge ? #1a0c0b : #15171c;
+        stroke-width: 46px;
+    }
+}
+
+// A 24 px line icon on the menu, drawn from a 24-unit SVG path. The element is the stroke (2 px) larger than the
+// icon, because Slint fits the viewbox into the element less the stroke: place it 1 px up and left of the icon.
+component CommandIcon inherits Path {
+    in property <color> ink: #ff2a1a;
+    width: 26px;
+    height: 26px;
+    viewbox-width: 24;
+    viewbox-height: 24;
+    stroke: root.ink;
+    stroke-width: 2px;
+    stroke-line-cap: round;
+}
+
+component CommandLabel inherits Text {
+    width: 80px;
+    color: Theme.muted;
+    font-family: "JetBrains Mono";
+    font-size: 11px;
+    letter-spacing: 2px;
+    horizontal-alignment: center;
+}
 
 export component HomePage inherits Rectangle {
     in property <PresenceState> presence-state;
@@ -12,8 +74,69 @@ export component HomePage inherits Rectangle {
     in property <string> reply-heading;
     in property <int> volume: 80;
     in property <bool> volume-shown: false;
+    in property <bool> menu-open: false;
+    in property <[RimSegment]> commands;
+    // Where the window's ring touch area begins, from the centre: taps beyond it on the avatar's box belong to the ring.
+    in property <float> ring-inner: 190;
     callback avatar-tapped();
     callback reply-tapped();
+    callback rim-tapped(float);
+
+    // The command menu across the top of the rim: Volume, Link and Purge, left to right. Its box is the top band
+    // only, so opening and closing it repaints no more than that.
+    if root.menu-open: Rectangle {
+        // Explicit: an element with a size and no position is centred in its parent.
+        x: 0px;
+        y: 0px;
+        width: 466px;
+        height: 180px;
+        for seg in root.commands: CommandArc {
+            seg: seg;
+            dim: !root.link;
+        }
+        CommandIcon {
+            x: 81px;
+            y: 76px;
+            commands: "M4 9v6h4l5 4V5L8 9H4z M16.5 8.5a5 5 0 0 1 0 7 M19 6a8.5 8.5 0 0 1 0 12";
+            stroke-line-join: round;
+        }
+        CommandIcon {
+            x: 220px;
+            y: 20px;
+            commands: "M2 9a15 15 0 0 1 20 0 M5.5 12.5a10 10 0 0 1 13 0 M9 16a5 5 0 0 1 6 0";
+        }
+        Rectangle {
+            x: 231px;
+            y: 38.5px;
+            width: 2px;
+            height: 2px;
+            border-radius: 1px;
+            background: #ff2a1a;
+        }
+        CommandIcon {
+            x: 359px;
+            y: 76px;
+            commands: "M4 12a8 8 0 1 0 2.4-5.7 M4 4v5h5 M9 12h6";
+            stroke-line-join: round;
+            ink: root.link ? #ff2a1a : #ff2a1a50;
+        }
+        CommandLabel {
+            x: 82px;
+            y: 112px;
+            text: "VOL " + root.volume;
+        }
+        CommandLabel {
+            x: 193px;
+            y: 66px;
+            text: "LINK";
+        }
+        CommandLabel {
+            x: 304px;
+            y: 112px;
+            text: "PURGE";
+            color: root.link ? #ff6a5a : #ff6a5a50;
+        }
+    }
 
     Presence {
         x: 93px;
@@ -22,8 +145,19 @@ export component HomePage inherits Rectangle {
         level: root.presence-level;
         offline: !root.voice-available;
         TouchArea {
+            // Offsets from the screen's centre in pixels, y up (this box starts at 93, 93).
+            property <float> dx: (self.mouse-x - 140px) / 1px;
+            property <float> dy: (140px - self.mouse-y) / 1px;
             clicked => {
-                root.avatar-tapped();
+                // With the menu open, the corners of this box overlap its arcs: a tap there is the ring's, not the
+                // avatar's, and one between the two is nobody's.
+                if (root.menu-open && self.dx * self.dx + self.dy * self.dy > 140 * 140) {
+                    if (self.dx * self.dx + self.dy * self.dy > root.ring-inner * root.ring-inner) {
+                        root.rim-tapped(Math.atan2(self.dx, self.dy) / 1deg);
+                    }
+                } else {
+                    root.avatar-tapped();
+                }
             }
         }
     }

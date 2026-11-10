@@ -6,8 +6,9 @@ import "fonts/JetBrainsMono-Regular.ttf";
 
 export enum SessionState { idle, working, waiting, done, error }
 export enum PresenceState { idle, listening, thinking, speaking, alert }
-// Which screen is up. `home` is the avatar in the rim; a waiting question takes over with `question`.
-export enum Page { home, list, question, detail }
+// Which screen is up. `home` is the avatar in the rim; a waiting question takes over with `question`. `volume`,
+// `link` and `purge` are the pages the command menu on home opens.
+export enum Page { home, list, question, detail, volume, link, purge }
 
 export struct SessionRow {
     host: string,
