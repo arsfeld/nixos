@@ -44,17 +44,23 @@ component CommandArc inherits Rectangle {
     }
 }
 
-// A 24 px line icon on the menu, drawn from a 24-unit SVG path. The element is the stroke (2 px) larger than the
-// icon, because Slint fits the viewbox into the element less the stroke: place it 1 px up and left of the icon.
+// A 36 px line icon on the menu, drawn from a 24-unit SVG path (scaled 1.5) with a 3.5 px line, so it reads on the
+// panel at a glance (24 px with a 2 px line was a faint hairline). The element is the stroke larger than the icon,
+// because Slint fits the viewbox into the element less the stroke: centre it on the icon's centre.
 component CommandIcon inherits Path {
     in property <color> ink: #ff2a1a;
-    width: 26px;
-    height: 26px;
+    in property <length> cx;
+    in property <length> cy;
+    x: root.cx - 19.75px;
+    y: root.cy - 19.75px;
+    width: 39.5px;
+    height: 39.5px;
     viewbox-width: 24;
     viewbox-height: 24;
     stroke: root.ink;
-    stroke-width: 2px;
+    stroke-width: 3.5px;
     stroke-line-cap: round;
+    stroke-line-join: round;
 }
 
 component CommandLabel inherits Text {
@@ -96,30 +102,38 @@ export component HomePage inherits Rectangle {
             seg: seg;
             dim: !root.link;
         }
+        // Volume: a solid speaker and two sound waves. The icons sit on the arcs' centre line (radius 200, at
+        // -44, 0 and 44 degrees).
         CommandIcon {
-            x: 81px;
-            y: 76px;
-            commands: "M4 9v6h4l5 4V5L8 9H4z M16.5 8.5a5 5 0 0 1 0 7 M19 6a8.5 8.5 0 0 1 0 12";
-            stroke-line-join: round;
+            cx: 94px;
+            cy: 89px;
+            commands: "M4 9v6h4l5 4V5L8 9H4z";
+            fill: #ff2a1a;
         }
         CommandIcon {
-            x: 220px;
-            y: 20px;
+            cx: 94px;
+            cy: 89px;
+            commands: "M16.5 8.5a5 5 0 0 1 0 7 M19 6a8.5 8.5 0 0 1 0 12";
+        }
+        // Link: three Wi-Fi arcs and a dot.
+        CommandIcon {
+            cx: 233px;
+            cy: 33px;
             commands: "M2 9a15 15 0 0 1 20 0 M5.5 12.5a10 10 0 0 1 13 0 M9 16a5 5 0 0 1 6 0";
         }
         Rectangle {
-            x: 231px;
-            y: 38.5px;
-            width: 2px;
-            height: 2px;
-            border-radius: 1px;
+            x: 230px;
+            y: 42px;
+            width: 6px;
+            height: 6px;
+            border-radius: 3px;
             background: #ff2a1a;
         }
+        // Purge: a counter-clockwise arrow round a bar.
         CommandIcon {
-            x: 359px;
-            y: 76px;
+            cx: 372px;
+            cy: 89px;
             commands: "M4 12a8 8 0 1 0 2.4-5.7 M4 4v5h5 M9 12h6";
-            stroke-line-join: round;
             ink: root.link ? #ff2a1a : #ff2a1a50;
         }
         CommandLabel {
