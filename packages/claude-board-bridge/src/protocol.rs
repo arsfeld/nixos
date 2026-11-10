@@ -27,4 +27,4 @@ pub struct Event {
     pub ts: i64,
 }
 
-pub use claude_board_proto::{BoardMsg, ClientMsg, PROTOCOL_VERSION, Session, State};
+pub use claude_board_proto::{BoardMsg, ClientMsg, FeedEntry, FeedKind, PROTOCOL_VERSION, Session, State};

@@ -77,6 +77,8 @@ impl Model {
         };
         match msg {
             BoardMsg::Hello { .. } | BoardMsg::Unknown => return Applied::Ignored,
+            // The feed is applied in the plan's Task 7.
+            BoardMsg::History { .. } | BoardMsg::Entry { .. } => return Applied::Ignored,
             BoardMsg::State { sessions } => {
                 self.sessions = sessions;
                 self.asks.clear();

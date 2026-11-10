@@ -71,6 +71,8 @@ fn handle(s: &AppState, text: &str) {
         Ok(ClientMsg::Decline { id }) => {
             let _ = s.asks.answer(&id, Answered::Declined);
         }
+        // Watching is handled by the endpoint in the plan's later feed tasks.
+        Ok(ClientMsg::Watch { .. } | ClientMsg::Unwatch) => {}
         Err(_) => {}
     }
 }

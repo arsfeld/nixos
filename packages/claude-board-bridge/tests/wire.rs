@@ -3,7 +3,7 @@
 //! cannot drift apart.
 
 use claude_board_bridge::asks::{AskId, PendingAsk, Question, QuestionOption};
-use claude_board_bridge::protocol::{BoardMsg, Session, State};
+use claude_board_bridge::protocol::{BoardMsg, FeedEntry, FeedKind, Session, State};
 use serde_json::Value;
 
 fn fixture(name: &str) -> Value {
@@ -95,4 +95,29 @@ fn question_clear_matches_the_firmware_fixture() {
 fn hello_matches_the_firmware_fixture() {
     let m = BoardMsg::Hello { version: claude_board_proto::PROTOCOL_VERSION };
     assert_eq!(wire(&m), fixture("hello"));
+}
+
+fn fe(n: u64, ts: i64, kind: FeedKind, text: &str) -> FeedEntry {
+    FeedEntry { n, ts, kind, text: text.into() }
+}
+
+#[test]
+fn history_matches_the_firmware_fixture() {
+    let m = BoardMsg::History {
+        host: "raider".into(),
+        session: "s-1".into(),
+        entries: vec![
+            fe(1, 1000, FeedKind::Prompt, "fix the build"),
+            fe(2, 1001, FeedKind::Tool, "Bash: just build raider"),
+            fe(3, 1002, FeedKind::Result, "failed"),
+            fe(4, 1003, FeedKind::Reply, "The build failed: missing input."),
+        ],
+    };
+    assert_eq!(wire(&m), fixture("history"));
+}
+
+#[test]
+fn entry_matches_the_firmware_fixture() {
+    let m = BoardMsg::Entry { host: "raider".into(), session: "s-1".into(), entry: fe(5, 1004, FeedKind::Tool, "Edit: modules/x.nix") };
+    assert_eq!(wire(&m), fixture("entry"));
 }

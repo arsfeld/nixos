@@ -11,8 +11,9 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 /// The protocol version the bridge announces in its `hello`. Boards ignore messages they do not know,
-/// so a newer bridge can add messages without breaking older boards.
-pub const PROTOCOL_VERSION: u32 = 1;
+/// so a newer bridge can add messages without breaking older boards. Version 2 adds the per-session
+/// activity feed (`history`, `entry`, and the board's `watch`/`unwatch`).
+pub const PROTOCOL_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -71,6 +72,27 @@ pub struct PendingAsk {
     pub questions: Vec<Question>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FeedKind {
+    Prompt,
+    Tool,
+    Result,
+    Reply,
+    /// Also what a kind this version does not know parses as (serde needs it last).
+    #[serde(other)]
+    Other,
+}
+
+/// One line of a session's activity feed; `n` counts up per session.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FeedEntry {
+    pub n: u64,
+    pub ts: i64,
+    pub kind: FeedKind,
+    pub text: String,
+}
+
 /// What the bridge pushes to a board over its WebSocket (`t` is the tag). A message of a kind this
 /// version does not know parses as `Unknown`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -85,6 +107,13 @@ pub enum BoardMsg {
         ask: PendingAsk,
     },
     QuestionClear { id: AskId },
+    History { host: String, session: String, entries: Vec<FeedEntry> },
+    Entry {
+        host: String,
+        session: String,
+        #[serde(flatten)]
+        entry: FeedEntry,
+    },
     #[serde(other)]
     Unknown,
 }
@@ -95,6 +124,8 @@ pub enum BoardMsg {
 pub enum ClientMsg {
     Answer { id: AskId, answers: BTreeMap<String, String> },
     Decline { id: AskId },
+    Watch { host: String, session: String },
+    Unwatch,
 }
 
 #[cfg(test)]
@@ -126,7 +157,21 @@ mod tests {
             assert_eq!(serde_json::to_value(&msg).unwrap(), want, "{path:?}");
             n += 1;
         }
-        assert!(n >= 8, "expected the fixtures, found {n}");
+        assert!(n >= 10, "expected the fixtures, found {n}");
+    }
+
+    #[test]
+    fn unknown_feed_kind_parses_as_other() {
+        let text = r#"{"t":"entry","host":"h","session":"s","n":1,"ts":2,"kind":"later","text":"x"}"#;
+        let msg: BoardMsg = serde_json::from_str(text).unwrap();
+        assert!(matches!(msg, BoardMsg::Entry { entry, .. } if entry.kind == FeedKind::Other));
+    }
+
+    #[test]
+    fn watch_and_unwatch_serialise_to_the_firmware_shape() {
+        let w = ClientMsg::Watch { host: "h".into(), session: "s".into() };
+        assert_eq!(serde_json::to_value(&w).unwrap(), serde_json::json!({"t":"watch","host":"h","session":"s"}));
+        assert_eq!(serde_json::to_value(&ClientMsg::Unwatch).unwrap(), serde_json::json!({"t":"unwatch"}));
     }
 
     #[test]

@@ -1,0 +1,1 @@
+{"t":"history","host":"raider","session":"s-1","entries":[{"n":1,"ts":1000,"kind":"prompt","text":"fix the build"},{"n":2,"ts":1001,"kind":"tool","text":"Bash: just build raider"},{"n":3,"ts":1002,"kind":"result","text":"failed"},{"n":4,"ts":1003,"kind":"reply","text":"The build failed: missing input."}]}
