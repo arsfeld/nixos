@@ -859,13 +859,23 @@ fn tap_during_bridge_speech_cancels_the_bridge_id() {
     assert_eq!(f.ui.get_page(), Page::Home);
 }
 
+/// A finished hold: the board's own last utterance has an id.
+fn own_utterance(f: &Fixture) -> u32 {
+    f.c.hold_started(233, 233);
+    let id = f.c.utterance().unwrap();
+    f.c.hold_ended();
+    id
+}
+
 #[test]
-fn tap_after_bridge_speech_ended_does_not_cancel_its_id() {
+fn tap_after_bridge_speech_ended_cancels_the_board_id_not_the_bridge_id() {
     let f = fixture();
+    let id = own_utterance(&f);
     f.c.on_message(r#"{"t":"speak_start","utterance":2147483649,"sample_rate":22050}"#);
     f.c.on_message(r#"{"t":"speak_end","utterance":2147483649}"#);
-    f.c.on_message(r#"{"t":"creature","mood":"speaking"}"#);
+    mood(&f, "speaking");
     f.ui.invoke_avatar_tapped();
+    assert_eq!(f.sent().last().unwrap(), &serde_json::json!({"t": "cancel", "utterance": id}));
     assert!(f.sent().iter().all(|v| v["utterance"] != 2147483649u32));
 }
 
@@ -885,9 +895,12 @@ fn tap_during_own_reply_still_cancels_own_id() {
 fn link_drop_forgets_the_bridge_speech() {
     let f = fixture();
     f.c.on_message(r#"{"t":"speak_start","utterance":2147483649,"sample_rate":22050}"#);
+    // The drop clears the board's own utterance too, so start a new hold after the link is back.
     f.c.set_link(false);
     f.c.set_link(true);
+    let id = own_utterance(&f);
     mood(&f, "speaking");
     f.ui.invoke_avatar_tapped();
+    assert_eq!(f.sent().last().unwrap(), &serde_json::json!({"t": "cancel", "utterance": id}));
     assert!(f.sent().iter().all(|v| v["utterance"] != 2147483649u32));
 }

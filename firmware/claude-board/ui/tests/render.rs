@@ -482,9 +482,20 @@ fn the_reply_card_draws_under_the_avatar_and_takes_the_summarys_place() {
 
 #[test]
 fn reminder_card_renders_over_home() {
+    use claude_board_ui::controller::{Controller, Outbox};
+    struct Mute;
+    impl Outbox for Mute {
+        fn send(&self, _: String) -> bool {
+            true
+        }
+    }
     let (h, ui) = show();
-    ui.set_summary("All quiet".into());
-    ui.set_reply_heading("Reminder 18:42".into());
-    ui.set_reply_text("check the oven".into());
-    assert!(lit(&h.render(), 100..366, 340..400) > 1500, "the reminder card is drawn");
+    let c = Controller::new(&ui, Mute);
+    c.tick(Some(1_800_000_000));
+    let before = h.render();
+    c.on_message(r#"{"t":"reminder","id":"tmr_01","label":"check the oven","due":"2026-11-10T18:42:00-05:00"}"#);
+    let after = h.render();
+    assert!(lit(&after, 100..366, 340..400) > lit(&before, 100..366, 340..400) + 1500, "the reminder card is drawn");
+    ui.invoke_reply_tapped();
+    assert!(lit(&h.render(), 100..366, 340..400) < lit(&after, 100..366, 340..400), "tapping it takes the card away");
 }
