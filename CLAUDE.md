@@ -362,6 +362,21 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
   the only gate (256-bit, constant-time compare, 500 ms delay on a failed attempt). Approving a
   question is authority over a session, so treat the tokens as credentials. State is in memory: after a
   bridge restart the board shows no sessions until each one next emits an event.
+- **Session feed and tool approvals** (spec `docs/superpowers/specs/2026-11-09-claude-board-feed-design.md`).
+  The hook also sends `PreToolUse`, `PostToolUse` and `PostToolUseFailure` as feed entries, plus prompt
+  and reply entries from `UserPromptSubmit` and `Stop`; `claude-board-install-hooks` registers them, and
+  a catch-all `PermissionRequest` hook holds every tool approval, not just questions. Entries go to
+  `/v1/feed` (host token; its own endpoint, never touches the registry or held questions; 64 KiB body
+  limit). The board sends `watch`/`unwatch` for one session; the bridge replies with `history`, then
+  streams `entry` (protocol version 2). Each session has an in-memory ring buffer of 200 entries, the newest
+  50 are sent, and a sweep every 60 s drops feeds whose session is gone. An approval reuses the question
+  wire format (one question, labels `Allow`/`Deny`): only an exact `Allow` allows, only an exact `Deny`
+  denies, anything else falls through to the terminal. Tool **output is never sent**. Scrubbing of
+  commands and prompts is best-effort, not a guarantee: it covers `Authorization` headers, `Bearer`
+  tokens and `NAME=value` where NAME contains TOKEN, SECRET, PASSWORD, PASSWD or KEY (quoted values
+  too). Known gaps: `--password x`, `curl -u user:pass`, credentials embedded in URLs, JSON-style
+  `"api_key": "…"`, escaped quotes inside quoted values. The detail page shows the feed (at most 50
+  entries on the board, newest at the bottom, tap a row to expand, auto-follows).
 - **Secrets.** `claude-board-host-token` in `common.yaml` (declared for every host in
   `modules/base/claude-board.nix`, 0400 for arosenfeld, read by the hooks from `/run/secrets`);
   `claude-board-device-token` in `galactica.yaml` and `raider.yaml` (same value: the bridge checks it,

@@ -125,3 +125,12 @@ never sent. Approving a tool call is authority over a session, as with questions
 - Hook: `packages/claude-board-hook/test` gains a case per new event, truncation and scrubbing.
 - Measurement: capture real payloads for the new hooks on the installed Claude Code version and add
   them to the hook-findings doc, including whether `PermissionRequest` has `tool_use_id`.
+
+## Deviations from this design
+
+- (a) An empty feed shows "No activity yet" instead of "ended"; a session that is gone closes the detail page.
+- (b) The board does not check `PROTOCOL_VERSION`: an older bridge ignores `watch`, leaving the page empty.
+- (c) Approvals reuse the question wire format with Allow/Deny labels, so there are no new wire fields.
+- (d) The hook sends `tool_input` to `/v1/ask` only for `AskUserQuestion`; it is `{}` for other tools, since raw `tool_input` can carry secrets.
+- (e) The `/v1/feed` body limit is 64 KiB, not 16 KiB.
+- (f) `PermissionRequest` carries no `tool_use_id` (measured), so held asks are cancelled only by Stop, UserPromptSubmit, SessionEnd and StopFailure events, and otherwise time out.
