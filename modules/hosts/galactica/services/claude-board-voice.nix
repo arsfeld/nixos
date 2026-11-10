@@ -10,8 +10,14 @@
 # left out because the module deep-merges `settings` into an existing config.yaml, so a key left
 # out keeps whatever value is already on disk.
 #
-# Besides its core tools, Hermes reaches the bridge's timer tools over MCP (`mcp_servers.claude-board`,
-# http://127.0.0.1:8591/mcp, token-gated); Home Assistant's Assist tools come next. Hermes adds each
+# Besides its core tools, Hermes reaches two MCP servers. The bridge's (`mcp_servers.claude-board`,
+# http://127.0.0.1:8591/mcp, token-gated) has the timer tools and, with BRIDGE_HA_URL and
+# BRIDGE_HA_TOKEN_FILE set below, `weather_forecast` (the bridge reads Home Assistant's daily forecast
+# itself). Home Assistant's own (`mcp_servers.homeassistant`, http://127.0.0.1:8123/api/mcp, the
+# mcp_server integration in home-assistant.nix) serves the Assist tools for the entities exposed to
+# Assist, as the non-admin `creature` user whose token is hermes-creature-ha-token. Its
+# `HassCancelAllTimers` is excluded: it acts on Home Assistant's timers, not the board's, and hiding it
+# keeps "cancel my timers" on the bridge's `cancel_timer`. Hermes adds each
 # MCP server as toolset `mcp-<name>` next to the platform bundles on its own, so `platform_toolsets`
 # must NOT name one: that would turn the list into an allowlist. After any bump of the hermes-agent
 # input, check that `GET /v1/toolsets` still lists the MCP toolsets (and nothing else enabled that
@@ -104,6 +110,9 @@
     sops.secrets.claude-board-mcp-token.restartUnits = ["claude-board.service" "hermes-agent.service"];
     # hermes-env is declared in hermes.nix; this unit takes only its DEEPSEEK_API_KEY.
     sops.secrets."hermes-env".restartUnits = ["hermes-agent.service"];
+    # A long-lived token of Home Assistant's non-admin `creature` user: Hermes sends it to HA's MCP
+    # server (as HA_MCP_TOKEN), the bridge to HA's REST API for the forecast.
+    sops.secrets.hermes-creature-ha-token.restartUnits = ["hermes-agent.service" "claude-board.service"];
 
     systemd.services.whisper-server = {
       description = "whisper.cpp speech to text for the board's creature";
@@ -173,6 +182,12 @@
           url = "http://127.0.0.1:${toString mcpPort}/mcp";
           headers.Authorization = "Bearer \${CLAUDE_BOARD_MCP_TOKEN}";
         };
+        # Home Assistant's Assist tools, for the entities exposed to Assist; same `${VAR}` rule.
+        mcp_servers.homeassistant = {
+          url = "http://127.0.0.1:8123/api/mcp";
+          headers.Authorization = "Bearer \${HA_MCP_TOKEN}";
+          tools.exclude = ["HassCancelAllTimers"];
+        };
       };
       # Not secret. The key and the DeepSeek key come from the unit's EnvironmentFile below.
       environment = {
@@ -195,6 +210,7 @@
             "hermes-env:${secrets."hermes-env".path}"
             "api-key:${secrets.hermes-api-key.path}"
             "mcp-token:${secrets.claude-board-mcp-token.path}"
+            "ha-token:${secrets.hermes-creature-ha-token.path}"
           ];
           RuntimeDirectory = "hermes-creature";
           RuntimeDirectoryMode = "0700";
@@ -208,6 +224,7 @@
                 ${pkgs.gnugrep}/bin/grep -E '^DEEPSEEK_API_KEY=' "$CREDENTIALS_DIRECTORY/hermes-env"
                 printf 'API_SERVER_KEY=%s\n' "$(${pkgs.coreutils}/bin/tr -d '\n' < "$CREDENTIALS_DIRECTORY/api-key")"
                 printf 'CLAUDE_BOARD_MCP_TOKEN=%s\n' "$(${pkgs.coreutils}/bin/tr -d '\n' < "$CREDENTIALS_DIRECTORY/mcp-token")"
+                printf 'HA_MCP_TOKEN=%s\n' "$(${pkgs.coreutils}/bin/tr -d '\n' < "$CREDENTIALS_DIRECTORY/ha-token")"
               } > "$RUNTIME_DIRECTORY/env"
             '')
           ];
@@ -238,10 +255,14 @@
         # $STATE_DIRECTORY/timers.json, see claude-board.nix).
         BRIDGE_MCP_LISTEN = "127.0.0.1:${toString mcpPort}";
         BRIDGE_MCP_TOKEN_FILE = "%d/mcp-token";
+        # Home Assistant, for the weather_forecast tool (entity defaults to weather.forecast_home).
+        BRIDGE_HA_URL = "http://127.0.0.1:8123";
+        BRIDGE_HA_TOKEN_FILE = "%d/ha-token";
       };
       serviceConfig.LoadCredential = [
         "hermes-key:${secrets.hermes-api-key.path}"
         "mcp-token:${secrets.claude-board-mcp-token.path}"
+        "ha-token:${secrets.hermes-creature-ha-token.path}"
       ];
     };
   };
