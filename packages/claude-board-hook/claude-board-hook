@@ -44,7 +44,7 @@ tool_summary() {
     | sed -E \
       -e 's/(Authorization:)[^"'"'"']*/\1 [redacted]/Ig' \
       -e 's/(Bearer )[^[:space:]"'"'"']+/\1[redacted]/Ig' \
-      -e 's/([A-Za-z0-9_]*(TOKEN|SECRET|PASSWORD|PASSWD|KEY)[A-Za-z0-9_]*)=[^[:space:]"'"'"']+/\1=[redacted]/Ig' \
+      -e 's/([A-Za-z0-9_]*(TOKEN|SECRET|PASSWORD|PASSWD|KEY)[A-Za-z0-9_]*)=("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]"'"'"']+)/\1=[redacted]/Ig' \
     | jq -Rr '.[0:300]' 2>/dev/null
 }
 

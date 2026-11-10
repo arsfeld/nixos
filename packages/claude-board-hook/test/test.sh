@@ -135,6 +135,14 @@ done
 wait_reqs 6; sleep 0.3
 check scrub_redacts_authorization_bearer_and_token_assignments "$(! grep -q -e abc123 -e ghp_x -e hunter2 "$TMP/log" && [ "$(reqs)" = 6 ] && grep -q 'Authorization: \[redacted\]' "$TMP/log" && grep -q 'GITHUB_TOKEN=\[redacted\]' "$TMP/log" && grep -q 'password=\[redacted\]' "$TMP/log" && echo 0 || echo 1)"
 
+: >"$TMP/log"
+for c in 'export API_KEY="a b c" && run' "TOKEN='abc def' run"; do
+  jq --arg c "$c" '.tool_input.command=$c' "$FIX/pre_tool_use_bash.json" >"$TMP/sec.json"; IN="$TMP/sec.json"; run pre_tool_use
+  jq --arg c "$c" '.tool_input.command=$c' "$FIX/permission_request_bash.json" >"$TMP/sec.json"; IN="$TMP/sec.json"; run ask
+done
+wait_reqs 4; sleep 0.3
+check scrub_redacts_quoted_secret_values "$([ "$(reqs)" = 4 ] && ! grep -q -e 'a b c' -e 'abc def' -e 'abc' -e 'def' "$TMP/log" && grep -q 'API_KEY=\[redacted\]' "$TMP/log" && grep -q 'TOKEN=\[redacted\]' "$TMP/log" && echo 0 || echo 1)"
+
 behave '{"event":[204,""],"ask":[204,""],"feed":[204,"",2]}'
 IN="$FIX/pre_tool_use_bash.json"
 t0=$(date +%s.%N); bash "$HOOK" pre_tool_use <"$IN" >"$TMP/out" 2>&1; RC=$?; t1=$(date +%s.%N)
