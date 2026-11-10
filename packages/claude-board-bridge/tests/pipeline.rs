@@ -673,3 +673,30 @@ async fn new_session_during_a_reply_speaks_after_it() {
     assert!(r.log.contains(&Out::Json(BoardMsg::SessionReset { utterance: 2 })));
     assert_eq!(r.brain.resets.load(Ordering::SeqCst), 1);
 }
+
+/// Fails every synthesis.
+struct FailTts;
+
+impl Tts for FailTts {
+    fn synthesize(&self, _text: String) -> BoxFuture<'static, Result<Speech, VoiceError>> {
+        Box::pin(async { Err(VoiceError::Unavailable("down".into())) })
+    }
+}
+
+// The failure log line goes to stderr and is not captured here; this pins the message flow only.
+#[tokio::test(start_paused = true)]
+async fn new_session_with_failing_tts_still_acks() {
+    let (tx, rx) = mpsc::channel(256);
+    let stt = FakeStt::new("hi");
+    let brain = two_sentences();
+    let backends = Arc::new(Backends { stt: stt.clone(), tts: Arc::new(FailTts), brain: brain.clone() });
+    let conn = Conn::new(Some(backends), VoiceConfig::default(), tx);
+    let mut r = Rig { spoken: Arc::default(), conn, rx, stt, brain, log: Vec::new() };
+    r.conn.on_client(&ClientMsg::NewSession { utterance: 5 }).await;
+    assert_eq!(r.next().await, Out::Json(BoardMsg::SessionReset { utterance: 5 }));
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    let rest = r.drain();
+    assert_eq!(speak_starts(&rest), 0);
+    assert_eq!(speak_ends(&rest), 0);
+    assert_eq!(r.brain.resets.load(Ordering::SeqCst), 1);
+}

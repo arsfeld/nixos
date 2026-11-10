@@ -488,9 +488,19 @@ async fn reply(
     Ok(())
 }
 
+/// Logs a failed synthesis of a line: `timer: speech error=<kind>` for a bridge-owned (reminder) id, the
+/// usual `voice: utt=<id> stage=tts error=<kind>` for the board's own (the new-session confirmation).
+fn speech_failed(id: u32, e: &VoiceError) {
+    if id & REMINDER_ID_BASE != 0 {
+        eprintln!("timer: speech error={}", error_kind(e));
+    } else {
+        eprintln!("{}", failure_line(id, "tts", e));
+    }
+}
+
 /// Speaks one line (a reminder or the new-session confirmation): the creature speaks, then `SpeakStart`, the audio and `SpeakEnd`, then idle. It
 /// shares `speaking` with the connection so a cancel, a new `VoiceStart` or the socket closing ends
-/// the turn with `SpeakEnd` as for a reply. A failed synthesis sends nothing more.
+/// the turn with `SpeakEnd` as for a reply. A failed synthesis sends nothing more and is logged by `speech_failed`.
 async fn run_line(
     backends: Arc<Backends>,
     out: Sender<Out>,
@@ -505,8 +515,8 @@ async fn run_line(
     }
     let speech = match tokio::time::timeout(timeout, backends.tts.synthesize(text)).await {
         Ok(Ok(s)) => s,
-        Ok(Err(e)) => return eprintln!("timer: speech error={}", error_kind(&e)),
-        Err(_) => return eprintln!("timer: speech error={}", error_kind(&VoiceError::Timeout)),
+        Ok(Err(e)) => return speech_failed(id, &e),
+        Err(_) => return speech_failed(id, &VoiceError::Timeout),
     };
     let spoken = async {
         put_json(&out, BoardMsg::Creature { mood: Mood::Speaking }).await?;
