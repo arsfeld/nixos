@@ -226,6 +226,7 @@ static esp_codec_dev_handle_t s_mic;
 // chime's whole open/write/close; the mic stays "open" (flag set) from bd_mic_open to bd_mic_close.
 static SemaphoreHandle_t s_audio_lock;
 static bool s_mic_open;
+static bool s_spk_open; // a speech stream is open (bd_speaker_begin .. bd_speaker_end), also under s_audio_lock
 static SemaphoreHandle_t s_chime_wake;
 static int64_t s_chime_last_us;
 
@@ -259,7 +260,7 @@ static void chime_task(void *arg)
     for (;;) {
         xSemaphoreTake(s_chime_wake, portMAX_DELAY);
         xSemaphoreTake(s_audio_lock, portMAX_DELAY);
-        if (!s_mic_open) { // a recording has the clock: skip the chime
+        if (!s_mic_open && !s_spk_open) { // a recording or a spoken reply has the clock: skip the chime
             if (esp_codec_dev_open(s_speaker, &fs) != ESP_CODEC_DEV_OK) {
                 ESP_LOGW(TAG, "speaker open failed");
             } else {
@@ -343,7 +344,7 @@ void bd_set_brightness(uint8_t percent)
 
 void bd_chime(void)
 {
-    if (!s_speaker || s_mic_open) return;
+    if (!s_speaker || s_mic_open || s_spk_open) return;
     int64_t now = esp_timer_get_time();
     if (now - s_chime_last_us < CHIME_MIN_GAP_US) return;
     s_chime_last_us = now;
@@ -356,7 +357,7 @@ esp_err_t bd_mic_open(uint32_t rate_hz)
     // Waits out a chime that is playing (about 0.3 s); the flag then keeps new ones away until bd_mic_close.
     if (xSemaphoreTake(s_audio_lock, pdMS_TO_TICKS(MIC_OPEN_WAIT_MS)) != pdTRUE) return ESP_ERR_TIMEOUT;
     esp_err_t err = ESP_OK;
-    if (s_mic_open) {
+    if (s_mic_open || s_spk_open) { // never alongside a stream: one shared clock
         err = ESP_ERR_INVALID_STATE;
     } else {
         // Stereo on the wire (MIC1 left, MIC2 right); bd_mic_read downmixes to mono.
@@ -398,6 +399,61 @@ void bd_mic_close(void)
     if (s_mic_open) {
         esp_codec_dev_close(s_mic); // powers the ADC down; the next chime reopens TX at its own rate
         s_mic_open = false;
+    }
+    xSemaphoreGive(s_audio_lock);
+}
+
+// Spoken replies: one stream of 16-bit mono PCM at the rate the bridge announced. The same speaker codec handle as
+// the chime; esp_codec_dev reprograms the shared I2S clock when a device is opened at a different rate, so the stream
+// opens at its own rate and the chime and the microphone each reopen at theirs. s_spk_open is set between begin and
+// end (under s_audio_lock): while set, bd_chime and the chime task do nothing and bd_mic_open refuses, and
+// bd_speaker_begin refuses while the microphone is open (ESP_ERR_INVALID_STATE, never a wait for it). It does wait
+// up to SPK_OPEN_WAIT_MS for a chime in progress. The lock is NOT held while writing: exactly one thread (the
+// player) calls begin, write and end, so they need no further guarding.
+#define SPK_OPEN_WAIT_MS 1000
+#define SPK_VOLUME 55 // as the chime
+
+esp_err_t bd_speaker_begin(uint32_t rate_hz)
+{
+    if (!s_speaker || !s_audio_lock) return ESP_ERR_NOT_SUPPORTED;
+    if (xSemaphoreTake(s_audio_lock, pdMS_TO_TICKS(SPK_OPEN_WAIT_MS)) != pdTRUE) return ESP_ERR_TIMEOUT;
+    esp_err_t err = ESP_OK;
+    if (s_mic_open || s_spk_open) {
+        err = ESP_ERR_INVALID_STATE;
+    } else {
+        esp_codec_dev_sample_info_t fs = {.sample_rate = rate_hz, .channel = 1, .bits_per_sample = 16};
+        if (esp_codec_dev_open(s_speaker, &fs) != ESP_CODEC_DEV_OK) {
+            err = ESP_FAIL;
+        } else {
+            s_spk_open = true;
+            if (esp_codec_dev_set_out_vol(s_speaker, SPK_VOLUME) != ESP_CODEC_DEV_OK) ESP_LOGW(TAG, "speaker volume not set");
+        }
+    }
+    xSemaphoreGive(s_audio_lock);
+    return err;
+}
+
+// Blocks until the samples are queued to the I2S driver (about as long as they take to play, give or take the DMA
+// buffer). bytes should be a whole number of samples. Returns bytes written, or negative on error or no open stream.
+int bd_speaker_write(const void *pcm, size_t bytes)
+{
+    if (!s_speaker || !s_spk_open || !pcm || bytes == 0 || bytes > INT32_MAX) return -1;
+    if (esp_codec_dev_write(s_speaker, (void *)pcm, (int)bytes) != ESP_CODEC_DEV_OK) return -2;
+    return (int)bytes;
+}
+
+// Closes the stream (esp_codec_dev_close disables the channel after the DMA buffer has played out, and powers the DAC
+// and amplifier down: silent, no idle hiss). Safe to call when nothing is open.
+void bd_speaker_end(void)
+{
+    if (!s_speaker || !s_audio_lock) return;
+    xSemaphoreTake(s_audio_lock, portMAX_DELAY);
+    if (s_spk_open) {
+        // A little silence first, so the tail of the speech is not cut off by the channel being disabled.
+        static int16_t silence[1024];
+        esp_codec_dev_write(s_speaker, silence, sizeof silence);
+        esp_codec_dev_close(s_speaker);
+        s_spk_open = false;
     }
     xSemaphoreGive(s_audio_lock);
 }

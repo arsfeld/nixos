@@ -680,3 +680,57 @@ fn thinking_returns_to_idle_after_90_seconds_without_a_reply() {
     }
     assert_eq!(f.ui.get_presence_state(), PresenceState::Idle);
 }
+
+#[test]
+fn idle_after_speech_is_held_back_while_the_audio_still_plays() {
+    let f = fixture();
+    f.c.set_link(true);
+    mood(&f, "speaking");
+    f.c.set_audio_playing(true);
+    assert!(f.c.is_speaking());
+    mood(&f, "idle"); // the bridge is done sending; the board is not done playing
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Speaking);
+    f.c.set_audio_playing(false); // the queue drained
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Idle);
+    assert!(!f.c.is_speaking());
+}
+
+#[test]
+fn a_tap_during_the_drain_cancels_the_speech() {
+    let f = fixture();
+    f.c.set_link(true);
+    f.c.hold_started(233, 233);
+    f.c.hold_ended();
+    mood(&f, "speaking");
+    f.c.set_audio_playing(true);
+    mood(&f, "idle");
+    let before = f.sent().len();
+    assert!(f.c.tap_cancels_speech());
+    assert_eq!(f.sent().len(), before + 1);
+    assert!(!f.c.is_speaking());
+    f.c.set_audio_playing(false);
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Idle);
+}
+
+#[test]
+fn other_moods_are_not_held_back_by_playing_audio() {
+    let f = fixture();
+    f.c.set_link(true);
+    mood(&f, "speaking");
+    f.c.set_audio_playing(true);
+    mood(&f, "offline");
+    assert!(!f.c.is_speaking());
+    assert_eq!(f.ui.get_presence_state(), PresenceState::Idle);
+}
+
+#[test]
+fn speech_events_are_parsed_for_the_app() {
+    use claude_board_ui::audio::{speech_event, SpeechEvent};
+    assert_eq!(
+        speech_event(r#"{"t":"speak_start","utterance":4,"sample_rate":22050}"#),
+        Some(SpeechEvent::Start { utterance: 4, rate: 22_050 })
+    );
+    assert_eq!(speech_event(r#"{"t":"speak_end","utterance":4}"#), Some(SpeechEvent::End));
+    assert_eq!(speech_event(r#"{"t":"sessions","sessions":[]}"#), None);
+    assert_eq!(speech_event("not json"), None);
+}

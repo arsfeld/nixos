@@ -33,6 +33,8 @@ use esp_idf_svc::wifi::{AuthMethod, BlockingWifi, ClientConfiguration, Configura
 pub enum Event {
     /// One complete text frame from the bridge.
     Message(String),
+    /// One complete binary frame from the bridge: the creature's speech (see `claude_board_proto::decode_audio`).
+    Audio(Vec<u8>),
     /// The bridge connection came up or went down.
     Link(bool),
 }
@@ -200,6 +202,8 @@ struct WsCtx {
     frame: Vec<u8>,
     /// The frame being received is over the size limit: skip its remaining chunks.
     skipping: bool,
+    /// The frame being received is binary (audio), not text.
+    binary: bool,
 }
 
 /// One connection attempt; returns when it ended (failed, closed, or Wi-Fi lost).
@@ -219,7 +223,7 @@ fn connect_once(url: &str, token: &str, tx: &mpsc::Sender<Event>, shared: &Arc<S
     cfg.task_stack = 6144;
 
     let closed = Arc::new(AtomicBool::new(false));
-    let ctx = Box::into_raw(Box::new(WsCtx { tx: tx.clone(), shared: shared.clone(), closed: closed.clone(), frame: Vec::new(), skipping: false }));
+    let ctx = Box::into_raw(Box::new(WsCtx { tx: tx.clone(), shared: shared.clone(), closed: closed.clone(), frame: Vec::new(), skipping: false, binary: false }));
     let client = unsafe { esp_websocket_client_init(&cfg) };
     if client.is_null() {
         log::error!("websocket client init failed");
@@ -280,10 +284,14 @@ unsafe extern "C" fn on_ws_event(arg: *mut c_void, _base: esp_event_base_t, id: 
     }
 }
 
-/// A text frame can arrive in several chunks: collect them by offset and hand over the whole message.
+/// A text or binary frame can arrive in several chunks: collect them by offset and hand over the whole message.
 unsafe fn handle_data(ctx: &mut WsCtx, e: &esp_websocket_event_data_t) {
-    if e.op_code != 0x1 && e.op_code != 0x0 {
-        return; // text, or a continuation of one
+    // 0x1 text, 0x2 binary, 0x0 a continuation. (Ping, pong and close are answered by the client itself.) The kind is
+    // remembered from the first chunk because a continuation does not say what it continues.
+    match e.op_code {
+        0x1 | 0x2 => ctx.binary = e.op_code == 0x2,
+        0x0 => {}
+        _ => return,
     }
     let (len, total, offset) = (e.data_len.max(0) as usize, e.payload_len.max(0) as usize, e.payload_offset.max(0) as usize);
     if offset == 0 {
@@ -301,7 +309,12 @@ unsafe fn handle_data(ctx: &mut WsCtx, e: &esp_websocket_event_data_t) {
         ctx.frame.extend_from_slice(std::slice::from_raw_parts(e.data_ptr as *const u8, len));
     }
     if offset + len >= total {
-        match String::from_utf8(std::mem::take(&mut ctx.frame)) {
+        let frame = std::mem::take(&mut ctx.frame);
+        if ctx.binary {
+            let _ = ctx.tx.send(Event::Audio(frame));
+            return;
+        }
+        match String::from_utf8(frame) {
             Ok(text) => {
                 let _ = ctx.tx.send(Event::Message(text));
             }

@@ -43,6 +43,24 @@ pub fn mic_close() {
     unsafe { bd::bd_mic_close() }
 }
 
+/// Open the speaker for a spoken reply at `rate` (16-bit mono). Fails if the microphone is open or the speaker is
+/// absent. Pair with `speaker_end`.
+pub fn speaker_begin(rate: u32) -> anyhow::Result<()> {
+    let err = unsafe { bd::bd_speaker_begin(rate) };
+    anyhow::ensure!(err == 0, "speaker open failed: {err}");
+    Ok(())
+}
+
+/// Play `pcm` (whole little-endian 16-bit samples), blocking until it is queued. The buffer is mutable because the
+/// codec's software volume scales it in place. False on an error.
+pub fn speaker_write(pcm: &mut [u8]) -> bool {
+    unsafe { bd::bd_speaker_write(pcm.as_mut_ptr() as *const core::ffi::c_void, pcm.len()) >= 0 }
+}
+
+pub fn speaker_end() {
+    unsafe { bd::bd_speaker_end() }
+}
+
 /// The finger on the glass, if it can be read.
 pub struct Touch {
     pub x: i16,

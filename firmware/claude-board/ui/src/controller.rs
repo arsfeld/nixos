@@ -103,6 +103,10 @@ struct Inner<O: Outbox> {
     utterance: Option<u32>,
     last_utterance: u32,
     mic_level: f32,
+    /// The app is still playing the reply's audio, and an `idle` mood arrived meanwhile (the bridge sends all of a
+    /// reply long before it has been played): the creature keeps speaking until `set_audio_playing(false)`.
+    audio_playing: bool,
+    idle_deferred: bool,
     /// When the current mood began, in `tick_at` time (the thinking watchdog).
     mood_since_ms: u64,
     /// The words of the last transcript, the reply on the card and the time it goes away.
@@ -149,6 +153,8 @@ impl<O: Outbox + 'static> Controller<O> {
             utterance: None,
             last_utterance: 0,
             mic_level: 0.0,
+            audio_playing: false,
+            idle_deferred: false,
             mood_since_ms: 0,
             transcript: String::new(),
             reply: String::new(),
@@ -183,6 +189,11 @@ impl<O: Outbox + 'static> Controller<O> {
         // The voice messages are not the model's business.
         match serde_json::from_str::<BoardMsg>(json) {
             Ok(BoardMsg::Creature { mood }) => {
+                if mood == Mood::Idle && s.audio_playing && s.mood == Mood::Speaking {
+                    s.idle_deferred = true;
+                    return;
+                }
+                s.idle_deferred = false;
                 s.set_mood(mood);
                 s.refresh();
                 return;
@@ -222,6 +233,7 @@ impl<O: Outbox + 'static> Controller<O> {
             s.holding = false;
             s.utterance = None;
             s.mic_level = 0.0;
+            s.idle_deferred = false;
             s.set_mood(Mood::Idle);
         }
         // The bridge forgets what a board watches when the socket drops: ask again.
@@ -284,6 +296,22 @@ impl<O: Outbox + 'static> Controller<O> {
     /// speaking it cancels the speech. True when it did, and the tap should go no further.
     pub fn tap_cancels_speech(&self) -> bool {
         self.inner.borrow_mut().tap_cancels_speech()
+    }
+
+    /// Whether the creature is speaking (so the app knows its audio should be playing).
+    pub fn is_speaking(&self) -> bool {
+        self.inner.borrow().mood == Mood::Speaking
+    }
+
+    /// The app's player has audio queued or playing. While true, an `idle` mood from the bridge waits; when it turns
+    /// false (the audio drained) a waiting `idle` takes effect.
+    pub fn set_audio_playing(&self, on: bool) {
+        let mut s = self.inner.borrow_mut();
+        s.audio_playing = on;
+        if !on && std::mem::take(&mut s.idle_deferred) && s.mood == Mood::Speaking {
+            s.set_mood(Mood::Idle);
+            s.refresh();
+        }
     }
 
     /// True once after something started needing the user.
@@ -469,6 +497,7 @@ impl<O: Outbox> Inner<O> {
         if let Some(utterance) = self.utterance {
             self.send(&ClientMsg::Cancel { utterance });
         }
+        self.idle_deferred = false;
         self.set_mood(Mood::Idle);
         self.refresh();
         true

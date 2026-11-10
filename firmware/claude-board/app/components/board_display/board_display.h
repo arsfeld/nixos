@@ -3,6 +3,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "esp_err.h"
@@ -36,6 +37,14 @@ esp_err_t bd_mic_open(uint32_t rate_hz);
 // Read exactly max_samples mono samples (blocks about max_samples / rate). Negative on error or timeout.
 int bd_mic_read(int16_t *out, int max_samples, uint32_t timeout_ms);
 void bd_mic_close(void);
+// Spoken replies (16-bit mono PCM). While a stream is open (begin .. end) bd_chime does nothing and bd_mic_open fails
+// with ESP_ERR_INVALID_STATE; bd_speaker_begin fails the same way while the microphone is open, and waits up to 1 s
+// for a chime in progress. One thread should call all three.
+esp_err_t bd_speaker_begin(uint32_t rate_hz);
+// Blocking write of whole samples; returns the bytes written, negative on error or when no stream is open.
+int bd_speaker_write(const void *pcm, size_t bytes);
+// Drain and close, silently. Harmless when nothing is open.
+void bd_speaker_end(void);
 
 #ifdef __cplusplus
 }

@@ -5,11 +5,12 @@ mod display;
 mod mic;
 mod net;
 mod platform;
+mod speaker;
 
 use std::sync::mpsc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use claude_board_ui::audio::cancel_json;
+use claude_board_ui::audio::{cancel_json, speech_event, SpeechEvent};
 use claude_board_ui::controller::{Controller, Outbox};
 use claude_board_ui::link;
 use claude_board_ui::power::{drift_px, Power};
@@ -90,6 +91,8 @@ fn run<O: Outbox + 'static>(
     let mut last_tick = Instant::now();
     // Press to talk: the capture thread and the channel its levels arrive on, while a hold is being recorded.
     let mut capture: Option<(mic::Capture, mpsc::Receiver<f32>)> = None;
+    // The creature's voice: its own thread plays what the UI loop feeds it (see speaker.rs).
+    let player = speaker::Player::start()?;
     platform::run(window, || {
         controller.set_time_ms(ms() as u64); // precise timestamps for the double-tap guard
         if platform::take_touch() {
@@ -106,6 +109,13 @@ fn run<O: Outbox + 'static>(
         // A hold on the avatar starts a voice question, if the link is up and nothing is recording.
         if let Some((x, y)) = platform::take_hold_start() {
             if let (Some(net), None) = (&net, &capture) {
+                // A hold while the creature speaks cancels the speech first: the speaker must be closed before the
+                // microphone can have the shared clock.
+                if net.is_up() && controller.is_speaking() {
+                    controller.tap_cancels_speech();
+                    player.stop_and_wait();
+                    controller.set_audio_playing(false);
+                }
                 if net.is_up() && controller.hold_started(x, y) {
                     platform::accept_hold();
                     let (levels_tx, levels_rx) = mpsc::channel();
@@ -142,13 +152,38 @@ fn run<O: Outbox + 'static>(
                 net::Event::Message(text) => {
                     log::info!("bridge message: {} bytes", text.len());
                     power.model_changed(ms());
+                    match speech_event(&text) {
+                        Some(SpeechEvent::Start { utterance, rate }) => {
+                            player.begin(utterance, rate);
+                            controller.set_audio_playing(true);
+                        }
+                        Some(SpeechEvent::End) => player.end(),
+                        None => {}
+                    }
                     controller.on_message(&text);
                     if controller.wants_chime() {
                         display::chime();
                     }
                 }
-                net::Event::Link(up) => controller.set_link(up),
+                net::Event::Audio(frame) => player.push(&frame),
+                net::Event::Link(up) => {
+                    controller.set_link(up);
+                    if !up {
+                        player.stop(); // the rest of the reply will never arrive
+                        controller.set_audio_playing(false);
+                    }
+                }
             }
+        }
+        // Speech that the creature is no longer doing (a tap cancelled it, or its mood moved on) stops at once; and
+        // once the audio has drained the creature may go idle.
+        if player.is_playing() {
+            if !controller.is_speaking() {
+                player.stop();
+                controller.set_audio_playing(false);
+            }
+        } else {
+            controller.set_audio_playing(false);
         }
         if last_tick.elapsed() >= Duration::from_millis(250) {
             last_tick = Instant::now();
