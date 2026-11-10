@@ -294,3 +294,93 @@ async fn ask_whose_hook_disconnects_is_cleared_from_the_board() {
     assert!(matches!(msgs.last(), Some(BoardMsg::QuestionClear { id }) if *id == ask.id));
     assert!(st.asks.pending().is_empty());
 }
+
+fn approval_body(session: &str) -> Value {
+    json!({"host":"raider","session":session,"cwd":"/home/arosenfeld/Code/nixos",
+        "tool_name":"Bash","summary":"ls -la","tool_input":{"command":"ls -la"}})
+}
+
+/// Hold a Bash approval, answer it with `a`, return the HTTP response.
+async fn approve_with(a: Answered) -> axum::response::Response {
+    let st = state(5000, 0);
+    st.board_connected.store(1, Ordering::SeqCst);
+    let mut rx = st.tx.subscribe();
+    let app = hook_router(st.clone());
+    let pending = {
+        let app = app.clone();
+        tokio::spawn(async move { app.oneshot(req("/v1/ask", Some(HOST_TOKEN), approval_body("s1"))).await.unwrap() })
+    };
+    let ask = next_question(&mut rx).await;
+    assert_eq!(ask.questions[0].question, "Bash: ls -la");
+    st.asks.answer(&ask.id, a).unwrap();
+    pending.await.unwrap()
+}
+
+fn label(l: &str) -> Answered {
+    Answered::Answers(std::collections::BTreeMap::from([("Bash: ls -la".to_string(), l.to_string())]))
+}
+
+#[tokio::test]
+async fn bash_approval_allow_returns_allow_decision() {
+    let resp = approve_with(label("Allow")).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        body_json(resp).await,
+        json!({"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}})
+    );
+}
+
+#[tokio::test]
+async fn bash_approval_deny_returns_deny_with_message() {
+    let resp = approve_with(label("Deny")).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        body_json(resp).await,
+        json!({"hookSpecificOutput":{"hookEventName":"PermissionRequest",
+            "decision":{"behavior":"deny","message":"Denied from the board"}}})
+    );
+}
+
+#[tokio::test]
+async fn approval_with_no_board_connected_is_204_immediately() {
+    let st = state(5000, 0);
+    let app = hook_router(st.clone());
+    let t = Instant::now();
+    assert_eq!(status_of(&app, req("/v1/ask", Some(HOST_TOKEN), approval_body("s1"))).await, StatusCode::NO_CONTENT);
+    assert!(t.elapsed() < Duration::from_millis(500));
+    assert!(st.asks.pending().is_empty());
+}
+
+#[tokio::test]
+async fn approval_unknown_label_is_204() {
+    assert_eq!(approve_with(label("allow")).await.status(), StatusCode::NO_CONTENT);
+    assert_eq!(approve_with(label("Maybe")).await.status(), StatusCode::NO_CONTENT);
+    assert_eq!(
+        approve_with(Answered::Answers(Default::default())).await.status(),
+        StatusCode::NO_CONTENT
+    );
+}
+
+#[tokio::test]
+async fn approval_decline_is_204() {
+    assert_eq!(approve_with(Answered::Declined).await.status(), StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn ask_user_question_without_tool_name_still_works() {
+    let st = state(5000, 0);
+    st.board_connected.store(1, Ordering::SeqCst);
+    let mut rx = st.tx.subscribe();
+    let app = hook_router(st.clone());
+    let pending = {
+        let app = app.clone();
+        tokio::spawn(async move { app.oneshot(req("/v1/ask", Some(HOST_TOKEN), ask_body("s1"))).await.unwrap() })
+    };
+    let ask = next_question(&mut rx).await;
+    assert_eq!(ask.questions[0].question, "Which colour?");
+    let answers = std::collections::BTreeMap::from([("Which colour?".to_string(), "Red".to_string())]);
+    st.asks.answer(&ask.id, Answered::Answers(answers.clone())).unwrap();
+    let resp = pending.await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(body_json(resp).await, build_decision(&colour(), &answers));
+}

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use claude_board_bridge::asks::{build_decision, Answered, AnswerError, AskId, Asks};
+use claude_board_bridge::asks::{build_approval_decision, build_decision, Answered, AnswerError, AskId, Asks};
 use serde_json::{json, Value};
 
 fn colour() -> Value {
@@ -137,4 +137,55 @@ fn multi_select_answer_is_passed_through_as_given() {
     let a = BTreeMap::from([("Pick".to_string(), "A,B".to_string())]);
     let d = build_decision(&input, &a);
     assert_eq!(d["hookSpecificOutput"]["decision"]["updatedInput"]["answers"]["Pick"], "A,B");
+}
+
+#[tokio::test]
+async fn approval_ask_has_allow_and_deny_options() {
+    let asks = Asks::new();
+    let long = "x".repeat(600);
+    let (id, _rx) = asks.register_approval("raider", "s1", "nixos", "Bash", &long);
+    let p = asks.pending();
+    assert_eq!(p.len(), 1);
+    assert_eq!(p[0].id, id);
+    let q = &p[0].questions;
+    assert_eq!(q.len(), 1);
+    assert!(q[0].question.starts_with("Bash: xxx"));
+    assert!(q[0].question.len() <= 500);
+    assert_eq!(q[0].header.as_deref(), Some("Approve"));
+    assert!(!q[0].multi_select);
+    let labels: Vec<&str> = q[0].options.iter().map(|o| o.label.as_str()).collect();
+    assert_eq!(labels, ["Allow", "Deny"]);
+    assert!(q[0].options.iter().all(|o| o.description.is_none()));
+}
+
+#[tokio::test]
+async fn approval_question_is_cut_on_a_char_boundary() {
+    let asks = Asks::new();
+    let (_id, _rx) = asks.register_approval("raider", "s1", "nixos", "Bash", &"é".repeat(400));
+    assert!(asks.pending()[0].questions[0].question.len() <= 500);
+}
+
+fn one(v: &str) -> BTreeMap<String, String> {
+    BTreeMap::from([("Bash: ls".to_string(), v.to_string())])
+}
+
+#[test]
+fn approval_decision_allow_and_deny_match_the_hook_output() {
+    assert_eq!(
+        build_approval_decision(&one("Allow")),
+        Some(json!({"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}))
+    );
+    assert_eq!(
+        build_approval_decision(&one("Deny")),
+        Some(json!({"hookSpecificOutput":{"hookEventName":"PermissionRequest",
+            "decision":{"behavior":"deny","message":"Denied from the board"}}}))
+    );
+}
+
+#[test]
+fn approval_decision_for_any_other_label_is_none() {
+    for l in ["allow", "Maybe", "", "Allow, Deny", " Allow"] {
+        assert_eq!(build_approval_decision(&one(l)), None, "{l:?}");
+    }
+    assert_eq!(build_approval_decision(&BTreeMap::new()), None);
 }

@@ -14,7 +14,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use tokio::sync::broadcast;
 
-use crate::asks::{Answered, Asks, build_decision};
+use crate::asks::{Answered, Asks, build_approval_decision, build_decision};
 use crate::auth::{Tokens, check_bearer};
 use crate::protocol::{BoardMsg, Event, EventKind};
 use crate::state::{Change, Registry, project_of};
@@ -115,7 +115,18 @@ struct AskReq {
     session: String,
     #[serde(default)]
     cwd: String,
+    #[serde(default = "question_tool")]
+    tool_name: String,
+    #[serde(default)]
+    summary: String,
+    #[serde(default)]
     tool_input: Value,
+}
+
+const QUESTION_TOOL: &str = "AskUserQuestion";
+
+fn question_tool() -> String {
+    QUESTION_TOOL.into()
 }
 
 async fn ask(State(s): State<AppState>, headers: HeaderMap, body: Bytes) -> Result<Response, StatusCode> {
@@ -124,7 +135,15 @@ async fn ask(State(s): State<AppState>, headers: HeaderMap, body: Bytes) -> Resu
     if s.board_connected.load(Ordering::SeqCst) == 0 {
         return Ok(StatusCode::NO_CONTENT.into_response());
     }
-    let (id, rx) = s.asks.register(&r.host, &r.session, &project_of(&r.cwd), r.tool_input.clone());
+    // The two paths differ only in how the ask is registered and how the
+    // answer becomes a decision; holding, cancelling and timing out are shared.
+    let is_question = r.tool_name == QUESTION_TOOL;
+    let project = project_of(&r.cwd);
+    let (id, rx) = if is_question {
+        s.asks.register(&r.host, &r.session, &project, r.tool_input.clone())
+    } else {
+        s.asks.register_approval(&r.host, &r.session, &project, &r.tool_name, &r.summary)
+    };
     let change = s.registry.lock().unwrap().set_waiting(&r.host, &r.session, &r.cwd, now_secs());
     if let Some(c) = change {
         s.publish(c);
@@ -138,11 +157,16 @@ async fn ask(State(s): State<AppState>, headers: HeaderMap, body: Bytes) -> Resu
     match outcome {
         Ok(Ok(Answered::Answers(a))) => {
             let _ = s.tx.send(BoardMsg::QuestionClear { id });
+            let decision =
+                if is_question { Some(build_decision(&r.tool_input, &a)) } else { build_approval_decision(&a) };
+            let Some(decision) = decision else {
+                return Ok(StatusCode::NO_CONTENT.into_response());
+            };
             let change = s.registry.lock().unwrap().set_working(&r.host, &r.session, &r.cwd, now_secs());
             if let Some(c) = change {
                 s.publish(c);
             }
-            Ok((StatusCode::OK, Json(build_decision(&r.tool_input, &a))).into_response())
+            Ok((StatusCode::OK, Json(decision)).into_response())
         }
         Ok(Ok(Answered::Declined)) => {
             let _ = s.tx.send(BoardMsg::QuestionClear { id });

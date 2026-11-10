@@ -63,6 +63,44 @@ impl Asks {
             .get("questions")
             .and_then(|q| serde_json::from_value(q.clone()).ok())
             .unwrap_or_default();
+        self.insert(host, session, project, questions)
+    }
+
+    /// Hold a tool approval open as a one-question ask with Allow/Deny options,
+    /// so the board's question screen and answer path work unchanged.
+    pub fn register_approval(
+        &self,
+        host: &str,
+        session: &str,
+        project: &str,
+        tool_name: &str,
+        summary: &str,
+    ) -> (AskId, oneshot::Receiver<Answered>) {
+        let mut text = format!("{tool_name}: {summary}");
+        if text.len() > 500 {
+            let mut end = 500;
+            while !text.is_char_boundary(end) {
+                end -= 1;
+            }
+            text.truncate(end);
+        }
+        let option = |label: &str| QuestionOption { label: label.into(), description: None };
+        let q = Question {
+            question: text,
+            header: Some("Approve".into()),
+            options: vec![option("Allow"), option("Deny")],
+            multi_select: false,
+        };
+        self.insert(host, session, project, vec![q])
+    }
+
+    fn insert(
+        &self,
+        host: &str,
+        session: &str,
+        project: &str,
+        questions: Vec<Question>,
+    ) -> (AskId, oneshot::Receiver<Answered>) {
         let id = new_id();
         let (tx, rx) = oneshot::channel();
         let mut g = self.inner.lock().unwrap();
@@ -123,4 +161,16 @@ pub fn build_decision(tool_input: &Value, answers: &BTreeMap<String, String>) ->
     }
     json!({"hookSpecificOutput": {"hookEventName": "PermissionRequest",
         "decision": {"behavior": "allow", "updatedInput": updated}}})
+}
+
+/// The hook output for a tool approval. Only the exact labels `Allow` and
+/// `Deny` decide anything; every other answer yields no decision, so the
+/// terminal prompt takes over.
+pub fn build_approval_decision(answers: &BTreeMap<String, String>) -> Option<Value> {
+    let decision = match answers.values().next().map(String::as_str) {
+        Some("Allow") if answers.len() == 1 => json!({"behavior": "allow"}),
+        Some("Deny") if answers.len() == 1 => json!({"behavior": "deny", "message": "Denied from the board"}),
+        _ => return None,
+    };
+    Some(json!({"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": decision}}))
 }
