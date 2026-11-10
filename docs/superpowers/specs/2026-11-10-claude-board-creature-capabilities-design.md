@@ -170,10 +170,11 @@ Firing:
 {"t": "reminder", "id": "tmr_01", "label": "check the oven", "due": "2026-11-10T18:42:00-05:00"}
 ```
 
-The board shows a card with the label and the local due time over whatever screen is up (a waiting
-question still takes priority), plays the existing chime, and dismisses the card on tap or swipe. The
-speech that follows is ordinary `speak_start`/PCM/`speak_end`, so a tap still stops it. A board that
-receives `reminder` while speaking queues the card behind the current reply. Fixture `reminder.json` in
+The board shows the label and the local due time on the reply card, kept until tapped, returning to the
+home screen from the session list or a detail page (a waiting question still keeps the screen), and plays
+the existing chime. The speech that follows is ordinary `speak_start`/PCM/`speak_end` with a bridge-owned
+utterance id, so the board cancels that id when tapped. The card arrives at once; only the speech waits
+for the creature to be idle. Fixture `reminder.json` in
 `tests/fixtures/board/`, parsed by the proto tests and pinned by `tests/wire.rs`.
 
 ## Gates (before code)
