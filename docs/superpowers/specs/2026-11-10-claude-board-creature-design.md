@@ -162,6 +162,33 @@ From documentation only, not tested:
    boundary in our code and not in Hermes' config.
 3. whisper.cpp (1.9.5) and Piper (1.8.0) exist in nixpkgs. Their latency on galactica (i5-1340P,
    12 cores, no GPU) is still to be measured, release to first spoken word.
+
+### Gate results (2026-11-10)
+
+Full workings are in the implementation plan's gate reports; the decisions that matter:
+
+- **Mic (G1, read-only, not yet flashed):** ES7210 on the shared I2C bus (SDA 15, SCL 14), 7-bit
+  address 0x40; it shares BCLK 9, WS 45 and MCLK 42 with the ES8311; data-in is GPIO 10, which is the
+  existing I2S RX channel's DSIN. Two analog mics (MIC1+MIC2, downmixed in software), gain 24 dB set
+  after open. TX and RX share one clock on the port, so capture at 16 kHz and playback at 22 050 Hz
+  must be strictly sequential. Waveshare's schematic and Arduino sample put MCLK on GPIO 16; this
+  firmware and the BSP use 42, and the schematic looks like an older revision. Still to verify on the
+  flashed board: that samples are live, and the gain.
+- **Hermes tool-less (G2):** proven with `platform_toolsets: {api_server: [], cron: []}` in the
+  Hermes `config.yaml`, plus `API_SERVER_ENABLED=true`, `API_SERVER_KEY`, `API_SERVER_PORT` and
+  `API_SERVER_HOST=127.0.0.1` in its `.env`. **Both lists matter:** with only `api_server: []`, a job
+  created through the API's cron endpoint still ran a real terminal command. `GET /v1/toolsets` then
+  lists every toolset disabled, and the model reports it has no shell and no file tool. Run
+  continuity uses a `session_id` field in the `/v1/runs` JSON body; `X-Hermes-Session-Id` is ignored
+  there (it only works on `/v1/chat/completions`). `SOUL.md` in `HERMES_HOME` carries the persona
+  and is read live. Deploy with Hermes' NixOS module (`settings`, `environmentFiles`,
+  `hermesHomeFiles`), not the container, whose mode is built for agent self-modification.
+- **Speech latency (G3, galactica, 8 threads, synthetic speech only):** whisper.cpp `ggml-base.en`
+  transcribes 5 s in 0.6 s (`small.en` took 1.8 to 2.2 s, so `base.en` is chosen). Piper
+  `en_US-lessac-medium` (22 050 Hz mono PCM16) speaks the first sentence in 0.13 s through a resident
+  HTTP server (1.2 to 1.6 s cold through the CLI). nixpkgs `piper-tts` has no HTTP entry point (a small
+  wrapper is needed) and nixpkgs has no model packages (`fetchurl` with hashes). Real human speech
+  and long-text Piper requests are untested.
 4. Claude sessions started by Hermes inherit `~/.claude/settings.json` hooks, so they should appear
    on the board. This is untested.
 
