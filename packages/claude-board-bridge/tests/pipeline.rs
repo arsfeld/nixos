@@ -656,13 +656,14 @@ async fn new_session_during_a_reply_speaks_after_it() {
         }
     }
     r.conn.on_client(&ClientMsg::NewSession { utterance: 2 }).await;
-    // The reply finishes, then the purge line is started by a tick.
+    // The reply finishes, then the purge line is started by a tick once the board has played it.
     loop {
         let m = r.next().await;
         if m == mood(Mood::Idle) {
             break;
         }
     }
+    tokio::time::sleep(Duration::from_millis(100)).await;
     r.conn.tick();
     r.until_terminal().await;
     assert_balanced(&r.log);
@@ -701,4 +702,65 @@ async fn new_session_with_failing_tts_still_acks() {
     // The board shows thinking from the purge: the failed confirmation ends it with idle.
     assert_eq!(rest.last(), Some(&Out::Json(BoardMsg::Creature { mood: Mood::Idle })), "{rest:?}");
     assert_eq!(r.brain.resets.load(Ordering::SeqCst), 1);
+}
+
+// ---------- queued speech waits for the board's playback ----------
+
+fn due_tea() -> claude_board_bridge::timers::Due {
+    use claude_board_bridge::timers::{Due, Timer};
+    Due { timer: Timer { id: "tmr_000001".into(), label: "tea".into(), due: 1_794_319_200 }, late_secs: 0 }
+}
+
+/// The bridge sends a reply faster than real time; the board plays it for its full length. A reminder
+/// falling due just after the reply's last frame shows its card at once, but its `SpeakStart` (which
+/// would replace what the board is playing) waits for that audio to have played.
+#[tokio::test(start_paused = true)]
+async fn reminder_speech_waits_until_the_reply_has_played() {
+    // Three seconds of speech at 22 050 Hz, 16-bit mono.
+    let secs = 3.0;
+    let bytes = (22_050.0 * 2.0 * secs) as usize;
+    let mut r = rig(FakeBrain::new(&[(0, "One long sentence.")], false), bytes, VoiceConfig::default());
+    r.speak(1, 3200).await;
+    let mut first_audio = None;
+    loop {
+        let m = r.next().await;
+        if first_audio.is_none() && matches!(m, Out::Audio(_)) {
+            first_audio = Some(tokio::time::Instant::now());
+        }
+        if m == mood(Mood::Idle) {
+            break;
+        }
+    }
+    let first_audio = first_audio.expect("the reply was spoken");
+    r.conn.on_reminder(due_tea());
+    let card = r.drain();
+    assert!(matches!(card.first(), Some(Out::Json(BoardMsg::Reminder { .. }))), "{card:?}");
+    assert_eq!(speak_starts(&card), 0, "started over the reply: {card:?}");
+    // The voice task's ticks.
+    let started = loop {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        r.conn.tick();
+        tokio::task::yield_now().await;
+        let got = r.drain();
+        if speak_starts(&got) > 0 || first_audio.elapsed() > Duration::from_secs(10) {
+            break first_audio.elapsed();
+        }
+    };
+    assert!(started >= Duration::from_secs_f64(secs), "started after {started:?}");
+    assert!(started < Duration::from_secs_f64(secs + 0.5), "started after {started:?}");
+}
+
+/// A cancel stops the board's playback, so queued speech need not wait for the rest of it.
+#[tokio::test(start_paused = true)]
+async fn cancel_clears_the_wait_for_playback() {
+    let bytes = 22_050 * 2 * 3;
+    let mut r = rig(FakeBrain::new(&[(0, "One long sentence.")], false), bytes, VoiceConfig::default());
+    r.speak(1, 3200).await;
+    r.until_terminal().await;
+    r.conn.on_reminder(due_tea());
+    r.conn.on_client(&ClientMsg::Cancel { utterance: 1 }).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    r.conn.tick();
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    assert_eq!(speak_starts(&r.drain()), 1);
 }

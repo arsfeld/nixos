@@ -62,6 +62,23 @@ fn take_speaking(speaking: &Speaking) -> Option<u32> {
     speaking.lock().ok().and_then(|mut g| g.take())
 }
 
+/// When the board will have played every audio frame sent so far. The bridge synthesizes and sends faster
+/// than real time, so a turn's task ends while the board still has seconds queued; queued speech must not
+/// start (its `SpeakStart` replaces what is playing) before this.
+type AudioUntil = Arc<Mutex<Instant>>;
+
+/// Counts `bytes` of 16-bit mono PCM at `sample_rate` as sent now: it plays after whatever is still
+/// queued, or from now if the board has run dry.
+fn sent_audio(until: &AudioUntil, sample_rate: u32, bytes: usize) {
+    if sample_rate == 0 {
+        return;
+    }
+    let played = Duration::from_secs_f64((bytes / 2) as f64 / f64::from(sample_rate));
+    if let Ok(mut u) = until.lock() {
+        *u = (*u).max(Instant::now()) + played;
+    }
+}
+
 pub struct Conn {
     backends: Option<Arc<Backends>>,
     cfg: VoiceConfig,
@@ -79,6 +96,7 @@ pub struct Conn {
     /// their ids.
     lines: VecDeque<(u32, String)>,
     next_reminder: u32,
+    audio_until: AudioUntil,
 }
 
 /// How long one control message waits for room in the channel before it is given up.
@@ -102,7 +120,7 @@ impl Drop for Conn {
 
 impl Conn {
     pub fn new(backends: Option<Arc<Backends>>, cfg: VoiceConfig, out: Sender<Out>) -> Conn {
-        Conn { backends, cfg, out, recording: None, refused: None, running: None, starts: VecDeque::new(), speaking: Arc::default(), pending: None, lines: VecDeque::new(), next_reminder: 0 }
+        Conn { backends, cfg, out, recording: None, refused: None, running: None, starts: VecDeque::new(), speaking: Arc::default(), pending: None, lines: VecDeque::new(), next_reminder: 0, audio_until: Arc::new(Mutex::new(Instant::now())) }
     }
 
     fn mood(&mut self, mood: Mood) {
@@ -151,6 +169,10 @@ impl Conn {
     /// The aborted task is joined first, so it cannot enqueue anything after
     /// the `SpeakEnd` sent here for a turn that was speaking.
     async fn stop_all(&mut self) -> bool {
+        // A hold or a cancel stops the board's playback too.
+        if let Ok(mut u) = self.audio_until.lock() {
+            *u = Instant::now();
+        }
         let mut live = self.recording.take().is_some();
         if let Some((_, task)) = self.running.take() {
             live |= !task.is_finished();
@@ -203,6 +225,7 @@ impl Conn {
                     rec.id,
                     rec.buf,
                     self.speaking.clone(),
+                    self.audio_until.clone(),
                     self.pending.take(),
                 ));
                 self.running = Some((rec.id, task));
@@ -269,12 +292,13 @@ impl Conn {
         self.tick();
     }
 
-    /// Starts the next queued reminder when no hold is in progress (recording, or refused and not yet
-    /// released) and nothing is running.
+    /// Starts the next queued line when no hold is in progress (recording, or refused and not yet
+    /// released), nothing is running and the board has played all the audio it was sent.
     pub fn tick(&mut self) {
         if self.recording.is_some()
             || self.refused.is_some()
             || self.running.as_ref().is_some_and(|(_, t)| !t.is_finished())
+            || self.audio_until.lock().is_ok_and(|u| Instant::now() < *u)
         {
             return;
         }
@@ -287,6 +311,7 @@ impl Conn {
             id,
             text,
             self.speaking.clone(),
+            self.audio_until.clone(),
             self.pending.take(),
         ));
         self.running = Some((id, task));
@@ -356,6 +381,7 @@ async fn run_utterance(
     id: u32,
     pcm: Vec<u8>,
     speaking: Speaking,
+    audio_until: AudioUntil,
     after: Option<JoinHandle<()>>,
 ) {
     // Control messages still waiting for room go first.
@@ -365,7 +391,7 @@ async fn run_utterance(
     let start = Instant::now();
     let bytes = pcm.len();
     let mut timing = Timing::default();
-    let result = utterance(&backends, &out, &speaking, reply_timeout, id, pcm, start, &mut timing).await;
+    let result = utterance(&backends, &out, &speaking, &audio_until, reply_timeout, id, pcm, start, &mut timing).await;
     eprintln!(
         "voice: utt={id} bytes={bytes} stt_ms={} first_delta_ms={} first_audio_ms={} total_ms={}",
         timing.stt_ms,
@@ -394,6 +420,7 @@ async fn utterance(
     backends: &Backends,
     out: &Sender<Out>,
     speaking: &Speaking,
+    audio_until: &AudioUntil,
     reply_timeout: Duration,
     id: u32,
     pcm: Vec<u8>,
@@ -407,7 +434,7 @@ async fn utterance(
         return Ok(());
     }
     put_json(out, BoardMsg::Transcript { utterance: id, text: text.clone() }).await?;
-    match tokio::time::timeout(reply_timeout, reply(backends, out, speaking, id, text, start, timing)).await {
+    match tokio::time::timeout(reply_timeout, reply(backends, out, speaking, audio_until, id, text, start, timing)).await {
         Ok(r) => r,
         Err(_) => Err(Failure::Backend),
     }
@@ -418,6 +445,7 @@ async fn reply(
     backends: &Backends,
     out: &Sender<Out>,
     speaking: &Speaking,
+    audio_until: &AudioUntil,
     id: u32,
     text: String,
     start: Instant,
@@ -474,6 +502,7 @@ async fn reply(
                     }
                     for part in chunk_pcm(&speech.pcm, chunk) {
                         put(out, Out::Audio(encode_audio(id, part))).await?;
+                        sent_audio(audio_until, speech.sample_rate, part.len());
                     }
                 }
                 Err(e) => {
@@ -511,6 +540,7 @@ async fn run_line(
     id: u32,
     text: String,
     speaking: Speaking,
+    audio_until: AudioUntil,
     after: Option<JoinHandle<()>>,
 ) {
     if let Some(after) = after {
@@ -529,6 +559,7 @@ async fn run_line(
         }
         for part in chunk_pcm(&speech.pcm, DOWNLINK_CHUNK_MAX - AUDIO_HEADER_LEN) {
             put(&out, Out::Audio(encode_audio(id, part))).await?;
+            sent_audio(&audio_until, speech.sample_rate, part.len());
         }
         Ok::<(), Failure>(())
     };
