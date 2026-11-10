@@ -235,3 +235,36 @@ fn expanded_overlay_covers_the_feed() {
     let top = (60..164).flat_map(|y| (83..383).map(move |x| (x, y))).filter(|&(x, y)| px(&buf, x, y) != (0, 0, 0)).count();
     assert!(top > 50, "no overlay text");
 }
+
+#[test]
+fn expanded_overlay_scrolls_by_drag_and_closes_by_tap() {
+    use slint::platform::{PointerEventButton, WindowEvent};
+    use slint::LogicalPosition;
+    use std::cell::Cell;
+    use std::rc::Rc;
+    let (h, ui) = detail_page();
+    let closed = Rc::new(Cell::new(0));
+    let c = closed.clone();
+    ui.on_expanded_closed(move || c.set(c.get() + 1));
+    let long = (0..40).map(|i| format!("line number {i}")).collect::<Vec<_>>().join("\n");
+    ui.set_expanded_text(long.into());
+    h.step(33);
+    let before = h.render().to_vec();
+    let at = |x: f32, y: f32| LogicalPosition::new(x, y);
+    let w = &h.window;
+    w.dispatch_event(WindowEvent::PointerPressed { position: at(233., 300.), button: PointerEventButton::Left });
+    for i in 1..=10 {
+        w.dispatch_event(WindowEvent::PointerMoved { position: at(233., 300. - 15. * i as f32) });
+        h.step(16);
+    }
+    w.dispatch_event(WindowEvent::PointerReleased { position: at(233., 150.), button: PointerEventButton::Left });
+    w.dispatch_event(WindowEvent::PointerExited);
+    h.step(33);
+    let after = h.render().to_vec();
+    assert_ne!(before, after, "dragging did not scroll the overlay");
+    assert_eq!(closed.get(), 0, "a drag closed the overlay");
+    w.dispatch_event(WindowEvent::PointerPressed { position: at(233., 300.), button: PointerEventButton::Left });
+    w.dispatch_event(WindowEvent::PointerReleased { position: at(233., 300.), button: PointerEventButton::Left });
+    w.dispatch_event(WindowEvent::PointerExited);
+    assert_eq!(closed.get(), 1, "a tap did not close the overlay");
+}

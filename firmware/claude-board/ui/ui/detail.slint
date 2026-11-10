@@ -149,25 +149,29 @@ export component DetailPage inherits Rectangle {
         width: 466px;
         height: 466px;
         background: Theme.bg;
+        // The Flickable fills the page and the close TouchArea lives inside its content, so a drag scrolls
+        // (the Flickable takes the pointer once it moves) and a plain tap still closes.
         Flickable {
-            x: 83px;
-            y: 70px;
-            width: 300px;
-            height: 320px;
-            content-width: 300px;
-            content-height: full.preferred-height;
+            width: 466px;
+            height: 466px;
+            content-width: 466px;
+            content-height: max(466px, full.y + full.preferred-height + 80px);
+            TouchArea {
+                width: 466px;
+                height: parent.content-height;
+                clicked => {
+                    root.expanded-closed();
+                }
+            }
             full := Text {
+                x: 83px;
+                y: 70px;
                 width: 300px;
                 text: root.expanded-text;
                 color: Theme.text;
                 font-family: "Sora";
                 font-size: 15px;
                 wrap: word-wrap;
-            }
-        }
-        TouchArea {
-            clicked => {
-                root.expanded-closed();
             }
         }
     }
