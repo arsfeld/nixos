@@ -31,9 +31,14 @@ pub fn board_router(state: AppState) -> Router {
     Router::new().route("/v1/board", get(board)).with_state(state)
 }
 
+/// The largest websocket message or frame accepted from a board.
+const MAX_WS_MESSAGE: usize = 128 * 1024;
+
 async fn board(State(s): State<AppState>, headers: HeaderMap, ws: WebSocketUpgrade) -> Result<Response, StatusCode> {
     check_bearer(&headers, &s.tokens.device, s.fail_delay).await?;
-    Ok(ws.on_upgrade(move |socket| serve(s, socket)))
+    // The board's messages are tiny (text) or about 3.2 KB (audio); axum's 64 MiB default would let a
+    // socket make us copy and queue-check a huge frame.
+    Ok(ws.max_message_size(MAX_WS_MESSAGE).max_frame_size(MAX_WS_MESSAGE).on_upgrade(move |socket| serve(s, socket)))
 }
 
 /// Counts a live board socket for as long as it exists.

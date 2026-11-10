@@ -239,3 +239,27 @@ async fn audio_uplink_drops_beyond_the_bound() {
     assert!(peak <= 256 * 1024, "queued {peak} bytes");
     assert!(stats.dropped_frames.load(Ordering::SeqCst) > 0, "nothing was dropped");
 }
+
+/// The board's frames are about 3.2 KB; a socket may not make the bridge copy and queue a huge one.
+#[tokio::test]
+async fn oversize_binary_message_is_rejected() {
+    let brain = FakeBrain::new(&[(0, "Hello. ")], true);
+    let st = voiced(brain, 2000);
+    let stats = st.uplink.clone();
+    let addr = serve(st).await;
+    let (mut ws, _) = connect_voice(addr).await;
+    send_json(&mut ws, json!({"t":"voice_start","utterance":5})).await;
+    ws.send(Message::binary(encode_audio(5, &vec![0u8; 200 * 1024]))).await.unwrap();
+    let closed = tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            match ws.next().await {
+                None | Some(Err(_)) | Some(Ok(Message::Close(_))) => return true,
+                Some(Ok(_)) => {}
+            }
+        }
+    })
+    .await;
+    assert_eq!(closed, Ok(true), "the connection stayed open");
+    assert_eq!(stats.queued_audio.load(Ordering::SeqCst), 0);
+    assert_eq!(stats.peak_queued_bytes.load(Ordering::SeqCst), 0, "the oversize frame was queued");
+}
