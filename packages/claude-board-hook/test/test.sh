@@ -17,6 +17,7 @@ check() { # name, condition-result
 }
 
 printf 'secret-token' >"$TMP/token"
+unset CLAUDE_BOARD_APPROVALS
 export CLAUDE_BOARD_TOKEN_FILE="$TMP/token" CLAUDE_BOARD_HOST=testhost CLAUDE_BOARD_STATE_DIR="$TMP/state"
 mkdir -p "$TMP/state"
 
@@ -156,11 +157,51 @@ rm -rf "$TMP/state"/*
 
 : >"$TMP/log"; IN="$FIX/permission_request_bash.json"; run ask
 check ask_for_bash_posts_tool_name_and_summary "$(last | jq -e '.path=="/v1/ask" and (.body|fromjson|(.tool_name=="Bash" and .summary=="ls /nonexistent" and .tool_input=={}))' >/dev/null && echo 0 || echo 1)"
-jq '.tool_name="Write" | .tool_input={file_path:"/a/b.txt",content:"TOKEN=zzz hello"}' "$FIX/permission_request_bash.json" >"$TMP/w.json"
-: >"$TMP/log"; IN="$TMP/w.json"; run ask
-check ask_for_write_summary_has_path_and_scrubbed_body "$(last | jq -e '.body|fromjson|(.tool_name=="Write" and .summary=="/a/b.txt - TOKEN=[redacted] hello")' >/dev/null && echo 0 || echo 1)"
+: >"$TMP/log"
+for t in 'Write|{"file_path":"/a/b.txt","content":"zzzcontent hello"}' \
+  'Edit|{"file_path":"/a/b.txt","old_string":"zzzold","new_string":"zzzcontent"}' \
+  'MultiEdit|{"file_path":"/a/b.txt","edits":[{"old_string":"zzzold","new_string":"zzzcontent"}]}' \
+  'NotebookEdit|{"notebook_path":"/a/b.txt","new_source":"zzzcontent"}'; do
+  jq --arg n "${t%%|*}" --argjson i "${t#*|}" '.tool_name=$n | .tool_input=$i' "$FIX/permission_request_bash.json" >"$TMP/w.json"
+  IN="$TMP/w.json"; run ask
+  check "ask_for_${t%%|*}_sends_the_path_only" "$(last | jq -e --arg n "${t%%|*}" '.body|fromjson|(.tool_name==$n and .summary=="/a/b.txt" and .tool_input=={})' >/dev/null && echo 0 || echo 1)"
+done
+check file_content_never_leaves_in_an_approval "$([ "$(reqs)" = 4 ] && ! grep -q zzz "$TMP/log" && echo 0 || echo 1)"
 : >"$TMP/log"; IN="$FIX/ask_user_question.json"; run ask
 check ask_for_question_tool_names_it "$(last | jq -e '.body|fromjson|.tool_name=="AskUserQuestion"' >/dev/null && echo 0 || echo 1)"
+
+# A payload with no tool name is not a question by default: it fails closed.
+: >"$TMP/log"
+jq 'del(.tool_name)' "$FIX/ask_user_question.json" >"$TMP/noname.json"; IN="$TMP/noname.json"; run ask
+check ask_without_tool_name_posts_nothing "$([ $RC = 0 ] && [ -z "$OUT" ] && [ "$(reqs)" = 0 ] && echo 0 || echo 1)"
+jq '.tool_name=""' "$FIX/ask_user_question.json" >"$TMP/noname.json"; IN="$TMP/noname.json"; run ask
+check ask_with_empty_tool_name_posts_nothing "$([ $RC = 0 ] && [ -z "$OUT" ] && [ "$(reqs)" = 0 ] && echo 0 || echo 1)"
+
+# A 200 is printed only when it is a PermissionRequest decision to allow or deny.
+IN="$FIX/permission_request_bash.json"
+for b in '[]' '"allow"' '{}' \
+  '{"hookSpecificOutput":{"hookEventName":"PreToolUse","decision":{"behavior":"allow"}}}' \
+  '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"ask"}}}' \
+  '{"hookSpecificOutput":{"hookEventName":"PermissionRequest"}}'; do
+  behave "$(jq -cn --arg b "$b" '{event:[204,""],ask:[200,$b]}')"
+  run ask
+  check "ask_200_not_a_decision_prints_nothing: $b" "$([ $RC = 0 ] && [ -z "$OUT" ] && echo 0 || echo 1)"
+done
+DENY='{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"Denied from the board"}}}'
+behave "$(jq -cn --arg b "$DENY" '{event:[204,""],ask:[200,$b]}')"
+run ask
+check ask_200_deny_is_printed "$([ $RC = 0 ] && [ "$OUT" = "$DENY" ] && echo 0 || echo 1)"
+behave '{"event":[204,""],"ask":[204,""],"feed":[204,""]}'
+
+# key: value pairs in JSON or YAML style have the value redacted and the key kept.
+: >"$TMP/log"
+for c in 'curl -d '"'"'{"api_key": "abc111"}'"'"' x' "python -c \"d={'token': 'abc222'}\"" 'echo password: abc333 done'; do
+  jq --arg c "$c" '.tool_input.command=$c' "$FIX/pre_tool_use_bash.json" >"$TMP/sec.json"; IN="$TMP/sec.json"; run pre_tool_use
+  jq --arg c "$c" '.tool_input.command=$c' "$FIX/permission_request_bash.json" >"$TMP/sec.json"; IN="$TMP/sec.json"; run ask
+done
+wait_reqs 6; sleep 0.3
+jq -r '.body | fromjson | (.text // .summary)' "$TMP/log" >"$TMP/texts"
+check scrub_redacts_key_colon_value_pairs "$([ "$(reqs)" = 6 ] && ! grep -q -e abc111 -e abc222 -e abc333 "$TMP/log" && [ "$(grep -cF '{"api_key": [redacted]}' "$TMP/texts")" = 2 ] && [ "$(grep -cF "{'token': [redacted]}" "$TMP/texts")" = 2 ] && [ "$(grep -cF 'password: [redacted] done' "$TMP/texts")" = 2 ] && echo 0 || echo 1)" "$(cat "$TMP/texts")"
 
 # --- installer ---------------------------------------------------------------------
 S="$TMP/settings.json"
@@ -175,7 +216,7 @@ check installer_preserves_other_keys "$(jq -e '.theme=="dark" and .statusLine.co
 check installer_preserves_existing_hooks "$(jq -e '(.hooks.PreToolUse|map(select(.hooks[0].command|startswith("claude-board-hook ")|not))|length)==1 and (.hooks.PreToolUse[0].hooks[0].command|startswith("claude-notify")) and (.hooks.UserPromptSubmit|map(.hooks[0].command)|index("codegraph prompt-hook")) != null' "$S" >/dev/null && echo 0 || echo 1)"
 check installer_adds_every_board_hook "$(jq -e '[.hooks.SessionStart,.hooks.UserPromptSubmit,.hooks.Notification,.hooks.Stop,.hooks.StopFailure,.hooks.SessionEnd] | all(.[]; map(.hooks[].command) | any(startswith("claude-board-hook ")))' "$S" >/dev/null && echo 0 || echo 1)"
 check installer_adds_the_ask_hook_with_a_timeout "$(jq -e '.hooks.PermissionRequest | (length==1 and .[0].hooks[0].command=="claude-board-hook ask" and .[0].hooks[0].timeout==90)' "$S" >/dev/null && echo 0 || echo 1)"
-check installer_ask_hook_has_no_matcher "$(jq -e '.hooks.PermissionRequest | all(.[]; has("matcher")|not)' "$S" >/dev/null && echo 0 || echo 1)"
+check installer_ask_hook_is_the_question_tool_only_by_default "$(jq -e '.hooks.PermissionRequest | (length==1 and .[0].matcher=="AskUserQuestion")' "$S" >/dev/null && echo 0 || echo 1)"
 check installer_adds_tool_feed_hooks "$(jq -e '(.hooks.PreToolUse|map(.hooks[0].command)|index("claude-board-hook pre_tool_use")) != null and (.hooks.PostToolUse|map(.hooks[0].command)|index("claude-board-hook post_tool_use")) != null and (.hooks.PostToolUseFailure|map(.hooks[0].command)|index("claude-board-hook post_tool_use_failure")) != null' "$S" >/dev/null && echo 0 || echo 1)"
 cp "$S" "$TMP/first.json"
 CLAUDE_SETTINGS="$S" bash "$INSTALL"
@@ -184,6 +225,26 @@ check installer_is_idempotent "$(cmp -s "$S" "$TMP/first.json" && jq -e '.hooks.
 jq '.hooks.Stop += [{"hooks":[{"type":"command","command":"claude-board-hook stale_arg"}]}]' "$S" >"$TMP/stale.json"; cp "$TMP/stale.json" "$S"
 CLAUDE_SETTINGS="$S" bash "$INSTALL"
 check installer_drops_stale_board_entries "$(jq -e '[.hooks.Stop[].hooks[].command] | (index("claude-board-hook stale_arg")==null and (map(select(.=="claude-board-hook stop"))|length)==1)' "$S" >/dev/null && echo 0 || echo 1)"
+# Approvals of every tool are opt-in, and flipping the switch replaces one form with the other.
+P="$TMP/perm.json"
+printf '%s\n' '{"hooks":{"PermissionRequest":[{"matcher":"Bash","hooks":[{"type":"command","command":"my-own-approver"}]}]}}' >"$P"
+board_perm() { jq -c '[.hooks.PermissionRequest[] | select(.hooks[0].command=="claude-board-hook ask")]' "$P"; }
+own_kept() { jq -e '[.hooks.PermissionRequest[] | select(.hooks[0].command=="my-own-approver" and .matcher=="Bash")] | length==1' "$P" >/dev/null; }
+QONLY='[{"matcher":"AskUserQuestion","hooks":[{"type":"command","command":"claude-board-hook ask","timeout":90}]}]'
+ALL='[{"hooks":[{"type":"command","command":"claude-board-hook ask","timeout":90}]}]'
+CLAUDE_SETTINGS="$P" bash "$INSTALL"
+check installer_default_registers_the_question_matcher_only "$([ "$(board_perm)" = "$QONLY" ] && own_kept && echo 0 || echo 1)" "$(board_perm)"
+cp "$P" "$TMP/p1.json"; CLAUDE_SETTINGS="$P" bash "$INSTALL"
+check installer_default_is_idempotent "$(cmp -s "$P" "$TMP/p1.json" && echo 0 || echo 1)"
+CLAUDE_BOARD_APPROVALS=1 CLAUDE_SETTINGS="$P" bash "$INSTALL"
+check installer_approvals_on_registers_the_catch_all_only "$([ "$(board_perm)" = "$ALL" ] && own_kept && echo 0 || echo 1)" "$(board_perm)"
+cp "$P" "$TMP/p2.json"; CLAUDE_BOARD_APPROVALS=1 CLAUDE_SETTINGS="$P" bash "$INSTALL"
+check installer_approvals_on_is_idempotent "$(cmp -s "$P" "$TMP/p2.json" && echo 0 || echo 1)"
+CLAUDE_BOARD_APPROVALS=0 CLAUDE_SETTINGS="$P" bash "$INSTALL"
+check installer_switching_approvals_off_restores_the_matcher "$([ "$(board_perm)" = "$QONLY" ] && own_kept && cmp -s "$P" "$TMP/p1.json" && echo 0 || echo 1)" "$(board_perm)"
+CLAUDE_BOARD_APPROVALS=1 CLAUDE_SETTINGS="$P" bash "$INSTALL"
+check installer_switching_approvals_back_on_replaces_the_matcher "$([ "$(board_perm)" = "$ALL" ] && own_kept && cmp -s "$P" "$TMP/p2.json" && echo 0 || echo 1)" "$(board_perm)"
+
 rm -f "$TMP/new/settings.json"
 CLAUDE_SETTINGS="$TMP/new/settings.json" bash "$INSTALL"
 check installer_creates_a_missing_settings_file "$(jq -e '.hooks.Stop|length==1' "$TMP/new/settings.json" >/dev/null && echo 0 || echo 1)"

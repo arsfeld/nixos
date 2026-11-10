@@ -4,6 +4,12 @@
 # Claude Code also writes, so nix does not manage it: this merges into it and touches nothing
 # else. Existing hooks and keys are preserved; any earlier claude-board entry is replaced.
 # A file that is not a JSON object is refused and left untouched.
+#
+# The PermissionRequest hook covers the question tool (AskUserQuestion) only, unless
+# CLAUDE_BOARD_APPROVALS=1, which makes it catch every tool so the board can also allow or deny
+# tool calls. That is opt-in because, while a board is connected, a held approval keeps the
+# terminal prompt waiting for up to the bridge's hold (60 s) unless it is answered. Re-running
+# with the other setting replaces the one form with the other.
 set -uo pipefail
 
 settings="${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}"
@@ -18,7 +24,10 @@ fi
 tmp="$(mktemp "$settings.XXXXXX")" || exit 1
 trap 'rm -f "$tmp"' EXIT
 
-jq '
+approvals=false
+[ "${CLAUDE_BOARD_APPROVALS:-}" = 1 ] && approvals=true
+
+jq --argjson approvals "$approvals" '
   def ours: ((.hooks // []) | any((.command // "") | startswith("claude-board-hook ")));
   def plain($arg): {hooks: [{type: "command", command: ("claude-board-hook " + $arg)}]};
   def add($event; $entry): .hooks[$event] = ((.hooks[$event] // []) + [$entry]);
@@ -34,7 +43,9 @@ jq '
   | add("PreToolUse"; plain("pre_tool_use"))
   | add("PostToolUse"; plain("post_tool_use"))
   | add("PostToolUseFailure"; plain("post_tool_use_failure"))
-  | add("PermissionRequest"; {hooks: [{type: "command", command: "claude-board-hook ask", timeout: 90}]})
+  | add("PermissionRequest";
+      (if $approvals then {} else {matcher: "AskUserQuestion"} end)
+      + {hooks: [{type: "command", command: "claude-board-hook ask", timeout: 90}]})
 ' "$settings" >"$tmp" || exit 1
 
 if cmp -s "$tmp" "$settings"; then
