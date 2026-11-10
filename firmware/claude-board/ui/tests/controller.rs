@@ -547,6 +547,27 @@ fn release_sends_voice_end_with_the_same_utterance() {
 }
 
 #[test]
+fn hold_is_refused_while_the_creature_is_offline() {
+    let f = fixture();
+    mood(&f, "offline");
+    assert!(!f.c.hold_started(233, 233));
+    assert_eq!(f.c.utterance(), None);
+    assert!(!sent_types(&f).contains(&"voice_start".to_string()), "nothing is recorded or uploaded");
+}
+
+#[test]
+fn hold_end_without_an_open_utterance_does_not_show_thinking() {
+    let f = fixture();
+    mood(&f, "offline");
+    assert!(!f.c.hold_started(233, 233));
+    let before = f.ui.get_presence_state();
+    assert_eq!(f.c.hold_ended(), None);
+    assert_ne!(f.ui.get_presence_state(), PresenceState::Thinking);
+    assert_eq!(f.ui.get_presence_state(), before);
+    assert!(!sent_types(&f).contains(&"voice_end".to_string()));
+}
+
+#[test]
 fn mic_level_drives_the_presence_while_listening() {
     let f = fixture();
     f.c.hold_started(233, 233);

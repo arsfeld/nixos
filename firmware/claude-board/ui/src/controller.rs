@@ -516,7 +516,8 @@ impl<O: Outbox> Inner<O> {
     fn hold_started(&mut self, x: i16, y: i16) -> bool {
         let Some(win) = self.window.upgrade() else { return false };
         let (dx, dy) = ((x - AVATAR_CENTRE) as i32, (y - AVATAR_CENTRE) as i32);
-        if win.get_page() != Page::Home || self.holding || dx * dx + dy * dy > AVATAR_RADIUS * AVATAR_RADIUS {
+        // Offline: the home screen already says so, and the bridge would discard what we upload.
+        if self.mood == Mood::Offline || win.get_page() != Page::Home || self.holding || dx * dx + dy * dy > AVATAR_RADIUS * AVATAR_RADIUS {
             return false;
         }
         self.last_utterance += 1;
@@ -532,6 +533,7 @@ impl<O: Outbox> Inner<O> {
         if !std::mem::take(&mut self.holding) {
             return None;
         }
+        // No open utterance means nothing was sent, so there is nothing to think about.
         let utterance = self.utterance?;
         self.send(&ClientMsg::VoiceEnd { utterance });
         // The words are on their way: show it thinking until the bridge says otherwise.

@@ -59,6 +59,9 @@ pub struct Conn {
     cfg: VoiceConfig,
     out: Sender<Out>,
     recording: Option<Recording>,
+    /// The utterance whose `VoiceStart` was refused, and the mood it was refused with: its `VoiceEnd` (or
+    /// `Cancel`) is answered with that mood again, because the board shows thinking from its release.
+    refused: Option<(u32, Mood)>,
     running: Option<(u32, JoinHandle<()>)>,
     starts: VecDeque<Instant>,
     speaking: Speaking,
@@ -87,7 +90,7 @@ impl Drop for Conn {
 
 impl Conn {
     pub fn new(backends: Option<Arc<Backends>>, cfg: VoiceConfig, out: Sender<Out>) -> Conn {
-        Conn { backends, cfg, out, recording: None, running: None, starts: VecDeque::new(), speaking: Arc::default(), pending: None }
+        Conn { backends, cfg, out, recording: None, refused: None, running: None, starts: VecDeque::new(), speaking: Arc::default(), pending: None }
     }
 
     fn mood(&mut self, mood: Mood) {
@@ -153,7 +156,9 @@ impl Conn {
         match msg {
             ClientMsg::VoiceStart { utterance } => {
                 let was_live = self.stop_all().await;
+                self.refused = None;
                 if self.backends.is_none() {
+                    self.refused = Some((*utterance, Mood::Offline));
                     self.mood(Mood::Offline);
                     return;
                 }
@@ -162,6 +167,7 @@ impl Conn {
                     self.starts.pop_front();
                 }
                 if self.starts.len() >= self.cfg.max_per_minute as usize {
+                    self.refused = Some((*utterance, Mood::Idle));
                     self.mood(Mood::Idle);
                     return;
                 }
@@ -173,6 +179,10 @@ impl Conn {
                 }
             }
             ClientMsg::VoiceEnd { utterance } => {
+                if let Some((_, mood)) = self.refused.take_if(|(id, _)| id == utterance) {
+                    self.mood(mood);
+                    return;
+                }
                 let Some(rec) = self.recording.take_if(|r| r.id == *utterance) else { return };
                 let Some(backends) = self.backends.clone() else { return };
                 if rec.overflow || rec.buf.is_empty() {
@@ -191,6 +201,10 @@ impl Conn {
                 self.running = Some((rec.id, task));
             }
             ClientMsg::Cancel { utterance } => {
+                if let Some((_, mood)) = self.refused.take_if(|(id, _)| id == utterance) {
+                    self.mood(mood);
+                    return;
+                }
                 let mine = self.recording.as_ref().is_some_and(|r| r.id == *utterance)
                     || self.running.as_ref().is_some_and(|(id, _)| id == utterance);
                 if mine && self.stop_all().await {
@@ -227,6 +241,24 @@ enum Failure {
     /// The receiver is gone: stop quietly.
     Closed,
     Backend,
+}
+
+/// The log line for a failed backend call: the stage and the error kind only, never the error's
+/// message (it can carry a response body) and never transcript or reply text.
+pub fn failure_line(id: u32, stage: &str, err: &VoiceError) -> String {
+    let kind = match err {
+        VoiceError::Unavailable(_) => "unavailable",
+        VoiceError::Timeout => "timeout",
+        VoiceError::Rejected(_) => "rejected",
+    };
+    format!("voice: utt={id} stage={stage} error={kind}")
+}
+
+fn backend_failed(id: u32, stage: &str) -> impl FnOnce(VoiceError) -> Failure + '_ {
+    move |e| {
+        eprintln!("{}", failure_line(id, stage, &e));
+        Failure::Backend
+    }
 }
 
 async fn put(out: &Sender<Out>, msg: Out) -> Result<(), Failure> {
@@ -289,7 +321,7 @@ async fn utterance(
     timing: &mut Timing,
 ) -> Result<(), Failure> {
     put_json(out, BoardMsg::Creature { mood: Mood::Thinking }).await?;
-    let text = backends.stt.transcribe(pcm).await.map_err(|_: VoiceError| Failure::Backend)?;
+    let text = backends.stt.transcribe(pcm).await.map_err(backend_failed(id, "stt"))?;
     timing.stt_ms = start.elapsed().as_millis();
     if text.trim().is_empty() {
         return Ok(());
@@ -311,7 +343,7 @@ async fn reply(
     start: Instant,
     timing: &mut Timing,
 ) -> Result<(), Failure> {
-    let mut reply = backends.brain.ask(text).await.map_err(|_| Failure::Backend)?;
+    let mut reply = backends.brain.ask(text).await.map_err(backend_failed(id, "brain"))?;
     let mut splitter = SentenceSplitter::new();
     let mut synths = FuturesOrdered::new();
     let mut full = String::new();
@@ -334,7 +366,7 @@ async fn reply(
                         }
                     }
                 }
-                Some(Err(_)) => return Err(Failure::Backend),
+                Some(Err(e)) => return Err(backend_failed(id, "brain")(e)),
                 None => {
                     deltas_done = true;
                     if let Some(s) = splitter.finish() {
@@ -364,7 +396,8 @@ async fn reply(
                         put(out, Out::Audio(encode_audio(id, part))).await?;
                     }
                 }
-                Err(_) => {
+                Err(e) => {
+                    eprintln!("{}", failure_line(id, "tts", &e));
                     // Skip speaking; the reply text still goes out.
                     tts_failed = true;
                     synths = FuturesOrdered::new();

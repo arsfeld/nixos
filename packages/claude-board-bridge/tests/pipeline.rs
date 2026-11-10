@@ -163,6 +163,8 @@ async fn no_backends_reports_offline() {
     assert_eq!(rx.recv().await, Some(mood(Mood::Offline)));
     conn.on_audio(&encode_audio(1, &[0; 3200]));
     conn.on_client(&ClientMsg::VoiceEnd { utterance: 1 }).await;
+    // The refused utterance's end is answered with the refused mood again, and nothing else.
+    assert_eq!(rx.recv().await, Some(mood(Mood::Offline)));
     tokio::time::sleep(Duration::from_secs(1)).await;
     assert!(rx.try_recv().is_err());
 }
@@ -362,6 +364,8 @@ async fn rate_limiter_frees_a_slot_at_exactly_60_seconds() {
     tokio::time::sleep(Duration::from_millis(59_999)).await;
     r.speak(11, 3200).await;
     assert_eq!(r.until_terminal().await, vec![mood(Mood::Idle)]);
+    // The refused utterance's voice_end is answered with the same mood again.
+    assert_eq!(r.until_terminal().await, vec![mood(Mood::Idle)]);
     tokio::time::sleep(Duration::from_millis(1)).await;
     r.speak(12, 3200).await;
     assert_eq!(r.until_terminal().await[0], mood(Mood::Thinking));
@@ -435,6 +439,8 @@ async fn eleventh_utterance_in_a_minute_is_refused() {
     }
     r.speak(11, 3200).await;
     assert_eq!(r.until_terminal().await, vec![mood(Mood::Idle)]);
+    // The refused utterance's voice_end is answered with the same mood again.
+    assert_eq!(r.until_terminal().await, vec![mood(Mood::Idle)]);
     assert_eq!(r.stt.calls.load(Ordering::SeqCst), 10);
     // Once the window rolls over, a new utterance is accepted again.
     tokio::time::sleep(Duration::from_secs(61)).await;
@@ -496,4 +502,85 @@ async fn on_client_does_not_block_when_the_out_channel_stays_full() {
     while let Ok(m) = r.rx.try_recv() {
         assert_ne!(m, Out::Json(BoardMsg::SpeakEnd { utterance: 1 }));
     }
+}
+
+fn no_backend_conn() -> (Conn, mpsc::Receiver<Out>) {
+    let (tx, rx) = mpsc::channel(16);
+    (Conn::new(None, VoiceConfig::default(), tx), rx)
+}
+
+#[tokio::test(start_paused = true)]
+async fn refused_voicestart_without_backends_answers_voiceend_with_offline() {
+    let (mut conn, mut rx) = no_backend_conn();
+    conn.on_client(&ClientMsg::VoiceStart { utterance: 1 }).await;
+    assert_eq!(rx.recv().await, Some(mood(Mood::Offline)));
+    conn.on_audio(&encode_audio(1, &[0; 3200]));
+    conn.on_client(&ClientMsg::VoiceEnd { utterance: 1 }).await;
+    assert_eq!(rx.recv().await, Some(mood(Mood::Offline)));
+    // Cancel with the refused id answers the same way, once.
+    conn.on_client(&ClientMsg::VoiceStart { utterance: 2 }).await;
+    assert_eq!(rx.recv().await, Some(mood(Mood::Offline)));
+    conn.on_client(&ClientMsg::Cancel { utterance: 2 }).await;
+    assert_eq!(rx.recv().await, Some(mood(Mood::Offline)));
+    conn.on_client(&ClientMsg::VoiceEnd { utterance: 2 }).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    assert!(rx.try_recv().is_err());
+}
+
+#[tokio::test(start_paused = true)]
+async fn rate_limited_voicestart_answers_voiceend_with_idle() {
+    let mut r = rig(FakeBrain::new(&[(0, "Fine thanks.")], false), 100, VoiceConfig::default());
+    for id in 1..=10 {
+        r.speak(id, 3200).await;
+        r.until_terminal().await;
+    }
+    r.conn.on_client(&ClientMsg::VoiceStart { utterance: 11 }).await;
+    assert_eq!(r.next().await, mood(Mood::Idle));
+    r.conn.on_audio(&encode_audio(11, &[0; 3200]));
+    r.conn.on_client(&ClientMsg::VoiceEnd { utterance: 11 }).await;
+    assert_eq!(r.next().await, mood(Mood::Idle));
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    assert!(r.drain().is_empty());
+    assert_eq!(r.stt.calls.load(Ordering::SeqCst), 10);
+}
+
+#[tokio::test(start_paused = true)]
+async fn refused_utterance_audio_is_ignored() {
+    let (mut conn, mut rx) = no_backend_conn();
+    conn.on_client(&ClientMsg::VoiceStart { utterance: 1 }).await;
+    rx.recv().await;
+    for _ in 0..50 {
+        conn.on_audio(&encode_audio(1, &[0; 3200]));
+    }
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    assert!(rx.try_recv().is_err());
+}
+
+#[tokio::test(start_paused = true)]
+async fn new_voicestart_clears_a_stale_refusal() {
+    let mut r = rig(FakeBrain::new(&[(0, "Fine thanks.")], false), 100, VoiceConfig { max_per_minute: 1, ..VoiceConfig::default() });
+    r.speak(1, 3200).await;
+    r.until_terminal().await;
+    r.conn.on_client(&ClientMsg::VoiceStart { utterance: 2 }).await; // refused
+    assert_eq!(r.next().await, mood(Mood::Idle));
+    tokio::time::sleep(Duration::from_secs(61)).await;
+    r.speak(3, 3200).await; // accepted: clears the refusal
+    let got = r.until_terminal().await;
+    assert_eq!(got[0], mood(Mood::Thinking));
+    // The stale id 2 no longer answers anything.
+    r.conn.on_client(&ClientMsg::VoiceEnd { utterance: 2 }).await;
+    r.conn.on_client(&ClientMsg::Cancel { utterance: 2 }).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    assert!(r.drain().is_empty());
+}
+
+#[test]
+fn failure_line_names_the_stage_and_kind_but_never_the_message() {
+    use claude_board_bridge::voice::pipeline::failure_line;
+    let secret = "transcript: open the pod bay doors";
+    assert_eq!(failure_line(7, "stt", &VoiceError::Timeout), "voice: utt=7 stage=stt error=timeout");
+    let l = failure_line(8, "brain", &VoiceError::Unavailable(secret.into()));
+    assert_eq!(l, "voice: utt=8 stage=brain error=unavailable");
+    let l = failure_line(9, "tts", &VoiceError::Rejected(secret.into()));
+    assert_eq!(l, "voice: utt=9 stage=tts error=rejected");
 }

@@ -46,8 +46,10 @@ pub fn speech_event(json: &str) -> Option<SpeechEvent> {
 
 /// The most PCM bytes `Playback` holds at once: 1 MiB, about 23 s at 22 050 Hz. The bridge sends a reply as fast as
 /// it is synthesised, faster than it plays, and the queue lives in PSRAM, so it is sized for a long reply. Past the
-/// cap the NEWEST audio is dropped (the frame is refused whole) and counted in `dropped_bytes`: the speech already
-/// queued stays intact and in order, and a reply that long is cut off at the end rather than skipping in the middle.
+/// cap the NEWEST audio is dropped and counted in `dropped_bytes`: the queued speech stays intact and in order, a frame
+/// that does not fit whole keeps its leading part (whole samples) and loses the rest, and a later, smaller frame can
+/// fit again once the player has drained some. So a reply longer than about 23 s that arrives faster than it plays can
+/// skip in the middle, not only lose its end.
 pub const PLAYBACK_CAP: usize = 1024 * 1024;
 /// The most bytes `next_chunk` hands out: 4 096 bytes, about 93 ms at 22 050 Hz, so a stop is noticed quickly.
 pub const PLAYBACK_CHUNK: usize = 4096;
