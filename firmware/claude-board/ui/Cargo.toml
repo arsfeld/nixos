@@ -6,6 +6,7 @@ description = "The Claude Board screens: Slint components and the logic that fee
 
 [dependencies]
 claude-board-proto = { path = "../../../packages/claude-board-proto" }
+serde_json = "1"
 # The same no_std feature set the firmware uses (std pulls in fontique/memmap2, which do not build for
 # ESP-IDF), so a host render is what the panel draws.
 slint = { version = "1.18.1", default-features = false, features = ["compat-1-2", "renderer-software", "unsafe-single-threaded", "libm", "software-renderer-path"] }
@@ -15,7 +16,6 @@ slint-build = "1.18.1"
 
 [dev-dependencies]
 png = "0.17"
-serde_json = "1"
 # Tests and the preview tool only run on the host, where Slint's std build keeps its platform per thread so
 # parallel tests do not clash. (std is what the firmware must avoid: it needs memmap2.)
 slint = { version = "1.18.1", default-features = false, features = ["std", "compat-1-2", "renderer-software", "libm", "software-renderer-path"] }
