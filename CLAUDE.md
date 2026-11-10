@@ -26,6 +26,7 @@ just test raider                # Activate without changing the boot default
 just dry-run @tier1             # Build, then report which units would change
 just reboot galactica           # Deploy and reboot (kernel changes)
 just info                       # List all known hosts
+just board build|flash|creds    # ESP32 session board firmware (see "Claude Board")
 ```
 
 `just deploy` runs in two phases. Phase 1 is `nix-fast-build` over `.#deployTargets`:
@@ -330,6 +331,70 @@ than the floating `pkgs.k3s`. Kubernetes does not support skipping minor version
 upgrade, and the weekly update routine runs `nix flake update` unattended every Saturday — unpinned,
 that job can carry the cluster a minor version, or two, with nobody reading the diff. A
 Kubernetes upgrade should be a deliberate one-line commit.
+
+### Claude Board (ESP32 session board)
+
+A Waveshare ESP32-S3 AMOLED 1.75C (SKU 33691, round 466×466, touch, speaker) that shows every Claude
+Code session across the fleet and answers Claude's multiple-choice questions with a tap. Design:
+`docs/superpowers/specs/2026-11-09-claude-board-design.md`; plan:
+`docs/superpowers/plans/2026-11-09-claude-board.md`; hook behaviour measured on Claude Code 2.1.319:
+`docs/superpowers/specs/2026-11-09-claude-board-hook-findings.md`. Phase 1 (status + answering) is
+built; phase 2 (voice, starting sessions in chosen projects) is not, and needs its own design.
+
+```
+hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (firmware/claude-board)
+```
+
+- **Hooks.** `claude-board-hook` (`packages/claude-board-hook`) forwards `SessionStart`,
+  `UserPromptSubmit`, `Notification`, `Stop`, `StopFailure`, `SessionEnd` as one-way events, and a
+  `PermissionRequest` hook on the question tool (`AskUserQuestion`) holds the request open until the
+  board answers. `claude-board-install-hooks` merges them into `~/.claude/settings.json` from
+  home-manager (Linux only; that file is user state Claude Code also writes, so nix does not own it).
+  Hooks never block a session: any failure exits 0 with no output, and a failed connection pauses
+  attempts for a minute. No board, no answer, or a timeout all fall through to the normal terminal
+  prompt.
+- **Bridge.** `packages/claude-board-bridge` (Rust, axum), `modules/hosts/galactica/services/claude-board.nix`,
+  `media.services.claude-board` with `bypassAuth`. **Public and token-gated:** the board and the hooks
+  both use `https://claude-board.arsfeld.one`, reachable from any network, so the bearer tokens are
+  the only gate (256-bit, constant-time compare, 500 ms delay on a failed attempt). Approving a
+  question is authority over a session, so treat the tokens as credentials. State is in memory: after a
+  bridge restart the board shows no sessions until each one next emits an event.
+- **Secrets.** `claude-board-host-token` in `common.yaml` (declared for every host in
+  `modules/base/claude-board.nix`, 0400 for arosenfeld, read by the hooks from `/run/secrets`);
+  `claude-board-device-token` in `galactica.yaml` and `raider.yaml` (same value: the bridge checks it,
+  the firmware embeds it); `claude-board-wifi-ssid`/`-pass` in `raider.yaml`. A `restartUnits` entry
+  for a unit that does not exist on a host fails that host's whole activation (it did, on raider):
+  keep `restartUnits` in the galactica module, not the base one.
+- **Firmware.** `firmware/claude-board` (ESP-IDF 5.5.4 via the `nixpkgs-esp-dev` input, LVGL 9.4.0,
+  Waveshare's BSP). Everything goes through `just board`: `backup` (full 32 MiB flash, do this
+  before flashing anything), `restore` (puts the stock Waveshare demo back, tested), `creds` (writes
+  the gitignored `sdkconfig.defaults.local` from sops), `build`, `flash`, `monitor`, `test` (host tests
+  of the protocol core under ASan/UBSan). The Wi-Fi password and token are compiled into the image in
+  the clear (no flash encryption), so whoever holds the board can read them. The ESP32-S3 is 2.4 GHz
+  only. Captive-portal networks are not supported.
+- **Firmware traps, all hit during bring-up.**
+  - The first configure needs `kconfig-seed.json`: the component manager (2.2.2) raises
+    `MissingKconfigError` on LVGL 9.6's and the BSP adapter's Kconfig-conditional dependencies before
+    anything is downloaded. `just board build` applies it when no `sdkconfig` exists; a new such error
+    names the symbol to add.
+  - Internal RAM is the scarce resource. The BSP draws 46 KB strips from PSRAM and the SPI driver
+    bounces each through one contiguous internal DMA block, so `sdkconfig.defaults` reserves a 64 KB
+    pool and moves mbedTLS and Wi-Fi/lwIP to PSRAM. Without that the display and TLS both fail with
+    `ESP_ERR_NO_MEM`. A `heap:` line every 30 s in the log shows the margin (about 118 KB free, 63 KB
+    largest DMA block).
+  - A new tracked dev-shell attribute means the weekly `nix flake update` also moves
+    `nixpkgs-esp-dev`; the IDF `rev`/`sha256` override in `modules/flake/dev.nix` may need re-hashing.
+  - Montserrat has no emoji, CJK or accented glyphs: such text shows as missing-glyph boxes (the
+    answer key is still the exact text).
+- **Debugging a board you cannot see.** `CONFIG_CLAUDE_BOARD_SNAPSHOT` logs a downscaled screenshot over
+  serial and `CONFIG_CLAUDE_BOARD_SELFTEST` clicks the UI's own buttons. Both are off in real builds;
+  add them to `sdkconfig.defaults.local`, rebuild, and decode the `SNAPSTART`/`SNAPDATA`/`SNAPEND`
+  lines (RGB565, base64, 233×233). The URL, NTP server and a DNS override are also Kconfig options,
+  which is how the bad-certificate, blocked-NTP and Cloudflare-path cases were tested. The board
+  always validates the server certificate and does not connect until its clock is set.
+- **The two sides share fixtures.** `packages/claude-board-bridge/tests/fixtures/board/*.json` is the
+  wire format: the bridge's `tests/wire.rs` pins its output to them and the firmware's host tests
+  parse them. Change the protocol in both or the tests fail.
 
 ### Testing Changes
 ```bash
@@ -752,7 +817,7 @@ Caddy reverse proxy consuming service definitions. Generates TLS configs, error 
 - `packages/` - Custom Nix derivations, one `<name>/package.nix` each (auto-loaded)
 - `home/` - Home Manager config (`home.nix` for user `arosenfeld`)
 - `secrets/` - Encrypted secrets (`sops/*.yaml` managed by sops-nix)
-- `just/` - Justfile submodules (blog, secrets, docs, k8s)
+- `just/` - Justfile submodules (blog, secrets, docs, k8s, board)
 
 ## Host & Container Conventions
 

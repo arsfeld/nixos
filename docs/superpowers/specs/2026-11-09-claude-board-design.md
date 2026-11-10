@@ -205,3 +205,29 @@ revisited before further work.
   bridge is testable without hardware; manual checks of each screen on the
   device.
 - The phase-1 spike gates the rest.
+
+## Decisions made during implementation (phase 1)
+
+Settled where this spec was silent or the first idea did not survive contact with the hardware.
+Verified details are in `docs/superpowers/plans/2026-11-09-claude-board.md` and CLAUDE.md.
+
+- **Timeouts.** A held question times out after 60 s (under Cloudflare's 100 s proxy limit); the
+  hook's own limits are 80 s (curl) and 90 s (settings). The bridge pings the board socket every 30 s.
+  A failed authentication attempt is delayed 500 ms. Cards expire after 6 h without an event.
+- **State rules.** `SessionStart` is `idle`, `UserPromptSubmit` is `working`, `Stop` is `done`,
+  `StopFailure` is `error`, a `permission_prompt` notification or a held question is `waiting`, an
+  `idle_prompt` notification is `idle`. After a question is answered the card returns to `working`.
+  A notification never cancels a held question (the idle prompt fires at about the same 60 s mark).
+- **Hooks.** The `PermissionRequest` hook on the question tool is answered by returning `allow` with
+  `updatedInput.answers`; verified on Claude Code 2.1.319 in auto mode, where the terminal dialog never
+  appears. A real `StopFailure` payload has no `cwd`, so the hook falls back to its own directory.
+- **Firmware protocol core.** Answers are stateful: `bp_answer` returns "more questions remain" until
+  the last one and then the finished message. A "state" snapshot drops every held question (the bridge
+  re-sends the pending ones), and a declined question is dismissed locally until the bridge clears it.
+- **Build.** The firmware builds in a nix dev shell (ESP-IDF 5.5.4, not a pure derivation) from a
+  seeded first configure, and needs a reserved internal-RAM pool: see CLAUDE.md for why.
+- **Verification without eyes or fingers.** Debug-only snapshot and self-test options exist so the
+  screens and the answer path could be tested on the real board; physical touch and the chime were not
+  tested by the implementer.
+- **Known limits.** Bridge state is in memory. The Wi-Fi password and token are in the flash image in
+  the clear. Non-Latin text renders as missing-glyph boxes. Captive-portal networks are unsupported.
