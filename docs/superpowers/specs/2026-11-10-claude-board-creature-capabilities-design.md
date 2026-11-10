@@ -189,6 +189,16 @@ for the creature to be idle. Fixture `reminder.json` in
   forecasts are reachable. **Fallback** if Hermes cannot speak HA's transport: the bridge proxies HA's MCP
   through its own endpoint (same tools, forwarded), which keeps the allowlist in HA.
 
+- **G2 result (2026-11-10, live against galactica's HA 2026.5).** `POST /api/mcp` speaks streamable HTTP
+  with plain `application/json` replies and issues no session id; `serverInfo` is `home-assistant` 1.26.0.
+  Tools: `HassTurnOn`, `HassTurnOff`, `HassLightSet`, `HassClimateSetTemperature`, `HassBroadcast`,
+  `HassCancelAllTimers`, `HassListAddItem`, `HassListCompleteItem`, `HassListRemoveItem`, `todo_get_items`,
+  `GetDateTime`, `GetLiveContext`. `GetLiveContext` (as the `creature` user, after the exposure step) names
+  no lock, alarm or camera, and carries the weather entity's current state but **no forecast**, so
+  `weather_forecast` in the bridge is in scope. `HassCancelAllTimers` acts on HA's own timers, not the
+  board's, so Hermes excludes it (`tools.exclude`) to keep "cancel my timers" on `cancel_timer`. Not
+  measured: an attempt to act on an unexposed entity.
+
 ## Testing
 
 - **Bridge, unit and integration** (`cargo test`, in the Nix build):
