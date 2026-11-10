@@ -1,5 +1,6 @@
 pub mod protocol;
 pub mod asks;
+pub mod feed;
 pub mod board;
 pub mod auth;
 pub mod http;

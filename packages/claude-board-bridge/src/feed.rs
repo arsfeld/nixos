@@ -1,0 +1,66 @@
+//! A bounded, in-memory activity feed per session.
+
+use std::collections::{HashMap, VecDeque};
+use std::sync::Mutex;
+
+use claude_board_proto::fit;
+
+use crate::protocol::{FeedEntry, FeedKind};
+
+/// Entries kept per session.
+const KEEP: usize = 200;
+
+fn cap(kind: FeedKind) -> usize {
+    match kind {
+        FeedKind::Prompt => 2048,
+        FeedKind::Tool => 1200,
+        FeedKind::Result => 16,
+        FeedKind::Reply => 4096,
+        FeedKind::Other => 1200,
+    }
+}
+
+#[derive(Default)]
+struct Log {
+    /// The `n` of the last entry appended.
+    last: u64,
+    entries: VecDeque<FeedEntry>,
+}
+
+#[derive(Default)]
+pub struct Feed {
+    inner: Mutex<HashMap<(String, String), Log>>,
+}
+
+impl Feed {
+    pub fn new() -> Feed {
+        Feed::default()
+    }
+
+    /// Store a line, cut to the kind's byte cap on a character boundary.
+    pub fn append(&self, host: &str, session: &str, kind: FeedKind, text: &str, ts: i64) -> FeedEntry {
+        let text = text[..fit(text, cap(kind))].to_string();
+        let mut g = self.inner.lock().unwrap();
+        let log = g.entry((host.into(), session.into())).or_default();
+        log.last += 1;
+        let entry = FeedEntry { n: log.last, ts, kind, text };
+        log.entries.push_back(entry.clone());
+        if log.entries.len() > KEEP {
+            log.entries.pop_front();
+        }
+        entry
+    }
+
+    /// The newest `limit` entries, oldest first.
+    pub fn history(&self, host: &str, session: &str, limit: usize) -> Vec<FeedEntry> {
+        let g = self.inner.lock().unwrap();
+        match g.get(&(host.to_string(), session.to_string())) {
+            Some(log) => log.entries.iter().skip(log.entries.len().saturating_sub(limit)).cloned().collect(),
+            None => Vec::new(),
+        }
+    }
+
+    pub fn drop_session(&self, host: &str, session: &str) {
+        self.inner.lock().unwrap().remove(&(host.to_string(), session.to_string()));
+    }
+}
