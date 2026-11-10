@@ -44,23 +44,6 @@ test:
     set -euo pipefail
     nix develop .#firmware -c bash -c 'cd "{{ justfile_directory() }}/packages/claude-board-proto" && cargo test'
 
-# Host tests for the old C protocol core, kept until the C firmware is retired (plain C and cJSON, built with ASan and UBSan).
-# The fixtures are the bridge's wire format; the Rust side pins the same files.
-test-c:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    nix develop .#firmware -c bash -c '
-      set -euo pipefail
-      cd "{{ FW }}/components/board_proto"
-      out="$(mktemp -d)"
-      trap "rm -rf $out" EXIT
-      cc -std=c11 -Wall -Wextra -Werror -g -fsanitize=address,undefined -fno-sanitize-recover=all \
-        -DFIX_DIR=\"{{ justfile_directory() }}/packages/claude-board-bridge/tests/fixtures/board\" \
-        -I. $(pkg-config --cflags libcjson) board_proto.c test/test_board_proto.c \
-        $(pkg-config --libs libcjson) -o "$out/test"
-      "$out/test"
-    '
-
 # Render the Slint screens to PNGs in firmware/claude-board/preview/ (host only, no board needed).
 preview:
     #!/usr/bin/env bash
@@ -68,80 +51,34 @@ preview:
     nix develop .#firmware -c bash -c 'cd "{{ FW }}" && ./scripts/vendor-slint-core.sh >/dev/null && cargo run -q -p claude-board-ui --example preview -- preview 2>/dev/null'
 
 # Write the Wi-Fi credentials and the device token from sops into the firmware's gitignored
-# sdkconfig.defaults.local, and drop sdkconfig so the next build picks them up. Nothing is printed.
+# app/credentials.env, which the build turns into compile-time values. Nothing is printed.
 # They end up in the flash image in the clear (flash encryption is not enabled): anyone with the
 # board in hand can read them back, so treat the board like the credentials it holds.
+# (Optional extra lines in that file: CB_URL, CB_NTP, CB_DNS, read by app/build.rs.)
 creds:
     #!/usr/bin/env bash
     set -euo pipefail
     nix develop .#firmware -c bash -c '
       set -euo pipefail
-      out="{{ FW }}/sdkconfig.defaults.local"
+      out="{{ FW }}/app/credentials.env"
       sops_file="{{ justfile_directory() }}/secrets/sops/raider.yaml"
-      # An empty value must stop the recipe: a failure inside $(...) in an argument would not.
+      # An empty value must stop the recipe: a failure inside $(...) in an argument would not. The file is
+      # KEY=value lines read as they are, so a value spanning lines would corrupt it.
       get() {
         local v
         v="$(sops --decrypt --extract "[\"$1\"]" "$sops_file")"
         [ -n "$v" ] || { echo "secret $1 is empty or missing" >&2; exit 1; }
-        v=${v//\\/\\\\}
-        printf "%s" "${v//\"/\\\"}"
+        [ "$(printf "%s" "$v" | wc -l)" = 0 ] || { echo "secret $1 spans several lines" >&2; exit 1; }
+        printf "%s" "$v"
       }
       ssid="$(get claude-board-wifi-ssid)"
       pass="$(get claude-board-wifi-pass)"
       token="$(get claude-board-device-token)"
       : > "$out"
       chmod 600 "$out"
-      printf "CONFIG_CLAUDE_BOARD_WIFI_SSID=\"%s\"\n" "$ssid" >> "$out"
-      printf "CONFIG_CLAUDE_BOARD_WIFI_PASS=\"%s\"\n" "$pass" >> "$out"
-      printf "CONFIG_CLAUDE_BOARD_TOKEN=\"%s\"\n" "$token" >> "$out"
-      # The Rust firmware reads KEY=value lines (no quoting) from app/credentials.env at build time.
-      penv="{{ FW }}/app/credentials.env"
-      : > "$penv"
-      chmod 600 "$penv"
-      printf "CB_WIFI_SSID=%s\nCB_WIFI_PASS=%s\nCB_TOKEN=%s\n" "$ssid" "$pass" "$token" >> "$penv"
+      printf "CB_WIFI_SSID=%s\nCB_WIFI_PASS=%s\nCB_TOKEN=%s\n" "$ssid" "$pass" "$token" >> "$out"
     '
-    rm -f '{{ FW }}/sdkconfig'
-    echo "wrote {{ FW }}/sdkconfig.defaults.local; run just board build"
-
-# Build the OLD C firmware (kept until the Rust one has replaced it).
-#
-# The first configure is seeded with kconfig-seed.json. The IDF component manager (2.2.2 in IDF
-# 5.5.x) evaluates optional dependencies that are conditioned on Kconfig symbols (LVGL 9.6's
-# freetype/png/jpeg/lz4, the BSP adapter's button/fs/knob/decoder) before any component, and so
-# any Kconfig file defining them, has been downloaded. With no symbol values known it fails with
-# MissingKconfigError and downloads nothing. It reads known values from build/config/sdkconfig.json
-# when that exists, so the first configure starts from a seed with those features off; the real
-# sdkconfig.json replaces it from then on. If a newer lvgl or adapter adds another conditional
-# dependency the same error names the symbol: add it to the seed. dependencies.lock pins versions.
-build-c:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    nix develop .#firmware -c bash -c '
-      set -euo pipefail
-      cd "{{ FW }}"
-      if [ ! -f sdkconfig ]; then
-        rm -rf build
-        mkdir -p build/config
-        cp kconfig-seed.json build/config/sdkconfig.json
-        idf.py -DIDF_TARGET=esp32s3 reconfigure
-      fi
-      idf.py build
-    '
-
-# Flash the old C firmware (bootloader, partition table, app) and reboot the board.
-flash-c:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    nix develop .#firmware -c bash -c '
-      set -euo pipefail
-      cd "{{ FW }}/build"
-      run() { if [ -w "{{ PORT }}" ]; then "$@"; else sudo env "PATH=$PATH" "$@"; fi; }
-      run esptool --chip esp32s3 --port "{{ PORT }}" --baud 921600 write-flash "@flash_args"
-    '
-
-# Follow the old C firmware's log (needs a terminal; Ctrl-] quits).
-monitor-c:
-    nix develop .#firmware -c bash -c 'cd "{{ FW }}" && idf.py -p "{{ PORT }}" monitor'
+    echo "wrote {{ FW }}/app/credentials.env; run just board build"
 
 # Build the Rust firmware (app/). esp-idf-sys does not notice changes to the C component, sdkconfig.defaults
 # or the Cargo metadata, so it is cleaned first when any of them is newer than the last build.

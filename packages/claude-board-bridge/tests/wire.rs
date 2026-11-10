@@ -1,6 +1,6 @@
-//! The JSON files in tests/fixtures/board are the wire format the firmware parses
-//! (firmware/claude-board/components/board_proto/test). This pins the bridge to produce
-//! exactly them, so the two sides cannot drift apart.
+//! The JSON files in tests/fixtures/board are the wire format the firmware parses (the claude-board-proto
+//! crate's tests parse every one of them). This pins the bridge to produce exactly them, so the two sides
+//! cannot drift apart.
 
 use claude_board_bridge::asks::{AskId, PendingAsk, Question, QuestionOption};
 use claude_board_bridge::protocol::{BoardMsg, Session, State};

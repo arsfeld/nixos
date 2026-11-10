@@ -1,7 +1,8 @@
 # Claude Board Rust firmware: probe findings
 
-Date: 2026-11-09. Source: `firmware/probe-rust/` (throwaway, deleted in Task 14 of
-`docs/superpowers/plans/2026-11-09-claude-board-rust.md`), with the working notes in its `README.md`.
+Date: 2026-11-09. Source: `firmware/probe-rust/`, a throwaway crate that was deleted in Task 14 of
+`docs/superpowers/plans/2026-11-09-claude-board-rust.md` (it is in git history: `git log --diff-filter=D -- firmware/probe-rust`);
+its README's findings are folded into this document and into the `CLAUDE.md` traps list.
 Spec: `docs/superpowers/specs/2026-11-09-claude-board-rust-design.md`.
 
 ## Verdict

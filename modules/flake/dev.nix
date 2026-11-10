@@ -138,12 +138,12 @@
       ];
     };
 
-    # ESP-IDF for the ESP32-S3 board firmware (firmware/claude-board), plus what the `just
-    # board` recipes call. v5.5.4, the version Waveshare builds its firmware with: the v5.5.2
-    # that nixpkgs-esp-dev defaults to bundles idf-component-manager 2.2.2, which fails on
-    # LVGL's Kconfig-conditional dependencies (MissingKconfigError: LV_USE_FREETYPE). Not a
-    # pure derivation: the component manager downloads components (dependencies.lock pins
-    # them), so the build needs network.
+    # Everything to build, test and flash the ESP32-S3 board firmware (firmware/claude-board, Rust with Slint):
+    # ESP-IDF v5.5.4 (the version Waveshare builds its firmware with; nixpkgs-esp-dev's default v5.5.2 bundles a
+    # component manager that fails on LVGL's Kconfig-conditional dependencies), Espressif's Xtensa Rust toolchain
+    # (esp-rs-nix, fetched by fixed hash), espflash, and what the host-side UI tests and the Slint compiler link
+    # (fontconfig). Not a pure derivation: esp-idf-sys has the component manager download components, so the
+    # firmware build needs network.
     devShells.firmware = let
       esp-rs = pkgs.callPackage "${inputs.esp-rs-nix}/package.nix" {};
     in
@@ -169,7 +169,6 @@
           pkgs.ldproxy
           pkgs.rustup
           esp-rs
-          pkgs.cjson
           pkgs.pkg-config
           pkgs.fontconfig # Slint's compiler and the host-side UI tests (fontique) link it
           pkgs.fontconfig.dev

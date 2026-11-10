@@ -1,9 +1,6 @@
-build/
-credentials.env
-managed_components/
-preview/
-sdkconfig
-sdkconfig.defaults.local
-sdkconfig.old
+# Build output and generated files (all recreated by `just board build` and `just board preview`)
 target/
+app/target/
 vendor/
+preview/
+credentials.env

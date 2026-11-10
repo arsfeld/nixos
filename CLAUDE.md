@@ -339,7 +339,10 @@ Code session across the fleet and answers Claude's multiple-choice questions wit
 `docs/superpowers/specs/2026-11-09-claude-board-design.md`; plan:
 `docs/superpowers/plans/2026-11-09-claude-board.md`; hook behaviour measured on Claude Code 2.1.319:
 `docs/superpowers/specs/2026-11-09-claude-board-hook-findings.md`. Phase 1 (status + answering) is
-built; phase 2 (voice, starting sessions in chosen projects) is not, and needs its own design.
+built; phase 2 (voice, starting sessions in chosen projects) is not, and needs its own design. The firmware
+was rewritten from C and LVGL to Rust and Slint (spec `docs/superpowers/specs/2026-11-09-claude-board-rust-design.md`,
+plan `docs/superpowers/plans/2026-11-09-claude-board-rust.md`, what the board measured before committing to it
+and the parity run `docs/superpowers/specs/2026-11-09-claude-board-rust-probe-findings.md`).
 
 ```
 hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (firmware/claude-board)
@@ -365,36 +368,73 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
   the firmware embeds it); `claude-board-wifi-ssid`/`-pass` in `raider.yaml`. A `restartUnits` entry
   for a unit that does not exist on a host fails that host's whole activation (it did, on raider):
   keep `restartUnits` in the galactica module, not the base one.
-- **Firmware.** `firmware/claude-board` (ESP-IDF 5.5.4 via the `nixpkgs-esp-dev` input, LVGL 9.4.0,
-  Waveshare's BSP). Everything goes through `just board`: `backup` (full 32 MiB flash, do this
-  before flashing anything), `restore` (puts the stock Waveshare demo back, tested), `creds` (writes
-  the gitignored `sdkconfig.defaults.local` from sops), `build`, `flash`, `monitor`, `test` (host tests
-  of the protocol core under ASan/UBSan). The Wi-Fi password and token are compiled into the image in
-  the clear (no flash encryption), so whoever holds the board can read them. The ESP32-S3 is 2.4 GHz
-  only. Captive-portal networks are not supported.
-- **Firmware traps, all hit during bring-up.**
-  - The first configure needs `kconfig-seed.json`: the component manager (2.2.2) raises
-    `MissingKconfigError` on LVGL 9.6's and the BSP adapter's Kconfig-conditional dependencies before
-    anything is downloaded. `just board build` applies it when no `sdkconfig` exists; a new such error
-    names the symbol to add.
-  - Internal RAM is the scarce resource. The BSP draws 46 KB strips from PSRAM and the SPI driver
-    bounces each through one contiguous internal DMA block, so `sdkconfig.defaults` reserves a 64 KB
-    pool and moves mbedTLS and Wi-Fi/lwIP to PSRAM. Without that the display and TLS both fail with
-    `ESP_ERR_NO_MEM`. A `heap:` line every 30 s in the log shows the margin (about 118 KB free, 63 KB
-    largest DMA block).
-  - A new tracked dev-shell attribute means the weekly `nix flake update` also moves
-    `nixpkgs-esp-dev`; the IDF `rev`/`sha256` override in `modules/flake/dev.nix` may need re-hashing.
-  - Montserrat has no emoji, CJK or accented glyphs: such text shows as missing-glyph boxes (the
-    answer key is still the exact text).
-- **Debugging a board you cannot see.** `CONFIG_CLAUDE_BOARD_SNAPSHOT` logs a downscaled screenshot over
-  serial and `CONFIG_CLAUDE_BOARD_SELFTEST` clicks the UI's own buttons. Both are off in real builds;
-  add them to `sdkconfig.defaults.local`, rebuild, and decode the `SNAPSTART`/`SNAPDATA`/`SNAPEND`
-  lines (RGB565, base64, 233×233). The URL, NTP server and a DNS override are also Kconfig options,
-  which is how the bad-certificate, blocked-NTP and Cloudflare-path cases were tested. The board
-  always validates the server certificate and does not connect until its clock is set.
-- **The two sides share fixtures.** `packages/claude-board-bridge/tests/fixtures/board/*.json` is the
-  wire format: the bridge's `tests/wire.rs` pins its output to them and the firmware's host tests
-  parse them. Change the protocol in both or the tests fail.
+- **Firmware.** `firmware/claude-board`, Rust on `esp-idf-svc` (ESP-IDF 5.5.4 from the `nixpkgs-esp-dev` input,
+  Espressif's Xtensa Rust fork from the `esp-rs-nix` input) with Slint's software renderer. Three parts:
+  - `packages/claude-board-proto`: the wire types and the board's `Model` (sessions, questions, answers), shared
+    with the bridge. `nix build .#claude-board-proto` runs its tests.
+  - `ui/` (`claude-board-ui`): the Slint screens (`ui/*.slint`), the `Controller` that turns messages and taps into
+    screen properties, the touch tracker (taps and the swipe-right back gesture), power (dim, wake, drift) and the
+    link helpers. It builds and tests on the host, including headless renders of the real screens.
+  - `app/`: the ESP binary (a separate Cargo package with its own lock file and target). `net.rs` is Wi-Fi, SNTP
+    and the websocket; `platform.rs` is Slint on the panel; `display.rs` wraps `components/board_display`, a small C
+    component that owns the panel (CO5300 over QSPI), touch (CST9217) and speaker.
+  Everything goes through `just board`: `backup` (full 32 MiB flash, do this before flashing anything), `restore`
+  (puts the stock Waveshare demo back, tested), `creds` (writes the gitignored `app/credentials.env` from sops),
+  `build`, `flash`, `monitor`, `test` (the proto crate), `preview` (renders every screen to
+  `firmware/claude-board/preview/*.png` with the same renderer, no board needed). Host tests of the screens:
+  `nix develop .#firmware -c bash -c 'cd firmware/claude-board && cargo test -p claude-board-ui'`. The Wi-Fi password
+  and token are compiled into the image in the clear (no flash encryption), so whoever holds the board can read them.
+  The ESP32-S3 is 2.4 GHz only. Captive-portal networks are not supported.
+- **The screens.** Home is the avatar (`Presence`, drawn from circles and glow sprites) inside a ring of arcs, one
+  per session in its state's colour, the waiting one pulsing. Tapping the avatar opens the session list, a wheel of
+  big round rows whose badges follow the screen's curve; tapping a row (or an arc) opens the session. A waiting
+  question takes over the screen. Swipe right goes back a level. The screen dims 30 s after the last touch or bridge
+  message and the picture shifts a few pixels each minute, against AMOLED burn-in.
+- **Firmware traps, nearly all hit during bring-up.**
+  - Slint: the device build must not enable its `std` feature (it pulls in `memmap2`, which does not build for
+    ESP-IDF); the feature set is in `ui/Cargo.toml` and `app/Cargo.toml` and must match. `Path` support then needs a
+    one-line local patch to `i-slint-core`, made by `firmware/claude-board/scripts/vendor-slint-core.sh` into the
+    gitignored `vendor/` (`just board build` and `preview` run it). Re-check the patch at every Slint bump. Host
+    tests do enable `std` (a dev-dependency) so parallel tests each get their own platform.
+  - **Damage regions decide the frame rate.** A `Path` with an animated property repaints its whole box every frame,
+    even when hidden: each rim arc has its own tight box (`rim::arc_segment`) and animated items that can be absent are
+    created with `if` or kept in a separate model. A rounded rectangle cannot hold a gradient and a gradient `Path`
+    fill renders flat, so the avatar's glow is a pre-rendered sprite tinted with `colorize`, used at its native size
+    (scaling costs about 20 ms a frame). Fades use colour alpha, not `opacity`.
+  - **Glyphs.** The compiler embeds only ASCII and the characters it can see in `.slint` string literals, for the
+    sizes used. `ui/glyphs.slint` lists Latin-1 and Latin Extended-A so accented names render; Sora has no Greek, CJK
+    or emoji, which draw as blanks (the answer key is still the exact text). The font family must be a literal.
+  - The Waveshare BSP package cannot be used: it depends on LVGL, and the component manager then fails inside
+    `esp-idf-sys` with `MissingKconfigError: LV_USE_FREETYPE`, with no place to seed it. `board_display` carries a
+    trimmed copy of the BSP code it needs (pins, QSPI init, brightness, touch, speaker).
+  - `esp-idf-sys` does not notice changes to the C component, `sdkconfig.defaults`, `partitions.csv` or the Cargo
+    metadata; `just board build` cleans it when any of them is newer than the last build. It also ignores
+    `CONFIG_PARTITION_TABLE_*`, so `just board flash` passes `partitions.csv` to espflash.
+  - `esp-idf-hal` links the legacy I2C driver and the new one aborts at start: `sdkconfig.defaults` sets
+    `CONFIG_I2C_SKIP_LEGACY_CONFLICT_CHECK=y`.
+  - Internal RAM is the scarce resource. `sdkconfig.defaults` reserves a 64 KB internal pool for the panel's DMA and
+    moves mbedTLS and Wi-Fi/lwIP to PSRAM; a `heap:` line every 30 s in the log shows the margin (about 100 KB free
+    with Wi-Fi, TLS and the UI up). The panel is pushed in two alternating 16-row strips with the non-blocking
+    `bd_draw` and one `bd_wait` per frame (the completion semaphore must be a counting one). The pixel clock is the
+    BSP's 40 MHz; 80 MHz measured faster but was never checked by eye.
+  - The websocket uses the C `esp_websocket_client` API directly: the Rust wrapper hands over each chunk of a
+    fragmented message without its offset and fails on a chunk that splits a UTF-8 character, so large `question`
+    messages could not be reassembled. SNTP is started once the network is up (started earlier it waits a long time
+    before retrying).
+  - **A touch release carries no coordinates** (the controller reports a stale (0, 0) once the finger is up), so
+    `ui::touch::TouchTracker` replays the last touched position on release; without it no tap ever registered.
+  - **Never `cp -p` a file the build watches** (`app/credentials.env`): the old mtime means Cargo does not rebuild
+    and the board keeps the previous values.
+  - A new tracked dev-shell attribute means the weekly `nix flake update` also moves `nixpkgs-esp-dev` and
+    `esp-rs-nix`; the IDF `rev`/`sha256` override in `modules/flake/dev.nix` may need re-hashing.
+- **Debugging a board you cannot see.** Render the screens with `just board preview`, or write a host test: the `ui`
+  tests render the real scene headlessly and send real pointer events at real coordinates. The bridge URL, NTP
+  server and a DNS override are `CB_URL`, `CB_NTP`, `CB_DNS` lines in `app/credentials.env` (that is how the
+  bad-certificate and blocked-NTP cases were tested). The board always validates the server certificate and does not
+  connect until its clock is set.
+- **The two sides share fixtures.** `packages/claude-board-bridge/tests/fixtures/board/*.json` is the wire format:
+  the bridge's `tests/wire.rs` pins its output to them and the `claude-board-proto` tests parse every one of them.
+  Change the protocol in the proto crate, the fixtures and both test files together.
 
 ### Testing Changes
 ```bash

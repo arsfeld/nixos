@@ -1,32 +1,15 @@
 // The session list as a wheel, like a round watch's app list: big round badges down the left, each with
 // its name, and the column curving away to the right above and below the centre row, following the screen's
 // own curve. Rows at the top and bottom are half hidden by the bezel. Scrolled by touch.
-//
-// The software renderer cannot rotate items, so rows slide along the curve but never tilt.
+// The curve itself is `WheelRow`'s.
 import { Theme, SessionRow } from "theme.slint";
+import { WheelRow } from "wheel.slint";
 
-component RowView inherits Rectangle {
+component RowView inherits WheelRow {
     in property <SessionRow> data;
-    // Where the row's centre is on the screen, supplied by the wheel.
-    in property <length> cy;
-    // The wheel: its radius (the screen's own, so the column follows the bezel) and how far in from the screen
-    // edge the badges start on the centre row.
-    in property <float> wheel-r: 233;
-    in property <float> inset: 66;
     callback tapped();
 
-    // `bow` is how far the circle has curved away from its widest point at this distance from the centre.
-    property <float> dy: (root.cy - 233px) / 1px;
-    // The curve stops at 160 px from the centre: a row leaving the screen carries on straight up or down instead
-    // of swinging off to the right (a plain circle would put it 128 px out by the time it is half hidden).
-    property <float> reach: Math.min(Math.abs(root.dy), 160);
-    property <float> bow: root.wheel-r - Math.sqrt(root.wheel-r * root.wheel-r - root.reach * root.reach);
-    property <float> left: root.inset + root.bow;
-
-    x: root.left * 1px;
-    width: Math.max(0, 466 - root.left - 14) * 1px;
     height: 96px;
-    visible: root.width > 40px;
 
     // The badge: the state's colour with the project's first letter.
     Rectangle {

@@ -1,0 +1,25 @@
+// One row of a wheel, like a round watch's app list: the column curves away to the right above and below the
+// centre row, following the screen's own curve. Shared by the session list and the question's options.
+// The caller sets `cy` (the row's centre on the screen) and puts the row's content inside.
+//
+// The software renderer cannot rotate items, so rows slide along the curve but never tilt.
+export component WheelRow inherits Rectangle {
+    // Where the row's centre is on the screen, supplied by the wheel.
+    in property <length> cy;
+    // The wheel: its radius (the screen's own, so the column follows the bezel) and how far in from the screen
+    // edge the content starts on the centre row.
+    in property <float> wheel-r: 233;
+    in property <float> inset: 66;
+
+    // `bow` is how far the circle has curved away from its widest point at this distance from the centre.
+    property <float> dy: (root.cy - 233px) / 1px;
+    // The curve stops at 160 px from the centre: a row leaving the screen carries on straight up or down instead
+    // of swinging off to the right (a plain circle would put it 128 px out by the time it is half hidden).
+    property <float> reach: Math.min(Math.abs(root.dy), 160);
+    property <float> bow: root.wheel-r - Math.sqrt(root.wheel-r * root.wheel-r - root.reach * root.reach);
+    property <float> left: root.inset + root.bow;
+
+    x: root.left * 1px;
+    width: Math.max(0, 466 - root.left - 14) * 1px;
+    visible: root.width > 40px;
+}
