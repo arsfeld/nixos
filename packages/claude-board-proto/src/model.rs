@@ -4,7 +4,10 @@
 
 use std::collections::BTreeMap;
 
-use crate::{AskId, BoardMsg, ClientMsg, PendingAsk, Question, Session, State};
+use crate::{AskId, BoardMsg, ClientMsg, FeedEntry, PendingAsk, Question, Session, State};
+
+/// How many feed entries the board keeps for the watched session.
+pub const FEED_CAP: usize = 50;
 
 /// What [`Model::apply`] did with a message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,6 +63,10 @@ pub enum AnswerOutcome {
 pub struct Model {
     sessions: Vec<Session>,
     asks: Vec<Ask>,
+    /// The (host, session) whose feed the board shows, if any.
+    watching: Option<(String, String)>,
+    /// The newest `FEED_CAP` entries of the watched session, oldest first.
+    feed: Vec<FeedEntry>,
 }
 
 impl Model {
@@ -77,8 +84,27 @@ impl Model {
         };
         match msg {
             BoardMsg::Hello { .. } | BoardMsg::Unknown => return Applied::Ignored,
-            // The feed is applied in the plan's Task 7.
-            BoardMsg::History { .. } | BoardMsg::Entry { .. } => return Applied::Ignored,
+            BoardMsg::History { host, session, mut entries } => {
+                if !self.is_watching(&host, &session) {
+                    return Applied::Ignored;
+                }
+                // The newest of the buffer is now the dedupe baseline: the bridge restarts its
+                // numbering at 1 when it dropped the feed, so nothing older may be remembered.
+                let skip = entries.len().saturating_sub(FEED_CAP);
+                entries.drain(..skip);
+                self.feed = entries;
+                return Applied::Changed;
+            }
+            BoardMsg::Entry { host, session, entry } => {
+                if !self.is_watching(&host, &session) || self.feed.last().is_some_and(|last| entry.n <= last.n) {
+                    return Applied::Ignored;
+                }
+                self.feed.push(entry);
+                if self.feed.len() > FEED_CAP {
+                    self.feed.remove(0);
+                }
+                return Applied::Changed;
+            }
             BoardMsg::State { sessions } => {
                 self.sessions = sessions;
                 self.asks.clear();
@@ -102,6 +128,37 @@ impl Model {
         }
         self.sort();
         Applied::Changed
+    }
+
+    fn is_watching(&self, host: &str, session: &str) -> bool {
+        self.watching.as_ref().is_some_and(|(h, s)| h == host && s == session)
+    }
+
+    /// Start showing this session's feed: clears the buffer and returns the message to send.
+    pub fn watch(&mut self, host: &str, session: &str) -> ClientMsg {
+        self.watching = Some((host.to_owned(), session.to_owned()));
+        self.feed.clear();
+        ClientMsg::Watch { host: host.to_owned(), session: session.to_owned() }
+    }
+
+    /// Stop watching. A message for the bridge only if something was being watched.
+    pub fn unwatch(&mut self) -> Option<ClientMsg> {
+        self.feed.clear();
+        self.watching.take().map(|_| ClientMsg::Unwatch)
+    }
+
+    /// The `Watch` for the current target, to send again after a reconnect.
+    pub fn rewatch_msg(&self) -> Option<ClientMsg> {
+        self.watching.as_ref().map(|(h, s)| ClientMsg::Watch { host: h.clone(), session: s.clone() })
+    }
+
+    pub fn watching(&self) -> Option<(&str, &str)> {
+        self.watching.as_ref().map(|(h, s)| (h.as_str(), s.as_str()))
+    }
+
+    /// The watched session's feed, oldest first.
+    pub fn feed(&self) -> &[FeedEntry] {
+        &self.feed
     }
 
     fn sort(&mut self) {
@@ -431,6 +488,147 @@ mod tests {
         assert!(matches!(m.answer("Pear"), AnswerOutcome::NextQuestion));
         apply_fixture(&mut m, "question_clear"); // the bridge clears ...01
         assert_eq!(m.ask_count(), 1);
+    }
+
+    fn entry_json(host: &str, session: &str, n: u64) -> String {
+        format!(r#"{{"t":"entry","host":"{host}","session":"{session}","n":{n},"ts":{n},"kind":"tool","text":"t{n}"}}"#)
+    }
+
+    fn history_json(session: &str, range: std::ops::RangeInclusive<u64>) -> String {
+        let entries: Vec<String> =
+            range.map(|n| format!(r#"{{"n":{n},"ts":{n},"kind":"reply","text":"r{n}"}}"#)).collect();
+        format!(r#"{{"t":"history","host":"raider","session":"{session}","entries":[{}]}}"#, entries.join(","))
+    }
+
+    fn ns(m: &Model) -> Vec<u64> {
+        m.feed().iter().map(|e| e.n).collect()
+    }
+
+    #[test]
+    fn history_for_the_watched_session_fills_the_buffer() {
+        let mut m = Model::new();
+        assert_eq!(m.watching(), None);
+        assert_eq!(m.watch("raider", "s-1"), ClientMsg::Watch { host: "raider".into(), session: "s-1".into() });
+        assert_eq!(m.watching(), Some(("raider", "s-1")));
+        assert_eq!(apply_fixture(&mut m, "history"), Applied::Changed);
+        assert_eq!(ns(&m), [1, 2, 3, 4]);
+        assert_eq!(m.feed()[3].text, "The build failed: missing input.");
+    }
+
+    #[test]
+    fn history_for_another_session_is_ignored() {
+        let mut m = Model::new();
+        m.watch("raider", "s-9");
+        assert_eq!(apply_fixture(&mut m, "history"), Applied::Ignored);
+        assert!(m.feed().is_empty());
+        let mut m = Model::new(); // not watching at all
+        assert_eq!(apply_fixture(&mut m, "history"), Applied::Ignored);
+        assert_eq!(apply_fixture(&mut m, "entry"), Applied::Ignored);
+        assert!(m.feed().is_empty());
+    }
+
+    #[test]
+    fn entry_appends_and_is_capped_at_50() {
+        let mut m = Model::new();
+        m.watch("raider", "s-1");
+        apply_fixture(&mut m, "history");
+        assert_eq!(apply_fixture(&mut m, "entry"), Applied::Changed);
+        assert_eq!(ns(&m), [1, 2, 3, 4, 5]);
+        for n in 6..=60 {
+            assert_eq!(m.apply(&entry_json("raider", "s-1", n)), Applied::Changed);
+        }
+        assert_eq!(m.feed().len(), FEED_CAP);
+        assert_eq!((m.feed()[0].n, m.feed()[49].n), (11, 60));
+    }
+
+    #[test]
+    fn history_keeps_only_the_newest_50() {
+        let mut m = Model::new();
+        m.watch("raider", "s-1");
+        m.apply(&history_json("s-1", 1..=70));
+        assert_eq!((m.feed().len(), m.feed()[0].n, m.feed()[49].n), (50, 21, 70));
+    }
+
+    #[test]
+    fn entry_with_a_seen_n_is_ignored() {
+        let mut m = Model::new();
+        m.watch("raider", "s-1");
+        apply_fixture(&mut m, "history"); // ends at n=4
+        for n in [4, 3, 1] {
+            assert_eq!(m.apply(&entry_json("raider", "s-1", n)), Applied::Ignored);
+        }
+        assert_eq!(ns(&m), [1, 2, 3, 4]);
+        assert_eq!(m.apply(&entry_json("raider", "s-2", 9)), Applied::Ignored); // other session
+        assert_eq!(m.apply(&entry_json("galactica", "s-1", 9)), Applied::Ignored); // other host
+        assert_eq!(ns(&m), [1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn a_new_history_replaces_stale_entries() {
+        let mut m = Model::new();
+        m.watch("raider", "s-1");
+        apply_fixture(&mut m, "history");
+        apply_fixture(&mut m, "entry");
+        m.apply(&history_json("s-1", 1..=2));
+        assert_eq!(ns(&m), [1, 2]);
+    }
+
+    #[test]
+    fn numbering_restarts_after_a_fresh_history() {
+        // The bridge restarts at n=1 once it dropped the feed; the dedupe must not remember n=43.
+        let mut m = Model::new();
+        m.watch("raider", "s-1");
+        m.apply(&history_json("s-1", 40..=43));
+        assert_eq!(m.apply(&entry_json("raider", "s-1", 1)), Applied::Ignored);
+        m.apply(&history_json("s-1", 1..=0)); // empty
+        assert!(m.feed().is_empty());
+        assert_eq!(m.apply(&entry_json("raider", "s-1", 1)), Applied::Changed);
+        assert_eq!(ns(&m), [1]);
+        // And a non-empty replacement resets it to that buffer's newest.
+        m.apply(&history_json("s-1", 40..=43));
+        m.apply(&history_json("s-1", 1..=2));
+        assert_eq!(m.apply(&entry_json("raider", "s-1", 3)), Applied::Changed);
+    }
+
+    #[test]
+    fn unwatch_clears_and_only_returns_a_message_when_watching() {
+        let mut m = Model::new();
+        assert_eq!(m.unwatch(), None);
+        m.watch("raider", "s-1");
+        apply_fixture(&mut m, "history");
+        assert_eq!(m.unwatch(), Some(ClientMsg::Unwatch));
+        assert_eq!(m.watching(), None);
+        assert!(m.feed().is_empty());
+        assert_eq!(m.unwatch(), None);
+    }
+
+    #[test]
+    fn rewatch_msg_is_none_when_not_watching() {
+        let mut m = Model::new();
+        assert_eq!(m.rewatch_msg(), None);
+        m.watch("raider", "s-1");
+        assert_eq!(m.rewatch_msg(), Some(ClientMsg::Watch { host: "raider".into(), session: "s-1".into() }));
+        m.unwatch();
+        assert_eq!(m.rewatch_msg(), None);
+    }
+
+    #[test]
+    fn watching_another_session_clears_the_buffer() {
+        let mut m = Model::new();
+        m.watch("raider", "s-1");
+        apply_fixture(&mut m, "history");
+        m.watch("raider", "s-2");
+        assert!(m.feed().is_empty());
+    }
+
+    #[test]
+    fn state_snapshot_keeps_the_feed() {
+        let mut m = Model::new();
+        m.watch("raider", "s-1");
+        apply_fixture(&mut m, "history");
+        apply_fixture(&mut m, "state");
+        assert_eq!(ns(&m), [1, 2, 3, 4]);
+        assert_eq!(m.watching(), Some(("raider", "s-1")));
     }
 
     #[test]
