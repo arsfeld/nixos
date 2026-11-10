@@ -127,3 +127,9 @@ fn reminder_matches_the_firmware_fixture() {
     let m = BoardMsg::Reminder { id: "tmr_01".into(), label: "check the oven".into(), due: "2026-11-10T18:42:00-05:00".into() };
     assert_eq!(wire(&m), fixture("reminder"));
 }
+
+#[test]
+fn session_reset_matches_the_firmware_fixture() {
+    let m = BoardMsg::SessionReset { utterance: 7 };
+    assert_eq!(wire(&m), fixture("session_reset"));
+}

@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// so a newer bridge can add messages without breaking older boards. Version 2 adds the per-session
 /// activity feed (`history`, `entry`, and the board's `watch`/`unwatch`). Version 3 adds the creature's voice messages.
 /// Version 4 adds `reminder`, which the board shows when a timer or reminder is due.
-pub const PROTOCOL_VERSION: u32 = 4;
+pub const PROTOCOL_VERSION: u32 = 5;
 
 /// Sample rate of the 16-bit mono PCM the board uploads.
 pub const UPLINK_RATE: u32 = 16_000;
@@ -164,6 +164,8 @@ pub enum BoardMsg {
     SpeakEnd { utterance: u32 },
     /// A reminder or timer came due. `due` is RFC 3339 with the local offset.
     Reminder { id: String, label: String, due: String },
+    /// The creature's conversation was reset, in answer to `NewSession`.
+    SessionReset { utterance: u32 },
     #[serde(other)]
     Unknown,
 }
@@ -179,6 +181,8 @@ pub enum ClientMsg {
     VoiceStart { utterance: u32 },
     VoiceEnd { utterance: u32 },
     Cancel { utterance: u32 },
+    /// Start the creature's conversation afresh.
+    NewSession { utterance: u32 },
 }
 
 #[cfg(test)]
@@ -278,9 +282,18 @@ mod tests {
             (ClientMsg::VoiceStart { utterance: 3 }, "voice_start"),
             (ClientMsg::VoiceEnd { utterance: 3 }, "voice_end"),
             (ClientMsg::Cancel { utterance: 3 }, "cancel"),
+            (ClientMsg::NewSession { utterance: 3 }, "new_session"),
         ] {
             assert_eq!(serde_json::to_value(&msg).unwrap(), serde_json::json!({"t": t, "utterance": 3}));
         }
+    }
+
+    #[test]
+    fn session_reset_fixture_round_trips() {
+        let text = std::fs::read_to_string(format!("{}/session_reset.json", fixture_dir())).unwrap();
+        let msg: BoardMsg = serde_json::from_str(&text).unwrap();
+        assert_eq!(msg, BoardMsg::SessionReset { utterance: 7 });
+        assert_eq!(serde_json::to_value(&msg).unwrap(), serde_json::from_str::<Value>(&text).unwrap());
     }
 
     #[test]

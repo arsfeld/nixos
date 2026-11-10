@@ -200,6 +200,8 @@ fn handle(s: &AppState, watching: &Watching, history: &Notify, voice: &mut Uplin
         Ok(msg @ (ClientMsg::VoiceStart { .. } | ClientMsg::VoiceEnd { .. } | ClientMsg::Cancel { .. })) => {
             voice.control(msg);
         }
+        // Handled in a later task; ignored until then.
+        Ok(ClientMsg::NewSession { .. }) => {}
         Err(_) => {}
     }
 }
