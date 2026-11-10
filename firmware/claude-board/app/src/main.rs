@@ -2,16 +2,20 @@
 //! Design: docs/superpowers/specs/2026-11-09-claude-board-rust-design.md
 
 mod display;
+mod net;
 mod platform;
 
+use std::sync::mpsc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use claude_board_ui::controller::{Controller, Outbox};
+use claude_board_ui::link;
 use claude_board_ui::AppWindow;
 use esp_idf_svc::sys::{heap_caps_get_free_size, heap_caps_get_largest_free_block, MALLOC_CAP_DMA, MALLOC_CAP_INTERNAL, MALLOC_CAP_SPIRAM};
+use esp_idf_svc::hal::peripherals::Peripherals;
 use slint::ComponentHandle;
 
-/// Until the network task exists (Task 11) there is nowhere to send answers.
+/// Used when no credentials are compiled in: answers have nowhere to go.
 struct NoWire;
 
 impl Outbox for NoWire {
@@ -49,17 +53,42 @@ fn main() -> anyhow::Result<()> {
     let window = platform::install()?;
     let ui = AppWindow::new().map_err(|e| anyhow::anyhow!("{e}"))?;
     ui.show().map_err(|e| anyhow::anyhow!("{e}"))?;
-    let controller = Controller::new(&ui, NoWire);
-    // A fixed set of sessions, so the screens can be seen before the network task exists.
-    controller.on_message(include_str!("../../../../packages/claude-board-bridge/tests/fixtures/board/state.json"));
 
+    let settings = link::settings(env!("CB_URL"), env!("CB_NTP"), env!("CB_DNS")).map_err(anyhow::Error::msg)?;
+    let (tx, rx) = mpsc::channel::<net::Event>();
+    let (ssid, pass, token) = (env!("CB_WIFI_SSID"), env!("CB_WIFI_PASS"), env!("CB_TOKEN"));
+    // `Box<dyn Fn>`-free: the controller is generic over its outbox, so each case builds its own loop.
+    if ssid.is_empty() || token.is_empty() {
+        log::error!("no credentials compiled in: run `just board creds`, then rebuild");
+        ui.set_link(false);
+        return run(&window, Controller::new(&ui, NoWire), rx);
+    }
+    let modem = Peripherals::take()?.modem;
+    let wire = net::start(net::Credentials { ssid, pass, token }, settings, modem, tx)?;
+    ui.set_link(false);
+    run(&window, Controller::new(&ui, wire), rx)
+}
+
+fn run<O: Outbox + 'static>(window: &std::rc::Rc<slint::platform::software_renderer::MinimalSoftwareWindow>, controller: Controller<O>, rx: mpsc::Receiver<net::Event>) -> anyhow::Result<()> {
     std::thread::Builder::new().stack_size(3072).spawn(|| loop {
         std::thread::sleep(Duration::from_secs(30));
         heap_line();
     })?;
 
     let mut last_tick = Instant::now();
-    platform::run(&window, || {
+    platform::run(window, || {
+        while let Ok(event) = rx.try_recv() {
+            match event {
+                net::Event::Message(text) => {
+                    log::info!("bridge message: {} bytes", text.len());
+                    controller.on_message(&text);
+                    if controller.wants_chime() {
+                        display::chime();
+                    }
+                }
+                net::Event::Link(up) => controller.set_link(up),
+            }
+        }
         if last_tick.elapsed() >= Duration::from_millis(250) {
             last_tick = Instant::now();
             controller.tick(unix_now());

@@ -9,8 +9,6 @@ use crate::{RimSegment, SessionRow, SessionState};
 /// At most this many arcs; further sessions share the last one.
 pub const MAX_RIM_SEGMENTS: usize = 12;
 const GAP_DEG: f32 = 6.0;
-/// A clock before this (2025-01-01) has not been set by NTP yet.
-const CLOCK_FLOOR: i64 = 1_735_689_600;
 
 /// One arc of the rim, in degrees clockwise from the top.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -83,7 +81,7 @@ pub fn rim_models(sessions: &[Session]) -> (Vec<RimSegment>, Vec<RimSegment>) {
 
 /// "--" while the clock is not set, else the time since `since` in its largest unit.
 pub fn fmt_ago(now: Option<i64>, since: i64) -> String {
-    let Some(now) = now.filter(|n| *n >= CLOCK_FLOOR) else {
+    let Some(now) = now.filter(|n| crate::link::clock_is_set(*n)) else {
         return "--".into();
     };
     let d = (now - since).max(0);

@@ -21,7 +21,6 @@ pub fn set_brightness(percent: u8) {
 }
 
 /// A short two-tone chime (rate limited inside the component).
-#[allow(dead_code)] // used when something starts waiting (Task 11)
 pub fn chime() {
     unsafe { bd::bd_chime() }
 }
