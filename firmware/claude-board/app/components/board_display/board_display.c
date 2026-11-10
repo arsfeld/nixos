@@ -191,6 +191,29 @@ static esp_codec_dev_handle_t speaker_init(void)
     return esp_codec_dev_new(&dev_cfg);
 }
 
+// Microphone: the ES7210 ADC on the shared I2C bus, a slave on the same I2S clock as the ES8311. Its two real
+// microphones are MIC1 (left slot) and MIC2 (right slot); MIC3/4 carry the speaker reference and are not selected.
+#define MIC_GAIN_DB 24.0f
+#define MIC_STAGE_FRAMES 256 // stereo frames read from the codec at a time (2 KiB of stack)
+#define MIC_OPEN_WAIT_MS 1000
+
+static esp_codec_dev_handle_t mic_init(void)
+{
+    if (i2c_init() != ESP_OK || audio_init() != ESP_OK) return NULL;
+    audio_codec_i2c_cfg_t i2c_cfg = {.port = I2C_PORT, .addr = ES7210_CODEC_DEFAULT_ADDR, .bus_handle = s_i2c};
+    const audio_codec_ctrl_if_t *ctrl_if = audio_codec_new_i2c_ctrl(&i2c_cfg);
+    if (!ctrl_if) return NULL;
+    es7210_codec_cfg_t es7210_cfg = {
+        .ctrl_if = ctrl_if,
+        .master_mode = false, // the ESP32 drives BCLK/WS/MCLK (MCLK = 256 x rate)
+        .mic_selected = ES7210_SEL_MIC1 | ES7210_SEL_MIC2,
+    };
+    const audio_codec_if_t *codec = es7210_codec_new(&es7210_cfg);
+    if (!codec) return NULL;
+    esp_codec_dev_cfg_t dev_cfg = {.dev_type = ESP_CODEC_DEV_TYPE_IN, .codec_if = codec, .data_if = s_i2s_data_if};
+    return esp_codec_dev_new(&dev_cfg);
+}
+
 #define STRIP_ROWS 16 // the largest update window bd_draw accepts, in rows of the full width
 #define CHIME_RATE 16000
 #define CHIME_NOTE_MS 110
@@ -198,6 +221,11 @@ static esp_codec_dev_handle_t speaker_init(void)
 
 
 static esp_codec_dev_handle_t s_speaker;
+static esp_codec_dev_handle_t s_mic;
+// Capture and playback share one I2S clock, so they must never overlap. s_audio_lock guards s_mic_open and the
+// chime's whole open/write/close; the mic stays "open" (flag set) from bd_mic_open to bd_mic_close.
+static SemaphoreHandle_t s_audio_lock;
+static bool s_mic_open;
 static SemaphoreHandle_t s_chime_wake;
 static int64_t s_chime_last_us;
 
@@ -230,13 +258,17 @@ static void chime_task(void *arg)
     esp_codec_dev_sample_info_t fs = {.sample_rate = CHIME_RATE, .channel = 1, .bits_per_sample = 16};
     for (;;) {
         xSemaphoreTake(s_chime_wake, portMAX_DELAY);
-        if (esp_codec_dev_open(s_speaker, &fs) != ESP_CODEC_DEV_OK) {
-            ESP_LOGW(TAG, "speaker open failed");
-            continue;
+        xSemaphoreTake(s_audio_lock, portMAX_DELAY);
+        if (!s_mic_open) { // a recording has the clock: skip the chime
+            if (esp_codec_dev_open(s_speaker, &fs) != ESP_CODEC_DEV_OK) {
+                ESP_LOGW(TAG, "speaker open failed");
+            } else {
+                esp_codec_dev_set_out_vol(s_speaker, 55);
+                esp_codec_dev_write(s_speaker, buf, n * 2 * (int)sizeof *buf);
+                esp_codec_dev_close(s_speaker); // silent, and no idle hiss between chimes
+            }
         }
-        esp_codec_dev_set_out_vol(s_speaker, 55);
-        esp_codec_dev_write(s_speaker, buf, n * 2 * (int)sizeof *buf);
-        esp_codec_dev_close(s_speaker); // silent, and no idle hiss between chimes
+        xSemaphoreGive(s_audio_lock);
     }
 }
 
@@ -252,6 +284,7 @@ esp_err_t bd_init(void)
 
     if (touch_new() != ESP_OK) ESP_LOGW(TAG, "no touch controller");
 
+    s_audio_lock = xSemaphoreCreateMutex();
     s_speaker = speaker_init();
     if (s_speaker) {
         s_chime_wake = xSemaphoreCreateBinary();
@@ -259,6 +292,8 @@ esp_err_t bd_init(void)
     } else {
         ESP_LOGW(TAG, "no speaker: chimes disabled");
     }
+    s_mic = mic_init();
+    if (!s_mic) ESP_LOGW(TAG, "no microphone: voice disabled");
     return ESP_OK;
 }
 
@@ -308,9 +343,61 @@ void bd_set_brightness(uint8_t percent)
 
 void bd_chime(void)
 {
-    if (!s_speaker) return;
+    if (!s_speaker || s_mic_open) return;
     int64_t now = esp_timer_get_time();
     if (now - s_chime_last_us < CHIME_MIN_GAP_US) return;
     s_chime_last_us = now;
     xSemaphoreGive(s_chime_wake);
+}
+
+esp_err_t bd_mic_open(uint32_t rate_hz)
+{
+    if (!s_mic || !s_audio_lock) return ESP_ERR_NOT_SUPPORTED;
+    // Waits out a chime that is playing (about 0.3 s); the flag then keeps new ones away until bd_mic_close.
+    if (xSemaphoreTake(s_audio_lock, pdMS_TO_TICKS(MIC_OPEN_WAIT_MS)) != pdTRUE) return ESP_ERR_TIMEOUT;
+    esp_err_t err = ESP_OK;
+    if (s_mic_open) {
+        err = ESP_ERR_INVALID_STATE;
+    } else {
+        // Stereo on the wire (MIC1 left, MIC2 right); bd_mic_read downmixes to mono.
+        esp_codec_dev_sample_info_t fs = {.sample_rate = rate_hz, .channel = 2, .bits_per_sample = 16};
+        if (esp_codec_dev_open(s_mic, &fs) != ESP_CODEC_DEV_OK) {
+            err = ESP_FAIL;
+        } else {
+            s_mic_open = true;
+            // After open: open re-applies the stored gain, which is 0 dB until set once.
+            if (esp_codec_dev_set_in_gain(s_mic, MIC_GAIN_DB) != ESP_CODEC_DEV_OK) ESP_LOGW(TAG, "mic gain not set");
+        }
+    }
+    xSemaphoreGive(s_audio_lock);
+    return err;
+}
+
+// Fills up to max_samples mono PCM16 samples (the two microphones averaged) and returns how many, or a negative
+// value on error or when timeout_ms passed before they all arrived (nothing is then returned).
+int bd_mic_read(int16_t *out, int max_samples, uint32_t timeout_ms)
+{
+    if (!s_mic || !s_mic_open || !out || max_samples <= 0) return -1;
+    int16_t stage[MIC_STAGE_FRAMES * 2];
+    const int64_t deadline = esp_timer_get_time() + (int64_t)timeout_ms * 1000;
+    int done = 0;
+    while (done < max_samples) {
+        if (esp_timer_get_time() > deadline) return -2;
+        int n = max_samples - done < MIC_STAGE_FRAMES ? max_samples - done : MIC_STAGE_FRAMES;
+        if (esp_codec_dev_read(s_mic, stage, n * 2 * (int)sizeof(int16_t)) != ESP_CODEC_DEV_OK) return -1;
+        for (int i = 0; i < n; i++) out[done + i] = (int16_t)(((int)stage[2 * i] + (int)stage[2 * i + 1]) / 2);
+        done += n;
+    }
+    return done;
+}
+
+void bd_mic_close(void)
+{
+    if (!s_mic || !s_audio_lock) return;
+    xSemaphoreTake(s_audio_lock, portMAX_DELAY);
+    if (s_mic_open) {
+        esp_codec_dev_close(s_mic); // powers the ADC down; the next chime reopens TX at its own rate
+        s_mic_open = false;
+    }
+    xSemaphoreGive(s_audio_lock);
 }

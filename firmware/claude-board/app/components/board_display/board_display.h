@@ -29,6 +29,13 @@ bool bd_touch_read(bd_touch_t *out);
 void bd_set_brightness(uint8_t percent);
 // Non-blocking two-tone chime, ignored if one played in the last few seconds.
 void bd_chime(void);
+// Microphone (16-bit mono). Capture and the chime share one I2S clock and never overlap: bd_chime does nothing
+// while the microphone is open, and bd_mic_open waits for a chime in progress.
+// Open at rate_hz (16000 for the uplink); ESP_ERR_INVALID_STATE if already open, ESP_ERR_NOT_SUPPORTED if absent.
+esp_err_t bd_mic_open(uint32_t rate_hz);
+// Read exactly max_samples mono samples (blocks about max_samples / rate). Negative on error or timeout.
+int bd_mic_read(int16_t *out, int max_samples, uint32_t timeout_ms);
+void bd_mic_close(void);
 
 #ifdef __cplusplus
 }

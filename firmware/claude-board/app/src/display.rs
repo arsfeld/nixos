@@ -24,6 +24,25 @@ pub fn chime() {
     unsafe { bd::bd_chime() }
 }
 
+/// Start capturing the microphone at the uplink rate (16 kHz mono). Waits for a chime in progress; fails if the
+/// microphone is absent or already open. Pair with `mic_close`.
+pub fn mic_open() -> anyhow::Result<()> {
+    let err = unsafe { bd::bd_mic_open(claude_board_proto::UPLINK_RATE) };
+    anyhow::ensure!(err == 0, "microphone open failed: {err}");
+    Ok(())
+}
+
+/// Fill `out` with mono 16-bit samples, blocking about as long as they take to record. Returns how many were
+/// written: `out.len()` on success, 0 on an error or a timeout.
+pub fn mic_read(out: &mut [i16]) -> usize {
+    let n = unsafe { bd::bd_mic_read(out.as_mut_ptr(), out.len() as i32, 1000) };
+    n.max(0) as usize
+}
+
+pub fn mic_close() {
+    unsafe { bd::bd_mic_close() }
+}
+
 /// The finger on the glass, if it can be read.
 pub struct Touch {
     pub x: i16,

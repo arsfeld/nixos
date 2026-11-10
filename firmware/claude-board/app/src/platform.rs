@@ -4,7 +4,7 @@
 
 use std::ops::Range;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 use slint::platform::software_renderer::{LineBufferProvider, MinimalSoftwareWindow, RepaintBufferType, Rgb565Pixel};
@@ -18,6 +18,38 @@ static TOUCHED: AtomicBool = AtomicBool::new(false);
 
 /// Set when a swipe right finishes; the app goes back a level.
 static SWIPED_RIGHT: AtomicBool = AtomicBool::new(false);
+
+/// Where a hold began, packed as `(x << 16) | y`, or `NO_HOLD`.
+const NO_HOLD: u32 = u32::MAX;
+static HOLD_START: AtomicU32 = AtomicU32::new(NO_HOLD);
+/// The finger of an accepted hold lifted.
+static HOLD_END: AtomicBool = AtomicBool::new(false);
+/// The app accepted the pending hold; the touch loop tells the tracker on its next pass.
+static ACCEPT_HOLD: AtomicBool = AtomicBool::new(false);
+/// A finger just landed.
+static PRESSED: AtomicBool = AtomicBool::new(false);
+
+/// Where a hold began (the finger has been down, nearly still, long enough), once. The app asks the controller
+/// and, if it wants the hold, calls `accept_hold`.
+pub fn take_hold_start() -> Option<(i16, i16)> {
+    let v = HOLD_START.swap(NO_HOLD, Ordering::SeqCst);
+    (v != NO_HOLD).then_some(((v >> 16) as i16, v as i16))
+}
+
+/// Tell the touch loop that the controller took the hold: the pointer is cancelled (no click) and the lift ends it.
+pub fn accept_hold() {
+    ACCEPT_HOLD.store(true, Ordering::SeqCst);
+}
+
+/// True once after the finger of an accepted hold lifted.
+pub fn take_hold_end() -> bool {
+    HOLD_END.swap(false, Ordering::SeqCst)
+}
+
+/// True once after a finger landed (for "a tap anywhere cancels speech").
+pub fn take_press() -> bool {
+    PRESSED.swap(false, Ordering::SeqCst)
+}
 
 /// True once after a swipe to the right (go back).
 pub fn take_swipe_right() -> bool {
@@ -75,6 +107,7 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, mut each_loop: impl FnMut()) -> a
     let mut frame = Frame { px: &mut pixels, first: usize::MAX, last: 0 };
     let mut strips = Strips::new()?;
     let (mut tracker, mut last_touch) = (TouchTracker::new(), Instant::now());
+    let boot = Instant::now(); // the hold threshold needs a real clock
     // Touch diagnostics: polls that could be read, polls that could not, presses seen.
     let (mut reads_ok, mut reads_failed, mut presses, mut last_report) = (0u32, 0u32, 0u32, Instant::now());
 
@@ -101,13 +134,23 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, mut each_loop: impl FnMut()) -> a
                 if t.pressed {
                     TOUCHED.store(true, Ordering::SeqCst);
                 }
-                let update = tracker.update(t.x, t.y, t.pressed);
-                if update.gesture == Some(Gesture::SwipeRight) {
-                    SWIPED_RIGHT.store(true, Ordering::SeqCst);
+                // The app accepted the hold it was told about: cancel the pointer before the next sample.
+                if ACCEPT_HOLD.swap(false, Ordering::SeqCst) {
+                    for event in tracker.accept_hold() {
+                        window.dispatch_event(event);
+                    }
+                }
+                let update = tracker.update_at(t.x, t.y, t.pressed, boot.elapsed().as_millis() as u64);
+                match update.gesture {
+                    Some(Gesture::SwipeRight) => SWIPED_RIGHT.store(true, Ordering::SeqCst),
+                    Some(Gesture::HoldStart(x, y)) => HOLD_START.store(((x as u16 as u32) << 16) | y as u16 as u32, Ordering::SeqCst),
+                    Some(Gesture::HoldEnd) => HOLD_END.store(true, Ordering::SeqCst),
+                    None => {}
                 }
                 for event in update.events {
                     if let slint::platform::WindowEvent::PointerPressed { position, .. } = &event {
                         presses += 1;
+                        PRESSED.store(true, Ordering::SeqCst);
                         log::info!("touch down at ({}, {})", position.x, position.y);
                     }
                     window.dispatch_event(event);

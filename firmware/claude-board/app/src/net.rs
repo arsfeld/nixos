@@ -20,7 +20,7 @@ use esp_idf_svc::nvs::EspDefaultNvsPartition;
 use esp_idf_svc::sntp::{EspSntp, SntpConf};
 use esp_idf_svc::sys::{
     esp_crt_bundle_attach, esp_event_base_t, esp_websocket_client_config_t, esp_websocket_client_destroy,
-    esp_websocket_client_handle_t, esp_websocket_client_init, esp_websocket_client_send_text, esp_websocket_client_start,
+    esp_websocket_client_handle_t, esp_websocket_client_init, esp_websocket_client_send_bin, esp_websocket_client_send_text, esp_websocket_client_start,
     esp_websocket_event_data_t, esp_websocket_event_id_t_WEBSOCKET_EVENT_ANY, esp_websocket_event_id_t_WEBSOCKET_EVENT_CLOSED,
     esp_websocket_event_id_t_WEBSOCKET_EVENT_CONNECTED, esp_websocket_event_id_t_WEBSOCKET_EVENT_DATA,
     esp_websocket_event_id_t_WEBSOCKET_EVENT_DISCONNECTED, esp_websocket_event_id_t_WEBSOCKET_EVENT_ERROR,
@@ -72,6 +72,25 @@ impl Outbox for Net {
             }
             _ => false,
         }
+    }
+
+    /// One binary frame (microphone audio), same locking and 2 s timeout as `send`.
+    fn send_bin(&self, bytes: Vec<u8>) -> bool {
+        let guard = self.0.client.lock().unwrap();
+        match *guard {
+            Some(c) if self.0.up.load(Ordering::SeqCst) => {
+                let ticks = TickType::from(Duration::from_secs(2)).ticks() as _;
+                unsafe { esp_websocket_client_send_bin(c.0, bytes.as_ptr() as *const c_char, bytes.len() as i32, ticks) >= 0 }
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Net {
+    /// Whether the bridge connection is up right now.
+    pub fn is_up(&self) -> bool {
+        self.0.up.load(Ordering::SeqCst)
     }
 }
 

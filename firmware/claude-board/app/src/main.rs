@@ -2,12 +2,14 @@
 //! Design: docs/superpowers/specs/2026-11-09-claude-board-rust-design.md
 
 mod display;
+mod mic;
 mod net;
 mod platform;
 
 use std::sync::mpsc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use claude_board_ui::audio::cancel_json;
 use claude_board_ui::controller::{Controller, Outbox};
 use claude_board_ui::link;
 use claude_board_ui::power::{drift_px, Power};
@@ -61,11 +63,12 @@ fn main() -> anyhow::Result<()> {
     // `Box<dyn Fn>`-free: the controller is generic over its outbox, so each case builds its own loop.
     if ssid.is_empty() || token.is_empty() {
         log::error!("no credentials compiled in: run `just board creds`, then rebuild");
-        return run(&window, &ui, Controller::new(&ui, NoWire), rx);
+        return run(&window, &ui, Controller::new(&ui, NoWire), rx, None);
     }
     let modem = Peripherals::take()?.modem;
     let wire = net::start(net::Credentials { ssid, pass, token }, settings, modem, tx)?;
-    run(&window, &ui, Controller::new(&ui, wire), rx)
+    let mic_net = wire.clone();
+    run(&window, &ui, Controller::new(&ui, wire), rx, Some(mic_net))
 }
 
 fn run<O: Outbox + 'static>(
@@ -73,6 +76,7 @@ fn run<O: Outbox + 'static>(
     ui: &AppWindow,
     controller: Controller<O>,
     rx: mpsc::Receiver<net::Event>,
+    net: Option<net::Net>,
 ) -> anyhow::Result<()> {
     std::thread::Builder::new().stack_size(3072).spawn(|| loop {
         std::thread::sleep(Duration::from_secs(30));
@@ -84,6 +88,8 @@ fn run<O: Outbox + 'static>(
     let mut power = Power::new(ms());
     let mut brightness = 0u8;
     let mut last_tick = Instant::now();
+    // Press to talk: the capture thread and the channel its levels arrive on, while a hold is being recorded.
+    let mut capture: Option<(mic::Capture, mpsc::Receiver<f32>)> = None;
     platform::run(window, || {
         controller.set_time_ms(ms() as u64); // precise timestamps for the double-tap guard
         if platform::take_touch() {
@@ -92,6 +98,44 @@ fn run<O: Outbox + 'static>(
         // Swipe right goes back a level (detail to list, list to home); a question on screen stays put.
         if platform::take_swipe_right() && ui.get_page() != Page::Question {
             ui.invoke_back_tapped();
+        }
+        // A tap anywhere but home cancels the creature's speech (on home the avatar's own handler does).
+        if platform::take_press() && ui.get_page() != Page::Home {
+            controller.tap_cancels_speech();
+        }
+        // A hold on the avatar starts a voice question, if the link is up and nothing is recording.
+        if let Some((x, y)) = platform::take_hold_start() {
+            if let (Some(net), None) = (&net, &capture) {
+                if net.is_up() && controller.hold_started(x, y) {
+                    platform::accept_hold();
+                    let (levels_tx, levels_rx) = mpsc::channel();
+                    let utterance = controller.utterance().unwrap_or(0);
+                    log::info!("voice: hold at ({x}, {y}), utterance {utterance}");
+                    capture = Some((mic::Capture::start(utterance, net.clone(), levels_tx), levels_rx));
+                }
+            }
+        }
+        if let Some((cap, levels)) = &capture {
+            while let Ok(level) = levels.try_recv() {
+                controller.set_mic_level(level);
+            }
+            // The capture ended by itself: the limit is a release, a failure a cancel.
+            let ended = cap.outcome();
+            if ended == mic::Outcome::LimitReached || ended == mic::Outcome::Failed {
+                if let Some((cap, _)) = capture.take() {
+                    cap.stop();
+                }
+                let utterance = controller.hold_ended(); // sends voice_end and shows it thinking
+                if let (Some(utterance), mic::Outcome::Failed, Some(net)) = (utterance, ended, &net) {
+                    net.send(cancel_json(utterance));
+                }
+            }
+        }
+        if platform::take_hold_end() {
+            if let Some((cap, _)) = capture.take() {
+                cap.stop();
+            }
+            controller.hold_ended();
         }
         while let Ok(event) = rx.try_recv() {
             match event {
