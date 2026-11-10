@@ -27,7 +27,7 @@ Hold the avatar and ask the creature to do things around the house and the day:
 | Question | Decision |
 |---|---|
 | Order | Before delegation. The delegation plan (`docs/superpowers/plans/2026-11-10-claude-board-creature-delegation.md`) waits, and its MCP task is pulled forward and generalized here |
-| How Hermes gets these tools | **Two HTTP MCP servers**, added to its core toolsets: the bridge's own (timers) on loopback, and Home Assistant's built-in `mcp_server` |
+| How Hermes gets these tools | **One HTTP MCP server**, the bridge's own on loopback, added to its core toolsets: timers and weather, plus Home Assistant's built-in `mcp_server` tools **proxied by the bridge** (same names, schemas and allowlist). Hermes has a terminal, so it must never hold the HA token: with it, a prompt injection could call any HA service over REST (HA has no per-entity permissions; Assist exposure limits only the Assist and MCP APIs). Revised 2026-11-10 from two servers, Hermes talking to HA directly |
 | Home authority | **Control, exposed entities only.** Whatever is exposed to Assist in HA (lights, climate, media, covers). Locks, the alarm (Alarmo) and cameras are never exposed. The HA UI's expose list is the allowlist |
 | Weather | Through HA (Met.no is already configured). No internet weather API |
 | Web | **Hermes' own `web_search` and `web_extract`** (from `3abd1c01`). Nothing in this spec |
@@ -46,8 +46,9 @@ kitchen") would be re-implemented.
 ## Architecture
 
 ```
-board --voice--> bridge --> whisper --> Hermes (DeepSeek, core tools) --MCP--> bridge /mcp  (set/list/cancel_timer)
-                                                                    \--MCP--> Home Assistant /api/mcp (Assist intents)
+board --voice--> bridge --> whisper --> Hermes (DeepSeek, core tools) --MCP--> bridge /mcp  (timers, weather_forecast,
+                                                                                              HA's tools forwarded)
+                                                                       bridge --MCP--> Home Assistant /api/mcp (Assist intents)
 bridge timer fires --> Piper --> board (reminder card + chime + speech)
 ```
 
@@ -107,10 +108,18 @@ Firing:
 - HA's `mcp_server` integration is enabled (`extraComponents` gains `mcp_server`, and it is set up once in
   the UI, which `configWritable` keeps). It serves HA's Assist API to MCP clients, limited to entities
   exposed to Assist.
-- Hermes gets a second MCP server entry pointing at `http://127.0.0.1:8123/api/mcp` with a dedicated HA
-  long-lived access token, `hermes-creature-ha-token` (sops, `galactica.yaml`), made for a dedicated HA
-  user, so its actions show up as that user in HA's logbook. The token reaches Hermes the same way
-  `API_SERVER_KEY` does: through the generated env file, never the Nix store.
+- **The bridge proxies HA's MCP server** (`src/mcp/ha.rs`, the G2 fallback below, taken for security
+  rather than transport). It holds a dedicated HA long-lived access token, `hermes-creature-ha-token`
+  (sops, `galactica.yaml`), made for a dedicated HA user, so the creature's actions show up as that user in
+  HA's logbook. It calls `http://127.0.0.1:8123/api/mcp` (`initialize`, `tools/list`, lazily, the list
+  cached and retried while HA is unreachable), lists HA's tools in its own `tools/list` under HA's names,
+  descriptions and schemas, minus `HassCancelAllTimers`, and forwards `tools/call` for them. Proxied results
+  are capped at 16 KiB (`GetLiveContext` measured 7.6 KB); an HA failure is the tool error "Home Assistant is
+  unavailable right now.", never a JSON-RPC error that would make Hermes drop the server.
+- **Why not Hermes directly** (as first built): Hermes has a terminal (`3abd1c01`). Holding the HA token,
+  a prompt injection could `curl` HA's REST API and call any service, `lock.unlock` and Alarmo included:
+  HA has no per-entity user permissions, and Assist exposure limits only the Assist and MCP APIs. Proxied,
+  the token lives only in the bridge's DynamicUser credentials and the exposure list stays the allowlist.
 - **What to expose** (done in the HA UI, recorded in the spec and in a comment in `home-assistant.nix`):
   lights, climate zones, media players, covers, the weather entity, and presence sensors. **Never
   exposed:** locks, Alarmo, Eufy cameras and their switches, and anything whose misfire is unsafe (for
@@ -196,7 +205,8 @@ for the creature to be idle. Fixture `reminder.json` in
   `GetDateTime`, `GetLiveContext`. `GetLiveContext` (as the `creature` user, after the exposure step) names
   no lock, alarm or camera, and carries the weather entity's current state but **no forecast**, so
   `weather_forecast` in the bridge is in scope. `HassCancelAllTimers` acts on HA's own timers, not the
-  board's, so Hermes excludes it (`tools.exclude`) to keep "cancel my timers" on `cancel_timer`. Not
+  board's, so it is excluded (first by Hermes' `tools.exclude`, now by the bridge's proxy) to keep "cancel my
+  timers" on `cancel_timer`. Not
   measured: an attempt to act on an unexposed entity.
 
 ## Testing
