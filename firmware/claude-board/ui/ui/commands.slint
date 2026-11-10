@@ -1,4 +1,4 @@
-// The pages the command menu on home opens: Volume, Link and Purge.
+// The pages the command menu on home opens: Volume and Purge (Link is in link.slint).
 import { Theme, Tick } from "theme.slint";
 
 // Radial ticks round the edge (`rim::ticks`), lit up to `fraction` of them, the last lit one brighter. Each is a
@@ -160,26 +160,6 @@ export component VolumePage inherits Rectangle {
     Caption {
         y: 400px;
         text: "SWIPE UP / DOWN ON HOME";
-    }
-}
-
-component CommandTitle inherits Rectangle {
-    in property <string> title;
-    Text {
-        y: 140px;
-        width: 466px;
-        text: root.title;
-        color: Theme.muted;
-        font-family: "JetBrains Mono";
-        font-size: 14px;
-        letter-spacing: 3px;
-        horizontal-alignment: center;
-    }
-}
-
-export component LinkPage inherits Rectangle {
-    CommandTitle {
-        title: "LINK";
     }
 }
 

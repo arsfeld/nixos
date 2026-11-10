@@ -1,0 +1,182 @@
+// The link page the command menu opens: the board's own Wi-Fi signal, address and uptime, and whether the bridge
+// and the creature's voice are up. The app refreshes `info` every 2 s while the page is open.
+import { Theme, LinkInfo } from "theme.slint";
+
+// One arc of the signal icon, a static Path in its own tight box (padded by 8 px for the round caps). Slint fits the
+// viewbox into the element less the 10 px stroke, offset by half of it: a viewbox that is the box shrunk by 5 px on
+// each side draws the arc one to one in screen coordinates.
+component SignalArc inherits Path {
+    in property <bool> lit;
+    viewbox-x: self.x / 1px + 5;
+    viewbox-y: self.y / 1px + 5;
+    viewbox-width: self.width / 1px - 10;
+    viewbox-height: self.height / 1px - 10;
+    stroke: root.lit ? #ff2a1a : #ff2a1a2e;
+    stroke-width: 10px;
+    stroke-line-cap: round;
+}
+
+component Label inherits Text {
+    x: 0px;
+    width: 110px;
+    color: Theme.muted;
+    font-family: "JetBrains Mono";
+    font-size: 11px;
+    letter-spacing: 2px;
+    vertical-alignment: center;
+}
+
+component Value inherits Text {
+    x: 110px;
+    width: 180px;
+    color: Theme.text;
+    font-family: "JetBrains Mono";
+    font-size: 13px;
+    overflow: elide;
+    vertical-alignment: center;
+}
+
+export component LinkPage inherits Rectangle {
+    // rssi 0 means not associated: the reading shows "--".
+    in property <LinkInfo> info;
+    // The bridge connection, and whether the bridge has a voice pipeline.
+    in property <bool> link;
+    in property <bool> voice-available;
+
+    Text {
+        x: 0px;
+        y: 60px;
+        width: 466px;
+        text: "// LINK //";
+        color: #ff6a5a;
+        font-family: "JetBrains Mono";
+        font-size: 11px;
+        letter-spacing: 4px;
+        horizontal-alignment: center;
+    }
+
+    // Four arcs, outermost first, lit from the inside by `bars` (`view::signal_bars`); the mockup's geometry.
+    SignalArc {
+        x: 105px;
+        y: 92px;
+        width: 256px;
+        height: 66px;
+        commands: "M 113 150 A 170 170 0 0 1 353 150";
+        lit: root.info.bars >= 4;
+    }
+    SignalArc {
+        x: 135px;
+        y: 115px;
+        width: 196px;
+        height: 53px;
+        commands: "M 143 160 A 128 128 0 0 1 323 160";
+        lit: root.info.bars >= 3;
+    }
+    SignalArc {
+        x: 165px;
+        y: 137px;
+        width: 136px;
+        height: 41px;
+        commands: "M 173 170 A 86 86 0 0 1 293 170";
+        lit: root.info.bars >= 2;
+    }
+    SignalArc {
+        x: 195px;
+        y: 160px;
+        width: 76px;
+        height: 28px;
+        commands: "M 203 180 A 44 44 0 0 1 263 180";
+        lit: root.info.bars >= 1;
+    }
+    Rectangle {
+        x: 226px;
+        y: 189px;
+        width: 14px;
+        height: 14px;
+        border-radius: 7px;
+        background: root.info.rssi != 0 ? #ffb4a0 : #ff2a1a2e;
+    }
+
+    HorizontalLayout {
+        x: 0px;
+        y: 212px;
+        width: 466px;
+        height: 36px;
+        alignment: center;
+        spacing: 6px;
+        Text {
+            text: root.info.rssi != 0 ? root.info.rssi : "--";
+            color: Theme.text;
+            font-family: "Sora";
+            font-size: 26px;
+            font-weight: 600;
+            vertical-alignment: bottom;
+        }
+        Text {
+            text: "dBm";
+            color: Theme.muted;
+            font-family: "Sora";
+            font-size: 14px;
+            vertical-alignment: bottom;
+        }
+    }
+
+    Rectangle {
+        x: 88px;
+        y: 264px;
+        width: 290px;
+        height: 130px;
+        Label {
+            y: 0px;
+            height: 22px;
+            text: "NETWORK";
+        }
+        Value {
+            y: 0px;
+            height: 22px;
+            text: root.info.ssid;
+        }
+        Label {
+            y: 26px;
+            height: 22px;
+            text: "ADDRESS";
+        }
+        Value {
+            y: 26px;
+            height: 22px;
+            text: root.info.address;
+        }
+        Label {
+            y: 52px;
+            height: 22px;
+            text: "BRIDGE";
+        }
+        Value {
+            y: 52px;
+            height: 22px;
+            text: root.link ? "LINKED" : "DOWN";
+            color: root.link ? Theme.done : Theme.muted;
+        }
+        Label {
+            y: 78px;
+            height: 22px;
+            text: "VOICE";
+        }
+        Value {
+            y: 78px;
+            height: 22px;
+            text: root.voice-available ? "ONLINE" : "OFFLINE";
+            color: root.voice-available ? Theme.done : Theme.muted;
+        }
+        Label {
+            y: 104px;
+            height: 22px;
+            text: "UPTIME";
+        }
+        Value {
+            y: 104px;
+            height: 22px;
+            text: root.info.uptime;
+        }
+    }
+}

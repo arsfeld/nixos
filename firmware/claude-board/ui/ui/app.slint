@@ -1,13 +1,14 @@
 // The whole screen: the rim around whichever page is up.
-import { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow, FeedKind, FeedRow, Tick } from "theme.slint";
+import { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow, FeedKind, FeedRow, Tick, LinkInfo } from "theme.slint";
 import { Rim } from "rim.slint";
 import { HomePage } from "home.slint";
 import { SessionsPage } from "sessions.slint";
 import { QuestionPage } from "question.slint";
 import { DetailPage } from "detail.slint";
-import { VolumePage, LinkPage, PurgePage } from "commands.slint";
+import { VolumePage, PurgePage } from "commands.slint";
+import { LinkPage } from "link.slint";
 import { GlyphCoverage } from "glyphs.slint";
-export { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow, FeedKind, FeedRow, Tick }
+export { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow, FeedKind, FeedRow, Tick, LinkInfo }
 
 export component AppWindow inherits Window {
     width: 466px;
@@ -42,6 +43,8 @@ export component AppWindow inherits Window {
     // How long the purge button must be held (the controller sets it from PURGE_HOLD_MS), and how far a hold has got.
     in property <duration> purge-hold: 1500ms;
     in-out property <float> purge-progress: 0;
+    // The link page's Wi-Fi reading, uptime included (the app sets it every 2 s while the page is open).
+    in property <LinkInfo> link-info: { rssi: 0, bars: 0, ssid: "--", address: "--", uptime: "--" };
     // List.
     in property <[SessionRow]> rows;
     in property <float> list-wheel-radius: 233;
@@ -178,7 +181,11 @@ export component AppWindow inherits Window {
                 root.volume-step(louder);
             }
         }
-        if root.page == Page.link: LinkPage {}
+        if root.page == Page.link: LinkPage {
+            info: root.link-info;
+            link: root.link;
+            voice-available: root.voice-available;
+        }
         if root.page == Page.purge: PurgePage {
             ticks: root.ring-ticks;
             link: root.link;

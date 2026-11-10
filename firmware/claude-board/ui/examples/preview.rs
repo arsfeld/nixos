@@ -6,8 +6,8 @@ use std::path::Path;
 use claude_board_ui::headless::{headless, rgb, Headless, HEIGHT, WIDTH};
 use claude_board_proto::{Model, Session, State};
 use claude_board_ui::rim::ticks;
-use claude_board_ui::view::{command_segments, rim_models, session_rows};
-use claude_board_ui::{AppWindow, OptionRow, Page, PresenceState, RimSegment, SessionState};
+use claude_board_ui::view::{command_segments, fmt_uptime, rim_models, session_rows, signal_bars};
+use claude_board_ui::{AppWindow, LinkInfo, OptionRow, Page, PresenceState, RimSegment, SessionState};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
 fn write_png(dir: &Path, name: &str, h: &Headless) {
@@ -160,6 +160,22 @@ fn main() {
     ui.set_purge_progress(0.0);
     write_png(dir, "purge-offline", &h);
     ui.set_link(true);
+    ui.set_page(Page::Link);
+    ui.set_link_info(LinkInfo {
+        rssi: -58,
+        bars: signal_bars(-58),
+        ssid: "Caprica-City-5G".into(),
+        address: "192.168.1.42".into(),
+        uptime: fmt_uptime(11_520).into(),
+    });
+    settle(&h);
+    write_png(dir, "link", &h);
+    ui.set_link(false);
+    ui.set_voice_available(false);
+    ui.set_link_info(LinkInfo { rssi: 0, bars: 0, ssid: "--".into(), address: "--".into(), uptime: fmt_uptime(42).into() });
+    write_png(dir, "link-offline", &h);
+    ui.set_link(true);
+    ui.set_voice_available(true);
     ui.set_page(Page::Home);
 
     ui.set_page(Page::List);

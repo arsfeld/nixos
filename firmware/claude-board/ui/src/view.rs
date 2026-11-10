@@ -141,6 +141,21 @@ pub fn fmt_ago(now: Option<i64>, since: i64) -> String {
     }
 }
 
+/// How many of the link page's four arcs a Wi-Fi signal of `rssi` dBm lights: at least -55, -67, -75, -85.
+pub fn signal_bars(rssi: i32) -> i32 {
+    [-55, -67, -75, -85].iter().filter(|&&t| rssi >= t).count() as i32
+}
+
+/// Time since boot in its two largest units: "42s", "7m", "3h 12m", "2d 4h".
+pub fn fmt_uptime(secs: u64) -> String {
+    match secs {
+        0..=59 => format!("{secs}s"),
+        60..=3599 => format!("{}m", secs / 60),
+        3600..=86399 => format!("{}h {}m", secs / 3600, secs % 3600 / 60),
+        _ => format!("{}d {}h", secs / 86400, secs % 86400 / 3600),
+    }
+}
+
 /// The mood of the avatar for what the sessions are doing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PresenceKind {
@@ -432,5 +447,19 @@ mod tests {
         assert!(s.len() <= 40 + 3 && s.ends_with("..."));
         assert!(s.is_char_boundary(s.len() - 3));
         assert_eq!(shorten("short", 40), "short");
+    }
+
+    #[test]
+    fn signal_bars_follow_the_rssi_thresholds() {
+        let bars: Vec<i32> = [-50, -55, -56, -67, -75, -85, -86, -100].into_iter().map(signal_bars).collect();
+        assert_eq!(bars, [4, 4, 3, 3, 2, 1, 0, 0]);
+    }
+
+    #[test]
+    fn fmt_uptime_shows_the_two_largest_units() {
+        assert_eq!(fmt_uptime(42), "42s");
+        assert_eq!(fmt_uptime(420), "7m");
+        assert_eq!(fmt_uptime(11_520), "3h 12m");
+        assert_eq!(fmt_uptime(187_200), "2d 4h");
     }
 }

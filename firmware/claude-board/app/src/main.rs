@@ -6,6 +6,7 @@ mod mic;
 mod net;
 mod platform;
 mod speaker;
+mod wifi_info;
 
 use std::sync::mpsc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -14,7 +15,8 @@ use claude_board_ui::audio::{cancel_json, speech_event, volume_step, SpeechEvent
 use claude_board_ui::controller::{Controller, Outbox};
 use claude_board_ui::link;
 use claude_board_ui::power::{drift_px, Power};
-use claude_board_ui::{AppWindow, Page};
+use claude_board_ui::view::{fmt_uptime, signal_bars};
+use claude_board_ui::{AppWindow, LinkInfo, Page};
 use esp_idf_svc::sys::{heap_caps_get_free_size, heap_caps_get_largest_free_block, MALLOC_CAP_DMA, MALLOC_CAP_INTERNAL, MALLOC_CAP_SPIRAM};
 use esp_idf_svc::hal::peripherals::Peripherals;
 use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs, NvsDefault};
@@ -47,11 +49,51 @@ fn heap_line() {
 const VOLUME_KEY: &str = "volume";
 /// How long the volume stays on screen after a swipe.
 const VOLUME_SHOWN: Duration = Duration::from_millis(1500);
+/// How often the link page reads the Wi-Fi state while it is open.
+const LINK_REFRESH: Duration = Duration::from_secs(2);
 
 /// What the board keeps across reboots.
 struct Settings {
     store: Option<EspNvs<NvsDefault>>,
     volume: u8,
+}
+
+/// One step louder or quieter, from a swipe on home or the volume page's keys: set, shown, played as a chime and
+/// saved. On home the level shows in a pill for a moment; the volume page shows it itself.
+fn step_volume(louder: bool, saved: &mut Settings, ui: &AppWindow, abandoned: &mut Option<mic::Abandoned>, volume_hide: &mut Option<Instant>) {
+    saved.volume = volume_step(saved.volume, louder);
+    display::set_volume(saved.volume);
+    ui.set_volume(saved.volume as i32);
+    if ui.get_page() == Page::Home {
+        ui.set_volume_shown(true);
+        *volume_hide = Some(Instant::now() + VOLUME_SHOWN);
+    }
+    // A swipe begins on the avatar, so a pre-roll may still be closing: the chime needs the clock.
+    if let Some(a) = abandoned.take() {
+        a.wait();
+    }
+    display::chime_now();
+    if let Some(store) = saved.store.as_mut() {
+        if let Err(e) = store.set_u8(VOLUME_KEY, saved.volume) {
+            log::warn!("volume not saved: {e}");
+        }
+    }
+    log::info!("volume {}", saved.volume);
+}
+
+/// The link page's reading: the Wi-Fi from ESP-IDF and the time since boot.
+fn link_info(uptime: Duration) -> LinkInfo {
+    let uptime = fmt_uptime(uptime.as_secs()).into();
+    match wifi_info::read() {
+        Some(w) => LinkInfo {
+            rssi: w.rssi as i32,
+            bars: signal_bars(w.rssi as i32),
+            ssid: w.ssid.into(),
+            address: w.ip.map_or_else(|| "--".into(), |ip| ip.to_string().into()),
+            uptime,
+        },
+        None => LinkInfo { rssi: 0, bars: 0, ssid: "--".into(), address: "--".into(), uptime },
+    }
 }
 
 fn unix_now() -> Option<i64> {
@@ -117,10 +159,13 @@ fn run<O: Outbox + 'static>(
     // The creature's voice: its own thread plays what the UI loop feeds it (see speaker.rs).
     let player = speaker::Player::start()?;
     let mut volume_hide: Option<Instant> = None;
+    // When the link page last read the Wi-Fi; `None` off that page, so opening it reads at once.
+    let mut link_read: Option<Instant> = None;
     platform::run(window, || {
         controller.set_time_ms(ms() as u64); // precise timestamps for the double-tap guard
         if platform::take_touch() {
             power.touch(ms());
+            controller.note_touch(); // keeps the command menu open while it is used
         }
         // Swipe right goes back a level (detail to list, list to home); a question on screen stays put.
         if platform::take_swipe_right() && ui.get_page() != Page::Question {
@@ -211,27 +256,26 @@ fn run<O: Outbox + 'static>(
                 abandoned = Some(cap.abandon());
             }
         }
-        // Swipe up or down on home: louder or quieter, shown for a moment and played as a chime.
+        // A swipe down from the top edge of home opens the command menu.
         platform::set_vertical_swipes(ui.get_page() == Page::Home);
+        if platform::take_edge_down() && ui.get_page() == Page::Home {
+            controller.open_menu();
+        }
+        // Swipe up or down on home: louder or quieter. While the menu is open, up closes it and down does nothing.
         if let Some(louder) = platform::take_swipe_vertical() {
             if ui.get_page() == Page::Home {
-                saved.volume = volume_step(saved.volume, louder);
-                display::set_volume(saved.volume);
-                ui.set_volume(saved.volume as i32);
-                ui.set_volume_shown(true);
-                volume_hide = Some(Instant::now() + VOLUME_SHOWN);
-                // The swipe began on the avatar, so a pre-roll may still be closing: the chime needs the clock.
-                if let Some(a) = abandoned.take() {
-                    a.wait();
-                }
-                display::chime_now();
-                if let Some(store) = saved.store.as_mut() {
-                    if let Err(e) = store.set_u8(VOLUME_KEY, saved.volume) {
-                        log::warn!("volume not saved: {e}");
+                if controller.menu_open() {
+                    if louder {
+                        ui.invoke_back_tapped(); // on home, back closes the menu
                     }
+                } else {
+                    step_volume(louder, &mut saved, ui, &mut abandoned, &mut volume_hide);
                 }
-                log::info!("volume {}", saved.volume);
             }
+        }
+        // The volume page's - and + keys.
+        if let Some(louder) = controller.take_volume_step() {
+            step_volume(louder, &mut saved, ui, &mut abandoned, &mut volume_hide);
         }
         if volume_hide.is_some_and(|t| Instant::now() >= t) {
             volume_hide = None;
@@ -288,6 +332,12 @@ fn run<O: Outbox + 'static>(
             let (dx, dy) = drift_px(ms());
             ui.set_drift_x(dx as f32);
             ui.set_drift_y(dy as f32);
+        }
+        if ui.get_page() != Page::Link {
+            link_read = None;
+        } else if link_read.is_none_or(|t| t.elapsed() >= LINK_REFRESH) {
+            link_read = Some(Instant::now());
+            ui.set_link_info(link_info(boot.elapsed()));
         }
     })
 }

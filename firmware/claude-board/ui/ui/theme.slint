@@ -61,6 +61,16 @@ export struct Tick {
     commands: string,
 }
 
+// What the link page shows, read by the app every 2 s while it is open (`wifi_info::read`). rssi is in dBm, 0 while
+// not associated; bars is `view::signal_bars`; ssid and address are "--" while not associated.
+export struct LinkInfo {
+    rssi: int,
+    bars: int,
+    ssid: string,
+    address: string,
+    uptime: string,
+}
+
 export global Theme {
     out property <color> bg: #000000;
     out property <color> card: #111827;

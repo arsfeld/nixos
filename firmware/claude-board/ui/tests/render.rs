@@ -738,3 +738,35 @@ fn the_volume_pill_on_home_is_a_row_of_red_ticks() {
     assert_eq!(lit, [true, true, true, true, true, true, true, false, false, false]);
     assert!(near(px(&buf, 219 + 9 * 6 + 2, 64), (0xff, 0xb4, 0xa0), 24), "the last lit tick is the bright one");
 }
+
+#[test]
+fn the_link_page_lights_its_arcs_from_the_inside_and_colours_the_bridge() {
+    use claude_board_ui::LinkInfo;
+    let (h, ui) = show();
+    ui.set_page(claude_board_ui::Page::Link);
+    let info = |rssi: i32| LinkInfo {
+        rssi,
+        bars: claude_board_ui::view::signal_bars(rssi),
+        ssid: "net".into(),
+        address: "10.0.0.2".into(),
+        uptime: "7m".into(),
+    };
+    // The top of each arc, outermost first (the mockup's geometry in link.slint).
+    let lit = |buf: &[Rgb565Pixel]| [100, 123, 146, 168].map(|y| is_red(px(buf, 233, y)));
+    ui.set_link_info(info(-70));
+    assert_eq!(lit(&h.render()), [false, false, true, true]);
+    ui.set_link_info(info(-50));
+    assert_eq!(lit(&h.render()), [true, true, true, true]);
+    // Not associated: the app sends rssi 0 with no bars.
+    ui.set_link_info(LinkInfo { bars: 0, ..info(0) });
+    assert_eq!(lit(&h.render()), [false, false, false, false]);
+    // BRIDGE's value (x 198.., y 316..338) is green while linked, grey while not.
+    let green = |buf: &[Rgb565Pixel]| (198..260).flat_map(|x| (316..338).map(move |y| (x, y))).any(|(x, y)| {
+        let (r, g, b) = px(buf, x, y);
+        g > 150 && r < 100 && b < 140
+    });
+    ui.set_link(true);
+    assert!(green(&h.render()));
+    ui.set_link(false);
+    assert!(!green(&h.render()));
+}
