@@ -230,6 +230,16 @@ dependencies:
     - esp32c61
     - esp32h4
     version: 1.0.2
+  espressif/esp_websocket_client:
+    component_hash: dc00233af846f3a744ada283a300e0d586040aadc3ee67361645ecdce4523672
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.8.0
   espressif/freetype:
     component_hash: aa9f7657a69b2b1c1f49044017fc424081d4e0fe6e97834cb43883548d44e3ca
     dependencies:
@@ -360,8 +370,9 @@ dependencies:
       type: service
     version: 2.0.0
 direct_dependencies:
+- espressif/esp_websocket_client
 - lvgl/lvgl
 - waveshare/esp32_s3_touch_amoled_1_75
-manifest_hash: b023cfb0e7609843b3c583851f76498136130a6925fec1265f1462f16546e125
+manifest_hash: da88df77f2aa679d2bbf7b498ce01142dfba54ec42beb42dbb4e9f0cfcdd35a7
 target: esp32s3
 version: 2.0.0

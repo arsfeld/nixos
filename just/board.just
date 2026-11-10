@@ -55,6 +55,37 @@ test:
       "$out/test"
     '
 
+# Write the Wi-Fi credentials and the device token from sops into the firmware's gitignored
+# sdkconfig.defaults.local, and drop sdkconfig so the next build picks them up. Nothing is printed.
+# They end up in the flash image in the clear (flash encryption is not enabled): anyone with the
+# board in hand can read them back, so treat the board like the credentials it holds.
+creds:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    nix develop .#firmware -c bash -c '
+      set -euo pipefail
+      out="{{ FW }}/sdkconfig.defaults.local"
+      sops_file="{{ justfile_directory() }}/secrets/sops/raider.yaml"
+      # An empty value must stop the recipe: a failure inside $(...) in an argument would not.
+      get() {
+        local v
+        v="$(sops --decrypt --extract "[\"$1\"]" "$sops_file")"
+        [ -n "$v" ] || { echo "secret $1 is empty or missing" >&2; exit 1; }
+        v=${v//\\/\\\\}
+        printf "%s" "${v//\"/\\\"}"
+      }
+      ssid="$(get claude-board-wifi-ssid)"
+      pass="$(get claude-board-wifi-pass)"
+      token="$(get claude-board-device-token)"
+      : > "$out"
+      chmod 600 "$out"
+      printf "CONFIG_CLAUDE_BOARD_WIFI_SSID=\"%s\"\n" "$ssid" >> "$out"
+      printf "CONFIG_CLAUDE_BOARD_WIFI_PASS=\"%s\"\n" "$pass" >> "$out"
+      printf "CONFIG_CLAUDE_BOARD_TOKEN=\"%s\"\n" "$token" >> "$out"
+    '
+    rm -f '{{ FW }}/sdkconfig'
+    echo "wrote {{ FW }}/sdkconfig.defaults.local; run just board build"
+
 # Build the firmware.
 #
 # The first configure is seeded with kconfig-seed.json. The IDF component manager (2.2.2 in IDF
