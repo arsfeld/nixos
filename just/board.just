@@ -1,0 +1,79 @@
+# The ESP32-S3 AMOLED session board: back up, build, flash and restore its firmware
+# (firmware/claude-board). Recipes run inside `nix develop .#firmware`, so they work from any
+# shell. The serial port needs the dialout group (modules/hosts/raider/esp32-board.nix); until
+# the next login after that deploys, they fall back to sudo.
+
+FW := justfile_directory() / "firmware/claude-board"
+BACKUP_DIR := env_var("HOME") / ".local/share/esp32-amoled"
+PORT := env_var_or_default("BOARD_PORT", "/dev/ttyACM0")
+
+# Read the whole 32 MB flash to a dated file. Run this before the first custom flash: restoring
+# it puts the stock Waveshare demo back.
+backup:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p '{{ BACKUP_DIR }}'
+    out="{{ BACKUP_DIR }}/full-flash-backup-$(date +%F).bin"
+    [ ! -e "$out" ] || { echo "$out already exists; refusing to overwrite it" >&2; exit 1; }
+    nix develop .#firmware -c bash -c '
+      set -euo pipefail
+      run() { if [ -w "{{ PORT }}" ]; then "$@"; else sudo env "PATH=$PATH" "$@"; fi; }
+      run esptool --port "{{ PORT }}" --baud 921600 read-flash 0 0x2000000 "'"$out"'"
+    '
+    [ "$(stat -c %s "$out")" = 33554432 ] || { echo "backup is not 32 MiB; do not trust it" >&2; exit 1; }
+    sha256sum "$out" | tee "$out.sha256"
+    echo "backup OK: $out"
+
+# Write a full-flash backup back (default: the newest one). Restores the stock demo firmware.
+restore FILE="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    f='{{ FILE }}'
+    [ -n "$f" ] || f="$(ls -t '{{ BACKUP_DIR }}'/full-flash-backup-*.bin | head -n1)"
+    [ "$(stat -c %s "$f")" = 33554432 ] || { echo "$f is not a 32 MiB image" >&2; exit 1; }
+    (cd "$(dirname "$f")" && sha256sum -c "$(basename "$f").sha256")
+    nix develop .#firmware -c bash -c '
+      set -euo pipefail
+      run() { if [ -w "{{ PORT }}" ]; then "$@"; else sudo env "PATH=$PATH" "$@"; fi; }
+      run esptool --port "{{ PORT }}" --baud 921600 write-flash 0 "'"$f"'"
+    '
+
+# Build the firmware.
+#
+# The first configure is seeded with kconfig-seed.json. The IDF component manager (2.2.2 in IDF
+# 5.5.x) evaluates optional dependencies that are conditioned on Kconfig symbols (LVGL 9.6's
+# freetype/png/jpeg/lz4, the BSP adapter's button/fs/knob/decoder) before any component, and so
+# any Kconfig file defining them, has been downloaded. With no symbol values known it fails with
+# MissingKconfigError and downloads nothing. It reads known values from build/config/sdkconfig.json
+# when that exists, so the first configure starts from a seed with those features off; the real
+# sdkconfig.json replaces it from then on. If a newer lvgl or adapter adds another conditional
+# dependency the same error names the symbol: add it to the seed. dependencies.lock pins versions.
+build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    nix develop .#firmware -c bash -c '
+      set -euo pipefail
+      cd "{{ FW }}"
+      if [ ! -f sdkconfig ]; then
+        rm -rf build
+        mkdir -p build/config
+        cp kconfig-seed.json build/config/sdkconfig.json
+        idf.py -DIDF_TARGET=esp32s3 reconfigure
+      fi
+      idf.py build
+    '
+
+# Flash the built firmware (bootloader, partition table, app) and reboot the board.
+flash:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    nix develop .#firmware -c bash -c '
+      set -euo pipefail
+      cd "{{ FW }}/build"
+      run() { if [ -w "{{ PORT }}" ]; then "$@"; else sudo env "PATH=$PATH" "$@"; fi; }
+      run esptool --chip esp32s3 --port "{{ PORT }}" --baud 921600 write-flash "@flash_args"
+    '
+
+# Follow the board's log (needs a terminal; Ctrl-] quits).
+monitor:
+    nix develop .#firmware -c bash -c 'cd "{{ FW }}" && idf.py -p "{{ PORT }}" monitor'

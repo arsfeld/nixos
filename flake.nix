@@ -36,6 +36,9 @@
     niks3.inputs.nixpkgs.follows = "nixpkgs";
     terranix.url = "github:terranix/terranix"; # Nix DSL for OpenTofu/Terraform configuration
     terranix.inputs.nixpkgs.follows = "nixpkgs";
+    # ESP-IDF toolchain for firmware/claude-board (nixpkgs has none). Does NOT follow our nixpkgs:
+    # its IDF build is pinned against its own lock.
+    nixpkgs-esp-dev.url = "github:mirrexagon/nixpkgs-esp-dev";
   };
 
   # Every .nix file under modules/ is a flake-parts module, except paths with a

@@ -138,6 +138,27 @@
       ];
     };
 
+    # ESP-IDF for the ESP32-S3 board firmware (firmware/claude-board), plus what the `just
+    # board` recipes call. v5.5.4, the version Waveshare builds its firmware with: the v5.5.2
+    # that nixpkgs-esp-dev defaults to bundles idf-component-manager 2.2.2, which fails on
+    # LVGL's Kconfig-conditional dependencies (MissingKconfigError: LV_USE_FREETYPE). Not a
+    # pure derivation: the component manager downloads components (dependencies.lock pins
+    # them), so the build needs network.
+    devShells.firmware = pkgs.mkShell {
+      packages = pkgs.lib.optionals (system == "x86_64-linux") [
+        (inputs.nixpkgs-esp-dev.packages.${system}.esp-idf-xtensa.override {
+          rev = "v5.5.4";
+          sha256 = "sha256-rItbBrwItkfJf8tKImAQsiXDR95sr0LqaM51gDZG/nI=";
+        })
+        pkgs.just
+        pkgs.esptool
+        pkgs.cjson
+        pkgs.gcc
+        pkgs.jq
+        pkgs.sops
+      ];
+    };
+
     packages = self.lib.loadPackages pkgs;
 
     legacyPackages.homeConfigurations.arosenfeld = inputs.home-manager.lib.homeManagerConfiguration {
