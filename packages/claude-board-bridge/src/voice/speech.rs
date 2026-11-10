@@ -25,8 +25,11 @@ pub fn clean_for_speech(text: &str) -> String {
             match c {
                 '_' => out.push(' '),
                 '#' | '*' | '>' | '`' => {}
+                '\u{2018}' | '\u{2019}' => out.push('\''),
                 c if c.is_alphanumeric() || c.is_ascii_punctuation() => out.push(c),
-                _ => {}
+                // Other symbols, emoji and non-ASCII punctuation become a
+                // space so the words around them do not glue together.
+                _ => out.push(' '),
             }
         }
         out.push(' ');
@@ -66,11 +69,9 @@ impl SentenceSplitter {
                 '\n' => true,
                 '.' | '!' | '?' => {
                     let next = chars.get(n + 1).map(|&(_, c)| c);
-                    let prev = n.checked_sub(1).map(|p| chars[p].1);
                     next.is_some_and(char::is_whitespace)
-                        && !(c == '.'
-                            && prev.is_some_and(|p| p.is_ascii_digit())
-                            && next.is_some_and(|x| x.is_ascii_digit()))
+                        // Decimals like 3.14 are safe: a boundary needs
+                        // whitespace after the dot.
                         && !(c == '.' && ends_with_abbreviation(&self.buf[from..i]))
                 }
                 _ => false,
@@ -97,7 +98,8 @@ impl SentenceSplitter {
 }
 
 /// Splits 16-bit PCM into chunks of at most `max` bytes, never inside a
-/// sample. A trailing odd byte is dropped.
+/// sample. A trailing odd byte is dropped, and a `max` below 2 yields
+/// 2-byte chunks.
 pub fn chunk_pcm(pcm: &[u8], max: usize) -> impl Iterator<Item = &[u8]> {
     let size = (max & !1).max(2);
     pcm[..pcm.len() & !1].chunks(size)

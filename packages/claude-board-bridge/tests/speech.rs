@@ -84,3 +84,20 @@ fn chunk_pcm_never_splits_a_sample_and_respects_max() {
 fn chunk_pcm_of_empty_input_yields_nothing() {
     assert_eq!(chunk_pcm(&[], 4096).count(), 0);
 }
+
+#[test]
+fn clean_spaces_words_around_em_dash_and_ellipsis() {
+    assert_eq!(clean_for_speech("result\u{2014}which"), "result which");
+    assert_eq!(clean_for_speech("wait\u{2026}then"), "wait then");
+}
+
+#[test]
+fn clean_keeps_contractions_with_curly_apostrophes() {
+    assert_eq!(clean_for_speech("don\u{2019}t"), "don't");
+    assert_eq!(clean_for_speech("it\u{2019}s"), "it's");
+}
+
+#[test]
+fn clean_keeps_accented_and_cjk_letters() {
+    assert_eq!(clean_for_speech("Jos\u{e9} M\u{fc}ller \u{6771}\u{4eac}"), "Jos\u{e9} M\u{fc}ller \u{6771}\u{4eac}");
+}
