@@ -1,0 +1,32 @@
+// The whole screen. Task 7 holds the rim and the avatar; the pages come with the view logic.
+import { Theme, SessionState, PresenceState, RimSegment } from "theme.slint";
+import { Rim } from "rim.slint";
+import { Presence } from "presence.slint";
+export { Theme, SessionState, PresenceState, RimSegment }
+
+export component AppWindow inherits Window {
+    width: 466px;
+    height: 466px;
+    background: Theme.bg;
+    // A literal: the compiler embeds glyphs at build time and cannot resolve a property.
+    default-font-family: "Sora";
+
+    in property <[RimSegment]> rim;
+    in property <[RimSegment]> rim-pulsing;
+    in property <PresenceState> presence-state: PresenceState.idle;
+    in property <float> presence-level: 0;
+
+    Rim {
+        width: 466px;
+        height: 466px;
+        segments: root.rim;
+        pulsing: root.rim-pulsing;
+    }
+
+    Presence {
+        x: 93px;
+        y: 93px;
+        state: root.presence-state;
+        level: root.presence-level;
+    }
+}

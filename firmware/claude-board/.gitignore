@@ -1,5 +1,8 @@
 build/
 managed_components/
+preview/
 sdkconfig
-sdkconfig.old
 sdkconfig.defaults.local
+sdkconfig.old
+target/
+vendor/

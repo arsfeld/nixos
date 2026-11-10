@@ -1,0 +1,64 @@
+// Colours and the enums the Rust side shares with the screens. The state colours are fixed by the design
+// spec (docs/superpowers/specs/2026-11-09-claude-board-design.md) and mirrored in src/theme.rs.
+import "fonts/Sora-Regular.ttf";
+import "fonts/Sora-SemiBold.ttf";
+import "fonts/JetBrainsMono-Regular.ttf";
+
+export enum SessionState { idle, working, waiting, done, error }
+export enum PresenceState { idle, listening, thinking, speaking, alert }
+
+// One arc of the rim, with its own tight bounding box: a Path repaints its whole box whenever it
+// changes, so a full-screen box would repaint the whole panel every frame. Built by `rim::arc_segment`.
+// Static arcs and pulsing arcs live in separate models, so only the pulsing ones depend on the animation.
+export struct RimSegment {
+    x: length,
+    y: length,
+    width: length,
+    height: length,
+    commands: string,
+    state: SessionState,
+}
+
+export global Theme {
+    out property <color> bg: #000000;
+    out property <color> card: #111827;
+    out property <color> text: #f9fafb;
+    out property <color> muted: #9ca3af;
+    out property <color> working: #3b82f6;
+    out property <color> waiting: #f59e0b;
+    out property <color> idle: #6b7280;
+    out property <color> done: #22c55e;
+    out property <color> error: #ef4444;
+
+    pure public function session-color(s: SessionState) -> color {
+        if s == SessionState.working {
+            return Theme.working;
+        }
+        if s == SessionState.waiting {
+            return Theme.waiting;
+        }
+        if s == SessionState.done {
+            return Theme.done;
+        }
+        if s == SessionState.error {
+            return Theme.error;
+        }
+        return Theme.idle;
+    }
+
+    pure public function presence-color(s: PresenceState) -> color {
+        if s == PresenceState.alert {
+            return Theme.waiting;
+        }
+        if s == PresenceState.listening {
+            return #35d07f;
+        }
+        if s == PresenceState.thinking {
+            return #4f8cff;
+        }
+        if s == PresenceState.speaking {
+            return #cfe0ff;
+        }
+        return #5b7cff;
+    }
+}

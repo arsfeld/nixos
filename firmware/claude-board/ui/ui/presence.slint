@@ -1,0 +1,84 @@
+// The assistant's avatar: a glowing core with two rings, drawn from solid circles and pre-rendered glow
+// sprites at their native size (the software renderer cannot fill a rounded rectangle with a gradient,
+// and scaling a sprite costs about 20 ms a frame). Everything moves with `state` and `level`.
+import { PresenceState, Theme } from "theme.slint";
+
+export component Presence inherits Rectangle {
+    in property <PresenceState> state: PresenceState.idle;
+    // Audio amplitude, 0 to 1.
+    in property <float> level: 0;
+    width: 280px;
+    height: 280px;
+
+    property <float> t: 0;
+    property <float> speed: root.state == PresenceState.alert ? 5.0 : (root.state == PresenceState.thinking ? 3.0 : (root.state == PresenceState.speaking ? 4.0 : 1.6));
+    property <float> breath: 0.5 + 0.5 * Math.sin(root.t * 1rad);
+    property <color> accent: Theme.presence-color(root.state);
+
+    Timer {
+        interval: 33ms;
+        running: true;
+        triggered => {
+            root.t += 0.033 * root.speed;
+        }
+    }
+
+    // Halo.
+    Image {
+        x: (parent.width - 256px) / 2;
+        y: (parent.height - 256px) / 2;
+        width: 256px;
+        height: 256px;
+        source: @image-url("images/glow-256.png");
+        colorize: root.accent;
+        opacity: 0.35 + 0.25 * root.breath + 0.3 * root.level;
+    }
+
+    // Outer ring.
+    Rectangle {
+        property <length> d: 196px + 18px * root.breath + 40px * root.level;
+        width: d;
+        height: d;
+        x: (parent.width - d) / 2;
+        y: (parent.height - d) / 2;
+        border-radius: d / 2;
+        border-width: 2px;
+        border-color: root.accent;
+        opacity: 0.3;
+    }
+
+    // Inner ring.
+    Rectangle {
+        property <length> d: 148px + 10px * root.breath + 24px * root.level;
+        width: d;
+        height: d;
+        x: (parent.width - d) / 2;
+        y: (parent.height - d) / 2;
+        border-radius: d / 2;
+        border-width: 2px;
+        border-color: root.accent;
+        opacity: 0.6;
+    }
+
+    // Core.
+    Rectangle {
+        property <length> d: 96px + 6px * root.breath + 16px * root.level;
+        width: d;
+        height: d;
+        x: (parent.width - d) / 2;
+        y: (parent.height - d) / 2;
+        border-radius: d / 2;
+        background: root.accent;
+    }
+
+    // Highlight.
+    Image {
+        x: (parent.width - 128px) / 2;
+        y: (parent.height - 128px) / 2;
+        width: 128px;
+        height: 128px;
+        source: @image-url("images/glow-128.png");
+        colorize: #ffffff;
+        opacity: 0.25;
+    }
+}

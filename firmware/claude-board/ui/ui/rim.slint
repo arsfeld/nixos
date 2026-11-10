@@ -1,0 +1,50 @@
+// The ring around the screen: one arc per session in its state's colour. Pulsing arcs (waiting) come in a
+// separate model from the rest, so the arcs that never change do not depend on `phase`; each arc has a tight
+// box (see RimSegment) so a pulse repaints a small area.
+import { RimSegment, Theme } from "theme.slint";
+
+export component Rim inherits Rectangle {
+    in property <[RimSegment]> segments;
+    in property <[RimSegment]> pulsing;
+    property <float> phase: 0;
+
+    // Runs only while something pulses, so an idle ring costs nothing.
+    Timer {
+        interval: 33ms;
+        running: root.pulsing.length > 0;
+        triggered => {
+            root.phase += 0.033 * 4;
+        }
+    }
+
+    for seg in root.segments: Path {
+        x: seg.x;
+        y: seg.y;
+        width: seg.width;
+        height: seg.height;
+        viewbox-x: seg.x / 1px;
+        viewbox-y: seg.y / 1px;
+        viewbox-width: seg.width / 1px;
+        viewbox-height: seg.height / 1px;
+        commands: seg.commands;
+        stroke: Theme.session-color(seg.state);
+        stroke-width: 10px;
+        stroke-line-cap: round;
+    }
+
+    for seg in root.pulsing: Path {
+        x: seg.x;
+        y: seg.y;
+        width: seg.width;
+        height: seg.height;
+        viewbox-x: seg.x / 1px;
+        viewbox-y: seg.y / 1px;
+        viewbox-width: seg.width / 1px;
+        viewbox-height: seg.height / 1px;
+        commands: seg.commands;
+        stroke: Theme.session-color(seg.state);
+        stroke-width: 10px;
+        stroke-line-cap: round;
+        opacity: 0.65 + 0.35 * Math.sin(root.phase * 1rad);
+    }
+}

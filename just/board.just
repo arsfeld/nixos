@@ -61,6 +61,12 @@ test-c:
       "$out/test"
     '
 
+# Render the Slint screens to PNGs in firmware/claude-board/preview/ (host only, no board needed).
+preview:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    nix develop .#firmware -c bash -c 'cd "{{ FW }}" && ./scripts/vendor-slint-core.sh >/dev/null && cargo run -q -p claude-board-ui --example preview -- preview 2>/dev/null'
+
 # Write the Wi-Fi credentials and the device token from sops into the firmware's gitignored
 # sdkconfig.defaults.local, and drop sdkconfig so the next build picks them up. Nothing is printed.
 # They end up in the flash image in the clear (flash encryption is not enabled): anyone with the

@@ -154,6 +154,9 @@
           export RUSTUP_TOOLCHAIN=${esp-rs}
           export ESP_IDF_TOOLS_INSTALL_DIR=fromenv
           export LIBCLANG_PATH=${pkgs.llvmPackages.libclang.lib}/lib
+          # Host-built binaries (UI tests, the preview tool) find libfontconfig through an rpath, set only for
+          # the host target so the Xtensa build is untouched.
+          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=-Wl,-rpath,${pkgs.fontconfig.lib}/lib"
         '';
         packages = pkgs.lib.optionals (system == "x86_64-linux") [
           (inputs.nixpkgs-esp-dev.packages.${system}.esp-idf-xtensa.override {
@@ -168,6 +171,8 @@
           esp-rs
           pkgs.cjson
           pkgs.pkg-config
+          pkgs.fontconfig # Slint's compiler and the host-side UI tests (fontique) link it
+          pkgs.fontconfig.dev
           pkgs.gcc
           pkgs.jq
           pkgs.sops

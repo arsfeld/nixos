@@ -1,0 +1,11 @@
+# Host-side workspace: the UI crate and its tests, built for the machine you are sitting at. The firmware
+# binary (app/, added later) is a separate package with its own ESP target, so `cargo test` here never
+# needs the Xtensa toolchain.
+[workspace]
+members = ["ui"]
+resolver = "2"
+
+# Local patch, made by scripts/vendor-slint-core.sh (run it once after checkout): Slint's Path support
+# in no_std builds calls f32::rem_euclid, which does not exist there.
+[patch.crates-io]
+i-slint-core = { path = "vendor/i-slint-core" }
