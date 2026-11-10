@@ -102,7 +102,9 @@ fn task(creds: Credentials, settings: Settings, modem: Modem<'static>, tx: mpsc:
         ..Default::default()
     }))?;
     wifi.start()?;
-    let _sntp = EspSntp::new(&SntpConf { servers: [settings.ntp.as_str()], ..Default::default() })?;
+    // Started once the network is up: an SNTP client that starts with no route waits a long time before
+    // its next try.
+    let mut sntp: Option<EspSntp> = None;
 
     let (mut wifi_attempt, mut ws_attempt) = (0u32, 0u32);
     loop {
@@ -118,6 +120,9 @@ fn task(creds: Credentials, settings: Settings, modem: Modem<'static>, tx: mpsc:
                     }
                     if let Ok(ip) = wifi.wifi().sta_netif().get_ip_info() {
                         log::info!("got ip {}", ip.ip);
+                    }
+                    if sntp.is_none() {
+                        sntp = Some(EspSntp::new(&SntpConf { servers: [settings.ntp.as_str()], ..Default::default() })?);
                     }
                 }
                 Err(e) => {
