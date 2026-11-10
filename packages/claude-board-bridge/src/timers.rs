@@ -232,7 +232,7 @@ impl Timers {
         for timer in due {
             let late_secs = now - timer.due;
             if late_secs > REMINDER_GRACE_SECS {
-                eprintln!("timer: dropped id={} late_secs={late_secs}", timer.id);
+                eprintln!("timer: dropped id={} late_s={late_secs}", timer.id);
             } else {
                 out.push(Due { timer, late_secs });
             }
