@@ -4,10 +4,12 @@ use claude_board_bridge::protocol::{
     AUDIO_HEADER_LEN, BoardMsg, ClientMsg, DOWNLINK_CHUNK_MAX, MAX_UTTERANCE_BYTES, Mood, decode_audio,
     encode_audio,
 };
-use claude_board_bridge::voice::backends::{Backends, VoiceError};
+use claude_board_bridge::voice::backends::{Backends, Speech, Tts, VoiceError};
+use claude_board_bridge::voice::pipeline::PURGE_LINE;
 use claude_board_bridge::voice::{Conn, Out, VoiceConfig};
 use common::{FakeBrain, FakeStt, FakeTts};
-use std::sync::Arc;
+use futures_util::future::BoxFuture;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -16,7 +18,18 @@ mod common;
 
 // ---------- helpers ----------
 
+/// A TTS that records what it was asked to say.
+struct RecTts(Arc<Mutex<Vec<String>>>);
+
+impl Tts for RecTts {
+    fn synthesize(&self, text: String) -> BoxFuture<'static, Result<Speech, VoiceError>> {
+        self.0.lock().unwrap().push(text);
+        Box::pin(async { Ok(Speech { sample_rate: 22050, pcm: vec![1; 1000] }) })
+    }
+}
+
 struct Rig {
+    spoken: Arc<Mutex<Vec<String>>>,
     conn: Conn,
     rx: mpsc::Receiver<Out>,
     stt: Arc<FakeStt>,
@@ -36,12 +49,14 @@ fn rig_with(stt: Arc<FakeStt>, brain: Arc<FakeBrain>, tts_bytes: usize, cfg: Voi
 
 fn rig_cap(cap: usize, stt: Arc<FakeStt>, brain: Arc<FakeBrain>, tts_bytes: usize, cfg: VoiceConfig) -> Rig {
     let (tx, rx) = mpsc::channel(cap);
-    let backends = Arc::new(Backends {
-        stt: stt.clone(),
-        tts: Arc::new(FakeTts { bytes: tts_bytes, hang: false }),
-        brain: brain.clone(),
-    });
-    Rig { conn: Conn::new(Some(backends), cfg, tx), rx, stt, brain, log: Vec::new() }
+    let spoken = Arc::new(Mutex::new(Vec::new()));
+    let tts: Arc<dyn Tts> = if tts_bytes == 1000 {
+        Arc::new(RecTts(spoken.clone()))
+    } else {
+        Arc::new(FakeTts { bytes: tts_bytes, hang: false })
+    };
+    let backends = Arc::new(Backends { stt: stt.clone(), tts, brain: brain.clone() });
+    Rig { spoken, conn: Conn::new(Some(backends), cfg, tx), rx, stt, brain, log: Vec::new() }
 }
 
 fn mood(m: Mood) -> Out {
@@ -257,7 +272,7 @@ async fn hung_tts_is_bounded_by_the_reply_timeout() {
     });
     let cfg = VoiceConfig { reply_timeout: Duration::from_millis(50), ..VoiceConfig::default() };
     let conn = Conn::new(Some(backends), cfg, tx);
-    let mut r = Rig { conn, rx, stt, brain, log: Vec::new() };
+    let mut r = Rig { spoken: Arc::default(), conn, rx, stt, brain, log: Vec::new() };
     r.speak(1, 3200).await;
     let got = r.until_terminal().await;
     assert_eq!(got.last(), Some(&mood(Mood::Offline)));
@@ -583,4 +598,78 @@ fn failure_line_names_the_stage_and_kind_but_never_the_message() {
     assert_eq!(l, "voice: utt=8 stage=brain error=unavailable");
     let l = failure_line(9, "tts", &VoiceError::Rejected(secret.into()));
     assert_eq!(l, "voice: utt=9 stage=tts error=rejected");
+}
+
+// ---------- new_session ----------
+
+#[tokio::test(start_paused = true)]
+async fn new_session_resets_acks_and_speaks() {
+    let mut r = rig(two_sentences(), 1000, VoiceConfig::default());
+    r.conn.on_client(&ClientMsg::NewSession { utterance: 7 }).await;
+    let got = r.until_terminal().await;
+    assert_eq!(got[0], Out::Json(BoardMsg::SessionReset { utterance: 7 }));
+    assert_eq!(got[1], mood(Mood::Speaking));
+    assert_eq!(got[2], Out::Json(BoardMsg::SpeakStart { utterance: 7, sample_rate: 22050 }));
+    let n = got.len();
+    assert!(got[3..n - 2].iter().all(|m| matches!(m, Out::Audio(_))));
+    assert_eq!(got[n - 2], Out::Json(BoardMsg::SpeakEnd { utterance: 7 }));
+    assert_eq!(got[n - 1], mood(Mood::Idle));
+    assert_eq!(r.brain.resets.load(Ordering::SeqCst), 1);
+    assert_eq!(*r.spoken.lock().unwrap(), vec![PURGE_LINE.to_string()]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn new_session_without_backends_acks_and_reports_offline() {
+    let (tx, mut rx) = mpsc::channel(16);
+    let mut conn = Conn::new(None, VoiceConfig::default(), tx);
+    conn.on_client(&ClientMsg::NewSession { utterance: 3 }).await;
+    assert_eq!(rx.recv().await, Some(Out::Json(BoardMsg::SessionReset { utterance: 3 })));
+    assert_eq!(rx.recv().await, Some(mood(Mood::Offline)));
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    assert!(rx.try_recv().is_err());
+}
+
+#[tokio::test(start_paused = true)]
+async fn new_session_over_the_limit_is_refused_with_idle() {
+    let mut r = rig(FakeBrain::new(&[(0, "Fine thanks.")], false), 100, VoiceConfig::default());
+    for id in 1..=10 {
+        r.speak(id, 3200).await;
+        r.until_terminal().await;
+    }
+    r.conn.on_client(&ClientMsg::NewSession { utterance: 11 }).await;
+    assert_eq!(r.until_terminal().await, vec![mood(Mood::Idle)]);
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    let rest = r.drain();
+    assert!(rest.is_empty(), "unexpected output {rest:?}");
+    assert!(!r.log.contains(&Out::Json(BoardMsg::SessionReset { utterance: 11 })));
+    assert_eq!(r.brain.resets.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test(start_paused = true)]
+async fn new_session_during_a_reply_speaks_after_it() {
+    let brain = FakeBrain::new(&[(0, "Hello there friend. "), (2_000, "Second sentence here.")], false);
+    let mut r = rig(brain, 1000, VoiceConfig::default());
+    r.speak(1, 3200).await;
+    loop {
+        if let Out::Audio(_) = r.next().await {
+            break;
+        }
+    }
+    r.conn.on_client(&ClientMsg::NewSession { utterance: 2 }).await;
+    // The reply finishes, then the purge line is started by a tick.
+    loop {
+        let m = r.next().await;
+        if m == mood(Mood::Idle) {
+            break;
+        }
+    }
+    r.conn.tick();
+    r.until_terminal().await;
+    assert_balanced(&r.log);
+    assert_eq!(speak_starts(&r.log), 2);
+    let first_end = r.log.iter().position(|m| matches!(m, Out::Json(BoardMsg::SpeakEnd { utterance: 1 }))).unwrap();
+    let second_start = r.log.iter().position(|m| matches!(m, Out::Json(BoardMsg::SpeakStart { utterance: 2, .. }))).unwrap();
+    assert!(second_start > first_end);
+    assert!(r.log.contains(&Out::Json(BoardMsg::SessionReset { utterance: 2 })));
+    assert_eq!(r.brain.resets.load(Ordering::SeqCst), 1);
 }

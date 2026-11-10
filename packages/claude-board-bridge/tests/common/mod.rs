@@ -142,6 +142,8 @@ pub struct FakeBrain {
     pub asks: AtomicUsize,
     pub stops: Arc<AtomicUsize>,
     pub finished: Arc<AtomicBool>,
+    /// How many times `new_session` was called.
+    pub resets: AtomicUsize,
 }
 
 impl FakeBrain {
@@ -166,11 +168,16 @@ impl FakeBrain {
             asks: AtomicUsize::new(0),
             stops: Arc::new(AtomicUsize::new(0)),
             finished: Arc::new(AtomicBool::new(false)),
+            resets: AtomicUsize::new(0),
         })
     }
 }
 
 impl Brain for FakeBrain {
+    fn new_session(&self) {
+        self.resets.fetch_add(1, Ordering::SeqCst);
+    }
+
     fn ask(&self, _text: String) -> BoxFuture<'static, Result<Reply, VoiceError>> {
         self.asks.fetch_add(1, Ordering::SeqCst);
         let script = self.script.clone();

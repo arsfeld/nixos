@@ -45,6 +45,9 @@ impl Default for VoiceConfig {
 /// connection; the board's own ids stay below it.
 pub const REMINDER_ID_BASE: u32 = 0x8000_0000;
 
+/// Spoken once a new creature session has started.
+pub const PURGE_LINE: &str = "Memory purged. By your command.";
+
 struct Recording {
     id: u32,
     buf: Vec<u8>,
@@ -72,8 +75,9 @@ pub struct Conn {
     speaking: Speaking,
     /// The task delivering control messages that did not fit the channel; see `control`.
     pending: Option<JoinHandle<()>>,
-    /// Reminders whose card is sent and whose speech waits for the board to be free, with their ids.
-    reminders: VecDeque<(u32, Due)>,
+    /// Lines (reminders, the new-session confirmation) whose speech waits for the board to be free, with
+    /// their ids.
+    lines: VecDeque<(u32, String)>,
     next_reminder: u32,
 }
 
@@ -98,7 +102,7 @@ impl Drop for Conn {
 
 impl Conn {
     pub fn new(backends: Option<Arc<Backends>>, cfg: VoiceConfig, out: Sender<Out>) -> Conn {
-        Conn { backends, cfg, out, recording: None, refused: None, running: None, starts: VecDeque::new(), speaking: Arc::default(), pending: None, reminders: VecDeque::new(), next_reminder: 0 }
+        Conn { backends, cfg, out, recording: None, refused: None, running: None, starts: VecDeque::new(), speaking: Arc::default(), pending: None, lines: VecDeque::new(), next_reminder: 0 }
     }
 
     fn mood(&mut self, mood: Mood) {
@@ -170,16 +174,11 @@ impl Conn {
                     self.mood(Mood::Offline);
                     return;
                 }
-                let now = Instant::now();
-                while self.starts.front().is_some_and(|t| now.duration_since(*t) >= Duration::from_secs(60)) {
-                    self.starts.pop_front();
-                }
-                if self.starts.len() >= self.cfg.max_per_minute as usize {
+                if !self.admit() {
                     self.refused = Some((*utterance, Mood::Idle));
                     self.mood(Mood::Idle);
                     return;
                 }
-                self.starts.push_back(now);
                 self.recording = Some(Recording { id: *utterance, buf: Vec::new(), overflow: false });
                 if was_live {
                     // The old turn is closed; the board is about to record.
@@ -219,8 +218,40 @@ impl Conn {
                     self.mood(Mood::Idle);
                 }
             }
+            ClientMsg::NewSession { utterance } => {
+                if self.backends.is_none() {
+                    self.control(vec![BoardMsg::SessionReset { utterance: *utterance }]);
+                    self.mood(Mood::Offline);
+                    return;
+                }
+                if !self.admit() {
+                    self.mood(Mood::Idle);
+                    return;
+                }
+                if let Some(backends) = &self.backends {
+                    backends.brain.new_session();
+                }
+                eprintln!("voice: utt={utterance} session reset");
+                self.control(vec![BoardMsg::SessionReset { utterance: *utterance }]);
+                // A running reply is left alone; `tick` starts the line once nothing is running.
+                self.lines.push_back((*utterance, PURGE_LINE.to_string()));
+                self.tick();
+            }
             _ => {}
         }
+    }
+
+    /// The per-minute limit on utterances (and new sessions): true, and counted, if one more fits.
+    fn admit(&mut self) -> bool {
+        let now = Instant::now();
+        while self.starts.front().is_some_and(|t| now.duration_since(*t) >= Duration::from_secs(60)) {
+            self.starts.pop_front();
+        }
+        if self.starts.len() >= self.cfg.max_per_minute as usize {
+            return false;
+        }
+        self.starts.push_back(now);
+        true
     }
 
     /// Sends the reminder's card at once, then queues its speech (with voice on) for `tick`.
@@ -234,7 +265,7 @@ impl Conn {
             return;
         }
         self.next_reminder = (self.next_reminder + 1) & !REMINDER_ID_BASE;
-        self.reminders.push_back((REMINDER_ID_BASE | self.next_reminder, due));
+        self.lines.push_back((REMINDER_ID_BASE | self.next_reminder, spoken_reminder(&due)));
         self.tick();
     }
 
@@ -248,13 +279,13 @@ impl Conn {
             return;
         }
         let Some(backends) = self.backends.clone() else { return };
-        let Some((id, due)) = self.reminders.pop_front() else { return };
-        let task = tokio::spawn(run_reminder(
+        let Some((id, text)) = self.lines.pop_front() else { return };
+        let task = tokio::spawn(run_line(
             backends,
             self.out.clone(),
             self.cfg.reply_timeout,
             id,
-            due,
+            text,
             self.speaking.clone(),
             self.pending.take(),
         ));
@@ -457,22 +488,22 @@ async fn reply(
     Ok(())
 }
 
-/// Speaks one reminder: the creature speaks, then `SpeakStart`, the audio and `SpeakEnd`, then idle. It
+/// Speaks one line (a reminder or the new-session confirmation): the creature speaks, then `SpeakStart`, the audio and `SpeakEnd`, then idle. It
 /// shares `speaking` with the connection so a cancel, a new `VoiceStart` or the socket closing ends
 /// the turn with `SpeakEnd` as for a reply. A failed synthesis sends nothing more.
-async fn run_reminder(
+async fn run_line(
     backends: Arc<Backends>,
     out: Sender<Out>,
     timeout: Duration,
     id: u32,
-    due: Due,
+    text: String,
     speaking: Speaking,
     after: Option<JoinHandle<()>>,
 ) {
     if let Some(after) = after {
         let _ = after.await;
     }
-    let speech = match tokio::time::timeout(timeout, backends.tts.synthesize(spoken_reminder(&due))).await {
+    let speech = match tokio::time::timeout(timeout, backends.tts.synthesize(text)).await {
         Ok(Ok(s)) => s,
         Ok(Err(e)) => return eprintln!("timer: speech error={}", error_kind(&e)),
         Err(_) => return eprintln!("timer: speech error={}", error_kind(&VoiceError::Timeout)),

@@ -197,11 +197,14 @@ fn handle(s: &AppState, watching: &Watching, history: &Notify, voice: &mut Uplin
             history.notify_one();
         }
         Ok(ClientMsg::Unwatch) => *watching.lock().unwrap() = None,
-        Ok(msg @ (ClientMsg::VoiceStart { .. } | ClientMsg::VoiceEnd { .. } | ClientMsg::Cancel { .. })) => {
+        Ok(
+            msg @ (ClientMsg::VoiceStart { .. }
+            | ClientMsg::VoiceEnd { .. }
+            | ClientMsg::Cancel { .. }
+            | ClientMsg::NewSession { .. }),
+        ) => {
             voice.control(msg);
         }
-        // Handled in a later task; ignored until then.
-        Ok(ClientMsg::NewSession { .. }) => {}
         Err(_) => {}
     }
 }
