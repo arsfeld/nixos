@@ -805,6 +805,41 @@ fn tapping_the_reminder_card_dismisses_it() {
 }
 
 #[test]
+fn tapping_the_reminder_card_while_it_is_spoken_cancels_its_speech() {
+    let f = fixture();
+    f.c.on_message(REMINDER);
+    f.c.on_message(r#"{"t":"creature","mood":"speaking"}"#);
+    f.c.on_message(r#"{"t":"speak_start","utterance":2147483649,"sample_rate":22050}"#);
+    f.ui.invoke_reply_tapped();
+    assert_eq!(f.ui.get_reply_text(), "");
+    assert_eq!(f.sent(), [serde_json::json!({"t": "cancel", "utterance": 2147483649u32})]);
+    assert!(!f.c.is_speaking());
+}
+
+#[test]
+fn tapping_the_reminder_card_before_its_speech_sends_nothing() {
+    let f = fixture();
+    f.c.on_message(REMINDER);
+    f.ui.invoke_reply_tapped();
+    assert_eq!(f.ui.get_reply_text(), "");
+    assert!(f.sent().is_empty(), "{:?}", f.sent());
+}
+
+#[test]
+fn tapping_an_ordinary_reply_card_does_not_cancel_speech() {
+    let f = fixture();
+    let id = own_utterance(&f);
+    f.c.on_message(&format!(r#"{{"t":"speak_start","utterance":{id},"sample_rate":22050}}"#));
+    mood(&f, "speaking");
+    f.c.on_message(&format!(r#"{{"t":"reply_text","utterance":{id},"text":"All good."}}"#));
+    let before = f.sent().len();
+    f.ui.invoke_reply_tapped();
+    assert_eq!(f.ui.get_reply_text(), "");
+    assert_eq!(f.sent().len(), before, "{:?}", f.sent());
+    assert!(f.c.is_speaking());
+}
+
+#[test]
 fn reply_text_replaces_a_reminder_card() {
     let f = fixture();
     f.c.on_message(REMINDER);

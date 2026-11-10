@@ -657,9 +657,15 @@ impl<O: Outbox> Inner<O> {
         self.mood_since_ms = self.time_ms;
     }
 
+    /// A tap on the card. Dismissing a reminder also stops its speech if it is being spoken (a reminder not yet
+    /// spoken needs nothing more here); an ordinary reply card only goes away.
     fn dismiss_reply(&mut self) {
+        let reminder = self.reminder_heading.is_some();
         self.reply.clear();
         self.reminder_heading = None;
+        if reminder && self.tap_cancels_speech() {
+            return; // it refreshed
+        }
         self.refresh();
     }
 
