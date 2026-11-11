@@ -17,6 +17,12 @@ just build <hostname>          # Build a host config locally
 
 ### Deployment
 
+**Run every deploy recipe inside the dev shell** — `nix develop -c just deploy <host>`, or
+from an interactive `nix develop`. `_apply` calls `nix-fast-build`, which only the dev
+shell provides, so a bare `just deploy` fails at once with `nix-fast-build: command not
+found` (exit 127) before building anything. The same applies to `boot`, `test`,
+`dry-run`, `deploy-all` and `reboot`, which share `_apply`.
+
 ```bash
 just deploy galactica           # Deploy to one host
 just deploy galactica basestar  # Deploy to multiple hosts in parallel
