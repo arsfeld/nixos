@@ -579,26 +579,46 @@
       systemd.services.pia-watchdog = {
         description = "PIA: restart the tunnel when its handshake goes stale";
         after = ["${ns}.service"];
-        path = [pkgs.iproute2 pkgs.wireguard-tools pkgs.systemd pkgs.coreutils];
-        serviceConfig.Type = "oneshot";
-        script = ''
-          set -u
-          stale=300
-          now=$(date +%s)
-          if systemctl is-active --quiet ${ns}.service; then
-            up=$(systemctl show -P ActiveEnterTimestamp --timestamp=unix ${ns}.service)
-            up_age=$(( now - ''${up#@} ))
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = pkgs.writers.writePython3 "pia-watchdog" {flakeIgnore = ["E501"];} ''
+            import subprocess
+            import sys
+            import time
+
+            SYSTEMCTL = "${pkgs.systemd}/bin/systemctl"
+            IP = "${pkgs.iproute2}/bin/ip"
+            WG = "${pkgs.wireguard-tools}/bin/wg"
+            UNIT = "${ns}.service"
+            STALE = 300
+
+
+            def out(*cmd):
+                r = subprocess.run(cmd, capture_output=True, text=True)
+                return r.stdout.strip() if r.returncode == 0 else ""
+
+
+            def restart(reason):
+                print("pia-watchdog: " + reason + "; restarting " + UNIT, file=sys.stderr)
+                subprocess.run([SYSTEMCTL, "restart", UNIT], check=True)
+
+
+            now = time.time()
+            if subprocess.run([SYSTEMCTL, "is-active", "--quiet", UNIT]).returncode != 0:
+                restart(UNIT + " is not active")
+                sys.exit(0)
+
             # Give a fresh tunnel time for its first handshake.
-            if [ "$up_age" -lt "$stale" ]; then exit 0; fi
-            hs=$(ip netns exec ${ns} wg show ${ns}0 latest-handshakes 2>/dev/null | cut -f2 | sort -n | tail -n1)
-            age=$(( now - ''${hs:-0} ))
-            if [ "$age" -lt "$stale" ]; then exit 0; fi
-            echo "pia-watchdog: last handshake ''${age}s ago; restarting ${ns}.service" >&2
-          else
-            echo "pia-watchdog: ${ns}.service is not active; restarting it" >&2
-          fi
-          systemctl restart ${ns}.service
-        '';
+            up = out(SYSTEMCTL, "show", "-P", "ActiveEnterTimestamp", "--timestamp=unix", UNIT)
+            if up.startswith("@") and now - int(up[1:]) < STALE:
+                sys.exit(0)
+
+            lines = out(IP, "netns", "exec", "${ns}", WG, "show", "${ns}0", "latest-handshakes")
+            last = max((int(line.split()[1]) for line in lines.splitlines() if line.split()), default=0)
+            if now - last >= STALE:
+                restart("last handshake " + str(int(now - last)) + "s ago")
+          '';
+        };
       };
 
       systemd.timers.pia-watchdog = {
