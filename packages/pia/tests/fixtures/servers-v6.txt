@@ -1,0 +1,2 @@
+{"groups":{},"regions":[{"id":"ca","name":"CA Montreal","port_forward":true,"servers":{"wg":[{"ip":"140.228.21.113","cn":"montreal421"}],"ovpntcp":[{"ip":"1.1.1.1","cn":"x"}]}},{"id":"us_east","name":"US East","port_forward":false,"servers":{"wg":[{"ip":"2.2.2.2","cn":"newjersey1"}]}},{"id":"nowg","name":"No WG","port_forward":true,"servers":{}}]}
+SIGNATURE-BLOB
