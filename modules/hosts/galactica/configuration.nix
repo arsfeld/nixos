@@ -53,6 +53,9 @@
 
     # Enable Transmission confined to the PIA VPN namespace (constellation.pia)
     services.transmission-vpn.enable = true;
+    # Montreal. "auto" takes the first port-forward region in PIA's list, which
+    # is an arbitrary European one that changes from run to run.
+    constellation.pia.region = "ca";
 
     media.config.enable = true;
 

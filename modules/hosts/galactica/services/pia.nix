@@ -11,7 +11,8 @@
 #   <ns>-up.service (VPN-Confinement) brings up the tunnel from that config
 #   pia-portforward.service (inside <ns>) getSignature/bindPort, persists port,
 #     opens the dynamic port on the tunnel interface, dispatches consumer hooks
-#   pia-portforward.timer re-binds every 15 minutes (PIA keepalive)
+#   pia-portforward-refresh.timer re-binds every 14 minutes (PIA keepalive)
+#   pia-watchdog.timer restarts <ns> when the WireGuard handshake goes stale
 #
 # PIA port forwarding is dynamic: PIA assigns the port (payload valid ~60 days),
 # and the binding must be refreshed every <=15 minutes. The port is cached so it
@@ -540,13 +541,72 @@
         };
       };
 
-      systemd.timers.pia-portforward = {
+      # The keepalive runs as its own unit. A timer cannot re-run pia-portforward:
+      # starting a RemainAfterExit unit that is already active is a no-op, so the
+      # timer fired once after boot, never again (NextElapse=infinity), and the
+      # binding lapsed 15 minutes after every start.
+      systemd.services.pia-portforward-refresh = {
+        description = "PIA: re-bind the forwarded port (keepalive)";
+        after = ["${ns}.service" "pia-portforward.service"];
+        # Never bring the tunnel up from here; that is pia-watchdog's job.
+        requisite = ["${ns}.service"];
+        vpnConfinement = {
+          enable = true;
+          vpnNamespace = ns;
+        };
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = "${piaScript}/bin/pia portforward";
+          StateDirectory = "pia";
+        };
+      };
+
+      systemd.timers.pia-portforward-refresh = {
         description = "PIA: re-bind the forwarded port (15-min keepalive)";
         wantedBy = ["timers.target"];
         timerConfig = {
-          OnActiveSec = "15min";
-          OnUnitActiveSec = "15min";
-          Persistent = true;
+          OnBootSec = "15min";
+          OnUnitActiveSec = "14min";
+        };
+      };
+
+      # Nothing else notices a dead tunnel: every unit stays "active" while the
+      # namespace has no route out. On 2026-11-09 the server stopped answering and
+      # Transmission sat idle for 2.5 days. With PersistentKeepalive = 25 a live
+      # peer re-handshakes every 2 minutes, so a handshake older than 5 minutes
+      # means the server is gone; restarting the namespace re-runs pia-connect,
+      # which registers a fresh key on a server picked from the current list.
+      systemd.services.pia-watchdog = {
+        description = "PIA: restart the tunnel when its handshake goes stale";
+        after = ["${ns}.service"];
+        path = [pkgs.iproute2 pkgs.wireguard-tools pkgs.systemd pkgs.coreutils];
+        serviceConfig.Type = "oneshot";
+        script = ''
+          set -u
+          stale=300
+          now=$(date +%s)
+          if systemctl is-active --quiet ${ns}.service; then
+            up=$(systemctl show -P ActiveEnterTimestamp --timestamp=unix ${ns}.service)
+            up_age=$(( now - ''${up#@} ))
+            # Give a fresh tunnel time for its first handshake.
+            if [ "$up_age" -lt "$stale" ]; then exit 0; fi
+            hs=$(ip netns exec ${ns} wg show ${ns}0 latest-handshakes 2>/dev/null | cut -f2 | sort -n | tail -n1)
+            age=$(( now - ''${hs:-0} ))
+            if [ "$age" -lt "$stale" ]; then exit 0; fi
+            echo "pia-watchdog: last handshake ''${age}s ago; restarting ${ns}.service" >&2
+          else
+            echo "pia-watchdog: ${ns}.service is not active; restarting it" >&2
+          fi
+          systemctl restart ${ns}.service
+        '';
+      };
+
+      systemd.timers.pia-watchdog = {
+        description = "PIA: check the tunnel handshake every 2 minutes";
+        wantedBy = ["timers.target"];
+        timerConfig = {
+          OnBootSec = "5min";
+          OnUnitActiveSec = "2min";
         };
       };
     };
