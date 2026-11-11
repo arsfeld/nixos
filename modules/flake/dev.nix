@@ -138,7 +138,7 @@
       ];
     };
 
-    # Everything to build, test and flash the ESP32-S3 board firmware (firmware/claude-board, Rust with Slint):
+    # Everything to build, test and flash the ESP32-S3 board firmware (firmware/cylon-bot, Rust with Slint):
     # ESP-IDF v5.5.4 (the version Waveshare builds its firmware with; nixpkgs-esp-dev's default v5.5.2 bundles a
     # component manager that fails on LVGL's Kconfig-conditional dependencies), Espressif's Xtensa Rust toolchain
     # (esp-rs-nix, fetched by fixed hash), espflash, and what the host-side UI tests and the Slint compiler link

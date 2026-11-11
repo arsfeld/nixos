@@ -1,0 +1,100 @@
+// Colours and the enums the Rust side shares with the screens. The state colours are fixed by the design
+// spec (docs/superpowers/specs/2026-11-09-cylon-bot-design.md) and mirrored in src/theme.rs.
+import "fonts/Sora-Regular.ttf";
+import "fonts/Sora-SemiBold.ttf";
+import "fonts/JetBrainsMono-Regular.ttf";
+
+export enum SessionState { idle, working, waiting, done, error }
+export enum PresenceState { idle, listening, thinking, speaking, alert }
+// Which screen is up. `home` is the avatar in the rim; a waiting question takes over with `question`. `volume`,
+// `link` and `purge` are the pages the command menu on home opens.
+export enum Page { home, list, question, detail, volume, link, purge }
+
+export struct SessionRow {
+    host: string,
+    // The project's first letter, shown in the row's badge.
+    initial: string,
+    project: string,
+    state: SessionState,
+    // Time in the current state, "--" while the clock is not set.
+    ago: string,
+    waiting: bool,
+}
+
+export struct OptionRow {
+    label: string,
+    selected: bool,
+}
+
+// One line of a watched session's activity feed.
+export enum FeedKind {
+    prompt,
+    tool,
+    reply,
+}
+
+export struct FeedRow {
+    kind: FeedKind,
+    text: string,
+    failed: bool,
+}
+
+// One arc of the rim, with its own tight bounding box: a Path repaints its whole box whenever it
+// changes, so a full-screen box would repaint the whole panel every frame. Built by `rim::arc_segment`.
+// Static arcs and pulsing arcs live in separate models, so only the pulsing ones depend on the animation.
+export struct RimSegment {
+    x: length,
+    y: length,
+    width: length,
+    height: length,
+    commands: string,
+    state: SessionState,
+}
+
+// One radial tick of the volume page's level or the purge page's ring, in its own tight box, like a rim arc. Built
+// by `rim::ticks`; whether it is lit is worked out in Slint from its index.
+export struct Tick {
+    x: length,
+    y: length,
+    width: length,
+    height: length,
+    commands: string,
+}
+
+// What the link page shows, read by the app every 2 s while it is open (`wifi_info::read`). rssi is in dBm, 0 while
+// not associated; bars is `view::signal_bars`; ssid and address are "--" while not associated.
+export struct LinkInfo {
+    rssi: int,
+    bars: int,
+    ssid: string,
+    address: string,
+    uptime: string,
+}
+
+export global Theme {
+    out property <color> bg: #000000;
+    out property <color> card: #111827;
+    out property <color> text: #f9fafb;
+    out property <color> muted: #9ca3af;
+    out property <color> working: #3b82f6;
+    out property <color> waiting: #f59e0b;
+    out property <color> idle: #6b7280;
+    out property <color> done: #22c55e;
+    out property <color> error: #ef4444;
+
+    pure public function session-color(s: SessionState) -> color {
+        if s == SessionState.working {
+            return Theme.working;
+        }
+        if s == SessionState.waiting {
+            return Theme.waiting;
+        }
+        if s == SessionState.done {
+            return Theme.done;
+        }
+        if s == SessionState.error {
+            return Theme.error;
+        }
+        return Theme.idle;
+    }
+}

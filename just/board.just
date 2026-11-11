@@ -1,9 +1,9 @@
 # The ESP32-S3 AMOLED session board: back up, build, flash and restore its firmware
-# (firmware/claude-board). Recipes run inside `nix develop .#firmware`, so they work from any
+# (firmware/cylon-bot). Recipes run inside `nix develop .#firmware`, so they work from any
 # shell. The serial port needs the dialout group (modules/hosts/raider/esp32-board.nix); until
 # the next login after that deploys, they fall back to sudo.
 
-FW := justfile_directory() / "firmware/claude-board"
+FW := justfile_directory() / "firmware/cylon-bot"
 BACKUP_DIR := env_var("HOME") / ".local/share/esp32-amoled"
 PORT := env_var_or_default("BOARD_PORT", "/dev/ttyACM0")
 
@@ -42,13 +42,13 @@ restore FILE="":
 test:
     #!/usr/bin/env bash
     set -euo pipefail
-    nix develop .#firmware -c bash -c 'cd "{{ justfile_directory() }}/packages/claude-board-proto" && cargo test'
+    nix develop .#firmware -c bash -c 'cd "{{ justfile_directory() }}/packages/cylon-bot-proto" && cargo test'
 
-# Render the Slint screens to PNGs in firmware/claude-board/preview/ (host only, no board needed).
+# Render the Slint screens to PNGs in firmware/cylon-bot/preview/ (host only, no board needed).
 preview:
     #!/usr/bin/env bash
     set -euo pipefail
-    nix develop .#firmware -c bash -c 'cd "{{ FW }}" && ./scripts/vendor-slint-core.sh >/dev/null && cargo run -q -p claude-board-ui --example preview -- preview 2>/dev/null'
+    nix develop .#firmware -c bash -c 'cd "{{ FW }}" && ./scripts/vendor-slint-core.sh >/dev/null && cargo run -q -p cylon-bot-ui --example preview -- preview 2>/dev/null'
 
 # Write the Wi-Fi credentials and the device token from sops into the firmware's gitignored
 # app/credentials.env, which the build turns into compile-time values. Nothing is printed.
@@ -71,9 +71,9 @@ creds:
         [ "$(printf "%s" "$v" | wc -l)" = 0 ] || { echo "secret $1 spans several lines" >&2; exit 1; }
         printf "%s" "$v"
       }
-      ssid="$(get claude-board-wifi-ssid)"
-      pass="$(get claude-board-wifi-pass)"
-      token="$(get claude-board-device-token)"
+      ssid="$(get cylon-bot-wifi-ssid)"
+      pass="$(get cylon-bot-wifi-pass)"
+      token="$(get cylon-bot-device-token)"
       : > "$out"
       chmod 600 "$out"
       printf "CB_WIFI_SSID=%s\nCB_WIFI_PASS=%s\nCB_TOKEN=%s\n" "$ssid" "$pass" "$token" >> "$out"
@@ -110,7 +110,7 @@ flash:
       run() { if [ -w "{{ PORT }}" ]; then "$@"; else sudo env "PATH=$PATH" "$@"; fi; }
       run espflash flash --chip esp32s3 --port "{{ PORT }}" --flash-size 16mb \
         --bootloader "$out/bootloader/bootloader.bin" --partition-table partitions.csv \
-        --ignore-app-descriptor target/xtensa-esp32s3-espidf/release/claude-board
+        --ignore-app-descriptor target/xtensa-esp32s3-espidf/release/cylon-bot
     '
 
 # Follow the board's log (needs a terminal; Ctrl-C quits).

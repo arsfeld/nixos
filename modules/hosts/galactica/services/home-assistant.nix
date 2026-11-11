@@ -67,7 +67,7 @@
           "speedtestdotnet" # Internet speed; polled only by "automation network"
           "wake_on_lan" # Wake on LAN
 
-          # Serves Assist over MCP to the board creature's Hermes (claude-board-voice.nix). Only
+          # Serves Assist over MCP to the board creature's Hermes (cylon-bot-voice.nix). Only
           # entities exposed to Assist are reachable. NEVER expose locks, Alarmo, the Eufy cameras
           # and their switches, or the heat pump's master switch. The token belongs to the
           # non-admin `creature` user.

@@ -1,0 +1,260 @@
+#!/usr/bin/env bash
+# Tests for cylon-bot-hook and cylon-bot-install-hooks. Run: bash packages/cylon-bot-hook/test/test.sh
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$HERE/../../.." && pwd)"
+HOOK="$HERE/../cylon-bot-hook"
+INSTALL="$HERE/../cylon-bot-install-hooks"
+FIX="$ROOT/packages/cylon-bot-bridge/tests/fixtures"
+TMP="$(mktemp -d)"
+trap 'kill $STUB 2>/dev/null; rm -rf "$TMP"' EXIT
+
+pass=0 fail=0
+ok() { pass=$((pass + 1)); echo "ok   $1"; }
+bad() { fail=$((fail + 1)); echo "FAIL $1${2:+: $2}"; }
+check() { # name, condition-result
+  if [ "$2" = 0 ]; then ok "$1"; else bad "$1" "${3:-}"; fi
+}
+
+printf 'secret-token' >"$TMP/token"
+unset CYLON_BOT_APPROVALS
+export CYLON_BOT_TOKEN_FILE="$TMP/token" CYLON_BOT_HOST=testhost CYLON_BOT_STATE_DIR="$TMP/state"
+mkdir -p "$TMP/state"
+
+behave() { printf '%s' "$1" >"$TMP/behaviour.json"; : >"$TMP/log"; }
+reqs() { wc -l <"$TMP/log" | tr -d ' '; }
+last() { tail -n1 "$TMP/log"; }
+lastev() { grep '"/v1/event"' "$TMP/log" | tail -n1; }
+evreqs() { grep -c '"/v1/event"' "$TMP/log" | tr -d ' '; }
+wait_reqs() { # N: feed posts are asynchronous, so poll up to 3 s for N requests
+  for _ in $(seq 30); do [ "$(reqs)" -ge "$1" ] && return 0; sleep 0.1; done
+  return 1
+}
+feedlast() { grep '"/v1/feed"' "$TMP/log" | tail -n1; }
+
+behave '{"event":[204,""],"ask":[204,""]}'
+python3 "$HERE/stub.py" "$TMP/log" "$TMP/behaviour.json" >"$TMP/port" &
+STUB=$!
+for _ in $(seq 50); do [ -s "$TMP/port" ] && break; sleep 0.1; done
+PORT="$(cat "$TMP/port")"
+export CYLON_BOT_URL="http://127.0.0.1:$PORT"
+
+run() { # args..., stdin from $IN
+  OUT="$(bash "$HOOK" "$@" <"$IN" 2>"$TMP/err")"; RC=$?
+}
+
+# --- event normalisation -----------------------------------------------------------
+IN="$FIX/notification_permission.json"; behave '{"event":[204,""],"ask":[204,""]}'
+run notification
+check event_exits_0_silently "$([ $RC = 0 ] && [ -z "$OUT" ] && echo 0 || echo 1)"
+check event_uses_bearer_token "$(last | jq -e '.auth == "Bearer secret-token"' >/dev/null && echo 0 || echo 1)"
+check event_hits_event_path "$(last | jq -e '.path == "/v1/event"' >/dev/null && echo 0 || echo 1)"
+check event_posts_normalised_json "$(last | jq -e '.body | fromjson | (.host=="testhost" and .session=="00000000-0000-4000-8000-000000000001" and .cwd=="/home/arosenfeld/Code/nixos" and .event=="notification" and .kind=="permission_prompt" and (.ts|type)=="number")' >/dev/null && echo 0 || echo 1)"
+
+IN="$FIX/stop.json"; run stop
+check stop_event_has_no_kind "$(lastev | jq -e '.body | fromjson | (.event=="stop" and (has("kind")|not))' >/dev/null && echo 0 || echo 1)"
+
+mkdir -p "$TMP/work/proj"
+(cd "$TMP/work/proj" && IN="$FIX/stop_failure.json" && jq 'del(.cwd)' "$FIX/stop_failure.json" >"$TMP/nocwd.json" && bash "$HOOK" stop_failure <"$TMP/nocwd.json")
+check missing_cwd_falls_back_to_pwd "$(lastev | jq -e --arg d "$TMP/work/proj" '.body | fromjson | .cwd == $d' >/dev/null && echo 0 || echo 1)"
+
+# --- failure modes: the hook must never block or break a session ---------------------------------
+before=$(reqs); : >"$TMP/log"
+IN="$FIX/stop.json"
+export CYLON_BOT_TOKEN_FILE="$TMP/nonexistent"; run stop
+check missing_token_file_exits_0_silently_and_sends_nothing "$([ $RC = 0 ] && [ -z "$OUT" ] && [ "$(reqs)" = 0 ] && echo 0 || echo 1)"
+export CYLON_BOT_TOKEN_FILE="$TMP/token"
+
+printf 'not json at all' >"$TMP/garbage"; IN="$TMP/garbage"; run stop
+check malformed_stdin_exits_0_and_sends_nothing "$([ $RC = 0 ] && [ -z "$OUT" ] && [ "$(reqs)" = 0 ] && echo 0 || echo 1)"
+
+IN="$FIX/stop.json"
+behave '{"event":[500,"boom"],"ask":[500,"boom"]}'
+run stop
+check bridge_500_event_exits_0_silently "$([ $RC = 0 ] && [ -z "$OUT" ] && echo 0 || echo 1)"
+IN="$FIX/ask_user_question.json"; rm -rf "$TMP/state"/*; run ask
+check bridge_500_ask_exits_0_with_no_output "$([ $RC = 0 ] && [ -z "$OUT" ] && echo 0 || echo 1)"
+
+rm -rf "$TMP/state"/*
+IN="$FIX/stop.json"
+t0=$(date +%s.%N); CYLON_BOT_URL="http://127.0.0.1:1" bash "$HOOK" stop <"$IN" >"$TMP/out" 2>&1; RC=$?; t1=$(date +%s.%N)
+check bridge_down_exits_0_quickly_with_no_output "$([ $RC = 0 ] && [ ! -s "$TMP/out" ] && awk "BEGIN{exit !($t1-$t0 < 3)}" && echo 0 || echo 1)"
+behave '{"event":[204,""],"ask":[204,""]}'
+CYLON_BOT_URL="$CYLON_BOT_URL" bash "$HOOK" stop <"$IN"
+check a_recent_failure_makes_the_next_call_skip_the_bridge "$([ "$(reqs)" = 0 ] && echo 0 || echo 1)" "reached the bridge during the back-off"
+find "$TMP/state" -type f -exec touch -d '5 minutes ago' {} +
+bash "$HOOK" stop <"$IN"
+check the_backoff_ends_after_a_minute "$([ "$(evreqs)" = 1 ] && echo 0 || echo 1)"
+
+# --- ask ---------------------------------------------------------------------------
+rm -rf "$TMP/state"/*
+IN="$FIX/ask_user_question.json"
+behave '{"event":[204,""],"ask":[204,""]}'
+run ask
+check ask_204_prints_nothing "$([ $RC = 0 ] && [ -z "$OUT" ] && echo 0 || echo 1)"
+check ask_posts_tool_input_to_ask_path "$(last | jq -e --slurpfile f "$FIX/ask_user_question.json" '.path=="/v1/ask" and (.body|fromjson|(.host=="testhost" and .session==$f[0].session_id and .cwd==$f[0].cwd and .tool_input==$f[0].tool_input))' >/dev/null && echo 0 || echo 1)"
+DEC='{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedInput":{"answers":{"Which colour?":"Blue"}}}}}'
+behave "$(jq -cn --arg b "$DEC" '{event:[204,""],ask:[200,$b]}')"
+run ask
+check ask_200_prints_the_body_verbatim "$([ $RC = 0 ] && [ "$OUT" = "$DEC" ] && echo 0 || echo 1)"
+behave '{"event":[204,""],"ask":[200,"<html>not json</html>"]}'
+run ask
+check ask_200_with_a_non_json_body_prints_nothing "$([ $RC = 0 ] && [ -z "$OUT" ] && echo 0 || echo 1)"
+
+# --- feed ----------------------------------------------------------------------------
+rm -rf "$TMP/state"/*
+behave '{"event":[204,""],"ask":[204,""],"feed":[204,""]}'
+feedfix() { # fixture event -> waits for one request
+  : >"$TMP/log"; IN="$FIX/$1.json"; run "$2"; wait_reqs 1
+}
+feedfix pre_tool_use_bash pre_tool_use
+check pre_tool_use_posts_a_tool_entry "$(feedlast | jq -e '.path=="/v1/feed" and .auth=="Bearer secret-token" and (.body|fromjson|(.kind=="tool" and .text=="Bash: echo hi" and .host=="testhost" and .session=="00000000-0000-4000-8000-000000000001" and (.ts|type)=="number"))' >/dev/null && echo 0 || echo 1)"
+check tool_events_post_no_event "$([ "$(evreqs)" = 0 ] && [ "$RC" = 0 ] && [ -z "$OUT" ] && echo 0 || echo 1)"
+feedfix pre_tool_use_edit pre_tool_use
+check edit_tool_entry_uses_the_file_path "$(feedlast | jq -e '.body|fromjson|(.kind=="tool" and .text=="Edit: /tmp/cylon-bot-probe.txt")' >/dev/null && echo 0 || echo 1)"
+feedfix post_tool_use_bash post_tool_use
+check post_tool_use_posts_result_ok "$(feedlast | jq -e '.body|fromjson|(.kind=="result" and .text=="ok")' >/dev/null && echo 0 || echo 1)"
+feedfix post_tool_use_failure_bash post_tool_use_failure
+check post_tool_use_failure_posts_result_failed "$(feedlast | jq -e '.body|fromjson|(.kind=="result" and .text=="failed")' >/dev/null && echo 0 || echo 1)"
+feedfix user_prompt_submit user_prompt_submit; wait_reqs 2
+check user_prompt_submit_posts_event_and_prompt_feed "$(lastev | jq -e '.body|fromjson|.event=="user_prompt_submit"' >/dev/null && feedlast | jq -e '.body|fromjson|(.kind=="prompt" and .text=="hello")' >/dev/null && echo 0 || echo 1)"
+feedfix stop stop; wait_reqs 2
+check stop_posts_event_and_reply_feed "$(lastev | jq -e '.body|fromjson|.event=="stop"' >/dev/null && feedlast | jq -e '.body|fromjson|(.kind=="reply" and .text=="You picked Blue.")' >/dev/null && echo 0 || echo 1)"
+: >"$TMP/log"; jq '.last_assistant_message=""' "$FIX/stop.json" >"$TMP/empty.json"; IN="$TMP/empty.json"; run stop; sleep 0.5
+check empty_reply_posts_no_feed "$([ "$(evreqs)" = 1 ] && [ "$(reqs)" = 1 ] && echo 0 || echo 1)"
+
+long="$(printf 'x%.0s' $(seq 400))"
+jq --arg c "$(printf 'line one\nline two %s' "$long")" '.tool_input.command=$c' "$FIX/pre_tool_use_bash.json" >"$TMP/long.json"
+: >"$TMP/log"; IN="$TMP/long.json"; run pre_tool_use; wait_reqs 1
+check tool_text_is_cut_to_300_chars_and_newlines_collapsed "$(feedlast | jq -e '.body|fromjson|.text | (length==300 and startswith("Bash: line one line two x") and (contains("\n")|not))' >/dev/null && echo 0 || echo 1)"
+
+: >"$TMP/log"
+for c in 'curl -H "Authorization: Bearer abc123" x' 'GITHUB_TOKEN=ghp_x gh api' 'password=hunter2 run'; do
+  jq --arg c "$c" '.tool_input.command=$c' "$FIX/pre_tool_use_bash.json" >"$TMP/sec.json"; IN="$TMP/sec.json"; run pre_tool_use
+  jq --arg c "$c" '.tool_input.command=$c' "$FIX/permission_request_bash.json" >"$TMP/sec.json"; IN="$TMP/sec.json"; run ask
+done
+wait_reqs 6; sleep 0.3
+check scrub_redacts_authorization_bearer_and_token_assignments "$(! grep -q -e abc123 -e ghp_x -e hunter2 "$TMP/log" && [ "$(reqs)" = 6 ] && grep -q 'Authorization: \[redacted\]' "$TMP/log" && grep -q 'GITHUB_TOKEN=\[redacted\]' "$TMP/log" && grep -q 'password=\[redacted\]' "$TMP/log" && echo 0 || echo 1)"
+
+: >"$TMP/log"
+for c in 'export API_KEY="a b c" && run' "TOKEN='abc def' run"; do
+  jq --arg c "$c" '.tool_input.command=$c' "$FIX/pre_tool_use_bash.json" >"$TMP/sec.json"; IN="$TMP/sec.json"; run pre_tool_use
+  jq --arg c "$c" '.tool_input.command=$c' "$FIX/permission_request_bash.json" >"$TMP/sec.json"; IN="$TMP/sec.json"; run ask
+done
+wait_reqs 4; sleep 0.3
+check scrub_redacts_quoted_secret_values "$([ "$(reqs)" = 4 ] && ! grep -q -e 'a b c' -e 'abc def' -e 'abc' -e 'def' "$TMP/log" && grep -q 'API_KEY=\[redacted\]' "$TMP/log" && grep -q 'TOKEN=\[redacted\]' "$TMP/log" && echo 0 || echo 1)"
+
+behave '{"event":[204,""],"ask":[204,""],"feed":[204,"",2]}'
+IN="$FIX/pre_tool_use_bash.json"
+t0=$(date +%s.%N); bash "$HOOK" pre_tool_use <"$IN" >"$TMP/out" 2>&1; RC=$?; t1=$(date +%s.%N)
+check feed_post_does_not_delay_the_hook "$([ $RC = 0 ] && awk "BEGIN{exit !($t1-$t0 < 1)}" && echo 0 || echo 1)"
+sleep 2.2
+rm -rf "$TMP/state"/*; behave '{"event":[204,""],"ask":[204,""],"feed":[204,""]}'
+CYLON_BOT_URL="http://127.0.0.1:1" bash "$HOOK" pre_tool_use <"$IN"
+for _ in $(seq 30); do [ -e "$TMP/state/down" ] && break; sleep 0.1; done
+check feed_failure_creates_the_down_marker "$([ -e "$TMP/state/down" ] && echo 0 || echo 1)"
+rm -rf "$TMP/state"/*
+
+: >"$TMP/log"; IN="$FIX/permission_request_bash.json"; run ask
+check ask_for_bash_posts_tool_name_and_summary "$(last | jq -e '.path=="/v1/ask" and (.body|fromjson|(.tool_name=="Bash" and .summary=="ls /nonexistent" and .tool_input=={}))' >/dev/null && echo 0 || echo 1)"
+: >"$TMP/log"
+for t in 'Write|{"file_path":"/a/b.txt","content":"zzzcontent hello"}' \
+  'Edit|{"file_path":"/a/b.txt","old_string":"zzzold","new_string":"zzzcontent"}' \
+  'MultiEdit|{"file_path":"/a/b.txt","edits":[{"old_string":"zzzold","new_string":"zzzcontent"}]}' \
+  'NotebookEdit|{"notebook_path":"/a/b.txt","new_source":"zzzcontent"}'; do
+  jq --arg n "${t%%|*}" --argjson i "${t#*|}" '.tool_name=$n | .tool_input=$i' "$FIX/permission_request_bash.json" >"$TMP/w.json"
+  IN="$TMP/w.json"; run ask
+  check "ask_for_${t%%|*}_sends_the_path_only" "$(last | jq -e --arg n "${t%%|*}" '.body|fromjson|(.tool_name==$n and .summary=="/a/b.txt" and .tool_input=={})' >/dev/null && echo 0 || echo 1)"
+done
+check file_content_never_leaves_in_an_approval "$([ "$(reqs)" = 4 ] && ! grep -q zzz "$TMP/log" && echo 0 || echo 1)"
+: >"$TMP/log"; IN="$FIX/ask_user_question.json"; run ask
+check ask_for_question_tool_names_it "$(last | jq -e '.body|fromjson|.tool_name=="AskUserQuestion"' >/dev/null && echo 0 || echo 1)"
+
+# A payload with no tool name is not a question by default: it fails closed.
+: >"$TMP/log"
+jq 'del(.tool_name)' "$FIX/ask_user_question.json" >"$TMP/noname.json"; IN="$TMP/noname.json"; run ask
+check ask_without_tool_name_posts_nothing "$([ $RC = 0 ] && [ -z "$OUT" ] && [ "$(reqs)" = 0 ] && echo 0 || echo 1)"
+jq '.tool_name=""' "$FIX/ask_user_question.json" >"$TMP/noname.json"; IN="$TMP/noname.json"; run ask
+check ask_with_empty_tool_name_posts_nothing "$([ $RC = 0 ] && [ -z "$OUT" ] && [ "$(reqs)" = 0 ] && echo 0 || echo 1)"
+
+# A 200 is printed only when it is a PermissionRequest decision to allow or deny.
+IN="$FIX/permission_request_bash.json"
+for b in '[]' '"allow"' '{}' \
+  '{"hookSpecificOutput":{"hookEventName":"PreToolUse","decision":{"behavior":"allow"}}}' \
+  '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"ask"}}}' \
+  '{"hookSpecificOutput":{"hookEventName":"PermissionRequest"}}'; do
+  behave "$(jq -cn --arg b "$b" '{event:[204,""],ask:[200,$b]}')"
+  run ask
+  check "ask_200_not_a_decision_prints_nothing: $b" "$([ $RC = 0 ] && [ -z "$OUT" ] && echo 0 || echo 1)"
+done
+DENY='{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"Denied from the board"}}}'
+behave "$(jq -cn --arg b "$DENY" '{event:[204,""],ask:[200,$b]}')"
+run ask
+check ask_200_deny_is_printed "$([ $RC = 0 ] && [ "$OUT" = "$DENY" ] && echo 0 || echo 1)"
+behave '{"event":[204,""],"ask":[204,""],"feed":[204,""]}'
+
+# key: value pairs in JSON or YAML style have the value redacted and the key kept.
+: >"$TMP/log"
+for c in 'curl -d '"'"'{"api_key": "abc111"}'"'"' x' "python -c \"d={'token': 'abc222'}\"" 'echo password: abc333 done'; do
+  jq --arg c "$c" '.tool_input.command=$c' "$FIX/pre_tool_use_bash.json" >"$TMP/sec.json"; IN="$TMP/sec.json"; run pre_tool_use
+  jq --arg c "$c" '.tool_input.command=$c' "$FIX/permission_request_bash.json" >"$TMP/sec.json"; IN="$TMP/sec.json"; run ask
+done
+wait_reqs 6; sleep 0.3
+jq -r '.body | fromjson | (.text // .summary)' "$TMP/log" >"$TMP/texts"
+check scrub_redacts_key_colon_value_pairs "$([ "$(reqs)" = 6 ] && ! grep -q -e abc111 -e abc222 -e abc333 "$TMP/log" && [ "$(grep -cF '{"api_key": [redacted]}' "$TMP/texts")" = 2 ] && [ "$(grep -cF "{'token': [redacted]}" "$TMP/texts")" = 2 ] && [ "$(grep -cF 'password: [redacted] done' "$TMP/texts")" = 2 ] && echo 0 || echo 1)" "$(cat "$TMP/texts")"
+
+# --- installer ---------------------------------------------------------------------
+S="$TMP/settings.json"
+cat >"$S" <<'JSON'
+{"theme":"dark","statusLine":{"type":"command","command":"x"},
+ "hooks":{"PreToolUse":[{"matcher":"AskUserQuestion","hooks":[{"type":"command","command":"claude-notify question t"}]}],
+          "UserPromptSubmit":[{"hooks":[{"type":"command","command":"codegraph prompt-hook"}]}]}}
+JSON
+CLAUDE_SETTINGS="$S" bash "$INSTALL"; RC=$?
+check installer_succeeds "$([ $RC = 0 ] && echo 0 || echo 1)"
+check installer_preserves_other_keys "$(jq -e '.theme=="dark" and .statusLine.command=="x"' "$S" >/dev/null && echo 0 || echo 1)"
+check installer_preserves_existing_hooks "$(jq -e '(.hooks.PreToolUse|map(select(.hooks[0].command|startswith("cylon-bot-hook ")|not))|length)==1 and (.hooks.PreToolUse[0].hooks[0].command|startswith("claude-notify")) and (.hooks.UserPromptSubmit|map(.hooks[0].command)|index("codegraph prompt-hook")) != null' "$S" >/dev/null && echo 0 || echo 1)"
+check installer_adds_every_board_hook "$(jq -e '[.hooks.SessionStart,.hooks.UserPromptSubmit,.hooks.Notification,.hooks.Stop,.hooks.StopFailure,.hooks.SessionEnd] | all(.[]; map(.hooks[].command) | any(startswith("cylon-bot-hook ")))' "$S" >/dev/null && echo 0 || echo 1)"
+check installer_adds_the_ask_hook_with_a_timeout "$(jq -e '.hooks.PermissionRequest | (length==1 and .[0].hooks[0].command=="cylon-bot-hook ask" and .[0].hooks[0].timeout==90)' "$S" >/dev/null && echo 0 || echo 1)"
+check installer_ask_hook_is_the_question_tool_only_by_default "$(jq -e '.hooks.PermissionRequest | (length==1 and .[0].matcher=="AskUserQuestion")' "$S" >/dev/null && echo 0 || echo 1)"
+check installer_adds_tool_feed_hooks "$(jq -e '(.hooks.PreToolUse|map(.hooks[0].command)|index("cylon-bot-hook pre_tool_use")) != null and (.hooks.PostToolUse|map(.hooks[0].command)|index("cylon-bot-hook post_tool_use")) != null and (.hooks.PostToolUseFailure|map(.hooks[0].command)|index("cylon-bot-hook post_tool_use_failure")) != null' "$S" >/dev/null && echo 0 || echo 1)"
+cp "$S" "$TMP/first.json"
+CLAUDE_SETTINGS="$S" bash "$INSTALL"
+check installer_is_idempotent "$(cmp -s "$S" "$TMP/first.json" && jq -e '.hooks.Stop | map(select(.hooks[0].command=="cylon-bot-hook stop")) | length==1' "$S" >/dev/null && echo 0 || echo 1)"
+# stale board entries (old arguments) are replaced, not duplicated
+jq '.hooks.Stop += [{"hooks":[{"type":"command","command":"cylon-bot-hook stale_arg"}]}]' "$S" >"$TMP/stale.json"; cp "$TMP/stale.json" "$S"
+CLAUDE_SETTINGS="$S" bash "$INSTALL"
+check installer_drops_stale_board_entries "$(jq -e '[.hooks.Stop[].hooks[].command] | (index("cylon-bot-hook stale_arg")==null and (map(select(.=="cylon-bot-hook stop"))|length)==1)' "$S" >/dev/null && echo 0 || echo 1)"
+# entries under the pre-rename name (claude-board-hook) are removed
+jq '.hooks.Stop += [{"hooks":[{"type":"command","command":"claude-board-hook stop"}]}]' "$S" >"$TMP/old.json"; cp "$TMP/old.json" "$S"
+CLAUDE_SETTINGS="$S" bash "$INSTALL"
+check installer_drops_pre_rename_entries "$(jq -e '[.hooks[][].hooks[].command] | map(select(startswith("claude-board-hook "))) | length==0' "$S" >/dev/null && echo 0 || echo 1)"
+# Approvals of every tool are opt-in, and flipping the switch replaces one form with the other.
+P="$TMP/perm.json"
+printf '%s\n' '{"hooks":{"PermissionRequest":[{"matcher":"Bash","hooks":[{"type":"command","command":"my-own-approver"}]}]}}' >"$P"
+board_perm() { jq -c '[.hooks.PermissionRequest[] | select(.hooks[0].command=="cylon-bot-hook ask")]' "$P"; }
+own_kept() { jq -e '[.hooks.PermissionRequest[] | select(.hooks[0].command=="my-own-approver" and .matcher=="Bash")] | length==1' "$P" >/dev/null; }
+QONLY='[{"matcher":"AskUserQuestion","hooks":[{"type":"command","command":"cylon-bot-hook ask","timeout":90}]}]'
+ALL='[{"hooks":[{"type":"command","command":"cylon-bot-hook ask","timeout":90}]}]'
+CLAUDE_SETTINGS="$P" bash "$INSTALL"
+check installer_default_registers_the_question_matcher_only "$([ "$(board_perm)" = "$QONLY" ] && own_kept && echo 0 || echo 1)" "$(board_perm)"
+cp "$P" "$TMP/p1.json"; CLAUDE_SETTINGS="$P" bash "$INSTALL"
+check installer_default_is_idempotent "$(cmp -s "$P" "$TMP/p1.json" && echo 0 || echo 1)"
+CYLON_BOT_APPROVALS=1 CLAUDE_SETTINGS="$P" bash "$INSTALL"
+check installer_approvals_on_registers_the_catch_all_only "$([ "$(board_perm)" = "$ALL" ] && own_kept && echo 0 || echo 1)" "$(board_perm)"
+cp "$P" "$TMP/p2.json"; CYLON_BOT_APPROVALS=1 CLAUDE_SETTINGS="$P" bash "$INSTALL"
+check installer_approvals_on_is_idempotent "$(cmp -s "$P" "$TMP/p2.json" && echo 0 || echo 1)"
+CYLON_BOT_APPROVALS=0 CLAUDE_SETTINGS="$P" bash "$INSTALL"
+check installer_switching_approvals_off_restores_the_matcher "$([ "$(board_perm)" = "$QONLY" ] && own_kept && cmp -s "$P" "$TMP/p1.json" && echo 0 || echo 1)" "$(board_perm)"
+CYLON_BOT_APPROVALS=1 CLAUDE_SETTINGS="$P" bash "$INSTALL"
+check installer_switching_approvals_back_on_replaces_the_matcher "$([ "$(board_perm)" = "$ALL" ] && own_kept && cmp -s "$P" "$TMP/p2.json" && echo 0 || echo 1)" "$(board_perm)"
+
+rm -f "$TMP/new/settings.json"
+CLAUDE_SETTINGS="$TMP/new/settings.json" bash "$INSTALL"
+check installer_creates_a_missing_settings_file "$(jq -e '.hooks.Stop|length==1' "$TMP/new/settings.json" >/dev/null && echo 0 || echo 1)"
+printf '{ this is not json' >"$TMP/bad.json"; cp "$TMP/bad.json" "$TMP/bad.orig"
+CLAUDE_SETTINGS="$TMP/bad.json" bash "$INSTALL" 2>"$TMP/bad.err"; RC=$?
+check installer_refuses_invalid_json_and_leaves_it_untouched "$([ $RC = 1 ] && grep -q "not valid JSON" "$TMP/bad.err" && cmp -s "$TMP/bad.json" "$TMP/bad.orig" && echo 0 || echo 1)"
+
+echo "---- $pass passed, $fail failed"
+[ "$fail" = 0 ]

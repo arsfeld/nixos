@@ -26,7 +26,7 @@ just test raider                # Activate without changing the boot default
 just dry-run @tier1             # Build, then report which units would change
 just reboot galactica           # Deploy and reboot (kernel changes)
 just info                       # List all known hosts
-just board build|flash|creds    # ESP32 session board firmware (see "Claude Board")
+just board build|flash|creds    # ESP32 session board firmware (see "Cylon Bot")
 ```
 
 `just deploy` runs in two phases. Phase 1 is `nix-fast-build` over `.#deployTargets`:
@@ -332,46 +332,46 @@ upgrade, and the weekly update routine runs `nix flake update` unattended every 
 that job can carry the cluster a minor version, or two, with nobody reading the diff. A
 Kubernetes upgrade should be a deliberate one-line commit.
 
-### Claude Board (ESP32 session board)
+### Cylon Bot (ESP32 session board)
 
 A Waveshare ESP32-S3 AMOLED 1.75C (SKU 33691, round 466×466, touch, speaker, microphone) that shows every Claude
 Code session across the fleet and answers Claude's multiple-choice questions with a tap. Design:
-`docs/superpowers/specs/2026-11-09-claude-board-design.md`; plan:
-`docs/superpowers/plans/2026-11-09-claude-board.md`; hook behaviour measured on Claude Code 2.1.319:
-`docs/superpowers/specs/2026-11-09-claude-board-hook-findings.md`. Phase 1 (status + answering) is
+`docs/superpowers/specs/2026-11-09-cylon-bot-design.md`; plan:
+`docs/superpowers/plans/2026-11-09-cylon-bot.md`; hook behaviour measured on Claude Code 2.1.319:
+`docs/superpowers/specs/2026-11-09-cylon-bot-hook-findings.md`. Phase 1 (status + answering) is
 built; phase 2 is being built in steps: step 1 of 3, the creature's voice (hold the avatar and talk, a spoken
 reply), is deployed and working on the board, with a few checks left (see "The creature's voice path"); delegation
 to sessions and check-ins are later plans. The firmware
-was rewritten from C and LVGL to Rust and Slint (spec `docs/superpowers/specs/2026-11-09-claude-board-rust-design.md`,
-plan `docs/superpowers/plans/2026-11-09-claude-board-rust.md`, what the board measured before committing to it
-and the parity run `docs/superpowers/specs/2026-11-09-claude-board-rust-probe-findings.md`).
+was rewritten from C and LVGL to Rust and Slint (spec `docs/superpowers/specs/2026-11-09-cylon-bot-rust-design.md`,
+plan `docs/superpowers/plans/2026-11-09-cylon-bot-rust.md`, what the board measured before committing to it
+and the parity run `docs/superpowers/specs/2026-11-09-cylon-bot-rust-probe-findings.md`).
 
 ```
-hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (firmware/claude-board)
+hooks on every host --HTTPS--> cylon-bot-bridge (galactica) <--wss-- board (firmware/cylon-bot)
 ```
 
-- **Hooks.** `claude-board-hook` (`packages/claude-board-hook`) forwards `SessionStart`,
+- **Hooks.** `cylon-bot-hook` (`packages/cylon-bot-hook`) forwards `SessionStart`,
   `UserPromptSubmit`, `Notification`, `Stop`, `StopFailure`, `SessionEnd` as one-way events, and a
   `PermissionRequest` hook on the question tool (`AskUserQuestion`) holds the request open until the
-  board answers. `claude-board-install-hooks` merges them into `~/.claude/settings.json` from
+  board answers. `cylon-bot-install-hooks` merges them into `~/.claude/settings.json` from
   home-manager (Linux only; that file is user state Claude Code also writes, so nix does not own it).
   Hooks never block a session, with one exception: while a board is connected, the held
-  `PermissionRequest` hook (`claude-board-hook ask`) waits on the bridge for up to 60 s
+  `PermissionRequest` hook (`cylon-bot-hook ask`) waits on the bridge for up to 60 s
   (`BRIDGE_ASK_TIMEOUT_SECS`) for a tap, and what the terminal shows during that wait has not been
   measured (see the approvals bullet below). Every other failure exits 0 with no output, and a failed
   connection pauses attempts for a minute. No board, no answer, or a timeout all fall through to the
   normal terminal prompt.
-- **Bridge.** `packages/claude-board-bridge` (Rust, axum), `modules/hosts/galactica/services/claude-board.nix`,
-  `media.services.claude-board` with `bypassAuth`. **Public and token-gated:** the board and the hooks
-  both use `https://claude-board.arsfeld.one`, reachable from any network, so the bearer tokens are
+- **Bridge.** `packages/cylon-bot-bridge` (Rust, axum), `modules/hosts/galactica/services/cylon-bot.nix`,
+  `media.services.cylon-bot` with `bypassAuth`. **Public and token-gated:** the board and the hooks
+  both use `https://cylon-bot.arsfeld.one`, reachable from any network, so the bearer tokens are
   the only gate (256-bit, constant-time compare, 500 ms delay on a failed attempt). Approving a
   question is authority over a session, so treat the tokens as credentials. Sessions, questions and
   feeds are in memory: after a bridge restart the board shows no sessions until each one next emits an event. What
-  must survive a restart is on disk: `StateDirectory = "claude-board"` (`/var/lib/claude-board`) holds `timers.json`
+  must survive a restart is on disk: `StateDirectory = "cylon-bot"` (`/var/lib/cylon-bot`) holds `timers.json`
   and `hermes-session`.
-- **Session feed and tool approvals** (spec `docs/superpowers/specs/2026-11-09-claude-board-feed-design.md`).
+- **Session feed and tool approvals** (spec `docs/superpowers/specs/2026-11-09-cylon-bot-feed-design.md`).
   The hook also sends `PreToolUse`, `PostToolUse` and `PostToolUseFailure` as feed entries, plus prompt
-  and reply entries from `UserPromptSubmit` and `Stop`; `claude-board-install-hooks` registers them. Entries
+  and reply entries from `UserPromptSubmit` and `Stop`; `cylon-bot-install-hooks` registers them. Entries
   go to `/v1/feed` (host token; its own endpoint, never touches the registry or held questions; 64 KiB body
   limit). The board sends `watch`/`unwatch` for one session; the bridge replies with `history`, then streams
   `entry` (protocol version 2). Each session has an in-memory ring buffer of 200 entries; a `history` holds
@@ -387,7 +387,7 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     key kept). Known gaps: `--password x`, `curl -u user:pass`, credentials embedded in URLs, escaped quotes
     inside quoted values, list values.
   - **Tool approvals are opt-in.** By default the installer registers the `PermissionRequest` hook for the
-    question tool only (matcher `AskUserQuestion`). `CLAUDE_BOARD_APPROVALS=1 claude-board-install-hooks`
+    question tool only (matcher `AskUserQuestion`). `CYLON_BOT_APPROVALS=1 cylon-bot-install-hooks`
     registers it for every tool (no matcher), so the board can also allow or deny tool calls; re-running with
     or without the variable swaps one form for the other and leaves other hooks alone. They are off because,
     while a board is connected, a held approval can keep the terminal prompt waiting for up to the 60 s bridge
@@ -398,7 +398,7 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
   - **What reaches the board as an approval.** An approval reuses the question wire format (one question,
     labels `Allow`/`Deny`): only an exact `Allow` allows, only an exact `Deny` denies, anything else falls
     through to the terminal. It is sent only when its whole text, `<tool>: <summary>`, fits the 160 bytes the
-    board displays (`APPROVAL_TEXT_MAX` in `claude-board-proto`, used by the bridge and the firmware). A longer
+    board displays (`APPROVAL_TEXT_MAX` in `cylon-bot-proto`, used by the bridge and the firmware). A longer
     command, or a tool with no summary (MCP tools, say), gets an immediate 204 from the bridge and is approved
     at the terminal, so nobody taps Allow on something they could not read to the end. For Edit, MultiEdit,
     Write and NotebookEdit the summary is the file path and nothing of the content. The bridge holds an
@@ -408,17 +408,17 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
   - **Deploy order: galactica (the bridge) before any host's hooks.** An older bridge has no `/v1/feed`, and
     (with approvals on, while a board is connected) reads an approval for a tool as a question with no
     questions and holds it for the full 60 s.
-- **Secrets.** `claude-board-host-token` in `common.yaml` (declared for every host in
-  `modules/base/claude-board.nix`, 0400 for arosenfeld, read by the hooks from `/run/secrets`);
-  `claude-board-device-token` in `galactica.yaml` and `raider.yaml` (same value: the bridge checks it,
-  the firmware embeds it); `claude-board-wifi-ssid`/`-pass` in `raider.yaml`. A `restartUnits` entry
+- **Secrets.** `cylon-bot-host-token` in `common.yaml` (declared for every host in
+  `modules/base/cylon-bot.nix`, 0400 for arosenfeld, read by the hooks from `/run/secrets`);
+  `cylon-bot-device-token` in `galactica.yaml` and `raider.yaml` (same value: the bridge checks it,
+  the firmware embeds it); `cylon-bot-wifi-ssid`/`-pass` in `raider.yaml`. A `restartUnits` entry
   for a unit that does not exist on a host fails that host's whole activation (it did, on raider):
   keep `restartUnits` in the galactica module, not the base one.
-- **Firmware.** `firmware/claude-board`, Rust on `esp-idf-svc` (ESP-IDF 5.5.4 from the `nixpkgs-esp-dev` input,
+- **Firmware.** `firmware/cylon-bot`, Rust on `esp-idf-svc` (ESP-IDF 5.5.4 from the `nixpkgs-esp-dev` input,
   Espressif's Xtensa Rust fork from the `esp-rs-nix` input) with Slint's software renderer. Three parts:
-  - `packages/claude-board-proto`: the wire types and the board's `Model` (sessions, questions, answers), shared
-    with the bridge. `nix build .#claude-board-proto` runs its tests.
-  - `ui/` (`claude-board-ui`): the Slint screens (`ui/*.slint`), the `Controller` that turns messages and taps into
+  - `packages/cylon-bot-proto`: the wire types and the board's `Model` (sessions, questions, answers), shared
+    with the bridge. `nix build .#cylon-bot-proto` runs its tests.
+  - `ui/` (`cylon-bot-ui`): the Slint screens (`ui/*.slint`), the `Controller` that turns messages and taps into
     screen properties, the touch tracker (taps and the swipe-right back gesture), power (dim, wake, drift) and the
     link helpers. It builds and tests on the host, including headless renders of the real screens.
   - `app/`: the ESP binary (a separate Cargo package with its own lock file and target). `net.rs` is Wi-Fi, SNTP
@@ -427,8 +427,8 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
   Everything goes through `just board`: `backup` (full 32 MiB flash, do this before flashing anything), `restore`
   (puts the stock Waveshare demo back, tested), `creds` (writes the gitignored `app/credentials.env` from sops),
   `build`, `flash`, `monitor`, `test` (the proto crate), `preview` (renders every screen to
-  `firmware/claude-board/preview/*.png` with the same renderer, no board needed). Host tests of the screens:
-  `nix develop .#firmware -c bash -c 'cd firmware/claude-board && cargo test -p claude-board-ui'`. The Wi-Fi password
+  `firmware/cylon-bot/preview/*.png` with the same renderer, no board needed). Host tests of the screens:
+  `nix develop .#firmware -c bash -c 'cd firmware/cylon-bot && cargo test -p cylon-bot-ui'`. The Wi-Fi password
   and token are compiled into the image in the clear (no flash encryption), so whoever holds the board can read them.
   The ESP32-S3 is 2.4 GHz only. Captive-portal networks are not supported.
 - **The screens.** Home is the avatar (`Presence`: a Cylon Centurion head, one pre-rendered sprite from
@@ -447,13 +447,13 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     each frame (bounded, about 36 boxes under 40x40), not only the one that lights; unmeasured on the board.
   - Slint: the device build must not enable its `std` feature (it pulls in `memmap2`, which does not build for
     ESP-IDF); the feature set is in `ui/Cargo.toml` and `app/Cargo.toml` and must match. `Path` support then needs a
-    one-line local patch to `i-slint-core`, made by `firmware/claude-board/scripts/vendor-slint-core.sh` into the
+    one-line local patch to `i-slint-core`, made by `firmware/cylon-bot/scripts/vendor-slint-core.sh` into the
     gitignored `vendor/` (`just board build` and `preview` run it). Re-check the patch at every Slint bump. Host
     tests do enable `std` (a dev-dependency) so parallel tests each get their own platform.
   - **Never `render_by_line`.** In Slint 1.18 the line-by-line renderer silently skips every `Path` (its source says
     so), and the previews and host tests render whole buffers, so they never showed it: until 2026-11-10 the board
     drew no rim arcs, command arcs, icons or ticks at all, only text and images. The board repaints its PSRAM
-    framebuffer with `render` through `claude_board_ui::frame::paint`, and `ui/tests/partial.rs` runs that exact
+    framebuffer with `render` through `cylon_bot_ui::frame::paint`, and `ui/tests/partial.rs` runs that exact
     path (reused buffer, partial repaints) on the host.
   - **Drawing a `Path` needs ~37 KB of stack.** zeno, Slint's rasterizer, keeps two large fixed arrays on the stack.
     The UI runs on the main task, whose stack was 16 KB: the first arc overflowed into the heap and the next
@@ -493,15 +493,15 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     and the board keeps the previous values.
   - A new tracked dev-shell attribute means the weekly `nix flake update` also moves `nixpkgs-esp-dev` and
     `esp-rs-nix`; the IDF `rev`/`sha256` override in `modules/flake/dev.nix` may need re-hashing.
-- **The creature's voice path** (step 1 of 3; spec `docs/superpowers/specs/2026-11-10-claude-board-creature-design.md`,
-  plan `docs/superpowers/plans/2026-11-10-claude-board-creature-voice.md`). Hold the avatar to talk; the reply is
+- **The creature's voice path** (step 1 of 3; spec `docs/superpowers/specs/2026-11-10-cylon-bot-creature-design.md`,
+  plan `docs/superpowers/plans/2026-11-10-cylon-bot-creature-voice.md`). Hold the avatar to talk; the reply is
   spoken by a persistent Hermes assistant (DeepSeek) and the avatar shows moods (`listening`, `thinking`,
   `speaking`, `alert`, `offline`, `idle`). **Deployed and flashed; speech is transcribed exactly end to end**: see
   the unverified list at the end of this bullet.
   - **Flow.** board mic --PCM--> bridge --whisper.cpp (STT)--> Hermes (`/v1/runs`, streamed) --sentences--> Piper
     (TTS) --Centurion effect--> board speaker. The effect (`src/voice/cylon.rs`, wrapping Piper in `main.rs`) stretches
     each sentence 1.15x, ring-modulates it at 70 Hz and flanges it; tune its constants by ear with
-    `cargo run --example cylon-wav in.wav out.wav`. The persona in `SOUL.md` talks like a Centurion too. Code: `packages/claude-board-bridge/src/voice/{speech,backends,pipeline}.rs`
+    `cargo run --example cylon-wav in.wav out.wav`. The persona in `SOUL.md` talks like a Centurion too. Code: `packages/cylon-bot-bridge/src/voice/{speech,backends,pipeline}.rs`
     (sentence splitting, the three HTTP backends, the per-utterance pipeline), `src/config.rs` (env), and the
     reader/writer/voice tasks in `src/board.rs`; on the board `ui/src/audio.rs` (playback queue),
     `app/src/{mic,speaker}.rs` and the mic/speaker API in `app/components/board_display/board_display.c`.
@@ -530,12 +530,12 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     thinking from its release; the firmware also refuses to start a hold while the creature is `offline`. Logs carry lengths and timings only, never
     speech or reply text: `voice: utt=<id> bytes=<n> stt_ms=.. first_delta_ms=.. first_audio_ms=.. total_ms=..`,
     plus one `voice: utt=<id> stage=<stt|brain|tts> error=<unavailable|timeout|rejected>` line per backend
-    failure (`journalctl -u claude-board`).
-  - **Services** (`modules/hosts/galactica/services/claude-board-voice.nix`, all loopback, no firewall change):
+    failure (`journalctl -u cylon-bot`).
+  - **Services** (`modules/hosts/galactica/services/cylon-bot-voice.nix`, all loopback, no firewall change):
     `whisper-server` (whisper.cpp, `ggml-base.en`, port 18081, 8 threads), `piper-server` (Piper
     `en_US-lessac-medium`, 18082), `hermes-agent` (the `hermes-agent` flake input's NixOS module, 18642). All three
     run at Nice 10 and CPU/IO weight 20 with a `MemoryMax` (2G, 1G, 2G) so voice cannot starve the media stack; no
-    `CPUQuota`. `claude-board` is ordered after and `wants` them, never requires: approvals work with them down.
+    `CPUQuota`. `cylon-bot` is ordered after and `wants` them, never requires: approvals work with them down.
     whisper and piper come from `pkgs.unstable` (stable's piper has no `/synthesize`); Piper's HTTP server has no
     executable in nixpkgs, so `piperHttp` seds the entry point in `.piper-wrapped`, which the weekly update can
     break. The model and voice are `fetchurl`s with pinned hashes.
@@ -580,15 +580,15 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     **Still unverified:** which MIC channel is which, the heap margin during a hold (78 KB internal free just
     after one), a tap stopping speech within 1 s, chime pitch after a reply, reassembly of 32 KiB frames, and volume. The target is
     a median of 5 s from release to first spoken word. Check them with `just board monitor`.
-- **Creature tools** (spec `docs/superpowers/specs/2026-11-10-claude-board-creature-capabilities-design.md`; implemented
+- **Creature tools** (spec `docs/superpowers/specs/2026-11-10-cylon-bot-creature-capabilities-design.md`; implemented
   2026-11-10, board acceptance pending). Hermes keeps its core toolsets (`3abd1c01`: web, terminal, files, memory) and
-  gains one MCP server, the bridge's `claude-board` under `mcp_servers` in its settings: timers, weather, and Home
+  gains one MCP server, the bridge's `cylon-bot` under `mcp_servers` in its settings: timers, weather, and Home
   Assistant's own tools for the house, which the bridge proxies. **Hermes never holds the HA token:** it has a
   terminal, so with the token a prompt injection could curl HA's REST API and call any service (`lock.unlock`,
   Alarmo); HA has no per-entity permissions, and Assist exposure limits only the Assist and MCP APIs. The token is in
   the bridge's DynamicUser credentials alone.
   - **Bridge endpoint.** `127.0.0.1:8591` (`BRIDGE_MCP_LISTEN`), JSON-RPC over HTTP, bearer token
-    `claude-board-mcp-token` (`BRIDGE_MCP_TOKEN_FILE`); its own results are capped at 3000 bytes. Tools: `set_timer`,
+    `cylon-bot-mcp-token` (`BRIDGE_MCP_TOKEN_FILE`); its own results are capped at 3000 bytes. Tools: `set_timer`,
     `list_timers`, `cancel_timer`, and, only when both `BRIDGE_HA_URL` and `BRIDGE_HA_TOKEN_FILE` are set,
     `weather_forecast` (HA `weather.get_forecasts` for `weather.forecast_home`) plus HA's MCP tools, proxied
     (`src/mcp/ha.rs`): the bridge does `initialize` and `tools/list` against HA's `/api/mcp` lazily, caches the list
@@ -596,8 +596,8 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     own names, descriptions and schemas minus `HassCancelAllTimers`, and forwards their calls. Proxied results are
     capped at 16 KiB (`UPSTREAM_TEXT_MAX`; `GetLiveContext` measured 7.6 KB). An HA failure answers the tool error
     "Home Assistant is unavailable right now.", never a JSON-RPC error, which would make Hermes drop the server. Code:
-    `packages/claude-board-bridge/src/mcp/{mod,timers,weather,ha}.rs` and `src/timers.rs`.
-  - **Timers.** Persisted in `/var/lib/claude-board/timers.json` (`StateDirectory`): at most 20, at most 30 days
+    `packages/cylon-bot-bridge/src/mcp/{mod,timers,weather,ha}.rs` and `src/timers.rs`.
+  - **Timers.** Persisted in `/var/lib/cylon-bot/timers.json` (`StateDirectory`): at most 20, at most 30 days
     ahead, in America/Toronto; a time in the spring-forward gap is refused and a fall-back overlap takes the earlier
     instant. When one is due the bridge itself speaks "Reminder. <label>." through Piper, with no Hermes call, and sends
     `reminder {id,label,due}`. Its speech uses a bridge-owned utterance id >= 0x8000_0000 and waits while the creature is
@@ -609,13 +609,13 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     60 s. A reminder is removed from the file before it is sent, so a socket that dies at that moment loses it. **Why not Hermes cron:** `api_server` is a
     non-push origin, so cron output never reaches the board. The board shows a reminder on the reply card, sticky until
     tapped, and returns home from the list or detail; a tap cancels the bridge's utterance id.
-  - **Hermes wiring.** The header token is a `${CLAUDE_BOARD_MCP_TOKEN}` placeholder that Hermes interpolates from
+  - **Hermes wiring.** The header token is a `${CYLON_BOT_MCP_TOKEN}` placeholder that Hermes interpolates from
     its env file (the `ExecStartPre` writer), never in the store. Hermes used to reach HA's MCP server directly, and the
     module's merge into `config.yaml` cannot delete keys, so `mcp_servers.homeassistant.enabled = false` switches the
     stale entry off until that file is cleaned by hand. MCP toolsets are enabled
     automatically next to `hermes-api-server`; naming one in `platform_toolsets` would turn that list into an
     allowlist. **`GET /v1/toolsets` does not list MCP toolsets.** After a `hermes-agent` bump check
-    `/var/lib/hermes-creature/.hermes/logs/agent.log` for `MCP server 'claude-board' (HTTP): registered N tool(s)`, N
+    `/var/lib/hermes-creature/.hermes/logs/agent.log` for `MCP server 'cylon-bot' (HTTP): registered N tool(s)`, N
     including HA's tools. Hermes lists a server's tools when it connects, so if HA was down at that moment the
     creature lacks HA's tools until `hermes-agent` restarts (the bridge cannot announce a changed list). A
     server that is down at start is retried and re-probed every 300 s. `tools.tool_search.enabled = "off"`: tool search
@@ -634,8 +634,8 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
     the same agent a terminal on galactica, a larger blast radius that is outside this work.
   - **Deploy order:** galactica (the bridge) before flashing the board. An old board ignores `reminder`; a new board
     against an old bridge never sees one.
-- **The command arcs** (spec `docs/superpowers/specs/2026-11-10-claude-board-commands-design.md`, plan
-  `docs/superpowers/plans/2026-11-10-claude-board-commands.md`). A swipe down from the top 60 px of home opens three
+- **The command arcs** (spec `docs/superpowers/specs/2026-11-10-cylon-bot-commands-design.md`, plan
+  `docs/superpowers/plans/2026-11-10-cylon-bot-commands.md`). A swipe down from the top 60 px of home opens three
   arcs in the top third of the rim, VOL / LINK / PURGE (the ring's inner radius drops to 150 while they are open);
   swipes that start lower keep changing volume. Swipe up or right, a tap on the avatar, 10 s without touch, or a
   question closes them; taps on the labels work. **Volume page:** 24 ticks, - / + go through the same path as the swipe
@@ -655,8 +655,8 @@ hooks on every host --HTTPS--> claude-board-bridge (galactica) <--wss-- board (f
   server and a DNS override are `CB_URL`, `CB_NTP`, `CB_DNS` lines in `app/credentials.env` (that is how the
   bad-certificate and blocked-NTP cases were tested). The board always validates the server certificate and does not
   connect until its clock is set.
-- **The two sides share fixtures.** `packages/claude-board-bridge/tests/fixtures/board/*.json` is the wire format:
-  the bridge's `tests/wire.rs` pins its output to them and the `claude-board-proto` tests parse every one of them.
+- **The two sides share fixtures.** `packages/cylon-bot-bridge/tests/fixtures/board/*.json` is the wire format:
+  the bridge's `tests/wire.rs` pins its output to them and the `cylon-bot-proto` tests parse every one of them.
   Change the protocol in the proto crate, the fixtures and both test files together.
 
 ### Testing Changes
@@ -994,7 +994,7 @@ Opt-in modules that hosts compose by importing them; `nix eval --json .#nixosMod
 Host-local modules (see the rule above), under `modules/hosts/`: galactica —
 `backup/rustic.nix`, and under `services/` `pia`, `opencloud`, `home-assistant`,
 `tablet-sync`, `vpn-exit-nodes`, `immich-pixel-sync/`, `plab/` (plab is a Rust daemon in `packages/plab`, with its Svelte app in `packages/plab/ui`), `media-apps`, `media-automation`,
-`media-streaming`, `home-apps`, `network-tools`, `claude-board-voice`; basestar — `k3s.nix`, `sites/`, `tailscale-exit-node.nix`;
+`media-streaming`, `home-apps`, `network-tools`, `cylon-bot-voice`; basestar — `k3s.nix`, `sites/`, `tailscale-exit-node.nix`;
 raider — `docker.nix`, `project-vms.nix`; pegasus — `media-sync.nix`.
 
 ### Media Configuration Variables (`modules/media/config.nix`)

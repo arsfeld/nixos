@@ -1,0 +1,9 @@
+[package]
+name = "cylon-bot-proto"
+version = "0.1.0"
+edition = "2024"
+description = "Wire types shared by the cylon-bot bridge and the board firmware"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

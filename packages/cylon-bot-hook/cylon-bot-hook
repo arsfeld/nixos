@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+# cylon-bot-hook <event>: forwards a Claude Code hook to the cylon-bot bridge.
+# Events: session_start user_prompt_submit notification stop stop_failure session_end
+#         pre_tool_use post_tool_use post_tool_use_failure ask
+#
+# Reads the hook's JSON from stdin. `user_prompt_submit` and `stop` post their /v1/event and
+# also a feed entry (the prompt, the final reply: both sent as written, NOT scrubbed); the
+# three tool events post only a feed entry (tool call text scrubbed of Authorization/Bearer
+# headers and of secret-looking `KEY=value` and `"key": value` pairs). Feed posts run in the
+# background so the hook returns at once. For `ask` (a PermissionRequest hook: the question
+# tool only, or every tool when the installer ran with CYLON_BOT_APPROVALS=1) only the
+# question tool's input is forwarded; other tools send the same scrubbed summary, which for
+# file edits is the path alone, never the content. It prints the bridge's answer only when
+# that is an allow/deny PermissionRequest decision; printing nothing leaves the normal
+# terminal prompt. A payload with no tool name posts nothing.
+#
+# It never breaks a session: every failure is silent and exits 0. The one wait is `ask`,
+# which the bridge may hold for up to a minute while a board is connected. A failed
+# connection also pauses further attempts for a minute, so an unreachable bridge costs one
+# short delay and not one per prompt.
+#
+# Environment (all optional): CYLON_BOT_URL, CYLON_BOT_TOKEN_FILE,
+# CYLON_BOT_HOST, CYLON_BOT_STATE_DIR.
+set -uo pipefail
+
+url="${CYLON_BOT_URL:-https://cylon-bot.arsfeld.one}"
+token_file="${CYLON_BOT_TOKEN_FILE:-/run/secrets/cylon-bot-host-token}"
+state_dir="${CYLON_BOT_STATE_DIR:-${XDG_RUNTIME_DIR:-/tmp}/cylon-bot-hook-$(id -u)}"
+host="${CYLON_BOT_HOST:-$(uname -n)}"
+
+# tool_summary <payload>: one scrubbed line describing a tool call's input, at most 300 chars.
+# File tools give their path and nothing of the content. Shared by the feed and the approval
+# request so both scrub the same way.
+tool_summary() {
+  jq -r '
+    def flat: gsub("\\s+"; " ");
+    (.tool_input // {}) as $i | (.tool_name // "") as $n
+    | (if $n == "Bash" then $i.command
+       elif $n | IN("Edit", "MultiEdit", "Write", "Read", "NotebookEdit") then ($i.file_path // $i.notebook_path)
+       elif $n | IN("Grep", "Glob") then $i.pattern
+       elif $n == "WebFetch" then $i.url
+       else "" end // "" | tostring)
+    | flat' <<<"$1" 2>/dev/null \
+    | sed -E \
+      -e 's/(Authorization:)[^"'"'"']*/\1 [redacted]/Ig' \
+      -e 's/(Bearer )[^[:space:]"'"'"']+/\1[redacted]/Ig' \
+      -e 's/([A-Za-z0-9_]*(TOKEN|SECRET|PASSWORD|PASSWD|KEY)[A-Za-z0-9_]*)=("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]"'"'"']+)/\1=[redacted]/Ig' \
+      -e 's/(["'"'"']?[A-Za-z0-9_-]*(TOKEN|SECRET|PASSWORD|PASSWD|KEY)[A-Za-z0-9_-]*["'"'"']?[[:space:]]*:[[:space:]]*)("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]"'"'"',}]+)/\1[redacted]/Ig' \
+    | jq -Rr '.[0:300]' 2>/dev/null
+}
+
+# post_feed <kind> <text>: fire-and-forget POST /v1/feed from a background subshell, so a slow
+# bridge never delays the session. A failure still starts the back-off.
+post_feed() {
+  local kind="$1" text="$2" fbody
+  [ -n "$text" ] || return 0
+  fbody="$(jq -cn --arg host "$host" --arg session "$session" --arg kind "$kind" \
+    --arg text "$text" --argjson ts "$(date +%s)" \
+    '{host: $host, session: $session, kind: $kind, text: $text, ts: $ts}')" || return 0
+  (
+    curl -sS -o /dev/null --connect-timeout 2 --max-time 3 -X POST \
+      -H @<(printf 'Authorization: Bearer %s\n' "$token") \
+      -H 'Content-Type: application/json' --data-binary "$fbody" \
+      "$url/v1/feed" 2>/dev/null || touch "$marker"
+  ) >/dev/null 2>&1 </dev/null &
+  disown 2>/dev/null || true
+  return 0
+}
+
+main() {
+  local event="${1:-}" token payload session cwd kind body resp status summary name
+  case "$event" in
+    session_start | user_prompt_submit | notification | stop | stop_failure | session_end | pre_tool_use | post_tool_use | post_tool_use_failure | ask) ;;
+    *) return 0 ;;
+  esac
+
+  [ -r "$token_file" ] || return 0
+  token="$(tr -d '\r\n' <"$token_file")"
+  [ -n "$token" ] || return 0
+
+  payload="$(cat)"
+  jq -e . <<<"$payload" >/dev/null 2>&1 || return 0
+  session="$(jq -r '.session_id // empty' <<<"$payload")"
+  [ -n "$session" ] || return 0
+  # Real StopFailure payloads carry no cwd.
+  cwd="$(jq -r '.cwd // empty' <<<"$payload")"
+  [ -n "$cwd" ] || cwd="$PWD"
+
+  mkdir -p "$state_dir" 2>/dev/null || return 0
+  marker="$state_dir/down"
+  if [ -e "$marker" ] && [ -z "$(find "$marker" -mmin +1 2>/dev/null)" ]; then
+    return 0
+  fi
+
+  if [ "$event" = ask ]; then
+    # No tool name: nothing to say what is being approved, so leave it to the terminal.
+    name="$(jq -r '.tool_name // empty' <<<"$payload")"
+    [ -n "$name" ] || return 0
+    summary="$(tool_summary "$payload")"
+    body="$(jq -cn --arg host "$host" --arg session "$session" --arg cwd "$cwd" \
+      --arg tool_name "$name" --arg summary "$summary" \
+      --argjson tool_input "$(jq -c 'if .tool_name == "AskUserQuestion" then .tool_input // {} else {} end' <<<"$payload")" \
+      '{host: $host, session: $session, cwd: $cwd, tool_name: $tool_name, summary: $summary,
+        tool_input: $tool_input}')"
+    resp="$(curl -sS --connect-timeout 2 --max-time 80 -X POST \
+      -H @<(printf 'Authorization: Bearer %s\n' "$token") \
+      -H 'Content-Type: application/json' --data-binary "$body" \
+      -w '\n%{http_code}' "$url/v1/ask" 2>/dev/null)" || {
+      touch "$marker"
+      return 0
+    }
+    status="${resp##*$'\n'}"
+    body="${resp%$'\n'*}"
+    # Only a well-formed allow/deny decision reaches Claude Code; anything else (a proxy's page,
+    # a future shape) leaves the terminal prompt.
+    if [ "$status" = 200 ] && jq -e '.hookSpecificOutput.hookEventName == "PermissionRequest"
+        and (.hookSpecificOutput.decision.behavior | IN("allow", "deny"))' >/dev/null 2>&1 <<<"$body"; then
+      printf '%s\n' "$body"
+    fi
+    return 0
+  fi
+
+  case "$event" in
+    pre_tool_use | post_tool_use | post_tool_use_failure)
+      name="$(jq -r '.tool_name // empty' <<<"$payload")"
+      [ -n "$name" ] || return 0
+      case "$event" in
+        pre_tool_use)
+          summary="$(tool_summary "$payload")"
+          post_feed tool "$(jq -rn --arg n "$name" --arg s "$summary" '"\($n): \($s)" | .[0:300]')" ;;
+        post_tool_use) post_feed result ok ;;
+        *) post_feed result failed ;;
+      esac
+      return 0
+      ;;
+  esac
+
+  kind=""
+  [ "$event" = notification ] && kind="$(jq -r '.notification_type // empty' <<<"$payload")"
+  body="$(jq -cn --arg host "$host" --arg session "$session" --arg cwd "$cwd" \
+    --arg event "$event" --arg kind "$kind" --argjson ts "$(date +%s)" \
+    '{host: $host, session: $session, cwd: $cwd, event: $event, ts: $ts}
+     + (if $kind != "" then {kind: $kind} else {} end)')"
+  curl -sS -o /dev/null --connect-timeout 2 --max-time 3 -X POST \
+    -H @<(printf 'Authorization: Bearer %s\n' "$token") \
+    -H 'Content-Type: application/json' --data-binary "$body" \
+    "$url/v1/event" 2>/dev/null || touch "$marker"
+  case "$event" in
+    user_prompt_submit) post_feed prompt "$(jq -r '(.prompt // "") | .[0:2048]' <<<"$payload")" ;;
+    stop) post_feed reply "$(jq -r '(.last_assistant_message // "") | .[0:4096]' <<<"$payload")" ;;
+  esac
+  return 0
+}
+
+main "$@" || true
+exit 0

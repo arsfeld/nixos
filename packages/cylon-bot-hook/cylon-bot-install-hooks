@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# cylon-bot-install-hooks: idempotently merges the cylon-bot hooks into Claude Code's
+# settings.json (~/.claude/settings.json, or $CLAUDE_SETTINGS). That file is user state that
+# Claude Code also writes, so nix does not manage it: this merges into it and touches nothing
+# else. Existing hooks and keys are preserved; any earlier cylon-bot entry is replaced.
+# A file that is not a JSON object is refused and left untouched.
+#
+# The PermissionRequest hook covers the question tool (AskUserQuestion) only, unless
+# CYLON_BOT_APPROVALS=1, which makes it catch every tool so the board can also allow or deny
+# tool calls. That is opt-in because, while a board is connected, a held approval keeps the
+# terminal prompt waiting for up to the bridge's hold (60 s) unless it is answered. Re-running
+# with the other setting replaces the one form with the other.
+#
+# Entries for `claude-board-hook`, the name these hooks had before the rename to cylon-bot, are
+# removed as well: that binary no longer exists, so a leftover entry would fail on every event.
+set -uo pipefail
+
+settings="${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}"
+mkdir -p "$(dirname "$settings")" || exit 1
+[ -e "$settings" ] || printf '{}\n' >"$settings" || exit 1
+
+if ! jq -e 'type == "object"' "$settings" >/dev/null 2>&1; then
+  echo "cylon-bot-install-hooks: $settings is not valid JSON (or not an object); leaving it untouched" >&2
+  exit 1
+fi
+
+tmp="$(mktemp "$settings.XXXXXX")" || exit 1
+trap 'rm -f "$tmp"' EXIT
+
+approvals=false
+[ "${CYLON_BOT_APPROVALS:-}" = 1 ] && approvals=true
+
+jq --argjson approvals "$approvals" '
+  def ours: ((.hooks // []) | any((.command // "") | (startswith("cylon-bot-hook ") or startswith("claude-board-hook "))));
+  def plain($arg): {hooks: [{type: "command", command: ("cylon-bot-hook " + $arg)}]};
+  def add($event; $entry): .hooks[$event] = ((.hooks[$event] // []) + [$entry]);
+  .hooks = (.hooks // {})
+  | .hooks |= with_entries(.value |= map(select(ours | not)))
+  | .hooks |= with_entries(select(.value | length > 0))
+  | add("SessionStart"; plain("session_start"))
+  | add("UserPromptSubmit"; plain("user_prompt_submit"))
+  | add("Notification"; plain("notification"))
+  | add("Stop"; plain("stop"))
+  | add("StopFailure"; plain("stop_failure"))
+  | add("SessionEnd"; plain("session_end"))
+  | add("PreToolUse"; plain("pre_tool_use"))
+  | add("PostToolUse"; plain("post_tool_use"))
+  | add("PostToolUseFailure"; plain("post_tool_use_failure"))
+  | add("PermissionRequest";
+      (if $approvals then {} else {matcher: "AskUserQuestion"} end)
+      + {hooks: [{type: "command", command: "cylon-bot-hook ask", timeout: 90}]})
+' "$settings" >"$tmp" || exit 1
+
+if cmp -s "$tmp" "$settings"; then
+  exit 0
+fi
+chmod --reference="$settings" "$tmp" 2>/dev/null || true
+mv "$tmp" "$settings"
+trap - EXIT

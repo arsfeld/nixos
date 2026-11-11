@@ -203,9 +203,9 @@
       nvidia-offload
       waypipe
       seafile-shared
-      # Forwards Claude Code hooks to the claude-board bridge on galactica; it reads
-      # /run/secrets/claude-board-host-token (modules/base/claude-board.nix).
-      claude-board-hook
+      # Forwards Claude Code hooks to the cylon-bot bridge on galactica; it reads
+      # /run/secrets/cylon-bot-host-token (modules/base/cylon-bot.nix).
+      cylon-bot-hook
     ];
 in {
   imports = [
@@ -348,12 +348,12 @@ in {
   xdg.configFile."starship.toml" = {
     source = ./files/starship.toml;
   };
-  # ~/.claude/settings.json is user state that Claude Code also writes, so the claude-board
+  # ~/.claude/settings.json is user state that Claude Code also writes, so the cylon-bot
   # hooks are merged into it rather than declared. Idempotent; leaves every other key and hook
   # alone, and a settings file it cannot parse is left untouched with a warning.
-  home.activation.claudeBoardHooks = mkIf stdenv.isLinux (lib.hm.dag.entryAfter ["writeBoundary"] ''
-    ${pkgs.claude-board-hook}/bin/claude-board-install-hooks \
-      || echo "claude-board: could not merge hooks into ~/.claude/settings.json" >&2
+  home.activation.cylonBotHooks = mkIf stdenv.isLinux (lib.hm.dag.entryAfter ["writeBoundary"] ''
+    ${pkgs.cylon-bot-hook}/bin/cylon-bot-install-hooks \
+      || echo "cylon-bot: could not merge hooks into ~/.claude/settings.json" >&2
   '');
 
   home.file.".claude/statusline-command.sh" = {
