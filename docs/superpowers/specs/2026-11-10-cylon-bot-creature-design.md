@@ -196,6 +196,31 @@ Full workings are in the implementation plan's gate reports; the decisions that 
 
 Each step ends with a working board.
 
+### Step 2 design: delegation (decided 2026-11-10)
+
+| Question | Decision |
+|---|---|
+| Where delegated sessions run | **raider**, started by a new user service, `cylon-bot-runner` |
+| How the runner is reached | It dials **out** to the bridge (`wss://cylon-bot.arsfeld.one/v1/runner`) with its own token, like the board. The bridge never connects to a host |
+| Which projects | **Any directory directly under `~/Code`** on raider. It must not be hidden or a symlink out of `~/Code`, and `..` is refused |
+| How Hermes gets its tools | An **MCP server inside the bridge**, on a separate loopback listener. Hermes' `api_server` toolset list adds that server's toolset to the core bundle |
+| The tools | `list_projects`, `list_sessions`, `read_session`, `start_session`, `steer_session`, `stop_session` |
+| The gate | **Board approvals are forced on** for delegated sessions. Every tool call that would prompt goes to the board. No board, no answer or a text longer than 160 bytes means **deny**, because a headless session has no terminal to fall back to |
+| Reporting | **On demand**: "how is the nixos one doing" reads the session's feed. The board already shows the session's state through its hooks. Spoken completion reports are check-ins, step 3 |
+
+A delegated session is `claude -p` in `~/Code/<project>` with a session id the bridge picks. It loads
+project settings only (`--setting-sources project`), so the user's allow rules and `defaultMode: auto`
+do not apply. Its hooks come from a generated `--settings` file holding the board hooks with
+approvals on. It has no MCP servers (`--strict-mcp-config`) and no question tool. Steering resumes a
+finished delegated session with a new prompt. Interactive sessions and running ones cannot be steered.
+
+Consequences worth knowing:
+- `read_session` sends a session's feed (prompts and replies **unscrubbed**, tool lines scrubbed) to
+  Hermes, and so to **DeepSeek**. That is a new egress of session content.
+- Project-level allow rules in a repo's own `.claude/settings.json` still apply to delegated sessions.
+- Text from a Claude session reaches Hermes and could carry prompt injection. It can make Hermes start
+  or steer sessions, all of which still need board approval for anything that prompts.
+
 ## Testing
 
 - Proto fixtures for every new message, pinned from both sides.
