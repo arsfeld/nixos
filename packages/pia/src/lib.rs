@@ -10,3 +10,4 @@ pub fn log(msg: &str) {
     eprintln!("pia: {msg}");
 }
 pub mod portforward;
+pub mod watchdog;
