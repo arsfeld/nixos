@@ -8,7 +8,7 @@ pub struct Credentials {
 }
 
 /// Parses the env file: blank lines and `#` comments skipped, optional `export `,
-/// one pair of surrounding quotes stripped. Split on the first `=` only.
+/// surrounding quote characters stripped. Split on the first `=` only.
 pub fn parse(text: &str) -> Result<Credentials> {
     let (mut user, mut pass) = (None, None);
     for raw in text.lines() {
@@ -20,7 +20,8 @@ pub fn parse(text: &str) -> Result<Credentials> {
         let Some((key, val)) = line.split_once('=') else {
             continue;
         };
-        let val = unquote(val.trim()).to_string();
+        // Exactly the Python's `.strip().strip('"').strip("'")`.
+        let val = val.trim().trim_matches('"').trim_matches('\'').to_string();
         match key.trim() {
             "PIA_USER" => user = Some(val),
             "PIA_PASS" => pass = Some(val),
@@ -34,15 +35,6 @@ pub fn parse(text: &str) -> Result<Credentials> {
         bail!("missing PIA_PASS in credentials file");
     };
     Ok(Credentials { user, pass })
-}
-
-fn unquote(v: &str) -> &str {
-    for q in ['"', '\''] {
-        if let Some(inner) = v.strip_prefix(q).and_then(|v| v.strip_suffix(q)) {
-            return inner;
-        }
-    }
-    v
 }
 
 #[cfg(test)]
@@ -60,6 +52,13 @@ mod tests {
         let c = parse("# x\n\nexport PIA_USER=\"p123\"\nexport PIA_PASS='s e'\n").unwrap();
         assert_eq!(c.pass, "s e");
         assert_eq!(c.user, "p123");
+    }
+
+    #[test]
+    fn unbalanced_quotes_strip_like_python() {
+        assert_eq!(parse("PIA_USER=u\nPIA_PASS=\"abc\n").unwrap().pass, "abc");
+        assert_eq!(parse("PIA_USER=u\nPIA_PASS=abc'\n").unwrap().pass, "abc");
+        assert_eq!(parse("PIA_USER=u\nPIA_PASS=\"a'\"\n").unwrap().pass, "a");
     }
 
     #[test]

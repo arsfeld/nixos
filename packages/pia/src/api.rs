@@ -70,8 +70,13 @@ pub struct AddKey {
     pub server_ip: String,
     pub server_port: u16,
     pub server_vip: String,
-    #[serde(default)]
+    /// PIA may send `null` here; it reads as empty, like the Python's `or []`.
+    #[serde(default, deserialize_with = "null_as_empty")]
     pub dns_servers: Vec<String>,
+}
+
+fn null_as_empty<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+    Ok(Option::<Vec<String>>::deserialize(d)?.unwrap_or_default())
 }
 
 #[derive(Deserialize)]
@@ -172,6 +177,14 @@ mod tests {
         assert_eq!(a.dns_servers, vec!["10.0.0.243", "10.0.0.242"]);
         assert_eq!(a.server_port, 1337);
         assert_eq!(a.server_vip, "10.1.2.1");
+    }
+
+    #[test]
+    fn addkey_null_dns_is_empty() {
+        let body = include_str!("../tests/fixtures/addkey-ok.json")
+            .replace(r#""dns_servers":["10.0.0.243","10.0.0.242"]"#, r#""dns_servers":null"#);
+        let a: AddKey = check_ok("addKey", &body).unwrap();
+        assert!(a.dns_servers.is_empty());
     }
 
     #[test]

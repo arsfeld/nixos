@@ -131,7 +131,7 @@ pub fn run(cfg: &Config) -> Result<()> {
         |p| {
             let old = previous.map_or_else(|| "none".to_string(), |o| o.to_string());
             log(&format!("forwarded port changed {old} -> {p}; dispatching consumers"));
-            cmd::run(&cfg.hook, &[&p.to_string()]).context("consumer hook failed")
+            cmd::run_inherit(&cfg.hook, &[&p.to_string()]).context("consumer hook failed")
         },
     )?;
     if changed {

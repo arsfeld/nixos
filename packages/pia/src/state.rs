@@ -3,7 +3,8 @@
 
 use std::path::Path;
 
-use std::os::unix::fs::PermissionsExt;
+use std::io::Write;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -49,12 +50,32 @@ pub fn load(path: &Path) -> Result<State> {
     }
 }
 
+/// Creates (truncating) `path` with `mode` from the start, so it is never readable
+/// beyond `mode`, even briefly.
+fn create_with_mode(path: &Path, mode: u32) -> Result<std::fs::File> {
+    // A leftover file keeps its old mode under O_CREAT, so remove it first.
+    match std::fs::remove_file(path) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+            return Err(e).with_context(|| format!("removing stale {}", path.display()));
+        }
+        _ => {}
+    }
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(mode)
+        .open(path)
+        .with_context(|| format!("creating {}", path.display()))
+}
+
 /// Writes `<path>.tmp`, sets its mode, then renames it over `path`.
 pub fn write_atomic(path: &Path, bytes: &[u8], mode: u32) -> Result<()> {
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(".tmp");
     let tmp = Path::new(&tmp);
-    std::fs::write(tmp, bytes).with_context(|| format!("writing {}", tmp.display()))?;
+    create_with_mode(tmp, mode)?
+        .write_all(bytes)
+        .with_context(|| format!("writing {}", tmp.display()))?;
     std::fs::set_permissions(tmp, std::fs::Permissions::from_mode(mode))?;
     std::fs::rename(tmp, path).with_context(|| format!("replacing {}", path.display()))
 }
@@ -111,6 +132,17 @@ mod tests {
         assert_eq!(s.applied_port, None);
         save(&p, &s).unwrap();
         assert!(!std::fs::read_to_string(&p).unwrap().contains("applied_port"));
+    }
+
+    #[test]
+    fn tmp_is_private_from_creation() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("wg0.conf.tmp");
+        std::fs::write(&p, "stale").unwrap();
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let f = create_with_mode(&p, 0o600).unwrap();
+        assert_eq!(f.metadata().unwrap().permissions().mode() & 0o777, 0o600);
+        assert_eq!(f.metadata().unwrap().len(), 0);
     }
 
     #[test]

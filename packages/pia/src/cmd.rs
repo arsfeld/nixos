@@ -34,6 +34,20 @@ pub fn stdout(prog: &Path, args: &[&str], input: Option<&str>) -> Result<String>
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
+/// Runs `prog args` with stdout and stderr going to ours (the journal), failing on a
+/// non-zero exit.
+pub fn run_inherit(prog: &Path, args: &[&str]) -> Result<()> {
+    let status = Command::new(prog)
+        .args(args)
+        .stdin(Stdio::null())
+        .status()
+        .with_context(|| format!("running {}", name(prog)))?;
+    if !status.success() {
+        bail!("{} exited with {status}", name(prog));
+    }
+    Ok(())
+}
+
 /// True when `prog args` exits 0. Output is discarded.
 pub fn succeeds(prog: &Path, args: &[&str]) -> bool {
     Command::new(prog)
@@ -43,4 +57,16 @@ pub fn succeeds(prog: &Path, args: &[&str]) -> bool {
         .stderr(Stdio::null())
         .status()
         .is_ok_and(|s| s.success())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn run_inherit_reports_exit_status() {
+        run_inherit(Path::new("/bin/sh"), &["-c", "exit 0"]).unwrap();
+        let e = run_inherit(Path::new("/bin/sh"), &["-c", "exit 3"]).unwrap_err().to_string();
+        assert!(e.contains("sh") && e.contains('3'), "{e}");
+    }
 }
