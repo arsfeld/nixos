@@ -1,4 +1,4 @@
-// board_display: the Waveshare ESP32-S3-Touch-AMOLED-1.75's panel, touch and speaker, without LVGL.
+// board_display: the Waveshare ESP32-S3-Touch-AMOLED-1.75's panel, touch, speaker and battery, without LVGL.
 // Plain C so Rust can bind it. The panel needs update windows with an even origin and an even size.
 #pragma once
 
@@ -16,6 +16,14 @@ typedef struct {
     int16_t x, y;
     bool pressed;
 } bd_touch_t;
+
+typedef struct {
+    bool present;  // a battery is connected
+    bool usb;      // USB power is present
+    bool charging;
+    uint8_t percent;     // the chip's fuel gauge, 0 to 100 (0 without a battery)
+    uint16_t millivolts; // battery voltage (0 without a battery)
+} bd_battery_t;
 
 // Panel, touch, brightness and speaker.
 esp_err_t bd_init(void);
@@ -49,6 +57,10 @@ esp_err_t bd_speaker_begin(uint32_t rate_hz);
 int bd_speaker_write(const void *pcm, size_t bytes);
 // Drain and close, silently. Harmless when nothing is open.
 void bd_speaker_end(void);
+
+// The AXP2101 power chip on the shared I2C bus. The first call switches on its battery voltage reading and fuel
+// gauge; nothing else on the chip (charging included) is changed. ESP_ERR_NOT_FOUND when no AXP2101 answers.
+esp_err_t bd_battery_read(bd_battery_t *out);
 
 #ifdef __cplusplus
 }

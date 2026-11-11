@@ -12,11 +12,12 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use cylon_bot_ui::audio::{cancel_json, speech_event, volume_step, SpeechEvent, VOLUME_DEFAULT, VOLUME_MAX, VOLUME_MIN};
+use cylon_bot_ui::battery::{self, Warner};
 use cylon_bot_ui::controller::{Controller, Outbox};
 use cylon_bot_ui::link;
 use cylon_bot_ui::power::{drift_px, Power};
 use cylon_bot_ui::view::{fmt_uptime, signal_bars};
-use cylon_bot_ui::{AppWindow, LinkInfo, Page};
+use cylon_bot_ui::{AppWindow, Battery, LinkInfo, Page};
 use esp_idf_svc::sys::{heap_caps_get_free_size, heap_caps_get_largest_free_block, MALLOC_CAP_DMA, MALLOC_CAP_INTERNAL, MALLOC_CAP_SPIRAM};
 use esp_idf_svc::hal::peripherals::Peripherals;
 use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs, NvsDefault};
@@ -101,6 +102,22 @@ fn link_info(uptime: Duration) -> LinkInfo {
     }
 }
 
+/// Read the power chip, show the result and say whether a low-battery warning is due. Each reading is logged, like
+/// the heap line, so `just board monitor` shows the charge.
+fn read_battery(ui: &AppWindow, warner: &mut Warner) -> bool {
+    let r = display::battery();
+    match &r {
+        Some(b) => log::info!("battery: present={} usb={} charging={} percent={} mv={}", b.present as u8, b.usb as u8, b.charging as u8, b.percent, b.millivolts),
+        None => log::info!("battery: no reading"),
+    }
+    ui.set_battery(Battery {
+        percent: r.map_or(0, |b| b.percent as i32),
+        low: r.is_some_and(|b| battery::level(&b) != battery::Level::Ok),
+        text: battery::link_text(r.as_ref()).into(),
+    });
+    warner.update(r.as_ref())
+}
+
 fn unix_now() -> Option<i64> {
     SystemTime::now().duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs() as i64)
 }
@@ -167,6 +184,9 @@ fn run<O: Outbox + 'static>(
     let mut volume_hide: Option<Instant> = None;
     // When the link page last read the Wi-Fi; `None` off that page, so opening it reads at once.
     let mut link_read: Option<Instant> = None;
+    // The battery: read at once, then every `battery::REFRESH`.
+    let mut battery_read: Option<Instant> = None;
+    let mut battery_warner = Warner::new();
     platform::run(window, || {
         controller.set_time_ms(ms() as u64); // precise timestamps for the double-tap guard
         if platform::take_touch() {
@@ -339,6 +359,13 @@ fn run<O: Outbox + 'static>(
             let (dx, dy) = drift_px(ms());
             ui.set_drift_x(dx as f32);
             ui.set_drift_y(dy as f32);
+        }
+        if battery_read.is_none_or(|t| t.elapsed() >= battery::REFRESH) {
+            battery_read = Some(Instant::now());
+            if read_battery(ui, &mut battery_warner) {
+                log::info!("battery: low warning");
+                display::chime();
+            }
         }
         if ui.get_page() != Page::Link {
             link_read = None;

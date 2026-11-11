@@ -1,4 +1,4 @@
-//! Safe wrappers over `board_display`, the C component that owns the panel, touch and speaker.
+//! Safe wrappers over `board_display`, the C component that owns the panel, touch, speaker and power chip.
 
 use esp_idf_svc::sys::board_display as bd;
 use esp_idf_svc::sys::{heap_caps_malloc, MALLOC_CAP_DMA, MALLOC_CAP_INTERNAL};
@@ -69,6 +69,18 @@ pub fn speaker_write(pcm: &mut [u8]) -> bool {
 
 pub fn speaker_end() {
     unsafe { bd::bd_speaker_end() }
+}
+
+/// The AXP2101's view of the battery; `None` when the chip cannot be read (or is not there).
+pub fn battery() -> Option<cylon_bot_ui::battery::Reading> {
+    let mut b = bd::bd_battery_t { present: false, usb: false, charging: false, percent: 0, millivolts: 0 };
+    (unsafe { bd::bd_battery_read(&mut b) } == 0).then_some(cylon_bot_ui::battery::Reading {
+        present: b.present,
+        usb: b.usb,
+        charging: b.charging,
+        percent: b.percent,
+        millivolts: b.millivolts,
+    })
 }
 
 /// The finger on the glass, if it can be read.

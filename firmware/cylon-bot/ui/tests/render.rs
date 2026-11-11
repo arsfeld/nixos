@@ -802,3 +802,31 @@ fn the_link_page_lights_its_arcs_from_the_inside_and_colours_the_bridge() {
     ui.set_voice_available(false);
     assert!(!voice_green(&h.render()));
 }
+
+#[test]
+fn a_low_battery_shows_above_the_avatar_unless_the_volume_or_the_menu_is_up() {
+    use cylon_bot_ui::Battery;
+    let (h, ui) = show();
+    let fine = || Battery { percent: 40, low: false, text: "40%".into() };
+    let low = || Battery { percent: 12, low: true, text: "12%".into() };
+    // The glyph's box (home.slint): x 199..267, y 54..72.
+    let shown = |h: &Headless| red_in(&h.render(), 199..267, 54..72).0 > 20;
+    assert!(!shown(&h), "no glyph before a reading");
+    ui.set_battery(fine());
+    assert!(!shown(&h), "no glyph while the charge is fine");
+    ui.set_battery(low());
+    assert!(shown(&h));
+    // The volume pill and the command menu draw their own red in that band, so compare each with the same scene and
+    // no low battery: the glyph must add nothing.
+    let hidden_by = |set: &dyn Fn(bool)| {
+        set(true);
+        ui.set_battery(low());
+        let with = h.render();
+        ui.set_battery(fine());
+        let without = h.render();
+        set(false);
+        with == without
+    };
+    assert!(hidden_by(&|on| ui.set_volume_shown(on)), "the volume pill takes the place");
+    assert!(hidden_by(&|on| ui.set_menu_open(on)), "the command menu takes the band");
+}

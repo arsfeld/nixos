@@ -1,5 +1,5 @@
 // The home page: the avatar in the middle of the rim and one line saying what needs attention.
-import { Theme, PresenceState, RimSegment, SessionState } from "theme.slint";
+import { Theme, PresenceState, RimSegment, SessionState, Battery } from "theme.slint";
 import { Presence } from "presence.slint";
 
 // One arc of the command menu: a metal band, a 50 px outline under a 46 px fill, in the arc's own tight box. The
@@ -82,6 +82,7 @@ export component HomePage inherits Rectangle {
     in property <string> reply-heading;
     in property <int> volume: 80;
     in property <bool> volume-shown: false;
+    in property <Battery> battery: { percent: 0, low: false, text: "--" };
     in property <bool> menu-open: false;
     in property <[RimSegment]> commands;
     // Where the window's ring touch area begins, from the centre: taps beyond it on the avatar's box belong to the ring.
@@ -249,6 +250,49 @@ export component HomePage inherits Rectangle {
             wrap: word-wrap;
             overflow: elide;
             horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    // A low battery, above the avatar where the volume pill shows (inside the rim, clear of the avatar's box), and out
+    // of the way while that pill or the command menu is up. Static: it repaints only when a reading changes it.
+    if root.battery.low && !root.volume-shown && !root.menu-open: Rectangle {
+        x: 199px;
+        y: 54px;
+        width: 68px;
+        height: 18px;
+        // The body, its fill to the charge, and the terminal nub.
+        Rectangle {
+            x: 0px;
+            y: 2px;
+            width: 26px;
+            height: 14px;
+            border-radius: 3px;
+            border-width: 2px;
+            border-color: Theme.error;
+        }
+        Rectangle {
+            x: 4px;
+            y: 6px;
+            width: max(2px, 18px * root.battery.percent / 100);
+            height: 6px;
+            background: Theme.error;
+        }
+        Rectangle {
+            x: 27px;
+            y: 6px;
+            width: 3px;
+            height: 6px;
+            background: Theme.error;
+        }
+        Text {
+            x: 36px;
+            width: 32px;
+            height: 18px;
+            text: root.battery.percent + "%";
+            color: Theme.error;
+            font-family: "JetBrains Mono";
+            font-size: 12px;
             vertical-alignment: center;
         }
     }

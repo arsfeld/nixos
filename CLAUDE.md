@@ -650,6 +650,18 @@ hooks on every host --HTTPS--> cylon-bot-bridge (galactica) <--wss-- board (firm
   Hermes' long-term memory. Against an older bridge the board falls back to idle after 10 s. **Not yet checked on
   the board:** the IP byte order, the readings, and the cost of the Wi-Fi read on the UI thread. **Deploy order:**
   galactica (the bridge) before flashing; volume and link work against any bridge.
+- **Battery.** An AXP2101 power chip at I2C 0x34 on the shared bus (chip id 0x4A; register map from XPowersLib,
+  as Waveshare's examples use it; its interrupt goes through the IO expander, so it is polled). `bd_battery_read` in
+  `board_display.c` switches on battery detection, the voltage reading and the fuel gauge on first use and changes
+  nothing else, charging settings included; a chip that does not answer is probed once and never again. The UI loop
+  reads it every 30 s (`battery::REFRESH`) and logs `battery: present usb charging percent mv`. The link page's
+  BATTERY line shows the charge, CHARGING, USB or "USB, NO BATTERY". On battery at 15% or less home shows a red glyph
+  above the avatar (hidden while the volume pill or the menu has that band) and chimes once; at 5% it chimes once
+  more; the warnings re-arm at 20% or on USB power (`ui/src/battery.rs`, host-tested). A warning that falls while
+  the creature speaks or a hold records gets no chime, since the chime cannot have the clock then; the glyph still
+  shows. **Verified on the board (2026-11-10):** the 1.75C has it at 0x34 (only the non-C board's docs said so); full on
+  USB it reads `present=1 usb=1 charging=0 percent=100 mv=4183`. **Not yet checked:** the gauge as it drains, and the
+  charging bit while it charges.
 - **Debugging a board you cannot see.** Render the screens with `just board preview`, or write a host test: the `ui`
   tests render the real scene headlessly and send real pointer events at real coordinates. The bridge URL, NTP
   server and a DNS override are `CB_URL`, `CB_NTP`, `CB_DNS` lines in `app/credentials.env` (that is how the

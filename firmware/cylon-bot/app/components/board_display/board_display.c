@@ -93,6 +93,80 @@ static esp_err_t i2c_init(void)
     return i2c_new_master_bus(&conf, &s_i2c);
 }
 
+// Battery: the AXP2101 PMIC at 0x34 on the shared I2C bus. Register map from XPowersLib's AXP2101 driver (the one
+// Waveshare's examples use); its interrupt goes through the IO expander, so it is polled instead.
+#define AXP2101_ADDR 0x34
+#define AXP2101_STATUS1 0x00   // bit 5 VBUS good, bit 3 battery present
+#define AXP2101_STATUS2 0x01   // bits 6:5 current direction: 01 charging
+#define AXP2101_CHIP_ID 0x03   // reads 0x4A
+#define AXP2101_GAUGE_CTRL 0x18 // bit 3 fuel gauge enable
+#define AXP2101_ADC_CTRL 0x30   // bit 0 battery voltage measurement enable
+#define AXP2101_VBAT_H 0x34     // 13-bit battery voltage in mV: low 5 bits here, then the low byte at 0x35
+#define AXP2101_BAT_DET_CTRL 0x68 // bit 0 battery detection enable
+#define AXP2101_PERCENT 0xA4
+
+static i2c_master_dev_handle_t s_pmu;
+static bool s_pmu_absent; // probed once and not there: not asked again
+
+static esp_err_t pmu_read(uint8_t reg, uint8_t *out, size_t n)
+{
+    return i2c_master_transmit_receive(s_pmu, &reg, 1, out, n, 50);
+}
+
+// Set `bit` in `reg` unless it already is.
+static esp_err_t pmu_set_bit(uint8_t reg, int bit)
+{
+    uint8_t v;
+    esp_err_t err = pmu_read(reg, &v, 1);
+    if (err != ESP_OK || (v & (1u << bit))) return err;
+    uint8_t w[2] = {reg, (uint8_t)(v | (1u << bit))};
+    return i2c_master_transmit(s_pmu, w, sizeof w, 50);
+}
+
+static esp_err_t pmu_init(void)
+{
+    if (s_pmu) return ESP_OK;
+    if (s_pmu_absent) return ESP_ERR_NOT_FOUND;
+    esp_err_t err = i2c_init();
+    if (err != ESP_OK) return err;
+    if (i2c_master_probe(s_i2c, AXP2101_ADDR, 50) != ESP_OK) {
+        ESP_LOGW(TAG, "nothing answers at 0x%02x: no battery reading", AXP2101_ADDR);
+        s_pmu_absent = true;
+        return ESP_ERR_NOT_FOUND;
+    }
+    const i2c_device_config_t dev = {.dev_addr_length = I2C_ADDR_BIT_LEN_7, .device_address = AXP2101_ADDR, .scl_speed_hz = TOUCH_I2C_HZ};
+    if ((err = i2c_master_bus_add_device(s_i2c, &dev, &s_pmu)) != ESP_OK) return err;
+    uint8_t id = 0;
+    if (pmu_read(AXP2101_CHIP_ID, &id, 1) != ESP_OK || id != 0x4A) {
+        ESP_LOGW(TAG, "no AXP2101 at 0x%02x (chip id 0x%02x)", AXP2101_ADDR, id);
+        i2c_master_bus_rm_device(s_pmu);
+        s_pmu = NULL;
+        s_pmu_absent = true;
+        return ESP_ERR_NOT_FOUND;
+    }
+    if ((err = pmu_set_bit(AXP2101_BAT_DET_CTRL, 0)) != ESP_OK) return err;
+    if ((err = pmu_set_bit(AXP2101_ADC_CTRL, 0)) != ESP_OK) return err;
+    return pmu_set_bit(AXP2101_GAUGE_CTRL, 3);
+}
+
+esp_err_t bd_battery_read(bd_battery_t *out)
+{
+    *out = (bd_battery_t){0};
+    esp_err_t err = pmu_init();
+    if (err != ESP_OK) return err;
+    uint8_t st[2], vbat[2], pct;
+    if ((err = pmu_read(AXP2101_STATUS1, st, 2)) != ESP_OK) return err;
+    out->usb = st[0] & (1u << 5);
+    out->present = st[0] & (1u << 3);
+    out->charging = ((st[1] >> 5) & 0x3) == 0x1;
+    if (!out->present) return ESP_OK;
+    if ((err = pmu_read(AXP2101_VBAT_H, vbat, 2)) != ESP_OK) return err;
+    if ((err = pmu_read(AXP2101_PERCENT, &pct, 1)) != ESP_OK) return err;
+    out->millivolts = (uint16_t)(((vbat[0] & 0x1F) << 8) | vbat[1]);
+    out->percent = pct > 100 ? 100 : pct;
+    return ESP_OK;
+}
+
 static esp_err_t display_new(int max_transfer_sz)
 {
     const spi_bus_config_t buscfg = CO5300_PANEL_BUS_QSPI_CONFIG(PIN_LCD_PCLK, PIN_LCD_D0, PIN_LCD_D1, PIN_LCD_D2,

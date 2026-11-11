@@ -1,5 +1,5 @@
 // The whole screen: the rim around whichever page is up.
-import { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow, FeedKind, FeedRow, Tick, LinkInfo } from "theme.slint";
+import { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow, FeedKind, FeedRow, Tick, LinkInfo, Battery } from "theme.slint";
 import { Rim } from "rim.slint";
 import { HomePage } from "home.slint";
 import { SessionsPage } from "sessions.slint";
@@ -8,7 +8,7 @@ import { DetailPage } from "detail.slint";
 import { VolumePage, PurgePage } from "commands.slint";
 import { LinkPage } from "link.slint";
 import { GlyphCoverage } from "glyphs.slint";
-export { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow, FeedKind, FeedRow, Tick, LinkInfo }
+export { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow, FeedKind, FeedRow, Tick, LinkInfo, Battery }
 
 export component AppWindow inherits Window {
     width: 466px;
@@ -47,6 +47,8 @@ export component AppWindow inherits Window {
     in property <bool> purge-pending: false;
     // The link page's Wi-Fi reading, uptime included (the app sets it every 2 s while the page is open).
     in property <LinkInfo> link-info: { rssi: 0, bars: 0, ssid: "--", address: "--", uptime: "--" };
+    // Read every 30 s (`battery::REFRESH`).
+    in property <Battery> battery: { percent: 0, low: false, text: "--" };
     // List.
     in property <[SessionRow]> rows;
     in property <float> list-wheel-radius: 233;
@@ -138,6 +140,7 @@ export component AppWindow inherits Window {
             reply-heading: root.reply-heading;
             volume: root.volume;
             volume-shown: root.volume-shown;
+            battery: root.battery;
             menu-open: root.menu-open;
             commands: root.commands;
             ring-inner: root.ring-inner;
@@ -185,6 +188,7 @@ export component AppWindow inherits Window {
         }
         if root.page == Page.link: LinkPage {
             info: root.link-info;
+            battery: root.battery.text;
             link: root.link;
             voice-available: root.voice-available;
         }

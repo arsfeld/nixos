@@ -71,6 +71,16 @@ export struct LinkInfo {
     uptime: string,
 }
 
+// The battery as the app last read it (`battery::link_text`, `battery::level`).
+export struct Battery {
+    // 0 to 100, for the glyph's fill.
+    percent: int,
+    // On battery and at or below 15%: home shows the glyph.
+    low: bool,
+    // The link page's line: "87%", "64% CHARGING", "USB, NO BATTERY" or "--".
+    text: string,
+}
+
 export global Theme {
     out property <color> bg: #000000;
     out property <color> card: #111827;
