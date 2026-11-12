@@ -67,7 +67,7 @@ component CommandLabel inherits Text {
     width: 80px;
     color: Theme.muted;
     font-family: "JetBrains Mono";
-    font-size: 11px;
+    font-size: 13px;
     letter-spacing: 2px;
     horizontal-alignment: center;
 }
@@ -145,22 +145,22 @@ export component HomePage inherits Rectangle {
         }
         CommandLabel {
             x: 72px;
-            y: 123px;
+            y: 122px;
             text: "VOL " + root.volume;
         }
         CommandLabel {
             x: 148px;
-            y: 74px;
+            y: 73px;
             text: "LINK";
         }
         CommandLabel {
             x: 238px;
-            y: 74px;
+            y: 73px;
             text: "POWER";
         }
         CommandLabel {
             x: 305px;
-            y: 123px;
+            y: 122px;
             text: "PURGE";
             color: root.link ? #ff6a5a : #ff6a5a50;
         }

@@ -51,7 +51,7 @@ component Heading inherits Text {
     width: 466px;
     color: #ff6a5a;
     font-family: "JetBrains Mono";
-    font-size: 11px;
+    font-size: 13px;
     letter-spacing: 4px;
     horizontal-alignment: center;
 }
@@ -61,7 +61,7 @@ component Label inherits Text {
     width: 110px;
     color: Theme.muted;
     font-family: "JetBrains Mono";
-    font-size: 11px;
+    font-size: 13px;
     letter-spacing: 2px;
     vertical-alignment: center;
 }
@@ -71,7 +71,7 @@ component Value inherits Text {
     width: 180px;
     color: Theme.text;
     font-family: "JetBrains Mono";
-    font-size: 13px;
+    font-size: 15px;
     overflow: elide;
     vertical-alignment: center;
 }
@@ -136,60 +136,60 @@ export component LinkPage inherits Rectangle {
 
     Rectangle {
         x: 88px;
-        y: 264px;
+        y: 258px;
         width: 290px;
-        height: 130px;
+        height: 136px;
         Label {
             y: 0px;
-            height: 22px;
+            height: 24px;
             text: "NETWORK";
         }
         Value {
             y: 0px;
-            height: 22px;
+            height: 24px;
             text: root.info.ssid;
         }
         Label {
-            y: 26px;
-            height: 22px;
+            y: 28px;
+            height: 24px;
             text: "ADDRESS";
         }
         Value {
-            y: 26px;
-            height: 22px;
+            y: 28px;
+            height: 24px;
             text: root.info.address;
         }
         Label {
-            y: 52px;
-            height: 22px;
+            y: 56px;
+            height: 24px;
             text: "BRIDGE";
         }
         Value {
-            y: 52px;
-            height: 22px;
+            y: 56px;
+            height: 24px;
             text: root.link ? "LINKED" : "DOWN";
             color: root.link ? Theme.done : Theme.muted;
         }
         Label {
-            y: 78px;
-            height: 22px;
+            y: 84px;
+            height: 24px;
             text: "VOICE";
         }
         Value {
-            y: 78px;
-            height: 22px;
+            y: 84px;
+            height: 24px;
             // The voice goes through the bridge: with the bridge down it is offline whatever the last mood said.
             text: root.link && root.voice-available ? "ONLINE" : "OFFLINE";
             color: root.link && root.voice-available ? Theme.done : Theme.muted;
         }
         Label {
-            y: 104px;
-            height: 22px;
+            y: 112px;
+            height: 24px;
             text: "UPTIME";
         }
         Value {
-            y: 104px;
-            height: 22px;
+            y: 112px;
+            height: 24px;
             text: root.info.uptime;
         }
     }
@@ -274,36 +274,36 @@ export component PowerPage inherits Rectangle {
         x: 88px;
         y: 264px;
         width: 290px;
-        height: 74px;
+        height: 80px;
         Label {
             y: 0px;
-            height: 22px;
+            height: 24px;
             text: "SOURCE";
         }
         Value {
             y: 0px;
-            height: 22px;
+            height: 24px;
             text: root.battery.source;
         }
         Label {
-            y: 26px;
-            height: 22px;
+            y: 28px;
+            height: 24px;
             text: "STATE";
         }
         Value {
-            y: 26px;
-            height: 22px;
+            y: 28px;
+            height: 24px;
             text: root.battery.state;
             color: root.battery.low ? Theme.error : root.battery.charging ? Theme.done : Theme.text;
         }
         Label {
-            y: 52px;
-            height: 22px;
+            y: 56px;
+            height: 24px;
             text: "VOLTAGE";
         }
         Value {
-            y: 52px;
-            height: 22px;
+            y: 56px;
+            height: 24px;
             text: root.battery.voltage;
         }
     }
