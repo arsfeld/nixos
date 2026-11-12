@@ -312,7 +312,7 @@ fn run<O: Outbox + 'static>(
             match event {
                 net::Event::Message(text) => {
                     log::info!("bridge message: {} bytes", text.len());
-                    power.model_changed(ms());
+                    power.activity(ms());
                     match speech_event(&text) {
                         Some(SpeechEvent::Start { utterance, rate }) => {
                             player.begin(utterance, rate);

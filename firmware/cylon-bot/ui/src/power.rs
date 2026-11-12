@@ -1,43 +1,103 @@
-//! When the board is bright, when it dims, and how the picture wanders: an AMOLED panel that shows the same
-//! bright pixels for days burns in, so the screen dims after a quiet spell and shifts by a few pixels.
+//! When the board is bright, when it dims, when its panel goes dark, and when (on battery) it may deep-sleep. An
+//! AMOLED panel that shows the same bright pixels for days burns in, so the screen dims after a quiet spell, goes
+//! dark after a longer one, and shifts by a few pixels. Spec: docs/superpowers/specs/2026-11-11-cylon-bot-power-design.md.
 //! Pure functions over a monotonic millisecond clock, tested on the host.
 
-/// How long the screen stays awake after a touch or a change on screen.
+use crate::battery;
+
+/// How long the screen stays bright after a touch, a wake event or activity.
 pub const AWAKE_MS: i64 = 30_000;
+/// How long it then stays dim before the panel goes dark.
+pub const DIM_MS: i64 = 120_000;
+/// How long the panel stays dark before the board may deep-sleep (on battery only).
+pub const DARK_TO_SLEEP_MS: i64 = 600_000;
 pub const BRIGHT_AWAKE: u8 = 70;
 pub const BRIGHT_IDLE: u8 = 8;
 /// The picture moves within this many pixels of centre, in each direction.
 const DRIFT_RANGE: i64 = 4;
 const DRIFT_STEP_MS: i64 = 60_000;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum State {
+    Bright,
+    Dim,
+    /// The panel is off and nothing is drawn; the board stays online.
+    Dark,
+}
+
+/// What, besides the clock, decides whether the board may deep-sleep.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Conditions {
+    pub on_battery: bool,
+    pub question_waiting: bool,
+    /// Speech playing or a hold recording.
+    pub audio_busy: bool,
+}
+
+impl Conditions {
+    /// A failed battery read (`None`) counts as USB power: never deep-sleep on a guess.
+    pub fn new(reading: Option<&battery::Reading>, question_waiting: bool, audio_busy: bool) -> Self {
+        Conditions { on_battery: reading.is_some_and(|r| r.on_battery()), question_waiting, audio_busy }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Power {
-    last_touch_ms: i64,
-    last_change_ms: i64,
+    /// The latest touch, wake event, or activity seen while the panel was lit.
+    last_ms: i64,
 }
 
 impl Power {
-    /// Awake at boot, for the usual 30 seconds.
+    /// Bright at boot, for the usual 30 seconds.
     pub fn new(now_ms: i64) -> Self {
-        Power { last_touch_ms: now_ms, last_change_ms: now_ms }
+        Power { last_ms: now_ms }
     }
 
     /// The screen was touched.
     pub fn touch(&mut self, now_ms: i64) {
-        self.last_touch_ms = now_ms;
+        self.last_ms = now_ms;
     }
 
-    /// Something changed on screen that the user should see (a message from the bridge).
-    pub fn model_changed(&mut self, now_ms: i64) {
-        self.last_change_ms = now_ms;
+    /// Something the user should notice even with the panel dark: a question, a reminder, a spoken reply, a
+    /// battery warning, the link coming back.
+    pub fn wake_event(&mut self, now_ms: i64) {
+        self.last_ms = now_ms;
     }
 
-    pub fn awake(&self, now_ms: i64) -> bool {
-        now_ms - self.last_touch_ms < AWAKE_MS || now_ms - self.last_change_ms < AWAKE_MS
+    /// Anything else from the bridge: keeps a lit panel lit, but never lights a dark one (with busy sessions it
+    /// arrives every few seconds and would keep the panel on for good).
+    pub fn activity(&mut self, now_ms: i64) {
+        if self.state(now_ms) != State::Dark {
+            self.last_ms = now_ms;
+        }
     }
 
+    fn elapsed(&self, now_ms: i64) -> i64 {
+        now_ms.saturating_sub(self.last_ms)
+    }
+
+    pub fn state(&self, now_ms: i64) -> State {
+        let e = self.elapsed(now_ms);
+        if e < AWAKE_MS {
+            State::Bright
+        } else if e < AWAKE_MS + DIM_MS {
+            State::Dim
+        } else {
+            State::Dark
+        }
+    }
+
+    /// The panel brightness for a lit panel; a dark one is switched off rather than set to 0.
     pub fn brightness(&self, now_ms: i64) -> u8 {
-        if self.awake(now_ms) { BRIGHT_AWAKE } else { BRIGHT_IDLE }
+        if self.state(now_ms) == State::Bright { BRIGHT_AWAKE } else { BRIGHT_IDLE }
+    }
+
+    /// Long enough in the dark, on battery, with nothing that needs the board awake.
+    pub fn should_deep_sleep(&self, now_ms: i64, c: &Conditions) -> bool {
+        self.elapsed(now_ms) >= AWAKE_MS + DIM_MS + DARK_TO_SLEEP_MS
+            && c.on_battery
+            && !c.question_waiting
+            && !c.audio_busy
     }
 }
 
@@ -56,45 +116,89 @@ mod tests {
     use super::*;
 
     #[test]
-    fn awake_for_30_seconds_after_a_touch() {
-        let mut p = Power::new(0);
-        p.touch(100_000);
-        assert!(p.awake(100_000));
-        assert!(p.awake(129_999));
-        assert!(!p.awake(130_000));
+    fn bright_then_dim_then_dark() {
+        let p = Power::new(0);
+        assert_eq!(p.state(29_999), State::Bright);
+        assert_eq!(p.state(30_000), State::Dim);
+        assert_eq!(p.state(149_999), State::Dim);
+        assert_eq!(p.state(150_000), State::Dark);
     }
 
     #[test]
-    fn awake_for_30_seconds_after_a_model_change() {
+    fn touch_and_wake_event_light_a_dark_panel() {
         let mut p = Power::new(0);
-        p.model_changed(200_000);
-        assert!(p.awake(229_999));
-        assert!(!p.awake(230_000));
+        p.touch(200_000);
+        assert_eq!(p.state(200_000), State::Bright);
+        let mut q = Power::new(0);
+        q.wake_event(200_000);
+        assert_eq!(q.state(200_000), State::Bright);
     }
 
     #[test]
-    fn a_touch_and_a_change_keep_it_awake_until_the_later_one_expires() {
+    fn activity_restarts_the_timer_while_bright_or_dim() {
         let mut p = Power::new(0);
-        p.touch(100_000);
-        p.model_changed(120_000);
-        assert!(p.awake(149_999)); // 29.9 s after the change
-        assert!(!p.awake(150_000));
+        p.activity(100_000); // Dim at this point
+        assert_eq!(p.state(129_999), State::Bright);
     }
 
     #[test]
-    fn awake_at_boot_then_idle() {
-        let p = Power::new(5_000);
-        assert!(p.awake(5_000));
-        assert!(!p.awake(35_000));
+    fn activity_while_dark_neither_wakes_nor_postpones_sleep() {
+        let mut p = Power::new(0);
+        let c = Conditions { on_battery: true, question_waiting: false, audio_busy: false };
+        for t in (150_000..750_000).step_by(5_000) {
+            p.activity(t);
+            assert_eq!(p.state(t), State::Dark);
+        }
+        assert!(p.should_deep_sleep(750_000, &c));
     }
 
     #[test]
-    fn awake_uses_brightness_70_and_idle_uses_brightness_8() {
+    fn deep_sleep_after_ten_minutes_dark_on_battery() {
+        let p = Power::new(0);
+        let c = Conditions { on_battery: true, question_waiting: false, audio_busy: false };
+        assert!(!p.should_deep_sleep(749_999, &c));
+        assert!(p.should_deep_sleep(750_000, &c));
+    }
+
+    #[test]
+    fn never_deep_sleeps_on_usb_or_without_a_reading() {
+        let p = Power::new(0);
+        let usb = battery::Reading { present: true, usb: true, charging: false, percent: 50, millivolts: 3900 };
+        assert!(!p.should_deep_sleep(10_000_000, &Conditions::new(Some(&usb), false, false)));
+        assert!(!p.should_deep_sleep(10_000_000, &Conditions::new(None, false, false)));
+        let bat = battery::Reading { usb: false, ..usb };
+        assert!(p.should_deep_sleep(10_000_000, &Conditions::new(Some(&bat), false, false)));
+    }
+
+    #[test]
+    fn never_deep_sleeps_with_a_question_waiting() {
+        let p = Power::new(0);
+        assert!(!p.should_deep_sleep(10_000_000, &Conditions { on_battery: true, question_waiting: true, audio_busy: false }));
+    }
+
+    #[test]
+    fn never_deep_sleeps_while_audio_is_busy() {
+        let p = Power::new(0);
+        assert!(!p.should_deep_sleep(10_000_000, &Conditions { on_battery: true, question_waiting: false, audio_busy: true }));
+    }
+
+    #[test]
+    fn a_clock_before_the_last_event_is_bright() {
         let mut p = Power::new(0);
-        p.touch(1_000);
-        assert_eq!(p.brightness(1_000), 70);
-        assert_eq!(p.brightness(31_000), 8);
-        assert_eq!((BRIGHT_AWAKE, BRIGHT_IDLE, AWAKE_MS), (70, 8, 30_000));
+        p.touch(500_000);
+        assert_eq!(p.state(1_000), State::Bright);
+        assert_eq!(p.state(i64::MIN), State::Bright);
+        let c = Conditions { on_battery: true, question_waiting: false, audio_busy: false };
+        assert!(!p.should_deep_sleep(i64::MIN, &c));
+        let _ = p.state(i64::MAX); // no overflow panic
+    }
+
+    #[test]
+    fn brightness_follows_the_state() {
+        let p = Power::new(0);
+        assert_eq!(p.brightness(0), 70);
+        assert_eq!(p.brightness(30_000), 8);
+        assert_eq!((AWAKE_MS, DIM_MS, DARK_TO_SLEEP_MS), (30_000, 120_000, 600_000));
     }
 
     #[test]
