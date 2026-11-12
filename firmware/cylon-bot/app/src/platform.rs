@@ -35,6 +35,8 @@ static ACCEPT_HOLD: AtomicBool = AtomicBool::new(false);
 static PRESSED: AtomicU32 = AtomicU32::new(NO_HOLD);
 /// The finger lifted (after any touch, held or not).
 static LIFTED: AtomicBool = AtomicBool::new(false);
+/// The panel is off: nothing is drawn and touch is polled slowly (see power.rs).
+static DARK: AtomicBool = AtomicBool::new(false);
 
 fn pack(x: i16, y: i16) -> u32 {
     ((x as u16 as u32) << 16) | y as u16 as u32
@@ -95,6 +97,11 @@ pub fn take_swipe_right() -> bool {
 }
 
 /// True once after the screen was touched.
+/// The app turned the panel off (or back on).
+pub fn set_dark(on: bool) {
+    DARK.store(on, Ordering::SeqCst);
+}
+
 pub fn take_touch() -> bool {
     TOUCHED.swap(false, Ordering::SeqCst)
 }
@@ -124,6 +131,10 @@ pub fn install() -> anyhow::Result<Rc<MinimalSoftwareWindow>> {
 
 /// Draw whatever changed and handle the touch screen, forever. `each_loop` runs once per pass (a few
 /// hundred times a second at most) for the app's own timers and message handling.
+/// Touch poll interval with the panel lit, and with it dark.
+const LIT_POLL: Duration = Duration::from_millis(20);
+const DARK_POLL: Duration = Duration::from_millis(50);
+
 pub fn run(window: &Rc<MinimalSoftwareWindow>, mut each_loop: impl FnMut()) -> anyhow::Result<()> {
     let mut pixels = vec![Rgb565Pixel(0); WIDTH * HEIGHT]; // PSRAM
     let mut strips = Strips::new()?;
@@ -143,7 +154,9 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, mut each_loop: impl FnMut()) -> a
             }
         });
 
-        if last_touch.elapsed() >= Duration::from_millis(20) {
+        let dark = DARK.load(Ordering::SeqCst);
+        let poll = if dark { DARK_POLL } else { LIT_POLL };
+        if last_touch.elapsed() >= poll {
             last_touch = Instant::now();
             let polled = display::touch();
             if polled.is_some() { reads_ok += 1 } else { reads_failed += 1 }
@@ -187,6 +200,17 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, mut each_loop: impl FnMut()) -> a
             log::info!("touch polls: {reads_ok} ok, {reads_failed} unreadable, {presses} presses");
         }
 
-        std::thread::sleep(Duration::from_millis(1)); // yields to the idle task and the watchdog
+        // Sleep until there is something to do: the next touch poll, or sooner if a Slint timer or animation needs a
+        // frame. A dark panel draws nothing, so it waits for the poll alone. Always at least 1 ms, which also
+        // yields to the idle task and the watchdog.
+        let until_poll = poll.saturating_sub(last_touch.elapsed());
+        let wait = if dark {
+            until_poll
+        } else if window.has_active_animations() {
+            Duration::ZERO
+        } else {
+            slint::platform::duration_until_next_timer_update().map_or(until_poll, |t| t.min(until_poll))
+        };
+        std::thread::sleep(wait.max(Duration::from_millis(1)));
     }
 }

@@ -5,6 +5,7 @@ mod display;
 mod mic;
 mod net;
 mod platform;
+mod sleep;
 mod speaker;
 mod wifi_info;
 
@@ -127,6 +128,7 @@ fn main() -> anyhow::Result<()> {
     UI_TASK.store(unsafe { esp_idf_svc::sys::xTaskGetCurrentTaskHandle() } as _, std::sync::atomic::Ordering::Relaxed);
     esp_idf_svc::log::EspLogger::initialize_default();
 
+    sleep::configure()?;
     display::init()?;
     log::info!("display and touch up");
     heap_line();
@@ -173,6 +175,9 @@ fn run<O: Outbox + 'static>(
     let boot = Instant::now();
     let ms = || boot.elapsed().as_millis() as i64;
     let mut power = Power::new(ms());
+    // Full speed while the panel is lit (see sleep.rs).
+    let mut awake = sleep::Awake::new()?;
+    awake.hold(true);
     let mut brightness = 0u8;
     let mut last_tick = Instant::now();
     // Press to talk: the capture thread and the channel its levels arrive on, while a hold is being recorded.

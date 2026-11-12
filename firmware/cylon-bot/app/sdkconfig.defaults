@@ -18,6 +18,10 @@ CONFIG_ESP32S3_DATA_CACHE_64KB=y
 CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 CONFIG_FREERTOS_HZ=1000
+# Power saving (docs/superpowers/specs/2026-11-11-cylon-bot-power-design.md): the clock scales 80-240 MHz, and the
+# idle task stops waking every tick. app/src/sleep.rs configures it; light sleep is a separate, measured switch there.
+CONFIG_PM_ENABLE=y
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
 
 # TLS to the bridge: validate against the full certificate bundle.
 CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y

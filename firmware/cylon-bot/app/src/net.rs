@@ -19,7 +19,7 @@ use esp_idf_svc::hal::modem::Modem;
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
 use esp_idf_svc::sntp::{EspSntp, SntpConf};
 use esp_idf_svc::sys::{
-    esp_crt_bundle_attach, esp_event_base_t, esp_websocket_client_config_t, esp_websocket_client_destroy,
+    esp, esp_wifi_set_ps, wifi_ps_type_t_WIFI_PS_MIN_MODEM, esp_crt_bundle_attach, esp_event_base_t, esp_websocket_client_config_t, esp_websocket_client_destroy,
     esp_websocket_client_handle_t, esp_websocket_client_init, esp_websocket_client_send_bin, esp_websocket_client_send_text, esp_websocket_client_start,
     esp_websocket_event_data_t, esp_websocket_event_id_t_WEBSOCKET_EVENT_ANY, esp_websocket_event_id_t_WEBSOCKET_EVENT_CLOSED,
     esp_websocket_event_id_t_WEBSOCKET_EVENT_CONNECTED, esp_websocket_event_id_t_WEBSOCKET_EVENT_DATA,
@@ -122,6 +122,9 @@ fn task(creds: Credentials, settings: Settings, modem: Modem<'static>, nvs: EspD
         ..Default::default()
     }))?;
     wifi.start()?;
+    // Modem sleep between beacons. Not WIFI_PS_MAX_MODEM: its longer listen interval would show as latency on
+    // answers and voice. Set explicitly so an IDF default change cannot move it.
+    esp!(unsafe { esp_wifi_set_ps(wifi_ps_type_t_WIFI_PS_MIN_MODEM) })?;
     // Started once the network is up: an SNTP client that starts with no route waits a long time before
     // its next try.
     let mut sntp: Option<EspSntp> = None;
