@@ -36,6 +36,12 @@ esp_err_t bd_wait(void);
 // Latest touch state. False when the touch controller could not be read.
 bool bd_touch_read(bd_touch_t *out);
 void bd_set_brightness(uint8_t percent);
+// Panel on or off (docs/superpowers/specs/2026-11-11-cylon-bot-power-design.md). Off is display off then sleep in;
+// on is sleep out, 120 ms, display on, then `brightness`. Returns the first DCS write error.
+esp_err_t bd_panel_power(bool on, uint8_t brightness);
+// Ready the board for deep sleep: panel off, amplifier off, and ext1 wake armed on the touch interrupt (GPIO 11)
+// and BOOT (GPIO 0), both active low. The caller then calls esp_deep_sleep_start.
+void bd_sleep_prepare(void);
 // Non-blocking two-tone chime, ignored if one played in the last few seconds.
 void bd_chime(void);
 // The same chime without the rate limit, to hear a new volume (does nothing while the mic or a reply has the clock).

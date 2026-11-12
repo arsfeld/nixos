@@ -16,7 +16,7 @@ use cylon_bot_ui::audio::{cancel_json, speech_event, volume_step, SpeechEvent, V
 use cylon_bot_ui::battery::{self, Warner};
 use cylon_bot_ui::controller::{Controller, Outbox};
 use cylon_bot_ui::link;
-use cylon_bot_ui::power::{drift_px, Power};
+use cylon_bot_ui::power::{drift_px, Conditions, Power, State};
 use cylon_bot_ui::view::{fmt_uptime, signal_bars};
 use cylon_bot_ui::{AppWindow, Battery, LinkInfo, Page};
 use esp_idf_svc::sys::{heap_caps_get_free_size, heap_caps_get_largest_free_block, MALLOC_CAP_DMA, MALLOC_CAP_INTERNAL, MALLOC_CAP_SPIRAM};
@@ -105,7 +105,7 @@ fn link_info(uptime: Duration) -> LinkInfo {
 
 /// Read the power chip, show the result and say whether a low-battery warning is due. Each reading is logged, like
 /// the heap line, so `just board monitor` shows the charge.
-fn read_battery(ui: &AppWindow, warner: &mut Warner) -> bool {
+fn read_battery(ui: &AppWindow, warner: &mut Warner) -> (bool, Option<battery::Reading>) {
     let r = display::battery();
     match &r {
         Some(b) => log::info!("battery: present={} usb={} charging={} percent={} mv={}", b.present as u8, b.usb as u8, b.charging as u8, b.percent, b.millivolts),
@@ -116,7 +116,16 @@ fn read_battery(ui: &AppWindow, warner: &mut Warner) -> bool {
         low: r.is_some_and(|b| battery::level(&b) != battery::Level::Ok),
         text: battery::link_text(r.as_ref()).into(),
     });
-    warner.update(r.as_ref())
+    (warner.update(r.as_ref()), r)
+}
+
+/// Turn the panel on or off, once more if it did not take the command, and restart if it still did not: a board
+/// stuck dark is worse than a reboot.
+fn panel_power(on: bool, brightness: u8) {
+    if !display::panel_power(on, brightness) && !display::panel_power(on, brightness) {
+        log::error!("panel did not take power {}; restarting", if on { "on" } else { "off" });
+        unsafe { esp_idf_svc::sys::esp_restart() };
+    }
 }
 
 fn unix_now() -> Option<i64> {
@@ -127,6 +136,7 @@ fn main() -> anyhow::Result<()> {
     esp_idf_svc::sys::link_patches();
     UI_TASK.store(unsafe { esp_idf_svc::sys::xTaskGetCurrentTaskHandle() } as _, std::sync::atomic::Ordering::Relaxed);
     esp_idf_svc::log::EspLogger::initialize_default();
+    sleep::log_wake_cause();
 
     sleep::configure()?;
     display::init()?;
@@ -178,6 +188,9 @@ fn run<O: Outbox + 'static>(
     // Full speed while the panel is lit (see sleep.rs).
     let mut awake = sleep::Awake::new()?;
     awake.hold(true);
+    let mut state = State::Bright;
+    // The last battery reading, for the deep-sleep decision; none yet counts as USB.
+    let mut last_reading: Option<battery::Reading> = None;
     let mut brightness = 0u8;
     let mut last_tick = Instant::now();
     // Press to talk: the capture thread and the channel its levels arrive on, while a hold is being recorded.
@@ -317,7 +330,6 @@ fn run<O: Outbox + 'static>(
             match event {
                 net::Event::Message(text) => {
                     log::info!("bridge message: {} bytes", text.len());
-                    power.activity(ms());
                     match speech_event(&text) {
                         Some(SpeechEvent::Start { utterance, rate }) => {
                             player.begin(utterance, rate);
@@ -327,6 +339,8 @@ fn run<O: Outbox + 'static>(
                         None => {}
                     }
                     controller.on_message(&text);
+                    // A question, a reminder or a reply lights a dark panel; anything else only keeps a lit one lit.
+                    if controller.take_wake() { power.wake_event(ms()) } else { power.activity(ms()) }
                     if controller.wants_chime() {
                         display::chime();
                     }
@@ -334,6 +348,9 @@ fn run<O: Outbox + 'static>(
                 net::Event::Audio(frame) => player.push(&frame),
                 net::Event::Link(up) => {
                     controller.set_link(up);
+                    if controller.take_wake() {
+                        power.wake_event(ms());
+                    }
                     if !up {
                         player.stop(); // the rest of the reply will never arrive
                         controller.set_audio_playing(false);
@@ -355,8 +372,24 @@ fn run<O: Outbox + 'static>(
             last_tick = Instant::now();
             controller.tick_at(unix_now(), ms() as u64);
             // Dim after a quiet spell and nudge the picture a few pixels, against burn-in.
+            let now_state = power.state(ms());
+            if now_state != state {
+                log::info!("power: {now_state:?}");
+                let lit = power.brightness(ms());
+                if now_state == State::Dark {
+                    panel_power(false, 0);
+                    platform::set_dark(true);
+                    awake.hold(false);
+                } else if state == State::Dark {
+                    awake.hold(true);
+                    panel_power(true, lit);
+                    brightness = lit;
+                    platform::set_dark(false);
+                }
+                state = now_state;
+            }
             let wanted = power.brightness(ms());
-            if wanted != brightness {
+            if state != State::Dark && wanted != brightness {
                 brightness = wanted;
                 display::set_brightness(wanted);
                 log::info!("brightness {wanted}");
@@ -367,10 +400,18 @@ fn run<O: Outbox + 'static>(
         }
         if battery_read.is_none_or(|t| t.elapsed() >= battery::REFRESH) {
             battery_read = Some(Instant::now());
-            if read_battery(ui, &mut battery_warner) {
+            let (warn, reading) = read_battery(ui, &mut battery_warner);
+            last_reading = reading;
+            if warn {
                 log::info!("battery: low warning");
+                power.wake_event(ms());
                 display::chime();
             }
+        }
+        // On battery, long dark, nothing waiting: sleep until a touch. Waking is a reboot.
+        let conditions = Conditions::new(last_reading.as_ref(), controller.question_waiting(), player.is_playing() || capture.is_some());
+        if power.should_deep_sleep(ms(), &conditions) {
+            sleep::deep_sleep(net.as_ref());
         }
         if ui.get_page() != Page::Link {
             link_read = None;

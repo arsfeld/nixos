@@ -2,6 +2,8 @@
 //! automatic light sleep. Spec: docs/superpowers/specs/2026-11-11-cylon-bot-power-design.md.
 
 use esp_idf_svc::sys::{
+    esp_deep_sleep_start, esp_sleep_get_ext1_wakeup_status, esp_sleep_get_wakeup_cause,
+    esp_sleep_source_t_ESP_SLEEP_WAKEUP_EXT1, esp_sleep_source_t_ESP_SLEEP_WAKEUP_UNDEFINED,
     esp, esp_pm_config_t, esp_pm_configure, esp_pm_lock_acquire, esp_pm_lock_create, esp_pm_lock_handle_t,
     esp_pm_lock_release, esp_pm_lock_type_t_ESP_PM_CPU_FREQ_MAX, esp_pm_lock_type_t_ESP_PM_NO_LIGHT_SLEEP,
 };
@@ -51,4 +53,28 @@ impl Awake {
             }
         }
     }
+}
+
+/// Say why the chip started: a touch or BOOT out of deep sleep, or an ordinary reset.
+pub fn log_wake_cause() {
+    let cause = unsafe { esp_sleep_get_wakeup_cause() };
+    let what = if cause == esp_sleep_source_t_ESP_SLEEP_WAKEUP_EXT1 {
+        let pins = unsafe { esp_sleep_get_ext1_wakeup_status() };
+        if pins & (1 << 11) != 0 { "touch" } else if pins & 1 != 0 { "boot" } else { "other" }
+    } else if cause == esp_sleep_source_t_ESP_SLEEP_WAKEUP_UNDEFINED {
+        "reset"
+    } else {
+        "other"
+    };
+    log::info!("wake: {what}");
+}
+
+/// Leave the bridge, turn everything off and deep-sleep until a touch or BOOT. Waking is a reboot.
+pub fn deep_sleep(net: Option<&crate::net::Net>) -> ! {
+    log::info!("sleep: deep");
+    if let Some(net) = net {
+        net.close();
+    }
+    crate::display::sleep_prepare();
+    unsafe { esp_deep_sleep_start() }
 }

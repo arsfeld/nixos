@@ -15,6 +15,16 @@ pub fn init() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Turn the panel on (at `brightness`) or off. False if the panel did not take the command.
+pub fn panel_power(on: bool, brightness: u8) -> bool {
+    unsafe { bd::bd_panel_power(on, brightness) == 0 }
+}
+
+/// Panel and amplifier off and the deep-sleep wake sources armed (see `sleep::deep_sleep`).
+pub fn sleep_prepare() {
+    unsafe { bd::bd_sleep_prepare() }
+}
+
 pub fn set_brightness(percent: u8) {
     unsafe { bd::bd_set_brightness(percent) }
 }

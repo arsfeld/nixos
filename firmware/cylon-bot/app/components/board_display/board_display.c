@@ -4,6 +4,8 @@
 #include <stdlib.h>
 
 #include "driver/gpio.h"
+#include "driver/rtc_io.h"
+#include "esp_sleep.h"
 #include "driver/i2c_master.h"
 #include "driver/i2s_std.h"
 #include "driver/spi_master.h"
@@ -417,6 +419,38 @@ void bd_set_brightness(uint8_t percent)
     if (percent > 100) percent = 100;
     uint8_t param = (uint8_t)(percent * 255 / 100);
     esp_lcd_panel_io_tx_param(s_io, (0x02u << 24) | (0x51u << 8), &param, 1); // CO5300 DCS: set brightness
+}
+
+// CO5300 DCS: 0x28 display off, 0x10 sleep in; 0x11 sleep out, which needs 120 ms before the next command,
+// then 0x29 display on. The panel keeps its RAM, but the app pushes a whole frame after waking anyway.
+esp_err_t bd_panel_power(bool on, uint8_t brightness)
+{
+    esp_err_t err;
+    if (on) {
+        err = esp_lcd_panel_io_tx_param(s_io, (0x02u << 24) | (0x11u << 8), NULL, 0);
+        if (err != ESP_OK) return err;
+        vTaskDelay(pdMS_TO_TICKS(120));
+        err = esp_lcd_panel_io_tx_param(s_io, (0x02u << 24) | (0x29u << 8), NULL, 0);
+        if (err != ESP_OK) return err;
+        bd_set_brightness(brightness);
+        return ESP_OK;
+    }
+    err = esp_lcd_panel_io_tx_param(s_io, (0x02u << 24) | (0x28u << 8), NULL, 0);
+    if (err != ESP_OK) return err;
+    return esp_lcd_panel_io_tx_param(s_io, (0x02u << 24) | (0x10u << 8), NULL, 0);
+}
+
+void bd_sleep_prepare(void)
+{
+    bd_panel_power(false, 0);
+    gpio_set_level(PIN_POWER_AMP, 0);
+    // The touch controller pulls its interrupt low on a touch; BOOT pulls GPIO 0 low. Both need the RTC pull-ups,
+    // since the digital ones are off in deep sleep.
+    rtc_gpio_pullup_en(PIN_TOUCH_INT);
+    rtc_gpio_pulldown_dis(PIN_TOUCH_INT);
+    rtc_gpio_pullup_en(GPIO_NUM_0);
+    rtc_gpio_pulldown_dis(GPIO_NUM_0);
+    esp_sleep_enable_ext1_wakeup((1ULL << PIN_TOUCH_INT) | (1ULL << GPIO_NUM_0), ESP_EXT1_WAKEUP_ANY_LOW);
 }
 
 void bd_set_volume(uint8_t percent)

@@ -19,7 +19,7 @@ use esp_idf_svc::hal::modem::Modem;
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
 use esp_idf_svc::sntp::{EspSntp, SntpConf};
 use esp_idf_svc::sys::{
-    esp, esp_wifi_set_ps, wifi_ps_type_t_WIFI_PS_MIN_MODEM, esp_crt_bundle_attach, esp_event_base_t, esp_websocket_client_config_t, esp_websocket_client_destroy,
+    esp, esp_wifi_set_ps, esp_wifi_stop, esp_websocket_client_close, wifi_ps_type_t_WIFI_PS_MIN_MODEM, esp_crt_bundle_attach, esp_event_base_t, esp_websocket_client_config_t, esp_websocket_client_destroy,
     esp_websocket_client_handle_t, esp_websocket_client_init, esp_websocket_client_send_bin, esp_websocket_client_send_text, esp_websocket_client_start,
     esp_websocket_event_data_t, esp_websocket_event_id_t_WEBSOCKET_EVENT_ANY, esp_websocket_event_id_t_WEBSOCKET_EVENT_CLOSED,
     esp_websocket_event_id_t_WEBSOCKET_EVENT_CONNECTED, esp_websocket_event_id_t_WEBSOCKET_EVENT_DATA,
@@ -93,6 +93,17 @@ impl Net {
     /// Whether the bridge connection is up right now.
     pub fn is_up(&self) -> bool {
         self.0.up.load(Ordering::SeqCst)
+    }
+
+    /// Before deep sleep: send the bridge a close frame (waiting at most 1 s), then stop Wi-Fi, so the bridge sees the
+    /// board leave at once instead of holding a question for a socket that will never answer.
+    pub fn close(&self) {
+        if let Some(c) = *self.0.client.lock().unwrap() {
+            let ticks = TickType::from(Duration::from_secs(1)).ticks() as _;
+            unsafe { esp_websocket_client_close(c.0, ticks) };
+        }
+        self.0.up.store(false, Ordering::SeqCst);
+        unsafe { esp_wifi_stop() };
     }
 }
 

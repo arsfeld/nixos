@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
 use std::time::{Duration, Instant};
 
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType, Rgb565Pixel};
-use cylon_bot_ui::touch::{Gesture, TouchTracker};
+use cylon_bot_ui::touch::{Gesture, TouchTracker, WakeGate};
 use slint::platform::{Platform, WindowAdapter};
 
 use crate::display::{self, Strips, HEIGHT, WIDTH};
@@ -143,30 +143,51 @@ pub fn run(window: &Rc<MinimalSoftwareWindow>, mut each_loop: impl FnMut()) -> a
     // Touch diagnostics: polls that could be read, polls that could not, presses seen.
     let (mut reads_ok, mut reads_failed, mut presses, mut last_report) = (0u32, 0u32, 0u32, Instant::now());
     let mut finger_down = false;
+    // The touch that lights a dark panel only lights it (see `WakeGate`).
+    let mut gate = WakeGate::new();
+    let mut was_dark = false;
 
     loop {
         slint::platform::update_timers_and_animations();
         each_loop();
 
-        window.draw_if_needed(|renderer| {
-            if let Some((y0, y1)) = cylon_bot_ui::frame::paint(renderer, &mut pixels, WIDTH, HEIGHT) {
-                strips.push(&pixels, y0, y1);
-            }
-        });
-
         let dark = DARK.load(Ordering::SeqCst);
+        // A dark panel draws nothing; Slint keeps collecting what changed. The first frame after it lights again
+        // goes out whole, since nothing reached the panel while it was off.
+        if !dark {
+            let whole = std::mem::take(&mut was_dark);
+            if whole {
+                window.request_redraw();
+            }
+            window.draw_if_needed(|renderer| {
+                let painted = cylon_bot_ui::frame::paint(renderer, &mut pixels, WIDTH, HEIGHT);
+                if whole {
+                    strips.push(&pixels, 0, HEIGHT);
+                } else if let Some((y0, y1)) = painted {
+                    strips.push(&pixels, y0, y1);
+                }
+            });
+        } else {
+            was_dark = true;
+        }
+
         let poll = if dark { DARK_POLL } else { LIT_POLL };
         if last_touch.elapsed() >= poll {
             last_touch = Instant::now();
             let polled = display::touch();
             if polled.is_some() { reads_ok += 1 } else { reads_failed += 1 }
-            if let Some(t) = polled {
+            let mut passed = false;
+            if let Some(t) = &polled {
                 if t.pressed {
-                    TOUCHED.store(true, Ordering::SeqCst);
-                } else if finger_down {
+                    TOUCHED.store(true, Ordering::SeqCst); // wakes the panel even when the gate drops the sample
+                }
+                passed = gate.pass(dark, t.pressed);
+                if passed && !t.pressed && finger_down {
                     LIFTED.store(true, Ordering::SeqCst);
                 }
                 finger_down = t.pressed;
+            }
+            if let Some(t) = polled.filter(|_| passed) {
                 // The app accepted the hold it was told about: cancel the pointer before the next sample.
                 if ACCEPT_HOLD.swap(false, Ordering::SeqCst) {
                     for event in tracker.accept_hold() {
