@@ -48,7 +48,7 @@ test:
 preview:
     #!/usr/bin/env bash
     set -euo pipefail
-    nix develop .#firmware -c bash -c 'cd "{{ FW }}" && ./scripts/vendor-slint-core.sh >/dev/null && cargo run -q -p cylon-bot-ui --example preview -- preview 2>/dev/null'
+    nix develop .#firmware -c bash -c 'cd "{{ FW }}" && ./scripts/vendor-slint.sh >/dev/null && cargo run -q -p cylon-bot-ui --example preview -- preview 2>/dev/null'
 
 # Write the Wi-Fi networks (a list, tried by signal strength) and the device token from sops into the firmware's gitignored
 # app/credentials.env, which the build turns into compile-time values. Nothing is printed.
@@ -91,7 +91,7 @@ build:
     nix develop .#firmware -c bash -c '
       set -euo pipefail
       cd "{{ FW }}"
-      ./scripts/vendor-slint-core.sh >/dev/null
+      ./scripts/vendor-slint.sh >/dev/null
       cd app
       stamp=target/.inputs-stamp
       if [ ! -f "$stamp" ] || [ -n "$(find components sdkconfig.defaults Cargo.toml partitions.csv -newer "$stamp" -print -quit)" ]; then

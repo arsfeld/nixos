@@ -1618,8 +1618,6 @@ dependencies = [
 [[package]]
 name = "i-slint-renderer-software"
 version = "1.18.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f8c641e138a2cc96537cac4481f5c7c8bb8dcc66d09acaed269329c8738628a"
 dependencies = [
  "bytemuck",
  "clru",

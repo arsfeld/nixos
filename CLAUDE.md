@@ -456,8 +456,14 @@ hooks on every host --HTTPS--> cylon-bot-bridge (galactica) <--wss-- board (firm
     each frame (bounded, about 36 boxes under 40x40), not only the one that lights; unmeasured on the board.
   - Slint: the device build must not enable its `std` feature (it pulls in `memmap2`, which does not build for
     ESP-IDF); the feature set is in `ui/Cargo.toml` and `app/Cargo.toml` and must match. `Path` support then needs a
-    one-line local patch to `i-slint-core`, made by `firmware/cylon-bot/scripts/vendor-slint-core.sh` into the
-    gitignored `vendor/` (`just board build` and `preview` run it). Re-check the patch at every Slint bump. Host
+    one-line local patch to `i-slint-core`, made by `firmware/cylon-bot/scripts/vendor-slint.sh` into the
+    gitignored `vendor/` (`just board build` and `preview` run it). Re-check both patches at every Slint bump.
+  - **Slint 1.18.1 drew a `Path` over its whole clip, not the frame's dirty region**, so with the board's reused
+    framebuffer a `Path` beside anything that repainted redrew itself over the items above it, which that frame did
+    not redraw: the menu icons and labels vanished a few seconds after opening, next to a pulsing session arc. The
+    previews and most host tests render whole buffers and cannot see it. `patches/i-slint-renderer-software-path-dirty-region.patch`
+    (applied by the same script) blends the path's mask only over the dirty spans, and
+    `ui/tests/partial.rs` checks that a partial repaint leaves exactly what a full render draws. Host
     tests do enable `std` (a dev-dependency) so parallel tests each get their own platform.
   - **Never `render_by_line`.** In Slint 1.18 the line-by-line renderer silently skips every `Path` (its source says
     so), and the previews and host tests render whole buffers, so they never showed it: until 2026-11-10 the board

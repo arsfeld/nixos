@@ -63,3 +63,36 @@ fn the_board_draw_loop_paints_paths_and_pushes_their_rows() {
 
     assert_eq!(draw(&window, &mut px), None, "nothing changed, nothing pushed");
 }
+
+/// A frame's repaint must leave the buffer exactly as a full render of the same scene would. Slint 1.18.1 blended a
+/// Path over its whole clip rather than the dirty region, so a session arc changing beside the Volume arc repainted
+/// that arc over its icon and label, which the frame did not redraw: on the board the menu icons vanished next to a
+/// pulsing arc. Fixed by the local patch in patches/ (scripts/vendor-slint.sh).
+#[test]
+fn a_repaint_beside_the_menu_leaves_what_a_full_render_draws() {
+    let window = MinimalSoftwareWindow::new(RepaintBufferType::ReusedBuffer);
+    let _ = slint::platform::set_platform(Box::new(Plat(window.clone())));
+    window.set_size(slint::PhysicalSize::new(W as u32, W as u32));
+    let ui = AppWindow::new().unwrap();
+    ui.set_commands(ModelRc::new(VecModel::from(command_segments())));
+    ui.set_link(true);
+    ui.set_menu_open(true);
+    // An arc at 270..300 degrees: its box reaches into the Volume arc's (and its stroke-grown Path's) box.
+    let beside = |state| ModelRc::new(VecModel::from(vec![arc_segment(270.0, 300.0, state)]));
+    ui.set_rim(beside(SessionState::Working));
+    ui.show().unwrap();
+    let mut px = vec![Rgb565Pixel(0); W * W];
+    draw(&window, &mut px);
+    ui.set_rim(beside(SessionState::Done));
+    let (y0, y1) = draw(&window, &mut px).expect("the arc changed");
+    assert!(y1 - y0 < W / 2, "a partial repaint, rows {y0}..{y1}");
+
+    window.request_redraw();
+    let mut fresh = vec![Rgb565Pixel(0); W * W];
+    window.draw_if_needed(|r| {
+        r.set_repaint_buffer_type(RepaintBufferType::NewBuffer);
+        r.render(&mut fresh, W);
+    });
+    let diff: Vec<(usize, usize)> = (0..W * W).filter(|&i| px[i].0 != fresh[i].0).map(|i| (i % W, i / W)).collect();
+    assert!(diff.is_empty(), "{} pixels differ from a full render, e.g. {:?}", diff.len(), &diff[..diff.len().min(8)]);
+}

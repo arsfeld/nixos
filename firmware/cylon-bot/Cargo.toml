@@ -7,7 +7,7 @@ members = ["ui"]
 exclude = ["app"]
 resolver = "2"
 
-# Local patch, made by scripts/vendor-slint-core.sh (run it once after checkout): Slint's Path support
-# in no_std builds calls f32::rem_euclid, which does not exist there.
+# Local patches, made by scripts/vendor-slint.sh (run it once after checkout; it says why each exists).
 [patch.crates-io]
 i-slint-core = { path = "vendor/i-slint-core" }
+i-slint-renderer-software = { path = "vendor/i-slint-renderer-software" }

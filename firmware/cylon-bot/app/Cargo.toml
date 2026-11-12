@@ -24,9 +24,10 @@ slint = { version = "1.18.1", default-features = false, features = ["compat-1-2"
 [build-dependencies]
 embuild = "0.33"
 
-# Local patch, made by ../scripts/vendor-slint-core.sh (run it once after checkout).
+# Local patches, made by ../scripts/vendor-slint.sh (run it once after checkout).
 [patch.crates-io]
 i-slint-core = { path = "../vendor/i-slint-core" }
+i-slint-renderer-software = { path = "../vendor/i-slint-renderer-software" }
 
 # After changing anything under [package.metadata.esp-idf-sys], components/ or sdkconfig.defaults run
 # `cargo clean -p esp-idf-sys --release`: esp-idf-sys does not notice (`just board build` does it).
