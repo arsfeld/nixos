@@ -191,7 +191,7 @@ check, not a kept test.
    - Start a throwaway unit that exits 1 (`systemd-run --unit=email-test false`).
      Confirm the `email@` failure mail arrives with its status and log sections
      rendered.
-   - Check on galactica that `journalctl -u email@…` shows the new log lines.
+   - Check on raider that `journalctl -u email@…` shows the new log lines, and send one manual event from galactica and basestar.
 
 ## Risks
 
