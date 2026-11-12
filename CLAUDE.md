@@ -668,6 +668,24 @@ hooks on every host --HTTPS--> cylon-bot-bridge (galactica) <--wss-- board (firm
   shows. **Verified on the board (2026-11-10):** the 1.75C has it at 0x34 (only the non-C board's docs said so); full on
   USB it reads `present=1 usb=1 charging=0 percent=100 mv=4183`. **Not yet checked:** the gauge as it drains, and the
   charging bit while it charges.
+- **Power** (spec `docs/superpowers/specs/2026-11-11-cylon-bot-power-design.md`, plan
+  `docs/superpowers/plans/2026-11-11-cylon-bot-power.md`, findings `docs/superpowers/specs/2026-11-11-cylon-bot-power-findings.md`;
+  implemented 2026-11-11, **nothing measured on the board yet**). Three states in `ui/src/power.rs`: Bright (70) for 30 s
+  after a touch, a wake event or activity, Dim (8) for 2 min more, then Dark: panel off (`bd_panel_power`, DCS
+  0x28/0x10, back on with 0x11, 120 ms, 0x29), nothing drawn, touch polled every 50 ms, still online. **Only wake
+  events light a dark panel**: exactly what chimes (a new question or approval, a session going to waiting, a reminder),
+  `speak_start`, a battery warning and the link coming back (`Controller::take_wake`). Every other message is activity,
+  which keeps a lit panel lit but never lights a dark one, since busy sessions send it every few seconds. The touch that
+  lights a dark panel is dropped up to its lift (`touch::WakeGate`), so it cannot answer the question that woke it. On
+  battery only, after 10 min Dark with no question waiting (`current_ask`) and no audio playing or recording, the board
+  deep-sleeps (`sleep::deep_sleep`: websocket close frame, Wi-Fi off, amp off, ext1 any-low on GPIO 11 touch INT and
+  GPIO 0 BOOT); a failed battery read counts as USB. Waking is a reboot (`wake: touch|boot|reset|other` in the log);
+  the RTC keeps the time, so it should not wait for SNTP. While it sleeps the bridge treats it as unplugged: questions go
+  to the terminal, reminders wait up to 60 minutes. `CONFIG_PM_ENABLE` scales the CPU 80-240 MHz with tickless idle;
+  `sleep::Awake` holds full speed and no-light-sleep in every state but Dark (capture, playback and drawing only happen
+  lit). Wi-Fi is `WIFI_PS_MIN_MODEM`, not max (latency on answers and voice). Automatic light sleep is
+  `sleep::LIGHT_SLEEP`, **false until the gate in the findings file passes**. Unverified: whether the CST9217 asserts
+  its interrupt in deep sleep (GPIO 11 wake), all drain numbers, and the eye sweep's smoothness with the paced loop.
 - **Debugging a board you cannot see.** Render the screens with `just board preview`, or write a host test: the `ui`
   tests render the real scene headlessly and send real pointer events at real coordinates. The bridge URL, NTP
   server and a DNS override are `CB_URL`, `CB_NTP`, `CB_DNS` lines in `app/credentials.env` (that is how the
