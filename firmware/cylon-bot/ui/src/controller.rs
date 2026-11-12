@@ -461,10 +461,12 @@ impl<O: Outbox + 'static> Controller<O> {
         std::mem::take(&mut self.inner.borrow_mut().wake)
     }
 
-    /// A question or approval is waiting for an answer and was not sent to the computer: the board must not
-    /// deep-sleep on it.
+    /// A question or approval is waiting for an answer from this board: the board must not deep-sleep on it. Not
+    /// while the link is down: the bridge has handed it to the terminal, and the `question_clear` that would drop it
+    /// cannot arrive.
     pub fn question_waiting(&self) -> bool {
-        self.inner.borrow().model.current_ask().is_some()
+        let s = self.inner.borrow();
+        s.link && s.model.current_ask().is_some()
     }
 }
 

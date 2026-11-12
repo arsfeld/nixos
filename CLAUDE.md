@@ -677,9 +677,9 @@ hooks on every host --HTTPS--> cylon-bot-bridge (galactica) <--wss-- board (firm
   `speak_start`, a battery warning and the link coming back (`Controller::take_wake`). Every other message is activity,
   which keeps a lit panel lit but never lights a dark one, since busy sessions send it every few seconds. The touch that
   lights a dark panel is dropped up to its lift (`touch::WakeGate`), so it cannot answer the question that woke it. On
-  battery only, after 10 min Dark with no question waiting (`current_ask`) and no audio playing or recording, the board
+  battery only, after 10 min Dark with no question waiting (`current_ask` while the link is up) and no audio playing or recording, the board
   deep-sleeps (`sleep::deep_sleep`: websocket close frame, Wi-Fi off, amp off, ext1 any-low on GPIO 11 touch INT and
-  GPIO 0 BOOT); a failed battery read counts as USB. Waking is a reboot (`wake: touch|boot|reset|other` in the log);
+  GPIO 0 BOOT); a failed battery read counts as USB. It refuses (and retries every 5 s) while a wake pin is already low, since an any-low wake would fire at once, and keeps the RTC peripheral domain on so the wake pins' pull-ups work. Waking is a reboot (`wake: touch|boot|reset|other`, with `after N s asleep` for an ext1 wake, in the log);
   the RTC keeps the time, so it should not wait for SNTP. While it sleeps the bridge treats it as unplugged: questions go
   to the terminal, reminders wait up to 60 minutes. `CONFIG_PM_ENABLE` scales the CPU 80-240 MHz with tickless idle;
   `sleep::Awake` holds full speed and no-light-sleep in every state but Dark (capture, playback and drawing only happen

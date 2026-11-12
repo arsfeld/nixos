@@ -191,6 +191,7 @@ fn run<O: Outbox + 'static>(
     let mut state = State::Bright;
     // The last battery reading, for the deep-sleep decision; none yet counts as USB.
     let mut last_reading: Option<battery::Reading> = None;
+    let mut sleep_tried: Option<Instant> = None;
     let mut brightness = 0u8;
     let mut last_tick = Instant::now();
     // Press to talk: the capture thread and the channel its levels arrive on, while a hold is being recorded.
@@ -410,8 +411,9 @@ fn run<O: Outbox + 'static>(
         }
         // On battery, long dark, nothing waiting: sleep until a touch. Waking is a reboot.
         let conditions = Conditions::new(last_reading.as_ref(), controller.question_waiting(), player.is_playing() || capture.is_some());
-        if power.should_deep_sleep(ms(), &conditions) {
-            sleep::deep_sleep(net.as_ref());
+        if power.should_deep_sleep(ms(), &conditions) && sleep_tried.is_none_or(|t| t.elapsed() >= Duration::from_secs(5)) {
+            sleep_tried = Some(Instant::now());
+            sleep::deep_sleep(net.as_ref()); // returns only if a wake pin is low; tried again in 5 s
         }
         if ui.get_page() != Page::Link {
             link_read = None;

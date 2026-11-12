@@ -445,7 +445,9 @@ void bd_sleep_prepare(void)
     bd_panel_power(false, 0);
     gpio_set_level(PIN_POWER_AMP, 0);
     // The touch controller pulls its interrupt low on a touch; BOOT pulls GPIO 0 low. Both need the RTC pull-ups,
-    // since the digital ones are off in deep sleep.
+    // since the digital ones are off in deep sleep, and those only work while the RTC peripheral domain stays
+    // powered, which ext1 alone does not keep on: a few microamps against a floating wake pin.
+    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
     rtc_gpio_pullup_en(PIN_TOUCH_INT);
     rtc_gpio_pulldown_dis(PIN_TOUCH_INT);
     rtc_gpio_pullup_en(GPIO_NUM_0);

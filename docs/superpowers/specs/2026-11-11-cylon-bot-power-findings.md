@@ -23,7 +23,7 @@ Flash the commit named in each row, unplug, idle one hour, record the first and 
 | 1 | Idle 2.5 min: `power: Dark`, panel off; a touch lights it and does not open the list | not run |
 | 2 | A question while Dark lights the panel and chimes | not run |
 | 3 | A reminder while Dark lights it and is spoken | not run |
-| 4 | Unplugged, idle 12.5 min: `sleep: deep`; a touch wakes it (`wake: touch`), else BOOT (`wake: boot`) | not run |
+| 4 | Unplugged, idle 12.5 min: `sleep: deep`; a touch wakes it (`wake: touch after N s asleep`, N about the time you waited), else BOOT (`wake: boot`); no `waiting for download` after a BOOT wake | not run |
 | 5 | On USB, idle 15 min: no `sleep: deep` | not run |
 | 6 | After a deep-sleep wake it connects without `waiting for the clock` | not run |
 | 7 | Voice hold and reply work after waking from Dark, and with PM on | not run |

@@ -1334,9 +1334,21 @@ fn link_returning_is_a_wake_but_dropping_is_not() {
 #[test]
 fn question_waiting_follows_the_model() {
     let f = fixture();
+    f.c.set_link(true);
     assert!(!f.c.question_waiting());
     f.feed("question_single");
     assert!(f.c.question_waiting());
     f.feed("question_clear");
+    assert!(!f.c.question_waiting());
+}
+
+#[test]
+fn a_question_held_while_the_link_is_down_is_not_waiting() {
+    // The bridge handed it to the terminal; an offline board must still be free to deep-sleep.
+    let f = fixture();
+    f.c.set_link(true);
+    f.feed("question_single");
+    assert!(f.c.question_waiting());
+    f.c.set_link(false);
     assert!(!f.c.question_waiting());
 }
