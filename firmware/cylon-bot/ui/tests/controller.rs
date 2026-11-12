@@ -1289,3 +1289,54 @@ fn no_session_reset_drops_to_idle_after_ten_seconds() {
     f.ui.invoke_purge_confirmed();
     assert_eq!(f.new_sessions(), [1, 2]);
 }
+
+// Which bridge messages light a dark panel (docs/superpowers/specs/2026-11-11-cylon-bot-power-design.md): exactly the
+// ones that chime, plus the start of a spoken reply and the link coming back. Everything else is activity.
+#[test]
+fn fixtures_classify_as_wake_or_activity() {
+    // `state` puts a session into waiting, which chimes, so it wakes too.
+    let wakes = ["question_single", "question_multi", "question_unicode", "reminder", "speak_start", "state"];
+    let activity = [
+        "hello", "upsert", "remove", "entry", "history", "creature", "transcript", "reply_text", "speak_end",
+        "session_reset", "question_clear",
+    ];
+    // Slint allows one headless platform per thread: each fixture gets a fresh controller on its own thread.
+    let classify = |name: &'static str| {
+        std::thread::spawn(move || {
+            let f = fixture();
+            f.feed(name);
+            (f.c.take_wake(), f.c.take_wake())
+        })
+        .join()
+        .unwrap()
+    };
+    for name in wakes {
+        assert_eq!(classify(name), (true, false), "{name} should wake once");
+    }
+    for name in activity {
+        assert_eq!(classify(name), (false, false), "{name} should not wake");
+    }
+}
+
+#[test]
+fn link_returning_is_a_wake_but_dropping_is_not() {
+    let f = fixture();
+    f.c.set_link(true);
+    f.c.take_wake();
+    f.c.set_link(false);
+    assert!(!f.c.take_wake());
+    f.c.set_link(true);
+    assert!(f.c.take_wake());
+    f.c.set_link(true); // already up
+    assert!(!f.c.take_wake());
+}
+
+#[test]
+fn question_waiting_follows_the_model() {
+    let f = fixture();
+    assert!(!f.c.question_waiting());
+    f.feed("question_single");
+    assert!(f.c.question_waiting());
+    f.feed("question_clear");
+    assert!(!f.c.question_waiting());
+}

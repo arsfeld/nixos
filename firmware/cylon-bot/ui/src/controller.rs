@@ -124,6 +124,8 @@ struct Inner<O: Outbox> {
     prev_waiting: usize,
     chimed_ask: Option<AskId>,
     chime: bool,
+    /// Something arrived that should light a dark panel (see `take_wake`).
+    wake: bool,
     /// The voice path: the bridge's mood for the creature, the finger holding the avatar, the utterance in
     /// progress (kept after the release so a cancel can name it), the last one numbered, the microphone level.
     mood: Mood,
@@ -195,6 +197,7 @@ impl<O: Outbox + 'static> Controller<O> {
             prev_waiting: 0,
             chimed_ask: None,
             chime: false,
+            wake: false,
             mood: Mood::Idle,
             holding: false,
             utterance: None,
@@ -267,6 +270,7 @@ impl<O: Outbox + 'static> Controller<O> {
                 s.reminder_heading = Some(format!("Reminder {}", due.get(11..16).unwrap_or("")).trim_end().to_string());
                 s.reply = label;
                 s.chime = true;
+                s.wake = true;
                 // The card lives on home; a waiting question keeps the screen and the card is there after it.
                 if !matches!(s.nav, Nav::Home) {
                     s.set_nav(Nav::Home);
@@ -276,6 +280,7 @@ impl<O: Outbox + 'static> Controller<O> {
             }
             Ok(BoardMsg::SpeakStart { utterance, .. }) => {
                 s.speaking = Some(utterance);
+                s.wake = true;
                 return;
             }
             Ok(BoardMsg::SpeakEnd { .. }) => {
@@ -300,6 +305,7 @@ impl<O: Outbox + 'static> Controller<O> {
         let ask = s.model.current_ask().map(|a| a.ask.id.clone());
         if waiting > s.prev_waiting || (ask.is_some() && ask != s.chimed_ask) {
             s.chime = true;
+            s.wake = true;
         }
         s.prev_waiting = waiting;
         s.chimed_ask = ask;
@@ -311,6 +317,7 @@ impl<O: Outbox + 'static> Controller<O> {
         let mut s = self.inner.borrow_mut();
         let came_up = up && !s.link;
         s.link = up;
+        s.wake |= came_up;
         if !up {
             // Whatever the voice path was doing died with the socket: nothing will end it.
             s.holding = false;
@@ -445,6 +452,19 @@ impl<O: Outbox + 'static> Controller<O> {
     /// True once after something started needing the user.
     pub fn wants_chime(&self) -> bool {
         std::mem::take(&mut self.inner.borrow_mut().chime)
+    }
+
+    /// Whether something since the last call should light a dark panel: exactly what chimes (a new question or
+    /// approval, a reminder), the start of a spoken reply, and the link coming back. Every other message is only
+    /// activity (`power::Power::activity`).
+    pub fn take_wake(&self) -> bool {
+        std::mem::take(&mut self.inner.borrow_mut().wake)
+    }
+
+    /// A question or approval is waiting for an answer and was not sent to the computer: the board must not
+    /// deep-sleep on it.
+    pub fn question_waiting(&self) -> bool {
+        self.inner.borrow().model.current_ask().is_some()
     }
 }
 
