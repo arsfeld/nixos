@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use cylon_bot_ui::controller::{Controller, Outbox};
 use cylon_bot_ui::headless::{headless, Headless};
-use cylon_bot_ui::touch::TouchTracker;
+use cylon_bot_ui::touch::{TouchTracker, WakeGate};
 use cylon_bot_ui::{AppWindow, Page};
 use slint::platform::{PointerEventButton, WindowEvent};
 use slint::{ComponentHandle, LogicalPosition};
@@ -64,6 +64,22 @@ impl Fx {
         w.dispatch_event(WindowEvent::PointerExited);
         // A tick between taps, as in the app, so the double-tap guard has moved on.
         self.ticks.set(self.ticks.get() + 1);
+        self.c.tick(Some(1_800_000_000));
+    }
+
+    /// A tap that goes through the firmware's wake gate first: the press and the release reach the window only
+    /// when the gate passes them, as in the touch loop.
+    fn gated_tap(&self, gate: &mut WakeGate, dark: bool, x: f32, y: f32) {
+        let position = LogicalPosition::new(x, y);
+        let w = &self.h.window;
+        if gate.pass(dark, true) {
+            w.dispatch_event(WindowEvent::PointerPressed { position, button: PointerEventButton::Left });
+        }
+        // The press woke the panel: its release is sampled with the panel lit.
+        if gate.pass(false, false) {
+            w.dispatch_event(WindowEvent::PointerReleased { position, button: PointerEventButton::Left });
+            w.dispatch_event(WindowEvent::PointerExited);
+        }
         self.c.tick(Some(1_800_000_000));
     }
 }
@@ -235,5 +251,19 @@ fn long_press_off_the_avatar_does_not_swallow_a_tap_on_an_option() {
     }
     let sent = f.wire.0.borrow().clone();
     assert_eq!(sent.len(), 1, "{sent:?}");
+    assert!(sent[0].contains(r#""Which colour?":"Red""#), "{}", sent[0]);
+}
+
+#[test]
+fn a_tap_on_a_dark_screen_wakes_and_answers_nothing() {
+    let f = fx();
+    let mut gate = WakeGate::new();
+    f.ask("question_single");
+    f.h.render();
+    f.gated_tap(&mut gate, true, 233.0, 201.0); // the panel was dark: this tap only wakes it
+    assert!(f.wire.0.borrow().is_empty());
+    f.gated_tap(&mut gate, false, 233.0, 201.0);
+    let sent = f.wire.0.borrow().clone();
+    assert_eq!(sent.len(), 1);
     assert!(sent[0].contains(r#""Which colour?":"Red""#), "{}", sent[0]);
 }

@@ -172,8 +172,54 @@ impl TouchTracker {
     }
 }
 
+/// The touch that wakes a dark panel only wakes it: its samples, up to and including its release, never reach the
+/// tracker, so a tap meant to light the screen cannot answer the question that lit it.
+#[derive(Debug, Default)]
+pub struct WakeGate {
+    swallowing: bool,
+}
+
+impl WakeGate {
+    pub fn new() -> Self {
+        WakeGate::default()
+    }
+
+    /// Whether this touch sample may go on to the tracker. `dark` is the panel's state as the sample is read.
+    pub fn pass(&mut self, dark: bool, pressed: bool) -> bool {
+        if self.swallowing {
+            if !pressed {
+                self.swallowing = false;
+            }
+            return false;
+        }
+        if dark && pressed {
+            self.swallowing = true;
+            return false;
+        }
+        true
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_waking_touch_is_dropped_until_lift() {
+        let mut g = WakeGate::new();
+        assert!(!g.pass(true, true)); // first touch on a dark panel
+        assert!(!g.pass(false, true)); // panel now lit, same finger still down
+        assert!(!g.pass(false, false)); // its lift
+        assert!(g.pass(false, true)); // next touch lands
+        assert!(g.pass(false, false));
+    }
+
+    #[test]
+    fn touches_while_lit_pass() {
+        let mut g = WakeGate::new();
+        assert!(g.pass(false, true));
+        assert!(g.pass(false, false));
+        assert!(g.pass(true, false)); // a release sample while dark with no finger down passes harmlessly
+    }
+
     use super::*;
     use slint::platform::WindowEvent;
     use slint::LogicalPosition;
