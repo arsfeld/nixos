@@ -157,14 +157,14 @@ fn main() -> anyhow::Result<()> {
 
     let settings = link::settings(env!("CB_URL"), env!("CB_NTP"), env!("CB_DNS")).map_err(anyhow::Error::msg)?;
     let (tx, rx) = mpsc::channel::<net::Event>();
-    let (ssid, pass, token) = (env!("CB_WIFI_SSID"), env!("CB_WIFI_PASS"), env!("CB_TOKEN"));
+    let (networks, token) = (net::WIFI_NETWORKS, env!("CB_TOKEN"));
     // `Box<dyn Fn>`-free: the controller is generic over its outbox, so each case builds its own loop.
-    if ssid.is_empty() || token.is_empty() {
+    if networks.is_empty() || token.is_empty() {
         log::error!("no credentials compiled in: run `just board creds`, then rebuild");
         return run(&window, &ui, Controller::new(&ui, NoWire), rx, None, settings_store);
     }
     let modem = Peripherals::take()?.modem;
-    let wire = net::start(net::Credentials { ssid, pass, token }, settings, modem, nvs, tx)?;
+    let wire = net::start(net::Credentials { networks, token }, settings, modem, nvs, tx)?;
     let mic_net = wire.clone();
     run(&window, &ui, Controller::new(&ui, wire), rx, Some(mic_net), settings_store)
 }

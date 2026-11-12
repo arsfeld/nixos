@@ -22,6 +22,20 @@ pub fn backoff_ms(attempt: u32) -> u32 {
     BACKOFF_START_MS.checked_shl(attempt.min(16)).unwrap_or(BACKOFF_CAP_MS).min(BACKOFF_CAP_MS)
 }
 
+/// The order to try the known Wi-Fi networks (`known`, by name, in configured order) given a scan (`seen`: name and
+/// RSSI of each access point heard). Networks heard come first, strongest first, ties in configured order; then
+/// every network not heard, in configured order, because a hidden network never answers a scan and a scan can miss
+/// one. So nothing is ever left untried, and an empty or failed scan tries them all as before.
+pub fn join_order(known: &[&str], seen: &[(&str, i8)]) -> Vec<usize> {
+    let best = |name: &str| seen.iter().filter(|(s, _)| *s == name).map(|(_, rssi)| *rssi).max();
+    let mut heard: Vec<(usize, i8)> = known.iter().enumerate().filter_map(|(i, n)| best(n).map(|r| (i, r))).collect();
+    heard.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    let mut order: Vec<usize> = heard.iter().map(|(i, _)| *i).collect();
+    let unheard: Vec<usize> = (0..known.len()).filter(|i| !order.contains(i)).collect();
+    order.extend(unheard);
+    order
+}
+
 /// Where the board connects and how it keeps time.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
@@ -89,5 +103,27 @@ mod tests {
     #[test]
     fn a_bad_dns_override_is_refused_rather_than_ignored() {
         assert!(settings("", "", "not-an-address").is_err());
+    }
+
+    #[test]
+    fn heard_networks_go_first_strongest_first() {
+        let known = ["home", "Alexandre\u{2019}s iPhone", "cabin"];
+        assert_eq!(join_order(&known, &[("cabin", -80), ("Alexandre\u{2019}s iPhone", -50), ("other", -30)]), vec![1, 2, 0]);
+    }
+
+    #[test]
+    fn a_network_heard_twice_counts_its_strongest_access_point() {
+        assert_eq!(join_order(&["a", "b"], &[("a", -90), ("b", -60), ("a", -40)]), vec![0, 1]);
+    }
+
+    #[test]
+    fn signal_ties_keep_the_configured_order() {
+        assert_eq!(join_order(&["a", "b"], &[("b", -60), ("a", -60)]), vec![0, 1]);
+    }
+
+    #[test]
+    fn an_empty_scan_tries_every_network_in_order() {
+        assert_eq!(join_order(&["a", "b", "c"], &[]), vec![0, 1, 2]);
+        assert_eq!(join_order(&[], &[("a", -40)]), Vec::<usize>::new());
     }
 }

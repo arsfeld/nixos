@@ -417,7 +417,10 @@ hooks on every host --HTTPS--> cylon-bot-bridge (galactica) <--wss-- board (firm
 - **Secrets.** `cylon-bot-host-token` in `common.yaml` (declared for every host in
   `modules/base/cylon-bot.nix`, 0400 for arosenfeld, read by the hooks from `/run/secrets`);
   `cylon-bot-device-token` in `galactica.yaml` and `raider.yaml` (same value: the bridge checks it,
-  the firmware embeds it); `cylon-bot-wifi-ssid`/`-pass` in `raider.yaml`. A `restartUnits` entry
+  the firmware embeds it); `cylon-bot-wifi-networks` in `raider.yaml`, a list of `{ssid, pass}` (empty pass:
+  open). The board scans and tries the networks it hears, strongest first, then the rest in list order (hidden ones
+  never answer a scan); add one with `sops set --value-stdin secrets/sops/raider.yaml '["cylon-bot-wifi-networks"][N]'`
+  and a `{"ssid":…,"pass":…}` object (sops cannot set a whole list at once), then `just board creds`, build, flash. A `restartUnits` entry
   for a unit that does not exist on a host fails that host's whole activation (it did, on raider):
   keep `restartUnits` in the galactica module, not the base one.
 - **Firmware.** `firmware/cylon-bot`, Rust on `esp-idf-svc` (ESP-IDF 5.5.4 from the `nixpkgs-esp-dev` input,

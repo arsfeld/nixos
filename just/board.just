@@ -50,7 +50,7 @@ preview:
     set -euo pipefail
     nix develop .#firmware -c bash -c 'cd "{{ FW }}" && ./scripts/vendor-slint-core.sh >/dev/null && cargo run -q -p cylon-bot-ui --example preview -- preview 2>/dev/null'
 
-# Write the Wi-Fi credentials and the device token from sops into the firmware's gitignored
+# Write the Wi-Fi networks (a list, tried by signal strength) and the device token from sops into the firmware's gitignored
 # app/credentials.env, which the build turns into compile-time values. Nothing is printed.
 # They end up in the flash image in the clear (flash encryption is not enabled): anyone with the
 # board in hand can read them back, so treat the board like the credentials it holds.
@@ -71,12 +71,15 @@ creds:
         [ "$(printf "%s" "$v" | wc -l)" = 0 ] || { echo "secret $1 spans several lines" >&2; exit 1; }
         printf "%s" "$v"
       }
-      ssid="$(get cylon-bot-wifi-ssid)"
-      pass="$(get cylon-bot-wifi-pass)"
       token="$(get cylon-bot-device-token)"
+      # The Wi-Fi networks are a list of {ssid, pass}; each becomes a CB_WIFI_SSID/CB_WIFI_PASS pair of
+      # lines, in list order (the order breaks signal ties). An open network has an empty pass.
+      wifi="$(sops --decrypt --extract "[\"cylon-bot-wifi-networks\"]" --output-type json "$sops_file" \
+        | jq -r ".[] | if (.ssid | type) != \"string\" or .ssid == \"\" or ((.pass // \"\") | test(\"\n\")) or (.ssid | test(\"\n\")) then error(\"bad Wi-Fi entry\") else \"CB_WIFI_SSID=\(.ssid)\nCB_WIFI_PASS=\(.pass // \"\")\" end")"
+      [ -n "$wifi" ] || { echo "secret cylon-bot-wifi-networks is empty or missing" >&2; exit 1; }
       : > "$out"
       chmod 600 "$out"
-      printf "CB_WIFI_SSID=%s\nCB_WIFI_PASS=%s\nCB_TOKEN=%s\n" "$ssid" "$pass" "$token" >> "$out"
+      printf "%s\nCB_TOKEN=%s\n" "$wifi" "$token" >> "$out"
     '
     echo "wrote {{ FW }}/app/credentials.env; run just board build"
 
