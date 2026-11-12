@@ -60,12 +60,13 @@ enum Nav {
     /// The pages the command menu opens.
     Volume,
     Link,
+    Power,
     Purge,
 }
 
 impl Nav {
     fn is_command(&self) -> bool {
-        matches!(self, Nav::Volume | Nav::Link | Nav::Purge)
+        matches!(self, Nav::Volume | Nav::Link | Nav::Power | Nav::Purge)
     }
 }
 
@@ -589,6 +590,7 @@ impl<O: Outbox> Inner<O> {
                     self.set_nav(match c {
                         Command::Volume => Nav::Volume,
                         Command::Link => Nav::Link,
+                        Command::Power => Nav::Power,
                         Command::Purge => Nav::Purge,
                     });
                     self.refresh();
@@ -871,6 +873,7 @@ impl<O: Outbox> Inner<O> {
                     Nav::Detail { .. } => Page::Detail,
                     Nav::Volume => Page::Volume,
                     Nav::Link => Page::Link,
+                    Nav::Power => Page::Power,
                     Nav::Purge => Page::Purge,
                 });
             }

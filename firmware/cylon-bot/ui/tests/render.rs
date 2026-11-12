@@ -3,7 +3,9 @@
 
 use cylon_bot_ui::headless::{headless, rgb, Headless};
 use cylon_bot_ui::rim::arc_segment;
+use cylon_bot_ui::battery::Reading;
 use cylon_bot_ui::theme;
+use cylon_bot_ui::view::battery_view;
 use cylon_bot_ui::{AppWindow, PresenceState, RimSegment, SessionState};
 use slint::platform::software_renderer::Rgb565Pixel;
 use slint::{ComponentHandle, Global, ModelRc, VecModel};
@@ -505,12 +507,13 @@ fn the_command_menu_draws_metal_arcs_with_a_red_purge_edge_only_while_open() {
     let (h, ui) = show();
     ui.set_commands(ModelRc::new(VecModel::from(cylon_bot_ui::view::command_segments())));
     ui.set_link(true);
-    // Points on the Link arc (12 degrees right of the top) and on Purge's outer edge (44 degrees).
+    // Points on the Power arc (its fill at 26 degrees, clear of the icon, and its outer edge at 22) and on Purge's outer
+    // edge (44 degrees).
     let at = |deg: f32, r: f32| {
         let a = deg.to_radians();
         ((233.0 + r * a.sin()).round() as usize, (233.0 - r * a.cos()).round() as usize)
     };
-    let (fill, edge, purge_edge) = (at(12.0, 200.0), at(12.0, 224.0), at(44.0, 224.0));
+    let (fill, edge, purge_edge) = (at(26.0, 200.0), at(22.0, 224.0), at(44.0, 224.0));
     let buf = h.render();
     assert_eq!(px(&buf, fill.0, fill.1), (0, 0, 0), "closed: nothing there");
     ui.set_menu_open(true);
@@ -803,12 +806,43 @@ fn the_link_page_lights_its_arcs_from_the_inside_and_colours_the_bridge() {
     assert!(!voice_green(&h.render()));
 }
 
+fn on_battery(percent: u8) -> Reading {
+    Reading { present: true, usb: false, charging: false, percent, millivolts: 3800 }
+}
+
+#[test]
+fn the_power_page_lights_its_cells_and_bolts_while_charging() {
+    let (h, ui) = show();
+    ui.set_page(cylon_bot_ui::Page::Power);
+    // The middle of each cell, left to right (link.slint: x 155 + 38 i, 32 wide; y 116..172).
+    let lit = |buf: &[Rgb565Pixel]| [0, 1, 2, 3].map(|i| is_red(px(buf, 155 + 38 * i + 4, 124)));
+    ui.set_battery(battery_view(None));
+    assert_eq!(lit(&h.render()), [false; 4], "no reading: nothing lit");
+    ui.set_battery(battery_view(Some(&on_battery(60))));
+    assert_eq!(lit(&h.render()), [true, true, true, false]);
+    ui.set_battery(battery_view(Some(&on_battery(100))));
+    assert_eq!(lit(&h.render()), [true; 4]);
+    // The bolt is light (#ffb4a0) in the middle of the icon, between cells 2 and 3.
+    let bolt = |buf: &[Rgb565Pixel]| (215..241).flat_map(|x| (130..160).map(move |y| (x, y))).any(|(x, y)| {
+        let (r, g, b) = px(buf, x, y);
+        r > 200 && g > 140 && b > 120
+    });
+    assert!(!bolt(&h.render()));
+    ui.set_battery(battery_view(Some(&Reading { usb: true, charging: true, ..on_battery(60) })));
+    assert!(bolt(&h.render()));
+    // STATE's value (x 198.., y 290..312) turns red when the charge is low.
+    let red_state = |buf: &[Rgb565Pixel]| red_in(buf, 198..300, 290..312).0 > 10;
+    ui.set_battery(battery_view(Some(&on_battery(60))));
+    assert!(!red_state(&h.render()));
+    ui.set_battery(battery_view(Some(&on_battery(12))));
+    assert!(red_state(&h.render()));
+}
+
 #[test]
 fn a_low_battery_shows_above_the_avatar_unless_the_volume_or_the_menu_is_up() {
-    use cylon_bot_ui::Battery;
     let (h, ui) = show();
-    let fine = || Battery { percent: 40, low: false, text: "40%".into() };
-    let low = || Battery { percent: 12, low: true, text: "12%".into() };
+    let fine = || battery_view(Some(&on_battery(40)));
+    let low = || battery_view(Some(&on_battery(12)));
     // The glyph's box (home.slint): x 199..267, y 54..72.
     let shown = |h: &Headless| red_in(&h.render(), 199..267, 54..72).0 > 20;
     assert!(!shown(&h), "no glyph before a reading");

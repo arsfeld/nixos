@@ -82,7 +82,7 @@ export component HomePage inherits Rectangle {
     in property <string> reply-heading;
     in property <int> volume: 80;
     in property <bool> volume-shown: false;
-    in property <Battery> battery: { percent: 0, low: false, text: "--" };
+    in property <Battery> battery: { percent: 0, low: false, cells: 0, charging: false, number: "--", source: "--", state: "--", voltage: "--" };
     in property <bool> menu-open: false;
     in property <[RimSegment]> commands;
     // Where the window's ring touch area begins, from the centre: taps beyond it on the avatar's box belong to the ring.
@@ -91,7 +91,7 @@ export component HomePage inherits Rectangle {
     callback reply-tapped();
     callback rim-tapped(float);
 
-    // The command menu across the top of the rim: Volume, Link and Purge, left to right. Its box is the top band
+    // The command menu across the top of the rim: Volume, Link, Power and Purge, left to right. Its box is the top band
     // only, so opening and closing it repaints no more than that.
     if root.menu-open: Rectangle {
         // Explicit: an element with a size and no position is centred in its parent.
@@ -104,52 +104,63 @@ export component HomePage inherits Rectangle {
             dim: !root.link;
         }
         // Volume: a solid speaker and two sound waves. The icons sit on the arcs' centre line (radius 200, at
-        // -44, 0 and 44 degrees).
+        // -49.5, -16.5, 16.5 and 49.5 degrees), the labels inside them at radius 159.
         CommandIcon {
-            cx: 94px;
-            cy: 89px;
+            cx: 81px;
+            cy: 103px;
             commands: "M4 9v6h4l5 4V5L8 9H4z";
             fill: #ff2a1a;
         }
         CommandIcon {
-            cx: 94px;
-            cy: 89px;
+            cx: 81px;
+            cy: 103px;
             commands: "M16.5 8.5a5 5 0 0 1 0 7 M19 6a8.5 8.5 0 0 1 0 12";
         }
         // Link: three Wi-Fi arcs and a dot.
         CommandIcon {
-            cx: 233px;
-            cy: 33px;
+            cx: 176px;
+            cy: 41px;
             commands: "M2 9a15 15 0 0 1 20 0 M5.5 12.5a10 10 0 0 1 13 0 M9 16a5 5 0 0 1 6 0";
         }
         Rectangle {
-            x: 230px;
-            y: 42px;
+            x: 173px;
+            y: 50px;
             width: 6px;
             height: 6px;
             border-radius: 3px;
             background: #ff2a1a;
         }
+        // Power: a battery, its terminal and a bar of charge.
+        CommandIcon {
+            cx: 290px;
+            cy: 41px;
+            commands: "M4 7h13a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z M22 10.5v3 M6 12h6";
+        }
         // Purge: a counter-clockwise arrow round a bar.
         CommandIcon {
-            cx: 372px;
-            cy: 89px;
+            cx: 385px;
+            cy: 103px;
             commands: "M4 12a8 8 0 1 0 2.4-5.7 M4 4v5h5 M9 12h6";
             ink: root.link ? #ff2a1a : #ff2a1a50;
         }
         CommandLabel {
-            x: 82px;
-            y: 112px;
+            x: 72px;
+            y: 123px;
             text: "VOL " + root.volume;
         }
         CommandLabel {
-            x: 193px;
-            y: 66px;
+            x: 148px;
+            y: 74px;
             text: "LINK";
         }
         CommandLabel {
-            x: 304px;
-            y: 112px;
+            x: 238px;
+            y: 74px;
+            text: "POWER";
+        }
+        CommandLabel {
+            x: 305px;
+            y: 123px;
             text: "PURGE";
             color: root.link ? #ff6a5a : #ff6a5a50;
         }

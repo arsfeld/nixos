@@ -8,7 +8,7 @@ export enum SessionState { idle, working, waiting, done, error }
 export enum PresenceState { idle, listening, thinking, speaking, alert }
 // Which screen is up. `home` is the avatar in the rim; a waiting question takes over with `question`. `volume`,
 // `link` and `purge` are the pages the command menu on home opens.
-export enum Page { home, list, question, detail, volume, link, purge }
+export enum Page { home, list, question, detail, volume, link, power, purge }
 
 export struct SessionRow {
     host: string,
@@ -71,14 +71,19 @@ export struct LinkInfo {
     uptime: string,
 }
 
-// The battery as the app last read it (`battery::link_text`, `battery::level`).
+// The battery as the app last read it (`view::battery_view`).
 export struct Battery {
-    // 0 to 100, for the glyph's fill.
+    // 0 to 100, for home's glyph.
     percent: int,
-    // On battery and at or below 15%: home shows the glyph.
+    // On battery and at or below 15%: home shows the glyph and the power page's state turns red.
     low: bool,
-    // The link page's line: "87%", "64% CHARGING", "USB, NO BATTERY" or "--".
-    text: string,
+    // The power page: cells lit (0 to 4, `battery::cells`), the bolt, the big number ("64" or "--") and its rows.
+    cells: int,
+    charging: bool,
+    number: string,
+    source: string,
+    state: string,
+    voltage: string,
 }
 
 export global Theme {

@@ -1,7 +1,8 @@
-// The link page the command menu opens: the board's own Wi-Fi signal, address and uptime, and whether the bridge
-// and the creature's voice are up, and the battery. The app refreshes `info` every 2 s while the page is open, and the
-// battery every 30 s (`battery::REFRESH`).
-import { Theme, LinkInfo } from "theme.slint";
+// The two status pages the command menu opens. Link: the board's own Wi-Fi signal, address and uptime, and whether
+// the bridge and the creature's voice are up; the app refreshes `info` every 2 s while it is open. Power: the
+// battery, laid out the same way, an icon and a big number over a few rows; the app reads it every 30 s
+// (`battery::REFRESH`) and every 2 s while the page is open.
+import { Theme, LinkInfo, Battery } from "theme.slint";
 
 // One arc of the signal icon, a static Path in its own tight box (padded by 8 px for the round caps). Slint fits the
 // viewbox into the element less the 10 px stroke, offset by half of it: a viewbox that is the box shrunk by 5 px on
@@ -15,6 +16,44 @@ component SignalArc inherits Path {
     stroke: root.lit ? #ff2a1a : #ff2a1a2e;
     stroke-width: 10px;
     stroke-line-cap: round;
+}
+
+// Big text under a page's icon: the reading in Sora 26 and its unit in Sora 14, sizes the build already embeds.
+component Reading inherits HorizontalLayout {
+    in property <string> value;
+    in property <string> unit;
+    x: 0px;
+    y: 212px;
+    width: 466px;
+    height: 36px;
+    alignment: center;
+    spacing: 6px;
+    Text {
+        text: root.value;
+        color: Theme.text;
+        font-family: "Sora";
+        font-size: 26px;
+        font-weight: 600;
+        vertical-alignment: bottom;
+    }
+    Text {
+        text: root.unit;
+        color: Theme.muted;
+        font-family: "Sora";
+        font-size: 14px;
+        vertical-alignment: bottom;
+    }
+}
+
+component Heading inherits Text {
+    x: 0px;
+    y: 60px;
+    width: 466px;
+    color: #ff6a5a;
+    font-family: "JetBrains Mono";
+    font-size: 11px;
+    letter-spacing: 4px;
+    horizontal-alignment: center;
 }
 
 component Label inherits Text {
@@ -43,19 +82,9 @@ export component LinkPage inherits Rectangle {
     // The bridge connection, and whether the bridge has a voice pipeline.
     in property <bool> link;
     in property <bool> voice-available;
-    // `battery::link_text`.
-    in property <string> battery: "--";
 
-    Text {
-        x: 0px;
-        y: 60px;
-        width: 466px;
+    Heading {
         text: "// LINK //";
-        color: #ff6a5a;
-        font-family: "JetBrains Mono";
-        font-size: 11px;
-        letter-spacing: 4px;
-        horizontal-alignment: center;
     }
 
     // Four arcs, outermost first, lit from the inside by `bars` (`view::signal_bars`); the mockup's geometry.
@@ -100,35 +129,16 @@ export component LinkPage inherits Rectangle {
         background: root.info.rssi != 0 ? #ffb4a0 : #ff2a1a2e;
     }
 
-    HorizontalLayout {
-        x: 0px;
-        y: 212px;
-        width: 466px;
-        height: 36px;
-        alignment: center;
-        spacing: 6px;
-        Text {
-            text: root.info.rssi != 0 ? root.info.rssi : "--";
-            color: Theme.text;
-            font-family: "Sora";
-            font-size: 26px;
-            font-weight: 600;
-            vertical-alignment: bottom;
-        }
-        Text {
-            text: "dBm";
-            color: Theme.muted;
-            font-family: "Sora";
-            font-size: 14px;
-            vertical-alignment: bottom;
-        }
+    Reading {
+        value: root.info.rssi != 0 ? root.info.rssi : "--";
+        unit: "dBm";
     }
 
     Rectangle {
         x: 88px;
         y: 264px;
         width: 290px;
-        height: 156px;
+        height: 130px;
         Label {
             y: 0px;
             height: 22px;
@@ -182,15 +192,119 @@ export component LinkPage inherits Rectangle {
             height: 22px;
             text: root.info.uptime;
         }
+    }
+}
+
+// One of the battery icon's four cells, lit like the signal arcs.
+component Cell inherits Rectangle {
+    in property <bool> lit;
+    y: 116px;
+    width: 32px;
+    height: 56px;
+    border-radius: 3px;
+    background: root.lit ? #ff2a1a : #ff2a1a2e;
+}
+
+export component PowerPage inherits Rectangle {
+    in property <Battery> battery;
+    // A battery to show: the outline is dim without one, as the signal dot is without an access point.
+    property <bool> present: root.battery.number != "--";
+
+    Heading {
+        text: "// POWER //";
+    }
+
+    // The icon, in the space the signal arcs take on the link page: a body, four cells lit by `cells` and the
+    // terminal nub. All static, so a new reading repaints only what it changes.
+    Rectangle {
+        x: 143px;
+        y: 104px;
+        width: 170px;
+        height: 80px;
+        border-radius: 12px;
+        border-width: 6px;
+        border-color: root.present ? #ff2a1a : #ff2a1a2e;
+    }
+    Rectangle {
+        x: 315px;
+        y: 126px;
+        width: 12px;
+        height: 36px;
+        border-top-right-radius: 4px;
+        border-bottom-right-radius: 4px;
+        background: root.present ? #ff2a1a : #ff2a1a2e;
+    }
+    Cell {
+        x: 155px;
+        lit: root.battery.cells >= 1;
+    }
+    Cell {
+        x: 193px;
+        lit: root.battery.cells >= 2;
+    }
+    Cell {
+        x: 231px;
+        lit: root.battery.cells >= 3;
+    }
+    Cell {
+        x: 269px;
+        lit: root.battery.cells >= 4;
+    }
+    // Charging: a bolt over the cells, light on a black edge so it reads over lit and unlit cells alike.
+    if root.battery.charging: Path {
+        x: 198px;
+        y: 114px;
+        width: 60px;
+        height: 60px;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M13.5 2 L5 13.5 H11 L10 22 L19 10 H13 Z";
+        fill: #ffb4a0;
+        stroke: #000000;
+        stroke-width: 4px;
+        stroke-line-join: round;
+    }
+
+    Reading {
+        value: root.battery.number;
+        unit: "%";
+    }
+
+    Rectangle {
+        x: 88px;
+        y: 264px;
+        width: 290px;
+        height: 74px;
         Label {
-            y: 130px;
+            y: 0px;
             height: 22px;
-            text: "BATTERY";
+            text: "SOURCE";
         }
         Value {
-            y: 130px;
+            y: 0px;
             height: 22px;
-            text: root.battery;
+            text: root.battery.source;
+        }
+        Label {
+            y: 26px;
+            height: 22px;
+            text: "STATE";
+        }
+        Value {
+            y: 26px;
+            height: 22px;
+            text: root.battery.state;
+            color: root.battery.low ? Theme.error : root.battery.charging ? Theme.done : Theme.text;
+        }
+        Label {
+            y: 52px;
+            height: 22px;
+            text: "VOLTAGE";
+        }
+        Value {
+            y: 52px;
+            height: 22px;
+            text: root.battery.voltage;
         }
     }
 }

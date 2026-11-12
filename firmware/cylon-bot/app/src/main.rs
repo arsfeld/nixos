@@ -17,8 +17,8 @@ use cylon_bot_ui::battery::{self, Warner};
 use cylon_bot_ui::controller::{Controller, Outbox};
 use cylon_bot_ui::link;
 use cylon_bot_ui::power::{drift_px, Conditions, Power, State};
-use cylon_bot_ui::view::{fmt_uptime, signal_bars};
-use cylon_bot_ui::{AppWindow, Battery, LinkInfo, Page};
+use cylon_bot_ui::view::{battery_view, fmt_uptime, signal_bars};
+use cylon_bot_ui::{AppWindow, LinkInfo, Page};
 use esp_idf_svc::sys::{heap_caps_get_free_size, heap_caps_get_largest_free_block, MALLOC_CAP_DMA, MALLOC_CAP_INTERNAL, MALLOC_CAP_SPIRAM};
 use esp_idf_svc::hal::peripherals::Peripherals;
 use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs, NvsDefault};
@@ -111,11 +111,7 @@ fn read_battery(ui: &AppWindow, warner: &mut Warner) -> (bool, Option<battery::R
         Some(b) => log::info!("battery: present={} usb={} charging={} percent={} mv={}", b.present as u8, b.usb as u8, b.charging as u8, b.percent, b.millivolts),
         None => log::info!("battery: no reading"),
     }
-    ui.set_battery(Battery {
-        percent: r.map_or(0, |b| b.percent as i32),
-        low: r.is_some_and(|b| battery::level(&b) != battery::Level::Ok),
-        text: battery::link_text(r.as_ref()).into(),
-    });
+    ui.set_battery(battery_view(r.as_ref()));
     (warner.update(r.as_ref()), r)
 }
 
@@ -399,7 +395,9 @@ fn run<O: Outbox + 'static>(
             ui.set_drift_x(dx as f32);
             ui.set_drift_y(dy as f32);
         }
-        if battery_read.is_none_or(|t| t.elapsed() >= battery::REFRESH) {
+        // While the power page is open it reads as often as the link page reads the Wi-Fi, so plugging in shows.
+        let battery_due = if ui.get_page() == Page::Power { LINK_REFRESH } else { battery::REFRESH };
+        if battery_read.is_none_or(|t| t.elapsed() >= battery_due) {
             battery_read = Some(Instant::now());
             let (warn, reading) = read_battery(ui, &mut battery_warner);
             last_reading = reading;

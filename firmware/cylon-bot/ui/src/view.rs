@@ -3,8 +3,9 @@
 
 use cylon_bot_proto::{fit, FeedEntry, FeedKind as ProtoKind, Model, Session, State};
 
+use crate::battery::{self, Reading};
 use crate::rim::{arc_segment, arc_segment_at};
-use crate::{FeedKind, RimSegment, SessionRow, SessionState};
+use crate::{Battery, FeedKind, RimSegment, SessionRow, SessionState};
 
 /// At most this many arcs; further sessions share the last one.
 pub const MAX_RIM_SEGMENTS: usize = 12;
@@ -80,12 +81,18 @@ fn signed_deg(deg: f32) -> f32 {
 pub enum Command {
     Volume,
     Link,
+    Power,
     Purge,
 }
 
-/// Each command's arc, in degrees from the top (negative is left); the gaps between them are 4 degrees.
-const COMMAND_ARCS: [(Command, f32, f32); 3] =
-    [(Command::Volume, -64.0, -24.0), (Command::Link, -20.0, 20.0), (Command::Purge, 24.0, 64.0)];
+/// Each command's arc, in degrees from the top (negative is left): four of 29 degrees with 4-degree gaps, centred
+/// on -49.5, -16.5, 16.5 and 49.5.
+const COMMAND_ARCS: [(Command, f32, f32); 4] = [
+    (Command::Volume, -64.0, -35.0),
+    (Command::Link, -31.0, -2.0),
+    (Command::Power, 2.0, 31.0),
+    (Command::Purge, 35.0, 64.0),
+];
 /// Session arcs whose midpoint is this close to the top make way for the menu.
 const MENU_HALF_SPAN_DEG: f32 = 64.0;
 /// The command arcs sit just inside the session arcs, 50 px thick.
@@ -98,7 +105,7 @@ pub fn command_at(deg: f32) -> Option<Command> {
     COMMAND_ARCS.iter().find(|(_, start, end)| (*start..=*end).contains(&d)).map(|(c, _, _)| *c)
 }
 
-/// The menu's three arcs, in `Command` order. Purge carries the error state: the screen draws it with a red edge.
+/// The menu's four arcs, in `Command` order. Purge carries the error state: the screen draws it with a red edge.
 pub fn command_segments() -> Vec<RimSegment> {
     COMMAND_ARCS
         .iter()
@@ -144,6 +151,21 @@ pub fn fmt_ago(now: Option<i64>, since: i64) -> String {
 /// How many of the link page's four arcs a Wi-Fi signal of `rssi` dBm lights: at least -55, -67, -75, -85.
 pub fn signal_bars(rssi: i32) -> i32 {
     [-55, -67, -75, -85].iter().filter(|&&t| rssi >= t).count() as i32
+}
+
+/// What the screens show of one reading of the power chip (`None`: it could not be read): home's low glyph and the
+/// power page.
+pub fn battery_view(r: Option<&Reading>) -> Battery {
+    Battery {
+        percent: r.map_or(0, |b| b.percent as i32),
+        low: r.is_some_and(|b| battery::level(b) != battery::Level::Ok),
+        cells: battery::cells(r) as i32,
+        charging: r.is_some_and(|b| b.present && b.charging),
+        number: battery::percent_text(r).into(),
+        source: battery::source_text(r).into(),
+        state: battery::state_text(r).into(),
+        voltage: battery::voltage_text(r).into(),
+    }
 }
 
 /// Time since boot in its two largest units: "42s", "7m", "3h 12m", "2d 4h".
@@ -339,13 +361,15 @@ mod tests {
     }
 
     #[test]
-    fn command_at_maps_the_three_menu_arcs() {
+    fn command_at_maps_the_four_menu_arcs() {
         assert_eq!(command_at(-44.0), Some(Command::Volume));
         assert_eq!(command_at(316.0), Some(Command::Volume)); // the same angle, unnormalised
-        assert_eq!(command_at(0.0), Some(Command::Link));
+        assert_eq!(command_at(-16.5), Some(Command::Link));
+        assert_eq!(command_at(16.5), Some(Command::Power));
         assert_eq!(command_at(44.0), Some(Command::Purge));
-        assert_eq!(command_at(22.0), None); // the gap between Link and Purge
-        assert_eq!(command_at(-22.0), None);
+        assert_eq!(command_at(0.0), None); // the gap between Link and Power
+        assert_eq!(command_at(33.0), None); // between Power and Purge
+        assert_eq!(command_at(-33.0), None);
         assert_eq!(command_at(90.0), None);
         assert_eq!(command_at(180.0), None);
     }
@@ -369,13 +393,13 @@ mod tests {
     #[test]
     fn command_segments_have_tight_boxes_on_the_screen() {
         let segs = command_segments();
-        assert_eq!(segs.len(), 3);
+        assert_eq!(segs.len(), 4);
         for s in &segs {
             assert!(s.x >= 0.0 && s.y >= 0.0 && s.x + s.width <= 466.0 && s.y + s.height <= 466.0, "{s:?}");
             assert!(s.width < 200.0, "{s:?}");
             assert!(s.y + s.height < 233.0, "the menu sits in the top half: {s:?}");
         }
-        assert!(segs[0].x + segs[0].width / 2.0 < 233.0 && segs[2].x + segs[2].width / 2.0 > 233.0, "Volume left, Purge right");
+        assert!(segs[0].x + segs[0].width / 2.0 < 233.0 && segs[3].x + segs[3].width / 2.0 > 233.0, "Volume left, Purge right");
     }
 
     #[test]

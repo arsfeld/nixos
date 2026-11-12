@@ -6,7 +6,7 @@ import { SessionsPage } from "sessions.slint";
 import { QuestionPage } from "question.slint";
 import { DetailPage } from "detail.slint";
 import { VolumePage, PurgePage } from "commands.slint";
-import { LinkPage } from "link.slint";
+import { LinkPage, PowerPage } from "link.slint";
 import { GlyphCoverage } from "glyphs.slint";
 export { Theme, SessionState, PresenceState, RimSegment, Page, SessionRow, OptionRow, FeedKind, FeedRow, Tick, LinkInfo, Battery }
 
@@ -34,7 +34,7 @@ export component AppWindow inherits Window {
     // Speaker volume, 0 to 100, shown on home for a moment after a swipe up or down changes it.
     in property <int> volume: 80;
     in property <bool> volume-shown: false;
-    // The command menu (a swipe down from the top edge opens it): its three arcs, Volume, Link and Purge, built once.
+    // The command menu (a swipe down from the top edge opens it): its four arcs, Volume, Link, Power and Purge, built once.
     in property <bool> menu-open: false;
     in property <[RimSegment]> commands;
     // The volume page's 24 ticks and the purge page's ring of 36, built once (`rim::ticks`).
@@ -47,8 +47,8 @@ export component AppWindow inherits Window {
     in property <bool> purge-pending: false;
     // The link page's Wi-Fi reading, uptime included (the app sets it every 2 s while the page is open).
     in property <LinkInfo> link-info: { rssi: 0, bars: 0, ssid: "--", address: "--", uptime: "--" };
-    // Read every 30 s (`battery::REFRESH`).
-    in property <Battery> battery: { percent: 0, low: false, text: "--" };
+    // Read every 30 s (`battery::REFRESH`), and every 2 s while the power page is open.
+    in property <Battery> battery: { percent: 0, low: false, cells: 0, charging: false, number: "--", source: "--", state: "--", voltage: "--" };
     // List.
     in property <[SessionRow]> rows;
     in property <float> list-wheel-radius: 233;
@@ -188,9 +188,11 @@ export component AppWindow inherits Window {
         }
         if root.page == Page.link: LinkPage {
             info: root.link-info;
-            battery: root.battery.text;
             link: root.link;
             voice-available: root.voice-available;
+        }
+        if root.page == Page.power: PowerPage {
+            battery: root.battery;
         }
         if root.page == Page.purge: PurgePage {
             ticks: root.ring-ticks;

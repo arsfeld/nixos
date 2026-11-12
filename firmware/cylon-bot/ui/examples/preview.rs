@@ -6,8 +6,9 @@ use std::path::Path;
 use cylon_bot_ui::headless::{headless, rgb, Headless, HEIGHT, WIDTH};
 use cylon_bot_proto::{Model, Session, State};
 use cylon_bot_ui::rim::ticks;
-use cylon_bot_ui::view::{command_segments, fmt_uptime, rim_models, session_rows, signal_bars};
-use cylon_bot_ui::{AppWindow, Battery, LinkInfo, OptionRow, Page, PresenceState, RimSegment, SessionState};
+use cylon_bot_ui::battery::Reading;
+use cylon_bot_ui::view::{battery_view, command_segments, fmt_uptime, rim_models, session_rows, signal_bars};
+use cylon_bot_ui::{AppWindow, LinkInfo, OptionRow, Page, PresenceState, RimSegment, SessionState};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
 fn write_png(dir: &Path, name: &str, h: &Headless) {
@@ -131,7 +132,7 @@ fn main() {
     ui.set_volume_shown(true);
     write_png(dir, "home-volume", &h);
     ui.set_volume_shown(false);
-    ui.set_battery(Battery { percent: 12, low: true, text: "12%".into() });
+    ui.set_battery(battery_view(Some(&on_battery(12))));
     write_png(dir, "home-battery-low", &h);
 
     // The command menu, opened by a swipe down from the top edge: the top session arcs make way for it.
@@ -170,7 +171,6 @@ fn main() {
         address: "192.168.1.42".into(),
         uptime: fmt_uptime(11_520).into(),
     });
-    ui.set_battery(Battery { percent: 64, low: false, text: "64% CHARGING".into() });
     settle(&h);
     write_png(dir, "link", &h);
     ui.set_link(false);
@@ -179,6 +179,14 @@ fn main() {
     write_png(dir, "link-offline", &h);
     ui.set_link(true);
     ui.set_voice_available(true);
+    ui.set_page(Page::Power);
+    ui.set_battery(battery_view(Some(&Reading { usb: true, charging: true, millivolts: 4050, ..on_battery(64) })));
+    settle(&h);
+    write_png(dir, "power", &h);
+    ui.set_battery(battery_view(Some(&on_battery(12))));
+    write_png(dir, "power-low", &h);
+    ui.set_battery(battery_view(Some(&Reading { usb: true, ..on_battery(100) })));
+    write_png(dir, "power-full", &h);
     ui.set_page(Page::Home);
 
     ui.set_page(Page::List);
@@ -261,4 +269,8 @@ fn main() {
     ui.set_presence_state(PresenceState::Alert);
     settle(&h);
     write_png(dir, "rim-13-sessions", &h);
+}
+
+fn on_battery(percent: u8) -> Reading {
+    Reading { present: true, usb: false, charging: false, percent, millivolts: 3780 }
 }

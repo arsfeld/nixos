@@ -644,8 +644,8 @@ hooks on every host --HTTPS--> cylon-bot-bridge (galactica) <--wss-- board (firm
   - **Deploy order:** galactica (the bridge) before flashing the board. An old board ignores `reminder`; a new board
     against an old bridge never sees one.
 - **The command arcs** (spec `docs/superpowers/specs/2026-11-10-cylon-bot-commands-design.md`, plan
-  `docs/superpowers/plans/2026-11-10-cylon-bot-commands.md`). A swipe down from the top 60 px of home opens three
-  arcs in the top third of the rim, VOL / LINK / PURGE (the ring's inner radius drops to 150 while they are open);
+  `docs/superpowers/plans/2026-11-10-cylon-bot-commands.md`). A swipe down from the top 60 px of home opens four
+  arcs in the top third of the rim, VOL / LINK / POWER / PURGE (29 degrees each; the ring's inner radius drops to 150 while they are open);
   swipes that start lower keep changing volume. Swipe up or right, a tap on the avatar, 10 s without touch, or a
   question closes them; taps on the labels work. **Volume page:** 24 ticks, - / + go through the same path as the swipe
   (stored in NVS, preview chime), and taps on it do not cancel speech. **Link page:** RSSI bars (lit at -55, -67, -75,
@@ -663,8 +663,11 @@ hooks on every host --HTTPS--> cylon-bot-bridge (galactica) <--wss-- board (firm
   as Waveshare's examples use it; its interrupt goes through the IO expander, so it is polled). `bd_battery_read` in
   `board_display.c` switches on battery detection, the voltage reading and the fuel gauge on first use and changes
   nothing else, charging settings included; a chip that does not answer is probed once and never again. The UI loop
-  reads it every 30 s (`battery::REFRESH`) and logs `battery: present usb charging percent mv`. The link page's
-  BATTERY line shows the charge, CHARGING, USB or "USB, NO BATTERY". On battery at 15% or less home shows a red glyph
+  reads it every 30 s (`battery::REFRESH`), every 2 s while the power page is open, and logs `battery: present usb
+  charging percent mv`. The **power page** (POWER on the command menu, `PowerPage` in `ui/ui/link.slint`, built like the
+  link page) shows a four-cell icon (one cell per started quarter, `battery::cells`) with a bolt while charging, the
+  charge as a big number, and SOURCE (BATTERY or USB), STATE (DISCHARGING, LOW, CRITICAL, CHARGING, FULL, NOT CHARGING,
+  NO BATTERY) and VOLTAGE rows, all from `view::battery_view`. It needs no bridge. On battery at 15% or less home shows a red glyph
   above the avatar (hidden while the volume pill or the menu has that band) and chimes once; at 5% it chimes once
   more; the warnings re-arm at 20% or on USB power (`ui/src/battery.rs`, host-tested). A warning that falls while
   the creature speaks or a hold records gets no chime, since the chime cannot have the clock then; the glyph still

@@ -56,7 +56,7 @@ fn the_board_draw_loop_paints_paths_and_pushes_their_rows() {
     let (y0, y1) = draw(&window, &mut px).expect("opening the menu repaints something");
     assert!(y0 <= 20 && y1 >= 100 && y1 < W, "pushed rows {y0}..{y1} cover the menu and not the whole panel");
     assert_eq!((y0 % 2, y1 % 2), (0, 0), "the panel takes even rows");
-    let icon = rgb(px[89 * W + 90]);
+    let icon = rgb(px[103 * W + 78]);
     let band = rgb(px[40 * W + 200]);
     assert!(icon.0 > 180 && icon.1 < 90, "the volume icon is painted: {icon:?}");
     assert!(band != (0, 0, 0), "the link arc's band is painted: {band:?}");

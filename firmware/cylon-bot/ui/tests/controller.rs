@@ -973,12 +973,12 @@ fn edge_menu_opens_and_a_rim_tap_opens_its_page() {
     f.c.open_menu();
     assert!(f.c.menu_open());
     assert!(f.ui.get_menu_open());
-    assert_eq!(f.ui.get_commands().row_count(), 3);
+    assert_eq!(f.ui.get_commands().row_count(), 4);
     assert_eq!(f.ui.get_rim().row_count() + f.ui.get_rim_pulsing().row_count(), 1, "the top arcs make way for the menu");
     f.ui.invoke_rim_tapped(60.0); // a session arc's angle, but no command there: nothing
     assert_eq!(f.ui.get_page(), Page::Home);
     assert!(f.c.menu_open());
-    f.ui.invoke_rim_tapped(2.0); // Link
+    f.ui.invoke_rim_tapped(-16.5); // Link
     assert_eq!(f.ui.get_page(), Page::Link);
     assert!(!f.c.menu_open());
     assert!(!f.ui.get_menu_open());
@@ -987,6 +987,15 @@ fn edge_menu_opens_and_a_rim_tap_opens_its_page() {
     f.c.open_menu();
     f.ui.invoke_rim_tapped(-44.0);
     assert_eq!(f.ui.get_page(), Page::Volume);
+}
+
+#[test]
+fn power_opens_while_the_link_is_down() {
+    // The battery is read on the board: unlike purge, its page needs no bridge.
+    let f = fixture();
+    f.c.open_menu();
+    f.ui.invoke_rim_tapped(16.5);
+    assert_eq!(f.ui.get_page(), Page::Power);
 }
 
 #[test]
@@ -1062,7 +1071,7 @@ fn back_on_home_closes_the_menu() {
 fn back_from_a_command_page_returns_home() {
     let f = fixture();
     f.c.set_link(true);
-    for (deg, page) in [(-44.0, Page::Volume), (0.0, Page::Link), (44.0, Page::Purge)] {
+    for (deg, page) in [(-44.0, Page::Volume), (-16.5, Page::Link), (16.5, Page::Power), (44.0, Page::Purge)] {
         f.c.open_menu();
         f.ui.invoke_rim_tapped(deg);
         assert_eq!(f.ui.get_page(), page);
@@ -1088,7 +1097,7 @@ fn a_question_closes_the_menu_and_answering_returns_home() {
 fn a_question_over_a_command_page_returns_home_once_answered() {
     let g = fixture();
     g.c.open_menu();
-    g.ui.invoke_rim_tapped(0.0);
+    g.ui.invoke_rim_tapped(-16.5);
     assert_eq!(g.ui.get_page(), Page::Link);
     g.ask("question_single");
     assert_eq!(g.ui.get_page(), Page::Question);
@@ -1117,11 +1126,15 @@ fn a_tap_on_a_menu_arc_over_the_avatars_box_opens_the_command() {
     assert!(x > 93.0 && y > 93.0, "the point is in the avatar's box");
     f.tap(x, y);
     assert_eq!(f.ui.get_page(), Page::Volume);
-    // The Link arc's middle, through the window's ring.
+    // The Link and Power arcs' middles (their icons), through the window's ring.
     f.ui.invoke_back_tapped();
     f.c.open_menu();
-    f.tap(233.0, 33.0);
+    f.tap(176.0, 41.0);
     assert_eq!(f.ui.get_page(), Page::Link);
+    f.ui.invoke_back_tapped();
+    f.c.open_menu();
+    f.tap(290.0, 41.0);
+    assert_eq!(f.ui.get_page(), Page::Power);
     // With the menu closed, the avatar still opens the list.
     f.ui.invoke_back_tapped();
     f.tap(233.0, 233.0);
@@ -1134,7 +1147,7 @@ fn tapping_a_command_label_opens_its_page() {
     // its command.
     let f = fixture();
     f.c.set_link(true);
-    for ((x, y), page) in [((122.0, 119.0), Page::Volume), ((233.0, 73.0), Page::Link), ((344.0, 119.0), Page::Purge)] {
+    for ((x, y), page) in [((112.0, 130.0), Page::Volume), ((188.0, 81.0), Page::Link), ((278.0, 81.0), Page::Power), ((354.0, 130.0), Page::Purge)] {
         f.c.open_menu();
         f.tap(x, y);
         assert_eq!(f.ui.get_page(), page, "label at ({x}, {y})");

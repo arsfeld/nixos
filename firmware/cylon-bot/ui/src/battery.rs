@@ -1,4 +1,4 @@
-//! The battery, as the AXP2101 reports it: what the link page says about it, when home shows the low glyph, and
+//! The battery, as the AXP2101 reports it: what the power page says about it, when home shows the low glyph, and
 //! when the board chimes a warning. Pure, so it is tested on the host; the firmware reads the chip
 //! (`bd_battery_read`) every `REFRESH` and feeds the result in.
 
@@ -51,14 +51,52 @@ pub fn level(r: &Reading) -> Level {
     }
 }
 
-/// The link page's battery line. `None` is a chip that could not be read.
-pub fn link_text(r: Option<&Reading>) -> String {
+/// How many of the power page's four cells are lit: one per started quarter, none without a battery to measure.
+pub fn cells(r: Option<&Reading>) -> u8 {
     match r {
-        None => "--".into(),
-        Some(r) if !r.present => "USB, NO BATTERY".into(),
-        Some(r) if r.charging => format!("{}% CHARGING", r.percent),
-        Some(r) if r.usb => format!("{}% USB", r.percent),
-        Some(r) => format!("{}%", r.percent),
+        Some(r) if r.present => r.percent.min(100).div_ceil(25),
+        _ => 0,
+    }
+}
+
+/// The power page's big number: the charge, or "--" with no battery or no reading.
+pub fn percent_text(r: Option<&Reading>) -> String {
+    match r {
+        Some(r) if r.present => r.percent.to_string(),
+        _ => "--".into(),
+    }
+}
+
+/// What runs the board. A board with no battery is running from USB, whatever the VBUS bit says.
+pub fn source_text(r: Option<&Reading>) -> &'static str {
+    match r {
+        None => "--",
+        Some(r) if r.on_battery() => "BATTERY",
+        Some(_) => "USB",
+    }
+}
+
+/// What the battery is doing. On battery the warning levels replace "DISCHARGING".
+pub fn state_text(r: Option<&Reading>) -> &'static str {
+    match r {
+        None => "NO READING",
+        Some(r) if !r.present => "NO BATTERY",
+        Some(r) if r.charging => "CHARGING",
+        Some(r) if r.usb && r.percent >= 100 => "FULL",
+        Some(r) if r.usb => "NOT CHARGING",
+        Some(r) => match level(r) {
+            Level::Critical => "CRITICAL",
+            Level::Low => "LOW",
+            Level::Ok => "DISCHARGING",
+        },
+    }
+}
+
+/// The cell voltage, "3.92 V"; "--" with no battery or no reading.
+pub fn voltage_text(r: Option<&Reading>) -> String {
+    match r {
+        Some(r) if r.present => format!("{:.2} V", r.millivolts as f32 / 1000.0),
+        _ => "--".into(),
     }
 }
 
@@ -119,12 +157,25 @@ mod tests {
     }
 
     #[test]
-    fn link_text_says_what_powers_the_board() {
-        assert_eq!(link_text(None), "--");
-        assert_eq!(link_text(Some(&Reading { present: false, ..on_usb(0, false) })), "USB, NO BATTERY");
-        assert_eq!(link_text(Some(&on_usb(64, true))), "64% CHARGING");
-        assert_eq!(link_text(Some(&on_usb(100, false))), "100% USB");
-        assert_eq!(link_text(Some(&on_battery(87))), "87%");
+    fn cells_light_one_per_started_quarter() {
+        let lit: Vec<u8> = [0, 1, 25, 26, 50, 51, 75, 76, 100].iter().map(|&p| cells(Some(&on_battery(p)))).collect();
+        assert_eq!(lit, [0, 1, 1, 2, 2, 3, 3, 4, 4]);
+        assert_eq!(cells(None), 0);
+        assert_eq!(cells(Some(&Reading { present: false, ..on_usb(80, false) })), 0, "no battery, nothing to fill");
+    }
+
+    #[test]
+    fn the_power_page_says_what_powers_the_board() {
+        let rows = |r: Option<&Reading>| (percent_text(r), source_text(r), state_text(r), voltage_text(r));
+        assert_eq!(rows(None), ("--".into(), "--", "NO READING", "--".into()));
+        let none = Reading { present: false, ..on_usb(0, false) };
+        assert_eq!(rows(Some(&none)), ("--".into(), "USB", "NO BATTERY", "--".into()));
+        assert_eq!(rows(Some(&on_usb(64, true))), ("64".into(), "USB", "CHARGING", "4.10 V".into()));
+        assert_eq!(rows(Some(&on_usb(100, false))).2, "FULL");
+        assert_eq!(rows(Some(&on_usb(80, false))).2, "NOT CHARGING");
+        assert_eq!(rows(Some(&on_battery(87))), ("87".into(), "BATTERY", "DISCHARGING", "3.70 V".into()));
+        assert_eq!(state_text(Some(&on_battery(15))), "LOW");
+        assert_eq!(state_text(Some(&on_battery(5))), "CRITICAL");
     }
 
     #[test]
