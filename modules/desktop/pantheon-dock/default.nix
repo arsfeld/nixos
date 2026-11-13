@@ -2,7 +2,7 @@
 #
 # The dock itself is packages/elementary-dock-extras: the `extras` branch of
 # github.com/arsfeld/elementary-dock, a fork of elementary/dock with one commit
-# per feature, also published to arsfeld.github.io/pantheon-apt for elementary OS:
+# per feature, also published to arsfeld.github.io/pantheon-extras for elementary OS:
 #
 # - stacks: macOS-style folder stacks (Downloads fanned out newest-first,
 #   Applications as a grid). Design: docs/superpowers/specs/2026-10-31-dock-stacks-design.md

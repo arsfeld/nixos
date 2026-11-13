@@ -353,7 +353,7 @@ Super+C centre, Super+Shift+F float; Super+scroll pans, and so does dragging a
 titlebar sideways; pulling the window 100 px up or down instead drops it into a column. Workspace switching moves to Ctrl+Super+←/→ (replacing
 half-screen tiling); the module says what else it changes, and why.
 `just pantheon::paper-keys-check [host]` fails on any clash in a built system.
-It is also a `.deb` for elementary OS 8 in arsfeld/pantheon-apt, so it builds against
+It is also a `.deb` for elementary OS 8 in arsfeld/pantheon-extras, so it builds against
 **Mutter 46 too**: a Mutter call that differs between 46 and 48 goes in the plugin's
 `src/Compat.vala`, never inline, and the plugin's CI (built, installed and loaded in
 elementary's own gala) fails otherwise. The Debian package moves Pantheon's keys with
@@ -1109,7 +1109,7 @@ Opt-in modules that hosts compose by importing them; `nix eval --json .#nixosMod
 | `forgejo-runner` | `modules/forgejo-runner.nix` | Forgejo Actions runner |
 | `virtualization` | `modules/virtualization.nix` | KVM/libvirt |
 | `development` | `modules/development.nix` | Dev tools (Docker, Node, Python, Go, Rust, …) |
-| `desktop` | `modules/desktop/desktop.nix` | Desktop environment (`variant` selects GNOME etc.); imports `pantheon-dock` (the dock with folder stacks, zoom and sharp icons, from the `extras` branch of the arsfeld/elementary-dock fork, pinned as `packages/elementary-dock-extras`; plus an AppCenter patch), `pantheon-gamemode`, `pantheon-terminal` (elementary Terminal on libghostty-vt via libghostty-gtk; arsfeld/libghostty-gtk and the `libghostty-gtk` branch of the arsfeld/elementary-terminal fork live in their own repos and are pinned in `packages/`; both forks also publish `.deb`s to the arsfeld/pantheon-apt repo (arsfeld.github.io/pantheon-apt) for elementary OS), `pantheon-tailscale` (Wingpanel Tailscale indicator; grants `--operator=arosenfeld`) and `pantheon-paper` (PaperWM-style scrolling tiling, a Gala plugin from arsfeld/pantheon-paper; see "Pantheon tiling") |
+| `desktop` | `modules/desktop/desktop.nix` | Desktop environment (`variant` selects GNOME etc.); imports `pantheon-dock` (the dock with folder stacks, zoom and sharp icons, from the `extras` branch of the arsfeld/elementary-dock fork, pinned as `packages/elementary-dock-extras`; plus an AppCenter patch), `pantheon-gamemode`, `pantheon-terminal` (elementary Terminal on libghostty-vt via libghostty-gtk; arsfeld/libghostty-gtk and the `libghostty-gtk` branch of the arsfeld/elementary-terminal fork live in their own repos and are pinned in `packages/`; both forks also publish `.deb`s to the arsfeld/pantheon-extras repo (arsfeld.github.io/pantheon-extras) for elementary OS), `pantheon-tailscale` (Wingpanel Tailscale indicator; grants `--operator=arosenfeld`) and `pantheon-paper` (PaperWM-style scrolling tiling, a Gala plugin from arsfeld/pantheon-paper; see "Pantheon tiling") |
 | `gaming` | `modules/gaming.nix` | Gaming environment |
 | `check-stock` | `modules/check-stock.nix` | Stock availability monitor |
 | `blocky` | `modules/blocky.nix` | Blocky DNS (no host imports it) |
