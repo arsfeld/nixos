@@ -2,7 +2,7 @@
 # sharp while zoomed or tilted. Source: the `extras` branch of
 # github.com/arsfeld/elementary-dock, a fork of elementary/dock with one commit
 # per feature on top of the release, kept upstreamable but not proposed
-# upstream. Its CI also publishes it to arsfeld.github.io/apt as
+# upstream. Its CI also publishes it to arsfeld.github.io/pantheon-apt as
 # io.elementary.dock-extras for elementary OS. Rebase that branch onto a new
 # elementary release and bump rev here; `just update-packages` follows the
 # branch. modules/desktop/pantheon-dock puts it in place of
