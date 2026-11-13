@@ -54,7 +54,9 @@ dock-run log="/tmp/io.elementary.dock.log" src="" *env:
     session_docks() {
         local pid
         for pid in $(pgrep -f "$pattern"); do
-            tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | grep -qx "WAYLAND_DISPLAY=$display" \
+            # grep -z reads the NUL-separated file itself: piped through tr, an
+            # early grep match could SIGPIPE tr and pipefail would drop the dock.
+            grep -qzx "WAYLAND_DISPLAY=$display" "/proc/$pid/environ" 2>/dev/null \
                 && echo "$pid $(tr '\0' ' ' < "/proc/$pid/cmdline")"
         done
         return 0
@@ -62,7 +64,8 @@ dock-run log="/tmp/io.elementary.dock.log" src="" *env:
     # The session respawns the stock dock the moment one dies, and a second
     # dock exits silently, so kill and start in the same breath, then make sure
     # ours is the one left.
-    session_docks | cut -d' ' -f1 | xargs -r kill
+    # A dock may exit between listing and kill; that is not a failure.
+    session_docks | cut -d' ' -f1 | xargs -r kill 2>/dev/null || true
     env WAYLAND_DISPLAY="$display" GSETTINGS_SCHEMA_DIR="$schemas" "${extra[@]}" setsid "$dock/bin/io.elementary.dock" > "$log" 2>&1 < /dev/null &
     for _ in $(seq 20); do
         sleep 0.5

@@ -37,6 +37,9 @@ Then read the PNG and repeat. The screen is 3440×1440 and the dock sits bottom-
   Open what you need to see through the dock's test hooks (`DOCK_STACKS_OPEN`,
   `DOCK_STACKS_CLICK`, `DOCK_STACKS_FOLDER`, `DOCK_STACKS_FAKE_JOB`, `DOCK_ZOOM_AT`), passed as
   `VAR=value` arguments to `dock-run`; the fork's `CLAUDE.md` says what each does.
+- **`dock-run` touches only the session's docks:** those whose `WAYLAND_DISPLAY` is the
+  caller's (default `wayland-0`). A headless Gala, such as `paper-run`'s on `paper-0`, runs its
+  own dock, which is left alone.
 - **Swapping the dock is a race.** The session respawns the stock dock the instant one dies,
   and a second dock exits silently. `dock-run` kills and starts in one breath, then checks
   that exactly one dock runs and that it is this build.
