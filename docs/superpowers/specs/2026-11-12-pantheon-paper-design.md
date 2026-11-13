@@ -63,8 +63,10 @@ popups, utility windows, Wingpanel and the dock never enter the model.
 
 `layout(strip, work_area) -> List<(window, rect, visible)>` is pure code with no Mutter
 types, so the meson tests exercise it directly. Columns sit left to right with a fixed
-gap, offset by `scroll_x`. A column partly or fully outside the work area is **parked**:
-pushed against the nearer screen edge so that a 10 px sliver stays visible. That keeps
+gap, offset by `scroll_x`. A column that would show less than 10 px of itself inside the
+work area is **parked**: pushed against the nearer screen edge so that a 10 px sliver
+stays visible. A column that straddles the edge with more than that showing keeps its
+natural position. That keeps
 every window inside Mutter's partially-on-screen constraint, so there is no constraint
 fighting (PaperWM's own technique).
 
