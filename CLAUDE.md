@@ -349,8 +349,8 @@ columns that scrolls to follow focus. It is a Gala plugin in its own repo,
 `docs/superpowers/specs/2026-11-12-pantheon-paper-design.md`, plan
 `docs/superpowers/plans/2026-11-12-pantheon-paper.md`. Keys: Super+arrows focus,
 Super+Shift+arrows move, Super+R width, Super+M full width, Super+I/U slurp/barf,
-Super+C centre, Super+Shift+F float; Super+scroll pans, dragging a titlebar drops a
-window into a column. Workspace switching moves to Ctrl+Super+←/→ (replacing
+Super+C centre, Super+Shift+F float; Super+scroll pans, and so does dragging a
+titlebar sideways; pulling the window 100 px up or down instead drops it into a column. Workspace switching moves to Ctrl+Super+←/→ (replacing
 half-screen tiling); the module says what else it changes, and why.
 `just pantheon::paper-keys-check [host]` fails on any clash in a built system. **Check
 Pantheon's keys with `XDG_CURRENT_DESKTOP=Pantheon`:** elementary's defaults are

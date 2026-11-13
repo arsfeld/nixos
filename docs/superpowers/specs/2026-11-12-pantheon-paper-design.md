@@ -127,7 +127,12 @@ Super+T, Super+F and Super+O).
   click, through a stage action in the capture phase as Gala's own Super+scroll uses.
   Clutter delivers each click twice (discrete and emulated smooth); the echo is
   swallowed.
-- **Drag to reorder.** During a move grab of a tiled window the plugin draws a drop
+- **Drag to pan (PaperWM).** A pointer move grab of a tiled window pans the whole strip
+  with it (`DragPan` in `core/Drag.vala`), clamped as Super+scroll is, and on release
+  the window returns to its slot. Pulling it more than 100 px (`DETACH_PX`) up or down,
+  or onto another monitor, detaches it for the rest of the grab and the drop below
+  applies. A keyboard move (Alt+F7) is detached from the start.
+- **Drag to reorder.** During a detached move grab of a tiled window the plugin draws a drop
   indicator in `top_window_group` (above the windows). Dropping on the middle third of another column inserts
   the window into that column at the hovered position; dropping on the gap between two
   columns creates a new column there. Dropping elsewhere returns the window to its
