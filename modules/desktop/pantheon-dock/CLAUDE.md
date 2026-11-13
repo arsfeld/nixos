@@ -35,7 +35,8 @@ Then read the PNG and repeat. The screen is 3440×1440 and the dock sits bottom-
 - **Never inject input.** ydotool's `--absolute` is a series of relative moves bent by pointer
   acceleration, so it misses, and it moves the pointer of the person working at the machine.
   Open what you need to see through the dock's test hooks (`DOCK_STACKS_OPEN`,
-  `DOCK_STACKS_CLICK`, `DOCK_STACKS_FOLDER`, `DOCK_STACKS_FAKE_JOB`, `DOCK_ZOOM_AT`), passed as
+  `DOCK_STACKS_CLICK`, `DOCK_STACKS_FOLDER`, `DOCK_STACKS_FAKE_JOB`, `DOCK_STACKS_MENU`,
+  `DOCK_STACKS_DROP`, `DOCK_ZOOM_AT`), passed as
   `VAR=value` arguments to `dock-run`; the fork's `CLAUDE.md` says what each does.
 - **`dock-run` touches only the session's docks:** those whose `WAYLAND_DISPLAY` is the
   caller's (default `wayland-0`). A headless Gala, such as `paper-run`'s on `paper-0`, runs its

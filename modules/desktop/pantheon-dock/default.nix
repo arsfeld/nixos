@@ -56,7 +56,12 @@
               };
             });
             default = [];
-            description = "Folder stacks shown on the elementary dock, after the launchers.";
+            description = ''
+              Initial folder stacks on the elementary dock, after the launchers. Dragging a
+              folder onto the dock or changing a stack from its right-click menu makes the dock
+              save its own list, which then shadows this one;
+              `dconf reset /io/elementary/dock/stacks` returns to it.
+            '';
           };
 
           dockZoom = {
