@@ -22,6 +22,7 @@ update-packages *PKGS:
     pkgs=({{ PKGS }})
     [ ${#pkgs[@]} -gt 0 ] || pkgs=(
       claude-desktop
+      elementary-dock-extras
       elementary-terminal-ghostty
       libghostty-gtk
       home-assistant-hilo
@@ -97,6 +98,9 @@ update-packages *PKGS:
         # The port lives on the fork's libghostty-gtk branch, not its default branch.
         elementary-terminal-ghostty)
           cmd=(deb_tag_version "$p" "${cmd[@]}" --version=branch=libghostty-gtk) ;;
+        # The extras live on the fork's extras branch, its default.
+        elementary-dock-extras)
+          cmd=(deb_tag_version "$p" "${cmd[@]}" --version=branch=extras) ;;
       esac
       if "${cmd[@]}"; then
         if git diff --quiet -- "packages/$p"; then current+=("$p"); else updated+=("$p"); fi

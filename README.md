@@ -162,7 +162,7 @@ Hosts compose their configuration by importing features in their declaration,
 | `podman` | Container runtime |
 | `tsnsrv` | Tailscale service nodes |
 | `backrest` (+ `backup-notify`, `backup-status`) / `backup-summary` | Backups via Backrest; weekly summary |
-| `desktop` (+ `pantheon-dock`, `pantheon-gamemode`) | Desktop environments (GNOME, Pantheon, …) |
+| `desktop` (+ `pantheon-dock`, `pantheon-gamemode`) | Desktop environments (GNOME, Pantheon, …); Pantheon's dock is the [arsfeld/elementary-dock](https://github.com/arsfeld/elementary-dock) fork |
 | `gaming` | Gaming environment (Steam, etc.) |
 | `development` | Dev tools (Docker, Node, Python, Go, Rust) |
 | `virtualization` | KVM/libvirt VMs |

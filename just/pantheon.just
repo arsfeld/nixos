@@ -1,6 +1,6 @@
 # Visual testing of Pantheon desktop changes on the live session (raider).
 #
-# The loop: build a patched component, swap it into the session with
+# The loop: build a changed component, swap it into the session with
 # `dock-run`, open the thing to look at through a test hook (never through
 # input injection, see CLAUDE.md), capture it with `shot`, read the PNG,
 # change the code, repeat.
@@ -15,14 +15,29 @@ shot out *area:
     glib=$(nix build --no-link --print-out-paths --impure --expr '({{ PYTHON_EXPR }}).glib.out')
     GI_TYPELIB_PATH="$glib/lib/girepository-1.0" "$py/bin/python3" '{{ justfile_directory() }}/scripts/pantheon-shot.py' '{{ out }}' {{ area }}
 
-# Replace the session's dock with raider's build from this checkout, passing
-# any VAR=value environment through (e.g. DOCK_STACKS_OPEN=0,
-# G_MESSAGES_DEBUG=all). Logs go to LOG.
+# Replace the session's dock with raider's build, passing any VAR=value
+# environment through (e.g. DOCK_STACKS_OPEN=0, G_MESSAGES_DEBUG=all). Logs go
+# to LOG. SRC is a checkout of arsfeld/elementary-dock (uncommitted changes
+# included) to build in place of the pinned rev; "" builds the pinned one.
 [positional-arguments]
-dock-run log="/tmp/io.elementary.dock.log" *env:
+dock-run log="/tmp/io.elementary.dock.log" src="" *env:
     #!/usr/bin/env bash
     set -euo pipefail
-    dock=$(nix build --no-link --print-out-paths '{{ justfile_directory() }}#nixosConfigurations.raider.pkgs.pantheon.elementary-dock')
+    # Positional arguments keep each VAR=value whole, so a value with spaces survives.
+    log="$1"
+    src="${2:-}"
+    shift $(( $# < 2 ? $# : 2 ))
+    extra=("$@")
+    attr='nixosConfigurations.raider.pkgs.pantheon.elementary-dock'
+    if [ -z "$src" ]; then
+        dock=$(nix build --no-link --print-out-paths "{{ justfile_directory() }}#$attr")
+    elif [ -d "$src" ]; then
+        src=$(realpath "$src")
+        dock=$(nix build --no-link --print-out-paths --impure --expr "(builtins.getFlake (toString {{ justfile_directory() }})).$attr.overrideAttrs { src = builtins.path { name = \"elementary-dock-src\"; path = $src; filter = p: t: !(builtins.elem (baseNameOf p) [\".git\" \"build\" \"dist\"]); }; }")
+    else
+        echo "SRC must be a checkout of arsfeld/elementary-dock, or \"\" for the pinned rev; got: $src" >&2
+        exit 1
+    fi
     # The directory is named after the package version; glob it, and insist on one match.
     shopt -s nullglob
     matches=("$dock"/share/gsettings-schemas/*/glib-2.0/schemas)
@@ -31,27 +46,34 @@ dock-run log="/tmp/io.elementary.dock.log" *env:
         exit 1
     fi
     schemas="${matches[0]}"
-    # Positional arguments keep each VAR=value whole, so a value with spaces survives.
-    log="$1"
-    shift
-    extra=("$@")
     # `pgrep -x` cannot match: the process name is longer than 15 characters.
     pattern='(^|/)io\.elementary\.dock$'
+    # Only this session's docks: a headless Gala (paper-run) has its own, on
+    # another WAYLAND_DISPLAY, which must be left alone.
+    display="${WAYLAND_DISPLAY:-wayland-0}"
+    session_docks() {
+        local pid
+        for pid in $(pgrep -f "$pattern"); do
+            tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | grep -qx "WAYLAND_DISPLAY=$display" \
+                && echo "$pid $(tr '\0' ' ' < "/proc/$pid/cmdline")"
+        done
+        return 0
+    }
     # The session respawns the stock dock the moment one dies, and a second
     # dock exits silently, so kill and start in the same breath, then make sure
     # ours is the one left.
-    pkill -f "$pattern" || true
-    env GSETTINGS_SCHEMA_DIR="$schemas" "${extra[@]}" setsid "$dock/bin/io.elementary.dock" > "$log" 2>&1 < /dev/null &
+    session_docks | cut -d' ' -f1 | xargs -r kill
+    env WAYLAND_DISPLAY="$display" GSETTINGS_SCHEMA_DIR="$schemas" "${extra[@]}" setsid "$dock/bin/io.elementary.dock" > "$log" 2>&1 < /dev/null &
     for _ in $(seq 20); do
         sleep 0.5
-        running=$(pgrep -fa "$pattern" || true)
+        running=$(session_docks)
         if [ "$(wc -l <<< "$running")" -eq 1 ] && grep -q "$dock" <<< "$running"; then
             echo "running $dock"
             exit 0
         fi
     done
     echo "the session's dock won the race; run again" >&2
-    pgrep -fa "$pattern" >&2 || true
+    session_docks >&2
     exit 1
 
 # Replace the session's panel with one that loads this checkout's build of

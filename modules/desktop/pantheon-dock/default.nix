@@ -1,37 +1,25 @@
-# Local patches to Pantheon's dock (elementary-dock), each in its own
-# subdirectory. This is the only overlay of the package: a new feature adds its
-# patch here instead of overriding elementary-dock a second time, or the two
-# patches would fight over the same lines. How to test a change visually:
-# ./CLAUDE.md.
+# Pantheon's dock with our extras, and the AppCenter patch they lean on.
 #
-# Each feature keeps its new Vala sources in ./<feature>/src, copied into the
-# dock's src/<Dir>, and its edits to upstream files in ./<feature>/hooks.patch.
-# They apply in the order of `features`, and each hooks.patch is generated on
-# top of the ones before it.
+# The dock itself is packages/elementary-dock-extras: the `extras` branch of
+# github.com/arsfeld/elementary-dock, a fork of elementary/dock with one commit
+# per feature, also published to arsfeld.github.io/apt for elementary OS:
 #
-# stacks/: macOS-style folder stacks (Downloads fanned out newest-first,
-# Applications as a grid). elementary-dock has no applet API; hooks.patch only
-# adds the gsettings key, the meson hook and the stack group in ItemManager.
-# Design: docs/superpowers/specs/2026-10-31-dock-stacks-design.md
+# - stacks: macOS-style folder stacks (Downloads fanned out newest-first,
+#   Applications as a grid). Design: docs/superpowers/specs/2026-10-31-dock-stacks-design.md
+# - zoom: magnification under the pointer. Design: docs/superpowers/specs/2026-10-31-dock-zoom-design.md
+# - icons: icons stay sharp when zoomed or tilted. Design: docs/superpowers/specs/2026-11-03-dock-sharp-icons-design.md
 #
-# zoom/: macOS-style magnification under the pointer. Its hooks.patch is larger
-# than stacks', because zoom changes how ItemGroup positions every item.
-# Design: docs/superpowers/specs/2026-10-31-dock-zoom-design.md
+# Changing a feature means a commit on that branch and a rev bump there; how to
+# look at it on raider first: ./CLAUDE.md.
 #
-# icons/: keeps icons sharp when zoom magnifies them or stacks draw them tilted.
-# IconResolution looks each icon up at the size it finally covers on screen;
-# its hooks.patch routes the launcher, the grid-tile minis and the "+" item
-# through it. Design: docs/superpowers/specs/2026-11-03-dock-sharp-icons-design.md
+# appcenter/progress.patch is not the dock's: it makes AppCenter publish its
+# jobs, which the Applications stack shows as progress. A nixpkgs bump of
+# appcenter that breaks it fails the build, and the patch is rebased.
 #
-# appcenter/progress.patch is the one patch here that is not the dock's: it makes
-# AppCenter publish its jobs, which the Applications stack shows as progress.
-# A nixpkgs bump of appcenter that breaks it is rebased the same way.
-#
-# A nixpkgs bump of elementary-dock that breaks a patch fails the build, and
-# the patch is rebased on the new source.
-#
-# Gated on services.desktopManager.pantheon.enable rather than
-# constellation.desktop.variant, so a VM test can import this module alone.
+# tests/pantheon-dock-test.nix imports this module alone on plain nixpkgs. Hence
+# the gate on services.desktopManager.pantheon.enable rather than
+# constellation.desktop.variant, and the overlay calling the package itself
+# (with the pantheon scope it overrides) instead of relying on our packages overlay.
 {
   flake.modules.nixos.pantheon-dock = {
     key = "modules/desktop/pantheon-dock/default";
@@ -42,20 +30,6 @@
         ...
       }: let
         cfg = config.constellation.desktop.pantheon;
-        features = [
-          {
-            dir = ./stacks;
-            dest = "Stacks";
-          }
-          {
-            dir = ./zoom;
-            dest = "Zoom";
-          }
-          {
-            dir = ./icons;
-            dest = "Icons";
-          }
-        ];
         inherit (lib.gvariant) mkArray mkInt32 mkTuple;
       in {
         options.constellation.desktop.pantheon = {
@@ -107,17 +81,7 @@
           nixpkgs.overlays = [
             (final: prev: {
               pantheon = prev.pantheon.overrideScope (pfinal: pprev: {
-                elementary-dock = pprev.elementary-dock.overrideAttrs (old: {
-                  patches = (old.patches or []) ++ map (f: "${f.dir}/hooks.patch") features;
-                  postPatch =
-                    (old.postPatch or "")
-                    + lib.concatMapStrings (f: ''
-                      cp -r ${f.dir}/src src/${f.dest}
-                      chmod -R u+w src/${f.dest}
-                    '')
-                    features;
-                  doCheck = true;
-                });
+                elementary-dock = final.callPackage ../../../packages/elementary-dock-extras/package.nix {pantheon = pprev;};
                 # appcenter/: publishes AppCenter's install/update/remove jobs on its D-Bus
                 # object (JobChanged, GetJobs), for the Applications stack's progress.
                 # Design: docs/superpowers/specs/2026-10-31-dock-stacks-progress-design.md
