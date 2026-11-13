@@ -42,8 +42,11 @@ def loginctl(*args):
 
 
 # Pantheon locks in-session; the capture would show the lock screen. Unlock
-# the seat's active session, which is the one on screen.
-session = loginctl("show-seat", "seat0", "-p", "ActiveSession", "--value")
+# the seat's active session, which is the one on screen. Not for a private
+# headless Gala (`just pantheon::paper-run`): the seat's session is not the one
+# being captured, so PANTHEON_SHOT_HEADLESS=1 skips the unlock.
+headless = bool(__import__("os").environ.get("PANTHEON_SHOT_HEADLESS"))
+session = "" if headless else loginctl("show-seat", "seat0", "-p", "ActiveSession", "--value")
 if session and loginctl("show-session", session, "-p", "LockedHint", "--value") == "yes":
     loginctl("unlock-session", session)
     time.sleep(2)

@@ -99,3 +99,65 @@ panel-run indicator="gamemode" log="/tmp/io.elementary.wingpanel.log" *env:
     echo "the session's panel won the race; run again" >&2
     pgrep -fa "$pattern" >&2 || true
     exit 1
+
+# The pantheon-paper Gala plugin (github.com/arsfeld/pantheon-paper) is tested
+# in a private, headless Gala with its own session bus and in-memory
+# GSettings, so nothing touches the live session (a plugin cannot be swapped
+# into a running Gala). Run the plugin checkout's commands inside `paper-shell`,
+# which carries exactly the Gala and Mutter 48 the package builds against.
+PAPER_EXPR := "(builtins.getFlake (toString " + justfile_directory() + ")).nixosConfigurations.raider.pkgs"
+
+# Run CMD in a shell with pantheon-paper's build inputs, in the caller's directory.
+[no-cd]
+[positional-arguments]
+paper-shell *cmd:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    exec nix develop --impure --expr '({{ PAPER_EXPR }}).callPackage {{ justfile_directory() }}/packages/pantheon-paper/package.nix {}' -c "$@"
+
+# A Gala that loads plugins from /tmp/paper-gala-plugins instead of the system
+# profile. Dev only, never installed.
+paper-gala:
+    @nix build --no-link --print-out-paths --impure --expr 'let p = {{ PAPER_EXPR }}; in p.pantheon.gala.overrideAttrs (o: { postPatch = o.postPatch + "\nsubstituteInPlace meson.build --replace-fail /run/current-system/sw/lib/gala/plugins /tmp/paper-gala-plugins\n"; })'
+
+# Start a headless Gala (1920x1080) loading BUILD_DIR's libgala-paper.so,
+# passing VAR=value environment through (e.g. PAPER_DEMO=4). Logs to
+# /tmp/paper-gala.log; the bus address is in /tmp/paper-gala.bus. Capture with
+# `just pantheon::paper-shot OUT`.
+[no-cd]
+[positional-arguments]
+paper-run build_dir *env:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    build=$(realpath "$1"); shift
+    gala=$(just -f '{{ justfile_directory() }}/justfile' pantheon::paper-gala)
+    just -f '{{ justfile_directory() }}/justfile' pantheon::paper-stop
+    rm -rf /tmp/paper-gala-plugins /tmp/paper-gala-schemas
+    mkdir -p /tmp/paper-gala-plugins /tmp/paper-gala-schemas
+    cp "$build/libgala-paper.so" /tmp/paper-gala-plugins/
+    # Gala's own schemas plus the plugin's, compiled together: GSETTINGS_SCHEMA_DIR replaces the search path.
+    for d in $(tr : ' ' <<< "${XDG_DATA_DIRS:-}") "$gala/share"; do
+        for s in "$d"/glib-2.0/schemas/*.xml "$d"/gsettings-schemas/*/glib-2.0/schemas/*.xml; do
+            [ -e "$s" ] && cp -n "$s" /tmp/paper-gala-schemas/ 2>/dev/null || true
+        done
+    done
+    cp "$build/../data/io.github.arsfeld.paper.keybindings.gschema.xml" /tmp/paper-gala-schemas/
+    glibdev=$(nix build --no-link --print-out-paths --impure --expr '({{ PAPER_EXPR }}).glib.dev')
+    "$glibdev/bin/glib-compile-schemas" /tmp/paper-gala-schemas
+    setsid dbus-run-session -- bash -c 'echo "$DBUS_SESSION_BUS_ADDRESS" > /tmp/paper-gala.bus; exec env GSETTINGS_BACKEND=memory GSETTINGS_SCHEMA_DIR=/tmp/paper-gala-schemas XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" "$@"' bash \
+        "$@" "$gala/bin/gala" --headless --virtual-monitor 1920x1080 --wayland-display paper-0 --no-x11 \
+        > /tmp/paper-gala.log 2>&1 < /dev/null &
+    for _ in $(seq 40); do
+        sleep 0.5
+        grep -q "pantheon-paper: loaded" /tmp/paper-gala.log 2>/dev/null && { echo "running; log /tmp/paper-gala.log"; exit 0; }
+    done
+    echo "the plugin did not report loading; see /tmp/paper-gala.log" >&2
+    exit 1
+
+# Stop the headless Gala started by paper-run.
+paper-stop:
+    @pkill -f -- '--wayland-display[ ]paper-0' || true  # the [ ] keeps pkill from matching its own shell
+
+# Capture the headless Gala's screen to OUT.
+paper-shot out:
+    @DBUS_SESSION_BUS_ADDRESS="$(cat /tmp/paper-gala.bus)" PANTHEON_SHOT_HEADLESS=1 just -f '{{ justfile_directory() }}/justfile' pantheon::shot '{{ out }}'
