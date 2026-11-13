@@ -162,19 +162,29 @@ paper-run build_dir *env:
     cp "$build/libgala-paper.so" /tmp/paper-gala-plugins/
     # Gala's own schemas plus the plugin's, compiled together: GSETTINGS_SCHEMA_DIR replaces the search path.
     for d in $(tr : ' ' <<< "${XDG_DATA_DIRS:-}") "$gala/share"; do
-        for s in "$d"/glib-2.0/schemas/*.xml "$d"/gsettings-schemas/*/glib-2.0/schemas/*.xml; do
+        for s in "$d"/glib-2.0/schemas/*.xml "$d"/gsettings-schemas/*/glib-2.0/schemas/*.xml "$d"/gsettings-schemas/*/glib-2.0/schemas/*.override; do
             [ -e "$s" ] && cp -n "$s" /tmp/paper-gala-schemas/ 2>/dev/null || true
         done
     done
+    # Pantheon's own defaults (Super+Left switches workspaces there, not in GNOME) are
+    # .override files with [schema:Pantheon] sections: copy them, and run as Pantheon.
+    for s in "${NIX_GSETTINGS_OVERRIDES_DIR:-/nonexistent}"/*.xml "${NIX_GSETTINGS_OVERRIDES_DIR:-/nonexistent}"/*.override; do
+        [ -e "$s" ] && cp -f "$s" /tmp/paper-gala-schemas/
+    done
     cp "$build/../data/io.github.arsfeld.paper.keybindings.gschema.xml" /tmp/paper-gala-schemas/
+    # PAPER_MONITORS=2 adds a second 1920x1080 monitor to the right of the primary.
+    count=1
+    for arg in "$@"; do [[ "$arg" == PAPER_MONITORS=* ]] && count="${arg#PAPER_MONITORS=}"; done
+    monitors=()
+    for _ in $(seq "$count"); do monitors+=(--virtual-monitor 1920x1080); done
     glibdev=$(nix build --no-link --print-out-paths --impure --expr '({{ PAPER_EXPR }}).glib.dev')
     "$glibdev/bin/glib-compile-schemas" /tmp/paper-gala-schemas
     # The demo hook's windows: tests/demo-window.py from the plugin checkout, a plain GTK 3 window.
     py=$(nix build --no-link --print-out-paths --impure --expr '({{ PAPER_EXPR }}).python3.withPackages (p: [p.pygobject3])')
     typelibs=$(nix build --no-link --print-out-paths --impure --expr 'let p = {{ PAPER_EXPR }}; in p.symlinkJoin { name = "paper-demo-typelibs"; paths = [p.gtk3 p.pango.out p.gdk-pixbuf p.atk p.harfbuzz p.glib.out p.gobject-introspection]; }')
     demo_cmd="env GI_TYPELIB_PATH=$typelibs/lib/girepository-1.0 GDK_BACKEND=wayland $py/bin/python3 $(realpath "$build/../tests/demo-window.py")"
-    setsid dbus-run-session -- bash -c 'echo "$DBUS_SESSION_BUS_ADDRESS" > /tmp/paper-gala.bus; exec env GSETTINGS_BACKEND=memory GSETTINGS_SCHEMA_DIR=/tmp/paper-gala-schemas XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" "$@"' bash \
-        "PAPER_DEMO_CMD=$demo_cmd" "$@" "$gala/bin/gala" --headless --virtual-monitor 1920x1080 --wayland-display paper-0 --no-x11 \
+    setsid dbus-run-session -- bash -c 'echo "$DBUS_SESSION_BUS_ADDRESS" > /tmp/paper-gala.bus; exec env GSETTINGS_BACKEND=memory GSETTINGS_SCHEMA_DIR=/tmp/paper-gala-schemas XDG_CURRENT_DESKTOP=Pantheon XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" "$@"' bash \
+        "PAPER_DEMO_CMD=$demo_cmd" "$@" "$gala/bin/gala" --headless "${monitors[@]}" --wayland-display paper-0 --no-x11 \
         > /tmp/paper-gala.log 2>&1 < /dev/null &
     for _ in $(seq 40); do
         sleep 0.5
@@ -201,3 +211,19 @@ paper-inject *actions:
     py=$(nix build --no-link --print-out-paths --impure --expr '({{ PAPER_EXPR }}).python3.withPackages (p: [p.pygobject3])')
     glib=$(nix build --no-link --print-out-paths --impure --expr '({{ PAPER_EXPR }}).glib.out')
     DBUS_SESSION_BUS_ADDRESS="$(cat /tmp/paper-gala.bus)" GI_TYPELIB_PATH="$glib/lib/girepository-1.0" "$py/bin/python3" "${PAPER_INJECT:-tests/inject.py}" "$@"
+
+# Fail if a pantheon-paper key clashes with another binding as HOST's built
+# system resolves them (its dconf defaults, schema overrides, and Pantheon's
+# desktop-specific values, which the plain session `gsettings` does not show
+# unless XDG_CURRENT_DESKTOP=Pantheon). The user's own dconf values are left out.
+paper-keys-check host="raider":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    top=$(nix build --no-link --print-out-paths '{{ justfile_directory() }}#nixosConfigurations.{{ host }}.config.system.build.toplevel')
+    overrides=$(grep -o '/nix/store/[^"]*nixos-gsettings-overrides/glib-2.0/schemas' "$top/etc/set-environment" | head -n1)
+    profile=$(grep -o 'DCONF_PROFILE="[^"]*"' "$top/etc/set-environment" | cut -d'"' -f2)
+    # The system databases only: no user-db line, so the user's own values do not count.
+    sysprofile=$(mktemp); grep -v '^user-db:' "$profile" > "$sysprofile"
+    glib=$(nix build --no-link --print-out-paths --impure --expr '({{ PAPER_EXPR }}).glib.bin')
+    env XDG_CURRENT_DESKTOP=Pantheon DCONF_PROFILE="$sysprofile" GSETTINGS_SCHEMA_DIR="$overrides" \
+        "$glib/bin/gsettings" list-recursively | python3 '{{ justfile_directory() }}/scripts/pantheon-paper-keys.py'

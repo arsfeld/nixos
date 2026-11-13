@@ -350,8 +350,12 @@ columns that scrolls to follow focus. It is a Gala plugin in its own repo,
 `docs/superpowers/plans/2026-11-12-pantheon-paper.md`. Keys: Super+arrows focus,
 Super+Shift+arrows move, Super+R width, Super+M full width, Super+I/U slurp/barf,
 Super+C centre, Super+Shift+F float; Super+scroll pans, dragging a titlebar drops a
-window into a column. The module clears the Pantheon bindings those collide with (it
-says which, and why).
+window into a column. Workspace switching moves to Ctrl+Super+←/→ (replacing
+half-screen tiling); the module says what else it changes, and why.
+`just pantheon::paper-keys-check [host]` fails on any clash in a built system. **Check
+Pantheon's keys with `XDG_CURRENT_DESKTOP=Pantheon`:** elementary's defaults are
+desktop-specific overrides, and a plain `gsettings` shows GNOME's (Super+←/→ switch
+workspaces in Pantheon, not tile), which is how the first version shipped a clash.
 
 Gala loads plugins only at startup, so **a new build needs a logout and login**, and a
 crash in the plugin ends the session. Never test a change by logging in with it.
@@ -366,8 +370,10 @@ just pantheon::paper-stop
 ```
 
 `paper-run` starts a Gala built to load plugins from `/tmp/paper-gala-plugins`, on its own
-D-Bus session with in-memory GSettings and a 1920x1080 virtual monitor, so the live
-session is never touched. `PAPER_DEMO`, `PAPER_DEMO_KEYS`, `PAPER_DEMO_MOUSE` and
+D-Bus session with in-memory GSettings (Pantheon's overrides included, run as
+`XDG_CURRENT_DESKTOP=Pantheon`) and a 1920x1080 virtual monitor (`PAPER_MONITORS=2` adds
+one to the right), so the live session is never touched. `PAPER_DEMO_FIXED=<n>` and
+`PAPER_DEMO_WIDE=<n>` make demo window n not resizable, or at least 1100 px wide. `PAPER_DEMO`, `PAPER_DEMO_KEYS`, `PAPER_DEMO_MOUSE` and
 `PAPER_DEMO_IDLE` select scripted step lists; each step logs `paper-demo: at <i> <name>`
 with every window's real frame, which is the text to assert on. `paper-inject` drives
 Mutter's RemoteDesktop API on the private bus (keys, scroll, relative motion, button
@@ -391,6 +397,13 @@ Traps found building it, each fixed and commented in the plugin:
   looks its schema up first and runs without keys if absent. The module installs it
   through `services.desktopManager.pantheon.extraGSettingsOverridePackages`, the
   directory Gala actually reads.
+- **A window that keeps a size it was not asked for** (not resizable, size increments)
+  is left at it once asked for that exact size over a second ago: re-asking re-armed
+  the recheck timer and relaid out every strip once a second, forever.
+- **Nothing may cross onto an adjoining monitor.** With Pantheon's
+  workspaces-only-on-primary, Mutter makes a window whose majority is on another monitor
+  sticky, synchronously inside the move, and it fell out of its strip; columns that would
+  cross such an edge are parked inside it and lowered.
 - Gala itself segfaults on SIGTERM at shutdown (`gala_background_container_finalize`);
   the core dumps `paper-stop` leaves are that, not the plugin.
 

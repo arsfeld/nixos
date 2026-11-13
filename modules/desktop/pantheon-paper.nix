@@ -10,11 +10,14 @@
 # crash in the plugin ends the Pantheon session.
 #
 # The plugin's keys (io.github.arsfeld.paper.keybindings) take over bindings
-# Pantheon already uses, which are cleared here as system defaults (a value
-# set in the user's own dconf database still wins):
-#   Super+Left/Right       Mutter's half-screen tiling (and edge tiling, off)
-#   Super+Up/Down          maximize/unmaximize; and Super+Down from the
-#                          multitasking view, which keeps Super+S
+# Pantheon already uses. These are Pantheon's own values, which differ from
+# GNOME's: check with XDG_CURRENT_DESKTOP=Pantheon, or run
+# `just pantheon::paper-keys-check`, which fails on any clash. Changed here as
+# system defaults (a value in the user's own dconf database still wins):
+#   Super+Left/Right       switched workspaces; workspace switching moves to
+#                          Ctrl+Super+Left/Right, which was half-screen tiling
+#                          (strips replace it, so it is cleared; edge tiling off)
+#   Super+Down             also opened the multitasking view, which keeps Super+S
 #   Super+Shift+arrows     move-to-monitor
 # Super+F (picture-in-picture) and Super+O (rotation lock) stay Pantheon's:
 # the plugin's full-width toggle is Super+M and barf is Super+U instead.
@@ -52,9 +55,8 @@
                   toggle-tiled-right = none;
                 };
                 "org/gnome/desktop/wm/keybindings" = {
-                  maximize = none;
-                  unmaximize = none;
-                  toggle-maximized = none;
+                  switch-to-workspace-left = ["<Control><Super>Left"];
+                  switch-to-workspace-right = ["<Control><Super>Right"];
                   move-to-monitor-left = none;
                   move-to-monitor-right = none;
                   move-to-monitor-up = none;

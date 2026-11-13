@@ -74,7 +74,7 @@ is unreachable).
 Scrolling follows focus. When the focused column is not fully visible, `scroll_x` moves
 the minimum amount needed to show it. Super+C centres it instead.
 
-The plugin's controller listens to Mutter signals (`window-created`, `unmanaged`,
+The plugin's controller listens to Mutter signals (`window-created`, `unmanaging`,
 `focus`, workspace changes, `size-changed`, grab begin and end, monitors changed). For
 each one it updates the model, runs `layout`, then applies the result with
 `move_resize_frame`. Pure moves (scrolling, reordering) animate through the window
@@ -104,16 +104,22 @@ can be changed in dconf.
 A new window opens as a new column (default width 1/2) to the right of the focused one
 and takes focus.
 
-The module clears the Mutter and Gala bindings these keys collide with:
-`org.gnome.desktop.wm.keybindings` `maximize`, `unmaximize`, `toggle-maximized` and
-`move-to-monitor-{left,right,up,down}`; `org.gnome.mutter.keybindings`
-`toggle-tiled-left`, `toggle-tiled-right`; sets `org.gnome.mutter` `edge-tiling` to
-false; and leaves the multitasking view only `<Super>s`, dropping its `<Super>Down`
-(chosen on 2026-11-13 over moving the plugin's arrow keys). Workspace switching (Ctrl+Super+arrows), the
-Super-tap launcher and the multitasking view are untouched. The exact keys are
-confirmed against the dconf of the running session during implementation, and every
-binding in the table is checked there for an existing Pantheon user (as Super+T was):
-a collision is resolved by moving the plugin's key, not by clearing Pantheon's.
+Pantheon's defaults differ from GNOME's (elementary's gsettings overrides apply only
+under `XDG_CURRENT_DESKTOP=Pantheon`), so collisions are judged against those, and
+`just pantheon::paper-keys-check` fails on any clash in a built system. Against them, the
+module changes, as system dconf defaults:
+
+- `switch-to-workspace-left/right`: `<Super>Left/Right` → `<Control><Super>Left/Right`, so
+  the strip has Super+←/→ (chosen on 2026-11-13 over moving the plugin's keys or giving
+  workspaces no arrow key). Super+Home/End and Super+numbers still switch workspaces.
+- `org.gnome.mutter.keybindings` `toggle-tiled-left/right` (Pantheon's Ctrl+Super+←/→
+  half-screen tiling, which strips replace) cleared, and `edge-tiling` false.
+- `move-to-monitor-{left,right,up,down}` (Super+Shift+arrows) cleared.
+- The multitasking view keeps only `<Super>s`, dropping its `<Super>Down`.
+
+Super+Up was already free in Pantheon. The Super-tap launcher is untouched. Elsewhere a
+collision is resolved by moving the plugin's key, not by clearing Pantheon's (as with
+Super+T, Super+F and Super+O).
 
 ## Mouse
 
@@ -136,13 +142,20 @@ a collision is resolved by moving the plugin's key, not by clearing Pantheon's.
 - **Apps that refuse a size** (minimum sizes, terminals snapping to whole cells): the
   strip lays out around the frame Mutter actually granted, read back after
   `size-changed`. A wider frame counts as a refusal only once the client has been asked
-for that exact width at least 1 s earlier; before that it is just the old size. The
-layout is never retried in a loop.
+  for that exact width at least 1 s earlier; before that it is just the old size. A
+  window asked for exactly its target size more than 1 s ago is left at whatever size it
+  answered (not resizable, size increments, a minimum height) and only placed; a size
+  the window takes by itself later voids that and it is asked once more. The layout is
+  never retried in a loop.
 - **Fullscreen:** the window leaves the strip while fullscreen and returns to its slot
   afterwards.
 - **Minimize:** the window leaves the strip; on restore it comes back as a column next
   to the focused one.
 - **Moved to another workspace:** it joins that workspace's strip as its last column.
+- **A monitor beside the primary:** a column that would cross onto it is parked inside
+  the edge instead, flush with it and lowered beneath the visible columns. Otherwise its
+  majority would land on that monitor, and Mutter (with Pantheon's
+  workspaces-only-on-primary) would make it sticky and take it out of the strip.
 - **Moved to a secondary monitor:** dropped there at the end of a drag, it leaves the
   strip and floats. Monitor changes are otherwise ignored for tiled windows, because a
   parked window can sit mostly on the neighbouring monitor.
@@ -153,7 +166,7 @@ layout is never retried in a loop.
   strip in stacking order, as columns at width 1/2.
 - **Crash safety.** The plugin runs inside Gala, and a crash ends the Pantheon session
   (as with the global menu). Every signal handler checks that the window is still
-  managed; the model drops a window in `unmanaged` before anything touches its actor;
+  managed; the model drops a window in `unmanaging` before anything touches its actor;
   animations are cancelled when their window goes away.
 
 ## Testing
