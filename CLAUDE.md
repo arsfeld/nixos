@@ -338,6 +338,62 @@ upgrade, and the weekly update routine runs `nix flake update` unattended every 
 that job can carry the cluster a minor version, or two, with nobody reading the diff. A
 Kubernetes upgrade should be a deliberate one-line commit.
 
+### Pantheon tiling (pantheon-paper)
+
+PaperWM-style scrolling tiling inside Pantheon, keeping Wingpanel, the dock and the
+multitasking view: each workspace on the primary monitor is a horizontal strip of
+columns that scrolls to follow focus. It is a Gala plugin in its own repo,
+`arsfeld/pantheon-paper` (Vala), pinned as `packages/pantheon-paper` and installed by
+`modules/desktop/pantheon-paper.nix` on every Pantheon host
+(`constellation.desktop.paper.enable`, default on). Spec
+`docs/superpowers/specs/2026-11-12-pantheon-paper-design.md`, plan
+`docs/superpowers/plans/2026-11-12-pantheon-paper.md`. Keys: Super+arrows focus,
+Super+Shift+arrows move, Super+R width, Super+M full width, Super+I/U slurp/barf,
+Super+C centre, Super+Shift+F float; Super+scroll pans, dragging a titlebar drops a
+window into a column. The module clears the Pantheon bindings those collide with (it
+says which, and why).
+
+Gala loads plugins only at startup, so **a new build needs a logout and login**, and a
+crash in the plugin ends the session. Never test a change by logging in with it.
+Test it in a private headless Gala instead, from the plugin checkout:
+
+```bash
+just pantheon::paper-shell bash -c 'meson setup build; ninja -C build && meson test -C build'
+just pantheon::paper-run build PAPER_DEMO=4 PAPER_DEMO_WAIT=1   # 4 demo windows, scripted steps
+just pantheon::paper-shot out.png                                # capture it
+just pantheon::paper-inject key:super+r scrollsuper:2            # real input, private bus only
+just pantheon::paper-stop
+```
+
+`paper-run` starts a Gala built to load plugins from `/tmp/paper-gala-plugins`, on its own
+D-Bus session with in-memory GSettings and a 1920x1080 virtual monitor, so the live
+session is never touched. `PAPER_DEMO`, `PAPER_DEMO_KEYS`, `PAPER_DEMO_MOUSE` and
+`PAPER_DEMO_IDLE` select scripted step lists; each step logs `paper-demo: at <i> <name>`
+with every window's real frame, which is the text to assert on. `paper-inject` drives
+Mutter's RemoteDesktop API on the private bus (keys, scroll, relative motion, button
+holds); it must never run against the live session. **Never put the literal headless
+command line in a shell command of your own:** `paper-stop` matches it with `pkill -f`
+and kills that shell too.
+
+Traps found building it, each fixed and commented in the plugin:
+- **Drop windows on `unmanaging`, not `unmanaged`.** Mutter focuses another window
+  part-way through unmanaging one; a relayout from that focus change moved the dying
+  window and Gala segfaulted in `meta_window_update_monitor`.
+- **Windows move as user ops** (`move_resize_frame (true, …)`): Mutter clamps any other
+  move fully on screen, and keeps 75 px of a user-op window visible, hence the 75 px
+  parked sliver.
+- **Gala moves a fullscreen window to a workspace of its own** and back, so the plugin's
+  saved slot carries its workspace.
+- **Super+scroll is a stage action in the capture phase**, as Gala's own is; a
+  `Clutter.Event.add_filter` runs after Mutter's and never sees client-bound events.
+  Each wheel click arrives twice (discrete and emulated smooth); the echo is swallowed.
+- **A missing GSettings schema aborts the process**, which here is the session: the plugin
+  looks its schema up first and runs without keys if absent. The module installs it
+  through `services.desktopManager.pantheon.extraGSettingsOverridePackages`, the
+  directory Gala actually reads.
+- Gala itself segfaults on SIGTERM at shutdown (`gala_background_container_finalize`);
+  the core dumps `paper-stop` leaves are that, not the plugin.
+
 ### Cylon Bot (ESP32 session board)
 
 A Waveshare ESP32-S3 AMOLED 1.75C (SKU 33691, round 466×466, touch, speaker, microphone) that shows every Claude
@@ -1034,7 +1090,7 @@ Opt-in modules that hosts compose by importing them; `nix eval --json .#nixosMod
 | `forgejo-runner` | `modules/forgejo-runner.nix` | Forgejo Actions runner |
 | `virtualization` | `modules/virtualization.nix` | KVM/libvirt |
 | `development` | `modules/development.nix` | Dev tools (Docker, Node, Python, Go, Rust, …) |
-| `desktop` | `modules/desktop/desktop.nix` | Desktop environment (`variant` selects GNOME etc.); imports `pantheon-dock` (the dock with folder stacks, zoom and sharp icons, from the `extras` branch of the arsfeld/elementary-dock fork, pinned as `packages/elementary-dock-extras`; plus an AppCenter patch), `pantheon-gamemode`, `pantheon-terminal` (elementary Terminal on libghostty-vt via libghostty-gtk; arsfeld/libghostty-gtk and the `libghostty-gtk` branch of the arsfeld/elementary-terminal fork live in their own repos and are pinned in `packages/`; both forks also publish `.deb`s to the arsfeld/apt repo for elementary OS) and `pantheon-tailscale` (Wingpanel Tailscale indicator; grants `--operator=arosenfeld`) |
+| `desktop` | `modules/desktop/desktop.nix` | Desktop environment (`variant` selects GNOME etc.); imports `pantheon-dock` (the dock with folder stacks, zoom and sharp icons, from the `extras` branch of the arsfeld/elementary-dock fork, pinned as `packages/elementary-dock-extras`; plus an AppCenter patch), `pantheon-gamemode`, `pantheon-terminal` (elementary Terminal on libghostty-vt via libghostty-gtk; arsfeld/libghostty-gtk and the `libghostty-gtk` branch of the arsfeld/elementary-terminal fork live in their own repos and are pinned in `packages/`; both forks also publish `.deb`s to the arsfeld/apt repo for elementary OS), `pantheon-tailscale` (Wingpanel Tailscale indicator; grants `--operator=arosenfeld`) and `pantheon-paper` (PaperWM-style scrolling tiling, a Gala plugin from arsfeld/pantheon-paper; see "Pantheon tiling") |
 | `gaming` | `modules/gaming.nix` | Gaming environment |
 | `check-stock` | `modules/check-stock.nix` | Stock availability monitor |
 | `blocky` | `modules/blocky.nix` | Blocky DNS (no host imports it) |

@@ -63,12 +63,13 @@ popups, utility windows, Wingpanel and the dock never enter the model.
 
 `layout(strip, work_area) -> List<(window, rect, visible)>` is pure code with no Mutter
 types, so the meson tests exercise it directly. Columns sit left to right with a fixed
-gap, offset by `scroll_x`. A column that would show less than 10 px of itself inside the
-work area is **parked**: pushed against the nearer screen edge so that a 10 px sliver
+gap, offset by `scroll_x`. A column that would show less than 75 px of itself inside the
+work area is **parked**: pushed against the nearer screen edge so that a 75 px sliver
 stays visible. A column that straddles the edge with more than that showing keeps its
-natural position. That keeps
-every window inside Mutter's partially-on-screen constraint, so there is no constraint
-fighting (PaperWM's own technique).
+natural position. Windows are moved as user operations (`move_resize_frame (true, …)`),
+as PaperWM does: Mutter clamps any other move fully on screen, and keeps 75 px of a
+user-op window visible, which is where the 75 comes from (10 px was the first plan and
+is unreachable).
 
 Scrolling follows focus. When the focused column is not fully visible, `scroll_x` moves
 the minimum amount needed to show it. Super+C centres it instead.
@@ -76,7 +77,11 @@ the minimum amount needed to show it. Super+C centres it instead.
 The plugin's controller listens to Mutter signals (`window-created`, `unmanaged`,
 `focus`, workspace changes, `size-changed`, grab begin and end, monitors changed). For
 each one it updates the model, runs `layout`, then applies the result with
-`move_resize_frame` and animates the window actors to their new positions.
+`move_resize_frame`. Pure moves (scrolling, reordering) animate through the window
+actor's translation; resizes apply directly, because a Wayland resize lands only when
+the client answers. Windows are dropped from the model on `unmanaging`: Mutter focuses
+another window part-way through unmanaging one, and a relayout from that focus change
+must not touch the dying window.
 
 ## Keys
 
@@ -90,9 +95,9 @@ can be changed in dconf.
 | Super+Shift+←/→ | Move the column left/right |
 | Super+Shift+↑/↓ | Move the window up/down within its column |
 | Super+R | Cycle the column width 1/3 → 1/2 → 2/3 (from a Free width: snap to the nearest preset) |
-| Super+F | Toggle the column at full work-area width |
+| Super+M | Toggle the column at full work-area width (Super+F is Gala's picture-in-picture) |
 | Super+I | Slurp: move the next column's top window into the focused column |
-| Super+O | Barf: move the focused window out into its own column to the right |
+| Super+U | Barf: move the focused window out into its own column to the right (Super+O is rotation lock) |
 | Super+C | Centre the focused column |
 | Super+Shift+F | Toggle floating for the focused window (not Super+T, which Pantheon uses to open the Terminal) |
 
@@ -100,9 +105,11 @@ A new window opens as a new column (default width 1/2) to the right of the focus
 and takes focus.
 
 The module clears the Mutter and Gala bindings these keys collide with:
-`org.gnome.desktop.wm.keybindings` `maximize`, `unmaximize`, `toggle-maximized`;
-`org.gnome.mutter.keybindings` `toggle-tiled-left`, `toggle-tiled-right`; and sets
-`org.gnome.mutter` `edge-tiling` to false. Workspace switching (Ctrl+Super+arrows), the
+`org.gnome.desktop.wm.keybindings` `maximize`, `unmaximize`, `toggle-maximized` and
+`move-to-monitor-{left,right,up,down}`; `org.gnome.mutter.keybindings`
+`toggle-tiled-left`, `toggle-tiled-right`; sets `org.gnome.mutter` `edge-tiling` to
+false; and leaves the multitasking view only `<Super>s`, dropping its `<Super>Down`
+(chosen on 2026-11-13 over moving the plugin's arrow keys). Workspace switching (Ctrl+Super+arrows), the
 Super-tap launcher and the multitasking view are untouched. The exact keys are
 confirmed against the dconf of the running session during implementation, and every
 binding in the table is checked there for an existing Pantheon user (as Super+T was):
@@ -110,9 +117,12 @@ a collision is resolved by moving the plugin's key, not by clearing Pantheon's.
 
 ## Mouse
 
-- **Super+scroll** pans the strip (`scroll_x`) without changing focus.
+- **Super+scroll** pans the strip (`scroll_x`) without changing focus: 200 px per wheel
+  click, through a stage action in the capture phase as Gala's own Super+scroll uses.
+  Clutter delivers each click twice (discrete and emulated smooth); the echo is
+  swallowed.
 - **Drag to reorder.** During a move grab of a tiled window the plugin draws a drop
-  indicator in `window_group`. Dropping on the middle third of another column inserts
+  indicator in `top_window_group` (above the windows). Dropping on the middle third of another column inserts
   the window into that column at the hovered position; dropping on the gap between two
   columns creates a new column there. Dropping elsewhere returns the window to its
   slot.
@@ -125,13 +135,20 @@ a collision is resolved by moving the plugin's key, not by clearing Pantheon's.
 
 - **Apps that refuse a size** (minimum sizes, terminals snapping to whole cells): the
   strip lays out around the frame Mutter actually granted, read back after
-  `size-changed`. The layout is never retried in a loop.
+  `size-changed`. A wider frame counts as a refusal only once the client has been asked
+for that exact width at least 1 s earlier; before that it is just the old size. The
+layout is never retried in a loop.
 - **Fullscreen:** the window leaves the strip while fullscreen and returns to its slot
   afterwards.
 - **Minimize:** the window leaves the strip; on restore it comes back as a column next
   to the focused one.
 - **Moved to another workspace:** it joins that workspace's strip as its last column.
-- **Moved to a secondary monitor:** it leaves the strip and floats.
+- **Moved to a secondary monitor:** dropped there at the end of a drag, it leaves the
+  strip and floats. Monitor changes are otherwise ignored for tiled windows, because a
+  parked window can sit mostly on the neighbouring monitor.
+- **Fullscreen:** Gala moves a fullscreen window to a workspace of its own and back, so
+  the saved slot remembers its workspace and the column's width, and is used only when
+  the window re-enters that workspace.
 - **Startup and first enable:** existing windows are adopted into their workspace's
   strip in stacking order, as columns at width 1/2.
 - **Crash safety.** The plugin runs inside Gala, and a crash ends the Pantheon session
