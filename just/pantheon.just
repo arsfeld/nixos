@@ -187,3 +187,14 @@ paper-stop:
 # Capture the headless Gala's screen to OUT.
 paper-shot out:
     @DBUS_SESSION_BUS_ADDRESS="$(cat /tmp/paper-gala.bus)" PANTHEON_SHOT_HEADLESS=1 just -f '{{ justfile_directory() }}/justfile' pantheon::shot '{{ out }}'
+
+# Inject real input into the headless Gala (never the live session): see the
+# plugin's tests/inject.py for the actions.
+[no-cd]
+[positional-arguments]
+paper-inject *actions:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    py=$(nix build --no-link --print-out-paths --impure --expr '({{ PAPER_EXPR }}).python3.withPackages (p: [p.pygobject3])')
+    glib=$(nix build --no-link --print-out-paths --impure --expr '({{ PAPER_EXPR }}).glib.out')
+    DBUS_SESSION_BUS_ADDRESS="$(cat /tmp/paper-gala.bus)" GI_TYPELIB_PATH="$glib/lib/girepository-1.0" "$py/bin/python3" "${PAPER_INJECT:-tests/inject.py}" "$@"
