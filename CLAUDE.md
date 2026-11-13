@@ -352,7 +352,13 @@ Super+Shift+arrows move, Super+R width, Super+M full width, Super+I/U slurp/barf
 Super+C centre, Super+Shift+F float; Super+scroll pans, and so does dragging a
 titlebar sideways; pulling the window 100 px up or down instead drops it into a column. Workspace switching moves to Ctrl+Super+←/→ (replacing
 half-screen tiling); the module says what else it changes, and why.
-`just pantheon::paper-keys-check [host]` fails on any clash in a built system. **Check
+`just pantheon::paper-keys-check [host]` fails on any clash in a built system.
+It is also a `.deb` for elementary OS 8 in arsfeld/pantheon-apt, so it builds against
+**Mutter 46 too**: a Mutter call that differs between 46 and 48 goes in the plugin's
+`src/Compat.vala`, never inline, and the plugin's CI (built, installed and loaded in
+elementary's own gala) fails otherwise. The Debian package moves Pantheon's keys with
+`debian/pantheon-paper.gschema.override`, mirroring this module's dconf; change both
+together. **Check
 Pantheon's keys with `XDG_CURRENT_DESKTOP=Pantheon`:** elementary's defaults are
 desktop-specific overrides, and a plain `gsettings` shows GNOME's (Super+←/→ switch
 workspaces in Pantheon, not tile), which is how the first version shipped a clash.
