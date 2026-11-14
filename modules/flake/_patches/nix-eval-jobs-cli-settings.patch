@@ -1,0 +1,17 @@
+--- a/src/daemon-settings.cc	2026-11-14 08:40:18.889660020 -0500
++++ b/src/daemon-settings.cc	2026-11-14 08:40:18.911587843 -0500
+@@ -32,6 +32,14 @@
+           These users are allowed to connect to the Nix daemon.
+           This setting is only relevant for the Nix daemon.
+         )"};
++
++    // Settings of the `nix` CLI itself (`nix develop`, `nix upgrade-nix`),
++    // which determinate-nixd writes into /etc/nix/nix.conf.
++    nix::Setting<std::string> bashPromptPrefix{this, "", "bash-prompt-prefix",
++                                               "Unused by nix-eval-jobs."};
++
++    nix::Setting<std::string> upgradeNixStorePathUrl{
++        this, "", "upgrade-nix-store-path-url", "Unused by nix-eval-jobs."};
+ };
+ 
+ } // namespace

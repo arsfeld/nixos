@@ -76,9 +76,18 @@
           # `nix-eval-jobs.nix` (nixpkgs pkgs/by-name/ni/nix-fast-build/
           # package.nix:26-31), and det-nix-eval-jobs carries no `.nix`
           # passthru — supply it here or the override fails to evaluate.
+          #
+          # The patch silences `warning: unknown setting 'bash-prompt-prefix'`
+          # and `'upgrade-nix-store-path-url'`, printed by every eval worker:
+          # determinate-nixd writes both into /etc/nix/nix.conf, and they are
+          # settings of the `nix` CLI binary, not of the libraries nix-eval-jobs
+          # links. Upstream's src/daemon-settings.cc already does this for
+          # daemon-only keys; the patch adds these two to that list.
           (inputs.nixpkgs-unstable.legacyPackages.${system}.nix-fast-build.override {
             nix-eval-jobs =
-              inputs.det-nix-eval-jobs.packages.${system}.default
+              inputs.det-nix-eval-jobs.packages.${system}.default.overrideAttrs (old: {
+                patches = (old.patches or []) ++ [./_patches/nix-eval-jobs-cli-settings.patch];
+              })
               // {
                 nix = inputs.determinate.inputs.nix.packages.${system}.nix;
               };
