@@ -79,7 +79,6 @@
     e2fsprogs
     btrfs-progs
     xfsprogs
-    zfs
 
     # Network tools
     iproute2
@@ -95,9 +94,10 @@
     strace
   ];
 
-  # Enable ZFS support
-  boot.supportedFilesystems = ["zfs"];
-  boot.zfs.forceImportRoot = false;
+  # No ZFS: nothing in this fleet uses it, and its out-of-tree kernel module is
+  # slow to build and can hold back kernel upgrades. The installer profiles add
+  # zfs to supportedFilesystems, so drop it explicitly (as installer-iso.nix does).
+  boot.supportedFilesystems.zfs = lib.mkForce false;
 
   # Auto-login as root for easier access
   services.getty.autologinUser = lib.mkDefault "root";
