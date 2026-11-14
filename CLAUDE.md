@@ -350,9 +350,14 @@ columns that scrolls to follow focus. It is a Gala plugin in its own repo,
 `docs/superpowers/plans/2026-11-12-pantheon-paper.md`. Keys: Super+arrows focus,
 Super+Shift+arrows move, Super+R width, Super+M full width, Super+I/U slurp/barf,
 Super+C centre, Super+Shift+F float; Super+scroll pans, and so does dragging a
-titlebar sideways; pulling the window 100 px up or down instead drops it into a column. The focused tiled window has an accent-colour
+titlebar sideways; pulling the window 100 px up or down instead drops it into a column.
+The strip keeps a `margin` (20 px) from each screen edge, where the next column peeks in
+(parked windows are lowered nearest-first, so the one peeking is the one beyond); resting
+the pointer at a screen edge (not one bordering another monitor) previews the hidden
+window, and clicking the peeking strip focuses it (spec
+`docs/superpowers/specs/2026-11-14-pantheon-paper-edge-peek-design.md`). The focused tiled window has an accent-colour
 ring (`src/FocusRing.vala`, a child of the window's actor, so it rides the scroll animation; the demo log prints it
-as `|| ring:`), kept inside the work area, so where a column meets the panel or a screen edge it covers the window's own edge. Workspace switching moves to Ctrl+Super+←/→ (replacing
+as `|| ring:`, and the edge preview as `|| preview:`), kept inside the work area, so where a column meets the panel or a screen edge it covers the window's own edge. Workspace switching moves to Ctrl+Super+←/→ (replacing
 half-screen tiling); the module says what else it changes, and why.
 `just pantheon::paper-keys-check [host]` fails on any clash in a built system.
 It is also a `.deb` for elementary OS 8 in arsfeld/pantheon-extras, so it builds against
@@ -373,8 +378,8 @@ icon shows tiling on, off for this workspace, or off; its popover has switches f
 Tiling, Tile this workspace and Float "<window>", a Gap slider, Animate, Focus ring, a Shortcuts
 list, Add rule for "<app>"… and Tiling Settings…. The page (`settings://paper`, also
 `/rules` and `/shortcuts`) edits layout, app rules and shortcuts, with a clash prompt
-on rebinding. Settings live in `io.github.arsfeld.paper` (enabled, gap, width presets,
-default width, animate, focus ring, app rules; the plugin reads them live). Live session state
+on rebinding. Settings live in `io.github.arsfeld.paper` (enabled, gap, margin, width presets,
+default width, animate, focus ring, edge preview, app rules; the plugin reads them live). Live session state
 (tile this workspace, float the focused window, the focused app, running apps) is the
 plugin's D-Bus interface `io.github.arsfeld.Paper` at `/io/github/arsfeld/Paper`; with
 no owner the indicator greys its live switches out. Both run in their own processes,

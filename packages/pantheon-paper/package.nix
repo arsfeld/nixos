@@ -21,8 +21,8 @@ in
     src = pkgs.fetchFromGitHub {
       owner = "arsfeld";
       repo = "pantheon-paper";
-      rev = "6089663926f3942bf14edec179c4bdd7134700ad";
-      hash = "sha256-+6/TcjbVvRXN5Y7I8bHjC9qz6Zf/FWuJuni3V3/08DA=";
+      rev = "38d159190c82e491046fe4669d74b8f0d5e85b3c";
+      hash = "sha256-waybU8rGdBs+ltnU5je/PzEV6pAB6gZ4mBG1P71AO5Q=";
     };
 
     nativeBuildInputs = with pkgs; [meson ninja pkg-config vala glib];
