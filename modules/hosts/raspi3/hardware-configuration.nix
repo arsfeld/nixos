@@ -13,6 +13,11 @@
       (modulesPath + "/installer/sd-card/sd-image-aarch64.nix")
     ];
 
+    # The SD-image profile adds zfs to supportedFilesystems; root is ext4 and
+    # nothing here uses ZFS, so drop it (no zfs kernel module to build, and no
+    # boot.zfs.forceImportRoot default warning).
+    boot.supportedFilesystems.zfs = lib.mkForce false;
+
     boot.initrd.availableKernelModules = ["usbhid"];
     boot.initrd.kernelModules = [];
     boot.kernelModules = [];

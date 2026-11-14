@@ -10,6 +10,11 @@
       (modulesPath + "/installer/sd-card/sd-image-aarch64.nix")
     ];
 
+    # The SD-image profile adds zfs to supportedFilesystems; root is ext4 and
+    # nothing here uses ZFS, so drop it (no zfs kernel module to build, and no
+    # boot.zfs.forceImportRoot default warning).
+    boot.supportedFilesystems.zfs = lib.mkForce false;
+
     # NanoPi R2S requires u-boot for SD card booting (RK3328 SoC)
     # firmwarePartitionOffset must be past u-boot.itb (which ends before sector 32768 = 16 MiB)
     # populateRootCommands must NOT be overridden — it generates extlinux.conf for u-boot
