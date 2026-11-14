@@ -94,17 +94,36 @@
             nixPath = lib.mapAttrsToList (key: value: "${key}=${value.to.path}") (lib.filterAttrs (_: value: value.to ? path) config.nix.registry);
           };
 
-          services.avahi = {
-            enable = true;
-            nssmdns4 = true; # Required for .local resolution via nsswitch
-            publish = {
+          services.avahi =
+            {
               enable = true;
-              addresses = true;
-              workstation = true;
-              domain = true; # Optional: publishes domain info
-              hinfo = true; # Optional: publishes hardware/OS details
-            };
-          };
+              nssmdns4 = true; # Required for .local resolution via nsswitch
+            }
+            # nixpkgs-unstable replaced services.avahi.publish.* with
+            # services.avahi.settings and warns on the old names; stable (26.05)
+            # has no settings option yet. Drop the else branch once every host
+            # is on a nixpkgs with services.avahi.settings.
+            // (
+              if options.services.avahi ? settings
+              then {
+                settings.publish = {
+                  disable-publishing = false;
+                  publish-addresses = true;
+                  publish-workstation = true;
+                  publish-domain = true; # Optional: publishes domain info
+                  publish-hinfo = true; # Optional: publishes hardware/OS details
+                };
+              }
+              else {
+                publish = {
+                  enable = true;
+                  addresses = true;
+                  workstation = true;
+                  domain = true;
+                  hinfo = true;
+                };
+              }
+            );
 
           # Determinate Nix module (loaded via baseModules) manages nix.package
           # and experimental-features automatically

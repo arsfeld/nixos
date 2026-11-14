@@ -42,14 +42,9 @@
     services.avahi = {
       enable = true;
       nssmdns4 = true;
-      publish = {
-        enable = true;
-        addresses = true;
-        domain = true;
-        hinfo = true;
-        userServices = true;
-        workstation = true;
-      };
+      # Base publishes addresses, domain, hinfo and workstation; the smb
+      # service file below needs user services too.
+      settings.publish.disable-user-service-publishing = false;
       extraServiceFiles = {
         smb = ''
           <?xml version="1.0" standalone='no'?><!--*-nxml-*-->
