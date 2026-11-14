@@ -174,6 +174,11 @@ paper-run build_dir *env:
     # -f: the loop above already copied the installed (read-only) one on a host running the plugin.
     cp -f "$build/../data/io.github.arsfeld.paper.keybindings.gschema.xml" /tmp/paper-gala-schemas/
     cp -f "$build/../data/io.github.arsfeld.paper.gschema.xml" /tmp/paper-gala-schemas/
+    # PAPER_X11=1 keeps XWayland and makes the demo windows X11 clients: Mutter emits
+    # `shown` only for a window that starts hidden, which an undecorated X11 window
+    # (PAPER_DEMO_UNDECORATED=<n>, as Steam's) does not.
+    backend=wayland; x11=--no-x11
+    for arg in "$@"; do [[ "$arg" == PAPER_X11=1 ]] && { backend=x11; x11=; }; done
     # PAPER_MONITORS=2 adds a second 1920x1080 monitor to the right of the primary.
     count=1
     for arg in "$@"; do [[ "$arg" == PAPER_MONITORS=* ]] && count="${arg#PAPER_MONITORS=}"; done
@@ -184,9 +189,9 @@ paper-run build_dir *env:
     # The demo hook's windows: tests/demo-window.py from the plugin checkout, a plain GTK 3 window.
     py=$(nix build --no-link --print-out-paths --impure --expr '({{ PAPER_EXPR }}).python3.withPackages (p: [p.pygobject3])')
     typelibs=$(nix build --no-link --print-out-paths --impure --expr 'let p = {{ PAPER_EXPR }}; in p.symlinkJoin { name = "paper-demo-typelibs"; paths = [p.gtk3 p.pango.out p.gdk-pixbuf p.atk p.harfbuzz p.glib.out p.gobject-introspection]; }')
-    demo_cmd="env GI_TYPELIB_PATH=$typelibs/lib/girepository-1.0 GDK_BACKEND=wayland $py/bin/python3 $(realpath "$build/../tests/demo-window.py")"
+    demo_cmd="env GI_TYPELIB_PATH=$typelibs/lib/girepository-1.0 GDK_BACKEND=$backend $py/bin/python3 $(realpath "$build/../tests/demo-window.py")"
     setsid dbus-run-session -- bash -c 'echo "$DBUS_SESSION_BUS_ADDRESS" > /tmp/paper-gala.bus; exec env GSETTINGS_BACKEND=memory GSETTINGS_SCHEMA_DIR=/tmp/paper-gala-schemas XDG_CURRENT_DESKTOP=Pantheon XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" "$@"' bash \
-        "PAPER_DEMO_CMD=$demo_cmd" "$@" "$gala/bin/gala" --headless "${monitors[@]}" --wayland-display paper-0 --no-x11 \
+        "PAPER_DEMO_CMD=$demo_cmd" "$@" "$gala/bin/gala" --headless "${monitors[@]}" --wayland-display paper-0 $x11 \
         > /tmp/paper-gala.log 2>&1 < /dev/null &
     for _ in $(seq 40); do
         sleep 0.5
