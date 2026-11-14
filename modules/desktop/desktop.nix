@@ -23,6 +23,31 @@ in {
         ...
       }: let
         cfg = config.constellation.desktop;
+
+        # `flatpak update` for one installation, run by a daily timer.
+        # NetworkManager-wait-online is off on desktops, so a run straight
+        # after resume can start before the network is up: retry it.
+        flatpakUpdate = scope: {
+          description = "Update ${scope} flatpaks";
+          wants = ["network-online.target"];
+          after = ["network-online.target"];
+          serviceConfig = {
+            Type = "oneshot";
+            ExecStart = "${pkgs.flatpak}/bin/flatpak update --${scope} --noninteractive --assumeyes";
+            Restart = "on-failure";
+            RestartSec = "5min";
+            Nice = 19;
+            IOSchedulingClass = "idle";
+          };
+        };
+        flatpakUpdateTimer = {
+          wantedBy = ["timers.target"];
+          timerConfig = {
+            OnCalendar = "daily";
+            Persistent = true;
+            RandomizedDelaySec = "1h";
+          };
+        };
       in {
         options.constellation.desktop = {
           variant = lib.mkOption {
@@ -166,6 +191,15 @@ in {
               enable = true;
               packages = cfg.flatpakPackages;
             };
+
+            # Daily `flatpak update` for both installations. Not nix-flatpak's
+            # update.auto: that only re-runs `install --or-update` for the apps
+            # declared above, so hand-installed apps (Papers, the user-level
+            # mydia/stash-player/zoom installs) and their runtimes never moved.
+            systemd.services.flatpak-update = flatpakUpdate "system";
+            systemd.timers.flatpak-update = flatpakUpdateTimer;
+            systemd.user.services.flatpak-update = flatpakUpdate "user";
+            systemd.user.timers.flatpak-update = flatpakUpdateTimer;
 
             services.printing = {
               enable = true;
