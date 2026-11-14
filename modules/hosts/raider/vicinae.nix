@@ -52,6 +52,9 @@
           pop_to_root_on_close = true;
           favorites = [];
           tray.enabled = false;
+          # File search is unused, and its indexer ran nonstop: ~10% CPU and
+          # ~15 MB/s of writes for days. Off, the indexer process never starts.
+          providers.files.preferences.autoIndexing = false;
         };
       };
 
