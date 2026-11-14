@@ -370,11 +370,11 @@ Settings** (a Switchboard plug), which the module adds through
 `extraWingpanelIndicators` and `extraSwitchboardPlugs`; spec
 `docs/superpowers/specs/2026-11-14-pantheon-paper-indicator-design.md`. The indicator's
 icon shows tiling on, off for this workspace, or off; its popover has switches for
-Tiling, Tile this workspace and Float "<window>", a Gap slider, Animate, a Shortcuts
+Tiling, Tile this workspace and Float "<window>", a Gap slider, Animate, Focus ring, a Shortcuts
 list, Add rule for "<app>"… and Tiling Settings…. The page (`settings://paper`, also
 `/rules` and `/shortcuts`) edits layout, app rules and shortcuts, with a clash prompt
 on rebinding. Settings live in `io.github.arsfeld.paper` (enabled, gap, width presets,
-default width, animate, app rules; the plugin reads them live). Live session state
+default width, animate, focus ring, app rules; the plugin reads them live). Live session state
 (tile this workspace, float the focused window, the focused app, running apps) is the
 plugin's D-Bus interface `io.github.arsfeld.Paper` at `/io/github/arsfeld/Paper`; with
 no owner the indicator greys its live switches out. Both run in their own processes,
