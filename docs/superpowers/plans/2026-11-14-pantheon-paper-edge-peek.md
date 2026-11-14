@@ -30,9 +30,9 @@
 
 1. **A margin too large for the work area** (100 px on a narrow or portrait monitor): `U` must never go below `work.width / 2`, or columns get tiny or negative widths. → Task 1 test `margin_never_eats_half_the_screen`.
 2. **Changing `margin` live** while a column is focused near an edge: the focused column should end up inside the new margin lines, not left where the old scroll put it. → Task 2 demo step `margin-60` asserted in its verification step.
-3. **The previewed window closes or is focused while its preview is up**: the clone must vanish, never show a dead or now-visible window. → Task 4 verification (click at the edge; the preview is `none` afterwards), and the destroy handler in Task 4 Step 3.
+3. **The previewed window closes or is focused while its preview is up**: the clone must vanish, never show a dead or now-visible window. → Task 4 verification (click at the edge; the preview is `none` afterwards), and the destroy handler in Task 4 Step 2.
 4. **Dragging a window to the screen edge** (a grab in progress): no preview may appear over the drag. → Task 4 verification step with `down`/`move`/`up`.
-5. **Fullscreen or the multitasking view with the pointer at the edge**: no preview. → Task 4 Step 3 guards (`fullscreen`, `wm.is_modal ()`), checked by hand in Task 6.
+5. **Fullscreen or the multitasking view with the pointer at the edge**: no preview. → Task 4 Step 2 guards (`fullscreen`, `wm.is_modal ()`), checked by hand in Task 5.
 
 ---
 
