@@ -173,6 +173,7 @@ paper-run build_dir *env:
     done
     # -f: the loop above already copied the installed (read-only) one on a host running the plugin.
     cp -f "$build/../data/io.github.arsfeld.paper.keybindings.gschema.xml" /tmp/paper-gala-schemas/
+    cp -f "$build/../data/io.github.arsfeld.paper.gschema.xml" /tmp/paper-gala-schemas/
     # PAPER_MONITORS=2 adds a second 1920x1080 monitor to the right of the primary.
     count=1
     for arg in "$@"; do [[ "$arg" == PAPER_MONITORS=* ]] && count="${arg#PAPER_MONITORS=}"; done
