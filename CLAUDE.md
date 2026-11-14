@@ -399,7 +399,13 @@ just pantheon::paper-stop
 D-Bus session with in-memory GSettings (Pantheon's overrides included, run as
 `XDG_CURRENT_DESKTOP=Pantheon`) and a 1920x1080 virtual monitor (`PAPER_MONITORS=2` adds
 one to the right), so the live session is never touched. `PAPER_DEMO_FIXED=<n>` and
-`PAPER_DEMO_WIDE=<n>` make demo window n not resizable, or at least 1100 px wide. `PAPER_DEMO`, `PAPER_DEMO_KEYS`, `PAPER_DEMO_MOUSE` and
+`PAPER_DEMO_WIDE=<n>` make demo window n not resizable, or at least 1100 px wide.
+`PAPER_X11=1` keeps XWayland and makes the demo windows X11 clients, and
+`PAPER_DEMO_UNDECORATED=<n>` drops window n's decorations: **an undecorated X11 window
+(Steam's main window) never gets Mutter's `shown`**, which fires only for a window that
+starts hidden, so the plugin adopts windows on `shown` or the actor's first frame,
+whichever comes first. `G_MESSAGES_DEBUG=pantheon-paper` in Gala's environment logs why
+each window is or is not tiled (on a host: a drop-in on `io.elementary.gala@wayland.service`). `PAPER_DEMO`, `PAPER_DEMO_KEYS`, `PAPER_DEMO_MOUSE` and
 `PAPER_DEMO_IDLE` select scripted step lists, and `PAPER_DEMO_SETTINGS` and
 `PAPER_DEMO_TOGGLE` select ones that write settings and switch tiling off and on from inside
 Gala: its GSettings backend is in-memory, so a `gsettings set` from outside never reaches
