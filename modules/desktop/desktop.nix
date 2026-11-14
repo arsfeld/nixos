@@ -670,6 +670,13 @@ in {
                 # as boxes. Same face as ghostty; a per-user value still wins
                 # (raider sets SF Mono in fontconfig.nix).
                 settings."org/gnome/desktop/interface".monospace-font-name = "FiraCode Nerd Font 10";
+                # Cycle the focused app's windows with Alt+` (Gala's window
+                # switcher, filtered to one app), as GNOME and macOS do.
+                # Pantheon's default is Super+`.
+                settings."org/gnome/desktop/wm/keybindings" = {
+                  switch-group = ["<Alt>grave"];
+                  switch-group-backward = ["<Shift><Alt>grave"];
+                };
                 settings."io/elementary/monitor/settings" = {
                   indicator-state = true;
                   background-state = true;
