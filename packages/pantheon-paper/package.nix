@@ -17,11 +17,15 @@ in
     src = pkgs.fetchFromGitHub {
       owner = "arsfeld";
       repo = "pantheon-paper";
-      rev = "cc1152ad2a0948753e6c2ace2820b15ec5684e40";
-      hash = "sha256-mTnFgevEYh/lzRc+uOsHfHJ6Dcx4LstnZk65c5ikMYs=";
+      rev = "2d9a8ea7f89d5a3f7873813391e688e3387cfe12";
+      hash = "sha256-IWPeksW4xEXLikhrubVs0nD7nRym81QBKfxIFw804XY=";
     };
 
     nativeBuildInputs = with pkgs; [meson ninja pkg-config vala glib];
+    # The Wingpanel indicator and Switchboard plug are not wired into Pantheon
+    # yet (docs/superpowers/plans/2026-11-14-pantheon-paper-indicator.md, the
+    # packaging task): until then only the Gala plugin is built.
+    mesonFlags = ["-Dindicator=false" "-Dplug=false"];
     # The public Requires of libmutter-16, mutter-clutter-16 and mutter-cogl-16:
     # pkg-config needs them all to generate cflags.
     buildInputs = with pkgs; [

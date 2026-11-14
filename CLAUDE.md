@@ -350,7 +350,9 @@ columns that scrolls to follow focus. It is a Gala plugin in its own repo,
 `docs/superpowers/plans/2026-11-12-pantheon-paper.md`. Keys: Super+arrows focus,
 Super+Shift+arrows move, Super+R width, Super+M full width, Super+I/U slurp/barf,
 Super+C centre, Super+Shift+F float; Super+scroll pans, and so does dragging a
-titlebar sideways; pulling the window 100 px up or down instead drops it into a column. Workspace switching moves to Ctrl+Super+←/→ (replacing
+titlebar sideways; pulling the window 100 px up or down instead drops it into a column. The focused tiled window has an accent-colour
+ring (`src/FocusRing.vala`, a child of the window's actor, so it rides the scroll animation; the demo log prints it
+as `|| ring:`), kept inside the work area, so where a column meets the panel or a screen edge it covers the window's own edge. Workspace switching moves to Ctrl+Super+←/→ (replacing
 half-screen tiling); the module says what else it changes, and why.
 `just pantheon::paper-keys-check [host]` fails on any clash in a built system.
 It is also a `.deb` for elementary OS 8 in arsfeld/pantheon-extras, so it builds against
