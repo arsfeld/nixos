@@ -341,6 +341,14 @@ in {
         # Use remote builders configuration (skip on basestar to avoid circular dependency)
         builders = "@${../nix-builders.conf}";
       });
+    # The system nix-gc runs as root and never touches this user's profiles in
+    # ~/.local/state/nix/profiles, so home-manager generations piled up forever
+    # (19 on blackbird, pinning most of a 125G store).
+    gc = {
+      automatic = true;
+      dates = "weekly";
+      options = "--delete-older-than 7d";
+    };
   };
 
   # programs.java.enable = true;
