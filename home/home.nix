@@ -425,6 +425,13 @@ in {
 
   programs.home-manager.enable = true;
 
+  # Same reasoning as documentation.* in modules/base/common.nix: local docs are
+  # never read here. On stable home-manager this manpage's options.json also
+  # references nixpkgs' source without string context, which Determinate Nix
+  # warns about on every eval ("Using 'builtins.derivation' to create a
+  # derivation named 'options.json' ... without a proper context").
+  manual.manpages.enable = false;
+
   # Set default applications for XDG MIME types
   xdg.mimeApps = mkIf stdenv.isLinux {
     enable = true;
