@@ -20,7 +20,7 @@
     fi
   '';
 in {
-  config = lib.mkIf pkgs.stdenv.isDarwin {
+  config = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     launchd.agents.home-manager-auto-update = {
       enable = true;
       config = {

@@ -198,7 +198,7 @@
     );
 
   linuxOnlyPkgs = with pkgs;
-    optionals stdenv.isLinux [
+    optionals stdenv.hostPlatform.isLinux [
       distrobox
       nvidia-offload
       waypipe
@@ -223,7 +223,7 @@ in {
   home = {
     username = "arosenfeld";
     homeDirectory =
-      if stdenv.isLinux
+      if stdenv.hostPlatform.isLinux
       then "/home/arosenfeld"
       else "/Users/arosenfeld";
     stateVersion = "22.05";
@@ -287,7 +287,7 @@ in {
         CLAUDE_NTFY_TOPIC = "claude";
       }
       // (
-        if stdenv.isDarwin
+        if stdenv.hostPlatform.isDarwin
         then {
           ANDROID_HOME = "$HOME/Library/Android/sdk";
         }
@@ -305,7 +305,7 @@ in {
           "$HOME/.npm-global/bin"
         ]
         ++ (
-          if stdenv.isDarwin
+          if stdenv.hostPlatform.isDarwin
           then [
             "$HOME/Library/Android/sdk/emulator"
             "$HOME/Library/Android/sdk/platform-tools"
@@ -351,7 +351,7 @@ in {
   # ~/.claude/settings.json is user state that Claude Code also writes, so the cylon-bot
   # hooks are merged into it rather than declared. Idempotent; leaves every other key and hook
   # alone, and a settings file it cannot parse is left untouched with a warning.
-  home.activation.cylonBotHooks = mkIf stdenv.isLinux (lib.hm.dag.entryAfter ["writeBoundary"] ''
+  home.activation.cylonBotHooks = mkIf stdenv.hostPlatform.isLinux (lib.hm.dag.entryAfter ["writeBoundary"] ''
     ${pkgs.cylon-bot-hook}/bin/cylon-bot-install-hooks \
       || echo "cylon-bot: could not merge hooks into ~/.claude/settings.json" >&2
   '');
@@ -433,7 +433,7 @@ in {
   manual.manpages.enable = false;
 
   # Set default applications for XDG MIME types
-  xdg.mimeApps = mkIf stdenv.isLinux {
+  xdg.mimeApps = mkIf stdenv.hostPlatform.isLinux {
     enable = true;
     defaultApplications = {
       "text/html" = "app.zen_browser.zen.desktop";
@@ -770,7 +770,7 @@ in {
     };
   };
 
-  programs.keychain = mkIf stdenv.isLinux {
+  programs.keychain = mkIf stdenv.hostPlatform.isLinux {
     enable = true;
     enableBashIntegration = false;
     keys = ["id_ed25519"];
@@ -789,7 +789,7 @@ in {
   programs.eza.enableBashIntegration = false;
 
   # services.syncthing = {
-  #   enable = pkgs.stdenv.isLinux;
+  #   enable = pkgs.stdenv.hostPlatform.isLinux;
   # };
 
   # `seaf-cli start` requires an already-initialised config directory (~/.ccnet)
@@ -818,7 +818,7 @@ in {
   systemd.user.services =
     claudeRcServices
     // {
-      seafile-cli = mkIf stdenv.isLinux {
+      seafile-cli = mkIf stdenv.hostPlatform.isLinux {
         Unit = {
           Description = "Seafile CLI sync daemon";
           After = ["network-online.target"];
