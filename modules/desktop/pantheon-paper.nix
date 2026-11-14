@@ -3,9 +3,16 @@
 # Package: packages/pantheon-paper (github.com/arsfeld/pantheon-paper), a Gala
 # plugin. Design: docs/superpowers/specs/2026-11-12-pantheon-paper-design.md.
 #
+# The package also carries a Wingpanel indicator (the tiling state of the
+# workspace and the focused window, a popover of switches) and a Tiling page in
+# System Settings (settings://paper: layout, app rules, shortcuts).
+#
 # Gala loads plugins from /run/current-system/sw/lib/gala/plugins, so
 # systemPackages installs the plugin; extraGSettingsOverridePackages puts its
-# keybinding schema where Gala looks (NIX_GSETTINGS_OVERRIDES_DIR). Gala reads
+# schemas where Gala looks (NIX_GSETTINGS_OVERRIDES_DIR).
+# extraWingpanelIndicators and extraSwitchboardPlugs add the indicator and the
+# page to the wrapped wingpanel and switchboard, which find them through
+# WINGPANEL_INDICATORS_PATH and SWITCHBOARD_PLUGS_PATH. Gala reads
 # plugins only at startup, so a change takes effect at the next login, and a
 # crash in the plugin ends the Pantheon session.
 #
@@ -44,7 +51,11 @@
 
         config = lib.mkIf (config.services.desktopManager.pantheon.enable && cfg.enable) {
           environment.systemPackages = [paper];
-          services.desktopManager.pantheon.extraGSettingsOverridePackages = [paper];
+          services.desktopManager.pantheon = {
+            extraGSettingsOverridePackages = [paper];
+            extraWingpanelIndicators = [paper];
+            extraSwitchboardPlugs = [paper];
+          };
 
           programs.dconf.profiles.user.databases = [
             {

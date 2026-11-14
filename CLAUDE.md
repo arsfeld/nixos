@@ -365,6 +365,24 @@ Pantheon's keys with `XDG_CURRENT_DESKTOP=Pantheon`:** elementary's defaults are
 desktop-specific overrides, and a plain `gsettings` shows GNOME's (Super+←/→ switch
 workspaces in Pantheon, not tile), which is how the first version shipped a clash.
 
+The same package carries a **Wingpanel indicator** and a **Tiling page in System
+Settings** (a Switchboard plug), which the module adds through
+`extraWingpanelIndicators` and `extraSwitchboardPlugs`; spec
+`docs/superpowers/specs/2026-11-14-pantheon-paper-indicator-design.md`. The indicator's
+icon shows tiling on, off for this workspace, or off; its popover has switches for
+Tiling, Tile this workspace and Float "<window>", a Gap slider, Animate, a Shortcuts
+list, Add rule for "<app>"… and Tiling Settings…. The page (`settings://paper`, also
+`/rules` and `/shortcuts`) edits layout, app rules and shortcuts, with a clash prompt
+on rebinding. Settings live in `io.github.arsfeld.paper` (enabled, gap, width presets,
+default width, animate, app rules; the plugin reads them live). Live session state
+(tile this workspace, float the focused window, the focused app, running apps) is the
+plugin's D-Bus interface `io.github.arsfeld.Paper` at `/io/github/arsfeld/Paper`; with
+no owner the indicator greys its live switches out. Both run in their own processes,
+so a crash restarts Wingpanel or closes Settings and never ends the session; they are
+checked by hand on raider after a deploy. **"Focused" on the bus is the last focused
+*normal* window**: measured, opening a Wingpanel popover moves Mutter's focus to
+Wingpanel (a DOCK window), and the bus ignores it, so the popover names the app.
+
 Gala loads plugins only at startup, so **a new build needs a logout and login**, and a
 crash in the plugin ends the session. Never test a change by logging in with it.
 Test it in a private headless Gala instead, from the plugin checkout:
@@ -382,7 +400,11 @@ D-Bus session with in-memory GSettings (Pantheon's overrides included, run as
 `XDG_CURRENT_DESKTOP=Pantheon`) and a 1920x1080 virtual monitor (`PAPER_MONITORS=2` adds
 one to the right), so the live session is never touched. `PAPER_DEMO_FIXED=<n>` and
 `PAPER_DEMO_WIDE=<n>` make demo window n not resizable, or at least 1100 px wide. `PAPER_DEMO`, `PAPER_DEMO_KEYS`, `PAPER_DEMO_MOUSE` and
-`PAPER_DEMO_IDLE` select scripted step lists; each step logs `paper-demo: at <i> <name>`
+`PAPER_DEMO_IDLE` select scripted step lists, and `PAPER_DEMO_SETTINGS` and
+`PAPER_DEMO_TOGGLE` select ones that write settings and switch tiling off and on from inside
+Gala: its GSettings backend is in-memory, so a `gsettings set` from outside never reaches
+it. D-Bus does: `gdbus` on the address in `/tmp/paper-gala.bus`
+(`DBUS_SESSION_BUS_ADDRESS=$(< /tmp/paper-gala.bus) gdbus call --session …`). Every list's steps log `paper-demo: at <i> <name>`
 with every window's real frame, which is the text to assert on. `paper-inject` drives
 Mutter's RemoteDesktop API on the private bus (keys, scroll, relative motion, button
 holds); it must never run against the live session. **Never put the literal headless
@@ -1111,7 +1133,7 @@ Opt-in modules that hosts compose by importing them; `nix eval --json .#nixosMod
 | `forgejo-runner` | `modules/forgejo-runner.nix` | Forgejo Actions runner |
 | `virtualization` | `modules/virtualization.nix` | KVM/libvirt |
 | `development` | `modules/development.nix` | Dev tools (Docker, Node, Python, Go, Rust, …) |
-| `desktop` | `modules/desktop/desktop.nix` | Desktop environment (`variant` selects GNOME etc.); imports `pantheon-dock` (the dock with folder stacks, zoom and sharp icons, from the `extras` branch of the arsfeld/elementary-dock fork, pinned as `packages/elementary-dock-extras`; plus an AppCenter patch), `pantheon-gamemode`, `pantheon-terminal` (elementary Terminal on libghostty-vt via libghostty-gtk; arsfeld/libghostty-gtk and the `libghostty-gtk` branch of the arsfeld/elementary-terminal fork live in their own repos and are pinned in `packages/`; both forks also publish `.deb`s to the arsfeld/pantheon-extras repo (arsfeld.github.io/pantheon-extras) for elementary OS), `pantheon-tailscale` (Wingpanel Tailscale indicator; grants `--operator=arosenfeld`) and `pantheon-paper` (PaperWM-style scrolling tiling, a Gala plugin from arsfeld/pantheon-paper; see "Pantheon tiling") |
+| `desktop` | `modules/desktop/desktop.nix` | Desktop environment (`variant` selects GNOME etc.); imports `pantheon-dock` (the dock with folder stacks, zoom and sharp icons, from the `extras` branch of the arsfeld/elementary-dock fork, pinned as `packages/elementary-dock-extras`; plus an AppCenter patch), `pantheon-gamemode`, `pantheon-terminal` (elementary Terminal on libghostty-vt via libghostty-gtk; arsfeld/libghostty-gtk and the `libghostty-gtk` branch of the arsfeld/elementary-terminal fork live in their own repos and are pinned in `packages/`; both forks also publish `.deb`s to the arsfeld/pantheon-extras repo (arsfeld.github.io/pantheon-extras) for elementary OS), `pantheon-tailscale` (Wingpanel Tailscale indicator; grants `--operator=arosenfeld`) and `pantheon-paper` (PaperWM-style scrolling tiling, a Gala plugin from arsfeld/pantheon-paper, with a Wingpanel indicator and a Tiling page in System Settings; see "Pantheon tiling") |
 | `gaming` | `modules/gaming.nix` | Gaming environment |
 | `check-stock` | `modules/check-stock.nix` | Stock availability monitor |
 | `blocky` | `modules/blocky.nix` | Blocky DNS (no host imports it) |

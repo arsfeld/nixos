@@ -1,9 +1,13 @@
-# PaperWM-style scrolling tiling for Pantheon, as a Gala plugin. Source:
+# PaperWM-style scrolling tiling for Pantheon, as a Gala plugin, with a
+# Wingpanel indicator (lib/wingpanel) and a Tiling page for System Settings
+# (a Switchboard plug, lib/switchboard-3/personal). Source:
 # github.com/arsfeld/pantheon-paper. Design:
-# docs/superpowers/specs/2026-11-12-pantheon-paper-design.md.
+# docs/superpowers/specs/2026-11-12-pantheon-paper-design.md, and for the
+# indicator and the page docs/superpowers/specs/2026-11-14-pantheon-paper-indicator-design.md.
 #
-# Built against the mutter gala itself uses (48), not the top-level one, the
-# same way as packages/pantheon-global-menu. The unit tests (meson test) run in
+# The plugin is built against the mutter gala itself uses (48), not the
+# top-level one, the same way as packages/pantheon-global-menu. The unit tests
+# (meson test, the indicator's and the plug's models included) run in
 # checkPhase, so a failing test fails the host build.
 # Added to Pantheon by modules/desktop/pantheon-paper.nix.
 {pkgs, ...}: let
@@ -22,10 +26,6 @@ in
     };
 
     nativeBuildInputs = with pkgs; [meson ninja pkg-config vala glib];
-    # The Wingpanel indicator and Switchboard plug are not wired into Pantheon
-    # yet (docs/superpowers/plans/2026-11-14-pantheon-paper-indicator.md, the
-    # packaging task): until then only the Gala plugin is built.
-    mesonFlags = ["-Dindicator=false" "-Dplug=false"];
     # The public Requires of libmutter-16, mutter-clutter-16 and mutter-cogl-16:
     # pkg-config needs them all to generate cflags.
     buildInputs = with pkgs; [
@@ -45,6 +45,14 @@ in
       gsettings-desktop-schemas
       gala
       mutter
+      # The indicator (GTK 3) and the plug (GTK 4).
+      gtk3
+      pantheon.granite
+      pantheon.wingpanel
+      gtk4
+      pantheon.granite7
+      libadwaita
+      pantheon.switchboard
     ];
 
     doCheck = true;
