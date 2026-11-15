@@ -45,10 +45,9 @@
                       mountpoint = "/var/log";
                       mountOptions = ["compress=zstd" "noatime"];
                     };
-                    "/tmp" = {
-                      mountpoint = "/tmp";
-                      mountOptions = ["noatime"];
-                    };
+                    # Left unmounted: /tmp is a tmpfs (tmpfs.nix). Kept so the
+                    # layout still matches the disk disko created.
+                    "/tmp" = {};
                   };
                 };
               };
