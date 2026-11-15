@@ -163,108 +163,35 @@
       notifications.test = true;
     };
 
-    # Weekly scrub of the data pool: verifies every RAID1C3 mirror against the
-    # checksums and repairs stale/corrupt copies from good ones. Without this,
-    # a disk that silently missed writes (see sdg, July 2026) keeps serving
-    # stale data until a second failure makes it unrecoverable.
+    # Weekly scrub of the data pool: verifies every mirror against the checksums
+    # and repairs stale/corrupt copies from good ones. Without this, a disk that
+    # silently missed writes (see sdg, July 2026) keeps serving stale data until a
+    # second failure makes it unrecoverable.
     #
-    # DISABLED 2026-08-31 -- TEMPORARY, RE-ENABLE AFTER THE CABLE IS REPLACED.
+    # Off since 2026-08-31. The HBA breakout lead on phy 7 was bad: it logged
+    # link errors and dropped its disk (Z304SS33) under sustained load, and a
+    # 16-hour scrub is exactly that load. On 2026-11-15 the lead was taken out
+    # of use (Z304SS33 moved to phy 4, the WD to onboard SATA), WDH2Y01G was
+    # pulled for failing media (256 reallocated, 72 pending sectors), and the
+    # pool went from five disks in RAID1C3 to four with RAID1 data and RAID1C3
+    # metadata, converted by hand with
     #
-    # devid 5 (serial Z304SS33, phy-7:7) dropped off the bus ten seconds into the
-    # weekly scrub and re-enumerated as a new /dev/sd* name that btrfs never
-    # picked up. The scrub then ran its full 16h against the dead bdev, "fixing"
-    # 715M read errors it could never write back. Same disk and same lane as the
-    # July 2026 episode.
+    #   btrfs balance start -dconvert=raid1 -mconvert=raid1c3,soft /mnt/storage
+    #   btrfs device remove missing /mnt/storage
     #
-    # The scrub is the trigger, not a bystander: phy-7:7 is the only lane on the
-    # HBA with non-zero link errors (invalid_dword/disparity/loss_of_dword_sync,
-    # all seven other lanes are exactly 0) and it only lets go under sustained
-    # load. The disk itself is fine -- SMART PASSED, 0 reallocated, 0 pending.
-    # So the fault is the cable/connector on that lane, and until it is physically
-    # reseated a scrub is 16 hours of the exact I/O that knocks the disk offline.
+    # Re-enable once that conversion has finished and btrfs-health-check has
+    # stayed quiet for a week. Persistent=true fires a missed run at the next
+    # boot, so enabling it while a balance is running would stack the two.
     #
-    # Disabling rather than masking at runtime because the timer is Persistent=true:
-    # a missed weekly run fires immediately on the next boot, so leaving the unit
-    # defined just moves the landmine to the next reboot. The pool is safe to run
-    # unscrubbed meanwhile -- RAID1C3 over the 4 surviving devices still holds >=2
-    # copies of every extent, and corruption_errs is 0 on every device.
+    # A disk that drops off the bus does not come back until the pool is
+    # unmounted and mounted again, or the host is rebooted, and it returns with
+    # stale data. Resync it with a single-device scrub:
     #
-    # Re-enable once the lane is clean: check that the phy counters stay at 0 under
-    # load, then rebuild devid 5 (btrfs replace) before the first scrub.
-    #
-    # 2026-10-01: the cable cannot be touched for a while (nobody is on site), so
-    # the disk is back in service on the suspect lane. It rejoined the pool by
-    # itself at the 2026-09-26 reboot, still carrying everything it missed while
-    # it was off the bus -- reads from it failed checksums and were repaired from
-    # the other copies, ~190k in three days. A resync of that one device was
-    # started by hand instead of a replace, since there is no spare to replace to:
-    #
-    #   echo $((60*1024*1024)) > /sys/fs/btrfs/<fsid>/devinfo/5/scrub_speed_max
-    #   btrfs scrub start /dev/disk/by-id/ata-ST4000VN000-1H4168_Z304SS33
-    #
-    # A single-device scrub reads only devid 5 and rewrites what is stale; the
-    # throttle (not persistent, lost on remount) keeps it well under the disk's
-    # sequential rate. If the disk drops again it will not come back until the
-    # pool is unmounted and mounted again, or the host is rebooted.
-    #
-    # That first pass ran 13h at 6.0 Gbit. The lane logged link errors from the
-    # second hour on and lost sync three times overnight (a few seconds each; the
-    # disk came back under the same name), so the pass left holes, and a crash at
-    # 07:48 on 2026-10-02 cut it off just short of the end. phy 7 was then capped
-    # at 3.0 Gbit (sas-phy7-3g below) and the pass restarted from the beginning.
-    #
-    # The weekly scrub stays off: it loads all five disks for 16h, and nothing
-    # about the lane has been fixed. btrfs-health-check below watches the phy
-    # counters in the meantime. Turn it back on only after a single-device pass
-    # has completed at 3.0 Gbit with the phy 7 counters still at 0.
+    #   btrfs scrub start /dev/disk/by-id/ata-<model>_<serial>
     services.btrfs.autoScrub = {
       enable = false;
       fileSystems = ["/mnt/storage"];
       interval = "weekly";
-    };
-
-    # Cap HBA phy 7 (devid 5, serial Z304SS33) at 3.0 Gbit before the pool mounts.
-    # The cable on that lane is marginal at 6.0 Gbit, and a 4 TB spinning disk
-    # never needs more than 3.0. The cap is not stored anywhere: the HBA
-    # renegotiates 6.0 on every boot, so it has to be reapplied each time, and it
-    # has to happen before the mount because changing it resets the link.
-    #
-    # Matched by phy_identifier, not by name: the SCSI host number in phy-N:7
-    # depends on what else enumerated first.
-    #
-    # Remove this once the disk is moved to an onboard SATA port or the breakout
-    # cable is replaced. With nothing linked on phy 7 it waits out its 90s, fails
-    # (which mails), and the mount proceeds anyway.
-    systemd.services.sas-phy7-3g = {
-      description = "Cap SAS phy 7 at 3.0 Gbit";
-      wantedBy = ["mnt-storage.mount"];
-      before = ["mnt-storage.mount" "shutdown.target"];
-      conflicts = ["shutdown.target"];
-      unitConfig.DefaultDependencies = false;
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
-      };
-      script = ''
-        set -u
-        for _ in $(seq 1 45); do
-          for phy in /sys/class/sas_phy/phy-*; do
-            [ "$(cat "$phy/phy_identifier" 2>/dev/null)" = 7 ] || continue
-            case "$(cat "$phy/negotiated_linkrate")" in
-              "3.0 Gbit")
-                udevadm settle
-                exit 0
-                ;;
-              "6.0 Gbit")
-                echo "3.0 Gbit" > "$phy/maximum_linkrate"
-                ;;
-            esac
-          done
-          sleep 2
-        done
-        echo "phy 7 never settled at 3.0 Gbit" >&2
-        exit 1
-      '';
     };
 
     # Daily pool health check. The scrub above catches corruption but is blind to

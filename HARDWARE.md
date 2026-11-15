@@ -58,21 +58,22 @@ Last updated: 2026-04-07
 - **CPU**: Intel Core i5-4430 - 4 cores / 4 threads
 - **RAM**: 16 GB
 - **Network**: 2x onboard gigabit Ethernet (Intel I217-V, Atheros AR8161)
-- **Expansion card**: Fujitsu D2607 SAS HBA (LSI SAS2008, `mpt2sas`), in the only PCIe slot. Crossflashed: firmware reports `SAS9212-4i4e`, version 20.00.07.00. Two internal SFF-8087 connectors, 8 lanes; phys 4-7 are in use, phys 0-3 are free.
-- **Disks** (identify by serial; `/dev/sdX` names change on this host):
+- **Expansion card**: Fujitsu D2607 SAS HBA (LSI SAS2008, `mpt2sas`), in the only PCIe slot. Crossflashed: firmware reports `SAS9212-4i4e`, version 20.00.07.00. Two internal SFF-8087 connectors, 8 lanes; phys 4 and 6 are in use, phys 0-3, 5 and 7 are free.
+- **Disks** (identify by serial; `/dev/sdX` names change on this host; wiring as of 2026-11-15):
 
   | Size | Model | Serial | Use | Connected to |
   |------|-------|--------|-----|--------------|
-  | 512 GB SSD | Samsung MZ7LN512HMJP | S2URNX0HC00771 | boot, containers | onboard SATA port 1 |
-  | 4 TB | Seagate ST4000VN000 | Z3051HFQ | pool devid 1 | onboard SATA port 2 |
-  | 4 TB | Seagate ST4000VN008 | WDH2WDVD | pool devid 2 | HBA phy 4 |
-  | 4 TB | WD WD40EFRX | WD-WCC7K7HJ9TV6 | pool devid 3 | HBA phy 5 |
-  | 4 TB | Seagate ST4000VN008 | WDH2Y01G | pool devid 4 | HBA phy 6 |
-  | 4 TB | Seagate ST4000VN000 | Z304SS33 | pool devid 5 | HBA phy 7 |
+  | 512 GB SSD | Samsung MZ7LN512HMJP | S2URNX0HC00771 | boot, containers | onboard SATA (ata1) |
+  | 4 TB | Seagate ST4000VN000 | Z3051HFQ | pool devid 1 | HBA phy 6 |
+  | 4 TB | Seagate ST4000VN008 | WDH2WDVD | pool devid 2 | onboard SATA (ata2) |
+  | 4 TB | WD WD40EFRX | WD-WCC7K7HJ9TV6 | pool devid 3 | onboard SATA (ata4) |
+  | 4 TB | Seagate ST4000VN000 | Z304SS33 | pool devid 5 | HBA phy 4 |
 
-- **Cabling**: the four HBA disks are SATA drives, so they hang off one SFF-8087 to 4x SATA forward breakout cable (inferred from the card and the drives, not seen). Four onboard SATA ports are free.
-- **Pool**: `cottage-data`, btrfs RAID1C3 across the five 4 TB disks, mounted at `/mnt/storage` (~18 TiB raw, ~6 TiB usable)
-- **Known fault**: the phy 7 lane (serial Z304SS33) has dropped its disk off the bus twice under scrub load (July and August 2026). The disk tests healthy; the cable or connector on that lane is the suspect. Not yet replaced. Since 2026-10-02 the lane is capped at 3.0 Gbit at every boot (`sas-phy7-3g`), after it lost sync three times in one night at 6.0 Gbit. The fix is to move that disk to a free onboard SATA port or replace the breakout cable. Details in `modules/hosts/pegasus/configuration.nix`.
+  Removed 2026-11-15: Seagate ST4000VN008 `WDH2Y01G` (was devid 4), failing media: 256 reallocated, 72 pending sectors, 75k hours.
+
+- **Cabling**: the two HBA disks hang off one SFF-8087 to 4x SATA forward breakout cable (inferred from the card and the drives, not seen).
+- **Pool**: `cottage-data`, btrfs across the four 4 TB disks, data RAID1 and metadata RAID1C3 (converted from five-disk RAID1C3 on 2026-11-15), mounted at `/mnt/storage` (~14.5 TiB raw, ~7.2 TiB usable). Survives one disk failure.
+- **Known fault**: the breakout leads for phys 5 and 7 are suspect and unused. phy 7 dropped Z304SS33 under scrub load (July and August 2026) and kept logging link errors even capped at 3.0 Gbit; on 2026-11-15 the WD would not link on phy 5 or 7 but came up at once on onboard SATA. Replace the breakout cable before using either lead again. Details in `modules/hosts/pegasus/configuration.nix`.
 
 ## Offline / Unreachable Hosts
 
