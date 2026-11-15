@@ -14,13 +14,13 @@
 }:
 pantheon.elementary-terminal.overrideAttrs (old: {
   # Pinned on every host: stable nixpkgs carries 8.0.0, unstable 8.1.0.
-  version = "8.1.0-unstable-2026-11-07";
+  version = "8.1.0-unstable-2026-11-13";
 
   src = fetchFromGitHub {
     owner = "arsfeld";
     repo = "elementary-terminal";
-    rev = "16244842674bdcd7c51742568961cad2010553d4";
-    hash = "sha256-hAL+GHWnCmKV2uZASoSubsR7k1ijl2Jh9VCzFpmLrAg=";
+    rev = "ace8d1f4263284f88e38843aab9522c97d47b84e";
+    hash = "sha256-swJw5DhigcjWn4REb9KnOow4LhwA/1g9k8Nr5cL8S+U=";
   };
 
   buildInputs = lib.remove vte-gtk4 old.buildInputs ++ [libghostty-gtk];
