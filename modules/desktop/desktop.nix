@@ -16,6 +16,7 @@ in {
       features.pantheon-globalmenu
       features.pantheon-paper
       features.pantheon-terminal
+      features.pantheon-wallpapers
       ({
         config,
         pkgs,
