@@ -10,6 +10,7 @@ in {
       features.media
       features.netdata-client
       features.podman
+      features.tmpfs
       features.tsnsrv
       features.virtualization
     ];

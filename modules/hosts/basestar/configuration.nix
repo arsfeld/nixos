@@ -188,7 +188,6 @@
     # systemd.email-notify.mailFrom = "admin@arsfeld.one";
     # systemd.email-notify.mailTo = "arsfeld@gmail.com";
 
-    boot.tmp.cleanOnBoot = true;
     networking.hostName = "basestar";
 
     networking.firewall = {

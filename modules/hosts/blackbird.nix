@@ -12,6 +12,7 @@ in {
     features.development
     features.gaming
     features.netdata-client
+    features.tmpfs
     features.virtualization
   ];
 }

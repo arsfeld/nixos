@@ -19,6 +19,7 @@ in {
       features.forgejo-runner
       features.media
       features.podman
+      features.tmpfs
       features.tsnsrv
       features.virtualization
     ];

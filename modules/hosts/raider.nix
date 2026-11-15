@@ -17,6 +17,7 @@ in {
       features.gaming
       features.media
       features.netdata-client
+      features.tmpfs
       features.tsnsrv
       features.virtualization
     ];

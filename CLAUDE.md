@@ -1147,6 +1147,7 @@ Opt-in modules that hosts compose by importing them; `nix eval --json .#nixosMod
 | `desktop` | `modules/desktop/desktop.nix` | Desktop environment (`variant` selects GNOME etc.); imports `pantheon-dock` (the dock with folder stacks, zoom and sharp icons, from the `extras` branch of the arsfeld/elementary-dock fork, pinned as `packages/elementary-dock-extras`; plus an AppCenter patch), `pantheon-gamemode`, `pantheon-terminal` (elementary Terminal on libghostty-vt via libghostty-gtk; arsfeld/libghostty-gtk and the `libghostty-gtk` branch of the arsfeld/elementary-terminal fork live in their own repos and are pinned in `packages/`; both forks also publish `.deb`s to the arsfeld/pantheon-extras repo (arsfeld.github.io/pantheon-extras) for elementary OS), `pantheon-tailscale` (Wingpanel Tailscale indicator; grants `--operator=arosenfeld`) and `pantheon-paper` (PaperWM-style scrolling tiling, a Gala plugin from arsfeld/pantheon-paper, with a Wingpanel indicator and a Tiling page in System Settings; see "Pantheon tiling") |
 | `gaming` | `modules/gaming.nix` | Gaming environment |
 | `check-stock` | `modules/check-stock.nix` | Stock availability monitor |
+| `tmpfs` | `modules/tmpfs.nix` | `/tmp` on tmpfs (50% of RAM); hosts with 16 GB+ only. First activation is safest as `just boot` + reboot, since mounting over a live `/tmp` hides its sockets |
 | `blocky` | `modules/blocky.nix` | Blocky DNS (no host imports it) |
 
 Host-local modules (see the rule above), under `modules/hosts/`: galactica —
