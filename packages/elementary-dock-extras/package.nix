@@ -18,8 +18,8 @@ pantheon.elementary-dock.overrideAttrs {
   src = fetchFromGitHub {
     owner = "arsfeld";
     repo = "elementary-dock";
-    rev = "6fcae11a0fdaeb202112a436d558c93a360eec77";
-    hash = "sha256-iy1RUmD8L29lYLgTBz1ImWBEIOOP/tvjJxtXWu2fCEE=";
+    rev = "b5d2dbfa5b6037db0e57d194be77e642b2083ef0";
+    hash = "sha256-VV67+DqSZudXDb181YfFepuaHLxC0V743Mp6iKz9Bv8=";
   };
 
   # The extras' unit tests: stacks, zoom-math, icon-math. None needs a display.
