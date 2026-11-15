@@ -24,13 +24,13 @@
 }:
 stdenv.mkDerivation {
   pname = "libghostty-gtk";
-  version = "0.1.0-unstable-2026-11-07";
+  version = "0.1.0-unstable-2026-11-13";
 
   src = fetchFromGitHub {
     owner = "arsfeld";
     repo = "libghostty-gtk";
-    rev = "46107641fc84cf706adbb1c38395ec2536b9e4fa";
-    hash = "sha256-YCckNLxkAJMDgl7eSu0PkDEGPRMLcv+prWKAyD7Y7qE=";
+    rev = "d5e4683c72358d6662d72fb9e61caac20cbaceb4";
+    hash = "sha256-M8xL/R3C8uikve2EPbftRBXVcu0ilyV3ZnRxRy9vN9s=";
   };
 
   strictDeps = true;
