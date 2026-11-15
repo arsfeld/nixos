@@ -165,7 +165,7 @@
         wireguardConfigFile = wgConfPath;
         namespaceAddress = cfg.namespaceAddress;
         bridgeAddress = cfg.bridgeAddress;
-        accessibleFrom = [
+        allowedIngress = [
           "100.64.0.0/10" # Tailscale CGNAT
           "10.0.0.0/8" # Local networks (incl. Podman)
           "192.168.0.0/16"

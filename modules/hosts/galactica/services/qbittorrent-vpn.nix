@@ -37,7 +37,7 @@
           wireguardConfigFile = config.sops.secrets.airvpn-wireguard.path;
 
           # Allow access from Tailscale network, Podman network, and local LAN
-          accessibleFrom = [
+          allowedIngress = [
             "100.64.0.0/10" # Tailscale CGNAT range
             "10.0.0.0/8" # Local networks (includes Podman 10.88.0.0/16)
             "192.168.0.0/16" # Additional local networks

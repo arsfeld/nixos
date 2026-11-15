@@ -79,7 +79,7 @@
       #
       # Every RPC client now reaches the daemon directly at
       # ${pia.namespaceAddress}:${toString rpcPort} inside the PIA namespace,
-      # never through Caddy — the namespace's accessibleFrom 10.0.0.0/8 covers
+      # never through Caddy — the namespace's allowedIngress 10.0.0.0/8 covers
       # both the podman bridge and the host. mydia was already there via
       # DOWNLOAD_CLIENT_1_HOST (media-apps.nix); radarr and sonarr were pointed at
       # https://transmission.arsfeld.one:443 and were repointed to the namespace

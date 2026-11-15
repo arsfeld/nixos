@@ -19,7 +19,6 @@
       (import ../../overlays/cve-2026-111497.nix)
       (import ../../overlays/python-packages.nix)
       (import ../../overlays/glances.nix)
-      (import ../../overlays/stash-go-1.27.nix)
       (import ../../overlays/topgrade-aws-lc.nix)
       (import ../../overlays/vscode-ripgrep-universal.nix)
       # nixpkgs-unstable as `pkgs.unstable`, one instance per package set.
