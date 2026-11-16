@@ -1,4 +1,14 @@
-import type { AddReply, Conversation, ConversationSummary, Daily, Grab, Job, List, Section } from './types';
+import type {
+  AddReply,
+  Conversation,
+  ConversationSummary,
+  Daily,
+  Grab,
+  Job,
+  List,
+  Section,
+  WatchlistReply,
+} from './types';
 
 export class HttpError extends Error {
   constructor(
@@ -50,6 +60,12 @@ export const fetchJobs = () => getJson<{ now: number; jobs: Job[] }>('/api/jobs'
 export const fetchImages = (id: number) => getJson<{ images: string[] }>(`/api/images/${id}`);
 export const imgUrl = (key: string) => `/api/img/${key}`;
 export const thumbUrl = (id: number) => `/api/thumb/${id}`;
+
+export const fetchWatchlist = () => getJson<WatchlistReply>('/api/watchlist');
+export const fetchWatchIds = async () => (await getJson<{ ids: string[] }>('/api/watchlist/ids')).ids;
+/** Queue or unqueue scenes; resolves to every queued id after the change. */
+export const postWatch = async (action: 'add' | 'remove', scenes: string[]) =>
+  (await sendJson<{ ids: string[] }>(`/api/watchlist/${action}`, 'POST', { scenes })).ids;
 
 /** Add or unqueue. A reply that is not JSON (a gateway's error page) asks for a reload. */
 export async function postTopic(action: 'add' | 'unqueue', id: number): Promise<AddReply> {

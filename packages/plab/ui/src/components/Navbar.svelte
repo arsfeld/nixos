@@ -6,6 +6,7 @@
   let { children }: { children?: Snippet } = $props();
   const tabs = [
     ['daily', '/', 'For you'],
+    ['watchlist', '/watchlist', 'Watchlist'],
     ['video', '/tracker', 'Tracker'],
     ['indexers', '/indexers', 'Indexers'],
     ['albums', '/albums', 'Albums'],

@@ -5,6 +5,7 @@ export type Route =
   | { view: 'search'; q: string }
   | { view: 'daily' }
   | { view: 'jobs' }
+  | { view: 'watchlist' }
   | { view: 'assistant'; id: number | null };
 
 /** The view for a URL; anything unknown is For you. */
@@ -24,6 +25,8 @@ export function parse(path: string, search: string): Route {
       return { view: 'games' };
     case '/jobs':
       return { view: 'jobs' };
+    case '/watchlist':
+      return { view: 'watchlist' };
     case '/search': {
       const q = new URLSearchParams(search).get('q')?.trim() ?? '';
       return q ? { view: 'search', q } : { view: 'video' };

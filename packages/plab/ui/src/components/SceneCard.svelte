@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { SceneCardData } from '../lib/types';
+  import WatchButton from './WatchButton.svelte';
 
-  let { scene, reason }: { scene: SceneCardData; reason: string } = $props();
+  let { scene, reason }: { scene: SceneCardData; reason?: string } = $props();
   let failed = $state(false);
 </script>
 
@@ -16,11 +17,12 @@
     <h3 class="font-semibold leading-tight">{scene.title}</h3>
     {#if scene.studio}<p class="text-sm text-base-content/70">{scene.studio}</p>{/if}
     {#if scene.performers.length}<p class="text-sm text-base-content/70">{scene.performers.join(', ')}</p>{/if}
-    <p class="text-sm italic">{reason}</p>
-    {#if scene.link}
-      <div class="card-actions justify-end">
+    {#if reason}<p class="text-sm italic">{reason}</p>{/if}
+    <div class="card-actions justify-end">
+      <WatchButton scenes={[scene.id]} />
+      {#if scene.link}
         <a class="btn btn-sm btn-primary" href={scene.link} target="_blank" rel="noopener">Open in Stash</a>
-      </div>
-    {/if}
+      {/if}
+    </div>
   </div>
 </div>

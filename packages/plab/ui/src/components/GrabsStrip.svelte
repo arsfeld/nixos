@@ -4,6 +4,8 @@
   import { age } from '../lib/format';
   import type { Grab } from '../lib/types';
   import StatusBadge from './StatusBadge.svelte';
+  import WatchButton from './WatchButton.svelte';
+  import { statusScenes } from '../lib/watchlist';
 
   let grabs = $state<Grab[]>([]);
   let now = $state(0);
@@ -28,6 +30,7 @@
           <span class="font-semibold uppercase text-xs text-primary">{g.studio ?? ''}</span>
           <span class="break-all">{g.title}</span>
           <StatusBadge status={g.status} />
+          <WatchButton scenes={statusScenes(g.status)} small />
           <span class="text-xs text-base-content/60">{g.addedAt === null ? '' : age(g.addedAt, now)}</span>
         </li>
       {/each}

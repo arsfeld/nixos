@@ -18,3 +18,7 @@ it('parses the assistant routes', () => {
   expect(parse('/assistant/12', '')).toEqual({ view: 'assistant', id: 12 });
   expect(parse('/assistant/x', '')).toEqual({ view: 'assistant', id: null });
 });
+
+it('parses the watchlist route', () => {
+  expect(parse('/watchlist', '')).toEqual({ view: 'watchlist' });
+});

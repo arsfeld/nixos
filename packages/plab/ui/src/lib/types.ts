@@ -116,7 +116,8 @@ export type ServerEvent =
   | ({ type: 'job' } & Job)
   | { type: 'listing'; section: Section }
   | { type: 'resync' }
-  | { type: 'assistantDaily' };
+  | { type: 'assistantDaily' }
+  | { type: 'watchlist'; ids: string[] };
 
 export interface StreamFile {
   index: number;
@@ -194,4 +195,15 @@ export interface Daily {
   error: string | null;
   /** The assistant can make picks (it has a key and a prompt); Refresh needs it. */
   ready: boolean;
+}
+
+/** A queued scene: GET /api/watchlist. */
+export interface WatchScene extends SceneCardData {
+  addedAt: number;
+}
+
+export interface WatchlistReply {
+  now: number;
+  scenes: WatchScene[];
+  error: string | null;
 }
