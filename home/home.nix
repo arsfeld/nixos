@@ -765,7 +765,9 @@ in {
     enable = true;
     package = zellijGuarded;
     settings = {
-      #theme = "catppuccin-mocha";
+      # 0.46 replaced the default theme with a new default/default-light pair
+      # (white tab bar); "classic" is the pre-0.46 default.
+      theme = "classic";
       #mouse_mode = false;
       copy_on_select = true;
       pane_frames = false;
