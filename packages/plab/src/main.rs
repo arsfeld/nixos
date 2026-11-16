@@ -36,6 +36,7 @@ mod taste;
 mod testlog;
 mod tracker;
 mod transmission;
+mod watchlist;
 mod web;
 
 use std::process::ExitCode;

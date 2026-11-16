@@ -16,7 +16,6 @@ pub use external::*;
 pub use identify::*;
 pub use jobs::*;
 pub use topics::*;
-pub use watchlist::*;
 
 use crate::tracker::parse::Row;
 use anyhow::{Context, Result};
