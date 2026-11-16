@@ -7,6 +7,7 @@ pub mod import;
 mod jobs;
 mod kv;
 mod topics;
+mod watchlist;
 
 pub use added::*;
 pub use assistant::*;
@@ -15,6 +16,7 @@ pub use external::*;
 pub use identify::*;
 pub use jobs::*;
 pub use topics::*;
+pub use watchlist::*;
 
 use crate::tracker::parse::Row;
 use anyhow::{Context, Result};
@@ -34,6 +36,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("schema_v5.sql"),
     include_str!("schema_v6.sql"),
     include_str!("schema_v7.sql"),
+    include_str!("schema_v8.sql"),
 ];
 const USER_VERSION: i64 = MIGRATIONS.len() as i64;
 
