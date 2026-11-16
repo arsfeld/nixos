@@ -1,4 +1,4 @@
-# PIA exit nodes on galactica
+# PIA exit nodes on galactica, driven from Home Assistant
 
 Date: 2026-11-16. Status: design.
 
@@ -8,11 +8,12 @@ A whole device (blackbird, a Mac, a phone) sends its internet traffic out of a c
 country through Private Internet Access while keeping full tailnet access, switched with
 Tailscale's own exit-node picker. No new client software and no per-device configuration.
 
-Day one ships one exit, **Brazil** (`pia-br`, for Brazilian streaming services). Other
-countries are added or removed later as needed, one attribute each.
+Which countries are offered is decided in **Home Assistant**, not in nix: galactica has a
+fixed number of exit **slots** (2), and each slot has a dropdown in HA listing every PIA
+region plus Off. HA also shows, per slot, whether it is actually working and where its
+traffic leaves from. The first use is Brazil (`br-so`, for Brazilian streaming services).
 
-Declaring an exit in nix makes it *available*; Home Assistant turns it *on* and *off* and
-shows whether each one is actually working. An exit that is off holds no PIA connection.
+The slot count is the hard cap on extra PIA connections: at most 1 (Transmission) + 2.
 
 ## Background
 
@@ -29,166 +30,188 @@ peers directly, and "allow local network access" keeps the LAN.
 ## Non-goals
 
 - Per-app routing, or anything installed on clients. The only UI is Home Assistant's.
-- Alerts when an exit goes down. The entities make one a UI automation away.
-- Switching an exit's country at runtime. A region change is a config edit and a deploy.
+- More simultaneous countries than slots. Raising the cap is a one-number nix change.
 - Port forwarding on exits. Only Transmission's existing `pia` namespace forwards a port.
+- Alerts when a slot goes down. The entities make one a UI automation away.
 
 ## Design
 
 ### Shape
 
 ```
-client (exit node = pia-br) ──tailnet──▶ tailscaled-pia-br  [galactica, netns `piabr`]
-                                            │ userspace networking: forwarded flows are sockets
-                                            ▼
-                                         wg (PIA region br-so) ──▶ internet
+client (exit node = pia-br-so) ──tailnet──▶ tailscaled-piax1  [galactica, netns `piax1`]
+                                               │ userspace networking: forwarded flows are sockets
+                                               ▼
+                                            wg (PIA region chosen in HA) ──▶ internet
+
+HA select "PIA exit 1" ──REST──▶ pia-exits.service (127.0.0.1:8592)
+                                   writes slot 1's region, restarts pia-exit-1.target,
+                                   reports tunnel / tailscale / egress status
 ```
 
-One exit = one VPN-Confinement namespace with its own PIA WireGuard tunnel, plus one
+One slot = one VPN-Confinement namespace with its own PIA WireGuard tunnel, plus one
 tailscaled confined to it that advertises itself as an exit node. The namespace's only
 default route is the tunnel, so a dead tunnel means forwarded traffic fails; it never falls
 back to galactica's WAN. That is the kill switch, and it needs no rule of its own.
 
-Clients on an exit node send DNS to it; tailscaled-pia-br resolves through the namespace's
-`resolv.conf`, which carries PIA's DNS from the `addKey` reply. So DNS leaves from Brazil
-too, and MagicDNS keeps working because tailscaled answers it itself.
+Clients on an exit node send DNS to it; the slot's tailscaled resolves through the
+namespace's `resolv.conf`, which carries PIA's DNS from the `addKey` reply. So DNS leaves
+from the chosen country too, and MagicDNS keeps working because tailscaled answers it
+itself.
 
-### Configuration surface
+**A device follows its slot.** Clients remember their exit node by node ID, and a slot is
+one node whatever its country. Set a phone to slot 1 once; changing slot 1 from Brazil to
+the US in HA moves the phone with it.
+
+### Nix surface
 
 ```nix
-constellation.piaExits.br = {
-  region = "br-so"; # PIA region id
-  slot = 1;         # unique per exit, picks addresses and ports; never reuse while live
-};
+constellation.piaExits.slots = 2;
 ```
 
-Adding a country is one more attribute; removing one is deleting it (see "Removing an exit").
-
-Derived from `<name>` and `slot`:
+That is the whole nix configuration. Derived per slot `n` (1-based):
 
 | Item | Value | Note |
 |---|---|---|
-| Tailscale hostname | `pia-<name>` | |
-| Namespace | `pia<name>` | VPN-Confinement asserts names under 8 characters, so `<name>` is at most 4 |
-| Namespace / bridge address | `192.168.(100+slot).1` / `.5` | galactica's LAN is `192.168.18.0/24` (see `files.nix`), AirVPN uses `.15`, Transmission's `pia` uses `.16`; `100+` stays clear of all of them |
-| tailscaled port | `41641 + slot` | host tailscaled has 41641 |
-| State dir | `/var/lib/tailscale-pia-<name>` | |
-| PIA run/state dirs | `/run/pia-<name>`, `/var/lib/pia-<name>` | |
+| Namespace | `piax<n>` | VPN-Confinement asserts names under 8 characters |
+| Namespace / bridge address | `192.168.(100+n).1` / `.5` | galactica's LAN is `192.168.18.0/24` (see `files.nix`), AirVPN uses `.15`, Transmission's `pia` uses `.16`; `100+` stays clear of all of them |
+| Target | `pia-exit-<n>.target` | |
+| tailscaled port | `41641 + n` | host tailscaled has 41641 |
+| tailscaled state / socket | `/var/lib/tailscale-piax<n>`, `/run/tailscale-piax<n>/tailscaled.sock` | |
+| PIA run / state dirs | `/run/pia-x<n>`, `/var/lib/pia-x<n>` | |
+| Region file | `/var/lib/pia-exits/slot-<n>` | the slot's region id; absent = Off |
 
-Assertions: `slot` unique and in `1..99`; `<name>` matches `^[a-z]{1,4}$`.
+Assertion: `1 <= slots <= 9`.
 
-Why an explicit `slot` and not an index derived from the attribute order: adding or removing
-an exit would then renumber the others and restart their tunnels and nodes. A slot keeps
-every other exit untouched.
+### Units per slot
 
-### Units per exit
+All from one helper so Transmission's namespace and the slots share the tunnel code.
+Every unit below is `partOf` and wanted by `pia-exit-<n>.target`, and nothing wants that
+target: no slot starts at boot or on a deploy by itself; `pia-exits.service` starts,
+restarts and stops them. Transmission's `pia` namespace is unchanged and keeps starting at
+boot.
 
-All from one helper so Transmission's namespace and the exits share the tunnel code.
-
-Every unit below is `partOf` and wanted by `pia-exit-<name>.target`, and nothing wants
-that target: no exit starts at boot or on a deploy by itself. `pia-exits.service` (see
-"Control and status") starts and stops the targets. For Transmission's `pia` namespace
-nothing changes; it keeps starting at boot.
-
-- `vpnNamespaces.pia<name>` (VPN-Confinement): WireGuard config from
-  `/run/pia-<name>/wg0.conf`, no port mappings, no open VPN ports, `allowedIngress = []`
-  (nothing on the host or LAN needs to reach into an exit namespace).
-- `pia-connect-<name>` (oneshot, host netns): `pia connect` with
-  `PIA_REGION`, `PIA_RUN_DIR`, `PIA_STATE_DIR`, `PIA_NAMESPACE`, `PIA_PORT_FORWARD=0`.
-  `partOf` the namespace unit, as today, so every tunnel restart picks a fresh server.
-- `pia-watchdog-<name>` service + timer: the existing stale-handshake check, every 2 min.
-- `tailscaled-pia-<name>`: `vpnConfinement.vpnNamespace = "pia<name>"`;
-  `tailscaled --tun=userspace-networking --statedir=/var/lib/tailscale-pia-<name>
-  --socket=/run/tailscale-pia-<name>/tailscaled.sock --port=<41641+slot>`.
-  `bindsTo` and `after` the namespace unit, so a tunnel restart restarts it.
-  Userspace networking needs no ip_forward or NAT in the namespace and never touches
-  host tailscaled, `tailscale0` or table 52.
-- `tailscale-pia-<name>-up` (oneshot, after tailscaled): builds
+- `vpnNamespaces.piax<n>` (VPN-Confinement): WireGuard config from
+  `/run/pia-x<n>/wg0.conf`, no port mappings, no open VPN ports, `allowedIngress = []`
+  (nothing on the host or LAN needs to reach into a slot).
+- `pia-connect-x<n>` (oneshot, host netns): `pia connect` with
+  `PIA_REGION_FILE=/var/lib/pia-exits/slot-<n>`, `PIA_RUN_DIR`, `PIA_STATE_DIR`,
+  `PIA_NAMESPACE`, `PIA_PORT_FORWARD=0`. `partOf` the namespace unit, as today, so every
+  tunnel restart picks a fresh server in the current region. Fails if the file is absent.
+- `pia-watchdog-x<n>` service + timer: the existing stale-handshake check, every 2 min.
+- `tailscaled-piax<n>`: `vpnConfinement.vpnNamespace = "piax<n>"`;
+  `tailscaled --tun=userspace-networking --statedir=… --socket=… --port=<41641+n>`.
+  `bindsTo` and `after` the namespace unit. Userspace networking needs no ip_forward or NAT
+  in the namespace and never touches host tailscaled, `tailscale0` or table 52.
+- `tailscale-piax<n>-up` (oneshot, after tailscaled): on first login, builds
   `<oauth secret>?ephemeral=false&preauthorized=true` into a 0600 file in its
-  `RuntimeDirectory` (never on a command line), then
-  `tailscale up --auth-key=file:<that file> --hostname=pia-<name>
-  --advertise-exit-node --advertise-tags=tag:service`. The key is only consumed on first
-  login; state persists after that. Then `tailscale set --advertise-exit-node
-  --hostname=pia-<name>` on every start, so a flag change applies on activation.
+  `RuntimeDirectory` (never on a command line) and runs `tailscale up
+  --auth-key=file:<that file> --advertise-exit-node --advertise-tags=tag:service`. On every
+  start, `tailscale set --advertise-exit-node --hostname=pia-<region id>` with the region
+  read from the region file, so the node is named for its current country (`pia-br-so`).
 
-Non-ephemeral on purpose: clients remember their exit node by node ID, and an ephemeral
-node is deleted after an outage and comes back as a new node, silently unsetting every
-client's choice.
+Non-ephemeral on purpose: an ephemeral node is deleted after an outage and comes back as a
+new node, silently unsetting every client's choice, which would also break "a device
+follows its slot".
 
-### Control and status (`pia exits serve`)
+The rename changes the MagicDNS name, not the node ID, so clients keep their selection. A
+name set by hand in the admin console overrides `--hostname`; leave the slot nodes'
+names alone there.
+
+### Control service (`pia exits serve`)
 
 A new subcommand of the existing `pia` binary, run as `pia-exits.service` (root: it starts
 and stops units and reads WireGuard state inside the namespaces), listening on
-`127.0.0.1:8592` only. Why HTTP: Home Assistant runs natively on galactica, reaches its
-loopback, and has REST switches and sensors built in; there is no MQTT broker on galactica
-and adding one for this is not worth it. Why not HA calling `systemctl` itself
-(command_line switches plus a polkit rule for `hass`): the "working" check needs root, and
-remembering the on/off choice needs a root-owned file, so the logic would end up split
-across shell, polkit and YAML.
+`127.0.0.1:8592` only, `Restart=always`. Why HTTP: Home Assistant runs natively on
+galactica, reaches its loopback, and has REST sensors, `rest_command` and template selects
+built in; there is no MQTT broker on galactica, and MQTT discovery (truly dynamic
+entities) would need one. Why slots rather than one entity set per country: HA's REST
+entities are declared in YAML and cannot appear at runtime, while a fixed set of slot
+entities with a dynamic dropdown can.
 
-Configuration comes from a JSON file nix renders from `constellation.piaExits`
-(`PIA_EXITS_CONFIG`): for each exit its name, region, expected country (looked up from the
-region list at runtime, not hard-coded), namespace, target and tailscaled socket.
+Config (`PIA_EXITS_CONFIG`, JSON rendered by nix): the slot count and, per slot, the
+namespace, target, tailscaled socket and region file.
 
-API:
+**Region list.** The service fetches PIA's server list (the same `api::server_list` that
+`pia connect` uses) at start and every 6 h, keeping the last good copy. Offered regions are
+those not offline with at least one WireGuard server. Each gets a label, PIA's own region
+name (`Brazil`, `BR Streaming Optimized`, `US New York`), with ` (virtual)` appended for
+PIA's `geo` regions (servers outside the advertised country), sorted, and `(<id>)` appended
+on the rare duplicate label. HA works only with labels; the service maps them back to ids.
 
-- `GET /exits`: every declared exit with its status (below).
-- `GET /exits/<name>`: `{"enabled": bool}`.
-- `POST /exits/<name>` with `{"enabled": true|false}`: records the choice, then
-  `systemctl start|stop --no-block pia-exit-<name>.target`, and answers at once. This is
-  exactly the shape HA's REST switch uses (GET for state, POST with `body_on`/`body_off`).
-- Unknown names get 404, any other body 400. Only declared names reach systemctl.
+**API.**
 
-The on/off choices live in `/var/lib/pia-exits/desired.json` (written atomically). On
-start the service starts the targets of enabled exits and stops the rest, so the choice
-survives reboots and deploys. An entry for an exit no longer declared is ignored and
-dropped on the next write. A newly declared exit is off.
+- `GET /status`:
+  ```json
+  {"options": ["Off", "Brazil", "BR Streaming Optimized", ...],
+   "active": 1,
+   "slots": [{"slot": 1, "option": "BR Streaming Optimized", "region": "br-so",
+              "country": "BR", "state": "up", "handshake_age_s": 41,
+              "tailscale": "running", "hostname": "pia-br-so",
+              "egress_ip": "…", "egress_country": "BR", "egress_checked": "…"}, ...]}
+  ```
+- `POST /slots/<n>` with `{"option": "<label>"}`: `"Off"` removes the region file and
+  `systemctl stop --no-block pia-exit-<n>.target`; a region label writes the region file
+  atomically and `systemctl restart --no-block pia-exit-<n>.target` (restart propagates
+  through `partOf`, so `pia connect` re-runs in the new region). Answers at once with the
+  slot's new status.
+- 404 for a slot outside `1..slots`; 400 for an unknown label or a bad body; 409 when the
+  other slot already has that region (pointless, and two nodes would want one hostname).
 
-Status per exit, refreshed every 30 s, egress every 5 min and right after a start:
+**At start** the service starts the target of every slot with a region file and stops the
+rest, so the choices survive reboots and deploys. A slot with no file is Off; day one both
+are Off.
+
+**Status**, refreshed every 30 s, egress every 5 min and right after a change:
 
 | Field | Source |
 |---|---|
-| `enabled` | `desired.json` |
-| `region`, `country` | config, PIA region list |
-| `handshake_age_s` | `ip netns exec pia<name> wg show <iface> latest-handshakes` |
+| `option`, `region`, `country` | region file, region list |
+| `handshake_age_s` | `ip netns exec piax<n> wg show <iface> latest-handshakes` |
 | `tailscale` | `tailscale --socket=… status --json`: `BackendState == Running`, self online, and `0.0.0.0/0` in its primary routes (exit route approved) |
-| `egress_ip`, `egress_country` | `https://ipinfo.io/json` fetched inside the namespace (`ip netns exec`) |
+| `egress_ip`, `egress_country`, `egress_checked` | `https://ipinfo.io/json` fetched inside the namespace (`ip netns exec`) |
 | `state` | derived, below |
 
 `state`:
 
-- `off`: not enabled.
-- `starting`: enabled for less than 2 minutes and not yet `up`.
+- `off`: no region.
+- `starting`: region set or changed less than 2 minutes ago and not yet `up`.
 - `up`: handshake under 5 min, tailscale running and approved, egress country equals the
-  region's country.
-- `degraded`: the target is active but one of those checks fails.
-- `down`: enabled but the target is not active (a failed connect, say).
+  region's country (for a `(virtual)` region, PIA's advertised country, which is the point
+  of picking it).
+- `degraded`: the target is active but one of those checks fails, or the last egress
+  check failed.
+- `down`: a region is set but the target is not active (a failed connect, say).
 
-The derivation is a pure function with unit tests, as is request validation and the
-`desired.json` round trip.
+`state`, label building and mapping, request validation and the region-file handling are
+pure functions with unit tests.
 
 **Access.** No token: the port is loopback-only, so anything running on galactica can
-toggle exits, including the board creature's Hermes, which has a terminal there. The worst
-it can do is switch exits on or off. If that proves too loose, add a bearer token from sops.
+change slots, including the board creature's Hermes, which has a terminal there. The worst
+it can do is switch countries or turn slots off. If that proves too loose, add a bearer
+token from sops.
 
 ### Home Assistant entities
 
-Generated in nix from `constellation.piaExits` by `pia-exits.nix` itself, which merges
-into `services.home-assistant.config` (`home-assistant.nix` is not edited), so a new exit
-brings its entities and a removed one takes them away:
+Generated by `pia-exits.nix` from `constellation.piaExits.slots`, merged into
+`services.home-assistant.config` (`home-assistant.nix` is not edited):
 
-- `switch.pia_exit_<name>`: REST switch on `/exits/<name>`, `is_on_template` reading
-  `value_json.enabled`.
-- One `rest:` resource on `/exits` (`scan_interval: 30`) feeding, per exit,
-  `binary_sensor.pia_exit_<name>_working` (state is `up`), `sensor.pia_exit_<name>_state`,
-  `sensor.pia_exit_<name>_ip` and `sensor.pia_exit_<name>_country`.
+- `rest:` one resource, `GET /status`, `scan_interval: 30`, feeding
+  - `sensor.pia_exits`: state `active` (slots on), attribute `options`. Excluded from the
+    recorder: the option list is a few KB and never interesting in history.
+  - per slot: `sensor.pia_exit_<n>_state`, `sensor.pia_exit_<n>_ip`,
+    `sensor.pia_exit_<n>_country`, `sensor.pia_exit_<n>_node` (the Tailscale hostname) and
+    `binary_sensor.pia_exit_<n>_working` (`state == up`).
+- `rest_command.pia_exit_set`: `POST /slots/{{ slot }}` with `{"option": "{{ option }}"}`.
+- `template:` per slot, `select.pia_exit_<n>` named "PIA exit <n>": options from
+  `state_attr('sensor.pia_exits', 'options')`, state from the slot's `option`,
+  `select_option` calls `rest_command.pia_exit_set` then `homeassistant.update_entity` on
+  the REST sensors so the change shows without waiting 30 s.
 
-They go on a dashboard through the UI, like the other dashboards. No automations ship
-with this.
+They go on a dashboard through the UI, like the other dashboards.
 
-A device whose selected exit is switched off loses internet until the exit is back or
-another one is chosen: Tailscale holds the traffic rather than leaking it. The HA switch
-is the cure.
+A device whose slot is set to Off loses internet until the slot is back or another exit is
+chosen: Tailscale holds the traffic rather than leaking it.
 
 ### Refactor of the existing PIA module
 
@@ -196,108 +219,105 @@ is the cure.
 with port forwarding and consumers. The tunnel half moves into
 `modules/hosts/galactica/services/_pia/tunnel.nix`, a function returning the namespace and
 units for one tunnel. `pia.nix` keeps its options, port forwarding and consumers and gets
-its tunnel from the helper with `portForward = true` and the default paths, so
-Transmission's units, paths and addresses are byte-for-byte what they are now (the unit
-names `pia-connect` and `pia-watchdog` keep their names for that instance).
+its tunnel from the helper with `portForward = true`, its fixed region and the default
+paths, so Transmission's units, paths and addresses are byte-for-byte what they are now
+(the unit names `pia-connect` and `pia-watchdog` keep their names for that instance). The
+slots live in a new `modules/hosts/galactica/services/pia-exits.nix`.
 
 ### `packages/pia` changes
 
 - `PIA_RUN_DIR` and `PIA_STATE_DIR`, defaulting to `/run/pia` and `/var/lib/pia`, replace
   the constants in `src/config.rs` (`WG_CONF_PATH`, `PORT_FILE_PATH`, `STATE_PATH` derive
   from them).
-- `PIA_PORT_FORWARD` (`1` default, `0` for exits). `select_region` rejects a region
+- `PIA_REGION_FILE` as an alternative to `PIA_REGION` (exactly one of them is set).
+- `PIA_PORT_FORWARD` (`1` default, `0` for slots). `select_region` rejects a region
   without port forwarding only when it is `1`; `auto` keeps meaning "first port-forward
-  region" either way. (`br-so` has port forwarding, but a US exit would not.)
-- `PIA_HOOK` and `PIA_IPTABLES` become optional when `PIA_PORT_FORWARD=0`; they are only
-  used by `portforward`.
-- Unit tests for each: default paths unchanged, custom paths honoured, a non-PF region
-  accepted with PF off and rejected with it on.
+  region" either way. Most US regions have no port forwarding.
+- `PIA_HOOK` and `PIA_IPTABLES` become optional when `PIA_PORT_FORWARD=0`; only
+  `portforward` uses them.
 - `pia exits serve` (above). A small synchronous HTTP server (`tiny_http`) fits the
-  crate, which is already blocking (`reqwest` blocking); no async runtime is added. The
-  `pia` watchdog is unchanged and runs per exit from the target.
+  crate, which is already blocking (`reqwest` blocking); no async runtime is added.
+- Unit tests: default paths unchanged, custom paths honoured, region file read, a non-PF
+  region accepted with PF off and rejected with it on, plus the service's pure functions.
 
 ### Tailnet policy (admin console, once; the ACL is not in this repo)
 
-- `"autoApprovers": {"exitNode": ["tag:service"]}`, so a new exit is usable without a click.
+- `"autoApprovers": {"exitNode": ["tag:service"]}`, so a slot's exit route is usable
+  without a click.
 - Check the user's grants include `autogroup:internet` (basestar is already an exit node,
   so this is probably in place).
 
 ### Clients
 
 - blackbird: the Wingpanel Tailscale indicator's exit-node picker, or
-  `tailscale set --exit-node=pia-br --exit-node-allow-lan-access`. `checkReversePath =
+  `tailscale set --exit-node=<slot node> --exit-node-allow-lan-access`. `checkReversePath =
   "loose"` is already fleet-wide; nothing to deploy.
-- Mac / iPhone / Android: pick `pia-br` in Tailscale, turn on "Allow local network access".
+- Mac / iPhone / Android: pick the slot's node in Tailscale, turn on "Allow local network
+  access".
 
 ## PIA connection count
 
-PIA counts each live tunnel. Today there is one (Transmission's `pia`). An exit adds one
-only while it is switched on in Home Assistant, whether or not a client is using it; a
-declared exit that is off holds none. So the count is 1 plus the exits switched on. `pia
-connect` registers a fresh key on each tunnel restart. Assumed, not measured: PIA counts
-connections with a live handshake, not registered keys, so restarts do not accumulate
-connections. Transmission's tunnel has restarted this way for months without hitting the
-limit, which is consistent with that.
+PIA counts each live tunnel: Transmission's `pia` plus every slot that is not Off, so at
+most 3 with 2 slots. `pia connect` registers a fresh key on each tunnel restart. Assumed,
+not measured: PIA counts connections with a live handshake, not registered keys, so
+restarts and country changes do not accumulate connections. Transmission's tunnel has
+restarted this way for months without hitting the limit, which is consistent with that.
 
-## Removing an exit
+## Changing the slot count
 
-Switching it off in HA is usually enough. To remove it for good, delete its attribute and
-deploy: its target, namespace, tunnel, watchdog and tailscaled units and its HA entities
-are gone, and the PIA connection with them. The Tailscale node stays in the admin console as
-offline, because it is non-ephemeral; delete it there (or run
-`tailscale --socket=/run/tailscale-pia-<name>/tailscaled.sock logout` before the deploy).
-`/var/lib/tailscale-pia-<name>` and `/var/lib/pia-<name>` stay on disk; re-adding the same
-name with the same state rejoins as the same node. Its `slot` is free again once the node
-is gone.
+Raising `slots` adds slots that start Off. Lowering it removes the highest slots: their
+units and HA entities go away on deploy, and their region files are ignored. Their
+Tailscale nodes stay in the admin console as offline (non-ephemeral); delete them there.
 
 ## Failure behaviour
 
 - Tunnel server dies: the watchdog restarts the namespace within ~7 min, `pia connect`
   picks a server from the current list, tailscaled restarts with it. Clients lose internet
   for that window, never leak.
-- PIA API unreachable at boot: `pia-connect-<name>` fails, the namespace and its node stay
-  down; clients on that exit get no internet until it recovers. Other exits and
-  Transmission are independent.
-- tailscaled-pia crashes: `Restart=on-failure`.
-- `pia-exits.service` down: the exits keep running as they are; HA shows its entities
-  unavailable and cannot toggle until it is back (`Restart=always`).
-- `ipinfo.io` unreachable: `egress_*` keep their last values with a timestamp, and the
-  exit is `degraded` until a check succeeds, since "working" is not proven.
-- Peers behind PIA: PIA accepts no unsolicited inbound, so clients may reach the exit over
-  DERP rather than directly. Measured after deploy with `tailscale ping pia-br` and
-  recorded here.
+- PIA API unreachable when a slot starts: `pia-connect-x<n>` fails, the slot reads `down`.
+  Re-selecting the country in HA retries. The other slot and Transmission are independent.
+- PIA server list unreachable for the control service: the last good copy is used; before
+  the first success the dropdown offers only Off and the regions currently in use.
+- tailscaled crashes: `Restart=on-failure`.
+- `pia-exits.service` down: slots keep running as they are; HA shows the entities
+  unavailable and cannot change them until it is back.
+- `ipinfo.io` unreachable: `egress_*` keep their last values with `egress_checked`, and the
+  slot is `degraded` until a check succeeds, since "working" is not proven.
+- Peers behind PIA: PIA accepts no unsolicited inbound, so clients may reach a slot over
+  DERP rather than directly. Measured after deploy with `tailscale ping` and recorded here.
 
 ## Costs
 
 - Away from home, exit throughput is capped by the home upload, and userspace networking
   is slower than a kernel TUN (well above that cap).
-- About 50 MB RAM per tailscaled.
+- About 50 MB RAM per running tailscaled; nothing for a slot that is Off.
 
 ## Verification
 
 Build: `nix build .#nixosConfigurations.galactica.config.system.build.toplevel`;
-`cargo test` in `packages/pia` (via `nix build .#pia`).
+`nix build .#pia` (runs its tests).
 
 After deploying galactica:
 
-0. `pia-exit-br.target` is inactive and `switch.pia_exit_br` is off. Turn it on in HA:
-   `sensor.pia_exit_br_state` goes `starting` → `up`, country `BR`. Then set blackbird to
-   `pia-br` and continue.
-1. `tailscale --socket=/run/tailscale-pia-br/tailscaled.sock status` on galactica: online,
-   offering an exit node; `tailscale status` on blackbird lists `pia-br` as an exit node.
-2. `curl ipinfo.io` on blackbird: a Brazilian address, not the home WAN.
-3. DNS leak test from blackbird: PIA resolvers only.
-4. `tailscale ping galactica` and a MagicDNS name (`ssh galactica`) still work.
-5. Stop `piabr.service`: curl on blackbird fails, never shows the home address. Start it again.
-6. Transmission still has its forwarded port (`cat /run/pia/forwarded-port`) and
-   `pia-portforward-refresh` keeps succeeding; the refactor did not move its paths.
-7. `tailscale ping pia-br` from blackbird: record direct vs DERP here.
-8. Reboot-survival without a reboot: `systemctl restart pia-exits` leaves Brazil on.
-9. Switch it off in HA: the target stops, `pia-br` goes offline in `tailscale status`, the
-   state reads `off`.
+1. Both `pia-exit-*.target` inactive; `select.pia_exit_1` and `_2` read Off.
+2. Set "PIA exit 1" to `BR Streaming Optimized` in HA: `sensor.pia_exit_1_state` goes
+   `starting` → `up`, country `BR`, node `pia-br-so`; `tailscale status` on blackbird
+   lists `pia-br-so` as an exit node.
+3. Set blackbird to that node. `curl ipinfo.io`: a Brazilian address, not the home WAN.
+4. DNS leak test from blackbird: PIA resolvers only.
+5. `tailscale ping galactica` and a MagicDNS name (`ssh galactica`) still work.
+6. Switch slot 1 to a US region in HA without touching blackbird: blackbird's curl now
+   shows a US address, and its exit-node setting is unchanged.
+7. Stop `piax1.service` by hand: curl on blackbird fails, never shows the home address;
+   the slot reads `down`. Re-select the country to bring it back.
+8. `systemctl restart pia-exits`: slot 1 keeps its country and stays up.
+9. Set slot 1 to Off: the target stops, the node goes offline, the state reads `off`.
+10. Transmission still has its forwarded port (`cat /run/pia/forwarded-port`) and
+    `pia-portforward-refresh` keeps succeeding; the refactor did not move its paths.
+11. `tailscale ping` the slot node from blackbird: record direct vs DERP here.
 
 ## Documentation
 
-A short CLAUDE.md section next to the PIA material: what `constellation.piaExits` is, the
-one-time ACL step, adding and removing an exit, the HA switch and what `state` means, and
-that every exit switched on is one more PIA connection.
+A short CLAUDE.md section next to the PIA material: the slot model and its cap, the HA
+entities and what `state` means, that a device follows its slot, the one-time ACL step,
+changing the slot count, and that every slot not Off is one more PIA connection.
