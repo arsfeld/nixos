@@ -311,6 +311,7 @@ pub async fn serve(
                     prowlarr: a.prowlarr.clone(),
                     sources_file: a.cfg.sources_file.clone(),
                     assistant: crate::app::assistant(&a.cfg, crate::llm::OPENROUTER)?.map(Arc::new),
+                    stash: Some(crate::app::stash(&a.cfg)),
                 });
                 if let Some(assistant) = &state.assistant {
                     assistant.set_search(Arc::new(web::WebSearch(Arc::downgrade(&state))));

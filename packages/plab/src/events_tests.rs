@@ -34,6 +34,12 @@ fn events_serialize_with_their_type() {
         ),
         (Event::AssistantDaily, json!({"type": "assistantDaily"})),
         (Event::Resync, json!({"type": "resync"})),
+        (
+            Event::Watchlist {
+                ids: vec!["1".into()],
+            },
+            json!({"type": "watchlist", "ids": ["1"]}),
+        ),
     ];
     for (e, want) in cases {
         assert_eq!(serde_json::to_value(&e).unwrap(), want);

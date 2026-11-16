@@ -217,6 +217,7 @@ impl Fx {
             prowlarr: None,
             sources_file: None,
             assistant: None,
+            stash: None,
         };
         setup(dir.path(), &mut state);
         Fx {
@@ -1557,4 +1558,120 @@ async fn pick_from_another_conversations_search_is_dropped() {
         j["turns"].as_array().unwrap().last().unwrap()["picks"],
         json!([])
     );
+}
+
+// Watchlist
+
+/// 2026-11-10T12:00:00Z.
+const WATCH_T: i64 = 1794312000;
+
+fn watch_ids(v: &[&str]) -> Vec<String> {
+    v.iter().map(|s| s.to_string()).collect()
+}
+
+/// A Fx whose Stash answers `findScenes` with `scenes`, or with `status` when it is not 200.
+async fn watch_fx(server: &wiremock::MockServer, status: u16, scenes: Value) -> Fx {
+    use wiremock::{Mock, ResponseTemplate, matchers::path};
+    let reply = if status == 200 {
+        ResponseTemplate::new(200)
+            .set_body_json(json!({"data": {"findScenes": {"scenes": scenes}}}))
+    } else {
+        ResponseTemplate::new(status)
+    };
+    Mock::given(path("/graphql"))
+        .respond_with(reply)
+        .mount(server)
+        .await;
+    let uri = server.uri();
+    Fx::with(FakeTracker::default(), move |_, st| {
+        st.stash = Some(crate::stash::Stash::new(&format!("{uri}/graphql"), None));
+        st.stash_web_url = Some("https://stash.example".into());
+    })
+}
+
+#[tokio::test]
+async fn watchlist_add_lists_ids_and_broadcasts() {
+    let fx = Fx::new();
+    let mut rx = fx.state.events.subscribe();
+    let r = fx
+        .post_json("/api/watchlist/add", json!({"scenes": ["5", "3"]}))
+        .await;
+    assert_eq!(r.status, 200);
+    assert_eq!(r.json(), json!({"ids": ["3", "5"]}));
+    assert_eq!(
+        rx.try_recv().unwrap(),
+        Event::Watchlist {
+            ids: watch_ids(&["3", "5"])
+        }
+    );
+    assert_eq!(
+        fx.get("/api/watchlist/ids").await.json(),
+        json!({"ids": ["3", "5"]})
+    );
+}
+
+#[tokio::test]
+async fn watchlist_remove_replies_with_rest() {
+    let fx = Fx::new();
+    fx.post_json("/api/watchlist/add", json!({"scenes": ["1", "2"]}))
+        .await;
+    let r = fx
+        .post_json("/api/watchlist/remove", json!({"scenes": ["1"]}))
+        .await;
+    assert_eq!(r.json(), json!({"ids": ["2"]}));
+}
+
+#[tokio::test]
+async fn watchlist_bad_body_is_400() {
+    let fx = Fx::new();
+    for body in [json!({}), json!({"scenes": []}), json!({"scenes": [1]})] {
+        assert_eq!(fx.post_json("/api/watchlist/add", body).await.status, 400);
+    }
+}
+
+#[tokio::test]
+async fn watchlist_get_expires_played_and_missing() {
+    let server = wiremock::MockServer::start().await;
+    let fx = watch_fx(
+        &server,
+        200,
+        json!([
+            {"id": "a", "title": "A", "last_played_at": "2026-11-11T00:00:00Z"},
+            {"id": "b", "title": "B", "last_played_at": null}
+        ]),
+    )
+    .await;
+    fx.state
+        .db
+        .watch_add(&watch_ids(&["a", "b", "c"]), WATCH_T)
+        .unwrap();
+    let v = fx.get("/api/watchlist").await.json();
+    assert!(v["error"].is_null());
+    let scenes = v["scenes"].as_array().unwrap();
+    assert_eq!(scenes.len(), 1);
+    assert_eq!(scenes[0]["id"], "b");
+    assert_eq!(scenes[0]["title"], "B");
+    assert_eq!(scenes[0]["addedAt"], WATCH_T);
+    assert_eq!(scenes[0]["link"], "https://stash.example/scenes/b");
+    assert_eq!(fx.state.db.watch_ids().unwrap(), watch_ids(&["b"]));
+}
+
+#[tokio::test]
+async fn watchlist_get_with_stash_down_removes_nothing() {
+    let server = wiremock::MockServer::start().await;
+    let fx = watch_fx(&server, 500, json!(null)).await;
+    fx.state
+        .db
+        .watch_add(&watch_ids(&["a", "b"]), WATCH_T)
+        .unwrap();
+    let v = fx.get("/api/watchlist").await.json();
+    assert!(v["error"].is_string());
+    assert_eq!(v["scenes"], json!([]));
+    assert_eq!(fx.state.db.watch_ids().unwrap(), watch_ids(&["a", "b"]));
+}
+
+#[tokio::test]
+async fn watchlist_get_without_stash_reports_it() {
+    let v = Fx::new().get("/api/watchlist").await.json();
+    assert_eq!(v["error"], "Stash is not configured");
 }

@@ -27,6 +27,8 @@ use std::sync::Arc;
 use tracing::info;
 
 mod assistant_routes;
+mod scene_dto;
+mod watchlist_routes;
 
 pub use assistant_routes::WebSearch;
 
@@ -60,6 +62,8 @@ pub struct WebState<B: Backends> {
     pub sources_file: Option<PathBuf>,
     /// The assistant; None without an OpenRouter key (its routes answer 503).
     pub assistant: Option<Arc<crate::assistant::Assistant>>,
+    /// Stash's GraphQL API, for the watchlist; None in tests that do not need it.
+    pub stash: Option<crate::stash::Stash>,
 }
 
 impl<B: Backends> WebState<B> {
@@ -312,6 +316,9 @@ async fn handle<B: Backends>(
     let path = uri.path();
     if let Some(rest) = path.strip_prefix("/api/assistant/") {
         return assistant_routes::route(&st, &method, rest, body).await;
+    }
+    if let Some(rest) = path.strip_prefix("/api/watchlist") {
+        return watchlist_routes::route(&st, &method, rest, body).await;
     }
     if let Some(route) = path.strip_prefix("/api").and_then(stream_route) {
         let range = headers.get(header::RANGE).and_then(|v| v.to_str().ok());

@@ -42,6 +42,10 @@ pub enum Event {
     AssistantDaily,
     /// The client fell behind: refetch.
     Resync,
+    /// The watchlist changed: every queued Stash scene id.
+    Watchlist {
+        ids: Vec<String>,
+    },
 }
 
 #[derive(Clone)]
