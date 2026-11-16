@@ -72,12 +72,15 @@ pub enum StatusDto {
     Added,
     InStash {
         link: Option<String>,
+        /// The Stash scene ids, for the Watch button.
+        scenes: Vec<String>,
     },
     Identified {
         label: String,
         more: usize,
         guess: bool,
         link: Option<String>,
+        scenes: Vec<String>,
     },
     Failed {
         reason: &'static str,
@@ -90,14 +93,22 @@ pub fn status(s: &Status, link: Option<String>) -> StatusDto {
         Status::Queued => StatusDto::Queued,
         Status::Downloading(p) => StatusDto::Downloading { percent: *p },
         Status::Added => StatusDto::Added,
-        Status::InStash { .. } => StatusDto::InStash { link },
+        Status::InStash { scenes, .. } => StatusDto::InStash {
+            link,
+            scenes: scenes.clone(),
+        },
         Status::Identified {
-            label, more, guess, ..
+            label,
+            more,
+            guess,
+            scenes,
+            ..
         } => StatusDto::Identified {
             label: label.clone(),
             more: *more,
             guess: *guess,
             link,
+            scenes: scenes.clone(),
         },
         Status::Failed(f) => {
             let (reason, detail) = match f {

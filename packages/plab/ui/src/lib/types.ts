@@ -8,8 +8,8 @@ export type Status =
   | { kind: 'queued' }
   | { kind: 'downloading'; percent: number }
   | { kind: 'added' }
-  | { kind: 'inStash'; link: string | null }
-  | { kind: 'identified'; label: string; more: number; guess: boolean; link: string | null }
+  | { kind: 'inStash'; link: string | null; scenes: string[] }
+  | { kind: 'identified'; label: string; more: number; guess: boolean; link: string | null; scenes: string[] }
   | { kind: 'failed'; reason: 'download' | 'identify' | 'lost'; detail: string };
 
 export interface Topic {

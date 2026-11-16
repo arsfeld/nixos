@@ -296,6 +296,29 @@ fn a_search_reply_adds_query_and_error() {
 }
 
 #[test]
+fn in_stash_and_identified_statuses_carry_scenes() {
+    let in_stash = Status::InStash {
+        scenes: vec!["12".into(), "13".into()],
+        folder: None,
+    };
+    let identified = Status::Identified {
+        label: "x".into(),
+        more: 0,
+        guess: false,
+        scenes: vec!["7".into()],
+        folder: None,
+    };
+    assert_eq!(
+        serde_json::to_value(status(&in_stash, None)).unwrap()["scenes"],
+        json!(["12", "13"])
+    );
+    assert_eq!(
+        serde_json::to_value(status(&identified, None)).unwrap()["scenes"],
+        json!(["7"])
+    );
+}
+
+#[test]
 fn statuses_serialize_by_kind() {
     let cases = [
         (Status::Queued, None, json!({"kind": "queued"})),
@@ -311,7 +334,7 @@ fn statuses_serialize_by_kind() {
                 folder: None,
             },
             Some("https://s/scenes/7".to_string()),
-            json!({"kind": "inStash", "link": "https://s/scenes/7"}),
+            json!({"kind": "inStash", "link": "https://s/scenes/7", "scenes": ["7"]}),
         ),
         (
             Status::Identified {
@@ -322,7 +345,7 @@ fn statuses_serialize_by_kind() {
                 folder: None,
             },
             None,
-            json!({"kind": "identified", "label": "Studio – Title", "more": 2, "guess": true, "link": null}),
+            json!({"kind": "identified", "label": "Studio – Title", "more": 2, "guess": true, "link": null, "scenes": []}),
         ),
         (
             Status::Failed(Failure::Transmission("stalled".into())),
