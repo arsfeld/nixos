@@ -1675,3 +1675,23 @@ async fn watchlist_get_without_stash_reports_it() {
     let v = Fx::new().get("/api/watchlist").await.json();
     assert_eq!(v["error"], "Stash is not configured");
 }
+
+#[tokio::test]
+async fn watchlist_get_broadcasts_when_it_expires_scenes() {
+    let server = wiremock::MockServer::start().await;
+    let fx = watch_fx(&server, 200, json!([{"id": "b", "title": "B"}])).await;
+    fx.state
+        .db
+        .watch_add(&watch_ids(&["a", "b"]), WATCH_T)
+        .unwrap();
+    let mut rx = fx.state.events.subscribe();
+    fx.get("/api/watchlist").await;
+    assert_eq!(
+        rx.try_recv().unwrap(),
+        Event::Watchlist {
+            ids: watch_ids(&["b"])
+        }
+    );
+    fx.get("/api/watchlist").await;
+    assert!(rx.try_recv().is_err(), "nothing expired, nothing sent");
+}

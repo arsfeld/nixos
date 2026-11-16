@@ -99,8 +99,17 @@ async fn list<B: Backends>(st: &WebState<B>) -> Response<Body> {
         Err(e) => return failed(format!("Stash: {e:#}")),
     };
     let gone = crate::watchlist::expired(&rows, &found);
-    if let Err(e) = st.db.watch_remove(&gone) {
-        return text(500, e.to_string());
+    if !gone.is_empty() {
+        let judged: Vec<(String, i64)> = rows
+            .iter()
+            .filter(|(id, _)| gone.contains(id))
+            .cloned()
+            .collect();
+        // Every page's stars follow, as they do an add or a remove.
+        match st.db.watch_expire(&judged).and_then(|()| st.db.watch_ids()) {
+            Ok(ids) => st.events.publish(Event::Watchlist { ids }),
+            Err(e) => return text(500, e.to_string()),
+        }
     }
     let web = st.stash_web_url.as_deref();
     let scenes = rows

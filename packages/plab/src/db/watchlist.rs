@@ -29,6 +29,22 @@ impl Db {
         })
     }
 
+    /// Drop rows judged expired, each only while it still has the `added_at` it was judged
+    /// with: a scene unqueued and queued again meanwhile is a new row and stays.
+    pub fn watch_expire(&self, rows: &[(String, i64)]) -> Result<()> {
+        self.with(|c| {
+            let tx = c.transaction()?;
+            for (id, added_at) in rows {
+                tx.execute(
+                    "DELETE FROM watchlist WHERE scene_id = ?1 AND added_at = ?2",
+                    params![id, added_at],
+                )?;
+            }
+            tx.commit()?;
+            Ok(())
+        })
+    }
+
     /// `(scene_id, added_at)`, oldest first.
     pub fn watch_list(&self) -> Result<Vec<(String, i64)>> {
         self.with(|c| {
@@ -72,6 +88,17 @@ mod tests {
             db.watch_list().unwrap(),
             vec![("1".to_string(), 100), ("2".to_string(), 300)]
         );
+    }
+
+    #[test]
+    fn expire_keeps_a_row_queued_again_since() {
+        let db = Db::open_in_memory().unwrap();
+        db.watch_add(&ids(&["1", "2"]), 100).unwrap();
+        db.watch_remove(&ids(&["1"])).unwrap();
+        db.watch_add(&ids(&["1"]), 300).unwrap();
+        db.watch_expire(&[("1".to_string(), 100), ("2".to_string(), 100)])
+            .unwrap();
+        assert_eq!(db.watch_list().unwrap(), vec![("1".to_string(), 300)]);
     }
 
     #[test]
