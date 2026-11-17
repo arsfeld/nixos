@@ -109,6 +109,35 @@ fn snapshot(cfg: &ExitsConfig, offered: &[Offered], probes: &[Probe]) -> Snapsho
     }
 }
 
+fn read_files(cfg: &ExitsConfig) -> Vec<Option<String>> {
+    cfg.slots.iter().map(|sc| slots::read_region(&sc.region_file).map(|r| r.0)).collect()
+}
+
+/// Brings a snapshot built from an earlier read of the region files up to date with
+/// `files`, read again under the snapshot's lock. A POST writes its file before it takes
+/// that lock, so a choice recorded while a pass was probing is never published over:
+/// `current` (the conflict check) and each changed slot's option, region and country
+/// follow the files; the rest of a changed slot's status waits for the next pass.
+fn reconcile(snap: &mut Snapshot, files: &[Option<String>]) {
+    for (status, file) in snap.slots.iter_mut().zip(files) {
+        if status.region == *file {
+            continue;
+        }
+        status.region.clone_from(file);
+        status.option = file.as_deref().map_or_else(|| "Off".to_string(), |id| label(&snap.offered, id));
+        status.country = file
+            .as_deref()
+            .and_then(|id| snap.offered.iter().find(|o| o.id == id))
+            .map(|o| o.country.clone());
+        if file.is_none() {
+            status.state = State::Off;
+        }
+    }
+    snap.current = files.to_vec();
+    let in_use: Vec<&str> = files.iter().flatten().map(String::as_str).collect();
+    snap.options = regions::options(&snap.offered, &in_use);
+}
+
 fn handshake_age(cfg: &ExitsConfig, sc: &SlotConfig) -> Option<i64> {
     let wg = cfg.wg.to_string_lossy();
     let args = ["netns", "exec", &sc.namespace, &wg, "show", &sc.interface, "latest-handshakes"];
@@ -202,7 +231,10 @@ fn refresher(cfg: &ExitsConfig, mut probes: Vec<Probe>, shared: &Mutex<Snapshot>
                 p.state = Some(s.state);
             }
         }
-        *lock(shared) = snap;
+        let mut guard = lock(shared);
+        *guard = snap;
+        reconcile(&mut guard, &read_files(cfg));
+        drop(guard);
         match wake.recv_timeout(STATUS_EVERY) {
             Ok(()) => while wake.try_recv().is_ok() {},
             Err(RecvTimeoutError::Timeout) => {}
@@ -283,4 +315,78 @@ pub fn run(cfg: &ExitsConfig) -> Result<()> {
     let (cfg2, shared2) = (cfg.clone(), Arc::clone(&shared));
     std::thread::spawn(move || refresher(&cfg2, probes, &shared2, &rx));
     serve_http(cfg, &shared, &tx)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn status(slot: u8, region: Option<&str>, state: State) -> SlotStatus {
+        SlotStatus {
+            slot,
+            option: region.map_or("Off".into(), |r| format!("L-{r}")),
+            region: region.map(str::to_string),
+            country: region.map(|_| "XX".into()),
+            state,
+            handshake_age_s: None,
+            tailscale: "stopped",
+            hostname: String::new(),
+            egress_ip: None,
+            egress_country: None,
+            egress_checked: None,
+        }
+    }
+
+    fn stale() -> Snapshot {
+        let offered = ["br", "ca"]
+            .iter()
+            .map(|i| Offered { label: format!("L-{i}"), id: i.to_string(), country: i.to_uppercase() })
+            .collect();
+        Snapshot {
+            options: vec!["Off".into(), "L-br".into(), "L-ca".into()],
+            offered,
+            slots: vec![status(1, None, State::Off), status(2, Some("ca"), State::Up)],
+            current: vec![None, Some("ca".into())],
+        }
+    }
+
+    #[test]
+    fn reconcile_keeps_a_choice_made_during_a_pass() {
+        // The pass read slot 1 as Off; a POST then chose br for it.
+        let mut snap = stale();
+        reconcile(&mut snap, &[Some("br".into()), Some("ca".into())]);
+        assert_eq!(snap.current, vec![Some("br".to_string()), Some("ca".to_string())]);
+        assert_eq!(snap.slots[0].option, "L-br");
+        assert_eq!(snap.slots[0].region.as_deref(), Some("br"));
+        assert_eq!(snap.slots[0].country.as_deref(), Some("BR"));
+        // The conflict check now sees it.
+        let r = super::super::http::handle("POST", "/slots/2", r#"{"option":"L-br"}"#, &snap);
+        assert_eq!(r.code, 409);
+    }
+
+    #[test]
+    fn reconcile_turns_a_slot_off() {
+        let mut snap = stale();
+        reconcile(&mut snap, &[None, None]);
+        assert_eq!(snap.current, vec![None, None]);
+        assert_eq!(snap.slots[1].option, "Off");
+        assert_eq!(snap.slots[1].state, State::Off);
+        assert!(snap.slots[1].country.is_none());
+    }
+
+    #[test]
+    fn reconcile_leaves_unchanged_slots_alone() {
+        let mut snap = stale();
+        reconcile(&mut snap, &[None, Some("ca".into())]);
+        assert_eq!(snap.slots[1].state, State::Up);
+        assert_eq!(snap.slots[1].option, "L-ca");
+    }
+
+    #[test]
+    fn reconcile_offers_an_unlisted_in_use_region() {
+        let mut snap = stale();
+        reconcile(&mut snap, &[Some("gone".into()), Some("ca".into())]);
+        assert_eq!(snap.slots[0].option, "gone");
+        assert!(snap.options.iter().any(|o| o == "gone"));
+    }
 }
