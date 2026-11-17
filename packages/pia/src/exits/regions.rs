@@ -2,6 +2,7 @@
 
 use crate::api::Region;
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Offered {
     pub label: String,
     pub id: String,
