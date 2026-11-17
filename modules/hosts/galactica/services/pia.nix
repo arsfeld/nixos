@@ -50,18 +50,16 @@
         cfg.consumers)}
     '';
 
-    # Settings for every `pia` subcommand. Tools are passed by absolute path.
-    piaEnv = {
-      PIA_CREDENTIALS = toString cfg.credentialsFile;
-      PIA_REGION = cfg.region;
-      PIA_CA_CERT = "${caCert}";
-      PIA_NAMESPACE = ns;
-      PIA_HOOK = "${hookScript}";
-      PIA_WG = "${pkgs.wireguard-tools}/bin/wg";
-      PIA_IP = "${pkgs.iproute2}/bin/ip";
-      PIA_IPTABLES = "${pkgs.iptables}/bin/iptables";
-      PIA_SYSTEMCTL = "${pkgs.systemd}/bin/systemctl";
-    };
+    # Settings for every `pia` subcommand: the shared base plus this tunnel's
+    # region, namespace and port-forwarding tools.
+    piaEnv =
+      cfg.baseEnv
+      // {
+        PIA_REGION = cfg.region;
+        PIA_NAMESPACE = ns;
+        PIA_HOOK = "${hookScript}";
+        PIA_IPTABLES = "${pkgs.iptables}/bin/iptables";
+      };
     pia = lib.getExe pkgs.pia;
 
     # Web-UI port mappings derived from declared consumers.
@@ -112,6 +110,24 @@
         type = lib.types.str;
         default = "192.168.16.5";
         description = "Host-side bridge address for the namespace veth pair.";
+      };
+
+      baseEnv = lib.mkOption {
+        type = lib.types.attrsOf lib.types.str;
+        readOnly = true;
+        internal = true;
+        # Tools are passed by absolute path.
+        default = {
+          PIA_CREDENTIALS = toString cfg.credentialsFile;
+          PIA_CA_CERT = "${caCert}";
+          PIA_WG = "${pkgs.wireguard-tools}/bin/wg";
+          PIA_IP = "${pkgs.iproute2}/bin/ip";
+          PIA_SYSTEMCTL = "${pkgs.systemd}/bin/systemctl";
+        };
+        description = ''
+          The PIA_* environment every PIA tunnel shares (account, CA, tool paths),
+          so the exit slots (pia-exits.nix) do not restate it.
+        '';
       };
 
       portFile = lib.mkOption {
