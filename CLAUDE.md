@@ -834,7 +834,7 @@ plan `docs/superpowers/plans/2026-11-16-pia-exit-nodes.md`.
   unavailable.
 - **`state`:** `off` (no region), `starting` (region set or changed under 2 minutes ago and
   not yet up), `up`, `degraded` (namespace active but a check fails, or the last egress
-  lookup failed so "working" is unproven), `down` (the tunnel or tailscaled is not running).
+  lookup failed so "working" is unproven), `down` (a country is set but `piax<n>.service`, the tunnel, is not active).
 - **A device follows its slot, not a country.** Clients remember the node ID, and the node
   is renamed `pia-<region id>` on each change, so a phone set to the slot moves countries
   with it. Do not rename slot nodes by hand in the admin console: a manual name wins and the
