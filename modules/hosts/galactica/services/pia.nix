@@ -31,8 +31,8 @@
     ns = cfg.namespace;
 
     caCert = ./pia-ca.rsa.4096.crt;
+    mkPiaTunnel = import ./_pia/tunnel.nix {inherit lib pkgs;};
 
-    wgConfPath = "/run/pia/wg0.conf"; # root-only: WireGuard private key
     portFilePath = "/run/pia/forwarded-port"; # world-readable bare port for consumers
 
     # Consumer port-change hook: runs every consumer's onPortChange with the
@@ -156,122 +156,79 @@
       };
     };
 
-    config = {
-      sops.secrets."pia-credentials" = lib.mkDefault {mode = "0400";};
+    config = lib.mkMerge [
+      {
+        sops.secrets."pia-credentials" = lib.mkDefault {mode = "0400";};
+      }
 
       # PIA WireGuard namespace, alongside the AirVPN "wg" namespace.
-      vpnNamespaces.${ns} = {
-        enable = true;
-        wireguardConfigFile = wgConfPath;
-        namespaceAddress = cfg.namespaceAddress;
-        bridgeAddress = cfg.bridgeAddress;
+      (mkPiaTunnel {
+        namespace = ns;
+        connectUnit = "pia-connect";
+        watchdogUnit = "pia-watchdog";
+        inherit (cfg) namespaceAddress bridgeAddress;
+        env = piaEnv;
         allowedIngress = [
           "100.64.0.0/10" # Tailscale CGNAT
           "10.0.0.0/8" # Local networks (incl. Podman)
           "192.168.0.0/16"
         ];
         portMappings = consumerPortMappings;
-        # The forwarded peer port is dynamic and opened at runtime by the PF daemon
-        # (openVPNPorts is build-time only, so it can't carry the assigned port).
-        openVPNPorts = [];
-      };
+      })
 
-      systemd.services.pia-connect = {
-        description = "PIA: authenticate and generate WireGuard tunnel config";
-        environment = piaEnv;
-        after = ["network-online.target" "nss-lookup.target"];
-        wants = ["network-online.target" "nss-lookup.target"];
-        before = ["${ns}.service"];
-        requiredBy = ["${ns}.service"];
-        # Restarting the tunnel (a deploy, a manual restart) must re-run connect.
-        # Otherwise this RemainAfterExit oneshot stays "active" and the tunnel comes
-        # back up against the server cached in wg0.conf, which PIA may have retired
-        # since: pia-up then dies with "failed to reach '<ip>' after 5 attempts".
-        partOf = ["${ns}.service"];
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-          ExecStart = "${pia} connect";
-          StateDirectory = "pia";
+      {
+        systemd.services.pia-portforward = {
+          description = "PIA: acquire and bind the forwarded port";
+          environment = piaEnv;
+          after = ["${ns}.service"];
+          requires = ["${ns}.service"];
+          wantedBy = ["${ns}.service"];
+          # No start-rate limiter: a transient getSignature failure should be freely
+          # retriable by the timer and by re-activation.
+          startLimitIntervalSec = 0;
+          vpnConfinement = {
+            enable = true;
+            vpnNamespace = ns;
+          };
+          serviceConfig = {
+            Type = "oneshot";
+            # Stay "active (exited)" so consumers can hard-require a bound port.
+            RemainAfterExit = true;
+            ExecStart = "${pia} portforward";
+            StateDirectory = "pia";
+          };
         };
-      };
 
-      systemd.services.pia-portforward = {
-        description = "PIA: acquire and bind the forwarded port";
-        environment = piaEnv;
-        after = ["${ns}.service"];
-        requires = ["${ns}.service"];
-        wantedBy = ["${ns}.service"];
-        # No start-rate limiter: a transient getSignature failure should be freely
-        # retriable by the timer and by re-activation.
-        startLimitIntervalSec = 0;
-        vpnConfinement = {
-          enable = true;
-          vpnNamespace = ns;
+        # The keepalive runs as its own unit. A timer cannot re-run pia-portforward:
+        # starting a RemainAfterExit unit that is already active is a no-op, so the
+        # timer fired once after boot, never again (NextElapse=infinity), and the
+        # binding lapsed 15 minutes after every start.
+        systemd.services.pia-portforward-refresh = {
+          description = "PIA: re-bind the forwarded port (keepalive)";
+          environment = piaEnv;
+          after = ["${ns}.service" "pia-portforward.service"];
+          # Never bring the tunnel up from here; that is pia-watchdog's job.
+          requisite = ["${ns}.service"];
+          vpnConfinement = {
+            enable = true;
+            vpnNamespace = ns;
+          };
+          serviceConfig = {
+            Type = "oneshot";
+            ExecStart = "${pia} portforward";
+            StateDirectory = "pia";
+          };
         };
-        serviceConfig = {
-          Type = "oneshot";
-          # Stay "active (exited)" so consumers can hard-require a bound port.
-          RemainAfterExit = true;
-          ExecStart = "${pia} portforward";
-          StateDirectory = "pia";
-        };
-      };
 
-      # The keepalive runs as its own unit. A timer cannot re-run pia-portforward:
-      # starting a RemainAfterExit unit that is already active is a no-op, so the
-      # timer fired once after boot, never again (NextElapse=infinity), and the
-      # binding lapsed 15 minutes after every start.
-      systemd.services.pia-portforward-refresh = {
-        description = "PIA: re-bind the forwarded port (keepalive)";
-        environment = piaEnv;
-        after = ["${ns}.service" "pia-portforward.service"];
-        # Never bring the tunnel up from here; that is pia-watchdog's job.
-        requisite = ["${ns}.service"];
-        vpnConfinement = {
-          enable = true;
-          vpnNamespace = ns;
+        systemd.timers.pia-portforward-refresh = {
+          description = "PIA: re-bind the forwarded port (15-min keepalive)";
+          wantedBy = ["timers.target"];
+          timerConfig = {
+            OnBootSec = "15min";
+            OnUnitActiveSec = "14min";
+          };
         };
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = "${pia} portforward";
-          StateDirectory = "pia";
-        };
-      };
-
-      systemd.timers.pia-portforward-refresh = {
-        description = "PIA: re-bind the forwarded port (15-min keepalive)";
-        wantedBy = ["timers.target"];
-        timerConfig = {
-          OnBootSec = "15min";
-          OnUnitActiveSec = "14min";
-        };
-      };
-
-      # Nothing else notices a dead tunnel: every unit stays "active" while the
-      # namespace has no route out. On 2026-11-09 the server stopped answering and
-      # Transmission sat idle for 2.5 days. With PersistentKeepalive = 25 a live
-      # peer re-handshakes every 2 minutes, so a handshake older than 5 minutes
-      # means the server is gone; restarting the namespace re-runs pia-connect,
-      # which registers a fresh key on a server picked from the current list.
-      systemd.services.pia-watchdog = {
-        description = "PIA: restart the tunnel when its handshake goes stale";
-        environment = piaEnv;
-        after = ["${ns}.service"];
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = "${pia} watchdog";
-        };
-      };
-
-      systemd.timers.pia-watchdog = {
-        description = "PIA: check the tunnel handshake every 2 minutes";
-        wantedBy = ["timers.target"];
-        timerConfig = {
-          OnBootSec = "5min";
-          OnUnitActiveSec = "2min";
-        };
-      };
-    };
+      }
+    ];
   };
 }
