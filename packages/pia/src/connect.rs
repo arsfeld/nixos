@@ -7,12 +7,13 @@ use std::path::Path;
 use anyhow::{Context, Result, bail};
 
 use crate::api::{self, AddKey, Region, Server};
-use crate::config::{Config, RUN_DIR, STATE_DIR, STATE_PATH, WG_CONF_PATH};
+use crate::config::Config;
 use crate::state::{self, State};
 use crate::{cmd, creds, log};
 
 /// `auto` takes the first region with port forwarding; anything else is an exact region id.
-pub fn select_region<'a>(regions: &'a [Region], want: &str) -> Result<(&'a Region, &'a Server)> {
+/// A region without port forwarding is only an error when `port_forward` is on.
+pub fn select_region<'a>(regions: &'a [Region], want: &str, port_forward: bool) -> Result<(&'a Region, &'a Server)> {
     let found = if want == "auto" {
         regions.iter().find(|r| r.port_forward)
     } else {
@@ -21,7 +22,7 @@ pub fn select_region<'a>(regions: &'a [Region], want: &str) -> Result<(&'a Regio
     let Some(region) = found else {
         bail!("no matching region for '{want}'");
     };
-    if !region.port_forward {
+    if port_forward && !region.port_forward {
         bail!("region '{}' does not support port forwarding (US regions never do)", region.id);
     }
     let Some(server) = region.servers.wg.first() else {
@@ -57,9 +58,10 @@ pub fn merge_connect(state: &mut State, token: &str, a: &AddKey, hostname: &str)
     state.dns_servers = Some(a.dns_servers.clone());
 }
 
-fn ensure_dir(path: &str, mode: u32) -> Result<()> {
-    std::fs::create_dir_all(path).with_context(|| format!("creating {path}"))?;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).with_context(|| format!("chmod {path}"))
+fn ensure_dir(path: &Path, mode: u32) -> Result<()> {
+    let shown = path.display();
+    std::fs::create_dir_all(path).with_context(|| format!("creating {shown}"))?;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).with_context(|| format!("chmod {shown}"))
 }
 
 pub fn run(cfg: &Config) -> Result<()> {
@@ -67,17 +69,17 @@ pub fn run(cfg: &Config) -> Result<()> {
     let creds = creds::parse(&text)?;
     let ca = std::fs::read(&cfg.ca_cert).context("reading the PIA CA certificate")?;
 
-    // /run/pia is traversable so consumers can read the bare port file; wg0.conf
+    // The run dir is traversable so consumers can read the bare port file; wg0.conf
     // inside it stays 0600 (it holds the private key).
-    ensure_dir(RUN_DIR, 0o755)?;
-    ensure_dir(STATE_DIR, 0o700)?;
+    ensure_dir(&cfg.run_dir, 0o755)?;
+    ensure_dir(&cfg.state_dir, 0o700)?;
 
     log("requesting auth token");
     let token = api::token(&creds.user, &creds.pass)?;
 
     log("fetching server list");
     let regions = api::server_list()?;
-    let (region, server) = select_region(&regions, &cfg.region)?;
+    let (region, server) = select_region(&regions, &cfg.region, cfg.port_forward)?;
     log(&format!("selected region '{}' server {} ({})", region.id, server.cn, server.ip));
 
     let private = cmd::stdout(&cfg.wg, &["genkey"], None)?;
@@ -86,12 +88,12 @@ pub fn run(cfg: &Config) -> Result<()> {
     log(&format!("registering key with {}", server.cn));
     let added = api::add_key(&ca, server, &public, &token)?;
 
-    state::write_atomic(Path::new(WG_CONF_PATH), render_wg_conf(&private, &added).as_bytes(), 0o600)?;
+    state::write_atomic(&cfg.wg_conf_path(), render_wg_conf(&private, &added).as_bytes(), 0o600)?;
 
-    let state_path = Path::new(STATE_PATH);
-    let mut st = state::load(state_path)?;
+    let state_path = cfg.state_path();
+    let mut st = state::load(&state_path)?;
     merge_connect(&mut st, &token, &added, &server.cn);
-    state::save(state_path, &st)?;
+    state::save(&state_path, &st)?;
     log(&format!("tunnel config written; gateway {}", added.server_vip));
     Ok(())
 }
@@ -117,19 +119,19 @@ mod tests {
     }
 
     fn err(want: &str) -> String {
-        select_region(&regions(), want).unwrap_err().to_string()
+        select_region(&regions(), want, true).unwrap_err().to_string()
     }
 
     #[test]
     fn auto_picks_first_port_forward_region() {
         let r = regions();
-        let (region, server) = select_region(&r, "auto").unwrap();
+        let (region, server) = select_region(&r, "auto", true).unwrap();
         assert_eq!((region.id.as_str(), server.cn.as_str()), ("ca", "montreal421"));
     }
 
     #[test]
     fn exact_region() {
-        assert_eq!(select_region(&regions(), "ca").unwrap().0.id, "ca");
+        assert_eq!(select_region(&regions(), "ca", true).unwrap().0.id, "ca");
     }
 
     #[test]
@@ -138,8 +140,13 @@ mod tests {
     }
 
     #[test]
-    fn region_without_pf_errors() {
+    fn region_without_pf_rejected_when_pf_on() {
         assert!(err("us_east").contains("does not support port forwarding"));
+    }
+
+    #[test]
+    fn region_without_pf_accepted_when_pf_off() {
+        assert!(select_region(&regions(), "us_east", false).is_ok());
     }
 
     #[test]

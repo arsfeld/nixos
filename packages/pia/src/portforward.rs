@@ -2,13 +2,11 @@
 //! signature, bind it (PIA drops a binding not refreshed within 15 minutes), publish
 //! the port, open it on the tunnel interface, and notify consumers when it changes.
 
-use std::path::Path;
-
 use anyhow::{Context, Result};
 use base64::Engine;
 use serde::Deserialize;
 
-use crate::config::{Config, PORT_FILE_PATH, RUN_DIR, STATE_PATH};
+use crate::config::Config;
 use crate::state::{self, State};
 use crate::{api, cmd, log};
 
@@ -66,8 +64,11 @@ fn rule<'a>(op: &'a str, iface: &'a str, proto: &'a str, port: &'a str) -> [&'a 
 }
 
 pub fn run(cfg: &Config) -> Result<()> {
-    let state_path = Path::new(STATE_PATH);
-    let mut st = state::load(state_path)?;
+    let (Some(hook), Some(iptables)) = (&cfg.hook, &cfg.iptables) else {
+        anyhow::bail!("port forwarding needs PIA_HOOK and PIA_IPTABLES");
+    };
+    let state_path = cfg.state_path();
+    let mut st = state::load(&state_path)?;
     if st.is_empty() {
         anyhow::bail!("no state yet (connect not run)");
     }
@@ -103,18 +104,18 @@ pub fn run(cfg: &Config) -> Result<()> {
     st.signature = Some(signature);
     st.expires_at = Some(expires_at);
     st.port = Some(port);
-    state::save(state_path, &st)?;
+    state::save(&state_path, &st)?;
 
-    std::fs::create_dir_all(RUN_DIR)?;
-    state::write_atomic(Path::new(PORT_FILE_PATH), format!("{port}\n").as_bytes(), 0o644)?;
+    std::fs::create_dir_all(&cfg.run_dir)?;
+    state::write_atomic(&cfg.port_file_path(), format!("{port}\n").as_bytes(), 0o644)?;
 
     // Open the peer port on every run, not only on a change: restarting the namespace
     // wipes its firewall while applied_port persists, so a change-gated rule would stay
     // closed after every restart. -C first keeps this idempotent.
     let port_s = port.to_string();
     for proto in ["tcp", "udp"] {
-        if !cmd::succeeds(&cfg.iptables, &rule("-C", &iface, proto, &port_s)) {
-            cmd::run(&cfg.iptables, &rule("-A", &iface, proto, &port_s))?;
+        if !cmd::succeeds(iptables, &rule("-C", &iface, proto, &port_s)) {
+            cmd::run(iptables, &rule("-A", &iface, proto, &port_s))?;
         }
     }
 
@@ -125,17 +126,17 @@ pub fn run(cfg: &Config) -> Result<()> {
         |old| {
             let old = old.to_string();
             for proto in ["tcp", "udp"] {
-                cmd::succeeds(&cfg.iptables, &rule("-D", &iface, proto, &old));
+                cmd::succeeds(iptables, &rule("-D", &iface, proto, &old));
             }
         },
         |p| {
             let old = previous.map_or_else(|| "none".to_string(), |o| o.to_string());
             log(&format!("forwarded port changed {old} -> {p}; dispatching consumers"));
-            cmd::run_inherit(&cfg.hook, &[&p.to_string()]).context("consumer hook failed")
+            cmd::run_inherit(hook, &[&p.to_string()]).context("consumer hook failed")
         },
     )?;
     if changed {
-        state::save(state_path, &st)?;
+        state::save(&state_path, &st)?;
     } else {
         log(&format!("port unchanged ({port}); rebind kept alive"));
     }
