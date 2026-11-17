@@ -817,6 +817,47 @@ hooks on every host --HTTPS--> cylon-bot-bridge (galactica) <--wss-- board (firm
   the bridge's `tests/wire.rs` pins its output to them and the `cylon-bot-proto` tests parse every one of them.
   Change the protocol in the proto crate, the fixtures and both test files together.
 
+### PIA exit slots (galactica)
+
+`constellation.piaExits.slots` (2) Tailscale exit nodes on galactica, each a PIA WireGuard
+tunnel in a VPN-Confinement namespace `piax<n>` plus a userspace tailscaled. The country is
+chosen in Home Assistant: `select.pia_exit_<n>` ("PIA exit <n>"). Status entities are
+`sensor.pia_exit_<n>_{state,ip,country,node}`, `binary_sensor.pia_exit_<n>_working` and
+`sensor.pia_exits`. Module `modules/hosts/galactica/services/pia-exits.nix`, Rust in
+`packages/pia/src/exits/`; spec `docs/superpowers/specs/2026-11-16-pia-exit-nodes-design.md`,
+plan `docs/superpowers/plans/2026-11-16-pia-exit-nodes.md`.
+
+- **Control.** `pia-exits.service` on `127.0.0.1:8592` (`GET /status`, `POST /slots/<n>`
+  `{"option": "<label>"}`) is what HA talks to. The choice is a region file,
+  `/var/lib/pia-exits/slot-<n>`; each slot's units hang off `pia-exit-<n>.target`, which
+  nothing else starts. If the service is down, slots keep running and HA shows the entities
+  unavailable.
+- **`state`:** `off` (no region), `starting` (region set or changed under 2 minutes ago and
+  not yet up), `up`, `degraded` (namespace active but a check fails, or the last egress
+  lookup failed so "working" is unproven), `down` (the tunnel or tailscaled is not running).
+- **A device follows its slot, not a country.** Clients remember the node ID, and the node
+  is renamed `pia-<region id>` on each change, so a phone set to the slot moves countries
+  with it. Do not rename slot nodes by hand in the admin console: a manual name wins and the
+  automatic rename stops.
+- **Cost.** Every slot that is not Off is one PIA connection, and the account cap is
+  1 Transmission plus the slots. Changing `slots` adds or removes units; a removed slot
+  leaves an offline node in the admin console to delete by hand.
+- **Tailnet ACL** needs `autoApprovers.exitNode: ["tag:service"]` (done; the ACL lives
+  outside this repo). "Approved" is `0.0.0.0/0` in the slot's `Self.AllowedIPs`, since
+  `PrimaryRoutes` is null for exit routes.
+- **Measured 2026-11-16** (raider as client; blackbird was offline): egress BR from slot 1
+  on `br-so`; `tailscale ping pia-br-so` is direct via the PIA server's address (~295 ms),
+  not DERP; MagicDNS is answered and the resolver seen outside is PIA's, but plain UDP/53 to
+  other resolvers (a device hard-coding 8.8.8.8) is dropped inside the namespace by
+  VPN-Confinement's `dns-fw` chain, so such devices cannot resolve over a slot (DoH/DoT are
+  unaffected). Kill switch: stopping `piax1.service` made client traffic time out, never
+  leak, and the per-slot watchdog restarted the namespace within ~30 s, so a stopped slot
+  heals itself. A country switch (BR, US New York, BR) moved the client in ~40 s each with
+  its exit-node setting untouched.
+- **Debugging.** On galactica: `curl -s 127.0.0.1:8592/status | jq`;
+  `tailscale --socket=/run/tailscale-piax<n>/tailscaled.sock status`;
+  `journalctl -u pia-exits -u pia-connect-x<n> -u tailscale-piax<n>-up`.
+
 ### Testing Changes
 ```bash
 nix build .#nixosConfigurations.<hostname>.config.system.build.toplevel
@@ -1153,7 +1194,7 @@ Opt-in modules that hosts compose by importing them; `nix eval --json .#nixosMod
 Host-local modules (see the rule above), under `modules/hosts/`: galactica —
 `backup/rustic.nix`, and under `services/` `pia`, `opencloud`, `home-assistant`,
 `tablet-sync`, `vpn-exit-nodes`, `immich-pixel-sync/`, `plab/` (plab is a Rust daemon in `packages/plab`, with its Svelte app in `packages/plab/ui`), `media-apps`, `media-automation`,
-`media-streaming`, `home-apps`, `network-tools`, `cylon-bot-voice`; basestar — `k3s.nix`, `sites/`, `tailscale-exit-node.nix`;
+`media-streaming`, `home-apps`, `network-tools`, `cylon-bot-voice`, `pia-exits`; basestar — `k3s.nix`, `sites/`, `tailscale-exit-node.nix`;
 raider — `docker.nix`, `project-vms.nix`; pegasus — `media-sync.nix`.
 
 ### Media Configuration Variables (`modules/media/config.nix`)

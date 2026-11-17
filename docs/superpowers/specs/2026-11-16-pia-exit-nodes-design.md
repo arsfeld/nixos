@@ -276,7 +276,10 @@ Tailscale nodes stay in the admin console as offline (non-ephemeral); delete the
   picks a server from the current list, tailscaled restarts with it. Clients lose internet
   for that window, never leak.
 - PIA API unreachable when a slot starts: `pia-connect-x<n>` fails, the slot reads `down`.
-  Re-selecting the country in HA retries. The other slot and Transmission are independent.
+  Re-selecting the country in HA retries, and the per-slot watchdog also restarts a
+  stopped or failed namespace every 2 min (measured 2026-11-16: after `systemctl stop
+  piax1.service` the namespace was back within ~30 s, so a stopped slot heals itself rather
+  than staying `down`). The other slot and Transmission are independent.
 - PIA server list unreachable for the control service: the last good copy is used; before
   the first success the dropdown offers only Off and the regions currently in use.
 - tailscaled crashes: `Restart=on-failure`.
@@ -284,8 +287,17 @@ Tailscale nodes stay in the admin console as offline (non-ephemeral); delete the
   unavailable and cannot change them until it is back.
 - `ipinfo.io` unreachable: `egress_*` keep their last values with `egress_checked`, and the
   slot is `degraded` until a check succeeds, since "working" is not proven.
-- Peers behind PIA: PIA accepts no unsolicited inbound, so clients may reach a slot over
-  DERP rather than directly. Measured after deploy with `tailscale ping` and recorded here.
+- Peers behind PIA: PIA accepts no unsolicited inbound, but measured 2026-11-16 (raider as
+  client) `tailscale ping pia-br-so` is DIRECT via the PIA server's address (~295 ms), not
+  DERP.
+- Kill switch, measured 2026-11-16: stopping `piax1.service` made client traffic time out and
+  never leak.
+- Hard-coded DNS: MagicDNS (100.100.100.100) is answered through a slot and the resolver seen
+  outside is PIA's, but plain UDP/53 to other resolvers (a device using 8.8.8.8) is dropped
+  inside the namespace by VPN-Confinement's `dns-fw` chain, so such devices cannot resolve
+  over a slot. DoH/DoT are unaffected.
+- Country switch, measured 2026-11-16: BR -> US New York -> BR moved the client with it in
+  ~40 s each, its exit-node setting untouched; egress was BR on `br-so`.
 
 ## Costs
 
