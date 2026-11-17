@@ -168,7 +168,7 @@ are Off.
 |---|---|
 | `option`, `region`, `country` | region file, region list |
 | `handshake_age_s` | `ip netns exec piax<n> wg show <iface> latest-handshakes` |
-| `tailscale` | `tailscale --socket=… status --json`: `BackendState == Running`, self online, and `0.0.0.0/0` in its primary routes (exit route approved) |
+| `tailscale` | `tailscale --socket=… status --json`: `BackendState == Running`, `Self.Online`, and `0.0.0.0/0` in `Self.AllowedIPs` (the exit route is approved; an unapproved route is advertised but not allowed) |
 | `egress_ip`, `egress_country`, `egress_checked` | `https://ipinfo.io/json` fetched inside the namespace (`ip netns exec`) |
 | `state` | derived, below |
 
