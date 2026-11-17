@@ -823,7 +823,10 @@ hooks on every host --HTTPS--> cylon-bot-bridge (galactica) <--wss-- board (firm
 tunnel in a VPN-Confinement namespace `piax<n>` plus a userspace tailscaled. The country is
 chosen in Home Assistant: `select.pia_exit_<n>` ("PIA exit <n>"). Status entities are
 `sensor.pia_exit_<n>_{state,ip,country,node}`, `binary_sensor.pia_exit_<n>_working` and
-`sensor.pia_exits`. Module `modules/hosts/galactica/services/pia-exits.nix`, Rust in
+`sensor.pia_exits`. They are shown in the "VPN exits" section of the UI-managed Home
+dashboard's Home view (a picker and a status card per slot; the dashboard lives in
+`/var/lib/hass/.storage/lovelace.dashboard_home`, not in nix, so a new slot needs its cards
+added there by hand). Module `modules/hosts/galactica/services/pia-exits.nix`, Rust in
 `packages/pia/src/exits/`; spec `docs/superpowers/specs/2026-11-16-pia-exit-nodes-design.md`,
 plan `docs/superpowers/plans/2026-11-16-pia-exit-nodes.md`.
 
