@@ -75,13 +75,13 @@ pub struct Inputs {
     pub region: Option<String>,
     pub country: Option<String>,
     pub chosen_secs_ago: u64,
-    pub target_active: bool,
+    pub namespace_active: bool,
     pub handshake_age_s: Option<i64>,
     pub tailscale: Tailscale,
     pub egress: Option<Egress>,
 }
 
-/// off -> up -> starting (< 120 s) -> down (target inactive) -> degraded.
+/// off -> up -> starting (< 120 s) -> down (namespace unit inactive) -> degraded.
 pub fn derive(i: &Inputs) -> State {
     if i.region.is_none() {
         return State::Off;
@@ -91,7 +91,7 @@ pub fn derive(i: &Inputs) -> State {
         (Some(e), Some(c)) => e.country.eq_ignore_ascii_case(c),
         _ => false,
     };
-    let up = i.target_active
+    let up = i.namespace_active
         && i.handshake_age_s.is_some_and(|a| a < HANDSHAKE_MAX_AGE_S)
         && t.running
         && t.online
@@ -101,7 +101,7 @@ pub fn derive(i: &Inputs) -> State {
         State::Up
     } else if i.chosen_secs_ago < STARTING_SECS {
         State::Starting
-    } else if !i.target_active {
+    } else if !i.namespace_active {
         State::Down
     } else {
         State::Degraded
@@ -139,7 +139,7 @@ mod tests {
             region: Some("br".into()),
             country: Some("BR".into()),
             chosen_secs_ago: 1000,
-            target_active: true,
+            namespace_active: true,
             handshake_age_s: Some(41),
             tailscale: ts(true, true, true),
             egress: eg("BR"),
@@ -192,8 +192,34 @@ mod tests {
     #[test]
     fn down_when_target_inactive() {
         let mut i = good();
-        i.target_active = false;
+        i.namespace_active = false;
         assert_eq!(derive(&i), State::Down);
+    }
+    #[test]
+    fn starting_wins_over_down_within_two_minutes() {
+        let mut i = good();
+        i.namespace_active = false;
+        i.chosen_secs_ago = 119;
+        assert_eq!(derive(&i), State::Starting);
+        i.chosen_secs_ago = 120;
+        assert_eq!(derive(&i), State::Down);
+    }
+    #[test]
+    fn chosen_age_boundary_is_120() {
+        let mut i = good();
+        i.egress = None;
+        i.chosen_secs_ago = 119;
+        assert_eq!(derive(&i), State::Starting);
+        i.chosen_secs_ago = 120;
+        assert_eq!(derive(&i), State::Degraded);
+    }
+    #[test]
+    fn handshake_age_boundary_is_300() {
+        let mut i = good();
+        i.handshake_age_s = Some(299);
+        assert_eq!(derive(&i), State::Up);
+        i.handshake_age_s = Some(300);
+        assert_eq!(derive(&i), State::Degraded);
     }
     #[test]
     fn tailscale_label_order() {

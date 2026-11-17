@@ -179,9 +179,10 @@ are Off.
 - `up`: handshake under 5 min, tailscale running and approved, egress country equals the
   region's country (for a `(virtual)` region, PIA's advertised country, which is the point
   of picking it).
-- `degraded`: the target is active but one of those checks fails, or the last egress
+- `degraded`: the namespace is active but one of those checks fails, or the last egress
   check failed.
-- `down`: a region is set but the target is not active (a failed connect, say).
+- `down`: a region is set but the namespace unit is not active (a failed connect, say; the
+  target stays active then, so it is not what is checked).
 
 `state`, label building and mapping, request validation and the region-file handling are
 pure functions with unit tests.

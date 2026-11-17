@@ -24,6 +24,11 @@ const REGIONS_RETRY: Duration = Duration::from_secs(300);
 /// A slot chosen this recently re-checks egress every pass until it comes up.
 const SETTLING: Duration = Duration::from_secs(300);
 const EGRESS_URL: &str = "https://ipinfo.io/json";
+/// A probe command that takes longer than this is killed and read as a failure, so a
+/// wedged tailscaled or systemd cannot freeze the snapshot HA reads.
+const PROBE_LIMIT: Duration = Duration::from_secs(5);
+/// curl inside the namespace has its own `--max-time 10`; this only backs it up.
+const EGRESS_LIMIT: Duration = Duration::from_secs(15);
 
 fn log(msg: &str) {
     eprintln!("pia-exits: {msg}");
@@ -37,7 +42,7 @@ fn lock(snap: &Mutex<Snapshot>) -> std::sync::MutexGuard<'_, Snapshot> {
 #[derive(Default)]
 struct Probe {
     region: Option<(String, SystemTime)>,
-    target_active: bool,
+    namespace_active: bool,
     handshake_age_s: Option<i64>,
     tailscale: Tailscale,
     /// The last egress that parsed, kept for display.
@@ -49,7 +54,6 @@ struct Probe {
     egress_failure_logged: bool,
     state: Option<State>,
 }
-
 
 fn systemctl(cfg: &ExitsConfig, verb: &str, target: &str) {
     if let Err(e) = cmd::run(&cfg.systemctl, &[verb, "--no-block", target]) {
@@ -72,7 +76,7 @@ fn slot_status(sc: &SlotConfig, offered: &[Offered], p: &Probe, now: SystemTime)
         region: region.clone(),
         country: country.clone(),
         chosen_secs_ago,
-        target_active: p.target_active,
+        namespace_active: p.namespace_active,
         handshake_age_s: p.handshake_age_s,
         tailscale: p.tailscale.clone(),
         egress: p.egress.as_ref().filter(|_| p.egress_ok).map(|e| e.0.clone()),
@@ -117,7 +121,8 @@ fn read_files(cfg: &ExitsConfig) -> Vec<Option<String>> {
 /// `files`, read again under the snapshot's lock. A POST writes its file before it takes
 /// that lock, so a choice recorded while a pass was probing is never published over:
 /// `current` (the conflict check) and each changed slot's option, region and country
-/// follow the files; the rest of a changed slot's status waits for the next pass.
+/// follow the files, and its state is `off` or, for a region just chosen, `starting`;
+/// the rest of a changed slot's status waits for the next pass.
 fn reconcile(snap: &mut Snapshot, files: &[Option<String>]) {
     for (status, file) in snap.slots.iter_mut().zip(files) {
         if status.region == *file {
@@ -129,9 +134,7 @@ fn reconcile(snap: &mut Snapshot, files: &[Option<String>]) {
             .as_deref()
             .and_then(|id| snap.offered.iter().find(|o| o.id == id))
             .map(|o| o.country.clone());
-        if file.is_none() {
-            status.state = State::Off;
-        }
+        status.state = if file.is_none() { State::Off } else { State::Starting };
     }
     snap.current = files.to_vec();
     let in_use: Vec<&str> = files.iter().flatten().map(String::as_str).collect();
@@ -141,18 +144,18 @@ fn reconcile(snap: &mut Snapshot, files: &[Option<String>]) {
 fn handshake_age(cfg: &ExitsConfig, sc: &SlotConfig) -> Option<i64> {
     let wg = cfg.wg.to_string_lossy();
     let args = ["netns", "exec", &sc.namespace, &wg, "show", &sc.interface, "latest-handshakes"];
-    let latest = watchdog::latest_handshake(&cmd::stdout(&cfg.ip, &args, None).ok()?);
+    let latest = watchdog::latest_handshake(&cmd::stdout_within(&cfg.ip, &args, PROBE_LIMIT).ok()?);
     (latest != 0).then(|| (Utc::now().timestamp() - latest).max(0))
 }
 
 fn check_egress(cfg: &ExitsConfig, sc: &SlotConfig) -> Result<Egress> {
     let curl = cfg.curl.to_string_lossy();
     let args = ["netns", "exec", &sc.namespace, &curl, "-s", "--max-time", "10", EGRESS_URL];
-    let body = cmd::stdout(&cfg.ip, &args, None)?;
+    let body = cmd::stdout_within(&cfg.ip, &args, EGRESS_LIMIT)?;
     status::parse_egress(&body).ok_or_else(|| anyhow!("unexpected answer from {EGRESS_URL}"))
 }
 
-/// One pass over a slot: re-read its region, then probe the tunnel if its target is up.
+/// One pass over a slot: re-read its region, then probe the tunnel if its namespace is up.
 fn probe(cfg: &ExitsConfig, sc: &SlotConfig, offered: &[Offered], p: &mut Probe, now: Instant) {
     let region = slots::read_region(&sc.region_file);
     if region != p.region {
@@ -167,15 +170,18 @@ fn probe(cfg: &ExitsConfig, sc: &SlotConfig, offered: &[Offered], p: &mut Probe,
         p.egress_due = None;
         p.region = region;
     }
-    p.target_active = cmd::succeeds(&cfg.systemctl, &["is-active", "--quiet", &sc.target]);
-    if !p.target_active {
+    // The namespace, not the target: the target stays active when connect fails or the
+    // namespace is stopped, and then the slot must read `down`.
+    let ns_unit = format!("{}.service", sc.namespace);
+    p.namespace_active = cmd::succeeds_within(&cfg.systemctl, &["is-active", "--quiet", &ns_unit], PROBE_LIMIT);
+    if !p.namespace_active {
         p.handshake_age_s = None;
         p.tailscale = Tailscale::default();
         return;
     }
     p.handshake_age_s = handshake_age(cfg, sc);
     let socket = sc.socket.to_string_lossy();
-    p.tailscale = cmd::stdout(&cfg.tailscale, &["--socket", &socket, "status", "--json"], None)
+    p.tailscale = cmd::stdout_within(&cfg.tailscale, &["--socket", &socket, "status", "--json"], PROBE_LIMIT)
         .map(|j| status::parse_tailscale(&j))
         .unwrap_or_default();
     if p.region.is_none() || p.egress_due.is_some_and(|d| now < d) {
@@ -199,7 +205,14 @@ fn probe(cfg: &ExitsConfig, sc: &SlotConfig, offered: &[Offered], p: &mut Probe,
         .region
         .as_ref()
         .is_some_and(|r| SystemTime::now().duration_since(r.1).unwrap_or_default() < SETTLING);
-    p.egress_due = Some(now + if settling { STATUS_EVERY } else { EGRESS_EVERY });
+    p.egress_due = Some(now + egress_interval(settling, p.egress_ok));
+}
+
+/// A slot settling after a change, or whose last check failed, re-checks every pass:
+/// after a reboot or a watchdog restart the region file is old, and a working slot must
+/// not read degraded for 5 minutes on one failed check.
+fn egress_interval(settling: bool, last_ok: bool) -> Duration {
+    if settling || !last_ok { STATUS_EVERY } else { EGRESS_EVERY }
 }
 
 fn refresher(cfg: &ExitsConfig, mut probes: Vec<Probe>, shared: &Mutex<Snapshot>, wake: &Receiver<()>) {
@@ -255,6 +268,16 @@ fn apply(cfg: &ExitsConfig, slot: u8, region: Option<&str>, action: &Action) -> 
     Ok(())
 }
 
+/// After a change is applied: bring the snapshot up to date with the region files and
+/// answer with the slot's new status, so HA's refresh right after reads the new option.
+fn applied(snap: &mut Snapshot, files: &[Option<String>], slot: u8) -> String {
+    reconcile(snap, files);
+    snap.slots
+        .get(usize::from(slot) - 1)
+        .and_then(|s| serde_json::to_string(s).ok())
+        .unwrap_or_default()
+}
+
 fn respond(req: tiny_http::Request, code: u16, body: String) {
     let header = tiny_http::Header::from_bytes("Content-Type", "application/json").expect("static header is valid");
     let resp = tiny_http::Response::from_string(body).with_status_code(code).with_header(header);
@@ -278,9 +301,7 @@ fn serve_http(cfg: &ExitsConfig, shared: &Mutex<Snapshot>, wake: &Sender<()>) ->
             match apply(cfg, slot, region.as_deref(), &action) {
                 Ok(()) => {
                     let mut snap = lock(shared);
-                    if let Some(c) = snap.current.get_mut(usize::from(slot) - 1) {
-                        c.clone_from(&region);
-                    }
+                    r.body = applied(&mut snap, &read_files(cfg), slot);
                     drop(snap);
                     let _ = wake.send(());
                 }
@@ -313,7 +334,15 @@ pub fn run(cfg: &ExitsConfig) -> Result<()> {
     let shared = Arc::new(Mutex::new(snapshot(cfg, &[], &probes)));
     let (tx, rx) = mpsc::channel();
     let (cfg2, shared2) = (cfg.clone(), Arc::clone(&shared));
-    std::thread::spawn(move || refresher(&cfg2, probes, &shared2, &rx));
+    // A dead refresher would leave /status serving a frozen snapshot while POSTs still
+    // work, so its panic ends the process and systemd (Restart=always) starts it afresh.
+    std::thread::spawn(move || {
+        let run = std::panic::AssertUnwindSafe(|| refresher(&cfg2, probes, &shared2, &rx));
+        if std::panic::catch_unwind(run).is_err() {
+            log("the refresher panicked; exiting");
+            std::process::exit(1);
+        }
+    });
     serve_http(cfg, &shared, &tx)
 }
 
@@ -380,6 +409,43 @@ mod tests {
         reconcile(&mut snap, &[None, Some("ca".into())]);
         assert_eq!(snap.slots[1].state, State::Up);
         assert_eq!(snap.slots[1].option, "L-ca");
+    }
+
+    #[test]
+    fn reconcile_marks_a_new_region_starting() {
+        let mut snap = stale();
+        reconcile(&mut snap, &[Some("br".into()), Some("ca".into())]);
+        assert_eq!(snap.slots[0].state, State::Starting);
+    }
+
+    #[test]
+    fn applied_answers_with_the_new_status() {
+        let mut snap = stale();
+        let body = applied(&mut snap, &[Some("br".into()), Some("ca".into())], 1);
+        let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(v["option"], "L-br");
+        assert_eq!(v["region"], "br");
+        assert_eq!(v["country"], "BR");
+        assert_eq!(v["state"], "starting");
+        // And /status (what HA's update_entity reads) shows it too.
+        let s = super::super::http::handle("GET", "/status", "", &snap);
+        let v: serde_json::Value = serde_json::from_str(&s.body).unwrap();
+        assert_eq!(v["slots"][0]["option"], "L-br");
+    }
+
+    #[test]
+    fn applied_off_answers_off() {
+        let mut snap = stale();
+        let body = applied(&mut snap, &[None, None], 2);
+        let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!((v["option"].as_str(), v["state"].as_str()), (Some("Off"), Some("off")));
+    }
+
+    #[test]
+    fn egress_retries_at_status_cadence_after_a_failure() {
+        assert_eq!(egress_interval(false, true), EGRESS_EVERY);
+        assert_eq!(egress_interval(false, false), STATUS_EVERY);
+        assert_eq!(egress_interval(true, true), STATUS_EVERY);
     }
 
     #[test]
