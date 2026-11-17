@@ -82,7 +82,11 @@
 
       services."tailscaled-${sl.namespace}" = {
         description = "Tailscale for PIA exit slot ${toString sl.n}";
-        wantedBy = [sl.target];
+        # Also wanted by the namespace: a deploy that changes only the namespace unit
+        # stops it (taking this down through BindsTo/PartOf) and starts it again, and
+        # nothing else would start this. The namespace itself is wanted only by the
+        # target, so with the slot Off neither starts.
+        wantedBy = [sl.target "${sl.namespace}.service"];
         partOf = ["${sl.namespace}.service" sl.target];
         vpnConfinement = {
           enable = true;
@@ -108,7 +112,8 @@
 
       services."tailscale-${sl.namespace}-up" = {
         description = "Tailscale login and naming for PIA exit slot ${toString sl.n}";
-        wantedBy = [sl.target];
+        # See tailscaled-<namespace> above.
+        wantedBy = [sl.target "${sl.namespace}.service"];
         after = ["tailscaled-${sl.namespace}.service"];
         requires = ["tailscaled-${sl.namespace}.service"];
         partOf = ["${sl.namespace}.service" sl.target];
@@ -127,10 +132,18 @@
       };
     };
 
+    # Jinja that binds `s` to the slot list, empty when the answer has none, so a
+    # slot past its end reads as missing rather than raising.
+    slotList = expr: "{% set s = ${expr} or [] %}";
+    slotField = sl: field: let
+      i = toString (sl.n - 1);
+    in "(s[${i}].${field} if s | length > ${i} else none)";
+
+    # JSON null (no egress check yet, no hostname) is `unknown`, never the text "None".
     statusSensor = sl: field: what: {
       name = "PIA exit ${toString sl.n} ${what}";
       unique_id = "pia_exit_${toString sl.n}_${what}";
-      value_template = "{{ value_json.slots[${toString (sl.n - 1)}].${field} }}";
+      value_template = "${slotList "value_json.slots"}{{ ${slotField sl field} or 'unknown' }}";
     };
   in {
     options.constellation.piaExits.slots = lib.mkOption {
@@ -201,7 +214,7 @@
               map (sl: {
                 name = "PIA exit ${toString sl.n} working";
                 unique_id = "pia_exit_${toString sl.n}_working";
-                value_template = "{{ value_json.slots[${toString (sl.n - 1)}].state == 'up' }}";
+                value_template = "${slotList "value_json.slots"}{{ ${slotField sl "state"} == 'up' }}";
               })
               slots;
           }
@@ -221,7 +234,7 @@
                 name = "PIA exit ${toString sl.n}";
                 unique_id = "pia_exit_${toString sl.n}";
                 options = "{{ state_attr('sensor.pia_exits','options') or ['Off'] }}";
-                state = "{{ (state_attr('sensor.pia_exits','slots') or [{}])[${toString (sl.n - 1)}].option or 'Off' }}";
+                state = "${slotList "state_attr('sensor.pia_exits','slots')"}{{ ${slotField sl "option"} or 'Off' }}";
                 select_option = [
                   {
                     action = "rest_command.pia_exit_set";
