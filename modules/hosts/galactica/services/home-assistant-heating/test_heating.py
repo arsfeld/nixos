@@ -38,41 +38,41 @@ def office(now, temp="18.0", rate="0", extra=None, this=None):
 class OfficeTarget(unittest.TestCase):
     def test_base_before_preheat_shows_start(self):
         r = office(at(MONDAY, "06:00"))
-        # (21 - 18) / 1.5 °C/h seed = 2 h before 08:30
-        self.assertEqual((r.value, r.attributes["reason"], r.attributes["start"]), (16, "base", "06:30"))
+        # (19 - 18) / 1.5 °C/h seed = 40 min before 08:30
+        self.assertEqual((r.value, r.attributes["reason"], r.attributes["start"]), (16, "base", "07:50"))
 
     def test_preheats_from_the_seed_rate(self):
-        r = office(at(MONDAY, "06:45"))
+        r = office(at(MONDAY, "08:00"))
         self.assertEqual(
             (r.value, r.attributes["reason"], r.attributes["minutes"], r.attributes["from_temp"]),
-            (21, "preheat", 105, 18.0),
+            (19, "preheat", 30, 18.0),
         )
 
     def test_learned_rate_shortens_the_lead(self):
-        r = office(at(MONDAY, "06:45"), rate="3")
-        self.assertEqual((r.value, r.attributes["start"]), (16, "07:30"))
+        r = office(at(MONDAY, "08:00"), rate="3")
+        self.assertEqual((r.value, r.attributes["start"]), (16, "08:10"))
 
     def test_preheat_latches_once_the_room_is_warm(self):
-        first = office(at(MONDAY, "06:45"))
-        r = office(at(MONDAY, "07:30"), temp="21.0", this=first)
+        first = office(at(MONDAY, "08:00"))
+        r = office(at(MONDAY, "08:20"), temp="19.0", this=first)
         self.assertEqual(
             (r.value, r.attributes["reason"], r.attributes["from_temp"], r.attributes["reached"]),
-            (21, "preheat", 18.0, True),
+            (19, "preheat", 18.0, True),
         )
 
     def test_a_warm_room_without_latch_waits(self):
-        self.assertEqual(office(at(MONDAY, "07:30"), temp="21.0").attributes["reason"], "base")
+        self.assertEqual(office(at(MONDAY, "08:20"), temp="19.0").attributes["reason"], "base")
 
     def test_weekday_windows(self):
-        for hhmm, want in {"09:00": 21, "12:30": 21, "18:00": 19, "21:00": 21, "23:59": 21, "02:00": 16}.items():
+        for hhmm, want in {"09:00": 19, "12:30": 19, "18:00": 19, "21:00": 21, "23:59": 21, "02:00": 16}.items():
             with self.subTest(hhmm):
                 self.assertEqual(office(at(MONDAY, hhmm), temp="21.0").value, want)
 
-    def test_cold_office_preheats_up_to_3_5_hours(self):
-        # (21 - 16) / 1.5 °C/h = 200 min, under the 210-minute cap
-        self.assertEqual(office(at(MONDAY, "05:00"), temp="16.0").attributes["start"], "05:10")
-        # (21 - 15) / 1.5 °C/h = 240 min, capped at 210 before 08:30
-        self.assertEqual(office(at(MONDAY, "04:00"), temp="15.0").attributes["start"], "05:00")
+    def test_cold_office_starts_heating_later(self):
+        # (19 - 16) / 1.5 °C/h = 120 min before 08:30
+        self.assertEqual(office(at(MONDAY, "05:00"), temp="16.0").attributes["start"], "06:30")
+        # (19 - 13) / 1.5 °C/h = 240 min, capped at 210 before 08:30
+        self.assertEqual(office(at(MONDAY, "04:00"), temp="13.0").attributes["start"], "05:00")
 
     def test_evening_preheat_back_to_21(self):
         # (21 - 19) / 1.5 °C/h = 80 min before 20:30
@@ -99,26 +99,28 @@ def outside(degrees, **extra):
 
 
 class OfficeOutdoorCap(unittest.TestCase):
-    def test_steps_down_as_it_warms_outside(self):
+    def test_evening_steps_down_as_it_warms_outside(self):
         for degrees, want in {"-5": 21, "0": 20, "5": 20, "9": 20, "10": 19, "12": 19}.items():
             with self.subTest(degrees):
-                self.assertEqual(office(at(MONDAY, "10:00"), temp="20.0", extra=outside(degrees)).value, want)
+                self.assertEqual(office(at(MONDAY, "21:00"), temp="20.0", extra=outside(degrees)).value, want)
 
     def test_reports_the_cap(self):
-        self.assertEqual(office(at(MONDAY, "10:00"), extra=outside("12")).attributes["outdoor_cap"], 19)
-        self.assertIsNone(office(at(MONDAY, "10:00"), extra=outside("-5")).attributes["outdoor_cap"])
+        self.assertEqual(office(at(MONDAY, "21:00"), extra=outside("12")).attributes["outdoor_cap"], 19)
+        self.assertIsNone(office(at(MONDAY, "21:00"), extra=outside("-5")).attributes["outdoor_cap"])
 
-    def test_19_window_is_unaffected(self):
-        r = office(at(MONDAY, "18:00"), temp="19.0", extra=outside("12"))
-        self.assertEqual((r.value, r.attributes["outdoor_cap"]), (19, None))
+    def test_19_windows_are_unaffected(self):
+        for hhmm in ("10:00", "18:00"):
+            with self.subTest(hhmm):
+                r = office(at(MONDAY, hhmm), temp="19.0", extra=outside("12"))
+                self.assertEqual((r.value, r.attributes["outdoor_cap"]), (19, None))
 
     def test_no_evening_preheat_when_capped_at_the_room(self):
         r = office(at(MONDAY, "20:00"), temp="19.0", extra=outside("12"))
         self.assertEqual((r.value, r.attributes["reason"], r.attributes["start"]), (19, "schedule", None))
 
     def test_preheat_aims_at_the_cap(self):
-        # (20 - 18) / 1.5 °C/h = 80 min before 08:30
-        r = office(at(MONDAY, "07:30"), extra=outside("5"))
+        # (20 - 18) / 1.5 °C/h = 80 min before 20:30
+        r = office(at(MONDAY, "20:00"), extra=outside("5"))
         self.assertEqual((r.value, r.attributes["reason"], r.attributes["outdoor_cap"]), (20, "preheat", 20))
 
     def test_boost_stays_21(self):
@@ -126,7 +128,7 @@ class OfficeOutdoorCap(unittest.TestCase):
         self.assertEqual((r.value, r.attributes["reason"]), (21, "boost"))
 
     def test_unknown_outside_caps_nothing(self):
-        self.assertEqual(office(at(MONDAY, "10:00"), extra=outside("unavailable")).value, 21)
+        self.assertEqual(office(at(MONDAY, "21:00"), extra=outside("unavailable")).value, 21)
 
     def test_other_zones_ignore_the_outside(self):
         self.assertEqual(living(at(MONDAY, "07:30"), temp="20.0", extra=outside("15")).value, 20)
@@ -200,6 +202,11 @@ class OtherZones(unittest.TestCase):
 
     def test_unheated(self):
         self.assertEqual(target("unheated", at(MONDAY, "12:00")).value, 5)
+
+    def test_garage_holds_15_at_all_times(self):
+        for now in (at(MONDAY, "03:00"), at(MONDAY, "12:00"), at(SATURDAY, "21:00")):
+            with self.subTest(now):
+                self.assertEqual(target("garage", now).value, 15)
 
 
 class Away(unittest.TestCase):
