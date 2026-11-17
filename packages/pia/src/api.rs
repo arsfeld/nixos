@@ -46,6 +46,14 @@ pub fn pinned_client(ca_pem: &[u8], cn: &str, ip: IpAddr, port: u16, timeout: Du
 pub struct Region {
     pub id: String,
     #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub country: String,
+    #[serde(default)]
+    pub geo: bool,
+    #[serde(default)]
+    pub offline: bool,
+    #[serde(default)]
     pub port_forward: bool,
     #[serde(default)]
     pub servers: Servers,
@@ -166,7 +174,7 @@ mod tests {
     #[test]
     fn server_list_ignores_signature_line() {
         let r = parse_server_list(include_str!("../tests/fixtures/servers-v6.txt")).unwrap();
-        assert_eq!(r.len(), 3);
+        assert_eq!(r.len(), 5);
         assert_eq!(r[0].servers.wg[0].cn, "montreal421");
         assert!(r[2].servers.wg.is_empty());
     }
