@@ -179,9 +179,8 @@
     #   btrfs balance start -dconvert=raid1 -mconvert=raid1c3,soft /mnt/storage
     #   btrfs device remove missing /mnt/storage
     #
-    # Re-enable once that conversion has finished and btrfs-health-check has
-    # stayed quiet for a week. Persistent=true fires a missed run at the next
-    # boot, so enabling it while a balance is running would stack the two.
+    # Re-enabled 2026-11-16 after the conversion and missing-device removal
+    # finished.
     #
     # A disk that drops off the bus does not come back until the pool is
     # unmounted and mounted again, or the host is rebooted, and it returns with
@@ -189,7 +188,7 @@
     #
     #   btrfs scrub start /dev/disk/by-id/ata-<model>_<serial>
     services.btrfs.autoScrub = {
-      enable = false;
+      enable = true;
       fileSystems = ["/mnt/storage"];
       interval = "weekly";
     };
