@@ -80,12 +80,12 @@ class OfficeTarget(unittest.TestCase):
         self.assertEqual(office(at(SATURDAY, "07:00"), temp="16.0").attributes["reason"], "preheat")
 
     def test_away_drops_to_base(self):
-        r = office(at(MONDAY, "10:00"), extra={"binary_sensor.alexandre_away": "on"})
+        r = office(at(MONDAY, "10:00"), extra={"binary_sensor.office_vacant": "on"})
         self.assertEqual((r.value, r.attributes["reason"]), (16, "away"))
 
     def test_boost_beats_away(self):
         r = office(at(MONDAY, "10:00"), extra={
-            "binary_sensor.alexandre_away": "on",
+            "binary_sensor.office_vacant": "on",
             "input_boolean.heating_boost_office": "on",
         })
         self.assertEqual((r.value, r.attributes["reason"]), (21, "boost"))
@@ -169,7 +169,7 @@ class OtherZones(unittest.TestCase):
     def test_downstairs_bathroom_follows_the_office(self):
         states = {"sensor.bathroom_downstairs_temperature": "19.0", "input_number.heating_rate_office": "0"}
         self.assertEqual(target("bathroom_downstairs", at(MONDAY, "09:00"), states).value, 19)
-        away = {**states, "binary_sensor.alexandre_away": "on"}
+        away = {**states, "binary_sensor.office_vacant": "on"}
         self.assertEqual(target("bathroom_downstairs", at(MONDAY, "09:00"), away).value, 16)
         boost = {**away, "input_boolean.heating_boost_office": "on"}
         self.assertEqual(target("bathroom_downstairs", at(MONDAY, "09:00"), boost).value, 19)
@@ -198,12 +198,22 @@ class OtherZones(unittest.TestCase):
                 self.assertEqual(target("garage", now).value, 15)
 
 
-class Away(unittest.TestCase):
-    def test_states(self):
-        for person, want in {"not_home": True, "work": True, "home": False, "unknown": False, "unavailable": False}.items():
-            with self.subTest(person):
-                hass = Hass(at(MONDAY, "10:00"), {"person.alexandre_rosenfeld": person})
-                self.assertEqual(render_entity(hass, "binary_sensor", "alexandre_away").value, want)
+class OfficeVacant(unittest.TestCase):
+    def vacant(self, near, person="home"):
+        hass = Hass(at(MONDAY, "10:00"), {"binary_sensor.office_phone_near": near, "person.alexandre_rosenfeld": person})
+        return render_entity(hass, "binary_sensor", "office_vacant").value
+
+    def test_follows_raider_when_it_answers(self):
+        self.assertTrue(self.vacant("off"))
+        self.assertTrue(self.vacant("off", person="unknown"))
+        self.assertFalse(self.vacant("on"))
+        self.assertFalse(self.vacant("on", person="not_home"))
+
+    def test_falls_back_to_home_when_raider_is_silent(self):
+        for near in ("unavailable", "unknown"):
+            for person, want in {"not_home": True, "work": True, "home": False, "unknown": False, "unavailable": False}.items():
+                with self.subTest(near=near, person=person):
+                    self.assertEqual(self.vacant(near, person), want)
 
 
 def living_binary(unique_id, temp, target, reason, minutes=None, this="off", extra=None):

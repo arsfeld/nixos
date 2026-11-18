@@ -175,6 +175,33 @@
         })
       learning;
 
+      # Whether raider (the office desk) hears Alexandre's phone over
+      # Bluetooth; see modules/hosts/raider/office-presence.nix. raider
+      # answers 503 when its probe is stale, and the sensors then go
+      # unavailable, which "Office vacant" treats as "ask whether he's home".
+      rest = [
+        {
+          resource = "http://raider.bat-boa.ts.net:8593/status";
+          scan_interval = 30;
+          timeout = 10;
+          binary_sensor = [
+            {
+              name = "Office phone near";
+              unique_id = "office_phone_near";
+              value_template = "{{ value_json.reachable }}";
+            }
+          ];
+          # For calibrating an RSSI floor: one spot upstairs is in range too.
+          sensor = [
+            {
+              name = "Office phone signal";
+              unique_id = "office_phone_signal";
+              value_template = "{{ value_json.rssi }}";
+            }
+          ];
+        }
+      ];
+
       template = [
         {
           sensor =
@@ -227,11 +254,16 @@
               '';
             }
             {
-              # Not home for 30 minutes; unknown counts as home, so heat fails warm.
-              name = "Alexandre away";
-              unique_id = "alexandre_away";
-              delay_on.minutes = 30;
-              state = "{{ states('person.alexandre_rosenfeld') not in ['home', 'unknown', 'unavailable'] }}";
+              # raider has not heard the phone for 15 minutes. If raider is not
+              # answering, fall back to whether he is home, with unknown
+              # counting as home, so heat fails warm.
+              name = "Office vacant";
+              unique_id = "office_vacant";
+              delay_on.minutes = 15;
+              state = ''
+                {%- set near = states('binary_sensor.office_phone_near') %}
+                {{ near == 'off' or (near != 'on' and states('person.alexandre_rosenfeld') not in ['home', 'unknown', 'unavailable']) }}
+              '';
             }
             {
               # The heat pump will miss the comfort window: within 45 minutes

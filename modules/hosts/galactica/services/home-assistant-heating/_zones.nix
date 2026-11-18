@@ -6,7 +6,9 @@
 #   weekend      may not wrap midnight. Each is reached *by* `from`: zones
 #                with a `rate` pre-heat toward the next warmer window.
 #   boost        a one-click input_boolean (cleared at midnight) and its °C
-#   presence     drop to base once the user has been away 30 minutes
+#   presence     drop to base once the office has been vacant 15 minutes
+#                (binary_sensor.office_vacant: raider no longer hears the
+#                phone over Bluetooth)
 #   rate         warm-up rate in °C/h: the input_number `helper` (learned by
 #                the zone of that name), a `seed` until one is learned, and
 #                `maxLead`, the most minutes a pre-heat may start early
@@ -57,7 +59,7 @@
     devices = ["climate.bathroom"];
   };
 
-  # Basement: where the user works, gated on their phone.
+  # Basement: where the user works, gated on their phone being at the desk.
   office = {
     temperature = "sensor.office_temperature";
     base = 16;

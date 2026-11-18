@@ -13,7 +13,7 @@ in rec {
   hiloActive = "states('sensor.defi_hilo') in ['pre_heat', 'reduction', 'on', 'recovery']";
   hiloReduction = "states('sensor.defi_hilo') in ['reduction', 'on']";
 
-  awayEntity = "binary_sensor.alexandre_away";
+  awayEntity = "binary_sensor.office_vacant";
   targetEntity = zone: "sensor.heating_${zone}_target";
   boostEntity = helper: "input_boolean.heating_boost_${helper}";
   rateEntity = helper: "input_number.heating_rate_${helper}";
