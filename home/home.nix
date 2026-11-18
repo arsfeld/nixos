@@ -764,20 +764,24 @@ in {
   programs.zellij = {
     enable = true;
     package = zellijGuarded;
-    settings = {
-      # 0.46 replaced the default theme with a new default/default-light pair
-      # (white tab bar); "classic" is the pre-0.46 default.
-      theme = "classic";
-      #mouse_mode = false;
-      copy_on_select = true;
-      pane_frames = false;
-      scroll_buffer_size = 50000;
-      session_serialization = false;
-      # SSH and zellij don't forward COLORTERM, so with only
-      # TERM=xterm-256color, Node TUIs (Claude Code) round 24-bit colours to
-      # the 256-colour palette. Every terminal we attach from is truecolor.
-      env.COLORTERM = "truecolor";
-    };
+    settings =
+      {
+        # 0.46 replaced the default theme with a new default/default-light pair
+        # (white tab bar); "classic" is the pre-0.46 default.
+        theme = "classic";
+        #mouse_mode = false;
+        copy_on_select = true;
+        pane_frames = false;
+        scroll_buffer_size = 50000;
+        session_serialization = false;
+        # SSH and zellij don't forward COLORTERM, so with only
+        # TERM=xterm-256color, Node TUIs (Claude Code) round 24-bit colours to
+        # the 256-colour palette. Every terminal we attach from is truecolor.
+        env.COLORTERM = "truecolor";
+      }
+      # raider serves zellij's web client (modules/hosts/raider/zellij-web.nix);
+      # share every session there so existing ones can be attached from it.
+      // lib.optionalAttrs (hostname == "raider") {web_sharing = "on";};
   };
 
   programs.keychain = mkIf stdenv.hostPlatform.isLinux {
