@@ -186,12 +186,15 @@
           timeout = 10;
           binary_sensor = [
             {
+              # Measured 2026-11-17: 0 to -4 at the desk, -12 to -15 from a
+              # spot upstairs that is still in range. A probe without an
+              # RSSI reading counts as not near; the 15-minute hold in
+              # "Office vacant" covers a missed one.
               name = "Office phone near";
               unique_id = "office_phone_near";
-              value_template = "{{ value_json.reachable }}";
+              value_template = "{{ value_json.reachable and value_json.rssi is not none and value_json.rssi >= -8 }}";
             }
           ];
-          # For calibrating an RSSI floor: one spot upstairs is in range too.
           sensor = [
             {
               name = "Office phone signal";

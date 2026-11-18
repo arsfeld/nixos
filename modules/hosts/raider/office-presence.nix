@@ -7,8 +7,8 @@
 #
 # Measured 2026-11-17: the bonded phone answered l2ping steadily at the desk
 # (about 1 echo in 6 lost) and not at all from most of the floor above, but
-# one 14-minute stretch upstairs did answer. The RSSI it reports is there to
-# calibrate a threshold for that. Pairing the phone made it an audio device;
+# one spot upstairs answered too, at RSSI -12 to -15 against 0 to -4 at the
+# desk; Home Assistant counts only -8 or better as near. Pairing the phone made it an audio device;
 # WirePlumber keeps its profile "off" (~/.local/state/wireplumber), so no
 # phone audio routes through raider.
 {
