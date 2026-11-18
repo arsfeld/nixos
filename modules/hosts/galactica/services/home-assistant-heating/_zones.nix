@@ -61,15 +61,14 @@
   office = {
     temperature = "sensor.office_temperature";
     base = 16;
-    # 19 by day (2026-11-17: holding 20-21 cost 15-25 kWh a cold weekday,
-    # and pre-heating to it started the baseboard before 06:00); a 19 target
-    # also starts the morning pre-heat later. Boost is the "too cold" fix.
-    weekday = [["08:30" "20:30" 19] ["20:30" "24:00" 21]];
-    weekend = [["08:30" "20:30" 19] ["20:30" "24:00" 21]];
+    # 20 below 0°C outside, 19 from 0°C, day and evening alike; never below
+    # 19 while in use (2026-11-17: holding 20-21 cost 15-25 kWh a cold
+    # weekday, and pre-heating to it started the baseboard before 06:00).
+    # Boost (21) is the "too cold" fix.
+    weekday = [["08:30" "24:00" 20]];
+    weekend = [["08:30" "24:00" 20]];
     presence = true;
-    # The basement holds heat on mild days: the evening 21 is 20 from 0°C
-    # and 19 from 10°C outside. Boost stays 21.
-    outdoor = [[0 20] [10 19]];
+    outdoor = [[0 19]];
     boost = {
       helper = "office";
       target = 21;
