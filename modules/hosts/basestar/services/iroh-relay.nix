@@ -15,10 +15,13 @@
     backend = config.virtualisation.oci-containers.backend;
 
     # Pinned by digest as well as tag: a re-published tag cannot swap the binary
-    # underneath us. Held back from v1.0.3, whose published image is a static musl
-    # build carrying noq-udp 1.1.0 and panics on the FIRST received datagram
-    # (n0-computer/noq#774). Run iroh-relay-verify-image.sh before changing this;
-    # a plain boot test cannot catch that bug.
+    # underneath us. v1.4.2 is iroh's relay security release (one client could
+    # disconnect another with an empty or one-byte-oversized frame, a WebSocket
+    # ping flood, stuck writes blocking shutdown) and carries v1.4.0's rustls
+    # fixes; v1.1.0 to v1.3.0 shipped a vulnerable rustls. The v1.0.3 image
+    # panics on the FIRST received datagram (n0-computer/noq#774), so run
+    # iroh-relay-verify-image.sh before changing this; a plain boot test cannot
+    # catch that class of bug.
     #
     # The digest pin also neutralises modules/podman.nix's daily
     # podman-image-pull timer, which restarts any oci-container whose freshly
@@ -26,7 +29,7 @@
     # container. Pulling a digest can only ever yield the same image, so that
     # timer is a permanent no-op here. Relaxing the pin back to a floating tag
     # re-arms daily auto-upgrade on a service with the v1.0.3 crash history.
-    image = "n0computer/iroh-relay:v1.0.0@sha256:0124f8c335d9ad6618db13dc580b597ad5f1be0c987b6742696f4c1f5e325720";
+    image = "n0computer/iroh-relay:v1.4.2@sha256:1de2c273ff3e2cf1261b16ef7e569f9b36ab858a54481ebeedf7d9da2e17a4df";
 
     # https_bind_addr and quic_bind_addr belong inside [tls]; metrics is
     # metrics_bind_addr, not metrics_addr. The k8s ConfigMap this replaces had all

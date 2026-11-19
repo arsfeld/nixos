@@ -39,7 +39,9 @@ vestigial and is not carried over.
 
 ## Four things that will bite
 
-**The version pin.** `v1.0.0` is held back deliberately. The published v1.0.3
+**The version pin.** Pinned to `v1.4.2` since 2026-11-18, iroh's relay
+security release, after `iroh-relay-verify-image.sh` passed. It went straight
+from `v1.0.0`: v1.1.0 to v1.3.0 carry a vulnerable rustls. The published v1.0.3
 image is a static musl build carrying noq-udp 1.1.0, which panics on the first
 received datagram (n0-computer/noq#774: musl declares `cmsghdr` with align 4
 while the `SCM_TIMESTAMPNS` path decodes a `timespec` with align 8, and
