@@ -84,7 +84,6 @@
         "tailscale-app"
         "zed"
         "zen"
-        "zoom"
       ];
       # Needs an App Store sign-in on the Mac first. Xcode is left out on
       # purpose: it is huge and installed by hand where it is wanted.
