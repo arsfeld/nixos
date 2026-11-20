@@ -101,6 +101,14 @@
         InitialKeyRepeat = 30;
         AppleInterfaceStyleSwitchesAutomatically = true;
       };
+      # Don't reopen the apps that were open at logout or reboot. An app reopened
+      # this way skips its own launch-at-login path (Tailscale came back
+      # disconnected on the Pro). macOS also rewrites TALLogoutSavesState from the
+      # shutdown dialog's checkbox; this puts it back at each switch.
+      CustomUserPreferences."com.apple.loginwindow" = {
+        TALLogoutSavesState = false;
+        LoginwindowLaunchesRelaunchApps = false;
+      };
       trackpad = {
         Clicking = true;
         TrackpadThreeFingerDrag = true;
