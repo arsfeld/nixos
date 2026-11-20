@@ -1,7 +1,11 @@
 # What every Mac gets. The CLI environment is home/home.nix (wired in by
 # modules/flake/darwin.nix); this is the macOS side: apps and defaults.
 {
-  flake.modules.darwin.mac = {pkgs, ...}: {
+  flake.modules.darwin.mac = {
+    lib,
+    pkgs,
+    ...
+  }: {
     key = "modules/darwin/mac";
     system.stateVersion = 6;
     system.primaryUser = "arosenfeld";
@@ -24,9 +28,10 @@
     # fish) stays out of this list.
     homebrew = {
       enable = true;
-      # "none" until the list is trusted: nothing installed by hand is removed.
-      # Switch to "uninstall" to make the list exact.
-      onActivation.cleanup = "none";
+      # "none" removes nothing installed outside this list; "uninstall" makes
+      # the list exact. The Air stays on "none" until its by-hand apps are
+      # sorted out; the Pro is exact (modules/hosts/macbook-pro.nix).
+      onActivation.cleanup = lib.mkDefault "none";
       taps = [
         "can1357/tap"
         "crmne/tap"
@@ -52,61 +57,31 @@
         "openai-whisper"
         "opencode"
         "opencv"
+        "pkgconf"
         "rbenv"
         "xcodegen"
         "yoke"
       ];
       casks = [
         "android-platform-tools"
-        "android-studio"
-        "balenaetcher"
-        "brave-browser"
-        "cc-switch"
         "claude"
-        "crmne/tap/spotifast"
-        "cursor"
-        "descript"
         "discord"
         "epic-games"
-        "firefox"
         "flutter"
         "font-cascadia-code-nf"
         "ghostty"
         "google-chrome"
         "granola"
-        "grandperspective"
-        "hermes-desktop"
         "iina"
-        "iptvnator"
-        "iterm2"
-        "microsoft-excel"
-        "microsoft-onenote"
-        "microsoft-outlook"
-        "microsoft-powerpoint"
-        "microsoft-teams"
-        "microsoft-word"
         "multiviewer"
-        "netnewswire"
-        "obsidian"
-        "onedrive"
-        "opencode-desktop"
         "orbstack"
-        "orion"
-        "pearcleaner"
-        "plex"
         "postgres-app"
-        "private-internet-access"
-        "slack"
         "spotify"
         "stats"
         "steam"
-        "stremio"
         "sublime-merge"
         "swish"
         "tailscale-app"
-        "transmission"
-        "visual-studio-code"
-        "warp"
         "zed"
         "zen"
         "zoom"
@@ -114,11 +89,8 @@
       # Needs an App Store sign-in on the Mac first. Xcode is left out on
       # purpose: it is huge and installed by hand where it is wanted.
       masApps = {
-        "Developer" = 640199958;
         "Infuse" = 1136220934;
-        "Reeder" = 6475002485;
         "WhatsApp" = 310633997;
-        "WireGuard" = 1451685025;
       };
     };
 
