@@ -54,7 +54,6 @@
       "opencloud"
       "resilio"
       "romm"
-      "speedtest"
       "syncthing"
       "tautulli"
       "vault"

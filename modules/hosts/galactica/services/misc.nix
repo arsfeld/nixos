@@ -32,6 +32,7 @@
       container.hardening.caps = ["CHOWN" "DAC_OVERRIDE" "FOWNER" "SETUID" "SETGID"];
       port = 8080;
       image = "rommapp/romm:latest";
+      watchImage = true; # track :latest, restart on new image
       container = {
         exposePort = 8998;
         configDir = null;
@@ -53,22 +54,6 @@
         extraOptions = [
           "--add-host=host.docker.internal:host-gateway"
         ];
-      };
-    };
-
-    media.services.speedtest = {
-      # Probe-verified: extends the linuxserver default set.
-      # NET_BIND_SERVICE: nginx binds port 80 in-container (bind() permission denied without it).
-      container.hardening.caps = vars.linuxserverCaps ++ ["NET_BIND_SERVICE"];
-      port = 80;
-      image = "lscr.io/linuxserver/speedtest-tracker:latest";
-      container = {
-        exposePort = 8765;
-        environment = {
-          APP_KEY = "base64:MGxwY3Y1OHZpMnJwN2s2dGtkdnJ6dm40ODEwd3J4eGI=";
-          DB_CONNECTION = "sqlite";
-          SPEEDTEST_SCHEDULE = "5 4 * * *";
-        };
       };
     };
 

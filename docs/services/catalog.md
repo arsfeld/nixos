@@ -63,7 +63,6 @@ All services are accessible at `https://service.arsfeld.one` unless otherwise no
 | Service | Purpose | URL | Auth | Host |
 |---------|---------|-----|------|------|
 | **Nextcloud** | File sync & share | [nextcloud.arsfeld.one](https://nextcloud.arsfeld.one) | ✓ | storage |
-| **Seafile** | File sync platform | [seafile.arsfeld.one](https://seafile.arsfeld.one) | ✓ | storage |
 | **Syncthing** | P2P file sync | [syncthing.arsfeld.one](https://syncthing.arsfeld.one) | ✓ | storage |
 | **FileBrowser** | Web file manager | [filebrowser.arsfeld.one](https://filebrowser.arsfeld.one) | ✓ | storage |
 | **PairDrop** | Local file sharing | [pairdrop.arsfeld.one](https://pairdrop.arsfeld.one) | ✓ | storage |

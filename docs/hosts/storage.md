@@ -141,7 +141,6 @@ Complete *arr stack for automated media management:
 
 #### Cloud Storage
 - **Nextcloud**: Full-featured cloud platform
-- **Seafile**: Fast file synchronization
 - **Syncthing**: P2P file sync
 
 #### File Management

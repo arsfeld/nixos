@@ -121,10 +121,6 @@
         category = "Files";
         icon = "di:syncthing";
       };
-      seafile = {
-        category = "Files";
-        icon = "di:seafile";
-      };
       resilio = {
         name = "Resilio Sync";
         category = "Files";
@@ -225,11 +221,6 @@
       };
 
       # Utilities
-      speedtest = {
-        name = "Speedtest Tracker";
-        category = "Utilities";
-        icon = "di:speedtest-tracker";
-      };
       stirling = {
         name = "Stirling PDF";
         category = "Utilities";
@@ -332,10 +323,6 @@
       plex.check-url = "https://plex.${vars.domain}/identity";
       jellyfin.check-url = "https://jellyfin.${vars.domain}/health";
       immich.check-url = "https://immich.${vars.domain}/api/server/ping";
-      seafile = {
-        check-url = "https://seafile.${vars.domain}/api2/server-info/";
-        timeout = "10s";
-      };
       grafana.check-url = "https://grafana.${vars.domain}/api/health";
     };
 
@@ -353,7 +340,6 @@
       "transmission"
       "qbittorrent"
       "immich"
-      "seafile"
       "grafana"
       "forgejo"
     ];

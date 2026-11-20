@@ -202,7 +202,6 @@
       distrobox
       nvidia-offload
       waypipe
-      seafile-shared
       # Forwards Claude Code hooks to the cylon-bot bridge on galactica; it reads
       # /run/secrets/cylon-bot-host-token (modules/base/cylon-bot.nix).
       cylon-bot-hook
@@ -829,30 +828,7 @@ in {
     };
   };
 
-  systemd.user.services =
-    claudeRcServices
-    // {
-      seafile-cli = mkIf stdenv.hostPlatform.isLinux {
-        Unit = {
-          Description = "Seafile CLI sync daemon";
-          After = ["network-online.target"];
-        };
-        Service = {
-          Type = "forking";
-          ExecStartPre = [
-            "${pkgs.coreutils}/bin/mkdir -p %h/Seafile %h/seafile-client"
-            "${pkgs.seafile-shared}/bin/seaf-cli init -d %h/seafile-client"
-          ];
-          ExecStart = "${pkgs.seafile-shared}/bin/seaf-cli start";
-          ExecStop = "${pkgs.seafile-shared}/bin/seaf-cli stop";
-          Restart = "on-failure";
-          RestartSec = 10;
-        };
-        Install = {
-          WantedBy = ["default.target"];
-        };
-      };
-    };
+  systemd.user.services = claudeRcServices;
 
   programs.atuin = {
     enable = true;
