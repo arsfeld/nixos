@@ -1,11 +1,7 @@
 # What every Mac gets. The CLI environment is home/home.nix (wired in by
 # modules/flake/darwin.nix); this is the macOS side: apps and defaults.
 {
-  flake.modules.darwin.mac = {
-    lib,
-    pkgs,
-    ...
-  }: {
+  flake.modules.darwin.mac = {pkgs, ...}: {
     key = "modules/darwin/mac";
     system.stateVersion = 6;
     system.primaryUser = "arosenfeld";
@@ -28,10 +24,10 @@
     # fish) stays out of this list.
     homebrew = {
       enable = true;
-      # "none" removes nothing installed outside this list; "uninstall" makes
-      # the list exact. The Air stays on "none" until its by-hand apps are
-      # sorted out; the Pro is exact (modules/hosts/macbook-pro.nix).
-      onActivation.cleanup = lib.mkDefault "none";
+      # Install only, never remove: anything installed outside this list
+      # (`brew install` by hand, a cask dropped from it) is left alone.
+      # "uninstall" would make the list exact, removing everything else.
+      onActivation.cleanup = "none";
       taps = [
         "can1357/tap"
         "crmne/tap"
