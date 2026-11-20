@@ -195,17 +195,8 @@
       modules = [
         inputs.nix-index-database.homeModules.nix-index
         ../../home/home.nix
-        {
-          # Specific to standalone home-manager
-          # The Mac runs Determinate Nix, whose /etc/nix/nix.conf sets
-          # eval-cores and lazy-trees. Activation puts nix.package on PATH,
-          # and upstream pkgs.nix warns on every call about those settings.
-          nix.package = inputs.determinate.inputs.nix.packages.${system}.nix;
-          nixpkgs.config = {
-            allowUnfree = true;
-            android_sdk.accept_license = true;
-          };
-        }
+        self.lib.macHomeModule
+        {nixpkgs.config = self.lib.macNixpkgsConfig;}
       ];
     };
   };

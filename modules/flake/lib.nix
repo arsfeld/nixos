@@ -50,8 +50,10 @@
       config.flake.modules.nixos.base
     ];
 
-    homeManagerModulesFor = hmInput: [
-      hmInput.nixosModules.home-manager
+    # The home-manager wiring shared by NixOS hosts and the Macs; takes the
+    # module for the system class (hmInput.nixosModules or .darwinModules).
+    homeManagerModulesFor = hmModule: [
+      hmModule
       {
         home-manager.sharedModules = [
           inputs.nix-index-database.homeModules.nix-index
@@ -63,7 +65,20 @@
         home-manager.users.arosenfeld = import ../../home/home.nix;
       }
     ];
-    homeManagerModules = homeManagerModulesFor inputs.home-manager;
+    homeManagerModules = homeManagerModulesFor inputs.home-manager.nixosModules.home-manager;
+
+    # What the Macs add to home/home.nix, shared by the standalone
+    # homeConfigurations.arosenfeld and the darwinConfigurations.
+    # The Macs run Determinate Nix, whose /etc/nix/nix.conf sets eval-cores and
+    # lazy-trees. Activation puts nix.package on PATH, and upstream pkgs.nix
+    # warns on every call about those settings.
+    macHomeModule = {pkgs, ...}: {
+      nix.package = inputs.determinate.inputs.nix.packages.${pkgs.stdenv.hostPlatform.system}.nix;
+    };
+    macNixpkgsConfig = {
+      allowUnfree = true;
+      android_sdk.accept_license = true;
+    };
   in {
     inherit
       loadPackages
@@ -71,6 +86,8 @@
       baseModules
       homeManagerModulesFor
       homeManagerModules
+      macHomeModule
+      macNixpkgsConfig
       ;
 
     mkLinuxSystem = {
@@ -84,7 +101,7 @@
           baseModules
           ++ (
             if enableHomeManager
-            then homeManagerModulesFor homeManagerInput
+            then homeManagerModulesFor homeManagerInput.nixosModules.home-manager
             else []
           )
           ++ mods;

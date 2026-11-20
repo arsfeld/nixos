@@ -208,7 +208,6 @@
     ];
 in {
   imports = [
-    ./auto-update.nix
     ./ghostty.nix
     ./helix.nix
     ./jujutsu.nix

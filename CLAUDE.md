@@ -1021,6 +1021,7 @@ Things worth knowing before touching it:
 - **pegasus** - Secondary server (BSG Battlestar Pegasus)
 - **octopi** - OctoPrint device
 - **cylon-link** - Valve Steam Link (armv7l, 512 MB): always-on helper. Cross-compiled on raider, excluded from CI, boots through Valve's firmware and kexec
+- **macbook-air**, **macbook-pro** - Macs, nix-darwin (`darwinConfigurations`), not NixOS: see "Macs (nix-darwin)"
 
 ### Host Tiers
 
@@ -1117,6 +1118,31 @@ raider. It erases the stick. The SSH host key, and with it the sops identity,
 comes from `secrets/sops/cylon-link-hostkey.yaml`, so a reflash keeps
 `common.yaml` readable. Tailscale sees a new node: log it in as above and delete
 the old one in the admin console.
+
+### Macs (nix-darwin)
+
+`macbook-air` (M1) and `macbook-pro` (M2 Pro) are `configurations.darwin.<name>` in
+`modules/hosts/macbook-*.nix`, turned into `darwinConfigurations` by
+`modules/flake/darwin.nix`. Everything they share is the `flake.modules.darwin.mac` feature
+in `modules/darwin/`: Homebrew taps, brews, casks and App Store apps, `system.defaults`
+taken from the Air, Touch ID sudo, fish. home-manager runs `home/home.nix` through the same
+`homeManagerModulesFor` the NixOS hosts use, plus `macHomeModule` (`modules/flake/lib.nix`).
+The standalone `legacyPackages.<system>.homeConfigurations.arosenfeld` still evaluates, but
+nothing switches it any more.
+
+- **They run Determinate Nix**, through `inputs.determinate.darwinModules.default`, which
+  sets `nix.enable = false`: nix-darwin must never manage `/etc/nix/nix.conf` there.
+- **Switch on the Mac itself:** `sudo darwin-rebuild switch --flake github:arsfeld/nixos#<name>`
+  (push first). A launchd daemon (`modules/darwin/auto-update.nix`) does the same every
+  Sunday 10:00 and logs to `/var/log/darwin-auto-update.log`. They are in neither `ciMatrix`
+  nor `just deploy`; raider can evaluate them (`nix eval
+  .#darwinConfigurations.<name>.system.drvPath`) but not build them.
+- **`homebrew.onActivation.cleanup = "none"`**: the lists add, never remove. An app already
+  installed outside brew makes its cask fail with "already an App at"; adopt it once with
+  `brew install --cask --adopt <cask>`. `masApps` needs an App Store sign-in first.
+- Bootstrap a new Mac: install Determinate Nix, then
+  `sudo nix run nix-darwin -- switch --flake github:arsfeld/nixos#<name>`, then
+  `chsh -s /run/current-system/sw/bin/fish`.
 
 ## Architecture Overview
 
