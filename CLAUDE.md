@@ -1140,8 +1140,10 @@ nothing switches it any more.
 - **`homebrew.onActivation.cleanup = "none"`**: the lists add, never remove. An app already
   installed outside brew makes its cask fail with "already an App at"; adopt it once with
   `brew install --cask --adopt <cask>`. `masApps` needs an App Store sign-in first.
-- Bootstrap a new Mac: install Determinate Nix, then
-  `sudo nix run nix-darwin -- switch --flake github:arsfeld/nixos#<name>`, then
+- Bootstrap a new Mac: install Determinate Nix, move the installer's comment-only
+  `/etc/nix/nix.custom.conf` to `nix.custom.conf.before-nix-darwin` (Determinate's darwin
+  module owns that file and activation aborts on it), then
+  `sudo nix run github:nix-darwin/nix-darwin/nix-darwin-26.05#darwin-rebuild -- switch --flake github:arsfeld/nixos#<name>`, then
   `chsh -s /run/current-system/sw/bin/fish`.
 
 ## Architecture Overview
