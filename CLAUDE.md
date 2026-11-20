@@ -1132,8 +1132,8 @@ nothing switches it any more.
 
 - **They run Determinate Nix**, through `inputs.determinate.darwinModules.default`, which
   sets `nix.enable = false`: nix-darwin must never manage `/etc/nix/nix.conf` there.
-- **Switch on the Mac itself:** `sudo darwin-rebuild switch --flake github:arsfeld/nixos#<name>`
-  (push first). A launchd daemon (`modules/darwin/auto-update.nix`) does the same every
+- **Switch on the Mac itself:** `sudo darwin-rebuild switch --refresh --flake github:arsfeld/nixos#<name>`
+  (push first; without `--refresh` Nix may reuse a cached copy of the repo for up to an hour). A launchd daemon (`modules/darwin/auto-update.nix`) does the same every
   Sunday 10:00 and logs to `/var/log/darwin-auto-update.log`. They are in neither `ciMatrix`
   nor `just deploy`; raider can evaluate them (`nix eval
   .#darwinConfigurations.<name>.system.drvPath`) but not build them.
@@ -1143,7 +1143,7 @@ nothing switches it any more.
 - Bootstrap a new Mac: install Determinate Nix, move the installer's comment-only
   `/etc/nix/nix.custom.conf` to `nix.custom.conf.before-nix-darwin` (Determinate's darwin
   module owns that file and activation aborts on it), then
-  `sudo nix run github:nix-darwin/nix-darwin/nix-darwin-26.05#darwin-rebuild -- switch --flake github:arsfeld/nixos#<name>`, then
+  `sudo nix run github:nix-darwin/nix-darwin/nix-darwin-26.05#darwin-rebuild -- switch --refresh --flake github:arsfeld/nixos#<name>`, then
   `chsh -s /run/current-system/sw/bin/fish`.
 
 ## Architecture Overview
