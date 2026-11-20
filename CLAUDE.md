@@ -1137,7 +1137,9 @@ nothing switches it any more.
   Sunday 10:00 and logs to `/var/log/darwin-auto-update.log`. They are in neither `ciMatrix`
   nor `just deploy`; raider can evaluate them (`nix eval
   .#darwinConfigurations.<name>.system.drvPath`) but not build them.
-- **`homebrew.onActivation.cleanup = "none"`**: the lists add, never remove. An app already
+- **`homebrew.onActivation.cleanup = "none"`**: the lists add, never remove. Keep it that way: `"uninstall"`
+  also runs `mas uninstall` on every App Store app missing from `masApps`, which moved Xcode to the Trash
+  on the Pro. An app already
   installed outside brew makes its cask fail with "already an App at"; adopt it once with
   `brew install --cask --adopt <cask>`. `masApps` needs an App Store sign-in first.
 - Bootstrap a new Mac: install Determinate Nix, move the installer's comment-only

@@ -26,7 +26,10 @@
       enable = true;
       # Install only, never remove: anything installed outside this list
       # (`brew install` by hand, a cask dropped from it) is left alone.
-      # "uninstall" would make the list exact, removing everything else.
+      # "uninstall" would make the list exact, removing everything else, App
+      # Store apps included: brew bundle's cleanup runs `mas uninstall` on any
+      # App Store app missing from masApps, which trashed Xcode on the Pro
+      # (2026-11-20). Don't turn it on without listing every App Store app.
       onActivation.cleanup = "none";
       taps = [
         "can1357/tap"
