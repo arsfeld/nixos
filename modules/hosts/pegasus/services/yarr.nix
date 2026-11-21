@@ -1,5 +1,6 @@
-# Upstream yarr (nkanaev/yarr), not the arsfeld fork — see
-# modules/hosts/galactica/services/yarr.nix. pegasus has no Authelia and
+# Upstream yarr (nkanaev/yarr), not the arsfeld fork galactica runs for
+# NetNewsWire (see modules/hosts/galactica/services/yarr.nix): this instance
+# only needs Fever. pegasus has no Authelia and
 # bypassAuth is set, so YARR_AUTH is the only thing standing in front of this
 # instance.
 {

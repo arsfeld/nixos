@@ -74,13 +74,12 @@
               resources = ["^/scene/([0-9]+)?/stream"];
             }
             {
-              # Fever API for feed readers; yarr authenticates it itself via
-              # YARR_AUTH. The /accounts/ClientLogin + /reader/ paths that used to
-              # be bypassed here were the fork's Google Reader API and no longer
-              # exist on upstream yarr.
+              # Feed reader APIs: Fever, and the arsfeld fork's Google Reader API
+              # (NetNewsWire). yarr authenticates both itself via YARR_AUTH;
+              # without this bypass Authelia answers them with its login page.
               domain = ["yarr.${domain}"];
               policy = "bypass";
-              resources = ["^/fever/.*$"];
+              resources = ["^/fever/.*$" "^/accounts/ClientLogin(\\?.*)?$" "^/reader/api/0/.*$"];
             }
           ];
         };

@@ -1,14 +1,15 @@
-# Upstream yarr (nkanaev/yarr), not the arsfeld fork.
+# The arsfeld/yarr fork: upstream nkanaev/yarr plus one commit, a Google Reader
+# API (/accounts/ClientLogin, /reader/api/0/*) so NetNewsWire can sync. Add it in
+# NetNewsWire as a "FreshRSS" account with https://yarr.arsfeld.one as the URL
+# and the YARR_AUTH credentials. Upstream only has Fever, which NetNewsWire does
+# not speak. The fork's CI publishes :master on every push; watchImage pulls it.
+# Keep the fork a single commit rebased onto upstream master.
 #
-# The fork only added a Google Reader API (/reader/, /accounts/ClientLogin) for
-# NetNewsWire sync, and was 267 commits behind upstream. Same entrypoint, same
-# 7070, same /data/yarr.db, so the database carries over untouched — but Google
-# Reader sync is gone; feed readers must use Fever instead.
-#
-# YARR_AUTH is what authenticates Fever: fever.go hashes md5(user:pass) into the
-# api_key, and with no credentials set feverAuth() lets everyone in. Since
-# /fever/ bypasses Authelia (services/auth.nix), this secret is the only thing
-# guarding it.
+# YARR_AUTH authenticates both APIs: Fever's api_key is md5(user:pass), and the
+# Reader API's ClientLogin token is derived from the same pair. With no
+# credentials set Fever lets everyone in (the Reader API refuses instead). Both
+# bypass Authelia (services/auth.nix), so this secret is the only thing guarding
+# them.
 {
   configurations.nixos.galactica.module = {config, ...}: {
     sops.secrets."yarr-env" = {};
@@ -19,7 +20,8 @@
       # FOWNER: precautionary alongside DAC_OVERRIDE (not individually shown necessary).
       container.hardening.caps = ["DAC_OVERRIDE" "FOWNER"];
       port = 7070;
-      image = "ghcr.io/nkanaev/yarr:latest";
+      image = "ghcr.io/arsfeld/yarr:master";
+      watchImage = true;
       tailscaleExposed = true;
       container = {
         exposePort = 7070;
