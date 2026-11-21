@@ -876,12 +876,15 @@ Cloudflare -> galactica cloudflared -> Caddy + Authelia (one_factor)
 
 - **It is a public shell with no permission prompts.** Claude sessions run with Codeman's
   default `--dangerously-skip-permissions`, as arosenfeld, in your real checkouts and
-  credentials. Two logins stand in front: Authelia, then Codeman's own (`admin` /
-  `CODEMAN_PASSWORD`, the `codeman-env` secret in `raider.yaml`). The second is not
-  optional: any tailnet peer reaches :8443 directly, past Authelia. Every client reaches
-  Codeman from 127.0.0.1, so its 10-failure lockout (15 min) locks out everyone at once.
-  After changing `codeman-env`, run `systemctl --user restart codeman` yourself: the unit
-  text does not change with the secret, and sops-nix cannot restart user units.
+  credentials. In a browser you log in to Authelia only. Codeman's own login (`admin` /
+  `CODEMAN_PASSWORD`, `codeman-env` in `raider.yaml`) is still on, because any tailnet
+  peer reaches :8443 directly, past Authelia; galactica's Caddy sends it on the public
+  path from `codeman-caddy-env` in `galactica.yaml` (`CODEMAN_BASIC_AUTH`, base64 of
+  `admin:<password>`). **Change the two secrets together**, then run
+  `systemctl --user restart codeman` on raider yourself: the unit text does not change
+  with the secret, and sops-nix cannot restart user units. A mismatch shows up as a
+  browser login prompt behind Authelia, and every client reaches Codeman from 127.0.0.1,
+  so its 10-failure lockout (15 min) locks out everyone at once.
 - **The password is kept out of agent sessions** by a one-line patch in
   `packages/codeman/package.nix` (upstream passes the server's whole environment to tmux).
   So `codeman agent` run inside a session gets 401 unless given the password.

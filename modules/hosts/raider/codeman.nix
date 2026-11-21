@@ -9,12 +9,14 @@
 #
 # This is a public shell. Claude sessions it starts run with Codeman's default
 # --dangerously-skip-permissions, so whoever gets past both logins has an
-# unattended agent on raider as arosenfeld. Two logins stand in front of it:
-# Authelia on the public path, and CODEMAN_PASSWORD (user `admin`), which is
-# not optional, because any tailnet peer reaches :8443 directly, past
-# Authelia (tailscale0 is trusted fleet-wide). Ten failed logins lock out the
-# client IP for 15 minutes, and every proxied client is 127.0.0.1 here, so a
-# lockout locks out everyone.
+# unattended agent on raider as arosenfeld. Authelia guards the public path;
+# CODEMAN_PASSWORD (user `admin`) guards :8443, which every tailnet peer
+# reaches directly, past Authelia (tailscale0 is trusted fleet-wide). It is
+# not optional. Galactica's Caddy sends it on the public path
+# (`codeman-caddy-env`, galactica/services/codeman.nix), so a browser there
+# sees only Authelia. Ten failed logins lock out the client IP for 15
+# minutes, and every proxied client is 127.0.0.1 here, so a lockout locks out
+# everyone.
 #
 # Sessions live in tmux under arosenfeld's user manager (lingering is on), so
 # restarting this unit or switching raider leaves them running; a reboot ends
