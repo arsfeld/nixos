@@ -861,6 +861,40 @@ plan `docs/superpowers/plans/2026-11-16-pia-exit-nodes.md`.
   `tailscale --socket=/run/tailscale-piax<n>/tailscaled.sock status`;
   `journalctl -u pia-exits -u pia-connect-x<n> -u tailscale-piax<n>-up`.
 
+### Codeman (agent dashboard on raider)
+
+`https://codeman.arsfeld.one` starts and shows agent sessions (Claude Code, Antigravity
+`agy`, a plain shell, ...) running on raider, each in its own tmux session, from any
+browser, including machines off the tailnet. Codeman is upstream's (github.com/Ark0N/Codeman),
+packaged as `packages/codeman` and bumped by `just update-packages` (its tags are
+`codeman@X.Y.Z`). Spec `docs/superpowers/specs/2026-11-21-codeman-dashboard-design.md`.
+
+```
+Cloudflare -> galactica cloudflared -> Caddy + Authelia (one_factor)
+  -> raider.bat-boa.ts.net:8443 (tailscale serve --tcp) -> Codeman 127.0.0.1:8594 -> tmux -L codeman
+```
+
+- **It is a public shell with no permission prompts.** Claude sessions run with Codeman's
+  default `--dangerously-skip-permissions`, as arosenfeld, in your real checkouts and
+  credentials. Two logins stand in front: Authelia, then Codeman's own (`admin` /
+  `CODEMAN_PASSWORD`, the `codeman-env` secret in `raider.yaml`). The second is not
+  optional: any tailnet peer reaches :8443 directly, past Authelia. Every client reaches
+  Codeman from 127.0.0.1, so its 10-failure lockout (15 min) locks out everyone at once.
+- **Codeman stays on loopback.** raider's firewall is off, so any other bind is on the LAN,
+  and Codeman's hook endpoints skip its login only for loopback clients.
+- **The tailnet hop is `tailscale serve --tcp`, not `--http`.** An HTTP serve handler routes
+  on Host and answers 404 for anything but raider's own names, and the gateway cannot
+  rewrite Host. `codeman.arsfeld.one` is in `CODEMAN_ALLOWED_HOSTS`; `*.ts.net` is trusted
+  by Codeman already.
+- **Sessions survive a restart of the unit, not a reboot.** `systemctl --user restart codeman`
+  (and any deploy that changes it) keeps the tmux server because the unit has
+  `KillMode=process`; without it the restart killed every session. A reboot of raider ends them.
+- The unit's PATH starts with `~/.nix-profile/bin`, where home-manager puts `claude` and
+  `agy`; there is no `/etc/profiles/per-user/arosenfeld` on raider.
+- Debugging: `systemctl --user status codeman`, `journalctl --user -u codeman`,
+  `tmux -L codeman ls`, `tailscale serve status`; on galactica the vhost is
+  `codeman.arsfeld.one` in Caddy.
+
 ### Testing Changes
 ```bash
 nix build .#nixosConfigurations.<hostname>.config.system.build.toplevel
@@ -1228,7 +1262,7 @@ Host-local modules (see the rule above), under `modules/hosts/`: galactica —
 `backup/rustic.nix`, and under `services/` `pia`, `opencloud`, `home-assistant`,
 `tablet-sync`, `vpn-exit-nodes`, `immich-pixel-sync/`, `plab/` (plab is a Rust daemon in `packages/plab`, with its Svelte app in `packages/plab/ui`), `media-apps`, `media-automation`,
 `media-streaming`, `home-apps`, `network-tools`, `cylon-bot-voice`, `pia-exits`; basestar — `k3s.nix`, `sites/`, `tailscale-exit-node.nix`;
-raider — `docker.nix`, `project-vms.nix`; pegasus — `media-sync.nix`.
+raider — `docker.nix`, `project-vms.nix`, `codeman.nix`; pegasus — `media-sync.nix`.
 
 ### Media Configuration Variables (`modules/media/config.nix`)
 
