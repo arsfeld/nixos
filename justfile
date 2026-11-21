@@ -22,6 +22,7 @@ update-packages *PKGS:
     pkgs=({{ PKGS }})
     [ ${#pkgs[@]} -gt 0 ] || pkgs=(
       claude-desktop
+      codeman
       elementary-dock-extras
       elementary-terminal-ghostty
       libghostty-gtk
@@ -69,6 +70,8 @@ update-packages *PKGS:
       cmd=(nix-update --flake --build "$p")
       case "$p" in
         home-assistant-*) cmd=(bump_github_tag "$p") ;;
+        # Tags are codeman@X.Y.Z.
+        codeman) cmd+=(--version-regex 'codeman@(.*)') ;;
         # Not a forge nix-update can query: read the newest version from the
         # apt index instead.
         claude-desktop)
