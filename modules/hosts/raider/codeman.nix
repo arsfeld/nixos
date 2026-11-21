@@ -1,0 +1,72 @@
+# Codeman: a web dashboard that starts and shows agent sessions (claude, agy,
+# ...) on raider, each in its own tmux session. Public at
+# https://codeman.arsfeld.one. Spec:
+# docs/superpowers/specs/2026-11-21-codeman-dashboard-design.md
+#
+#   Cloudflare -> galactica cloudflared -> Caddy + Authelia (one_factor)
+#     -> raider.bat-boa.ts.net:8443 (tailscale serve, plain HTTP over WireGuard)
+#     -> Codeman on 127.0.0.1:8594 (this user unit) -> tmux -> claude / agy
+#
+# This is a public shell. Claude sessions it starts run with Codeman's default
+# --dangerously-skip-permissions, so whoever gets past both logins has an
+# unattended agent on raider as arosenfeld. Two logins stand in front of it:
+# Authelia on the public path, and CODEMAN_PASSWORD (user `admin`), which is
+# not optional, because any tailnet peer reaches :8443 directly, past
+# Authelia (tailscale0 is trusted fleet-wide). Ten failed logins lock out the
+# client IP for 15 minutes, and every proxied client is 127.0.0.1 here, so a
+# lockout locks out everyone.
+#
+# Sessions live in tmux under arosenfeld's user manager (lingering is on), so
+# restarting this unit or switching raider leaves them running; a reboot ends
+# them.
+{
+  configurations.nixos.raider.module = {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: let
+    port = 8594;
+    tailnetPort = 8443;
+  in {
+    sops.secrets."codeman-env" = {
+      owner = "arosenfeld";
+      mode = "0400";
+    };
+
+    systemd.user.services.codeman = {
+      description = "Codeman agent dashboard";
+      unitConfig.ConditionUser = "arosenfeld";
+      wantedBy = ["default.target"];
+      environment = {
+        # *.ts.net is trusted by Codeman already; the public name is not.
+        CODEMAN_ALLOWED_HOSTS = "codeman.arsfeld.one";
+        # The same claude and agy a terminal gets, from home-manager.
+        PATH = lib.mkForce "/etc/profiles/per-user/arosenfeld/bin:/run/wrappers/bin:/run/current-system/sw/bin";
+      };
+      serviceConfig = {
+        # Binds 127.0.0.1 by default.
+        ExecStart = "${lib.getExe pkgs.codeman} web --port ${toString port}";
+        EnvironmentFile = config.sops.secrets."codeman-env".path;
+        Restart = "on-failure";
+        RestartSec = 5;
+      };
+    };
+
+    # Beside zellij-web's `--https=443` mapping (zellij-web.nix); a different
+    # port, so neither overwrites the other.
+    systemd.services.codeman-serve = {
+      description = "Expose Codeman on the tailnet via tailscale serve";
+      after = ["tailscaled.service" "network-online.target"];
+      wants = ["tailscaled.service" "network-online.target"];
+      wantedBy = ["multi-user.target"];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        ExecStart = "${config.services.tailscale.package}/bin/tailscale serve --bg --http=${toString tailnetPort} http://127.0.0.1:${toString port}";
+        Restart = "on-failure";
+        RestartSec = 10;
+      };
+    };
+  };
+}
