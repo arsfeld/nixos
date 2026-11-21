@@ -126,3 +126,21 @@ skip-permissions default, and that a reboot of raider ends running sessions.
    both run and their output is readable.
 
 Deploy order: raider, then galactica.
+
+## Implementation notes (2026-11-21)
+
+The built system differs from the design above in these places; the code and
+CLAUDE.md's "Codeman" section are authoritative.
+
+- **The tailnet hop is `tailscale serve --tcp=8443`, not `--http`.** An HTTP
+  serve handler routes on Host and answered 404 for `codeman.arsfeld.one`; the
+  gateway cannot rewrite Host, and Codeman must stay on loopback (raider's
+  firewall is off; its hook bypass needs a loopback client).
+- **PATH is `~/.nix-profile/bin` first.** `/etc/profiles/per-user/arosenfeld`
+  does not exist on raider; home-manager installs into the nix profile.
+- **`CODEMAN_ALLOWED_HOSTS` is `codeman.arsfeld.one` only.** Codeman trusts
+  `*.ts.net` already.
+- **The unit has `KillMode=process`**, as Codeman's own unit does: the default
+  killed the tmux server, and every session, on each restart.
+- **The package strips `CODEMAN_PASSWORD` from the environment tmux starts
+  with**, so agent sessions never see the web login.

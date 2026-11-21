@@ -33,8 +33,18 @@ buildNpmPackage rec {
   # `npm prune --omit=dev` and ships every devDependency (remotion,
   # puppeteer, playwright, ...). The build still gets them: npm ci installs
   # dev dependencies by default.
+  #
+  # The tmux server, and so every agent pane, inherits the environment of the
+  # session that starts it. Upstream drops only TMUX, which left the web
+  # login (CODEMAN_PASSWORD) in every agent's environment, and from there in
+  # transcripts and scrollback. The server reads it from its own process
+  # environment, never the panes'. The cost: `codeman agent` run inside a
+  # session no longer finds the password and gets 401.
   postPatch = ''
     rm .npmrc
+    substituteInPlace src/tmux-manager.ts --replace-fail \
+      'delete cleanEnv.TMUX;' \
+      'delete cleanEnv.TMUX; delete cleanEnv.CODEMAN_PASSWORD; delete cleanEnv.CODEMAN_USERNAME;'
   '';
 
   # npm links each workspace into node_modules, but package.json's `files`

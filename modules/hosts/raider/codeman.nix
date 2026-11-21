@@ -78,6 +78,10 @@
         Type = "oneshot";
         RemainAfterExit = true;
         ExecStart = "${config.services.tailscale.package}/bin/tailscale serve --bg --tcp=${toString tailnetPort} tcp://127.0.0.1:${toString port}";
+        # tailscaled keeps serve config in its own state: without this, deleting
+        # the module would leave :8443 forwarding to a dead port. A switch that
+        # restarts the unit runs ExecStart again right after.
+        ExecStop = "${config.services.tailscale.package}/bin/tailscale serve --tcp=${toString tailnetPort} off";
         Restart = "on-failure";
         RestartSec = 10;
       };

@@ -880,8 +880,14 @@ Cloudflare -> galactica cloudflared -> Caddy + Authelia (one_factor)
   `CODEMAN_PASSWORD`, the `codeman-env` secret in `raider.yaml`). The second is not
   optional: any tailnet peer reaches :8443 directly, past Authelia. Every client reaches
   Codeman from 127.0.0.1, so its 10-failure lockout (15 min) locks out everyone at once.
+  After changing `codeman-env`, run `systemctl --user restart codeman` yourself: the unit
+  text does not change with the secret, and sops-nix cannot restart user units.
+- **The password is kept out of agent sessions** by a one-line patch in
+  `packages/codeman/package.nix` (upstream passes the server's whole environment to tmux).
+  So `codeman agent` run inside a session gets 401 unless given the password.
 - **Codeman stays on loopback.** raider's firewall is off, so any other bind is on the LAN,
-  and Codeman's hook endpoints skip its login only for loopback clients.
+  and Codeman's hook endpoints skip its login only for loopback clients that also present
+  the hook secret.
 - **The tailnet hop is `tailscale serve --tcp`, not `--http`.** An HTTP serve handler routes
   on Host and answers 404 for anything but raider's own names, and the gateway cannot
   rewrite Host. `codeman.arsfeld.one` is in `CODEMAN_ALLOWED_HOSTS`; `*.ts.net` is trusted
@@ -891,6 +897,11 @@ Cloudflare -> galactica cloudflared -> Caddy + Authelia (one_factor)
   `KillMode=process`; without it the restart killed every session. A reboot of raider ends them.
 - The unit's PATH starts with `~/.nix-profile/bin`, where home-manager puts `claude` and
   `agy`; there is no `/etc/profiles/per-user/arosenfeld` on raider.
+- **The tmux server outlives the unit, so it keeps what it started with.** Panes take
+  their environment from the server, and a Codeman bump can bring a newer tmux than the
+  one still running. After changing the unit's PATH or environment, or a tmux upgrade that
+  breaks listing sessions, run `tmux -L codeman kill-server` (this ends every session) or
+  reboot.
 - Debugging: `systemctl --user status codeman`, `journalctl --user -u codeman`,
   `tmux -L codeman ls`, `tailscale serve status`; on galactica the vhost is
   `codeman.arsfeld.one` in Caddy.
