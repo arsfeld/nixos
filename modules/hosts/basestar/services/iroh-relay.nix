@@ -15,10 +15,12 @@
     backend = config.virtualisation.oci-containers.backend;
 
     # Pinned by digest as well as tag: a re-published tag cannot swap the binary
-    # underneath us. v1.4.2 is iroh's relay security release (one client could
-    # disconnect another with an empty or one-byte-oversized frame, a WebSocket
-    # ping flood, stuck writes blocking shutdown) and carries v1.4.0's rustls
-    # fixes; v1.1.0 to v1.3.0 shipped a vulnerable rustls. The v1.0.3 image
+    # underneath us. v1.5.0 matches the iroh mydia's server and player link and
+    # closes a handshake connection leak. It carries v1.4.2, iroh's relay
+    # security release (one client could disconnect another with an empty or
+    # one-byte-oversized frame, a WebSocket ping flood, stuck writes blocking
+    # shutdown), and v1.4.0's rustls fixes; v1.1.0 to v1.3.0 shipped a
+    # vulnerable rustls. The v1.0.3 image
     # panics on the FIRST received datagram (n0-computer/noq#774), so run
     # iroh-relay-verify-image.sh before changing this; a plain boot test cannot
     # catch that class of bug.
@@ -29,7 +31,7 @@
     # container. Pulling a digest can only ever yield the same image, so that
     # timer is a permanent no-op here. Relaxing the pin back to a floating tag
     # re-arms daily auto-upgrade on a service with the v1.0.3 crash history.
-    image = "n0computer/iroh-relay:v1.4.2@sha256:1de2c273ff3e2cf1261b16ef7e569f9b36ab858a54481ebeedf7d9da2e17a4df";
+    image = "n0computer/iroh-relay:v1.5.0@sha256:50a2f5697d8f69537037503c81b989be17eeb694dbb2d3fdfd5418c9a71c8ec6";
 
     # https_bind_addr and quic_bind_addr belong inside [tls]; metrics is
     # metrics_bind_addr, not metrics_addr. The k8s ConfigMap this replaces had all
