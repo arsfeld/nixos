@@ -51,6 +51,12 @@
         EnvironmentFile = config.sops.secrets."codeman-env".path;
         Restart = "on-failure";
         RestartSec = 5;
+        # Codeman's tmux server (socket `-L codeman`) is spawned inside this
+        # unit's cgroup; the default control-group kill took every session
+        # with it on a restart. As in Codeman's own generated unit, signal
+        # only the server.
+        KillMode = "process";
+        LimitNOFILE = 65536;
       };
     };
 
