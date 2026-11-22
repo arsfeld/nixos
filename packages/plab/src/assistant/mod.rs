@@ -371,6 +371,13 @@ impl Assistant {
         Ok(true)
     }
 
+    /// plab-sources' noise words, read afresh: none when the file is missing or bad.
+    fn noise(&self) -> Vec<String> {
+        crate::sources::load(self.sources_file.as_deref())
+            .map(|s| s.noise)
+            .unwrap_or_default()
+    }
+
     pub async fn start(
         &self,
         db: &Db,
@@ -379,9 +386,7 @@ impl Assistant {
         now: i64,
     ) -> Result<i64, TurnError> {
         self.ready()?;
-        let noise = crate::sources::load(self.sources_file.as_deref())
-            .map(|s| s.noise)
-            .unwrap_or_default();
+        let noise = self.noise();
         let ctx = context::gather(db, &self.stash, &self.hide, &noise, now).await?;
         let mut content = format!(
             "{}\n\nPROFILE:\n{}\n\nCANDIDATES:\n{}",
@@ -461,6 +466,7 @@ impl Assistant {
                 db.delete_messages_from(id, user.seq + 1)?;
             }
         }
+        let noise = self.noise();
         let mut reasked = false;
         for _ in 0..MAX_ROUNDS {
             let body = json!({"model": self.model, "messages": self.history(db, id)?, "tools": tools::definitions(self.search.get().is_some())});
@@ -493,6 +499,7 @@ impl Assistant {
                         &self.stash,
                         db,
                         &self.hide,
+                        &noise,
                         self.search.get().map(|s| &**s),
                         name,
                         args,

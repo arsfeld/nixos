@@ -141,10 +141,31 @@ pub async fn views(db: &Db, stash: &Stash, now: i64) -> (Vec<View>, bool) {
     (out, ok)
 }
 
-/// The releases on the Video and Indexers lists, as candidates' input. A release counts
-/// as downloaded when plab has its scene, through it or another release (`same::Owned`).
+/// Whether plab already has a release's scene, through it or another release
+/// (`same::Owned`): a grab from another indexer counts, though it shares no topic id.
+pub struct Have<'a> {
+    owned: crate::same::Owned,
+    noise: &'a [String],
+}
+
+impl<'a> Have<'a> {
+    pub fn new(db: &Db, noise: &'a [String]) -> anyhow::Result<Have<'a>> {
+        Ok(Have {
+            owned: crate::same::Owned::new(&db.download_titles()?, noise),
+            noise,
+        })
+    }
+
+    pub fn has(&self, id: u64, title: &str) -> bool {
+        self.owned
+            .of(id, crate::same::sig(title, self.noise, &[]).as_ref())
+            .is_some()
+    }
+}
+
+/// The releases on the Video and Indexers lists, as candidates' input.
 fn releases(db: &Db, noise: &[String]) -> anyhow::Result<Vec<ReleaseIn>> {
-    let owned = crate::same::Owned::new(&db.download_titles()?, noise);
+    let have = Have::new(db, noise)?;
     let externals = db.externals()?;
     Ok(advisable(db)?
         .into_iter()
@@ -154,9 +175,7 @@ fn releases(db: &Db, noise: &[String]) -> anyhow::Result<Vec<ReleaseIn>> {
                 id: row.id,
                 title: row.title.clone(),
                 studio: crate::labels::labels(&row.title, row.forum).studio,
-                downloaded: owned
-                    .of(row.id, crate::same::sig(&row.title, noise, &[]).as_ref())
-                    .is_some(),
+                downloaded: have.has(row.id, &row.title),
                 album: externals
                     .get(&row.id)
                     .is_some_and(|e| e.kind == Kind::Album),
