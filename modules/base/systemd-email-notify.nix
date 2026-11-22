@@ -6,6 +6,7 @@
 #
 # Features:
 # - Automatic email on service failure
+# - Only mails units still failed once a deploy/boot has settled
 # - Rate limiting to prevent notification spam (1 hour cooldown)
 # - Failure count tracking
 # - HTML-formatted service status and logs
@@ -35,6 +36,35 @@
           set -eu
 
           SERVICE_NAME="$1"
+
+          # Mail about steady state, not about transitions. A deploy's
+          # switch-to-configuration stops and restarts many units at once,
+          # and plenty fail along the way (a dependency stopped under them,
+          # a restart racing its socket) before the start phase brings them
+          # back. Boot is the same. So wait until no activation is running
+          # and boot has finished, give Restart= units a moment to come back,
+          # and send only if the unit is still failed. A unit that is failed
+          # once things settle is exactly what deserves the mail.
+          #
+          # Never take /run/nixos/switch-to-configuration.lock to detect an
+          # activation: switch-to-configuration grabs it non-blocking and
+          # aborts if anyone holds it, even briefly.
+          activating() {
+            systemctl is-active --quiet nixos-rebuild-switch-to-configuration.service \
+              || pgrep -f 'bin/switch-to-configuration' >/dev/null \
+              || [ "$(systemctl is-system-running 2>/dev/null)" = starting ]
+          }
+          WAITED=0
+          while activating && [ "$WAITED" -lt 1800 ]; do
+            sleep 5
+            WAITED=$((WAITED + 5))
+          done
+          sleep 60
+          if ! systemctl is-failed --quiet "$SERVICE_NAME"; then
+            echo "$SERVICE_NAME recovered (now $(systemctl is-active "$SERVICE_NAME" || true)); not sending."
+            exit 0
+          fi
+
           COOLDOWN_SECONDS=3600  # 1 hour cooldown
           TIMESTAMP_FILE="/tmp/service_failure_$SERVICE_NAME.timestamp"
           FAILURE_COUNT_FILE="/tmp/service_failure_$SERVICE_NAME.count"
@@ -58,9 +88,6 @@
             exit 0
           fi
 
-          date +%s > "$TIMESTAMP_FILE"
-
-          # Update the timestamp file
           date +%s > "$TIMESTAMP_FILE"
 
           export EMAIL_TO=${config.systemdEmailNotify.toEmail}
@@ -121,10 +148,17 @@
               nettools # provides hostname command
               coreutils
               util-linux
+              procps # pgrep
+              systemd
             ];
+            # An instance may be mid-wait when the switch that caused it
+            # changes this unit; restarting it would only lose the wait.
+            restartIfChanged = false;
             serviceConfig = {
               ExecStart = "${sendmail} %i";
               Type = "oneshot";
+              # Up to 30 min waiting for an activation, then a minute's grace.
+              TimeoutStartSec = "40min";
             };
           };
         };
