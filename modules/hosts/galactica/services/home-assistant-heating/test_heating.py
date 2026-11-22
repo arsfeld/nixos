@@ -36,7 +36,6 @@ def office(now, temp="18.0", rate="0", extra=None, this=None):
 
 
 class OfficeTarget(unittest.TestCase):
-    # No outdoor sensor in these states: the cap is off, so the window is 20.
     def test_base_before_preheat_shows_start(self):
         r = office(at(MONDAY, "06:00"))
         # (20 - 18) / 1.5 °C/h seed = 80 min before 08:30
@@ -75,13 +74,11 @@ class OfficeTarget(unittest.TestCase):
         # (20 - 13) / 1.5 °C/h = 280 min, capped at 210 before 08:30
         self.assertEqual(office(at(MONDAY, "04:00"), temp="13.0").attributes["start"], "05:00")
 
-    def test_weekend(self):
-        self.assertEqual(office(at(SATURDAY, "10:00"), temp="19.0").value, 20)
+    def test_weekend_window_is_08_to_22(self):
+        for hhmm, want in {"07:59": 16, "08:00": 20, "21:59": 20, "22:00": 16}.items():
+            with self.subTest(hhmm):
+                self.assertEqual(office(at(SATURDAY, hhmm), temp="21.0").value, want)
         self.assertEqual(office(at(SATURDAY, "07:00"), temp="16.0").attributes["reason"], "preheat")
-
-    def test_away_drops_to_base(self):
-        r = office(at(MONDAY, "10:00"), extra={"binary_sensor.office_vacant": "on"})
-        self.assertEqual((r.value, r.attributes["reason"]), (16, "away"))
 
     def test_boost_beats_away(self):
         r = office(at(MONDAY, "10:00"), extra={
@@ -90,37 +87,37 @@ class OfficeTarget(unittest.TestCase):
         })
         self.assertEqual((r.value, r.attributes["reason"]), (21, "boost"))
 
+    def test_mild_weather_does_not_lower_it(self):
+        # 2026-11-22: the outdoor cap is gone; the office is 20 whatever the weather.
+        self.assertEqual(office(at(MONDAY, "10:00"), temp="20.0", extra={"sensor.outdoor_weather_hilo": "15"}).value, 20)
 
-def outside(degrees, **extra):
-    return {"sensor.outdoor_weather_hilo": degrees, **extra}
+
+VACANT = {"binary_sensor.office_vacant": "on"}
 
 
-class OfficeOutdoorCap(unittest.TestCase):
-    def test_20_below_freezing_else_19(self):
-        for hhmm in ("10:00", "21:00"):
-            for degrees, want in {"-15": 20, "-1": 20, "0": 19, "5": 19, "15": 19}.items():
-                with self.subTest(hhmm=hhmm, degrees=degrees):
-                    self.assertEqual(office(at(MONDAY, hhmm), temp="20.0", extra=outside(degrees)).value, want)
+class OfficeAway(unittest.TestCase):
+    def test_weekday_window_drops_only_to_18(self):
+        for hhmm in ("09:00", "12:30", "21:00", "23:59"):
+            with self.subTest(hhmm):
+                r = office(at(MONDAY, hhmm), temp="19.0", extra=VACANT)
+                self.assertEqual((r.value, r.attributes["reason"]), (18, "away"))
 
-    def test_reports_the_cap(self):
-        self.assertEqual(office(at(MONDAY, "10:00"), extra=outside("5")).attributes["outdoor_cap"], 19)
-        self.assertIsNone(office(at(MONDAY, "10:00"), extra=outside("-5")).attributes["outdoor_cap"])
+    def test_weekday_night_is_base(self):
+        r = office(at(MONDAY, "02:00"), temp="17.0", extra=VACANT)
+        self.assertEqual((r.value, r.attributes["reason"]), (16, "base"))
 
-    def test_preheat_aims_at_the_cap(self):
-        # (19 - 18) / 1.5 °C/h = 40 min before 08:30
-        self.assertEqual(office(at(MONDAY, "07:30"), extra=outside("5")).attributes["start"], "07:50")
-        r = office(at(MONDAY, "08:00"), extra=outside("5"))
-        self.assertEqual((r.value, r.attributes["reason"], r.attributes["outdoor_cap"]), (19, "preheat", 19))
+    def test_weekday_away_does_not_preheat_to_20(self):
+        r = office(at(MONDAY, "07:30"), temp="18.0", extra=VACANT)
+        self.assertEqual((r.value, r.attributes["reason"]), (16, "base"))
 
-    def test_boost_stays_21(self):
-        r = office(at(MONDAY, "10:00"), extra=outside("12", **{"input_boolean.heating_boost_office": "on"}))
-        self.assertEqual((r.value, r.attributes["reason"]), (21, "boost"))
+    def test_weekend_ignores_presence(self):
+        r = office(at(SATURDAY, "10:00"), temp="19.0", extra=VACANT)
+        self.assertEqual((r.value, r.attributes["reason"]), (20, "schedule"))
+        self.assertEqual(office(at(SATURDAY, "23:00"), temp="19.0", extra=VACANT).value, 16)
 
-    def test_unknown_outside_caps_nothing(self):
-        self.assertEqual(office(at(MONDAY, "21:00"), extra=outside("unavailable")).value, 20)
-
-    def test_other_zones_ignore_the_outside(self):
-        self.assertEqual(living(at(MONDAY, "07:30"), temp="20.0", extra=outside("15")).value, 20)
+    def test_weekend_preheats_while_away(self):
+        r = office(at(SATURDAY, "07:00"), temp="16.0", extra=VACANT)
+        self.assertEqual((r.value, r.attributes["reason"]), (20, "preheat"))
 
 
 def living(now, temp="19.0", rate="0", extra=None, this=None):
@@ -170,7 +167,10 @@ class OtherZones(unittest.TestCase):
         states = {"sensor.bathroom_downstairs_temperature": "19.0", "input_number.heating_rate_office": "0"}
         self.assertEqual(target("bathroom_downstairs", at(MONDAY, "09:00"), states).value, 19)
         away = {**states, "binary_sensor.office_vacant": "on"}
-        self.assertEqual(target("bathroom_downstairs", at(MONDAY, "09:00"), away).value, 16)
+        self.assertEqual(target("bathroom_downstairs", at(MONDAY, "09:00"), away).value, 18)
+        self.assertEqual(target("bathroom_downstairs", at(MONDAY, "03:00"), away).value, 16)
+        self.assertEqual(target("bathroom_downstairs", at(SATURDAY, "09:00"), away).value, 19)
+        self.assertEqual(target("bathroom_downstairs", at(SATURDAY, "23:00"), away).value, 16)
         boost = {**away, "input_boolean.heating_boost_office": "on"}
         self.assertEqual(target("bathroom_downstairs", at(MONDAY, "09:00"), boost).value, 19)
 

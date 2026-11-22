@@ -2,13 +2,15 @@
 # a schedule; default.nix and _templates.nix turn this into Home Assistant.
 #
 #   base         °C outside every window (5 is a Hilo baseboard's off)
-#   weekday,     [from to °C] windows, "HH:MM", "24:00" for midnight; they
-#   weekend      may not wrap midnight. Each is reached *by* `from`: zones
-#                with a `rate` pre-heat toward the next warmer window.
+#   weekday,     [from to °C] or [from to °C away°C] windows, "HH:MM",
+#   weekend      "24:00" for midnight; they may not wrap midnight. Each is
+#                reached *by* `from`: zones with a `rate` pre-heat toward the
+#                next warmer window.
 #   boost        a one-click input_boolean (cleared at midnight) and its °C
-#   presence     drop to base once the office has been vacant 15 minutes
+#   presence     once the office has been vacant 15 minutes
 #                (binary_sensor.office_vacant: raider no longer hears the
-#                phone over Bluetooth)
+#                phone over Bluetooth), each window drops to its away°C, or
+#                to base if it has none
 #   rate         warm-up rate in °C/h: the input_number `helper` (learned by
 #                the zone of that name), a `seed` until one is learned, and
 #                `maxLead`, the most minutes a pre-heat may start early
@@ -16,9 +18,6 @@
 #   devices      the baseboards this zone's target drives
 #   assist       an entity whose "on" marks a pre-heat as helped, so its
 #                rate is not learned
-#   outdoor      [threshold cap] steps: once it is threshold °C or warmer
-#                outside (sensor.outdoor_weather_hilo), window and pre-heat
-#                targets are capped at cap; the lowest reached cap wins
 {
   # Heat pump zone. Its own baseboards (living_room_1, dining_room) only
   # close a shortfall or back it up; see default.nix.
@@ -59,18 +58,18 @@
     devices = ["climate.bathroom"];
   };
 
-  # Basement: where the user works, gated on their phone being at the desk.
+  # Basement: where the user works. Cold at night every day. Weekdays it is
+  # 20 08:30-24:00 and, when the phone leaves the desk, only drops to 18:
+  # dropping to base on every trip upstairs left it at 18.5-19. Weekends it
+  # holds 20 08:00-22:00 whether or not anyone is at the desk (2026-11-22:
+  # gated, it sat at 16.5-17 all weekend morning). No outdoor cap any more:
+  # 20 whatever the weather. Boost (21) is the "too cold" fix.
   office = {
     temperature = "sensor.office_temperature";
     base = 16;
-    # 20 below 0°C outside, 19 from 0°C, day and evening alike; never below
-    # 19 while in use (2026-11-17: holding 20-21 cost 15-25 kWh a cold
-    # weekday, and pre-heating to it started the baseboard before 06:00).
-    # Boost (21) is the "too cold" fix.
-    weekday = [["08:30" "24:00" 20]];
-    weekend = [["08:30" "24:00" 20]];
+    weekday = [["08:30" "24:00" 20 18]];
+    weekend = [["08:00" "22:00" 20 20]];
     presence = true;
-    outdoor = [[0 19]];
     boost = {
       helper = "office";
       target = 21;
@@ -85,8 +84,8 @@
   bathroom_downstairs = {
     temperature = "sensor.bathroom_downstairs_temperature";
     base = 16;
-    weekday = [["08:30" "24:00" 19]];
-    weekend = [["08:30" "24:00" 19]];
+    weekday = [["08:30" "24:00" 19 18]];
+    weekend = [["08:00" "22:00" 19 19]];
     presence = true;
     boost = {
       helper = "office";

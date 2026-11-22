@@ -49,7 +49,6 @@
       rate = null;
       devices = [];
       assist = null;
-      outdoor = [];
     };
     zones = lib.mapAttrs (_: z: zoneDefaults // z) (import ./_zones.nix);
 
@@ -61,7 +60,7 @@
     irHub = "remote.living_room_ir";
     phone = "notify.mobile_app_alexandres_iphone";
     livingBaseboards = tpl.targetEntity "living_baseboards";
-    targetAttributes = ["reason" "window" "minutes" "start" "since" "from_temp" "assisted" "reached" "outdoor_cap"];
+    targetAttributes = ["reason" "window" "minutes" "start" "since" "from_temp" "assisted" "reached"];
 
     # Last-resort floor for the living/dining baseboards: 17 at night, 18 by day.
     backupFloor = "(17 if state_attr('${living}', 'reason') == 'base' else 18)";

@@ -8,7 +8,19 @@ in rec {
     parts = lib.splitString ":" hhmm;
   in
     lib.toIntBase10 (builtins.elemAt parts 0) * 60 + lib.toIntBase10 (builtins.elemAt parts 1);
-  windows = map (w: [(minutes (builtins.elemAt w 0)) (minutes (builtins.elemAt w 1)) (builtins.elemAt w 2)]);
+  # [from to target away] in minutes; a window without an away target falls
+  # to base while the office is vacant.
+  windows = zone:
+    map (w: [
+      (minutes (builtins.elemAt w 0))
+      (minutes (builtins.elemAt w 1))
+      (builtins.elemAt w 2)
+      (
+        if builtins.length w > 3
+        then builtins.elemAt w 3
+        else zone.base
+      )
+    ]);
 
   hiloActive = "states('sensor.defi_hilo') in ['pre_heat', 'reduction', 'on', 'recovery']";
   hiloReduction = "states('sensor.defi_hilo') in ['reduction', 'on']";
@@ -52,9 +64,7 @@ in rec {
       {%- if latched or m >= nw[0] - lead %}
         {%- set p.target = nw[2] %}
         {%- set p.reason = 'preheat' %}
-        {%- set p.window = nw[0] %}${lib.optionalString (zone.outdoor != []) ''
-
-      {%- set p.outdoor_cap = nw[2] if nw[3] > nw[2] else none %}''}
+        {%- set p.window = nw[0] %}
         {%- set p.minutes = nw[0] - m %}
         {%- set p.since = prev.get('since') if latched else n.timestamp() %}
         {%- set p.from_temp = prev.get('from_temp') if latched else temp %}
@@ -64,25 +74,10 @@ in rec {
     {%- endif %}
   '';
 
-  # On a mild day a zone needs less: each `outdoor` step [threshold cap] whose
-  # threshold the outside temperature has reached caps every window's target,
-  # the lowest such cap winning. Rewrites `wins` as [from to capped original].
-  # Boost, base and away are never capped, and an unknown outside temperature
-  # caps nothing.
-  outdoorCap = zone: ''
-    {%- set outside = states('sensor.outdoor_weather_hilo') | float(none) %}
-    {%- set cap = namespace(v=99, wins=[]) %}
-    {%- for s in ${builtins.toJSON zone.outdoor} if outside is not none and outside >= s[0] %}
-      {%- set cap.v = [cap.v, s[1]] | min %}
-    {%- endfor %}
-    {%- for w in wins %}
-      {%- set cap.wins = cap.wins + [[w[0], w[1], [w[2], cap.v] | min, w[2]]] %}
-    {%- endfor %}
-    {%- set wins = cap.wins %}
-  '';
-
-  # Sets namespace `p` to what the zone wants now. Highest precedence first:
-  # boost, away, then the schedule (with pre-heat), else base.
+  # Sets namespace `p` to what the zone wants now: boost if on, else the
+  # schedule (with pre-heat), else base. While the office is vacant a
+  # presence zone's windows are swapped for their away targets first, so
+  # pre-heat follows them too; `reason` is `away` whenever that lowered it.
   plan = zone: let
     boostOn =
       if zone.boost == null
@@ -96,7 +91,7 @@ in rec {
     {%- set n = now() %}
     {%- set m = n.hour * 60 + n.minute %}
     {%- set prev = this.attributes %}
-    {%- set p = namespace(target=${num zone.base}, reason='base', window=none, minutes=none, start=none, since=none, from_temp=none, assisted=false, reached=false, outdoor_cap=none) %}
+    {%- set p = namespace(target=${num zone.base}, reason='base', window=none, minutes=none, start=none, since=none, from_temp=none, assisted=false, reached=false) %}
     {%- if ${boostOn} %}
       {%- set p.target = ${
       if zone.boost == null
@@ -104,16 +99,16 @@ in rec {
       else num zone.boost.target
     } %}
       {%- set p.reason = 'boost' %}
-    {%- elif ${awayOn} %}
-      {%- set p.reason = 'away' %}
     {%- else %}
-      {%- set wins = ${builtins.toJSON (windows zone.weekday)} if n.weekday() < 5 else ${builtins.toJSON (windows zone.weekend)} %}
-    ${lib.optionalString (zone.outdoor != []) (outdoorCap zone)}
+      {%- set away = ${awayOn} %}
+      {%- set eff = namespace(wins=[]) %}
+      {%- for w in (${builtins.toJSON (windows zone zone.weekday)} if n.weekday() < 5 else ${builtins.toJSON (windows zone zone.weekend)}) %}
+        {%- set eff.wins = eff.wins + [[w[0], w[1], w[3] if away else w[2], away and w[3] < w[2]]] %}
+      {%- endfor %}
+      {%- set wins = eff.wins %}
       {%- for w in wins if w[0] <= m < w[1] %}
         {%- set p.target = w[2] %}
-        {%- set p.reason = 'schedule' %}${lib.optionalString (zone.outdoor != []) ''
-
-      {%- set p.outdoor_cap = w[2] if w[3] > w[2] else none %}''}
+        {%- set p.reason = 'away' if w[3] else 'schedule' %}
       {%- endfor %}
     ${lib.optionalString (zone.rate != null) (preheat zone)}
     {%- endif %}
