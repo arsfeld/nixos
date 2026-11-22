@@ -1,19 +1,18 @@
-# Systemd email notification module
+# Systemd failure and deploy reports
 #
-# This module provides automatic email notifications for systemd service failures.
-# It integrates with systemd's onFailure mechanism to send detailed failure reports
-# including service status and recent logs.
+# Every service gets `onFailure = ["email@%n.service"]`. email@ does not mail:
+# it notes the failure in /run/unit-failures/<unit> and queues system-report,
+# which sends one mail per settled change.
 #
-# Features:
-# - Automatic email on service failure
-# - Only mails units still failed once a deploy/boot has settled
-# - Rate limiting to prevent notification spam (1 hour cooldown)
-# - Failure count tracking
-# - HTML-formatted service status and logs
-# - Integration with constellation email configuration
-#
-# The module automatically adds onFailure handlers to all systemd services,
-# ensuring comprehensive monitoring coverage across the system.
+# Mail about steady state, not transitions. A deploy's switch-to-configuration
+# stops and restarts many units at once, and plenty fail along the way (a
+# dependency stopped under them, a restart racing its socket) before its start
+# phase brings them back. Boot is the same. So system-report waits until no
+# activation runs and boot is over, gives Restart= units a minute to come back,
+# and reports only units that are still failed then, all in one mail. During a
+# deploy that mail is also the deploy notice: which generation replaced which,
+# and every unit failed now. A unit is reported at most once an hour; failures
+# in between are counted into its next report.
 #
 # Example usage:
 #   systemdEmailNotify = {
@@ -30,66 +29,33 @@
         pkgs,
         ...
       }: let
-        sendmail = pkgs.writeScript "sendmail" ''
-          #!/bin/sh
+        systemctl = "${config.systemd.package}/bin/systemctl";
 
-          set -eu
-
-          SERVICE_NAME="$1"
-
-          # Mail about steady state, not transitions: a deploy or boot
-          # fails units on the way that its start phase brings back.
-          ${config.constellation.email.waitForSteadyState}
-          if ! systemctl is-failed --quiet "$SERVICE_NAME"; then
-            echo "$SERVICE_NAME recovered (now $(systemctl is-active "$SERVICE_NAME" || true)); not sending."
-            exit 0
-          fi
-
-          COOLDOWN_SECONDS=3600  # 1 hour cooldown
-          TIMESTAMP_FILE="/tmp/service_failure_$SERVICE_NAME.timestamp"
-          FAILURE_COUNT_FILE="/tmp/service_failure_$SERVICE_NAME.count"
-
-          update_failure_count() {
-            FAILURE_COUNT=$(( $(cat "$FAILURE_COUNT_FILE" 2>/dev/null || echo 0) + 1 ))
-            echo "$FAILURE_COUNT" > "$FAILURE_COUNT_FILE"
+        # Returns once no activation runs and boot is over (at most 30 min),
+        # plus a minute for Restart= units to come back.
+        #
+        # Never take /run/nixos/switch-to-configuration.lock to detect an
+        # activation: switch-to-configuration grabs it non-blocking and aborts
+        # if anyone holds it, even briefly.
+        waitForSteadyState = pkgs.writeShellScript "wait-for-steady-state" ''
+          activating() {
+            ${systemctl} is-active --quiet nixos-rebuild-switch-to-configuration.service \
+              || ${pkgs.procps}/bin/pgrep -f 'bin/switch-to-configuration' >/dev/null \
+              || [ "$(${systemctl} is-system-running 2>/dev/null)" = starting ]
           }
-
-          check_cooldown() {
-            [ -f "$TIMESTAMP_FILE" ] || return 0
-            LAST_NOTIFICATION=$(cat "$TIMESTAMP_FILE")
-            CURRENT_TIME=$(date +%s)
-            [ $((CURRENT_TIME - LAST_NOTIFICATION)) -ge $COOLDOWN_SECONDS ]
-          }
-
-          update_failure_count
-
-          if ! check_cooldown; then
-            echo "Rate limit: Not sending email for service $SERVICE_NAME. Failure count: $FAILURE_COUNT"
-            exit 0
-          fi
-
-          date +%s > "$TIMESTAMP_FILE"
-
-          export EMAIL_TO=${config.systemdEmailNotify.toEmail}
-          export EMAIL_FROM=${config.systemdEmailNotify.fromEmail}
-
-          # Capture logs and status
-          LOG_HTML=$(SYSTEMD_COLORS=1 journalctl -u "$1" --reverse --lines=50 -b | ${pkgs.aha}/bin/aha -n)
-          STATUS_HTML=$(SYSTEMD_COLORS=1 systemctl status --full "$1" | ${pkgs.aha}/bin/aha -n)
-
-          ${pkgs.send-email-event}/bin/send-email-event \
-            "Service Failure $1 (Failure #$FAILURE_COUNT)" \
-            "Failed Service: $1
-              Failure Count: $FAILURE_COUNT
-
-              Service Status:
-              $STATUS_HTML
-
-              Recent Logs:
-              $LOG_HTML"
-
-          echo 0 > "$FAILURE_COUNT_FILE"
+          waited=0
+          while activating && [ "$waited" -lt 1800 ]; do
+            sleep 5
+            waited=$((waited + 5))
+          done
+          sleep 60
         '';
+
+        systemReport =
+          pkgs.writers.writePython3 "system-report" {
+            flakeIgnore = ["E501" "W503"];
+          }
+          (builtins.readFile ./_system-report.py);
       in {
         options = {
           systemd.services = lib.mkOption {
@@ -122,24 +88,55 @@
 
         config = {
           systemd.services."email@" = {
-            description = "Sends a status mail via sendEmailEvent on service failures.";
+            description = "Notes a unit failure for system-report";
             onFailure = lib.mkForce [];
-            path = with pkgs; [
-              nettools # provides hostname command
-              coreutils
-              util-linux
-              systemd
-            ];
-            # An instance may be mid-wait when the switch that caused it
-            # changes this unit; restarting it would only lose the wait.
+            serviceConfig.Type = "oneshot";
+            script = ''
+              mkdir -p /run/unit-failures
+              echo >> "/run/unit-failures/$1"
+              ${systemctl} start --no-block system-report.service
+            '';
+            scriptArgs = "%i";
+          };
+
+          systemd.services.system-report = {
+            description = "Mails unit failures and deploys once the system settles";
+            onFailure = lib.mkForce [];
+            # Queued mid-switch and still waiting when the switch reloads
+            # units: a restart would only lose the wait.
             restartIfChanged = false;
+            path = [config.systemd.package]; # systemctl, journalctl
             serviceConfig = {
-              ExecStart = "${sendmail} %i";
               Type = "oneshot";
-              # Up to 30 min waiting for an activation, then a minute's grace.
-              TimeoutStartSec = "40min";
+              ExecStart = lib.escapeShellArgs [
+                systemReport
+                waitForSteadyState
+                "${pkgs.send-email-event}/bin/send-email-event"
+                config.systemdEmailNotify.fromEmail
+                config.systemdEmailNotify.toEmail
+              ];
+              TimeoutStartSec = "2h";
             };
           };
+
+          # Queue the deploy report from inside the activation, the one step
+          # every switch and test runs and dry-activate does not. At that point
+          # /run/current-system still names the old generation. Boot runs the
+          # activation too, before systemd (or inside the initrd's), where
+          # is-system-running is never running/degraded, so boot sends nothing
+          # here; boot-mail-alert covers it. Re-activating the same generation
+          # sends nothing either.
+          system.activationScripts.deployMail = ''
+            case "$(${systemctl} is-system-running 2>/dev/null || true)" in
+              running | degraded)
+                if [ "$(readlink -f /run/current-system || true)" != "$(readlink -f "$systemConfig")" ]; then
+                  mkdir -p /run/deploy-mail
+                  readlink -f /run/current-system > /run/deploy-mail/from || true
+                  ${systemctl} start --no-block system-report.service || true
+                fi
+                ;;
+            esac
+          '';
         };
       })
     ];
