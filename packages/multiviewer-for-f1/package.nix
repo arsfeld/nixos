@@ -33,15 +33,15 @@
   libxcb,
 }: let
   # Per-release download token from the release API; not derivable from the version.
-  token = "lFlUvRVZ-9vBGAVOVI_zQctDOEkAQjYC";
+  token = "warf8H0Z5LEHa5VkzA9c4947wakf8v7i";
 in
   stdenvNoCC.mkDerivation (finalAttrs: {
     pname = "multiviewer-for-f1";
-    version = "2.16.1";
+    version = "2.17.3";
 
     src = fetchurl {
       url = "https://releases.multiviewer.app/v/${finalAttrs.version}/1/${token}/multiviewer_${finalAttrs.version}_amd64.deb";
-      hash = "sha256-XzGK/buBvZ0YhEIa8WMbw8cB9CENekPMhcIxfaT1rO4=";
+      hash = "sha256-VoiMQbd2BrANrapwFTf1CyU0se/A4Wl9kwChDCyI14c=";
     };
 
     nativeBuildInputs = [
