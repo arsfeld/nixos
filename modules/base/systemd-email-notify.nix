@@ -4,6 +4,8 @@
 # it notes the failure in /run/unit-failures/<unit> and queues system-report,
 # which sends one mail per settled change.
 #
+# The logic, and why, is packages/system-report.
+#
 # Mail about steady state, not transitions. A deploy's switch-to-configuration
 # stops and restarts many units at once, and plenty fail along the way (a
 # dependency stopped under them, a restart racing its socket) before its start
@@ -30,32 +32,6 @@
         ...
       }: let
         systemctl = "${config.systemd.package}/bin/systemctl";
-
-        # Returns once no activation runs and boot is over (at most 30 min),
-        # plus a minute for Restart= units to come back.
-        #
-        # Never take /run/nixos/switch-to-configuration.lock to detect an
-        # activation: switch-to-configuration grabs it non-blocking and aborts
-        # if anyone holds it, even briefly.
-        waitForSteadyState = pkgs.writeShellScript "wait-for-steady-state" ''
-          activating() {
-            ${systemctl} is-active --quiet nixos-rebuild-switch-to-configuration.service \
-              || ${pkgs.procps}/bin/pgrep -f 'bin/switch-to-configuration' >/dev/null \
-              || [ "$(${systemctl} is-system-running 2>/dev/null)" = starting ]
-          }
-          waited=0
-          while activating && [ "$waited" -lt 1800 ]; do
-            sleep 5
-            waited=$((waited + 5))
-          done
-          sleep 60
-        '';
-
-        systemReport =
-          pkgs.writers.writePython3 "system-report" {
-            flakeIgnore = ["E501" "W503"];
-          }
-          (builtins.readFile ./_system-report.py);
       in {
         options = {
           systemd.services = lib.mkOption {
@@ -105,13 +81,12 @@
             # Queued mid-switch and still waiting when the switch reloads
             # units: a restart would only lose the wait.
             restartIfChanged = false;
-            path = [config.systemd.package]; # systemctl, journalctl
+            path = [config.systemd.package pkgs.procps]; # systemctl, journalctl, pgrep
             serviceConfig = {
               Type = "oneshot";
               ExecStart = lib.escapeShellArgs [
-                systemReport
-                waitForSteadyState
-                "${pkgs.send-email-event}/bin/send-email-event"
+                (lib.getExe pkgs.system-report)
+                (lib.getExe pkgs.send-email-event)
                 config.systemdEmailNotify.fromEmail
                 config.systemdEmailNotify.toEmail
               ];
