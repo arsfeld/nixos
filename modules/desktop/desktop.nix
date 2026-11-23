@@ -712,6 +712,13 @@ in {
                   switch-group = ["<Alt>grave"];
                   switch-group-backward = ["<Shift><Alt>grave"];
                 };
+                # Pantheon moves a window that goes fullscreen to a workspace of
+                # its own. A Proton game under X11 is two windows: the game and a
+                # black fullscreen backdrop Wine keeps beneath it. Gala moved only
+                # the backdrop, so the screen went black, the game stayed on the
+                # old workspace, and Wine minimized it when it lost focus (Forza
+                # Horizon 6, 2026-11-23).
+                settings."io/elementary/desktop/wm/behavior".move-fullscreened-workspace = false;
                 settings."io/elementary/monitor/settings" = {
                   indicator-state = true;
                   background-state = true;

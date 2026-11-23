@@ -439,9 +439,22 @@
 
                   # Native GTK theme for Steam
                   package = pkgs.steam.override {
-                    extraEnv = lib.optionalAttrs config.constellation.gaming.performanceOsd {
-                      MANGOHUD = "1";
-                    };
+                    extraEnv =
+                      {
+                        # Run Proton games as native Wayland clients (Wine's Wayland
+                        # driver) instead of through XWayland. Under XWayland, Gala and
+                        # Wine disagreed about a game's window: Wine kept a borderless
+                        # game "maximized", Gala kept a maximized window below the top
+                        # bar, so the picture was offset and jumped, and a separate
+                        # fullscreen backdrop window could end up on top of the game.
+                        # Honoured by GE-Proton (in extraCompatPackages below), not by
+                        # Valve's Proton Experimental, so it takes effect for games set to
+                        # GE-Proton (Steam's default compatibility tool, or per game).
+                        PROTON_ENABLE_WAYLAND = "1";
+                      }
+                      // lib.optionalAttrs config.constellation.gaming.performanceOsd {
+                        MANGOHUD = "1";
+                      };
                     extraPkgs = pkgs:
                       with pkgs; [
                         adwsteamgtk # Adwaita theme manager for Steam

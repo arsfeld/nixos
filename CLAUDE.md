@@ -388,6 +388,21 @@ checked by hand on raider after a deploy. **"Focused" on the bus is the last foc
 *normal* window**: measured, opening a Wingpanel popover moves Mutter's focus to
 Wingpanel (a DOCK window), and the bus ignores it, so the popover names the app.
 
+**Games float, and run as Wayland clients.** The plugin never tiles `steam_app_*`,
+`*.exe` or `gamescope` windows (an app rule still wins), and floats any window that keeps
+resizing itself back from its column. Steam's environment sets `PROTON_ENABLE_WAYLAND=1`
+(`modules/gaming.nix`, honoured by GE-Proton only) and Gala's
+`move-fullscreened-workspace` is off (`modules/desktop/desktop.nix`). Each fixes something
+measured with Forza Horizon 6 on 2026-11-23 under X11: tiled, it jumped between its own
+size and the column's; Wine kept it "maximized", so Gala held it below the top bar and the
+picture was offset; and Gala moved only Wine's black fullscreen backdrop to a new
+workspace, leaving the game behind, where Wine minimized it. Under Wayland the window was
+3413 px wide on a 3440 px monitor, so Wine never asked for fullscreen and the top bar
+stayed over it; that remained unexplained. Separately, the Steam overlay
+(`gameoverlayui`) once leaked shared memory until `/dev/shm` was full, after which
+`steamwebhelper` crashed every 10 s with SIGBUS and stole focus each time it restarted:
+if a game turns black or Steam crash-loops, check `df -h /dev/shm` first.
+
 Gala loads plugins only at startup, so **a new build needs a logout and login**, and a
 crash in the plugin ends the session. Never test a change by logging in with it.
 Test it in a private headless Gala instead, from the plugin checkout:

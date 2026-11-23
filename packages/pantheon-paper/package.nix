@@ -16,13 +16,13 @@
 in
   pkgs.stdenv.mkDerivation {
     pname = "pantheon-paper";
-    version = "0-unstable-2026-11-14";
+    version = "0-unstable-2026-11-23";
 
     src = pkgs.fetchFromGitHub {
       owner = "arsfeld";
       repo = "pantheon-paper";
-      rev = "a1fa6b1828d9b72ecfd9aded93f3e88a700346e7";
-      hash = "sha256-AY6dDPjIQkk/1L7UGrqeCJItIQSDdgMClbcFn9toeyM=";
+      rev = "12b87351ed2e216055960d2306769331102010e7";
+      hash = "sha256-fffdpXNhltwunm+fTdhYD2WxuaZchnl39KfVYmCIVsU=";
     };
 
     nativeBuildInputs = with pkgs; [meson ninja pkg-config vala glib];
