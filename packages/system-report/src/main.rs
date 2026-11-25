@@ -162,13 +162,38 @@ fn pre(s: &str) -> String {
     format!("<pre>{}</pre>", escape(s))
 }
 
-fn subject(deploy: bool, reported: usize, failed_now: usize) -> String {
-    match (deploy, failed_now) {
-        (true, 0) => "deployed".into(),
-        (true, n) => format!("deployed, {n} failed"),
-        (false, _) => {
-            let noun = if reported == 1 { "unit" } else { "units" };
-            format!("{reported} {noun} failed")
+/// send-email-event makes the subject `[<host>] <event> <ISO date>`; this
+/// keeps the event part short enough for a mail client's subject column.
+const SUBJECT_MAX: usize = 80;
+
+/// As many of `units` as fit in `budget` characters, then `+N more`. The
+/// first name is always kept, so the subject never says only a count.
+fn name_list(units: &[&str], budget: usize) -> String {
+    let render = |k: usize| {
+        let mut s = units[..k].join(", ");
+        if k < units.len() {
+            s += &format!(", +{} more", units.len() - k);
+        }
+        s
+    };
+    (2..=units.len())
+        .rev()
+        .map(render)
+        .find(|s| s.len() <= budget)
+        .unwrap_or_else(|| render(units.len().min(1)))
+}
+
+/// `units` is what the mail is about: every failed unit after a deploy, the
+/// newly reported ones otherwise.
+fn subject(deploy: bool, units: &[&str]) -> String {
+    let prefix = if deploy { "deployed, " } else { "" };
+    match units {
+        [] => "deployed".into(),
+        [one] => format!("{prefix}{one} failed"),
+        many => {
+            let head = format!("{prefix}{} failed: ", many.len());
+            let names = name_list(many, SUBJECT_MAX.saturating_sub(head.len()));
+            format!("{head}{names}")
         }
     }
 }
@@ -282,7 +307,12 @@ fn main() -> ExitCode {
         let report = take_failures(&p, &failed_set, now());
 
         if deploy.is_some() || !report.is_empty() {
-            let event = subject(deploy.is_some(), report.len(), failed_now.len());
+            let units: Vec<&str> = if deploy.is_some() {
+                failed_now.iter().map(String::as_str).collect()
+            } else {
+                report.keys().map(String::as_str).collect()
+            };
+            let event = subject(deploy.is_some(), &units);
             let text = body(deploy.as_ref(), &report, &failed_now, unit_section);
             let sent = Command::new(send)
                 .args(["--email-from", from, "--email-to", to, &event, &text])
@@ -368,10 +398,36 @@ mod tests {
 
     #[test]
     fn subjects() {
-        assert_eq!(subject(true, 0, 0), "deployed");
-        assert_eq!(subject(true, 1, 2), "deployed, 2 failed");
-        assert_eq!(subject(false, 1, 3), "1 unit failed");
-        assert_eq!(subject(false, 2, 2), "2 units failed");
+        assert_eq!(subject(true, &[]), "deployed");
+        assert_eq!(subject(true, &["a.service"]), "deployed, a.service failed");
+        assert_eq!(
+            subject(true, &["a.service", "b.timer"]),
+            "deployed, 2 failed: a.service, b.timer"
+        );
+        assert_eq!(subject(false, &["foo.service"]), "foo.service failed");
+        assert_eq!(
+            subject(false, &["a.service", "b.service"]),
+            "2 failed: a.service, b.service"
+        );
+    }
+
+    #[test]
+    fn subject_fits_as_many_names_as_it_can() {
+        let units: Vec<String> = (0..20).map(|i| format!("unit-{i:02}.service")).collect();
+        let units: Vec<&str> = units.iter().map(String::as_str).collect();
+        let s = subject(false, &units);
+        assert!(s.len() <= SUBJECT_MAX, "{s}");
+        assert!(s.starts_with("20 failed: unit-00.service, unit-01.service"), "{s}");
+        assert!(s.ends_with(" more"), "{s}");
+        let shown = s.matches(".service").count();
+        assert!(s.ends_with(&format!("+{} more", 20 - shown)), "{s}");
+    }
+
+    #[test]
+    fn subject_keeps_one_name_however_long() {
+        let long = "x".repeat(SUBJECT_MAX * 2);
+        let s = subject(false, &[&long, "b.service"]);
+        assert_eq!(s, format!("2 failed: {long}, +1 more"));
     }
 
     #[test]
