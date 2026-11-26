@@ -9,6 +9,7 @@ import type {
   List,
   Section,
   WatchlistReply,
+  SceneCardData,
   Votes,
 } from './types';
 
@@ -70,6 +71,8 @@ export const fetchWatchIds = async () => (await getJson<{ ids: string[] }>('/api
 export const postWatch = async (action: 'add' | 'remove', scenes: string[]) =>
   (await sendJson<{ ids: string[] }>(`/api/watchlist/${action}`, 'POST', { scenes })).ids;
 
+/** Scenes really watched in the last two weeks, newest first. */
+export const fetchRecent = async () => (await getJson<{ scenes: SceneCardData[] }>('/api/recent')).scenes;
 export const fetchVotes = async () => (await getJson<{ votes: Votes }>('/api/votes')).votes;
 /** Vote on scenes (0 clears); resolves to every vote after the change. */
 export const postVotes = async (scenes: string[], vote: 1 | -1 | 0) =>

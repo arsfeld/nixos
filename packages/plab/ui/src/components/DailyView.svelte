@@ -1,5 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { fetchRecent } from '../lib/api';
+  import type { SceneCardData } from '../lib/types';
+  import { unvotedFirst } from '../lib/votes';
+  import { votes } from '../lib/votes.svelte';
   import { dailyAnswer, groupPicks, show } from '../lib/daily';
   import { daily } from '../lib/daily.svelte';
   import { live } from '../lib/events.svelte';
@@ -8,12 +12,23 @@
   import Navbar from './Navbar.svelte';
   import Picks from './Picks.svelte';
   import Player from './Player.svelte';
+  import SceneCard from './SceneCard.svelte';
 
   let gallery = $state<ReturnType<typeof Gallery>>();
   let player = $state<ReturnType<typeof Player>>();
   let expanded = $state(false);
 
-  onMount(() => void daily.load());
+  // Scenes watched lately, to vote on. A failure hides the row: it is a convenience.
+  let recent = $state<SceneCardData[]>([]);
+  const recentShown = $derived(unvotedFirst(recent, votes.map));
+
+  onMount(() => {
+    void daily.load();
+    fetchRecent().then(
+      (s) => (recent = s),
+      () => {},
+    );
+  });
 
   // The first load can be answered before the event stream subscribes, so a generation that
   // ends in between publishes an event nobody hears. Once both are in, load again if needed.
@@ -80,6 +95,15 @@
       <h3 class="font-semibold">Stream / download</h3>
       <Picks {c} items={groups.get} {ongallery} {onstream} />
     {/if}
+  {/if}
+
+  {#if recentShown.length}
+    <h3 class="font-semibold">Recently watched</h3>
+    <div class="grid gap-3 grid-cols-[repeat(auto-fill,minmax(18rem,1fr))]">
+      {#each recentShown as scene (scene.id)}
+        <SceneCard {scene} />
+      {/each}
+    </div>
   {/if}
 </section>
 
