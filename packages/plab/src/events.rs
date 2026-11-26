@@ -46,6 +46,10 @@ pub enum Event {
     Watchlist {
         ids: Vec<String>,
     },
+    /// A vote changed: every voted Stash scene id and its vote.
+    Votes {
+        votes: std::collections::BTreeMap<String, i8>,
+    },
 }
 
 #[derive(Clone)]

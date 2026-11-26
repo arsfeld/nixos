@@ -1787,3 +1787,80 @@ async fn grab_log_lists_grabs_when_stash_is_down() {
     assert_eq!(v["grabs"][0]["title"], "Rel");
     assert_eq!(v["grabs"][0]["scenes"], json!([]));
 }
+
+// Votes and Recently watched (design: 2026-11-26-plab-taste-feedback-design.md)
+
+#[tokio::test]
+async fn votes_set_switch_clear_and_broadcast() {
+    let fx = Fx::new();
+    let mut rx = fx.state.events.subscribe();
+    let r = fx
+        .post_json("/api/votes", json!({"scenes": ["5", "3"], "vote": 1}))
+        .await;
+    assert_eq!(r.status, 200);
+    assert_eq!(r.json(), json!({"votes": {"3": 1, "5": 1}}));
+    assert_eq!(
+        rx.try_recv().unwrap(),
+        Event::Votes {
+            votes: [("3".to_string(), 1), ("5".to_string(), 1)].into()
+        }
+    );
+    let r = fx
+        .post_json("/api/votes", json!({"scenes": ["5"], "vote": -1}))
+        .await;
+    assert_eq!(r.json(), json!({"votes": {"3": 1, "5": -1}}));
+    let r = fx
+        .post_json("/api/votes", json!({"scenes": ["3"], "vote": 0}))
+        .await;
+    assert_eq!(r.json(), json!({"votes": {"5": -1}}));
+    assert_eq!(
+        fx.get("/api/votes").await.json(),
+        json!({"votes": {"5": -1}})
+    );
+}
+
+#[tokio::test]
+async fn votes_reject_bad_input() {
+    let fx = Fx::new();
+    for body in [
+        json!({"scenes": ["5"], "vote": 2}),
+        json!({"scenes": [], "vote": 1}),
+        json!({"scenes": ["5"]}),
+    ] {
+        assert_eq!(fx.post_json("/api/votes", body).await.status, 400);
+    }
+    assert_eq!(fx.get("/api/votes").await.json(), json!({"votes": {}}));
+}
+
+#[tokio::test]
+async fn recent_keeps_real_watches_from_the_last_two_weeks() {
+    let ago = |days: i64| (chrono::Utc::now() - chrono::Duration::days(days)).to_rfc3339();
+    let server = wiremock::MockServer::start().await;
+    let fx = watch_fx(
+        &server,
+        200,
+        json!([
+            {"id": "a", "title": "A", "play_count": 1, "play_duration": 300.0, "last_played_at": ago(1)},
+            {"id": "b", "title": "B", "play_count": 1, "play_duration": 5.0, "last_played_at": ago(1)},
+            {"id": "d", "title": "D", "play_count": 1, "play_duration": null, "last_played_at": ago(2)},
+            {"id": "c", "title": "C", "play_count": 1, "play_duration": 300.0, "last_played_at": ago(20)}
+        ]),
+    )
+    .await;
+    let r = fx.get("/api/recent").await;
+    assert_eq!(r.status, 200);
+    let ids: Vec<String> = r.json()["scenes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["id"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(ids, ["a", "d"]);
+}
+
+#[tokio::test]
+async fn recent_is_502_when_stash_fails() {
+    let server = wiremock::MockServer::start().await;
+    let fx = watch_fx(&server, 500, json!([])).await;
+    assert_eq!(fx.get("/api/recent").await.status, 502);
+}

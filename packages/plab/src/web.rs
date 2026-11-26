@@ -29,6 +29,7 @@ use tracing::info;
 mod assistant_routes;
 mod grab_routes;
 mod scene_dto;
+mod vote_routes;
 mod watchlist_routes;
 
 pub use assistant_routes::WebSearch;
@@ -317,6 +318,12 @@ async fn handle<B: Backends>(
     let path = uri.path();
     if let Some(rest) = path.strip_prefix("/api/assistant/") {
         return assistant_routes::route(&st, &method, rest, body).await;
+    }
+    if path == "/api/votes" {
+        return vote_routes::votes(&st, &method, body).await;
+    }
+    if path == "/api/recent" && method == Method::GET {
+        return vote_routes::recent(&st).await;
     }
     if let Some(rest) = path.strip_prefix("/api/watchlist") {
         return watchlist_routes::route(&st, &method, rest, body).await;
