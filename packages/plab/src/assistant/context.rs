@@ -76,6 +76,7 @@ fn view_of(s: &LibScene, at: i64, streamed: bool) -> View {
         },
         rating: if streamed { None } else { s.rating100 },
         streamed,
+        ..View::default()
     }
 }
 

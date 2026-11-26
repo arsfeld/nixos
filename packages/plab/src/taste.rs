@@ -11,6 +11,38 @@ pub const HALF_LIFE_DAYS: f64 = 30.0;
 pub const TOP: usize = 15;
 /// Recent views written into the prompt.
 pub const RECENT_LINES: usize = 20;
+/// Avoided studios, performers and tags kept, each.
+pub const AVOID_TOP: usize = 10;
+/// Seconds of a scene watched (Stash's `play_duration`) that make a play a view.
+pub const WATCHED_SECS: u32 = 120;
+/// Under this many seconds, with no o-count and no rating, a play is a sample: tried and
+/// abandoned.
+pub const SAMPLED_SECS: u32 = 30;
+/// A vote's weight, before decay: +1 adds it, −1 takes it away.
+pub const VOTE: f64 = 2.0;
+/// A sample's weight, before decay: a quarter of a −1.
+pub const SAMPLE: f64 = -0.5;
+
+/// What a Stash play says (design: 2026-11-26-plab-taste-feedback-design.md). Stash counts
+/// a play the moment a scene starts, so only time watched tells a view from a sample.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Play {
+    Watched,
+    Sampled,
+    Neither,
+}
+
+/// An o-count or a rating is a view however short the play; no duration from Stash counts
+/// as a view too, as every play did before durations were read.
+pub fn play(watched_secs: Option<u32>, o_count: u32, rating: Option<u32>) -> Play {
+    match watched_secs {
+        _ if o_count > 0 || rating.is_some() => Play::Watched,
+        None => Play::Watched,
+        Some(s) if s >= WATCHED_SECS => Play::Watched,
+        Some(s) if s < SAMPLED_SECS => Play::Sampled,
+        Some(_) => Play::Neither,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Named {
@@ -31,6 +63,13 @@ pub struct View {
     pub rating: Option<u32>,
     /// From plab's stream log rather than Stash.
     pub streamed: bool,
+    /// Stash's `play_duration`, in whole seconds; None for streams and when Stash has none.
+    pub watched_secs: Option<u32>,
+    /// The user's vote and when it was cast.
+    pub vote: Option<(i8, i64)>,
+    /// Here only because of its vote (not played within the lookback): `at` is the vote's
+    /// time and the play counts for nothing.
+    pub vote_only: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -46,16 +85,47 @@ pub struct Profile {
     pub studios: Vec<Weighted>,
     pub performers: Vec<Weighted>,
     pub tags: Vec<Weighted>,
+    /// Terms whose net weight is negative: voted down or sampled and abandoned.
+    pub avoid: Avoid,
     pub recent: Vec<String>,
 }
 
-/// Decay by age, boosted by o-count (×1.5 each) and rating (rating100 / 60; unrated ×1).
+#[derive(Debug, Clone, PartialEq, Default, Serialize)]
+pub struct Avoid {
+    pub studios: Vec<Weighted>,
+    pub performers: Vec<Weighted>,
+    pub tags: Vec<Weighted>,
+}
+
+fn decay(at: i64, now: i64) -> f64 {
+    let age_days = (now - at).max(0) as f64 / 86400.0;
+    0.5f64.powf(age_days / HALF_LIFE_DAYS)
+}
+
+/// The play, then the vote, each decayed from its own time. A view decays by age, boosted
+/// by o-count (×1.5 each) and rating (rating100 / 60; unrated ×1); a sample is `SAMPLE`; a
+/// vote is ±`VOTE`. The sum can be negative.
 pub fn weight(v: &View, now: i64) -> f64 {
-    let age_days = (now - v.at).max(0) as f64 / 86400.0;
-    let decay = 0.5f64.powf(age_days / HALF_LIFE_DAYS);
-    let o = 1.0 + 0.5 * f64::from(v.o_count);
-    let r = v.rating.map_or(1.0, |r| f64::from(r) / 60.0);
-    decay * o * r
+    let watched = || {
+        let o = 1.0 + 0.5 * f64::from(v.o_count);
+        let r = v.rating.map_or(1.0, |r| f64::from(r) / 60.0);
+        decay(v.at, now) * o * r
+    };
+    let played = if v.vote_only {
+        0.0
+    } else if v.streamed {
+        watched()
+    } else {
+        match play(v.watched_secs, v.o_count, v.rating) {
+            Play::Watched => watched(),
+            Play::Sampled => SAMPLE * decay(v.at, now),
+            Play::Neither => 0.0,
+        }
+    };
+    let voted = v
+        .vote
+        .map_or(0.0, |(vote, at)| f64::from(vote) * VOTE * decay(at, now));
+    played + voted
 }
 
 fn add(map: &mut HashMap<String, Weighted>, name: &str, id: Option<&str>, w: f64) {
@@ -70,15 +140,25 @@ fn add(map: &mut HashMap<String, Weighted>, name: &str, id: Option<&str>, w: f64
     }
 }
 
-fn top(map: HashMap<String, Weighted>) -> Vec<Weighted> {
-    let mut v: Vec<Weighted> = map.into_values().collect();
-    v.sort_by(|a, b| {
+/// The positive terms, heaviest first, and the negative ones, most negative first.
+fn split(map: HashMap<String, Weighted>) -> (Vec<Weighted>, Vec<Weighted>) {
+    let (mut pos, mut neg): (Vec<Weighted>, Vec<Weighted>) = map
+        .into_values()
+        .filter(|w| w.weight != 0.0)
+        .partition(|w| w.weight > 0.0);
+    pos.sort_by(|a, b| {
         b.weight
             .total_cmp(&a.weight)
             .then_with(|| a.name.cmp(&b.name))
     });
-    v.truncate(TOP);
-    v
+    neg.sort_by(|a, b| {
+        a.weight
+            .total_cmp(&b.weight)
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    pos.truncate(TOP);
+    neg.truncate(AVOID_TOP);
+    (pos, neg)
 }
 
 /// `ts` as a UTC `YYYY-MM-DD`; empty when out of range.
@@ -97,15 +177,33 @@ fn line(v: &View) -> String {
         let names: Vec<&str> = v.performers.iter().map(|p| p.name.as_str()).collect();
         parts.push(names.join(", "));
     }
+    if let Some(secs) = v
+        .watched_secs
+        .filter(|&s| !v.vote_only && s >= WATCHED_SECS)
+    {
+        parts.push(format!("watched {} min", secs / 60));
+    }
+    match v.vote {
+        Some((1, _)) => parts.push("+1".into()),
+        Some((-1, _)) => parts.push("-1".into()),
+        _ => {}
+    }
     if v.streamed {
         parts.push("streamed".into());
     }
     parts.join(" · ")
 }
 
-/// The `n` newest views as one line each.
+/// Whether a view earns a line: watched, voted or streamed. Samples act through weights only.
+fn shown(v: &View) -> bool {
+    v.streamed
+        || v.vote.is_some()
+        || (!v.vote_only && play(v.watched_secs, v.o_count, v.rating) == Play::Watched)
+}
+
+/// The `n` newest views that were watched, voted or streamed, as one line each.
 pub fn recent(views: &[View], n: usize) -> Vec<String> {
-    let mut sorted: Vec<&View> = views.iter().collect();
+    let mut sorted: Vec<&View> = views.iter().filter(|v| shown(v)).collect();
     sorted.sort_by_key(|v| std::cmp::Reverse(v.at));
     sorted.into_iter().take(n).map(line).collect()
 }
@@ -124,10 +222,18 @@ pub fn profile(views: &[View], now: i64) -> Profile {
             add(&mut tags, t, None, w);
         }
     }
+    let (studios, avoid_studios) = split(studios);
+    let (performers, avoid_performers) = split(performers);
+    let (tags, avoid_tags) = split(tags);
     Profile {
-        studios: top(studios),
-        performers: top(performers),
-        tags: top(tags),
+        studios,
+        performers,
+        tags,
+        avoid: Avoid {
+            studios: avoid_studios,
+            performers: avoid_performers,
+            tags: avoid_tags,
+        },
         recent: recent(views, RECENT_LINES),
     }
 }
@@ -213,5 +319,110 @@ mod tests {
             "1970-01-02 · Alpha · Studio A · Performer B, Performer C"
         );
         assert_eq!(profile(&[], 0).recent.len(), 0);
+    }
+
+    fn at_now(secs: Option<u32>) -> View {
+        View {
+            watched_secs: secs,
+            ..view(0, "A", &[])
+        }
+    }
+
+    #[test]
+    fn constants() {
+        assert_eq!((WATCHED_SECS, SAMPLED_SECS, AVOID_TOP), (120, 30, 10));
+        assert_eq!((VOTE, SAMPLE), (2.0, -0.5));
+    }
+
+    #[test]
+    fn play_classifies() {
+        assert_eq!(play(Some(120), 0, None), Play::Watched);
+        assert_eq!(play(Some(10), 1, None), Play::Watched);
+        assert_eq!(play(Some(10), 0, Some(80)), Play::Watched);
+        assert_eq!(play(None, 0, None), Play::Watched);
+        assert_eq!(play(Some(29), 0, None), Play::Sampled);
+        assert_eq!(play(Some(30), 0, None), Play::Neither);
+        assert_eq!(play(Some(119), 0, None), Play::Neither);
+    }
+
+    #[test]
+    fn sampled_weighs_minus_half_and_dead_zone_zero() {
+        assert!((weight(&at_now(Some(5)), 0) + 0.5).abs() < 1e-9);
+        assert!(weight(&at_now(Some(60)), 0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn vote_adds_two_decayed_from_its_own_time() {
+        let now = 100 * DAY;
+        let mut v = view(now, "A", &[]);
+        v.watched_secs = Some(600);
+        v.o_count = 1;
+        v.vote = Some((1, now));
+        assert!((weight(&v, now) - 3.5).abs() < 1e-9);
+        let only = View {
+            vote: Some((-1, now - 30 * DAY)),
+            vote_only: true,
+            ..view(now - 30 * DAY, "A", &[])
+        };
+        assert!((weight(&only, now) + 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn net_negative_terms_go_to_avoid_only() {
+        let watched = view(0, "Studio A", &[]);
+        let voted = View {
+            vote: Some((-1, 0)),
+            vote_only: true,
+            ..view(0, "Studio A", &[])
+        };
+        let p = profile(&[watched, voted, view(0, "Studio B", &[])], 0);
+        let names = |ws: &[Weighted]| ws.iter().map(|w| w.name.clone()).collect::<Vec<_>>();
+        assert_eq!(names(&p.studios), ["Studio B"]);
+        assert_eq!(names(&p.avoid.studios), ["Studio A"]);
+        assert!((p.avoid.studios[0].weight + 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn avoid_is_most_negative_first_and_capped() {
+        let views: Vec<View> = (0..12)
+            .flat_map(|i| {
+                (0..=i).map(move |_| View {
+                    watched_secs: Some(5),
+                    ..view(0, &format!("S{i}"), &[])
+                })
+            })
+            .collect();
+        let p = profile(&views, 0);
+        assert_eq!(p.avoid.studios.len(), AVOID_TOP);
+        assert_eq!(p.avoid.studios[0].name, "S11");
+        assert!(p.studios.is_empty());
+    }
+
+    #[test]
+    fn recent_lines_mark_watch_time_and_votes_and_skip_samples() {
+        let liked = View {
+            title: "Liked".into(),
+            watched_secs: Some(400),
+            vote: Some((1, 3 * DAY)),
+            ..view(3 * DAY, "Studio A", &[])
+        };
+        let disliked = View {
+            title: "Disliked".into(),
+            vote: Some((-1, 2 * DAY)),
+            vote_only: true,
+            ..view(2 * DAY, "Studio B", &[])
+        };
+        let sampled = View {
+            title: "Sampled".into(),
+            watched_secs: Some(5),
+            ..view(4 * DAY, "Studio C", &[])
+        };
+        assert_eq!(
+            recent(&[liked, disliked, sampled], 10),
+            [
+                "1970-01-04 · Liked · Studio A · watched 6 min · +1",
+                "1970-01-03 · Disliked · Studio B · -1",
+            ]
+        );
     }
 }

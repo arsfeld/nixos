@@ -46,6 +46,9 @@ pub struct LibScene {
     pub o_counter: Option<u32>,
     #[serde(default)]
     pub rating100: Option<u32>,
+    /// Seconds watched in all, across plays.
+    #[serde(default)]
+    pub play_duration: Option<f64>,
     /// RFC 3339.
     #[serde(default)]
     pub last_played_at: Option<String>,
@@ -68,7 +71,7 @@ impl LibScene {
 }
 
 const FIELDS: &str = "id title date studio { id name } performers { id name gender } tags { id name } \
-    play_count o_counter rating100 last_played_at paths { screenshot preview } files { path duration }";
+    play_count o_counter rating100 play_duration last_played_at paths { screenshot preview } files { path duration }";
 
 const SCENES: &[&str] = &["findScenes", "scenes"];
 
@@ -166,6 +169,16 @@ mod tests {
 
     fn scenes(v: Value) -> ResponseTemplate {
         ResponseTemplate::new(200).set_body_json(json!({"data": {"findScenes": {"scenes": v}}}))
+    }
+
+    #[test]
+    fn play_duration_parses_float_and_null() {
+        let s: LibScene =
+            serde_json::from_value(json!({"id": "1", "play_duration": 4.27})).unwrap();
+        assert_eq!(s.play_duration, Some(4.27));
+        let s: LibScene =
+            serde_json::from_value(json!({"id": "1", "play_duration": null})).unwrap();
+        assert_eq!(s.play_duration, None);
     }
 
     async fn stash(server: &MockServer) -> Stash {

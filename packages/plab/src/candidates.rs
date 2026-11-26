@@ -166,7 +166,7 @@ mod tests {
             studios: vec![w("Studio A", 2.0)],
             performers: vec![w("Performer B", 1.0)],
             tags: vec![w("Outdoor", 0.5)],
-            recent: vec![],
+            ..Profile::default()
         }
     }
 
