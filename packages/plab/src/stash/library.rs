@@ -1,7 +1,7 @@
 //! Library reads for the assistant: what was played, what is unwatched, scene search.
 //! Inherent methods on `Stash` (not `StashApi`): only the assistant uses them.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use serde::Deserialize;
 use serde_json::json;
@@ -120,6 +120,7 @@ impl Stash {
             .await
     }
 
+    /// The scenes among `ids` that Stash has; one it no longer has is left out.
     pub async fn lib_scenes(&self, ids: &[String]) -> anyhow::Result<Vec<LibScene>> {
         if ids.is_empty() {
             return Ok(vec![]);
@@ -128,7 +129,31 @@ impl Stash {
             "query($ids: [ID!]) {{ findScenes(ids: $ids, filter: {{per_page: -1}})
                {{ scenes {{ {FIELDS} }} }} }}"
         );
-        self.query(&q, json!({"ids": ids}), SCENES).await
+        match self.query(&q, json!({"ids": ids}), SCENES).await {
+            // findScenes fails whole on any id it does not have ("scene with id 13229 not
+            // found", measured on galactica: deleted scenes stay linked in plab's database).
+            Err(e) if e.to_string().contains("not found") => self.lib_scenes_each(ids).await,
+            r => r,
+        }
+    }
+
+    /// `ids` one findScene each, aliased into a single query: a gone scene is null there.
+    async fn lib_scenes_each(&self, ids: &[String]) -> anyhow::Result<Vec<LibScene>> {
+        let params: Vec<String> = (0..ids.len()).map(|i| format!("$i{i}: ID!")).collect();
+        let finds: Vec<String> = (0..ids.len())
+            .map(|i| format!("s{i}: findScene(id: $i{i}) {{ {FIELDS} }}"))
+            .collect();
+        let q = format!("query({}) {{ {} }}", params.join(", "), finds.join(" "));
+        let vars: serde_json::Map<String, serde_json::Value> = ids
+            .iter()
+            .enumerate()
+            .map(|(i, id)| (format!("i{i}"), json!(id)))
+            .collect();
+        let mut got: HashMap<String, Option<LibScene>> =
+            self.query(&q, serde_json::Value::Object(vars), &[]).await?;
+        Ok((0..ids.len())
+            .filter_map(|i| got.remove(&format!("s{i}")).flatten())
+            .collect())
     }
 }
 
@@ -241,6 +266,34 @@ mod tests {
         assert_eq!(
             got.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
             vec!["4", "5"]
+        );
+    }
+
+    #[tokio::test]
+    async fn lib_scenes_skips_scenes_stash_no_longer_has() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(body_string_contains("findScenes"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "errors": [{"message": "scene with id 5 not found"}], "data": null})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(body_string_contains("s1: findScene(id: $i1)"))
+            .and(body_partial_json(
+                json!({"variables": {"i0": "4", "i1": "5", "i2": "6"}}),
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": {
+                "s0": {"id": "4"}, "s1": null, "s2": {"id": "6"}}})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let ids = vec!["4".to_string(), "5".to_string(), "6".to_string()];
+        let got = stash(&server).await.lib_scenes(&ids).await.unwrap();
+        assert_eq!(
+            got.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+            vec!["4", "6"]
         );
     }
 
