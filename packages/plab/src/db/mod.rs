@@ -7,6 +7,7 @@ pub mod import;
 mod jobs;
 mod kv;
 mod topics;
+mod votes;
 mod watchlist;
 
 pub use added::*;
@@ -37,6 +38,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("schema_v7.sql"),
     include_str!("schema_v8.sql"),
     include_str!("schema_v9.sql"),
+    include_str!("schema_v10.sql"),
 ];
 const USER_VERSION: i64 = MIGRATIONS.len() as i64;
 
