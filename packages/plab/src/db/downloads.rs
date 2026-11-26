@@ -170,6 +170,16 @@ impl Db {
         })
     }
 
+    /// The grab keys recorded for `studio` that start with `prefix`.
+    pub fn grab_keys_with_prefix(&self, studio: &str, prefix: &str) -> Result<Vec<String>> {
+        self.with(|c| {
+            let mut stmt = c.prepare(
+                "SELECT scene_key FROM grab_seen WHERE studio = ?1 AND substr(scene_key, 1, length(?2)) = ?2",
+            )?;
+            all(stmt.query_map(params![studio, prefix], |r| r.get(0))?)
+        })
+    }
+
     pub fn record_grab(
         &self,
         studio: &str,

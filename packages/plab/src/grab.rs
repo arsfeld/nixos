@@ -27,6 +27,12 @@ static EPISODE: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"(?i)\bE(\d{3,5})\b").unwrap());
 static EPISODE_STRIP: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"(?i)\(?\bE\d{3,5}\b\)?").unwrap());
+/// The release date in the tracker's tags: `[2026-11-03, …]`.
+static TAG_DATE: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"\[(20\d\d)-(\d\d)-(\d\d)[,\]]").unwrap());
+/// The release date some sources put in parentheses, day first: `(30.04.2026)`.
+static DOTTED_DATE: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"\((\d\d)\.(\d\d)\.(20\d\d)\)").unwrap());
 /// Where a release name's tail starts: the site's scene tag, or a bracket.
 static TAIL: LazyLock<regex::Regex> = LazyLock::new(|| {
     let tag = regex::escape(&crate::site::get().release_tag);
@@ -181,20 +187,76 @@ pub fn scene_keys(rule: &Rule, title: &str) -> BTreeSet<String> {
         .split(|c: char| !(c.is_ascii_lowercase() || c.is_ascii_digit()))
         .filter(|w| !w.is_empty())
         .collect();
+    let mut date = None;
     if words.len() >= 3
         && words[..3]
             .iter()
             .all(|w| w.len() == 2 && w.bytes().all(|b| b.is_ascii_digit()))
     {
+        date = Some(format!("20{}-{}-{}", words[0], words[1], words[2]));
         words.drain(..3);
     }
+    let tail = &title[end..];
+    let date = date
+        .or_else(|| {
+            TAG_DATE
+                .captures(tail)
+                .map(|c| format!("{}-{}-{}", &c[1], &c[2], &c[3]))
+        })
+        .or_else(|| {
+            DOTTED_DATE
+                .captures(tail)
+                .map(|c| format!("{}-{}-{}", &c[3], &c[2], &c[1]))
+        });
     words.retain(|w| *w != "and");
     words.sort_unstable();
     words.dedup();
     if words.concat().len() >= MIN_NAME {
-        keys.insert(format!("words:{}", words.join("-")));
+        let words = words.join("-");
+        // One source may name the scene with more words than the other ("Ksenia L - Ksenia
+        // Erotic …" against "Ksenia Erotic …"), so no key is shared. The date and words are
+        // kept together for `same_scene`, which takes one word set inside the other as a match.
+        if let Some(date) = date {
+            keys.insert(format!("{DATED}{date}:{words}"));
+        }
+        keys.insert(format!("words:{words}"));
     }
     keys
+}
+
+const DATED: &str = "dated:";
+
+/// `dated:` keys as (date, words).
+fn dated(keys: &BTreeSet<String>) -> impl Iterator<Item = (&str, BTreeSet<&str>)> {
+    keys.iter()
+        .filter_map(|k| k.strip_prefix(DATED)?.split_once(':'))
+        .map(|(d, w)| (d, w.split('-').collect()))
+}
+
+/// Whether two copies' keys name one scene: a shared key, or the same release date with one
+/// copy's words all among the other's.
+pub fn same_scene(a: &BTreeSet<String>, b: &BTreeSet<String>) -> bool {
+    !a.is_disjoint(b)
+        || dated(a).any(|(da, wa)| {
+            dated(b).any(|(db, wb)| da == db && (wa.is_subset(&wb) || wb.is_subset(&wa)))
+        })
+}
+
+/// Whether a scene with these keys was grabbed before, by `same_scene`.
+fn already_grabbed(db: &Db, studio: &str, keys: &BTreeSet<String>) -> Result<bool> {
+    if db.grabbed(studio, keys)? {
+        return Ok(true);
+    }
+    for (date, _) in dated(keys) {
+        let seen: BTreeSet<String> = db
+            .grab_keys_with_prefix(studio, &format!("{DATED}{date}:"))?
+            .into_iter()
+            .collect();
+        if same_scene(&seen, keys) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 type Candidate = (ProwlarrResult, BTreeSet<String>);
@@ -218,7 +280,7 @@ pub fn choose(cands: Vec<Candidate>) -> Vec<Candidate> {
         // Linked groups are merged in groups order, their members after the new copy.
         let mut kept = Vec::new();
         for g in groups.drain(..) {
-            if g.1.is_disjoint(&keys) {
+            if !same_scene(&g.1, &keys) {
                 kept.push(g);
             } else {
                 members.extend(g.0);
@@ -330,7 +392,7 @@ pub async fn run<S: GrabSource, C: TorrentClient>(
         let scenes = choose(candidates);
         let mut new = Vec::new();
         for (r, k) in scenes.iter() {
-            if !db.grabbed(&rule.name, k)? {
+            if !already_grabbed(db, &rule.name, k)? {
                 new.push((r, k));
             }
         }
@@ -614,12 +676,58 @@ mod tests {
         assert_eq!(
             lab,
             set(&[
+                "dated:2026-09-29:cara-dan-park-walk",
                 "ep:2274",
                 "name:caraanddanparkandwalk",
                 "words:cara-dan-park-walk"
             ])
         );
-        assert_eq!(x, lab);
+        assert_eq!(
+            x,
+            set(&[
+                "ep:2274",
+                "name:caraanddanparkandwalk",
+                "words:cara-dan-park-walk"
+            ])
+        );
+    }
+
+    #[test]
+    fn keys_extra_words_on_one_side_are_the_same_dated_scene() {
+        // The tracker repeats a performer's name and adds an initial; 1337x does neither.
+        let x = scene_keys(
+            &b(),
+            "Studio B 26 11 03 Kara Erotic Studio Portraits TAG 1080p MP4 GRP [RG]",
+        );
+        let lab = scene_keys(
+            &b(),
+            "[StudioB.com] Kara L - Kara Erotic Studio Portraits [2026-11-03, Posing, 1080p, SiteRip]",
+        );
+        assert!(x.is_disjoint(&lab), "{x:?} vs {lab:?}");
+        assert!(same_scene(&x, &lab));
+        assert!(same_scene(&lab, &x));
+        // Another day, or words the other copy lacks, is another scene.
+        let other_day = scene_keys(
+            &b(),
+            "Studio B 26 11 10 Kara Erotic Studio Portraits TAG 1080p MP4 GRP [RG]",
+        );
+        assert!(!same_scene(&other_day, &lab));
+        let other_scene = scene_keys(
+            &b(),
+            "Studio B 26 11 03 Kara Erotic Beach Portraits TAG 1080p MP4 GRP [RG]",
+        );
+        assert!(!same_scene(&other_scene, &lab));
+    }
+
+    #[test]
+    fn keys_dotted_date_is_day_first() {
+        assert!(
+            scene_keys(
+                &b(),
+                "Studio B   Ashby Winter Garden Walk (30.04.2026) 1080p"
+            )
+            .contains("dated:2026-04-30:ashby-garden-walk-winter")
+        );
     }
 
     #[test]
@@ -646,6 +754,7 @@ mod tests {
                 "[StudioB.com] Sofia Smith - Beauty In The Bath [2026-10-16, 1080p]"
             ),
             set(&[
+                "dated:2026-10-16:bath-beauty-in-smith-sofia-the",
                 "name:sofiasmithbeautyinthebath",
                 "words:bath-beauty-in-smith-sofia-the"
             ])
@@ -823,6 +932,31 @@ mod tests {
         )]);
         go(&f, &db, false).await;
         assert!(f.added().is_empty());
+    }
+
+    #[tokio::test]
+    async fn run_copy_with_fewer_words_on_the_same_day_is_already_grabbed() {
+        // The tracker had the scene first; 1337x names it with fewer words a run later.
+        let db = Db::open_in_memory().unwrap();
+        let f = Fake::new(vec![res_with(
+            "[StudioB.com] Kara L - Kara Erotic Studio Portraits [2026-10-15, Posing, 1080p, SiteRip]",
+            "TrackerA",
+            10,
+            "2026-10-17T20:00:00Z",
+            "ulab",
+        )]);
+        run(&[b()], &f, &f, &db, "/vault", now(), false)
+            .await
+            .unwrap();
+        assert_eq!(f.added().len(), 1);
+        let later = Fake::new(vec![r(
+            "Studio B 26 10 15 Kara Erotic Studio Portraits TAG 1080p MP4 GRP [RG]",
+            "u",
+        )]);
+        run(&[b()], &later, &later, &db, "/vault", now(), false)
+            .await
+            .unwrap();
+        assert!(later.added().is_empty());
     }
 
     #[tokio::test]
