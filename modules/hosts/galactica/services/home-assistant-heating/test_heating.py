@@ -165,14 +165,35 @@ class OtherZones(unittest.TestCase):
 
     def test_downstairs_bathroom_follows_the_office(self):
         states = {"sensor.bathroom_downstairs_temperature": "19.0", "input_number.heating_rate_office": "0"}
-        self.assertEqual(target("bathroom_downstairs", at(MONDAY, "09:00"), states).value, 19)
+        self.assertEqual(target("bathroom_downstairs", at(MONDAY, "09:00"), states).value, 18)
         away = {**states, "binary_sensor.office_vacant": "on"}
-        self.assertEqual(target("bathroom_downstairs", at(MONDAY, "09:00"), away).value, 18)
-        self.assertEqual(target("bathroom_downstairs", at(MONDAY, "03:00"), away).value, 16)
-        self.assertEqual(target("bathroom_downstairs", at(SATURDAY, "09:00"), away).value, 19)
-        self.assertEqual(target("bathroom_downstairs", at(SATURDAY, "23:00"), away).value, 16)
+        self.assertEqual(target("bathroom_downstairs", at(MONDAY, "09:00"), away).value, 16)
+        self.assertEqual(target("bathroom_downstairs", at(MONDAY, "03:00"), away).value, 14)
+        self.assertEqual(target("bathroom_downstairs", at(SATURDAY, "09:00"), away).value, 18)
+        self.assertEqual(target("bathroom_downstairs", at(SATURDAY, "23:00"), away).value, 14)
         boost = {**away, "input_boolean.heating_boost_office": "on"}
         self.assertEqual(target("bathroom_downstairs", at(MONDAY, "09:00"), boost).value, 19)
+
+    def test_downstairs_bathroom_stays_below_the_office(self):
+        # 2026-11-26: its door to the office is open, so it must stay 2 below
+        # the office or its baseboard heats the office and never stops. Rooms
+        # at the same temperature, so pre-heat leads are comparable.
+        for day in (MONDAY, SATURDAY):
+            for vacant in ("off", "on"):
+                for boost in ("off", "on"):
+                    states = {
+                        "sensor.office_temperature": "17.0",
+                        "sensor.bathroom_downstairs_temperature": "17.0",
+                        "input_number.heating_rate_office": "0",
+                        "binary_sensor.office_vacant": vacant,
+                        "input_boolean.heating_boost_office": boost,
+                    }
+                    for minute in range(0, 24 * 60, 30):
+                        now = at(day, "%02d:%02d" % divmod(minute, 60))
+                        with self.subTest(day=day, vacant=vacant, boost=boost, minute=minute):
+                            gap = target("office", now, states).value - target("bathroom_downstairs", now, states).value
+                            # Wider only while the office pre-heats ahead of it.
+                            self.assertGreaterEqual(gap, 2)
 
     def test_family_room(self):
         states = {"sensor.living_room_2_temperature": "18.0", "input_number.heating_rate_family_room": "0"}

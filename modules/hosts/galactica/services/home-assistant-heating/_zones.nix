@@ -81,11 +81,15 @@
     };
     devices = ["climate.office"];
   };
+  # Its door to the office stays open, so at the office's own temperature its
+  # baseboard heated the office too and never stopped (2026-11-26). It is held
+  # 2 below the office at every step: window, away, base and boost.
+  # test_heating.py checks that across the week.
   bathroom_downstairs = {
     temperature = "sensor.bathroom_downstairs_temperature";
-    base = 16;
-    weekday = [["08:30" "24:00" 19 18]];
-    weekend = [["08:00" "22:00" 19 19]];
+    base = 14;
+    weekday = [["08:30" "24:00" 18 16]];
+    weekend = [["08:00" "22:00" 18 18]];
     presence = true;
     boost = {
       helper = "office";
