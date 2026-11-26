@@ -412,6 +412,9 @@ pub struct GrabLogDto {
     pub reason: Option<GrabReason>,
     /// None for a grab with no download (imported from vault-grab) or too old to track.
     pub status: Option<StatusDto>,
+    /// The Stash scenes it became; the web handler looks them up and sends them as cards.
+    #[serde(skip)]
+    pub scene_ids: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -437,6 +440,7 @@ pub fn grab_log(entries: Vec<GrabEntry>, d: &Downloads, now: i64) -> GrabLogsDto
                 title: e.title,
                 keys: e.keys,
                 reason: e.reason,
+                scene_ids: e.scene_ids,
             })
             .collect(),
     }

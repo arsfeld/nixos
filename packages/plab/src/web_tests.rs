@@ -1697,3 +1697,93 @@ async fn watchlist_get_broadcasts_when_it_expires_scenes() {
     fx.get("/api/watchlist").await;
     assert!(rx.try_recv().is_err(), "nothing expired, nothing sent");
 }
+
+// Grabs tab
+
+#[tokio::test]
+async fn grab_log_carries_its_stash_scenes_as_posters() {
+    let server = wiremock::MockServer::start().await;
+    let fx = watch_fx(
+        &server,
+        200,
+        json!([{"id": "42", "title": "Dance", "date": "2026-11-01",
+                "performers": [{"id": "p", "name": "Ann"}],
+                "paths": {"screenshot": "http://localhost:9999/scene/42/screenshot",
+                          "preview": "http://localhost:9999/scene/42/preview"},
+                "files": [{"path": "/v/a.mp4", "duration": 1800.5}]}]),
+    )
+    .await;
+    let db = &fx.state.db;
+    let id = db
+        .mark_added(crate::db::NewDownload {
+            source: "grab",
+            topic_id: None,
+            release_title: "Rel",
+            section: Section::Video,
+            download_dir: Some("/vault/A"),
+            torrent_hash: Some("h"),
+            now: now(),
+        })
+        .unwrap();
+    let keys = std::collections::BTreeSet::from(["ep:1".to_string()]);
+    db.record_grab("A", &keys, "Rel", "2026-11-20T00:00:00+00:00", Some(id))
+        .unwrap();
+    db.save_files(id, &["A/a.mp4".into()]).unwrap();
+    db.link_scene("A/a.mp4", Some("42")).unwrap();
+    // imported from vault-grab: listed, with no poster
+    db.record_grab(
+        "A",
+        &std::collections::BTreeSet::from(["ep:0".to_string()]),
+        "Old",
+        "2025-01-01T00:00:00+00:00",
+        None,
+    )
+    .unwrap();
+
+    let v = fx.get("/api/grabs/all").await.json();
+    assert!(v["error"].is_null());
+    let g = &v["grabs"][0];
+    assert_eq!(g["title"], "Rel");
+    assert!(g.get("sceneIds").is_none());
+    let s = &g["scenes"][0];
+    assert_eq!(s["id"], "42");
+    assert_eq!(s["title"], "Dance");
+    assert_eq!(s["date"], "2026-11-01");
+    assert_eq!(s["duration"], 1800.5);
+    assert_eq!(s["screenshot"], "https://stash.example/scene/42/screenshot");
+    assert_eq!(s["preview"], "https://stash.example/scene/42/preview");
+    assert_eq!(v["grabs"][1]["title"], "Old");
+    assert_eq!(v["grabs"][1]["scenes"], json!([]));
+}
+
+#[tokio::test]
+async fn grab_log_lists_grabs_when_stash_is_down() {
+    let server = wiremock::MockServer::start().await;
+    let fx = watch_fx(&server, 500, json!(null)).await;
+    let db = &fx.state.db;
+    let id = db
+        .mark_added(crate::db::NewDownload {
+            source: "grab",
+            topic_id: None,
+            release_title: "Rel",
+            section: Section::Video,
+            download_dir: Some("/vault/A"),
+            torrent_hash: Some("h"),
+            now: now(),
+        })
+        .unwrap();
+    db.record_grab(
+        "A",
+        &std::collections::BTreeSet::from(["ep:1".to_string()]),
+        "Rel",
+        "2026-11-20T00:00:00+00:00",
+        Some(id),
+    )
+    .unwrap();
+    db.save_files(id, &["A/a.mp4".into()]).unwrap();
+    db.link_scene("A/a.mp4", Some("42")).unwrap();
+    let v = fx.get("/api/grabs/all").await.json();
+    assert!(v["error"].as_str().unwrap().starts_with("Stash:"));
+    assert_eq!(v["grabs"][0]["title"], "Rel");
+    assert_eq!(v["grabs"][0]["scenes"], json!([]));
+}

@@ -14,6 +14,11 @@ pub(super) struct SceneDto {
     studio: Option<String>,
     performers: Vec<String>,
     screenshot: Option<String>,
+    /// The preview clip, for playing on hover.
+    preview: Option<String>,
+    date: Option<String>,
+    /// Seconds, of the first file.
+    duration: Option<f64>,
     link: Option<String>,
 }
 
@@ -39,6 +44,9 @@ pub(super) fn scene_dto(s: &LibScene, web: Option<&str>) -> SceneDto {
         studio: s.studio.as_ref().map(|x| x.name.clone()),
         performers: s.performers.iter().map(|p| p.name.clone()).collect(),
         screenshot: web.and_then(|w| s.paths.screenshot.as_deref().and_then(|u| rebase(u, w))),
+        preview: web.and_then(|w| s.paths.preview.as_deref().and_then(|u| rebase(u, w))),
+        date: s.date.clone(),
+        duration: s.files.first().and_then(|f| f.duration),
         link: web.map(|w| format!("{}/scenes/{}", w.trim_end_matches('/'), s.id)),
     }
 }

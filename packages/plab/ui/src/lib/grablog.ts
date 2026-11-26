@@ -26,5 +26,26 @@ export function keyLabel(k: string): string {
   }
 }
 
-/** Distinct readable keys, in the order given. */
-export const keyLabels = (keys: string[]) => [...new Set(keys.map(keyLabel))];
+/** A running time as Stash prints it: `m:ss`, or `h:mm:ss`. */
+export function runtime(s: number): string {
+  const t = Math.round(s);
+  const ss = String(t % 60).padStart(2, '0');
+  const m = Math.floor(t / 60);
+  return m < 60 ? `${m}:${ss}` : `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}:${ss}`;
+}
+
+/** The studios on the page, by how many grabs each has, then by name. */
+export function studios(grabs: { studio: string }[]): [string, number][] {
+  const n = new Map<string, number>();
+  for (const g of grabs) n.set(g.studio, (n.get(g.studio) ?? 0) + 1);
+  return [...n].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
+/** What made the scene new, briefly: its episode or release date when it has one, else its
+ * title (the word-sorted form only when there is no other). */
+export function keyLabels(keys: string[]): string[] {
+  const strong = keys.filter((k) => k.startsWith('ep:') || k.startsWith('dated:'));
+  const title = keys.find((k) => k.startsWith('name:')) ?? keys.find((k) => k.startsWith('words:'));
+  const picked = strong.length ? strong : title ? [title] : keys;
+  return [...new Set(picked.map(keyLabel))];
+}

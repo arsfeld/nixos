@@ -27,6 +27,7 @@ use std::sync::Arc;
 use tracing::info;
 
 mod assistant_routes;
+mod grab_routes;
 mod scene_dto;
 mod watchlist_routes;
 
@@ -380,16 +381,7 @@ async fn api_get<B: Backends>(st: &WebState<B>, path: &str, query: Option<&str>)
             let t = now();
             return json_body(&api::grabs(&downloads(st, t).await, t));
         }
-        "grabs/all" => {
-            let t = now();
-            return match st.db.grab_history() {
-                Ok(entries) => json_body(&api::grab_log(entries, &downloads(st, t).await, t)),
-                Err(e) => {
-                    info!(job = "web", "grab history: {e:#}");
-                    text(500, "grab history unavailable")
-                }
-            };
-        }
+        "grabs/all" => return grab_routes::all(st).await,
         "jobs" => return json_body(&api::jobs(&st.monitor, &st.db, now())),
         "events" => return events::sse(&st.events),
         _ => {}

@@ -16,7 +16,7 @@ const conv: Conversation = {
     { seq: 4, role: 'assistant', text: 'Because.', picks: [], error: null },
   ],
   topics: [topic],
-  scenes: [{ ref: 's:4', id: '4', title: 'S', studio: null, performers: [], screenshot: null, link: null }],
+  scenes: [{ ref: 's:4', id: '4', title: 'S', studio: null, performers: [], screenshot: null, preview: null, date: null, duration: null, link: null }],
 };
 const d = (over: Partial<Daily>): Daily => ({ conversation: null, generatedOn: null, refreshing: false, error: null, ready: true, ...over });
 

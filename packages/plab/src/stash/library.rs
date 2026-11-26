@@ -22,6 +22,9 @@ pub struct Named {
 pub struct ScenePaths {
     #[serde(default)]
     pub screenshot: Option<String>,
+    /// The short preview clip Stash generates, if it has.
+    #[serde(default)]
+    pub preview: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -65,7 +68,7 @@ impl LibScene {
 }
 
 const FIELDS: &str = "id title date studio { id name } performers { id name gender } tags { id name } \
-    play_count o_counter rating100 last_played_at paths { screenshot } files { path duration }";
+    play_count o_counter rating100 last_played_at paths { screenshot preview } files { path duration }";
 
 const SCENES: &[&str] = &["findScenes", "scenes"];
 

@@ -15,7 +15,7 @@ const conv: Conversation = {
     ], error: null },
   ],
   topics: [topic],
-  scenes: [{ ref: 's:4', id: '4', title: 'S', studio: null, performers: [], screenshot: null, link: null }],
+  scenes: [{ ref: 's:4', id: '4', title: 'S', studio: null, performers: [], screenshot: null, preview: null, date: null, duration: null, link: null }],
 };
 
 describe('resolvePick', () => {

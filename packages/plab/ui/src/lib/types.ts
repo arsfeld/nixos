@@ -94,6 +94,15 @@ export interface GrabLog {
   keys: string[];
   reason: GrabReason | null;
   status: Status | null;
+  /** The Stash scenes it became, for its poster. */
+  scenes: SceneCardData[];
+}
+
+export interface GrabLogReply {
+  now: number;
+  grabs: GrabLog[];
+  /** Why there are no posters (Stash unconfigured or down); the grabs are still listed. */
+  error: string | null;
 }
 
 export interface Line {
@@ -162,6 +171,11 @@ export interface SceneCardData {
   studio: string | null;
   performers: string[];
   screenshot: string | null;
+  /** Stash's short preview clip, played on hover. */
+  preview: string | null;
+  date: string | null;
+  /** Seconds. */
+  duration: number | null;
   link: string | null;
 }
 

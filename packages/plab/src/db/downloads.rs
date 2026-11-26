@@ -43,6 +43,8 @@ pub struct GrabEntry {
     /// The scene keys that marked it new, sorted.
     pub keys: Vec<String>,
     pub reason: Option<GrabReason>,
+    /// The Stash scenes the download's files became, sorted.
+    pub scene_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -250,7 +252,9 @@ impl Db {
         self.with(|c| {
             let mut stmt = c.prepare(
                 "SELECT g.studio, g.title, g.at, g.download_id, GROUP_CONCAT(g.scene_key, ' '),
-                        d.grab_reason
+                        d.grab_reason,
+                        (SELECT GROUP_CONCAT(DISTINCT f.scene_id) FROM download_file f
+                         WHERE f.download_id = g.download_id AND f.scene_id IS NOT NULL)
                  FROM grab_seen g LEFT JOIN download d ON d.id = g.download_id
                  GROUP BY g.studio, g.title, g.at, g.download_id
                  ORDER BY g.at DESC, g.studio, g.title",
@@ -260,6 +264,11 @@ impl Db {
                 let mut keys: Vec<String> = keys.split(' ').map(str::to_owned).collect();
                 keys.sort();
                 let reason: Option<String> = r.get(5)?;
+                let scenes: Option<String> = r.get(6)?;
+                let mut scene_ids: Vec<String> = scenes
+                    .map(|s| s.split(',').map(str::to_owned).collect())
+                    .unwrap_or_default();
+                scene_ids.sort();
                 Ok(GrabEntry {
                     studio: r.get(0)?,
                     title: r.get(1)?,
@@ -268,6 +277,7 @@ impl Db {
                     keys,
                     // An unreadable reason is shown as none rather than failing the list.
                     reason: reason.and_then(|s| serde_json::from_str(&s).ok()),
+                    scene_ids,
                 })
             })?)
         })
@@ -393,6 +403,11 @@ mod tests {
             copies: 3,
         };
         db.set_grab_reason(id, &reason).unwrap();
+        // its two files became scenes 9 and 12; a third file is not in Stash yet
+        db.save_files(id, &["A/a.mp4".into(), "A/b.mp4".into(), "A/c.mp4".into()])
+            .unwrap();
+        db.link_scene("A/b.mp4", Some("9")).unwrap();
+        db.link_scene("A/a.mp4", Some("12")).unwrap();
         assert_eq!(
             db.grab_history().unwrap(),
             vec![
@@ -403,6 +418,7 @@ mod tests {
                     download_id: Some(id),
                     keys: vec!["ep:2283".into(), "name:annandben".into()],
                     reason: Some(reason),
+                    scene_ids: vec!["12".into(), "9".into()],
                 },
                 GrabEntry {
                     studio: "Old".into(),
@@ -411,6 +427,7 @@ mod tests {
                     download_id: None,
                     keys: vec!["ep:7".into()],
                     reason: None,
+                    scene_ids: vec![],
                 },
             ]
         );
