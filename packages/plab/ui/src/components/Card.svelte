@@ -6,6 +6,7 @@
   import type { Section, Topic } from '../lib/types';
   import AddButton from './AddButton.svelte';
   import StatusBadge from './StatusBadge.svelte';
+  import VoteButtons from './VoteButtons.svelte';
   import WatchButton from './WatchButton.svelte';
   import { statusScenes } from '../lib/watchlist';
   import TagPill from './TagPill.svelte';
@@ -139,6 +140,7 @@
         {/if}
         {#if topic.status}<StatusBadge status={topic.status} />{/if}
         <WatchButton scenes={statusScenes(topic.status)} />
+        <VoteButtons scenes={statusScenes(topic.status)} />
       {/if}
     </div>
   </div>

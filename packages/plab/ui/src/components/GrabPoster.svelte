@@ -4,6 +4,7 @@
   import type { GrabLog } from '../lib/types';
   import { statusScenes } from '../lib/watchlist';
   import StatusBadge from './StatusBadge.svelte';
+  import VoteButtons from './VoteButtons.svelte';
   import WatchButton from './WatchButton.svelte';
 
   let { grab, now }: { grab: GrabLog; now: number } = $props();
@@ -79,6 +80,7 @@
       {#if scene}<span class="truncate" title={grab.title}>{grab.title}</span>{/if}
       <span class="ml-auto shrink-0">{when}</span>
       <WatchButton scenes={watchScenes} small />
+      <VoteButtons scenes={watchScenes} small />
     </div>
   </div>
 </article>

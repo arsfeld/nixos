@@ -146,7 +146,11 @@ export type ServerEvent =
   | { type: 'listing'; section: Section }
   | { type: 'resync' }
   | { type: 'assistantDaily' }
-  | { type: 'watchlist'; ids: string[] };
+  | { type: 'watchlist'; ids: string[] }
+  | { type: 'votes'; votes: Votes };
+
+/** Every voted Stash scene id and its vote. */
+export type Votes = Record<string, 1 | -1>;
 
 export interface StreamFile {
   index: number;

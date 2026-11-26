@@ -9,6 +9,7 @@ import type {
   List,
   Section,
   WatchlistReply,
+  Votes,
 } from './types';
 
 export class HttpError extends Error {
@@ -68,6 +69,11 @@ export const fetchWatchIds = async () => (await getJson<{ ids: string[] }>('/api
 /** Queue or unqueue scenes; resolves to every queued id after the change. */
 export const postWatch = async (action: 'add' | 'remove', scenes: string[]) =>
   (await sendJson<{ ids: string[] }>(`/api/watchlist/${action}`, 'POST', { scenes })).ids;
+
+export const fetchVotes = async () => (await getJson<{ votes: Votes }>('/api/votes')).votes;
+/** Vote on scenes (0 clears); resolves to every vote after the change. */
+export const postVotes = async (scenes: string[], vote: 1 | -1 | 0) =>
+  (await sendJson<{ votes: Votes }>('/api/votes', 'POST', { scenes, vote })).votes;
 
 /** Add or unqueue. A reply that is not JSON (a gateway's error page) asks for a reload. */
 export async function postTopic(action: 'add' | 'unqueue', id: number): Promise<AddReply> {

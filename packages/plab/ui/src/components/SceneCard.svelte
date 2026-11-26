@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { SceneCardData } from '../lib/types';
+  import VoteButtons from './VoteButtons.svelte';
   import WatchButton from './WatchButton.svelte';
 
   let { scene, reason }: { scene: SceneCardData; reason?: string } = $props();
@@ -20,6 +21,7 @@
     {#if reason}<p class="text-sm italic">{reason}</p>{/if}
     <div class="card-actions justify-end">
       <WatchButton scenes={[scene.id]} />
+      <VoteButtons scenes={[scene.id]} />
       {#if scene.link}
         <a class="btn btn-sm btn-primary" href={scene.link} target="_blank" rel="noopener">Open in Stash</a>
       {/if}

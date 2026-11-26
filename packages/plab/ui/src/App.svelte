@@ -6,6 +6,7 @@
   import { jobs } from './lib/jobs.svelte';
   import { router } from './lib/router.svelte';
   import { topics } from './lib/topics.svelte';
+  import { votes } from './lib/votes.svelte';
   import { watchlist } from './lib/watchlist.svelte';
   import AssistantView from './components/AssistantView.svelte';
   import DailyView from './components/DailyView.svelte';
@@ -20,17 +21,20 @@
       jobs.apply(ev);
       assistant.apply(ev);
       watchlist.apply(ev);
+      votes.apply(ev);
       // A finished generation matters only on For you, which loads again on mount anyway.
       if (ev.type !== 'assistantDaily' || router.route.view === 'daily') daily.apply(ev);
     });
     live.onReconnect(() => {
       topics.resync(router.route.view);
       void watchlist.load();
+      void votes.load();
       if (router.route.view === 'jobs') void jobs.load();
       if (router.route.view === 'daily') void daily.load();
     });
     live.start();
     void watchlist.load();
+    void votes.load();
   });
 </script>
 
