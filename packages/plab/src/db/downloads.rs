@@ -14,6 +14,37 @@ pub struct Link {
     pub cover: Option<String>,
 }
 
+/// What the grab job knew when it took a release: the search that found it and how it
+/// won over the other copies of the same scene. Stored as JSON on the download.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GrabReason {
+    /// The studio rule's Prowlarr query.
+    pub query: String,
+    /// The indexer the chosen copy came from, its seeders and size in bytes.
+    pub indexer: Option<String>,
+    pub seeders: Option<f64>,
+    pub size: Option<f64>,
+    /// When the indexer says it was published (RFC 3339, as Prowlarr gave it).
+    pub published: Option<String>,
+    /// Copies of the scene the search returned that passed the filters (the chosen one too).
+    pub copies: usize,
+}
+
+/// One grab, as the Grabs tab lists it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GrabEntry {
+    /// The grab rule's studio.
+    pub studio: String,
+    pub title: String,
+    /// ISO 8601, as the grab job (or vault-grab before it) wrote it.
+    pub at: String,
+    pub download_id: Option<i64>,
+    /// The scene keys that marked it new, sorted.
+    pub keys: Vec<String>,
+    pub reason: Option<GrabReason>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct FileRow {
     pub path: String,
@@ -201,6 +232,47 @@ impl Db {
         })
     }
 
+    /// Why the grab job took download `download_id`: kept for the Grabs tab.
+    pub fn set_grab_reason(&self, download_id: i64, reason: &GrabReason) -> Result<()> {
+        let json = serde_json::to_string(reason)?;
+        self.with(|c| {
+            c.execute(
+                "UPDATE download SET grab_reason = ?2 WHERE id = ?1",
+                params![download_id, json],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Every grab ever made, newest first: one entry per grabbed release, with the scene
+    /// keys it was recorded under. Grabs imported from vault-grab have no download.
+    pub fn grab_history(&self) -> Result<Vec<GrabEntry>> {
+        self.with(|c| {
+            let mut stmt = c.prepare(
+                "SELECT g.studio, g.title, g.at, g.download_id, GROUP_CONCAT(g.scene_key, ' '),
+                        d.grab_reason
+                 FROM grab_seen g LEFT JOIN download d ON d.id = g.download_id
+                 GROUP BY g.studio, g.title, g.at, g.download_id
+                 ORDER BY g.at DESC, g.studio, g.title",
+            )?;
+            all(stmt.query_map([], |r| {
+                let keys: String = r.get(4)?;
+                let mut keys: Vec<String> = keys.split(' ').map(str::to_owned).collect();
+                keys.sort();
+                let reason: Option<String> = r.get(5)?;
+                Ok(GrabEntry {
+                    studio: r.get(0)?,
+                    title: r.get(1)?,
+                    at: r.get(2)?,
+                    download_id: r.get(3)?,
+                    keys,
+                    // An unreadable reason is shown as none rather than failing the list.
+                    reason: reason.and_then(|s| serde_json::from_str(&s).ok()),
+                })
+            })?)
+        })
+    }
+
     /// Every video download, queued or added and of any age, for the owned check
     /// (`same::Owned`).
     pub fn download_titles(&self) -> Result<Vec<crate::same::DownloadTitle>> {
@@ -288,6 +360,60 @@ mod tests {
         assert!(db.grabbed("StudioL", &k(&["name:abcdefgh"])).unwrap());
         assert!(!db.grabbed("Other", &k(&["ep:1"])).unwrap());
         assert!(!db.grabbed("StudioL", &k(&[])).unwrap());
+    }
+
+    #[test]
+    fn grab_history_groups_keys_and_carries_the_reason() {
+        let db = Db::open_in_memory().unwrap();
+        let keys = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<BTreeSet<_>>();
+        // imported from vault-grab: no download, no reason
+        db.record_grab(
+            "Old",
+            &keys(&["ep:7"]),
+            "Old Rel",
+            "2026-01-01T00:00:00+00:00",
+            None,
+        )
+        .unwrap();
+        let id = added(&db, "grab", None, "New Rel", Some("h"));
+        db.record_grab(
+            "Studio A",
+            &keys(&["name:annandben", "ep:2283"]),
+            "New Rel",
+            "2026-11-20T03:00:00+00:00",
+            Some(id),
+        )
+        .unwrap();
+        let reason = GrabReason {
+            query: "studio a".into(),
+            indexer: Some("1337x".into()),
+            seeders: Some(42.0),
+            size: Some(1e9),
+            published: Some("2026-11-19T10:00:00Z".into()),
+            copies: 3,
+        };
+        db.set_grab_reason(id, &reason).unwrap();
+        assert_eq!(
+            db.grab_history().unwrap(),
+            vec![
+                GrabEntry {
+                    studio: "Studio A".into(),
+                    title: "New Rel".into(),
+                    at: "2026-11-20T03:00:00+00:00".into(),
+                    download_id: Some(id),
+                    keys: vec!["ep:2283".into(), "name:annandben".into()],
+                    reason: Some(reason),
+                },
+                GrabEntry {
+                    studio: "Old".into(),
+                    title: "Old Rel".into(),
+                    at: "2026-01-01T00:00:00+00:00".into(),
+                    download_id: None,
+                    keys: vec!["ep:7".into()],
+                    reason: None,
+                },
+            ]
+        );
     }
 
     #[test]

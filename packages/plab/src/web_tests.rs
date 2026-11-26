@@ -659,6 +659,8 @@ async fn grabs_and_jobs_are_json() {
     fx.state.monitor.register("identify");
     let g = fx.get("/api/grabs").await;
     assert_eq!((g.status, g.json()["grabs"].clone()), (200, json!([])));
+    let all = fx.get("/api/grabs/all").await;
+    assert_eq!((all.status, all.json()["grabs"].clone()), (200, json!([])));
     let j = fx.get("/api/jobs").await.json();
     let names: Vec<&str> = j["jobs"]
         .as_array()

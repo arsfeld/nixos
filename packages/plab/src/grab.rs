@@ -9,7 +9,7 @@ use std::sync::LazyLock;
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 
-use crate::db::{Db, NewDownload, Section};
+use crate::db::{Db, GrabReason, NewDownload, Section};
 use crate::prowlarr::{Prowlarr, ProwlarrResult};
 use crate::transmission::{TorrentClient, TorrentSource};
 
@@ -389,11 +389,15 @@ pub async fn run<S: GrabSource, C: TorrentClient>(
             }
             candidates.push((result.clone(), keys));
         }
+        // Every candidate's keys, to count how many copies each chosen scene had: a member
+        // of a scene's group shares a key with its union, and only a member does.
+        let all_keys: Vec<BTreeSet<String>> = candidates.iter().map(|c| c.1.clone()).collect();
         let scenes = choose(candidates);
         let mut new = Vec::new();
         for (r, k) in scenes.iter() {
             if !already_grabbed(db, &rule.name, k)? {
-                new.push((r, k));
+                let copies = all_keys.iter().filter(|c| same_scene(c, k)).count();
+                new.push((r, k, copies));
             }
         }
         log(&format!(
@@ -403,14 +407,34 @@ pub async fn run<S: GrabSource, C: TorrentClient>(
             scenes.len(),
             new.len()
         ));
-        for (result, keys) in new {
+        for (result, keys, copies) in new {
             let indexer = result.indexer.as_deref().unwrap_or("?");
             let label = format!("[{}] {} ({indexer})", rule.name, result.title());
             if dry_run {
                 log(&format!("would grab {label}"));
                 continue;
             }
-            match grab(rule, result, keys, src, torrents, db, download_root, now).await {
+            let reason = GrabReason {
+                query: rule.query.clone(),
+                indexer: result.indexer.clone(),
+                seeders: result.seeders,
+                size: result.size,
+                published: result.publish_date.clone(),
+                copies,
+            };
+            match grab(
+                rule,
+                result,
+                keys,
+                &reason,
+                src,
+                torrents,
+                db,
+                download_root,
+                now,
+            )
+            .await
+            {
                 Ok(name) => log(&format!("grabbed {label} as {name:?}")),
                 // A failed record after a successful add leaves the copy in Transmission but
                 // unrecorded, so the next run may grab it again; the alternative is aborting.
@@ -426,6 +450,7 @@ async fn grab<S: GrabSource, C: TorrentClient>(
     rule: &Rule,
     result: &ProwlarrResult,
     keys: &BTreeSet<String>,
+    reason: &GrabReason,
     src: &S,
     torrents: &C,
     db: &Db,
@@ -450,6 +475,7 @@ async fn grab<S: GrabSource, C: TorrentClient>(
         now: now.timestamp(),
     })?;
     db.record_grab(&rule.name, keys, title, &isoformat(now), Some(id))?;
+    db.set_grab_reason(id, reason)?;
     Ok(added.name)
 }
 
@@ -918,6 +944,20 @@ mod tests {
         assert!(
             db.grabbed("Studio A", &set(&["name:annandbenhowwedance"]))
                 .unwrap()
+        );
+        // why: the rule's query, the winning copy, and the two 1080p copies it beat or matched
+        let h = db.grab_history().unwrap();
+        assert_eq!(h.len(), 1);
+        assert_eq!(
+            h[0].reason,
+            Some(GrabReason {
+                query: a().query,
+                indexer: Some("1337x".into()),
+                seeders: Some(10.0),
+                size: None,
+                published: Some("2026-10-17T20:00:00Z".into()),
+                copies: 2,
+            })
         );
     }
 

@@ -2,7 +2,7 @@
 //! the handlers in `web` gather the data, these functions shape it. Every rule about a
 //! topic (its labels, rank, production class, status) is decided here, never in the app.
 
-use crate::db::{Db, DownloadRow, JobRunRow, Listed, Listing, Section};
+use crate::db::{Db, DownloadRow, GrabEntry, GrabReason, JobRunRow, Listed, Listing, Section};
 use crate::images::key;
 use crate::jobs;
 use crate::labels::labels;
@@ -393,6 +393,50 @@ pub fn grabs(d: &Downloads, now: i64) -> GrabsDto {
                 title: r.release_title.clone(),
                 added_at: r.added_at,
                 status: d.status_of(s),
+            })
+            .collect(),
+    }
+}
+
+/// One grab on the Grabs tab: what it was, and why the grab job took it.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GrabLogDto {
+    pub studio: String,
+    pub title: String,
+    /// Unix time of the grab; None if the recorded time does not parse.
+    pub at: Option<i64>,
+    /// The scene keys that marked it new.
+    pub keys: Vec<String>,
+    /// The search and the copy that won; None for grabs older than the record.
+    pub reason: Option<GrabReason>,
+    /// None for a grab with no download (imported from vault-grab) or too old to track.
+    pub status: Option<StatusDto>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GrabLogsDto {
+    pub now: i64,
+    pub grabs: Vec<GrabLogDto>,
+}
+
+pub fn grab_log(entries: Vec<GrabEntry>, d: &Downloads, now: i64) -> GrabLogsDto {
+    GrabLogsDto {
+        now,
+        grabs: entries
+            .into_iter()
+            .map(|e| GrabLogDto {
+                at: chrono::DateTime::parse_from_rfc3339(&e.at)
+                    .ok()
+                    .map(|t| t.timestamp()),
+                status: e
+                    .download_id
+                    .and_then(|id| d.by_download.get(&id))
+                    .map(|s| d.status_of(s)),
+                studio: e.studio,
+                title: e.title,
+                keys: e.keys,
+                reason: e.reason,
             })
             .collect(),
     }

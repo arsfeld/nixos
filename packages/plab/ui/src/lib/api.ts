@@ -4,6 +4,7 @@ import type {
   ConversationSummary,
   Daily,
   Grab,
+  GrabLog,
   Job,
   List,
   Section,
@@ -56,6 +57,7 @@ async function sendJson<T>(url: string, method: string, body?: unknown): Promise
 export const fetchList = (section: Section) => getJson<List>(`/api/list?section=${section}`);
 export const fetchSearch = (q: string) => getJson<List>(`/api/search?q=${encodeURIComponent(q)}`);
 export const fetchGrabs = () => getJson<{ now: number; grabs: Grab[] }>('/api/grabs');
+export const fetchGrabLog = () => getJson<{ now: number; grabs: GrabLog[] }>('/api/grabs/all');
 export const fetchJobs = () => getJson<{ now: number; jobs: Job[] }>('/api/jobs');
 export const fetchImages = (id: number) => getJson<{ images: string[] }>(`/api/images/${id}`);
 export const imgUrl = (key: string) => `/api/img/${key}`;

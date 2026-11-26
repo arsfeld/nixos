@@ -21,4 +21,5 @@ it('parses the assistant routes', () => {
 
 it('parses the watchlist route', () => {
   expect(parse('/watchlist', '')).toEqual({ view: 'watchlist' });
+  expect(parse('/grabs', '')).toEqual({ view: 'grabs' });
 });

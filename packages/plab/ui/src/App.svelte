@@ -9,6 +9,7 @@
   import { watchlist } from './lib/watchlist.svelte';
   import AssistantView from './components/AssistantView.svelte';
   import DailyView from './components/DailyView.svelte';
+  import GrabsView from './components/GrabsView.svelte';
   import JobsView from './components/JobsView.svelte';
   import ListView from './components/ListView.svelte';
   import WatchlistView from './components/WatchlistView.svelte';
@@ -42,6 +43,8 @@
     <DailyView />
   {:else if router.route.view === 'watchlist'}
     <WatchlistView />
+  {:else if router.route.view === 'grabs'}
+    <GrabsView />
   {:else if router.route.view === 'search'}
     {#key router.route.q}<ListView kind="search" q={router.route.q} />{/key}
   {:else}

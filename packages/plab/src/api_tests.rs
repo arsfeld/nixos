@@ -411,6 +411,50 @@ fn grabs_carry_studio_title_age_and_status() {
 }
 
 #[test]
+fn grab_log_carries_reason_keys_time_and_status() {
+    let reason = crate::db::GrabReason {
+        query: "studio a".into(),
+        indexer: Some("1337x".into()),
+        seeders: Some(42.0),
+        size: None,
+        published: None,
+        copies: 2,
+    };
+    let entries = vec![
+        crate::db::GrabEntry {
+            studio: "Studio A".into(),
+            title: "Rel".into(),
+            at: "1970-01-01T00:16:40+00:00".into(),
+            download_id: Some(1),
+            keys: vec!["ep:1".into()],
+            reason: Some(reason),
+        },
+        crate::db::GrabEntry {
+            studio: "Old".into(),
+            title: "Gone".into(),
+            at: "garbled".into(),
+            download_id: None,
+            keys: vec![],
+            reason: None,
+        },
+    ];
+    let d = Downloads {
+        by_download: HashMap::from([(1, Status::Added)]),
+        ..Downloads::default()
+    };
+    assert_eq!(
+        serde_json::to_value(grab_log(entries, &d, 2000)).unwrap(),
+        json!({"now": 2000, "grabs": [
+            {"studio": "Studio A", "title": "Rel", "at": 1000, "keys": ["ep:1"],
+             "reason": {"query": "studio a", "indexer": "1337x", "seeders": 42.0, "size": null,
+                        "published": null, "copies": 2},
+             "status": {"kind": "added"}},
+            {"studio": "Old", "title": "Gone", "at": null, "keys": [], "reason": null, "status": null}
+        ]})
+    );
+}
+
+#[test]
 fn jobs_list_registered_jobs_in_order_with_history_and_next_slot() {
     let m = Monitor::default();
     m.register("prune");

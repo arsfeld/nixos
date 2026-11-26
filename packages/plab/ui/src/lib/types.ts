@@ -76,6 +76,26 @@ export interface Grab {
   status: Status;
 }
 
+/** Why the grab job took a release (absent for grabs older than the record). */
+export interface GrabReason {
+  query: string;
+  indexer: string | null;
+  seeders: number | null;
+  size: number | null;
+  published: string | null;
+  copies: number;
+}
+
+/** One entry on the Grabs tab. */
+export interface GrabLog {
+  studio: string;
+  title: string;
+  at: number | null;
+  keys: string[];
+  reason: GrabReason | null;
+  status: Status | null;
+}
+
 export interface Line {
   at: number;
   level: string;

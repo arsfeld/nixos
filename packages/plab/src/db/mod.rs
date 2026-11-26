@@ -36,6 +36,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("schema_v6.sql"),
     include_str!("schema_v7.sql"),
     include_str!("schema_v8.sql"),
+    include_str!("schema_v9.sql"),
 ];
 const USER_VERSION: i64 = MIGRATIONS.len() as i64;
 

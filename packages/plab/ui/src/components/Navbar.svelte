@@ -11,6 +11,7 @@
     ['indexers', '/indexers', 'Indexers'],
     ['albums', '/albums', 'Albums'],
     ['games', '/games', 'Games'],
+    ['grabs', '/grabs', 'Grabs'],
     ['assistant', '/assistant', 'Assistant'],
     ['jobs', '/jobs', 'Jobs'],
   ] as const;
