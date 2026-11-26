@@ -32,6 +32,13 @@ pub enum Play {
     Neither,
 }
 
+/// Stash's `play_duration` in whole seconds. Stash reports a play it never timed (one
+/// counted from its UI's play count, another client, or before it tracked durations) as 0,
+/// not null, so exactly 0 means unknown; any timed play, however short, is above it.
+pub fn watched_secs(play_duration: Option<f64>) -> Option<u32> {
+    play_duration.filter(|&d| d > 0.0).map(|d| d as u32)
+}
+
 /// An o-count or a rating is a view however short the play; no duration from Stash counts
 /// as a view too, as every play did before durations were read.
 pub fn play(watched_secs: Option<u32>, o_count: u32, rating: Option<u32>) -> Play {
@@ -424,5 +431,14 @@ mod tests {
                 "1970-01-03 · Disliked · Studio B · -1",
             ]
         );
+    }
+
+    #[test]
+    fn stash_zero_duration_is_unknown_and_any_real_play_is_not() {
+        assert_eq!(watched_secs(Some(0.0)), None);
+        assert_eq!(watched_secs(None), None);
+        assert_eq!(watched_secs(Some(0.4)), Some(0));
+        assert_eq!(watched_secs(Some(271.6)), Some(271));
+        assert_eq!(play(watched_secs(Some(0.0)), 0, None), Play::Watched);
     }
 }

@@ -79,7 +79,7 @@ fn view_of(s: &LibScene, at: i64, streamed: bool) -> View {
         watched_secs: if streamed {
             None
         } else {
-            s.play_duration.map(|d| d.max(0.0) as u32)
+            taste::watched_secs(s.play_duration)
         },
         ..View::default()
     }

@@ -12,7 +12,7 @@ use super::{WebState, json_body, not_found, now, text};
 use crate::assistant::context::bounded;
 use crate::backends::Backends;
 use crate::events::Event;
-use crate::taste::{Play, play};
+use crate::taste::{Play, play, watched_secs};
 
 /// A list of scene ids: a few KB at most.
 const BODY_LIMIT: usize = 64 * 1024;
@@ -104,7 +104,7 @@ pub async fn recent<B: Backends>(st: &WebState<B>) -> Response<Body> {
                 .as_deref()
                 .and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok())
                 .is_some_and(|t| t.timestamp() >= since);
-            let secs = s.play_duration.map(|d| d.max(0.0) as u32);
+            let secs = watched_secs(s.play_duration);
             played && play(secs, s.o_counter.unwrap_or(0), s.rating100) == Play::Watched
         })
         .map(|s| scene_dto(s, web))
