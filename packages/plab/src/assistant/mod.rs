@@ -25,6 +25,10 @@ const REASK: &str = "Reply with only the JSON object the instructions describe."
 const TITLE_CHARS: usize = 60;
 
 /// How a final answer is shaped. Format, not content: it lives here, not in the secret.
+/// How to read the profile's votes and avoid list. The prompt itself is the user's (the
+/// `plab-site` secret), so this travels with the code that produces those fields.
+pub const TASTE_NOTES: &str = "Terms under \"avoid\" in the profile are things the user voted down or sampled and abandoned: do not recommend on them, and say so if asked. +1 and -1 on recent views are the user's explicit votes and weigh more than plays.";
+
 const FINAL_FORMAT: &str = r#"When you answer, reply with only a JSON object:
 {"text": "<your answer>", "picks": [{"ref": "<ref>", "action": "watch" | "stream" | "download", "reason": "<one line>"}]}
 Use only refs given in CANDIDATES or returned by a tool. "watch" is for s: refs; "stream" and "download" are for t: refs. picks may be empty."#;
@@ -394,6 +398,8 @@ impl Assistant {
             serde_json::to_string(&ctx.profile).context("profile")?,
             serde_json::to_string(&ctx.candidates).context("candidates")?,
         );
+        content.push_str("\n\n");
+        content.push_str(TASTE_NOTES);
         if !ctx.degraded.is_empty() {
             content.push_str("\n\nStash could not be reached: the profile has only plab's stream log, and there are no watch candidates.");
         }
@@ -790,6 +796,43 @@ mod tests {
         let all = sent(&server).await.join("\n");
         assert!(all.contains("Fig Scene"));
         assert!(!all.contains("Pear Scene"));
+    }
+
+    #[tokio::test]
+    async fn voted_down_scenes_never_reach_the_model_and_the_prompt_explains_votes() {
+        let server = MockServer::start().await;
+        let scenes = json!({"data": {"findScenes": {"scenes": [
+            {"id": "1", "title": "Pear Scene", "play_count": 0},
+            {"id": "2", "title": "Fig Scene", "play_count": 0}
+        ]}}});
+        Mock::given(path("/graphql"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(scenes))
+            .mount(&server)
+            .await;
+        Mock::given(path(crate::llm::CHAT_PATH))
+            .respond_with(tool_call("find_stash_scenes", r#"{"q":"scene"}"#))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        Mock::given(path(crate::llm::CHAT_PATH))
+            .respond_with(final_reply("ok", json!([])))
+            .mount(&server)
+            .await;
+        let llm = OpenRouter::new(&server.uri(), "k".into(), "p".into(), "j".into());
+        let stash = Stash::new(&format!("{}/graphql", server.uri()), None);
+        let a = Assistant::new(llm, stash, "m".into(), "x".into());
+        let db = Db::open_in_memory().unwrap();
+        db.vote_set("1", -1, 0).unwrap();
+        a.start(&db, Kind::Chat, Some("hi"), 0).await.unwrap();
+        let msgs = db.messages(1).unwrap();
+        // The search result leaves it out; the profile still names it as voted down.
+        let tool = &msgs.iter().find(|m| m.role == "tool").unwrap().content;
+        assert!(tool.contains("Fig Scene"));
+        assert!(!tool.contains("Pear Scene"));
+        let system = &msgs[0].content;
+        assert!(system.contains("Pear Scene · -1"));
+        assert!(system.contains(&serde_json::to_string(TASTE_NOTES).unwrap()[1..20]));
+        assert!(system.contains("avoid"));
     }
 
     struct FakeSearch(std::sync::Mutex<Vec<String>>);

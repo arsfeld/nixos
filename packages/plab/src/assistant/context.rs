@@ -1,7 +1,7 @@
 //! What the assistant knows before it is asked anything: recent views, the taste profile,
 //! the shortlist. Stash being down degrades it to plab's own data rather than failing.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::time::Duration;
 
@@ -76,21 +76,50 @@ fn view_of(s: &LibScene, at: i64, streamed: bool) -> View {
         },
         rating: if streamed { None } else { s.rating100 },
         streamed,
+        watched_secs: if streamed {
+            None
+        } else {
+            s.play_duration.map(|d| d.max(0.0) as u32)
+        },
         ..View::default()
     }
 }
 
-/// Stash plays and plab streams from the last `LOOKBACK`, and whether Stash answered.
+/// The user's votes, by scene id; none when the db cannot be read.
+fn votes(db: &Db) -> HashMap<String, (i8, i64)> {
+    db.votes()
+        .unwrap_or_else(|e| {
+            tracing::info!(job = "assistant", "votes: {e:#}");
+            vec![]
+        })
+        .into_iter()
+        .map(|(id, vote, at)| (id, (vote, at)))
+        .collect()
+}
+
+/// The scenes voted −1: never offered, whatever they match. Needs no Stash.
+pub fn voted_down(db: &Db) -> HashSet<String> {
+    votes(db)
+        .into_iter()
+        .filter(|(_, (v, _))| *v < 0)
+        .map(|(id, _)| id)
+        .collect()
+}
+
+/// Stash plays and plab streams from the last `LOOKBACK`, each Stash play carrying its
+/// vote, plus every other voted scene Stash still has, and whether Stash answered.
 pub async fn views(db: &Db, stash: &Stash, now: i64) -> (Vec<View>, bool) {
     let since = now - LOOKBACK;
     let mut ok = true;
+    let mut votes = votes(db);
     let mut out: Vec<View> = match bounded(stash.recent_plays(PLAYS)).await {
         Ok(scenes) => scenes
             .iter()
             .filter_map(|s| {
-                played_at(s)
-                    .filter(|&at| at >= since)
-                    .map(|at| view_of(s, at, false))
+                played_at(s).filter(|&at| at >= since).map(|at| View {
+                    vote: votes.remove(&s.id),
+                    ..view_of(s, at, false)
+                })
             })
             .collect(),
         Err(e) => {
@@ -115,7 +144,9 @@ pub async fn views(db: &Db, stash: &Stash, now: i64) -> (Vec<View>, bool) {
         let scene = db.external(topic).ok().flatten().and_then(|e| e.scene_id);
         by_scene.push((at, title, scene));
     }
-    let ids: Vec<String> = by_scene.iter().filter_map(|(_, _, s)| s.clone()).collect();
+    let mut ids: Vec<String> = by_scene.iter().filter_map(|(_, _, s)| s.clone()).collect();
+    // Voted scenes not played within the lookback come in through their vote alone.
+    ids.extend(votes.keys().cloned());
     let scenes = if ok && !ids.is_empty() {
         bounded(stash.lib_scenes(&ids)).await.unwrap_or_else(|e| {
             tracing::info!(job = "assistant", "Stash scenes: {e:#}");
@@ -125,6 +156,15 @@ pub async fn views(db: &Db, stash: &Stash, now: i64) -> (Vec<View>, bool) {
     } else {
         vec![]
     };
+    for s in &scenes {
+        if let Some(&(vote, at)) = votes.get(&s.id) {
+            out.push(View {
+                vote: Some((vote, at)),
+                vote_only: true,
+                ..view_of(s, at, false)
+            });
+        }
+    }
     for (at, title, scene) in by_scene {
         match scene.and_then(|id| scenes.iter().find(|s| s.id == id)) {
             Some(s) => out.push(View {
@@ -227,7 +267,8 @@ pub async fn gather(
             plays: s.play_count.unwrap_or(0),
         })
         .collect();
-    let candidates = candidates::candidates(&profile, &scenes, &releases(db, noise)?);
+    let candidates =
+        candidates::candidates(&profile, &scenes, &releases(db, noise)?, &voted_down(db));
     Ok(Context {
         profile,
         candidates,
@@ -238,6 +279,8 @@ pub async fn gather(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::body_string_contains;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test(start_paused = true)]
     async fn a_stash_read_that_never_answers_is_a_failure() {
@@ -298,5 +341,84 @@ mod tests {
             .map(|r| (r.id, r.downloaded))
             .collect();
         assert_eq!(got, vec![(1, true), (2, false)]);
+    }
+
+    #[test]
+    fn play_duration_becomes_watched_secs() {
+        let s: LibScene =
+            serde_json::from_value(serde_json::json!({"id": "1", "play_duration": 271.6})).unwrap();
+        assert_eq!(view_of(&s, 0, false).watched_secs, Some(271));
+    }
+
+    async fn mock_stash(
+        plays: serde_json::Value,
+        by_ids: serde_json::Value,
+    ) -> (MockServer, Stash) {
+        let server = MockServer::start().await;
+        let body = |v: serde_json::Value| {
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({"data": {"findScenes": {"scenes": v}}}))
+        };
+        Mock::given(body_string_contains("GREATER_THAN"))
+            .respond_with(body(plays))
+            .mount(&server)
+            .await;
+        Mock::given(body_string_contains("$ids"))
+            .respond_with(body(by_ids))
+            .mount(&server)
+            .await;
+        let stash = Stash::new(&format!("{}/graphql", server.uri()), None);
+        (server, stash)
+    }
+
+    #[tokio::test]
+    async fn a_voted_never_played_scene_shapes_the_profile() {
+        let now = 1_000_000;
+        let db = Db::open_in_memory().unwrap();
+        db.vote_set("9", -1, now).unwrap();
+        let (_server, stash) = mock_stash(
+            serde_json::json!([]),
+            serde_json::json!([{"id": "9", "title": "Nine", "studio": {"id": "s9", "name": "Studio X"}}]),
+        )
+        .await;
+        let (views, ok) = views(&db, &stash, now).await;
+        assert!(ok);
+        assert_eq!(views.len(), 1);
+        assert!(views[0].vote_only);
+        assert_eq!(views[0].at, now);
+        let p = taste::profile(&views, now);
+        assert_eq!(p.avoid.studios[0].name, "Studio X");
+    }
+
+    #[tokio::test]
+    async fn a_played_scene_carries_its_vote() {
+        let now = 1_000_000;
+        let db = Db::open_in_memory().unwrap();
+        db.vote_set("4", 1, now).unwrap();
+        let played = serde_json::json!([{"id": "4", "title": "Four", "play_count": 1,
+            "play_duration": 300.0, "last_played_at": "1970-01-12T13:46:40Z"}]);
+        let (_server, stash) = mock_stash(played, serde_json::json!([])).await;
+        let (views, _) = views(&db, &stash, now).await;
+        assert_eq!(views.len(), 1);
+        assert_eq!((views[0].vote, views[0].vote_only), (Some((1, now)), false));
+        assert_eq!(views[0].watched_secs, Some(300));
+    }
+
+    #[tokio::test]
+    async fn a_vote_on_a_scene_stash_lost_is_skipped() {
+        let db = Db::open_in_memory().unwrap();
+        db.vote_set("9", -1, 100).unwrap();
+        let (_server, stash) = mock_stash(serde_json::json!([]), serde_json::json!([])).await;
+        let (views, ok) = views(&db, &stash, 100).await;
+        assert!(ok);
+        assert!(views.is_empty());
+    }
+
+    #[test]
+    fn voted_down_needs_no_stash() {
+        let db = Db::open_in_memory().unwrap();
+        db.vote_set("9", -1, 100).unwrap();
+        db.vote_set("4", 1, 100).unwrap();
+        assert_eq!(voted_down(&db), HashSet::from(["9".to_string()]));
     }
 }

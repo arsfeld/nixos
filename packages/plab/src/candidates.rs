@@ -1,7 +1,7 @@
 //! The assistant's shortlist: unwatched scenes and listed releases that share studios,
 //! performers or tags with the taste profile. Pure; `assistant::context` builds the inputs.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::Serialize;
 
@@ -43,11 +43,20 @@ pub struct Candidate {
 }
 
 /// Every profile term by lowercase name: its display name and summed weight, in profile
-/// order (studios, performers, tags).
+/// order (studios, performers, tags), then the avoided ones (negative weights).
 fn terms(p: &Profile) -> Vec<(String, String, f64)> {
     let mut by: HashMap<String, usize> = HashMap::new();
     let mut out: Vec<(String, String, f64)> = vec![];
-    for w in p.studios.iter().chain(&p.performers).chain(&p.tags) {
+    let a = &p.avoid;
+    for w in p
+        .studios
+        .iter()
+        .chain(&p.performers)
+        .chain(&p.tags)
+        .chain(&a.studios)
+        .chain(&a.performers)
+        .chain(&a.tags)
+    {
         let key = w.name.to_lowercase();
         match by.get(&key) {
             Some(&i) => out[i].2 += w.weight,
@@ -79,7 +88,10 @@ fn score(terms: &[(String, String, f64)], hit: impl Fn(&str) -> bool) -> (f64, V
     for (key, name, w) in terms {
         if hit(key) {
             s += w;
-            matched.push(name.clone());
+            // An avoided term lowers the score but is no reason to suggest it.
+            if *w > 0.0 {
+                matched.push(name.clone());
+            }
         }
     }
     (s, matched)
@@ -91,11 +103,27 @@ fn best(mut v: Vec<Candidate>, n: usize) -> Vec<Candidate> {
     v
 }
 
-pub fn candidates(profile: &Profile, scenes: &[SceneIn], releases: &[ReleaseIn]) -> Vec<Candidate> {
+/// The shortlist. Scenes in `voted_down` are never on it, whatever they match; a candidate
+/// scoring at or below zero is dropped. With no positive term, releases come in listing
+/// order, minus those matching an avoided term.
+pub fn candidates(
+    profile: &Profile,
+    scenes: &[SceneIn],
+    releases: &[ReleaseIn],
+    voted_down: &HashSet<String>,
+) -> Vec<Candidate> {
     let terms = terms(profile);
+    let release_score = |r: &ReleaseIn| {
+        let title = r.title.to_lowercase();
+        let studio = r.studio.as_deref().map(str::to_lowercase);
+        score(&terms, |k| {
+            has_word(&title, k) || studio.as_deref() == Some(k)
+        })
+    };
     let releases = releases.iter().filter(|r| !r.downloaded && !r.album);
-    if terms.is_empty() {
+    if !terms.iter().any(|t| t.2 > 0.0) {
         return releases
+            .filter(|r| release_score(r).0 >= 0.0)
             .take(PER_POOL)
             .map(|r| Candidate {
                 ref_: format!("t:{}", r.id),
@@ -108,7 +136,7 @@ pub fn candidates(profile: &Profile, scenes: &[SceneIn], releases: &[ReleaseIn])
     }
     let scenes: Vec<Candidate> = scenes
         .iter()
-        .filter(|s| s.plays == 0)
+        .filter(|s| s.plays == 0 && !voted_down.contains(&s.id))
         .filter_map(|s| {
             let names: Vec<String> = s
                 .studio
@@ -129,11 +157,7 @@ pub fn candidates(profile: &Profile, scenes: &[SceneIn], releases: &[ReleaseIn])
         .collect();
     let releases: Vec<Candidate> = releases
         .filter_map(|r| {
-            let title = r.title.to_lowercase();
-            let studio = r.studio.as_deref().map(str::to_lowercase);
-            let (score, matched) = score(&terms, |k| {
-                has_word(&title, k) || studio.as_deref() == Some(k)
-            });
+            let (score, matched) = release_score(r);
             (score > 0.0).then(|| Candidate {
                 ref_: format!("t:{}", r.id),
                 kind: "stream_or_download",
@@ -181,6 +205,21 @@ mod tests {
         }
     }
 
+    fn none() -> HashSet<String> {
+        HashSet::new()
+    }
+
+    fn avoiding(studios: Vec<Weighted>, performers: Vec<Weighted>) -> Profile {
+        Profile {
+            avoid: crate::taste::Avoid {
+                studios,
+                performers,
+                tags: vec![],
+            },
+            ..profile()
+        }
+    }
+
     fn release(id: u64, title: &str) -> ReleaseIn {
         ReleaseIn {
             id,
@@ -197,6 +236,7 @@ mod tests {
             &profile(),
             &[scene("1", Some("studio a"), &["Performer B"], 0)],
             &[],
+            &none(),
         );
         assert_eq!(c.len(), 1);
         assert_eq!(c[0].ref_, "s:1");
@@ -212,7 +252,7 @@ mod tests {
             release(2, "Studio Ab something"),
             release(3, "Unrelated"),
         ];
-        let c = candidates(&profile(), &[], &rs);
+        let c = candidates(&profile(), &[], &rs, &none());
         assert_eq!(
             c.iter().map(|c| c.ref_.as_str()).collect::<Vec<_>>(),
             vec!["t:1"]
@@ -230,6 +270,7 @@ mod tests {
             &profile(),
             &[scene("9", Some("Studio A"), &[], 3)],
             &[downloaded, album],
+            &none(),
         );
         assert!(c.is_empty());
     }
@@ -240,7 +281,7 @@ mod tests {
             .map(|i| scene(&i.to_string(), Some("Studio A"), &[], 0))
             .collect();
         let releases: Vec<ReleaseIn> = (0..30).map(|i| release(i, "Performer B release")).collect();
-        let c = candidates(&profile(), &scenes, &releases);
+        let c = candidates(&profile(), &scenes, &releases, &none());
         assert_eq!(c.len(), MAX);
         assert!(c.iter().filter(|c| c.kind == "watch").count() <= PER_POOL);
         assert!(c.iter().filter(|c| c.kind != "watch").count() >= MAX - PER_POOL);
@@ -249,9 +290,68 @@ mod tests {
     #[test]
     fn empty_profile_falls_back_to_listing_order() {
         let releases: Vec<ReleaseIn> = (0..30).map(|i| release(i, "anything")).collect();
-        let c = candidates(&Profile::default(), &[], &releases);
+        let c = candidates(&Profile::default(), &[], &releases, &none());
         assert_eq!(c.len(), PER_POOL);
         assert_eq!(c[0].ref_, "t:0");
         assert!(c[0].matched.is_empty());
+    }
+
+    #[test]
+    fn an_avoided_term_lowers_a_score() {
+        let p = avoiding(vec![], vec![w("Performer C", -1.0)]);
+        let c = candidates(
+            &p,
+            &[scene("1", Some("Studio A"), &["Performer C"], 0)],
+            &[],
+            &none(),
+        );
+        // Studio A 2.0 + Outdoor 0.5 − Performer C 1.0
+        assert!((c[0].score - 1.5).abs() < 1e-9);
+        assert_eq!(c[0].matched, vec!["Studio A", "Outdoor"]);
+    }
+
+    #[test]
+    fn a_score_at_or_below_zero_is_dropped() {
+        let p = avoiding(vec![], vec![w("Performer C", -3.0)]);
+        let c = candidates(&p, &[scene("1", None, &["Performer C"], 0)], &[], &none());
+        assert!(c.is_empty());
+    }
+
+    #[test]
+    fn voted_down_scenes_are_excluded_even_when_they_match() {
+        let down: HashSet<String> = ["7".to_string()].into();
+        let c = candidates(
+            &profile(),
+            &[
+                scene("7", Some("Studio A"), &[], 0),
+                scene("8", Some("Studio A"), &[], 0),
+            ],
+            &[],
+            &down,
+        );
+        assert_eq!(
+            c.iter().map(|c| c.ref_.as_str()).collect::<Vec<_>>(),
+            ["s:8"]
+        );
+    }
+
+    #[test]
+    fn only_negative_terms_still_offer_releases_that_avoid_nothing() {
+        let p = Profile {
+            avoid: crate::taste::Avoid {
+                studios: vec![w("StudioX", -1.0)],
+                ..Default::default()
+            },
+            ..Profile::default()
+        };
+        let rs = [
+            release(1, "[StudioX.com] Someone - A [2026-11-01, 1080p]"),
+            release(2, "[StudioY.com] Someone - B [2026-11-01, 1080p]"),
+        ];
+        let c = candidates(&p, &[], &rs, &none());
+        assert_eq!(
+            c.iter().map(|c| c.ref_.as_str()).collect::<Vec<_>>(),
+            ["t:2"]
+        );
     }
 }

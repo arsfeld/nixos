@@ -111,10 +111,12 @@ pub async fn run(
             Ok(q) => bounded(stash.search_scenes(&q, LIMIT))
                 .await
                 .map(|scenes| {
+                    let down = super::context::voted_down(db);
                     Value::Array(
                         scenes
                             .iter()
                             .filter(|s| !crate::filters::scene_hidden(hide, s))
+                            .filter(|s| !down.contains(&s.id))
                             .map(|s| {
                                 json!({
                                     "ref": format!("s:{}", s.id),
