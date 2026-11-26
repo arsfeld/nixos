@@ -75,8 +75,9 @@ is read (`lib_scenes` leaves it out), so no pruning is needed.
   clears. Answers with the new map and publishes `Event::Votes { votes }`, so every open page
   updates. Any other `vote`, or an empty `scenes`, is 400.
 - `GET /api/recent` → the Stash scenes really watched (the rule below) whose `last_played_at`
-  is within 14 days, as the watchlist's scene DTO (`web/scene_dto.rs`), unvoted first, then
-  newest first. Stash unreachable is 502.
+  is within 14 days, as the watchlist's scene DTO (`web/scene_dto.rs`), newest first. Stash
+  unreachable is 502. The page puts unvoted scenes first itself, so a vote reorders the row
+  without a refetch.
 
 ## Taste math (`taste.rs`, pure)
 
@@ -121,7 +122,7 @@ once = −0.5. A performer across several real watches stays positive despite on
   first, at most `AVOID_TOP` (10) each. Serialized into the prompt with the rest.
 - `recent`: the `RECENT_LINES` newest views that are watched, voted or streamed (samples left
   out; they act through weights only), each line suffixed with what applies: `watched N min`,
-  `+1`, `−1`, `streamed`. A vote-only line is dated `voted_at`.
+  `+1`, `-1` (ASCII), `streamed`. A vote-only line is dated `voted_at`.
 
 ## Context, shortlist, tools, prompt
 
@@ -142,11 +143,14 @@ once = −0.5. A performer across several real watches stays positive despite on
 - Scene ids voted −1 are excluded before scoring: a hard rule, not a weight. It holds when
   Stash is down too, since it needs only ids.
 - A candidate whose score is ≤ 0 is dropped (today any match counts).
+- With no positive term at all (only votes down and samples), releases fall back as an empty
+  profile's do, minus those matching an avoided term.
 
 Tools: `find_stash_scenes` leaves out −1 scenes, as `drop_owned` keeps owned releases out of
 the release searches. `recent_views` returns the annotated lines.
 
-System prompt, two added sentences: terms under `avoid` are things the user voted down or
+System prompt: the prompt itself is in the `plab-site` secret, so these two sentences are a
+constant (`TASTE_NOTES`) appended in code after CANDIDATES, like `FINAL_FORMAT`: terms under `avoid` are things the user voted down or
 sampled and abandoned, so do not recommend on them (and say so if asked); `+1` / `−1` on recent
 views are explicit votes and weigh above plays.
 
@@ -165,7 +169,8 @@ Daily picks use the same `gather` and change with no work of their own.
   toggle, and on failure shows the error. No optimistic update. Placed right after
   `WatchButton` in `SceneCard`, `Card`, `GrabPoster`, `GrabsStrip`, `WatchlistView`.
 - For you (`DailyView`): a "Recently watched" row below the picks, `SceneCard`s from
-  `GET /api/recent`, loaded with the page and refreshed on a `Votes` event. Hidden when empty
+  `GET /api/recent`, loaded with the page, unvoted first (`unvotedFirst`, reactive to the
+  votes store). Hidden when empty
   or when the request fails.
 
 No page listing all votes; a vote is undone wherever its scene appears.
@@ -185,8 +190,7 @@ Rust:
   failure keeps −1 exclusion.
 - Tools: `find_stash_scenes` leaves out −1 scenes.
 - Web routes (`web_tests.rs` style): `GET`/`POST /api/votes`, vote 0 clears, 400 on bad input,
-  `Event::Votes` published; `/api/recent` keeps only real watches within 14 days, unvoted
-  first.
+  `Event::Votes` published; `/api/recent` keeps only real watches within 14 days.
 
 UI (vitest): `votes.test.ts` for `voteAction`, `voteOf` (mixed scenes give none), `nextVotes`.
 
