@@ -7,7 +7,7 @@
 //!
 //! Design: docs/superpowers/specs/2026-11-02-plab-provenance-identify-design.md
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use crate::db::{Db, DownloadRow};
@@ -110,19 +110,22 @@ impl From<crate::db::Link> for Provenance {
     }
 }
 
-/// The scene's download, if its file came from one. With `write`, the file is linked to the
-/// scene for the page's status. A database error is logged and counts as no download, so
-/// the scene is identified as before.
+/// The scene's download, if one of its files came from one (the first such file's). With
+/// `write`, every such file is linked to the scene for the page's status. Every file counts,
+/// not just the first: Stash adds a download's file to the scene an older copy already made,
+/// and that copy stays first. A database error is logged and counts as no download, so the
+/// scene is identified as before.
 pub fn link(db: &Db, paths: &Paths, scene: &Scene, write: bool) -> Option<Provenance> {
-    let path = scene.first_path()?;
     let id = &scene.id;
-    match db.link_scene(paths.rel_path(path), write.then_some(id.as_str())) {
-        Ok(l) => l.map(Provenance::from),
-        Err(e) => {
-            tracing::warn!("[{id}] download lookup failed: {e:#}");
-            None
+    let mut found = None;
+    for f in &scene.files {
+        match db.link_scene(paths.rel_path(&f.path), write.then_some(id.as_str())) {
+            Ok(Some(l)) if found.is_none() => found = Some(Provenance::from(l)),
+            Ok(_) => {}
+            Err(e) => tracing::warn!("[{id}] download lookup failed: {e:#}"),
         }
     }
+    found
 }
 
 /// "Title · Studio", either part optional; None when both are missing.
@@ -170,6 +173,8 @@ pub enum Status {
         folder: Option<String>,
     },
     Failed(Failure),
+    /// Every scene it became was deleted from plab (and so from Stash).
+    Deleted,
 }
 
 /// The last component of the deepest directory every path is under, or None when they
@@ -289,6 +294,38 @@ pub fn status(d: &DownloadRow, live: Option<&HashMap<String, Detail>>, now: i64)
         return Status::Failed(Failure::Lost);
     }
     Status::Added
+}
+
+/// `s` less the scenes deleted from plab: they drop out of its scene list, and a status
+/// whose scenes were all deleted is `Deleted`. Other statuses pass through.
+pub fn without_deleted(s: Status, deleted: &HashSet<String>) -> Status {
+    let keep = |scenes: Vec<String>| -> Option<Vec<String>> {
+        let kept: Vec<String> = scenes.into_iter().filter(|id| !deleted.contains(id)).collect();
+        (!kept.is_empty()).then_some(kept)
+    };
+    match s {
+        Status::InStash { scenes, folder } => match keep(scenes) {
+            Some(scenes) => Status::InStash { scenes, folder },
+            None => Status::Deleted,
+        },
+        Status::Identified {
+            label,
+            more,
+            guess,
+            scenes,
+            folder,
+        } => match keep(scenes) {
+            Some(scenes) => Status::Identified {
+                label,
+                more,
+                guess,
+                scenes,
+                folder,
+            },
+            None => Status::Deleted,
+        },
+        other => other,
+    }
 }
 
 #[cfg(test)]

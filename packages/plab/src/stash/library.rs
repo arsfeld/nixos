@@ -1,5 +1,6 @@
-//! Library reads for the assistant: what was played, what is unwatched, scene search.
-//! Inherent methods on `Stash` (not `StashApi`): only the assistant uses them.
+//! Library reads for the assistant and the web app: what was played, what is unwatched,
+//! scene search; and deleting a scene with its files. Inherent methods on `Stash` (not
+//! `StashApi`): identify never needs them.
 
 use std::collections::{HashMap, HashSet};
 
@@ -138,6 +139,60 @@ impl Stash {
             Err(e) if e.to_string().contains("not found") => self.lib_scenes_each(ids).await,
             r => r,
         }
+    }
+
+    /// The scenes with a file whose path contains each of `parts`, in `parts`' order: one
+    /// findScenes each, aliased into a single query.
+    pub async fn lib_scenes_by_path(&self, parts: &[String]) -> anyhow::Result<Vec<Vec<LibScene>>> {
+        #[derive(serde::Deserialize)]
+        struct Found {
+            scenes: Vec<LibScene>,
+        }
+        if parts.is_empty() {
+            return Ok(vec![]);
+        }
+        let params: Vec<String> = (0..parts.len())
+            .map(|i| format!("$p{i}: String!"))
+            .collect();
+        let finds: Vec<String> = (0..parts.len())
+            .map(|i| {
+                format!(
+                    "s{i}: findScenes(scene_filter: {{path: {{value: $p{i}, modifier: INCLUDES}}}},
+                       filter: {{per_page: -1}}) {{ scenes {{ {FIELDS} }} }}"
+                )
+            })
+            .collect();
+        let q = format!("query({}) {{ {} }}", params.join(", "), finds.join(" "));
+        let vars: serde_json::Map<String, serde_json::Value> = parts
+            .iter()
+            .enumerate()
+            .map(|(i, p)| (format!("p{i}"), json!(p)))
+            .collect();
+        let mut got: HashMap<String, Found> =
+            self.query(&q, serde_json::Value::Object(vars), &[]).await?;
+        Ok((0..parts.len())
+            .map(|i| {
+                got.remove(&format!("s{i}"))
+                    .map(|f| f.scenes)
+                    .unwrap_or_default()
+            })
+            .collect())
+    }
+
+    /// Delete each scene in `ids` from Stash with its files and generated media. A scene
+    /// Stash no longer has counts as deleted, so pressing delete again after a partial
+    /// failure finishes the job.
+    pub async fn destroy_scenes(&self, ids: &[String]) -> anyhow::Result<()> {
+        const Q: &str = "mutation($i: SceneDestroyInput!) { sceneDestroy(input: $i) }";
+        for id in ids {
+            let input = json!({"id": id, "delete_file": true, "delete_generated": true});
+            match self.gql(Q, json!({"i": input})).await {
+                Err(e) if e.to_string().contains("not found") => {}
+                Err(e) => return Err(e.context(format!("deleting scene {id}"))),
+                Ok(_) => {}
+            }
+        }
+        Ok(())
     }
 
     /// `ids` one findScene each, aliased into a single query: a gone scene is null there.
@@ -311,6 +366,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn lib_scenes_by_path_answers_each_part_in_order() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(body_string_contains(
+                "path: {value: $p1, modifier: INCLUDES}",
+            ))
+            .and(body_partial_json(
+                json!({"variables": {"p0": "/S/A/", "p1": "/S/B/"}}),
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": {
+                "s0": {"scenes": []}, "s1": {"scenes": [{"id": "7"}, {"id": "8"}]}}})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let parts = vec!["/S/A/".to_string(), "/S/B/".to_string()];
+        let got = stash(&server)
+            .await
+            .lib_scenes_by_path(&parts)
+            .await
+            .unwrap();
+        let ids: Vec<Vec<&str>> = got
+            .iter()
+            .map(|v| v.iter().map(|s| s.id.as_str()).collect())
+            .collect();
+        assert_eq!(ids, vec![vec![], vec!["7", "8"]]);
+    }
+
+    #[tokio::test]
     async fn unwatched_without_ids_asks_nothing() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
@@ -345,5 +428,51 @@ mod tests {
         assert_eq!(s.label(), "clip one.mp4");
         let s: LibScene = serde_json::from_value(json!({"id": "6"})).unwrap();
         assert_eq!(s.label(), "scene 6");
+    }
+
+    #[tokio::test]
+    async fn destroy_scenes_deletes_files_and_skips_gone_scenes() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(body_string_contains("sceneDestroy"))
+            .and(body_partial_json(json!({"variables": {"i": {
+                "id": "4", "delete_file": true, "delete_generated": true
+            }}})))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"data": {"sceneDestroy": true}})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(body_partial_json(json!({"variables": {"i": {"id": "5"}}})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                json!({"errors": [{"message": "scene with id 5 not found"}], "data": null}),
+            ))
+            .expect(1)
+            .mount(&server)
+            .await;
+        stash(&server)
+            .await
+            .destroy_scenes(&["4".into(), "5".into()])
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn destroy_scenes_reports_other_errors() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                json!({"errors": [{"message": "permission denied"}], "data": null}),
+            ))
+            .mount(&server)
+            .await;
+        let e = stash(&server)
+            .await
+            .destroy_scenes(&["4".into()])
+            .await
+            .unwrap_err();
+        assert!(format!("{e:#}").contains("permission denied"), "{e:#}");
     }
 }

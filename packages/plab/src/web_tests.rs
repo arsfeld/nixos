@@ -1757,6 +1757,46 @@ async fn grab_log_carries_its_stash_scenes_as_posters() {
 }
 
 #[tokio::test]
+async fn grab_log_finds_an_unlinked_grabs_scenes_by_its_release_folder() {
+    use wiremock::matchers::{body_partial_json, body_string_contains};
+    use wiremock::{Mock, ResponseTemplate};
+    let server = wiremock::MockServer::start().await;
+    Mock::given(body_string_contains("modifier: INCLUDES"))
+        .and(body_partial_json(
+            json!({"variables": {"p0": "/A/Rel[XC]/"}}),
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": {
+            "s0": {"scenes": [{"id": "13", "title": "Trip"}]}}})))
+        .with_priority(1)
+        .expect(1)
+        .mount(&server)
+        .await;
+    let fx = watch_fx(&server, 200, json!([])).await;
+    let db = &fx.state.db;
+    let id = db
+        .mark_added(crate::db::NewDownload {
+            source: "grab",
+            topic_id: None,
+            release_title: "Rel",
+            section: Section::Video,
+            download_dir: Some("/vault/A"),
+            torrent_hash: Some("h"),
+            now: now(),
+        })
+        .unwrap();
+    let keys = std::collections::BTreeSet::from(["ep:1".to_string()]);
+    db.record_grab("A", &keys, "Rel", "2026-11-20T00:00:00+00:00", Some(id))
+        .unwrap();
+    // only the torrent's .nfo was recorded, and it is no scene
+    db.save_files(id, &["A/Rel[XC]/info.nfo".into()]).unwrap();
+
+    let v = fx.get("/api/grabs/all").await.json();
+    assert!(v["error"].is_null());
+    assert_eq!(v["grabs"][0]["scenes"][0]["id"], "13");
+    assert_eq!(v["grabs"][0]["scenes"][0]["title"], "Trip");
+}
+
+#[tokio::test]
 async fn grab_log_lists_grabs_when_stash_is_down() {
     let server = wiremock::MockServer::start().await;
     let fx = watch_fx(&server, 500, json!(null)).await;

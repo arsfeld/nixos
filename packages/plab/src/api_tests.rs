@@ -429,6 +429,7 @@ fn grab_log_carries_reason_keys_time_and_status() {
             keys: vec!["ep:1".into()],
             reason: Some(reason),
             scene_ids: vec![],
+            folders: vec![],
         },
         crate::db::GrabEntry {
             studio: "Old".into(),
@@ -438,6 +439,7 @@ fn grab_log_carries_reason_keys_time_and_status() {
             keys: vec![],
             reason: None,
             scene_ids: vec![],
+            folders: vec![],
         },
     ];
     let d = Downloads {

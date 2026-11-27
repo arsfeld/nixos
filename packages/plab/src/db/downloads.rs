@@ -45,6 +45,10 @@ pub struct GrabEntry {
     pub reason: Option<GrabReason>,
     /// The Stash scenes the download's files became, sorted.
     pub scene_ids: Vec<String>,
+    /// Where the download's files are in the library, each as `/<studio>/<release>/` (or
+    /// `/<studio>/<file>` for a single-file torrent), sorted: what finds its scenes in Stash
+    /// by path when none is linked.
+    pub folders: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -254,7 +258,9 @@ impl Db {
                 "SELECT g.studio, g.title, g.at, g.download_id, GROUP_CONCAT(g.scene_key, ' '),
                         d.grab_reason,
                         (SELECT GROUP_CONCAT(DISTINCT f.scene_id) FROM download_file f
-                         WHERE f.download_id = g.download_id AND f.scene_id IS NOT NULL)
+                         WHERE f.download_id = g.download_id AND f.scene_id IS NOT NULL),
+                        (SELECT GROUP_CONCAT(f.path, char(10)) FROM download_file f
+                         WHERE f.download_id = g.download_id)
                  FROM grab_seen g LEFT JOIN download d ON d.id = g.download_id
                  GROUP BY g.studio, g.title, g.at, g.download_id
                  ORDER BY g.at DESC, g.studio, g.title",
@@ -269,6 +275,14 @@ impl Db {
                     .map(|s| s.split(',').map(str::to_owned).collect())
                     .unwrap_or_default();
                 scene_ids.sort();
+                let paths: Option<String> = r.get(7)?;
+                let mut folders: Vec<String> = paths
+                    .iter()
+                    .flat_map(|p| p.lines())
+                    .filter_map(release_folder)
+                    .collect();
+                folders.sort();
+                folders.dedup();
                 Ok(GrabEntry {
                     studio: r.get(0)?,
                     title: r.get(1)?,
@@ -278,6 +292,7 @@ impl Db {
                     // An unreadable reason is shown as none rather than failing the list.
                     reason: reason.and_then(|s| serde_json::from_str(&s).ok()),
                     scene_ids,
+                    folders,
                 })
             })?)
         })
@@ -346,6 +361,19 @@ impl Db {
     }
 }
 
+/// A grabbed file's release in the library: `/<studio>/<release>/` for a file inside the
+/// torrent's folder, `/<studio>/<file>` for a single-file torrent. None for a path not under
+/// a studio directory, which would match the whole studio.
+fn release_folder(path: &str) -> Option<String> {
+    let mut parts = path.splitn(3, '/');
+    let (studio, release) = (parts.next()?, parts.next()?);
+    if studio.is_empty() || release.is_empty() {
+        return None;
+    }
+    let slash = if parts.next().is_some() { "/" } else { "" };
+    Some(format!("/{studio}/{release}{slash}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::tests::*;
@@ -370,6 +398,25 @@ mod tests {
         assert!(db.grabbed("StudioL", &k(&["name:abcdefgh"])).unwrap());
         assert!(!db.grabbed("Other", &k(&["ep:1"])).unwrap());
         assert!(!db.grabbed("StudioL", &k(&[])).unwrap());
+    }
+
+    #[test]
+    fn release_folder_is_the_torrents_folder_or_its_single_file() {
+        assert_eq!(
+            release_folder("SexArt/Rel[XC]/a.mp4").as_deref(),
+            Some("/SexArt/Rel[XC]/")
+        );
+        assert_eq!(
+            release_folder("SexArt/Rel/sub/a.mp4").as_deref(),
+            Some("/SexArt/Rel/")
+        );
+        assert_eq!(
+            release_folder("SexArt/a.mp4").as_deref(),
+            Some("/SexArt/a.mp4")
+        );
+        assert_eq!(release_folder("a.mp4"), None);
+        assert_eq!(release_folder("/a.mp4"), None);
+        assert_eq!(release_folder("SexArt/"), None);
     }
 
     #[test]
@@ -404,10 +451,14 @@ mod tests {
         };
         db.set_grab_reason(id, &reason).unwrap();
         // its two files became scenes 9 and 12; a third file is not in Stash yet
-        db.save_files(id, &["A/a.mp4".into(), "A/b.mp4".into(), "A/c.mp4".into()])
-            .unwrap();
-        db.link_scene("A/b.mp4", Some("9")).unwrap();
-        db.link_scene("A/a.mp4", Some("12")).unwrap();
+        let files = [
+            "Studio A/Rel/a.mp4",
+            "Studio A/Rel/b.mp4",
+            "Studio A/Rel/c.mp4",
+        ];
+        db.save_files(id, &files.map(String::from)).unwrap();
+        db.link_scene(files[1], Some("9")).unwrap();
+        db.link_scene(files[0], Some("12")).unwrap();
         assert_eq!(
             db.grab_history().unwrap(),
             vec![
@@ -419,6 +470,7 @@ mod tests {
                     keys: vec!["ep:2283".into(), "name:annandben".into()],
                     reason: Some(reason),
                     scene_ids: vec!["12".into(), "9".into()],
+                    folders: vec!["/Studio A/Rel/".into()],
                 },
                 GrabEntry {
                     studio: "Old".into(),
@@ -428,6 +480,7 @@ mod tests {
                     keys: vec!["ep:7".into()],
                     reason: None,
                     scene_ids: vec![],
+                    folders: vec![],
                 },
             ]
         );

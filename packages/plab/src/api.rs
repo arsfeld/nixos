@@ -86,6 +86,8 @@ pub enum StatusDto {
         reason: &'static str,
         detail: String,
     },
+    /// Its scenes were deleted from plab.
+    Deleted,
 }
 
 pub fn status(s: &Status, link: Option<String>) -> StatusDto {
@@ -118,6 +120,7 @@ pub fn status(s: &Status, link: Option<String>) -> StatusDto {
             };
             StatusDto::Failed { reason, detail }
         }
+        Status::Deleted => StatusDto::Deleted,
     }
 }
 
@@ -415,6 +418,9 @@ pub struct GrabLogDto {
     /// The Stash scenes it became; the web handler looks them up and sends them as cards.
     #[serde(skip)]
     pub scene_ids: Vec<String>,
+    /// Its release folders, for finding its scenes by path when none is linked.
+    #[serde(skip)]
+    pub folders: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -441,6 +447,7 @@ pub fn grab_log(entries: Vec<GrabEntry>, d: &Downloads, now: i64) -> GrabLogsDto
                 keys: e.keys,
                 reason: e.reason,
                 scene_ids: e.scene_ids,
+                folders: e.folders,
             })
             .collect(),
     }

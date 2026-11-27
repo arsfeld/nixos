@@ -504,6 +504,33 @@ mod link_tests {
         }
     }
 
+    #[tokio::test]
+    async fn a_download_file_that_is_not_the_scenes_first_still_links() {
+        // Stash adds a grabbed file to the scene an older copy made, and the old one stays
+        // first (measured on galactica, scene 13175).
+        let (_t, paths, dl) = library();
+        let db = Db::open_in_memory().unwrap();
+        let id = add(&db, "grab", None, "Rel", "h1");
+        let t = FakeTorrents::new(vec![detail(
+            "h1",
+            &format!("{dl}/Studio A"),
+            1.0,
+            &["Rel/a.mp4"],
+        )]);
+        sync(&db, &t, &paths, None).await.unwrap();
+        let scene: Scene = serde_json::from_value(serde_json::json!({
+            "id": "7",
+            "files": [{"path": "/media/Vault/old_copy.mp4"},
+                      {"path": "/media/Vault/Studio A/Rel/a.mp4"}],
+        }))
+        .unwrap();
+
+        assert!(link(&db, &paths, &scene, true).is_some());
+        let rows = db.download_rows(0).unwrap();
+        let row = rows.iter().find(|r| r.id == id).unwrap();
+        assert_eq!(row.files[0].scene_id.as_deref(), Some("7"));
+    }
+
     #[test]
     fn shared_folder_is_the_deepest_common_directory() {
         assert_eq!(
