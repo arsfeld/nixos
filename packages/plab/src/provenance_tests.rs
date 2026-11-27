@@ -597,4 +597,47 @@ mod link_tests {
             assert_eq!(stash_link("https://s", &s), None, "{s:?}");
         }
     }
+
+    mod deleted {
+        use super::*;
+        use std::collections::HashSet;
+
+        fn set(ids: &[&str]) -> HashSet<String> {
+            ids.iter().map(|s| s.to_string()).collect()
+        }
+
+        #[test]
+        fn all_scenes_deleted_is_deleted() {
+            let s = in_stash(&["1", "2"], Some("Rel"));
+            assert_eq!(without_deleted(s, &set(&["1", "2"])), Status::Deleted);
+            let id = Status::Identified {
+                label: "A".into(),
+                more: 0,
+                guess: false,
+                scenes: vec!["1".into()],
+                folder: None,
+            };
+            assert_eq!(without_deleted(id, &set(&["1"])), Status::Deleted);
+        }
+
+        #[test]
+        fn some_scenes_deleted_drops_them() {
+            let s = in_stash(&["1", "2"], Some("Rel"));
+            assert_eq!(
+                without_deleted(s, &set(&["1"])),
+                in_stash(&["2"], Some("Rel"))
+            );
+        }
+
+        #[test]
+        fn other_statuses_pass_through() {
+            for s in [
+                Status::Added,
+                Status::Failed(Failure::Lost),
+                in_stash(&["3"], None),
+            ] {
+                assert_eq!(without_deleted(s.clone(), &set(&["1"])), s);
+            }
+        }
+    }
 }

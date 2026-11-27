@@ -117,6 +117,8 @@ struct FakeTorrents {
     details: Vec<crate::transmission::Detail>,
     details_fail: bool,
     calls: Mutex<Vec<(Vec<u8>, String)>>,
+    listed: Vec<Torrent>,
+    removed: Mutex<Vec<i64>>,
 }
 
 /// The fakes, as one `Backends`.
@@ -152,10 +154,11 @@ impl TorrentClient for FakeTorrents {
     }
 
     async fn torrents(&self) -> anyhow::Result<Vec<Torrent>> {
-        Ok(vec![])
+        Ok(self.listed.clone())
     }
 
-    async fn remove(&self, _: &[i64]) -> anyhow::Result<()> {
+    async fn remove(&self, ids: &[i64]) -> anyhow::Result<()> {
+        self.removed.lock().unwrap().extend_from_slice(ids);
         Ok(())
     }
 }
@@ -1903,4 +1906,138 @@ async fn recent_is_502_when_stash_fails() {
     let server = wiremock::MockServer::start().await;
     let fx = watch_fx(&server, 500, json!([])).await;
     assert_eq!(fx.get("/api/recent").await.status, 502);
+}
+
+// Deleting scenes
+
+fn torrent(id: i64, hash: &str) -> Torrent {
+    Torrent {
+        id,
+        name: "Rel".into(),
+        hash_string: hash.into(),
+        download_dir: "/vault/A".into(),
+        percent_done: 1.0,
+        upload_ratio: 0.0,
+        done_date: 0,
+        activity_date: 0,
+        trackers: vec![],
+    }
+}
+
+/// A Stash at `server` that answers every sceneDestroy with `reply`, and a torrent client
+/// holding the torrents "h" (id 7) and "other" (id 8).
+async fn delete_fx(server: &wiremock::MockServer, reply: Value) -> Fx {
+    use wiremock::{Mock, ResponseTemplate, matchers::body_string_contains};
+    Mock::given(body_string_contains("sceneDestroy"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(reply))
+        .mount(server)
+        .await;
+    let uri = server.uri();
+    Fx::with(FakeTracker::default(), move |_, st| {
+        st.stash = Some(crate::stash::Stash::new(&format!("{uri}/graphql"), None));
+        st.torrents = Arc::new(FakeTorrents {
+            listed: vec![torrent(7, "h"), torrent(8, "other")],
+            ..FakeTorrents::default()
+        });
+    })
+}
+
+#[tokio::test]
+async fn delete_records_removes_the_torrent_and_marks_the_release_deleted() {
+    let server = wiremock::MockServer::start().await;
+    let fx = delete_fx(&server, json!({"data": {"sceneDestroy": true}})).await;
+    let db = &fx.state.db;
+    let id = db
+        .mark_added(crate::db::NewDownload {
+            source: "plab",
+            topic_id: Some(1),
+            release_title: "Rel",
+            section: Section::Video,
+            download_dir: Some("/vault/A"),
+            torrent_hash: Some("h"),
+            now: now(),
+        })
+        .unwrap();
+    db.save_files(id, &["A/a.mp4".into()]).unwrap();
+    db.link_scene("A/a.mp4", Some("42")).unwrap();
+    db.watch_add(&["42".into(), "43".into()], now()).unwrap();
+    let mut rx = fx.state.events.subscribe();
+
+    let r = fx
+        .post_json("/api/scenes/delete", json!({"scenes": ["42", "42"]}))
+        .await;
+    assert_eq!(r.status, 200, "{}", r.text());
+    assert_eq!(r.json(), json!({"ids": ["42"]}));
+    assert_eq!(
+        rx.try_recv().unwrap(),
+        Event::Deleted {
+            ids: vec!["42".into()]
+        }
+    );
+    assert_eq!(
+        rx.try_recv().unwrap(),
+        Event::Watchlist {
+            ids: vec!["43".into()]
+        }
+    );
+    assert_eq!(*fx.state.torrents.removed.lock().unwrap(), vec![7]);
+    assert!(db.deleted_ids().unwrap().contains("42"));
+    // Not a vote.
+    assert!(db.votes().unwrap().is_empty());
+    let d = super::downloads(&fx.state, now()).await;
+    assert_eq!(d.by_topic[&1], crate::provenance::Status::Deleted);
+}
+
+#[tokio::test]
+async fn delete_keeps_the_scene_hidden_when_stash_fails() {
+    let server = wiremock::MockServer::start().await;
+    let fx = delete_fx(
+        &server,
+        json!({"errors": [{"message": "permission denied"}], "data": null}),
+    )
+    .await;
+    let r = fx
+        .post_json("/api/scenes/delete", json!({"scenes": ["42"]}))
+        .await;
+    assert_eq!(r.status, 502);
+    assert!(r.text().contains("permission denied"), "{}", r.text());
+    assert!(fx.state.db.deleted_ids().unwrap().contains("42"));
+}
+
+#[tokio::test]
+async fn delete_rejects_bad_input_and_needs_stash() {
+    let server = wiremock::MockServer::start().await;
+    let fx = delete_fx(&server, json!({"data": {"sceneDestroy": true}})).await;
+    for body in [json!({"scenes": []}), json!({})] {
+        assert_eq!(fx.post_json("/api/scenes/delete", body).await.status, 400);
+    }
+    let fx = Fx::new();
+    let r = fx
+        .post_json("/api/scenes/delete", json!({"scenes": ["42"]}))
+        .await;
+    assert_eq!(r.status, 502);
+    assert!(fx.state.db.deleted_ids().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn recent_leaves_out_deleted_scenes() {
+    let ago = (chrono::Utc::now() - chrono::Duration::days(1)).to_rfc3339();
+    let server = wiremock::MockServer::start().await;
+    let fx = watch_fx(
+        &server,
+        200,
+        json!([
+            {"id": "a", "title": "A", "play_count": 1, "play_duration": 300.0, "last_played_at": ago},
+            {"id": "b", "title": "B", "play_count": 1, "play_duration": 300.0, "last_played_at": ago}
+        ]),
+    )
+    .await;
+    fx.state.db.deleted_add(&["a".into()], now()).unwrap();
+    let ids: Vec<String> = fx.get("/api/recent").await.json()["scenes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["id"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(ids, ["b"]);
 }

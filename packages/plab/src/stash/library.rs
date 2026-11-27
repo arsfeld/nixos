@@ -463,9 +463,11 @@ mod tests {
     async fn destroy_scenes_reports_other_errors() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(
-                json!({"errors": [{"message": "permission denied"}], "data": null}),
-            ))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(
+                    json!({"errors": [{"message": "permission denied"}], "data": null}),
+                ),
+            )
             .mount(&server)
             .await;
         let e = stash(&server)

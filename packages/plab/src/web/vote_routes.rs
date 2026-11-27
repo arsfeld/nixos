@@ -85,7 +85,8 @@ pub async fn votes<B: Backends>(st: &WebState<B>, method: &Method, body: Body) -
     }
 }
 
-/// The scenes really watched (`taste::play`) in the last `RECENT_DAYS`, newest first.
+/// The scenes really watched (`taste::play`) in the last `RECENT_DAYS`, newest first, less
+/// those deleted from plab.
 pub async fn recent<B: Backends>(st: &WebState<B>) -> Response<Body> {
     let Some(stash) = &st.stash else {
         return text(502, "Stash is not configured");
@@ -96,8 +97,13 @@ pub async fn recent<B: Backends>(st: &WebState<B>) -> Response<Body> {
     };
     let since = now() - RECENT_DAYS * 86400;
     let web = st.stash_web_url.as_deref();
+    let deleted = st.db.deleted_ids().unwrap_or_else(|e| {
+        tracing::info!(job = "web", "deleted scenes: {e:#}");
+        Default::default()
+    });
     let scenes = scenes
         .iter()
+        .filter(|s| !deleted.contains(&s.id))
         .filter(|s| {
             let played = s
                 .last_played_at

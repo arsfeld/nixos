@@ -300,7 +300,10 @@ pub fn status(d: &DownloadRow, live: Option<&HashMap<String, Detail>>, now: i64)
 /// whose scenes were all deleted is `Deleted`. Other statuses pass through.
 pub fn without_deleted(s: Status, deleted: &HashSet<String>) -> Status {
     let keep = |scenes: Vec<String>| -> Option<Vec<String>> {
-        let kept: Vec<String> = scenes.into_iter().filter(|id| !deleted.contains(id)).collect();
+        let kept: Vec<String> = scenes
+            .into_iter()
+            .filter(|id| !deleted.contains(id))
+            .collect();
         (!kept.is_empty()).then_some(kept)
     };
     match s {

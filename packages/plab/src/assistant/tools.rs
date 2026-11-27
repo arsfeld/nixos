@@ -111,7 +111,7 @@ pub async fn run(
             Ok(q) => bounded(stash.search_scenes(&q, LIMIT))
                 .await
                 .map(|scenes| {
-                    let down = super::context::voted_down(db);
+                    let down = super::context::never_offer(db);
                     Value::Array(
                         scenes
                             .iter()

@@ -97,13 +97,19 @@ fn votes(db: &Db) -> HashMap<String, (i8, i64)> {
         .collect()
 }
 
-/// The scenes voted −1: never offered, whatever they match. Needs no Stash.
-pub fn voted_down(db: &Db) -> HashSet<String> {
-    votes(db)
+/// The scenes never offered, whatever they match: those voted −1 and those deleted from
+/// plab. Needs no Stash.
+pub fn never_offer(db: &Db) -> HashSet<String> {
+    let mut out: HashSet<String> = votes(db)
         .into_iter()
         .filter(|(_, (v, _))| *v < 0)
         .map(|(id, _)| id)
-        .collect()
+        .collect();
+    match db.deleted_ids() {
+        Ok(ids) => out.extend(ids),
+        Err(e) => tracing::info!(job = "assistant", "deleted scenes: {e:#}"),
+    }
+    out
 }
 
 /// Stash plays and plab streams from the last `LOOKBACK`, each Stash play carrying its
@@ -268,7 +274,7 @@ pub async fn gather(
         })
         .collect();
     let candidates =
-        candidates::candidates(&profile, &scenes, &releases(db, noise)?, &voted_down(db));
+        candidates::candidates(&profile, &scenes, &releases(db, noise)?, &never_offer(db));
     Ok(Context {
         profile,
         candidates,
@@ -415,10 +421,14 @@ mod tests {
     }
 
     #[test]
-    fn voted_down_needs_no_stash() {
+    fn never_offer_is_voted_down_and_deleted_and_needs_no_stash() {
         let db = Db::open_in_memory().unwrap();
         db.vote_set("9", -1, 100).unwrap();
         db.vote_set("4", 1, 100).unwrap();
-        assert_eq!(voted_down(&db), HashSet::from(["9".to_string()]));
+        db.deleted_add(&["7".to_string()], 100).unwrap();
+        assert_eq!(
+            never_offer(&db),
+            HashSet::from(["9".to_string(), "7".to_string()])
+        );
     }
 }

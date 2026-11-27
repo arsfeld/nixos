@@ -103,14 +103,14 @@ fn best(mut v: Vec<Candidate>, n: usize) -> Vec<Candidate> {
     v
 }
 
-/// The shortlist. Scenes in `voted_down` are never on it, whatever they match; a candidate
+/// The shortlist. Scenes in `never_offer` (voted −1 or deleted) are never on it, whatever they match; a candidate
 /// scoring at or below zero is dropped. With no positive term, releases come in listing
 /// order, minus those matching an avoided term.
 pub fn candidates(
     profile: &Profile,
     scenes: &[SceneIn],
     releases: &[ReleaseIn],
-    voted_down: &HashSet<String>,
+    never_offer: &HashSet<String>,
 ) -> Vec<Candidate> {
     let terms = terms(profile);
     let release_score = |r: &ReleaseIn| {
@@ -136,7 +136,7 @@ pub fn candidates(
     }
     let scenes: Vec<Candidate> = scenes
         .iter()
-        .filter(|s| s.plays == 0 && !voted_down.contains(&s.id))
+        .filter(|s| s.plays == 0 && !never_offer.contains(&s.id))
         .filter_map(|s| {
             let names: Vec<String> = s
                 .studio

@@ -1,5 +1,6 @@
 mod added;
 mod assistant;
+mod deleted;
 mod downloads;
 mod external;
 mod identify;
@@ -39,6 +40,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("schema_v8.sql"),
     include_str!("schema_v9.sql"),
     include_str!("schema_v10.sql"),
+    include_str!("schema_v11.sql"),
 ];
 const USER_VERSION: i64 = MIGRATIONS.len() as i64;
 

@@ -50,6 +50,10 @@ pub enum Event {
     Votes {
         votes: std::collections::BTreeMap<String, i8>,
     },
+    /// These Stash scenes were just deleted from plab.
+    Deleted {
+        ids: Vec<String>,
+    },
 }
 
 #[derive(Clone)]

@@ -8,7 +8,7 @@ use crate::filters::load_excludes;
 use crate::images::{ImageCache, key};
 use crate::monitor::Monitor;
 use crate::plab::{self, Ctx, NotListed};
-use crate::provenance::{self, Status};
+use crate::provenance;
 use crate::prowlarr::Prowlarr;
 use crate::rqbit::Rqbit;
 use crate::same::Owned;
@@ -27,6 +27,7 @@ use std::sync::Arc;
 use tracing::info;
 
 mod assistant_routes;
+mod delete_routes;
 mod grab_routes;
 mod scene_dto;
 mod vote_routes;
@@ -319,6 +320,9 @@ async fn handle<B: Backends>(
     if let Some(rest) = path.strip_prefix("/api/assistant/") {
         return assistant_routes::route(&st, &method, rest, body).await;
     }
+    if path == "/api/scenes/delete" && method == Method::POST {
+        return delete_routes::delete(&st, body).await;
+    }
     if path == "/api/votes" {
         return vote_routes::votes(&st, &method, body).await;
     }
@@ -497,8 +501,12 @@ pub(crate) async fn downloads<B: Backends>(st: &WebState<B>, now: i64) -> Downlo
         stash: st.stash_web_url.clone(),
         ..Downloads::default()
     };
+    let deleted = st.db.deleted_ids().unwrap_or_else(|e| {
+        info!(job = "web", "deleted scenes: {e:#}");
+        Default::default()
+    });
     for r in rows {
-        let s: Status = provenance::status(&r, live.as_ref(), now);
+        let s = provenance::without_deleted(provenance::status(&r, live.as_ref(), now), &deleted);
         out.by_download.insert(r.id, s.clone());
         if let Some(t) = r.topic_id {
             out.by_topic.insert(t, s);
