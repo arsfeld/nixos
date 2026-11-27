@@ -10,7 +10,8 @@ export type Status =
   | { kind: 'added' }
   | { kind: 'inStash'; link: string | null; scenes: string[] }
   | { kind: 'identified'; label: string; more: number; guess: boolean; link: string | null; scenes: string[] }
-  | { kind: 'failed'; reason: 'download' | 'identify' | 'lost'; detail: string };
+  | { kind: 'failed'; reason: 'download' | 'identify' | 'lost'; detail: string }
+  | { kind: 'deleted' };
 
 export interface Topic {
   id: number;
@@ -147,7 +148,8 @@ export type ServerEvent =
   | { type: 'resync' }
   | { type: 'assistantDaily' }
   | { type: 'watchlist'; ids: string[] }
-  | { type: 'votes'; votes: Votes };
+  | { type: 'votes'; votes: Votes }
+  | { type: 'deleted'; ids: string[] };
 
 /** Every voted Stash scene id and its vote. */
 export type Votes = Record<string, 1 | -1>;

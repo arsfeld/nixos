@@ -15,6 +15,8 @@ export function statusText(s: Status): string {
       return s.label + (s.more > 0 ? ` +${s.more}` : '') + (s.guess ? ' (guess)' : '');
     case 'failed':
       return `failed: ${s.reason}`;
+    case 'deleted':
+      return 'deleted';
   }
 }
 
@@ -25,6 +27,7 @@ export const STATUS_COLOR: Record<Status['kind'], string> = {
   inStash: 'badge-neutral',
   identified: 'badge-success',
   failed: 'badge-error',
+  deleted: 'badge-ghost line-through',
 };
 
 /** Whether plab has, or is getting, a card's scene: any of its releases queued or added,

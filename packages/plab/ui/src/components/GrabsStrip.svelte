@@ -4,6 +4,7 @@
   import { age } from '../lib/format';
   import type { Grab } from '../lib/types';
   import StatusBadge from './StatusBadge.svelte';
+  import DeleteButton from './DeleteButton.svelte';
   import VoteButtons from './VoteButtons.svelte';
   import WatchButton from './WatchButton.svelte';
   import { statusScenes } from '../lib/watchlist';
@@ -33,6 +34,7 @@
           <StatusBadge status={g.status} />
           <WatchButton scenes={statusScenes(g.status)} small />
           <VoteButtons scenes={statusScenes(g.status)} small />
+          <DeleteButton scenes={statusScenes(g.status)} small />
           <span class="text-xs text-base-content/60">{g.addedAt === null ? '' : age(g.addedAt, now)}</span>
         </li>
       {/each}

@@ -77,6 +77,9 @@ export const fetchVotes = async () => (await getJson<{ votes: Votes }>('/api/vot
 /** Vote on scenes (0 clears); resolves to every vote after the change. */
 export const postVotes = async (scenes: string[], vote: 1 | -1 | 0) =>
   (await sendJson<{ votes: Votes }>('/api/votes', 'POST', { scenes, vote })).votes;
+/** Delete scenes and their files from Stash; plab never shows them again. Not a vote. */
+export const deleteScenes = async (scenes: string[]) =>
+  (await sendJson<{ ids: string[] }>('/api/scenes/delete', 'POST', { scenes })).ids;
 
 /** Add or unqueue. A reply that is not JSON (a gateway's error page) asks for a reload. */
 export async function postTopic(action: 'add' | 'unqueue', id: number): Promise<AddReply> {
