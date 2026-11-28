@@ -178,12 +178,12 @@
               MYDIA_TORRENT_DOWNLOAD_PATH = "${vars.storageDir}/media/Downloads/mydia";
               MYDIA_VPN_SERVICE_PROVIDER = "pia";
               MYDIA_VPN_VPN_TYPE = "openvpn";
-              # A port-forwarding region, near constellation.pia's "ca".
+              # A port-forwarding region, near constellation.pia's "ca". The
+              # region alone keeps it in Quebec: PIA renames its servers
+              # (montreal428 became Server-12997-0a), so a SERVER_NAMES pin
+              # breaks gluetun's startup. Mydia refreshes the server list
+              # before starting gluetun, so retired servers drop out.
               MYDIA_VPN_SERVER_REGIONS = "CA Montreal";
-              # gluetun's bundled PIA list (2026-04) still has Montreal
-              # servers PIA has retired (212.56.49.x, which never answer);
-              # these are in PIA's live list as of 2026-11.
-              MYDIA_VPN_SERVER_NAMES = "montreal428,montreal430,montreal431";
               MYDIA_VPN_VPN_PORT_FORWARDING = "on";
               # The PIA-confined Transmission (galactica's transmission-vpn.nix),
               # kept behind the built-in client (priority 10) so grabs already
