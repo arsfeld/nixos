@@ -97,6 +97,8 @@ export interface GrabLog {
   status: Status | null;
   /** The Stash scenes it became, for its poster. */
   scenes: SceneCardData[];
+  /** Every scene it became was deleted from plab. */
+  deleted: boolean;
 }
 
 export interface GrabLogReply {

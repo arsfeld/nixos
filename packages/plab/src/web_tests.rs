@@ -1759,6 +1759,65 @@ async fn grab_log_carries_its_stash_scenes_as_posters() {
     assert_eq!(v["grabs"][1]["scenes"], json!([]));
 }
 
+/// A grab of release "Rel" in studio A, its download recorded with `files`.
+fn grab_with_files(db: &crate::db::Db, files: &[&str]) -> i64 {
+    let id = db
+        .mark_added(crate::db::NewDownload {
+            source: "grab",
+            topic_id: None,
+            release_title: "Rel",
+            section: Section::Video,
+            download_dir: Some("/vault/A"),
+            torrent_hash: Some("h"),
+            now: now(),
+        })
+        .unwrap();
+    let keys = std::collections::BTreeSet::from(["ep:1".to_string()]);
+    db.record_grab("A", &keys, "Rel", "2026-11-20T00:00:00+00:00", Some(id))
+        .unwrap();
+    let files: Vec<String> = files.iter().map(|f| f.to_string()).collect();
+    db.save_files(id, &files).unwrap();
+    id
+}
+
+#[tokio::test]
+async fn grab_log_marks_a_grab_whose_linked_scenes_were_deleted() {
+    let server = wiremock::MockServer::start().await;
+    // Stash still has it (say its delete failed): plab hides it all the same.
+    let fx = watch_fx(&server, 200, json!([{"id": "42", "title": "Dance"}])).await;
+    let db = &fx.state.db;
+    grab_with_files(db, &["A/a.mp4"]);
+    db.link_scene("A/a.mp4", Some("42")).unwrap();
+    let v = fx.get("/api/grabs/all").await.json();
+    assert_eq!(v["grabs"][0]["deleted"], false);
+    db.deleted_add(&["42".into()], now()).unwrap();
+    let v = fx.get("/api/grabs/all").await.json();
+    assert_eq!(v["grabs"][0]["deleted"], true);
+    assert_eq!(v["grabs"][0]["scenes"], json!([]));
+}
+
+#[tokio::test]
+async fn grab_log_marks_an_unlinked_grab_deleted_by_its_folder() {
+    use wiremock::{Mock, ResponseTemplate, matchers::body_string_contains};
+    let server = wiremock::MockServer::start().await;
+    Mock::given(body_string_contains("modifier: INCLUDES"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": {
+            "s0": {"scenes": []}}})))
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    let fx = watch_fx(&server, 200, json!([])).await;
+    let db = &fx.state.db;
+    grab_with_files(db, &["A/Rel[XC]/info.nfo"]);
+    let v = fx.get("/api/grabs/all").await.json();
+    assert_eq!(v["grabs"][0]["deleted"], false, "no poster is not deleted");
+    db.deleted_add(&["13".into()], now()).unwrap();
+    db.deleted_set_paths("13", &["/data/vault/A/Rel[XC]/trip.mp4".into()])
+        .unwrap();
+    let v = fx.get("/api/grabs/all").await.json();
+    assert_eq!(v["grabs"][0]["deleted"], true);
+}
+
 #[tokio::test]
 async fn grab_log_finds_an_unlinked_grabs_scenes_by_its_release_folder() {
     use wiremock::matchers::{body_partial_json, body_string_contains};
@@ -2076,6 +2135,25 @@ async fn delete_records_removes_the_torrent_and_marks_the_release_deleted() {
     assert!(db.votes().unwrap().is_empty());
     let d = super::downloads(&fx.state, now()).await;
     assert_eq!(d.by_topic[&1], crate::provenance::Status::Deleted);
+}
+
+#[tokio::test]
+async fn delete_records_the_scenes_file_paths_first() {
+    use wiremock::{Mock, ResponseTemplate, matchers::body_string_contains};
+    let server = wiremock::MockServer::start().await;
+    Mock::given(body_string_contains("findScenes"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({"data": {"findScenes":
+            {"scenes": [{"id": "42", "title": "T", "files": [{"path": "/v/A/Rel/a.mp4"}]}]}}})),
+        )
+        .mount(&server)
+        .await;
+    let fx = delete_fx(&server, json!({"data": {"sceneDestroy": true}})).await;
+    let r = fx
+        .post_json("/api/scenes/delete", json!({"scenes": ["42"]}))
+        .await;
+    assert_eq!(r.status, 200, "{}", r.text());
+    assert_eq!(fx.state.db.deleted_paths().unwrap(), ["/v/A/Rel/a.mp4"]);
 }
 
 #[tokio::test]

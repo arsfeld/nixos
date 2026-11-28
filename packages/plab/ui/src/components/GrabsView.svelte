@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { fetchGrabLog } from '../lib/api';
+  import { deleted } from '../lib/deleted.svelte';
+  import { Latest } from '../lib/latest';
   import { studios } from '../lib/grablog';
   import type { GrabLogReply } from '../lib/types';
   import GrabPoster from './GrabPoster.svelte';
@@ -10,12 +11,26 @@
   let error = $state('');
   let studio = $state('');
 
-  onMount(async () => {
+  const latest = new Latest<'load'>();
+
+  async function load() {
+    const token = latest.next('load');
     try {
-      data = await fetchGrabLog();
+      const r = await fetchGrabLog();
+      if (latest.current('load', token)) {
+        data = r;
+        error = '';
+      }
     } catch {
-      error = 'plab not responding';
+      if (latest.current('load', token)) error = 'plab not responding';
     }
+  }
+
+  // Every delete (here, another page or tab) reloads, so a poster turns Deleted from the
+  // server's record too; one deleted here turns at once from the store, before the reply.
+  $effect(() => {
+    void deleted.ids;
+    void load();
   });
 
   const grabs = $derived(data?.grabs ?? []);

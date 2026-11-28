@@ -24,7 +24,9 @@ struct DeletedDto {
 }
 
 /// In order: record the scenes as deleted, so they are hidden whatever fails next; drop
-/// them from the watchlist; take their torrents out of the client (keeping data, as prune
+/// them from the watchlist; record their file paths, so a grab matched only by its folder
+/// still shows as deleted once Stash has forgotten the scene;
+/// take their torrents out of the client (keeping data, as prune
 /// does) so it does not seed files about to vanish; then delete them in Stash with their
 /// files. A Stash failure leaves them recorded and hidden, and pressing delete again
 /// retries it.
@@ -53,6 +55,9 @@ pub async fn delete<B: Backends>(st: &WebState<B>, body: Body) -> Response<Body>
         Ok(watch) => st.events.publish(Event::Watchlist { ids: watch }),
         Err(e) => tracing::info!(job = "web", "delete: watchlist: {e:#}"),
     }
+    if let Err(e) = record_paths(st, stash, &ids).await {
+        tracing::info!(job = "web", "delete: paths: {e:#}");
+    }
     if let Err(e) = remove_torrents(st, &ids).await {
         tracing::info!(job = "web", "delete: torrents: {e:#}");
     }
@@ -61,6 +66,19 @@ pub async fn delete<B: Backends>(st: &WebState<B>, body: Body) -> Response<Body>
     }
     tracing::info!(job = "web", "deleted scenes {}", ids.join(","));
     json_body(&DeletedDto { ids })
+}
+
+async fn record_paths<B: Backends>(
+    st: &WebState<B>,
+    stash: &crate::stash::Stash,
+    ids: &[String],
+) -> anyhow::Result<()> {
+    let scenes = crate::assistant::context::bounded(stash.lib_scenes(ids)).await?;
+    for s in &scenes {
+        let paths: Vec<String> = s.files.iter().map(|f| f.path.clone()).collect();
+        st.db.deleted_set_paths(&s.id, &paths)?;
+    }
+    Ok(())
 }
 
 async fn remove_torrents<B: Backends>(st: &WebState<B>, ids: &[String]) -> anyhow::Result<()> {

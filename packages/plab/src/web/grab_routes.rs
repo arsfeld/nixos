@@ -18,6 +18,9 @@ struct GrabCardDto {
     #[serde(flatten)]
     grab: GrabLogDto,
     scenes: Vec<SceneDto>,
+    /// Every scene it became was deleted from plab: by id when linked, else because a
+    /// deleted scene's file sat in its release folder and Stash now has none there.
+    deleted: bool,
 }
 
 #[derive(Serialize)]
@@ -75,6 +78,14 @@ pub(super) async fn all<B: Backends>(st: &WebState<B>) -> Response<Body> {
             (found, by_folder, error)
         }
     };
+    let gone = st.db.deleted_ids().unwrap_or_else(|e| {
+        tracing::info!(job = "web", "deleted scenes: {e:#}");
+        Default::default()
+    });
+    let gone_paths = st.db.deleted_paths().unwrap_or_else(|e| {
+        tracing::info!(job = "web", "deleted paths: {e:#}");
+        vec![]
+    });
     let web = st.stash_web_url.as_deref();
     let by_id: HashMap<&str, _> = found.iter().map(|s| (s.id.as_str(), s)).collect();
     let in_folder: HashMap<&str, &Vec<_>> = folders
@@ -87,23 +98,39 @@ pub(super) async fn all<B: Backends>(st: &WebState<B>) -> Response<Body> {
         .into_iter()
         .map(|g| {
             let mut seen = std::collections::HashSet::new();
-            let scenes = if g.scene_ids.is_empty() {
+            let scenes: Vec<SceneDto> = if g.scene_ids.is_empty() {
                 g.folders
                     .iter()
                     .filter_map(|f| in_folder.get(f.as_str()))
                     .flat_map(|v| v.iter())
                     .filter(|s| seen.insert(s.id.as_str()))
+                    .filter(|s| !gone.contains(&s.id))
                     .map(|s| scene_dto(s, web))
                     .collect()
             } else {
                 // A scene Stash no longer has is left out.
                 g.scene_ids
                     .iter()
+                    .filter(|id| !gone.contains(*id))
                     .filter_map(|id| by_id.get(id.as_str()))
                     .map(|s| scene_dto(s, web))
                     .collect()
             };
-            GrabCardDto { scenes, grab: g }
+            let deleted = if g.scene_ids.is_empty() {
+                // `seen` holds every scene Stash still has in its folders, deleted or not.
+                scenes.is_empty()
+                    && (!seen.is_empty()
+                        || g.folders
+                            .iter()
+                            .any(|f| gone_paths.iter().any(|p| p.contains(f.as_str()))))
+            } else {
+                g.scene_ids.iter().all(|id| gone.contains(id))
+            };
+            GrabCardDto {
+                scenes,
+                deleted,
+                grab: g,
+            }
         })
         .collect();
     json_body(&GrabCardsDto {

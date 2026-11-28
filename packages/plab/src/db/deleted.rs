@@ -29,6 +29,29 @@ impl Db {
         })
     }
 
+    /// Record a deleted scene's Stash file paths, replacing any earlier ones.
+    pub fn deleted_set_paths(&self, id: &str, paths: &[String]) -> Result<()> {
+        self.with(|c| {
+            c.execute(
+                "UPDATE scene_deleted SET paths = ?2 WHERE scene_id = ?1",
+                params![id, paths.join("\n")],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Every recorded file path of a deleted scene.
+    pub fn deleted_paths(&self) -> Result<Vec<String>> {
+        self.with(|c| {
+            let mut s = c.prepare("SELECT paths FROM scene_deleted WHERE paths IS NOT NULL")?;
+            let rows = s.query_map([], |r| r.get::<_, String>(0))?;
+            Ok(all(rows)?
+                .iter()
+                .flat_map(|p| p.lines().map(str::to_owned))
+                .collect())
+        })
+    }
+
     /// The torrent hashes of the downloads any of whose files became one of `scene_ids`.
     pub fn hashes_of_scenes(&self, scene_ids: &[String]) -> Result<Vec<String>> {
         self.with(|c| {
@@ -81,6 +104,20 @@ mod tests {
         let db = Db::open_in_memory().unwrap();
         db.deleted_add(&["5".into()], 100).unwrap();
         assert!(db.votes().unwrap().is_empty());
+    }
+
+    #[test]
+    fn deleted_paths_lists_every_recorded_path() {
+        let db = Db::open_in_memory().unwrap();
+        db.deleted_add(&["1".into(), "2".into(), "3".into()], 10)
+            .unwrap();
+        db.deleted_set_paths("1", &["/d/A/x.mp4".into(), "/d/A/y.mp4".into()])
+            .unwrap();
+        db.deleted_set_paths("2", &["/d/B/z.mp4".into()]).unwrap();
+        db.deleted_set_paths("9", &["/d/C/w.mp4".into()]).unwrap();
+        let mut p = db.deleted_paths().unwrap();
+        p.sort();
+        assert_eq!(p, ["/d/A/x.mp4", "/d/A/y.mp4", "/d/B/z.mp4"]);
     }
 
     #[test]
