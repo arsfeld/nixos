@@ -24,6 +24,7 @@ in {
 
   nodes.machine = {...}: {
     imports = [
+      ./pantheon-no-blank.nix
       (import ../modules/desktop/pantheon-tailscale.nix).flake.modules.nixos.pantheon-tailscale
     ];
 

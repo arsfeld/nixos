@@ -11,6 +11,7 @@
 
   nodes.machine = {pkgs, ...}: {
     imports = [
+      ./pantheon-no-blank.nix
       (import ../modules/desktop/pantheon-terminal.nix).flake.modules.nixos.pantheon-terminal
     ];
 
@@ -59,7 +60,9 @@
     machine.wait_for_file("/run/user/${uid}/wayland-0")
     machine.wait_until_succeeds("pgrep -f '(^|/)io\\.elementary\\.wingpanel$'")
     machine.wait_until_succeeds("pgrep -f '(^|/)io\\.elementary\\.dock$'")
-    machine.wait_for_text("Applications")
+    # No OCR gate on the panel here: "Applications" in Wingpanel failed to OCR
+    # for 15 minutes on loaded CI runners while the panel was up. The terminal's
+    # own output below is the first thing read off the screen.
 
     machine.succeed(
         "su - arosenfeld -c '${env} nohup io.elementary.terminal -e /etc/osc-check.sh >/tmp/terminal.log 2>&1 &'"
@@ -67,28 +70,32 @@
 
     def header_text():
         # The driver's OCR does not read the bold header bar title, so crop
-        # the bar, scale it up and OCR just that.
+        # the top of the screen, scale it up and OCR just that. The band is
+        # tall because the window's position varies between runs: a 36 px crop
+        # at a fixed y read the title on one placement and sliced through it on
+        # another. The panel stays above the band; the tab labels and command
+        # line below the title cannot contain TITLEOK.
         machine.send_monitor_command("screendump /tmp/header.ppm")
         subprocess.run(
-            ["magick", "/tmp/header.ppm", "-crop", "700x36+290+64", "+repage",
+            ["magick", "/tmp/header.ppm", "-crop", "700x170+290+30", "+repage",
              "-colorspace", "Gray", "-resize", "400%", "-negate", "/tmp/header.png"],
             check=True,
         )
         return subprocess.run(
-            ["tesseract", "/tmp/header.png", "-", "--psm", "7"], check=True, capture_output=True
-        ).stdout.decode().strip()
+            ["tesseract", "/tmp/header.png", "-", "--psm", "6"], check=True, capture_output=True
+        ).stdout.decode()
 
     with subtest("The script's output and OSC 2 title are on screen"):
-        machine.wait_for_text("RED", timeout=60)
+        machine.wait_for_text("RED", timeout=600)
         machine.screenshot("pantheon-terminal")
         # Only the header bar can show this: the command line says
         # osc-check.sh, and the tab labels show the user name.
         for _ in range(15):
-            if header_text() == "TITLEOK":
+            if "TITLEOK" in header_text().split():
                 break
             machine.sleep(2)
         else:
-            raise Exception("header bar title is %r, not TITLEOK" % header_text())
+            raise Exception("no TITLEOK in the header band: %r" % header_text())
 
     with subtest("OSC 52 write reaches the Wayland clipboard"):
         machine.wait_until_succeeds(

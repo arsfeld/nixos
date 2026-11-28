@@ -3,6 +3,8 @@
 # executable, and a binary named `reaper` launched the way Steam launches games,
 # named from a Steam app manifest. Both are C, not `sleep`: nixpkgs' coreutils
 # is multicall, so gamemoded would see every coreutils tool as `coreutils`.
+# They run until killed: with a fixed lifetime (it was 600 s) a slow runner
+# outlived fake-game before reaper started, and the panel counted 1 game, not 2.
 # Wingpanel's own open-indicator action opens the popover, so nothing is
 # clicked. The indicator logs each change and the names it shows; this asserts
 # on those lines. Modelled on pantheon-dock-test.
@@ -10,7 +12,7 @@
   sleeper = name:
     pkgs.writeCBin name ''
       #include <unistd.h>
-      int main(void) { sleep(600); return 0; }
+      int main(void) { for (;;) pause(); }
     '';
   wingpanelAction = pkgs.writeShellScriptBin "wingpanel-action" ''
     exec ${pkgs.glib.bin}/bin/gdbus call --session --dest org.elementary.wingpanel \
@@ -24,6 +26,7 @@ in {
   nodes.machine = {...}: {
     imports = [
       "${pkgs.path}/nixos/tests/common/user-account.nix"
+      ./pantheon-no-blank.nix
       (import ../modules/desktop/pantheon-gamemode.nix).flake.modules.nixos.pantheon-gamemode
     ];
 
