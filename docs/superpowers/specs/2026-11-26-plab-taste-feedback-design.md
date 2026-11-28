@@ -156,6 +156,18 @@ views are explicit votes and weigh above plays.
 
 Daily picks use the same `gather` and change with no work of their own.
 
+**Amended 2026-11-27: samples are split out.** Summed into each term's weight, samples pushed
+tags the user likes (Red Hair, Dirty Talk, Threesome) into `avoid`, because tags that common
+appear in many skipped scenes, and the model then called them "downvoted tags". Now:
+
+- `weight()` no longer counts samples; `sample_weight()` is `SAMPLE × decay` on its own.
+- `avoid` became `voted_down`: terms with net weight < 0, which only −1 votes can make. It still
+  lowers candidate scores.
+- New `skipped`: terms named only by sampled views, never by one watched, streamed or voted,
+  ranked by their sample sum, at most `AVOID_TOP` each. Candidate scoring ignores it.
+- `TASTE_NOTES` calls `skipped` a very weak hint, at most a tie-breaker, never a dislike or a
+  downvote, and never a reason to drop a pick.
+
 ## UI
 
 - `lib/votes.ts` (pure): `nextVotes(map, event)`; `voteAction(current, pressed)` (pressing the

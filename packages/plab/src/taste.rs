@@ -11,7 +11,7 @@ pub const HALF_LIFE_DAYS: f64 = 30.0;
 pub const TOP: usize = 15;
 /// Recent views written into the prompt.
 pub const RECENT_LINES: usize = 20;
-/// Avoided studios, performers and tags kept, each.
+/// Voted-down and skipped studios, performers and tags kept, each.
 pub const AVOID_TOP: usize = 10;
 /// Seconds of a scene watched (Stash's `play_duration`) that make a play a view.
 pub const WATCHED_SECS: u32 = 120;
@@ -20,7 +20,9 @@ pub const WATCHED_SECS: u32 = 120;
 pub const SAMPLED_SECS: u32 = 30;
 /// A vote's weight, before decay: +1 adds it, −1 takes it away.
 pub const VOTE: f64 = 2.0;
-/// A sample's weight, before decay: a quarter of a −1.
+/// A sample's weight, before decay: a quarter of a −1. It ranks the `skipped` list only and
+/// never touches the profile's weights: a scene skipped in seconds says little, and tags as
+/// common as a hair colour piled up into "dislikes" the user actually likes.
 pub const SAMPLE: f64 = -0.5;
 
 /// What a Stash play says (design: 2026-11-26-plab-taste-feedback-design.md). Stash counts
@@ -92,8 +94,11 @@ pub struct Profile {
     pub studios: Vec<Weighted>,
     pub performers: Vec<Weighted>,
     pub tags: Vec<Weighted>,
-    /// Terms whose net weight is negative: voted down or sampled and abandoned.
-    pub avoid: Avoid,
+    /// Terms whose net weight is negative, which only −1 votes can make.
+    pub voted_down: Avoid,
+    /// Terms seen only in scenes sampled and abandoned, never in one watched, streamed or
+    /// voted on: a weak hint, ranked by summed sample weight.
+    pub skipped: Avoid,
     pub recent: Vec<String>,
 }
 
@@ -110,8 +115,8 @@ fn decay(at: i64, now: i64) -> f64 {
 }
 
 /// The play, then the vote, each decayed from its own time. A view decays by age, boosted
-/// by o-count (×1.5 each) and rating (rating100 / 60; unrated ×1); a sample is `SAMPLE`; a
-/// vote is ±`VOTE`. The sum can be negative.
+/// by o-count (×1.5 each) and rating (rating100 / 60; unrated ×1); a vote is ±`VOTE`; a
+/// sample counts nothing here (see `sample_weight`). The sum is negative only by a −1.
 pub fn weight(v: &View, now: i64) -> f64 {
     let watched = || {
         let o = 1.0 + 0.5 * f64::from(v.o_count);
@@ -125,8 +130,7 @@ pub fn weight(v: &View, now: i64) -> f64 {
     } else {
         match play(v.watched_secs, v.o_count, v.rating) {
             Play::Watched => watched(),
-            Play::Sampled => SAMPLE * decay(v.at, now),
-            Play::Neither => 0.0,
+            Play::Sampled | Play::Neither => 0.0,
         }
     };
     let voted = v
@@ -135,22 +139,67 @@ pub fn weight(v: &View, now: i64) -> f64 {
     played + voted
 }
 
-fn add(map: &mut HashMap<String, Weighted>, name: &str, id: Option<&str>, w: f64) {
-    let e = map.entry(name.to_lowercase()).or_insert_with(|| Weighted {
-        name: name.to_string(),
-        id: None,
-        weight: 0.0,
-    });
-    e.weight += w;
-    if e.id.is_none() {
-        e.id = id.map(str::to_owned);
+/// `SAMPLE`, decayed, for a Stash play abandoned within `SAMPLED_SECS`; 0 for anything else.
+pub fn sample_weight(v: &View, now: i64) -> f64 {
+    let sampled =
+        !v.vote_only && !v.streamed && play(v.watched_secs, v.o_count, v.rating) == Play::Sampled;
+    if sampled {
+        SAMPLE * decay(v.at, now)
+    } else {
+        0.0
     }
 }
 
+/// A term's sums over every view naming it.
+struct Term {
+    w: Weighted,
+    sampled: f64,
+    /// Named by a view with a nonzero `weight`: watched, streamed or voted.
+    seen: bool,
+}
+
+fn add(map: &mut HashMap<String, Term>, name: &str, id: Option<&str>, w: f64, sampled: f64) {
+    let e = map.entry(name.to_lowercase()).or_insert_with(|| Term {
+        w: Weighted {
+            name: name.to_string(),
+            id: None,
+            weight: 0.0,
+        },
+        sampled: 0.0,
+        seen: false,
+    });
+    e.w.weight += w;
+    e.sampled += sampled;
+    e.seen |= w != 0.0;
+    if e.w.id.is_none() {
+        e.w.id = id.map(str::to_owned);
+    }
+}
+
+/// The terms seen only in samples, most sampled first, weighted by their sample sum.
+fn skipped(map: &HashMap<String, Term>) -> Vec<Weighted> {
+    let mut v: Vec<Weighted> = map
+        .values()
+        .filter(|t| !t.seen && t.sampled < 0.0)
+        .map(|t| Weighted {
+            weight: t.sampled,
+            ..t.w.clone()
+        })
+        .collect();
+    v.sort_by(|a, b| {
+        a.weight
+            .total_cmp(&b.weight)
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    v.truncate(AVOID_TOP);
+    v
+}
+
 /// The positive terms, heaviest first, and the negative ones, most negative first.
-fn split(map: HashMap<String, Weighted>) -> (Vec<Weighted>, Vec<Weighted>) {
+fn split(map: HashMap<String, Term>) -> (Vec<Weighted>, Vec<Weighted>) {
     let (mut pos, mut neg): (Vec<Weighted>, Vec<Weighted>) = map
         .into_values()
+        .map(|t| t.w)
         .filter(|w| w.weight != 0.0)
         .partition(|w| w.weight > 0.0);
     pos.sort_by(|a, b| {
@@ -218,29 +267,35 @@ pub fn recent(views: &[View], n: usize) -> Vec<String> {
 pub fn profile(views: &[View], now: i64) -> Profile {
     let (mut studios, mut performers, mut tags) = (HashMap::new(), HashMap::new(), HashMap::new());
     for v in views {
-        let w = weight(v, now);
-        if let Some(s) = &v.studio {
-            add(&mut studios, &s.name, s.id.as_deref(), w);
+        let (w, s) = (weight(v, now), sample_weight(v, now));
+        if let Some(st) = &v.studio {
+            add(&mut studios, &st.name, st.id.as_deref(), w, s);
         }
         for p in &v.performers {
-            add(&mut performers, &p.name, p.id.as_deref(), w);
+            add(&mut performers, &p.name, p.id.as_deref(), w, s);
         }
         for t in &v.tags {
-            add(&mut tags, t, None, w);
+            add(&mut tags, t, None, w, s);
         }
     }
-    let (studios, avoid_studios) = split(studios);
-    let (performers, avoid_performers) = split(performers);
-    let (tags, avoid_tags) = split(tags);
+    let skipped = Avoid {
+        studios: skipped(&studios),
+        performers: skipped(&performers),
+        tags: skipped(&tags),
+    };
+    let (studios, down_studios) = split(studios);
+    let (performers, down_performers) = split(performers);
+    let (tags, down_tags) = split(tags);
     Profile {
         studios,
         performers,
         tags,
-        avoid: Avoid {
-            studios: avoid_studios,
-            performers: avoid_performers,
-            tags: avoid_tags,
+        voted_down: Avoid {
+            studios: down_studios,
+            performers: down_performers,
+            tags: down_tags,
         },
+        skipped,
         recent: recent(views, RECENT_LINES),
     }
 }
@@ -353,9 +408,11 @@ mod tests {
     }
 
     #[test]
-    fn sampled_weighs_minus_half_and_dead_zone_zero() {
-        assert!((weight(&at_now(Some(5)), 0) + 0.5).abs() < 1e-9);
-        assert!(weight(&at_now(Some(60)), 0).abs() < 1e-9);
+    fn a_sample_weighs_minus_half_apart_and_nothing_in_the_profile() {
+        assert!(weight(&at_now(Some(5)), 0).abs() < 1e-9);
+        assert!((sample_weight(&at_now(Some(5)), 0) + 0.5).abs() < 1e-9);
+        assert!(sample_weight(&at_now(Some(60)), 0).abs() < 1e-9);
+        assert!(sample_weight(&at_now(Some(600)), 0).abs() < 1e-9);
     }
 
     #[test]
@@ -375,7 +432,7 @@ mod tests {
     }
 
     #[test]
-    fn net_negative_terms_go_to_avoid_only() {
+    fn net_negative_terms_go_to_voted_down_only() {
         let watched = view(0, "Studio A", &[]);
         let voted = View {
             vote: Some((-1, 0)),
@@ -385,12 +442,12 @@ mod tests {
         let p = profile(&[watched, voted, view(0, "Studio B", &[])], 0);
         let names = |ws: &[Weighted]| ws.iter().map(|w| w.name.clone()).collect::<Vec<_>>();
         assert_eq!(names(&p.studios), ["Studio B"]);
-        assert_eq!(names(&p.avoid.studios), ["Studio A"]);
-        assert!((p.avoid.studios[0].weight + 1.0).abs() < 1e-9);
+        assert_eq!(names(&p.voted_down.studios), ["Studio A"]);
+        assert!((p.voted_down.studios[0].weight + 1.0).abs() < 1e-9);
     }
 
     #[test]
-    fn avoid_is_most_negative_first_and_capped() {
+    fn skipped_is_most_sampled_first_and_capped() {
         let views: Vec<View> = (0..12)
             .flat_map(|i| {
                 (0..=i).map(move |_| View {
@@ -400,9 +457,32 @@ mod tests {
             })
             .collect();
         let p = profile(&views, 0);
-        assert_eq!(p.avoid.studios.len(), AVOID_TOP);
-        assert_eq!(p.avoid.studios[0].name, "S11");
+        assert_eq!(p.skipped.studios.len(), AVOID_TOP);
+        assert_eq!(p.skipped.studios[0].name, "S11");
         assert!(p.studios.is_empty());
+        assert!(p.voted_down.studios.is_empty());
+    }
+
+    #[test]
+    fn a_term_ever_watched_is_never_skipped_however_often_sampled() {
+        let mut views: Vec<View> = (0..20)
+            .map(|_| View {
+                watched_secs: Some(5),
+                tags: vec!["Red Hair".into(), "Rare".into()],
+                ..view(0, "S", &[])
+            })
+            .collect();
+        views.push(View {
+            watched_secs: Some(600),
+            tags: vec!["red hair".into()],
+            ..view(0, "Other", &[])
+        });
+        let p = profile(&views, 0);
+        let names = |ws: &[Weighted]| ws.iter().map(|w| w.name.clone()).collect::<Vec<_>>();
+        assert_eq!(names(&p.tags), ["Red Hair"]);
+        assert!((p.tags[0].weight - 1.0).abs() < 1e-9);
+        assert_eq!(names(&p.skipped.tags), ["Rare"]);
+        assert!(p.voted_down.tags.is_empty());
     }
 
     #[test]

@@ -43,11 +43,12 @@ pub struct Candidate {
 }
 
 /// Every profile term by lowercase name: its display name and summed weight, in profile
-/// order (studios, performers, tags), then the avoided ones (negative weights).
+/// order (studios, performers, tags), then the voted-down ones (negative weights). Skipped
+/// terms are left out: a sample is too weak a signal to rank on.
 fn terms(p: &Profile) -> Vec<(String, String, f64)> {
     let mut by: HashMap<String, usize> = HashMap::new();
     let mut out: Vec<(String, String, f64)> = vec![];
-    let a = &p.avoid;
+    let a = &p.voted_down;
     for w in p
         .studios
         .iter()
@@ -211,7 +212,7 @@ mod tests {
 
     fn avoiding(studios: Vec<Weighted>, performers: Vec<Weighted>) -> Profile {
         Profile {
-            avoid: crate::taste::Avoid {
+            voted_down: crate::taste::Avoid {
                 studios,
                 performers,
                 tags: vec![],
@@ -338,7 +339,7 @@ mod tests {
     #[test]
     fn only_negative_terms_still_offer_releases_that_avoid_nothing() {
         let p = Profile {
-            avoid: crate::taste::Avoid {
+            voted_down: crate::taste::Avoid {
                 studios: vec![w("StudioX", -1.0)],
                 ..Default::default()
             },

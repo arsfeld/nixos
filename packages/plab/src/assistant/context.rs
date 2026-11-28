@@ -393,7 +393,7 @@ mod tests {
         assert!(views[0].vote_only);
         assert_eq!(views[0].at, now);
         let p = taste::profile(&views, now);
-        assert_eq!(p.avoid.studios[0].name, "Studio X");
+        assert_eq!(p.voted_down.studios[0].name, "Studio X");
     }
 
     #[tokio::test]

@@ -25,9 +25,9 @@ const REASK: &str = "Reply with only the JSON object the instructions describe."
 const TITLE_CHARS: usize = 60;
 
 /// How a final answer is shaped. Format, not content: it lives here, not in the secret.
-/// How to read the profile's votes and avoid list. The prompt itself is the user's (the
+/// How to read the profile's votes, voted-down and skipped lists. The prompt itself is the user's (the
 /// `plab-site` secret), so this travels with the code that produces those fields.
-pub const TASTE_NOTES: &str = "Terms under \"avoid\" in the profile are things the user voted down or sampled and abandoned: do not recommend on them, and say so if asked. +1 and -1 on recent views are the user's explicit votes and weigh more than plays.";
+pub const TASTE_NOTES: &str = "Terms under \"voted_down\" in the profile come from the user's explicit -1 votes: do not recommend on them, and say so if asked. Terms under \"skipped\" appeared only in scenes the user abandoned within seconds, never in one they watched or voted on: a very weak hint, at most a tie-breaker. Never call skipped terms dislikes or downvotes, and never leave out a pick because of one. +1 and -1 on recent views are the user's explicit votes and weigh more than plays.";
 
 const FINAL_FORMAT: &str = r#"When you answer, reply with only a JSON object:
 {"text": "<your answer>", "picks": [{"ref": "<ref>", "action": "watch" | "stream" | "download", "reason": "<one line>"}]}
@@ -832,7 +832,7 @@ mod tests {
         let system = &msgs[0].content;
         assert!(system.contains("Pear Scene · -1"));
         assert!(system.contains(&serde_json::to_string(TASTE_NOTES).unwrap()[1..20]));
-        assert!(system.contains("avoid"));
+        assert!(system.contains("voted_down"));
     }
 
     struct FakeSearch(std::sync::Mutex<Vec<String>>);
