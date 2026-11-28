@@ -6,6 +6,7 @@ export type Route =
   | { view: 'daily' }
   | { view: 'jobs' }
   | { view: 'watchlist' }
+  | { view: 'votes' }
   | { view: 'grabs' }
   | { view: 'assistant'; id: number | null };
 
@@ -28,6 +29,8 @@ export function parse(path: string, search: string): Route {
       return { view: 'jobs' };
     case '/watchlist':
       return { view: 'watchlist' };
+    case '/votes':
+      return { view: 'votes' };
     case '/grabs':
       return { view: 'grabs' };
     case '/search': {

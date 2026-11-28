@@ -323,8 +323,14 @@ async fn handle<B: Backends>(
     if path == "/api/scenes/delete" && method == Method::POST {
         return delete_routes::delete(&st, body).await;
     }
+    if path == "/api/votes/scenes" && method == Method::GET {
+        return vote_routes::voted(&st).await;
+    }
     if path == "/api/votes" {
         return vote_routes::votes(&st, &method, body).await;
+    }
+    if path == "/api/plays" && method == Method::GET {
+        return vote_routes::plays(&st).await;
     }
     if path == "/api/recent" && method == Method::GET {
         return vote_routes::recent(&st).await;

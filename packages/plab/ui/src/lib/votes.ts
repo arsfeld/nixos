@@ -21,6 +21,23 @@ export function nextVotes(current: Votes, ev: ServerEvent): Votes {
   return ev.type === 'votes' ? ev.votes : current;
 }
 
+/** How long a play lasted, for a card: "45 s", "12 min", "1 h 5 min"; null when untimed. */
+export function playedFor(secs: number | null): string | null {
+  if (secs === null) return null;
+  if (secs < 60) return `${secs} s`;
+  const m = Math.floor(secs / 60);
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
+}
+
+/** Liked and disliked scenes by their vote now, not the one they were loaded with, so a
+ * changed thumb moves a card at once and a cleared one drops it. */
+export function byVote<T extends { id: string }>(scenes: T[], votes: Votes): { liked: T[]; disliked: T[] } {
+  return {
+    liked: scenes.filter((s) => votes[s.id] === 1),
+    disliked: scenes.filter((s) => votes[s.id] === -1),
+  };
+}
+
 /** Scenes not yet voted on first, each group in its given order. */
 export function unvotedFirst<T extends { id: string }>(scenes: T[], votes: Votes): T[] {
   return [...scenes.filter((s) => !(s.id in votes)), ...scenes.filter((s) => s.id in votes)];

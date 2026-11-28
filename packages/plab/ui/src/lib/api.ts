@@ -11,6 +11,8 @@ import type {
   WatchlistReply,
   SceneCardData,
   Votes,
+  VotedReply,
+  PlayedScene,
 } from './types';
 
 export class HttpError extends Error {
@@ -73,6 +75,10 @@ export const postWatch = async (action: 'add' | 'remove', scenes: string[]) =>
 
 /** Scenes really watched in the last two weeks, newest first. */
 export const fetchRecent = async () => (await getJson<{ scenes: SceneCardData[] }>('/api/recent')).scenes;
+/** Stash's last plays, however short, newest first. */
+export const fetchPlays = async () => (await getJson<{ scenes: PlayedScene[] }>('/api/plays')).scenes;
+/** Every voted scene Stash still has, newest vote first. */
+export const fetchVoted = () => getJson<VotedReply>('/api/votes/scenes');
 export const fetchVotes = async () => (await getJson<{ votes: Votes }>('/api/votes')).votes;
 /** Vote on scenes (0 clears); resolves to every vote after the change. */
 export const postVotes = async (scenes: string[], vote: 1 | -1 | 0) =>

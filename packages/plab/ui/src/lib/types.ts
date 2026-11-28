@@ -237,6 +237,24 @@ export interface Daily {
   ready: boolean;
 }
 
+/** A Stash play, however short: GET /api/plays. */
+export interface PlayedScene extends SceneCardData {
+  lastPlayedAt: number | null;
+  playedSecs: number | null;
+}
+
+/** A voted scene: GET /api/votes/scenes. */
+export interface VotedScene extends SceneCardData {
+  vote: 1 | -1;
+  votedAt: number;
+}
+
+export interface VotedReply {
+  now: number;
+  scenes: VotedScene[];
+  error: string | null;
+}
+
 /** A queued scene: GET /api/watchlist. */
 export interface WatchScene extends SceneCardData {
   addedAt: number;

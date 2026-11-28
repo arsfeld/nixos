@@ -14,6 +14,7 @@
   import GrabsView from './components/GrabsView.svelte';
   import JobsView from './components/JobsView.svelte';
   import ListView from './components/ListView.svelte';
+  import VotesView from './components/VotesView.svelte';
   import WatchlistView from './components/WatchlistView.svelte';
 
   onMount(() => {
@@ -49,6 +50,8 @@
     <DailyView />
   {:else if router.route.view === 'watchlist'}
     <WatchlistView />
+  {:else if router.route.view === 'votes'}
+    <VotesView />
   {:else if router.route.view === 'grabs'}
     <GrabsView />
   {:else if router.route.view === 'search'}

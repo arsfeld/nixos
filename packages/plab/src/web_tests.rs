@@ -1902,6 +1902,96 @@ async fn recent_keeps_real_watches_from_the_last_two_weeks() {
 }
 
 #[tokio::test]
+async fn voted_scenes_newest_vote_first_less_deleted_and_missing() {
+    let server = wiremock::MockServer::start().await;
+    let fx = watch_fx(
+        &server,
+        200,
+        json!([
+            {"id": "a", "title": "A"},
+            {"id": "b", "title": "B"},
+            {"id": "c", "title": "C"}
+        ]),
+    )
+    .await;
+    let db = &fx.state.db;
+    db.vote_set("a", 1, 100).unwrap();
+    db.vote_set("b", -1, 300).unwrap();
+    db.vote_set("c", 1, 200).unwrap();
+    db.vote_set("gone", 1, 400).unwrap();
+    db.vote_set("del", -1, 500).unwrap();
+    db.deleted_add(&["del".into()], now()).unwrap();
+    let v = fx.get("/api/votes/scenes").await.json();
+    assert!(v["error"].is_null());
+    let got: Vec<(String, i64, i64)> = v["scenes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| {
+            (
+                s["id"].as_str().unwrap().to_string(),
+                s["vote"].as_i64().unwrap(),
+                s["votedAt"].as_i64().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        got,
+        [
+            ("b".into(), -1, 300),
+            ("c".into(), 1, 200),
+            ("a".into(), 1, 100)
+        ]
+    );
+    assert_eq!(v["scenes"][0]["link"], "https://stash.example/scenes/b");
+}
+
+#[tokio::test]
+async fn voted_scenes_report_a_stash_failure() {
+    let server = wiremock::MockServer::start().await;
+    let fx = watch_fx(&server, 500, json!(null)).await;
+    fx.state.db.vote_set("a", 1, 100).unwrap();
+    let v = fx.get("/api/votes/scenes").await.json();
+    assert!(v["error"].is_string());
+    assert_eq!(v["scenes"], json!([]));
+    let v = Fx::new().get("/api/votes/scenes").await.json();
+    assert_eq!(v["error"], "Stash is not configured");
+}
+
+#[tokio::test]
+async fn plays_keep_every_play_however_short_or_old_less_deleted() {
+    let server = wiremock::MockServer::start().await;
+    let fx = watch_fx(
+        &server,
+        200,
+        json!([
+            {"id": "a", "title": "A", "play_count": 1, "play_duration": 5.0, "last_played_at": "2026-11-20T10:00:00Z"},
+            {"id": "b", "title": "B", "play_count": 1, "play_duration": 0.0, "last_played_at": "2025-01-01T00:00:00Z"},
+            {"id": "c", "title": "C", "play_count": 1, "play_duration": 300.0, "last_played_at": "2024-01-01T00:00:00Z"}
+        ]),
+    )
+    .await;
+    fx.state.db.deleted_add(&["c".into()], now()).unwrap();
+    let r = fx.get("/api/plays").await;
+    assert_eq!(r.status, 200);
+    let v = r.json();
+    let scenes = v["scenes"].as_array().unwrap();
+    assert_eq!(scenes.len(), 2);
+    assert_eq!(scenes[0]["id"], "a");
+    assert_eq!(scenes[0]["playedSecs"], 5);
+    assert_eq!(scenes[0]["lastPlayedAt"], 1_795_168_800);
+    assert_eq!(scenes[1]["id"], "b");
+    assert!(scenes[1]["playedSecs"].is_null());
+}
+
+#[tokio::test]
+async fn plays_are_502_when_stash_fails() {
+    let server = wiremock::MockServer::start().await;
+    let fx = watch_fx(&server, 500, json!([])).await;
+    assert_eq!(fx.get("/api/plays").await.status, 502);
+}
+
+#[tokio::test]
 async fn recent_is_502_when_stash_fails() {
     let server = wiremock::MockServer::start().await;
     let fx = watch_fx(&server, 500, json!([])).await;

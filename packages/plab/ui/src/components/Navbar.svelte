@@ -7,6 +7,7 @@
   const tabs = [
     ['daily', '/', 'For you'],
     ['watchlist', '/watchlist', 'Watchlist'],
+    ['votes', '/votes', 'Votes'],
     ['video', '/tracker', 'Tracker'],
     ['indexers', '/indexers', 'Indexers'],
     ['albums', '/albums', 'Albums'],
